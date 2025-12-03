@@ -1,0 +1,69 @@
+version: "2"
+run:
+  concurrency: 4
+  go: 1.23.2
+  modules-download-mode: readonly
+  allow-parallel-runners: false
+linters:
+  enable:
+    - errorlint
+    - exhaustruct
+    - goheader
+    - grouper
+    - nilerr
+    - nilnil
+    - nolintlint
+    - reassign
+    - wastedassign
+  disable:
+    - revive
+    - unused
+  settings:
+    exhaustruct:
+      include:
+        - .*\.Test
+        - example\.com/package\.ExampleStruct[\d]{1,2}
+        - github.com/wso2-enterprise/agent-manager-service/models\..*
+        - github.com/wso2-enterprise/agent-manager-service/spec\..*
+        - github.com/wso2-enterprise/agent-manager-service/wiring\..*
+      exclude:
+        - github.com/wso2-enterprise/agent-manager-service/spec\.DBServerMetricsDataItemData
+        - github.com/wso2-enterprise/agent-manager-service/spec\.DbServerMetrics
+        - github.com/wso2-enterprise/agent-manager-service/spec\.DbServerLogs
+        - github.com/wso2-enterprise/agent-manager-service/spec\.DbServerBackups
+        - github.com/wso2-enterprise/agent-manager-service/spec\.DBServerMetricsRow
+        - github.com/wso2-enterprise/agent-manager-service/spec\.KafkaACLs
+        - github.com/wso2-enterprise/agent-manager-service/spec\.MySqlQueryStats
+        - github.com/wso2-enterprise/agent-manager-service/spec\.DBServerMetricsRow
+        - github.com/wso2-enterprise/agent-manager-service/spec\.DBServerStateConnectionParams
+        - github.com/wso2-enterprise/agent-manager-service/spec\.PostgresQueryStats
+    goheader:
+      template-path: .github/copyright_header.tmpl
+  exclusions:
+    generated: lax
+    rules:
+      - path: env_reader.go
+        text: non-wrapping format verb for fmt.Errorf
+      - linters:
+          - exhaustruct
+        path: repositories.*go
+      - linters:
+          - exhaustruct
+        path: \_test.go
+    paths:
+      - agent-manager-service/spec
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - gofumpt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - agent-manager-service/spec
+      - third_party$
+      - builtin$
+      - examples$

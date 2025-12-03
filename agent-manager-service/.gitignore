@@ -23,36 +23,11 @@
 hs_err_pid*
 replay_pid*
 
-# Go
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-go.work
-vendor/
-service/bin/
-
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+local.development.env
+.env
+.idea
+.vscode
+localdata/*
 .DS_Store
-
-# Docker
-.dockerignore
-
-# Database
-*.db
-*.sqlite
-
-# Temporary files
-/tmp/
-*.tmp
-
-# Make build artifacts
-.make/
+.bin
+agent-manager-service

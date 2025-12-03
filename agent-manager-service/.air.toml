@@ -1,0 +1,46 @@
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+[build]
+  args_bin = ["-migrate=false"]
+  bin = "./tmp/agent-manager-service"
+  cmd = "go build -mod=readonly -o ./tmp/agent-manager-service ."
+  delay = 1000
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", ".bin"]
+  exclude_file = []
+  exclude_regex = ["_test\\.go$"]
+  exclude_unchanged = false
+  follow_symlink = false
+  full_bin = ""
+  include_dir = []
+  include_ext = ["go", "env"]
+  include_file = []
+  kill_delay = "500ms"
+  log = "build-errors.log"
+  poll = true
+  poll_interval = 1000
+  post_cmd = []
+  pre_cmd = []
+  rerun = false
+  rerun_delay = 500
+  send_interrupt = true
+  stop_on_error = false
+
+[color]
+  app = ""
+  build = "yellow"
+  main = "magenta"
+  runner = "green"
+  watcher = "cyan"
+
+[log]
+  main_only = false
+  time = false
+
+[misc]
+  clean_on_exit = true
+
+[screen]
+  clear_on_rebuild = true
+  keep_scroll = true
