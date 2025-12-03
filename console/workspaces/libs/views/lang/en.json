@@ -1,0 +1,8 @@
+{
+  "views.errorPage.404.description": "The page you are looking for does not exist.",
+  "views.errorPage.404.title": "Page not found",
+  "views.errorPage.500.description": "We are experiencing technical difficulties. Please try again in a few minutes.",
+  "views.errorPage.500.title": "Server error",
+  "views.errorPage.default.description": "An unexpected error occurred. Please try again later.",
+  "views.errorPage.default.title": "Something went wrong"
+}

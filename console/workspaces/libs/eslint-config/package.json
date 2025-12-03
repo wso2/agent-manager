@@ -1,0 +1,42 @@
+{
+  "name": "@agent-management-platform/eslint-config",
+  "version": "1.0.0",
+  "description": "Shared ESLint configuration for WSO2 Enterprise projects",
+  "main": "eslint.config.js",
+  "type": "module",
+  "files": [
+    "eslint.config.js",
+    "README.md"
+  ],
+  "keywords": [
+    "eslint",
+    "eslint-config",
+    "typescript",
+    "react",
+    "prettier"
+  ],
+  "author": "WSO2",
+  "license": "MIT",
+  "scripts": {
+    "build": "echo 'ESLint config package built successfully'",
+    "test": "eslint --print-config eslint.config.js",
+    "lint": "echo 'Linting ESLint config'",
+    "lint:fix": "echo 'Linting ESLint config'",
+    "dev": "echo 'Dev mode does not apply to this package'"
+  },
+  "peerDependencies": {
+    "eslint": "^9.36.0"
+  },
+  "dependencies": {
+    "@eslint/js": "^9.36.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "~7.0.0",
+    "globals": "^16.4.0",
+    "typescript-eslint": "^8.45.0",
+    "dayjs": "~1.11.18",
+    "yup": "^1.4.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.36.0"
+  }
+}

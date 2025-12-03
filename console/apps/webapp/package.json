@@ -1,0 +1,63 @@
+{
+  "name": "@agent-management-platform/webapp",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "preview": "vite preview",
+    "generate-route": "cd ../../libs/types && npm run generate-route"
+  },
+  "dependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "@agent-management-platform/auth": "workspace:*",
+    "@agent-management-platform/types": "workspace:*",
+    "@agent-management-platform/eslint-config": "workspace:*",
+    "@tanstack/react-query": "~5.90.5",
+    "@agent-management-platform/api-client": "workspace:*",
+    "@agent-management-platform/views": "workspace:*",
+    "clsx": "~2.1.1",
+    "dayjs": "~1.11.18",
+    "lodash": "^4.17.21",
+    "@mui/material": "^7.0.0",
+    "@mui/icons-material": "^7.0.0",
+    "@emotion/react": "^11.13.5",
+    "@emotion/styled": "^11.13.5",
+    "@fontsource/roboto": "~5.2.5",
+    "react-router-dom": "^6.28.0",
+    "@agent-management-platform/agents-list-page": "workspace:*",
+    "@agent-management-platform/add-new-agent": "workspace:*",
+    "@agent-management-platform/shared-component": "workspace:*",
+    "yup": "^1.4.0",
+    "react-hook-form": "^7.53.0",
+    "@hookform/resolvers": "^3.9.0",
+    "@agent-management-platform/overview": "workspace:*",
+    "@agent-management-platform/build": "workspace:*",
+    "@agent-management-platform/deploy": "workspace:*",
+    "@agent-management-platform/test": "workspace:*",
+    "@agent-management-platform/traces": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "@types/react": "^19.1.16",
+    "@types/react-dom": "^19.1.9",
+    "@types/lodash": "^4.17.17",
+    "@vitejs/plugin-react": "^5.0.4",
+    "babel-plugin-react-compiler": "^19.1.0-rc.3",
+    "eslint": "^9.36.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.7.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.7"
+  },
+  "peerDependencies": {
+    "@babel/runtime-corejs3": "^7.11.2"
+  }
+}
