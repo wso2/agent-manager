@@ -123,24 +123,12 @@ func MatchedScopes(ctx context.Context, requiredScopes []string) ([]string, bool
 }
 
 func extractClaimsFromJWT(tokenString string) (*TokenClaims, error) {
-	base64UrlDecode := func(data string) ([]byte, error) {
-		// Add padding if necessary
-		padding := len(data) % 4
-		if padding > 0 {
-			data += strings.Repeat("=", 4-padding)
-		}
-
-		data = strings.ReplaceAll(data, "-", "+")
-		data = strings.ReplaceAll(data, "_", "/")
-		return base64.URLEncoding.DecodeString(data)
-	}
-
 	parts := strings.Split(tokenString, ".")
 	if len(parts) != 3 {
 		return nil, fmt.Errorf("invalid jwt, failed to parse, found %d parts", len(parts))
 	}
 
-	payload, err := base64UrlDecode(parts[1])
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
 		return nil, fmt.Errorf("invalid jwt, failed to decode payload: %w", err)
 	}

@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/db"
 	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/models"
@@ -82,7 +83,7 @@ func (r *agentRepository) HardDeleteAgentByName(ctx context.Context, orgId uuid.
 func (r *agentRepository) UpdateAgentTimestamp(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string) error {
 	if err := db.DB(ctx).Model(&models.Agent{}).
 		Where("org_id = ? AND project_id = ? AND name = ?", orgId, projectId, agentName).
-		Update("updated_at", "NOW()").Error; err != nil {
+		Update("updated_at", gorm.Expr("NOW()")).Error; err != nil {
 		return fmt.Errorf("agentRepository.UpdateAgentTimestamp: %w", err)
 	}
 	return nil

@@ -878,6 +878,7 @@ paths:
     get:
       summary: Get deployment pipeline for a project
       description: Retrieves the deployment pipeline configuration for the specified project within an organization
+      operationId: getDeploymentPipeline
       parameters:
         - name: orgName
           in: path
@@ -1060,7 +1061,7 @@ components:
             $ref: "#/components/schemas/BuildResponse"
         total:
           type: integer
-          description: Total number of agents matching the query
+          description: Total number of builds matching the query
         limit:
           type: integer
         offset:
@@ -1146,7 +1147,8 @@ components:
         totalCount:
           type: integer
         tookMs:
-          type: float
+          type: number
+          format: float
       required:
         - logs
         - totalCount

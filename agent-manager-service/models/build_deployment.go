@@ -89,5 +89,4 @@ type BuildDetailsResponse struct {
 	Percent         float32     `json:"percent,omitempty"`
 	Steps           []BuildStep `json:"steps,omitempty"`
 	DurationSeconds int32       `json:"durationSeconds,omitempty"`
-	EndedAt         time.Time   `json:"endedAt,omitempty"`
 }

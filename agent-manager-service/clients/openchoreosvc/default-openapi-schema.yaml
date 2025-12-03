@@ -20,6 +20,7 @@ paths:
               type: object
               description: Arbitrary JSON request body
               additionalProperties: true
+      responses:
         "200":
           description: Successful invocation
           content:

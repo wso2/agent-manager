@@ -143,39 +143,59 @@ func getKubernetesConfig() (*rest.Config, error) {
 
 // getRawKubernetesConfigData returns the cluster name and base64-encoded certificate data from kubeconfig
 func getRawKubernetesConfigData() (*KubernetesConfigData, error) {
-	kubeconfigPath := config.GetConfig().KubeConfig
+	if config.GetConfig().IsLocalDevEnv {
+		kubeconfigPath := config.GetConfig().KubeConfig
 
-	// Load the kubeconfig using clientcmd to get the decoded data
-	kubeconfig, err := clientcmd.LoadFromFile(kubeconfigPath)
+		// Load the kubeconfig using clientcmd to get the decoded data
+		kubeconfig, err := clientcmd.LoadFromFile(kubeconfigPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load kubeconfig: %w", err)
+		}
+
+		// Get current context info
+		currentContext := kubeconfig.CurrentContext
+		context, exists := kubeconfig.Contexts[currentContext]
+		if !exists {
+			return nil, fmt.Errorf("current context not found")
+		}
+
+		// Get cluster and user
+		cluster, exists := kubeconfig.Clusters[context.Cluster]
+		if !exists {
+			return nil, fmt.Errorf("cluster not found")
+		}
+
+		user, exists := kubeconfig.AuthInfos[context.AuthInfo]
+		if !exists {
+			return nil, fmt.Errorf("user not found")
+		}
+
+		// Convert raw certificate data back to base64 strings
+		caCert := base64.StdEncoding.EncodeToString(cluster.CertificateAuthorityData)
+		clientCert := base64.StdEncoding.EncodeToString(user.ClientCertificateData)
+		clientKey := base64.StdEncoding.EncodeToString(user.ClientKeyData)
+
+		return &KubernetesConfigData{
+			ClusterName: context.Cluster,
+			CACert:      caCert,
+			ClientCert:  clientCert,
+			ClientKey:   clientKey,
+		}, nil
+	}
+
+	// Use in-cluster config
+	restConfig, err := rest.InClusterConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load kubeconfig: %w", err)
+		return nil, fmt.Errorf("failed to get in-cluster config: %w", err)
 	}
 
-	// Get current context info
-	currentContext := kubeconfig.CurrentContext
-	context, exists := kubeconfig.Contexts[currentContext]
-	if !exists {
-		return nil, fmt.Errorf("current context not found")
-	}
-
-	// Get cluster and user
-	cluster, exists := kubeconfig.Clusters[context.Cluster]
-	if !exists {
-		return nil, fmt.Errorf("cluster not found")
-	}
-
-	user, exists := kubeconfig.AuthInfos[context.AuthInfo]
-	if !exists {
-		return nil, fmt.Errorf("user not found")
-	}
-
-	// Convert raw certificate data back to base64 strings
-	caCert := base64.StdEncoding.EncodeToString(cluster.CertificateAuthorityData)
-	clientCert := base64.StdEncoding.EncodeToString(user.ClientCertificateData)
-	clientKey := base64.StdEncoding.EncodeToString(user.ClientKeyData)
+	// Extract certificate data from in-cluster config
+	caCert := base64.StdEncoding.EncodeToString(restConfig.CAData)
+	clientCert := base64.StdEncoding.EncodeToString(restConfig.CertData)
+	clientKey := base64.StdEncoding.EncodeToString(restConfig.KeyData)
 
 	return &KubernetesConfigData{
-		ClusterName: context.Cluster,
+		ClusterName: "in-cluster",
 		CACert:      caCert,
 		ClientCert:  clientCert,
 		ClientKey:   clientKey,
@@ -458,13 +478,12 @@ func (k *openChoreoSvcClient) DeployAgentComponent(ctx context.Context, orgName 
 }
 
 func (k *openChoreoSvcClient) SetupDeployment(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest, envVars []spec.EnvironmentVariable) error {
-	runCommand := utils.StrPointerAsStr(req.RuntimeConfigs.RunCommand, "")
 	endpointDetails, err := createEndpointDetails(req.Name, *req.InputInterface)
 	if err != nil {
 		return fmt.Errorf("failed to create endpoint details: %w", err)
 	}
 	// workload is created with a placeholder image, which will be updated during deployment
-	_, err = k.createWorkload(ctx, orgName, projName, req.Name, envVars, runCommand, endpointDetails, "image-id")
+	_, err = k.createWorkload(ctx, orgName, projName, req.Name, envVars, endpointDetails, "image-id")
 	if err != nil {
 		return fmt.Errorf("failed to create workload: %w", err)
 	}
@@ -806,7 +825,7 @@ func (k *openChoreoSvcClient) GetDeploymentPipeline(ctx context.Context, orgName
 	return dpResponse, nil
 }
 
-func (k openChoreoSvcClient) GetAgentConfigurations(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error) {
+func (k *openChoreoSvcClient) GetAgentConfigurations(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error) {
 	serviceBindings := &v1alpha1.ServiceBindingList{}
 	err := k.retryK8sOperation(ctx, "ListServiceBindings", func() error {
 		return k.client.List(ctx, serviceBindings, client.InNamespace(orgName))
@@ -842,7 +861,7 @@ func (k openChoreoSvcClient) GetAgentConfigurations(ctx context.Context, orgName
 	return envVars, nil
 }
 
-func (k *openChoreoSvcClient) createWorkload(ctx context.Context, orgName string, projName string, componentName string, envVars []spec.EnvironmentVariable, runCommand string, endpointDetails map[string]spec.EndpointSpec, imageId string) (*string, error) {
+func (k *openChoreoSvcClient) createWorkload(ctx context.Context, orgName string, projName string, componentName string, envVars []spec.EnvironmentVariable, endpointDetails map[string]spec.EndpointSpec, imageId string) (*string, error) {
 	workloadCR := createWorkloadCR(orgName, projName, componentName, envVars, endpointDetails, imageId)
 	err := k.retryK8sOperation(ctx, "CreateWorkload", func() error {
 		return k.client.Create(ctx, workloadCR)

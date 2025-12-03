@@ -69,7 +69,8 @@ func main() {
 
 	if config.GetConfig().AutoMaxProcsEnabled {
 		if _, err := maxprocs.Set(maxprocs.Logger(func(format string, args ...interface{}) {
-			slog.Info(format, args...)
+			// Convert printf-style format string to plain message for structured logging
+			slog.Info(fmt.Sprintf(format, args...))
 		})); err != nil {
 			slog.Error("Failed to set maxprocs", "error", err)
 			os.Exit(1)

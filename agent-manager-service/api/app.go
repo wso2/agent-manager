@@ -39,20 +39,20 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 
 	// Apply middleware in reverse order (last middleware is applied first)
 	apiHandler := http.Handler(apiMux)
-	apiHandler = middleware.RecovererOnPanic()(apiHandler)
-	apiHandler = logger.RequestLogger()(apiHandler)
+	apiHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(apiHandler)
 	apiHandler = params.AuthMiddleware(apiHandler)
 	apiHandler = middleware.AddCorrelationID()(apiHandler)
+	apiHandler = logger.RequestLogger()(apiHandler)
+	apiHandler = middleware.RecovererOnPanic()(apiHandler)
 
 	// Create a mux for internal API routes
 	internalApiMux := http.NewServeMux()
 	registerInternalRoutes(internalApiMux, params.BuildCIController)
 	internalApiHandler := http.Handler(internalApiMux)
-	internalApiHandler = middleware.RecovererOnPanic()(internalApiHandler)
-	internalApiHandler = logger.RequestLogger()(internalApiHandler)
-	internalApiHandler = middleware.APIKeyMiddleware()(internalApiHandler) // Add API key middleware for internal routes temporarily
+	internalApiHandler = middleware.APIKeyMiddleware()(internalApiHandler) // Add API key middleware for internal routes
 	internalApiHandler = middleware.AddCorrelationID()(internalApiHandler)
-	apiHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(apiHandler)
+	internalApiHandler = logger.RequestLogger()(internalApiHandler)
+	internalApiHandler = middleware.RecovererOnPanic()(internalApiHandler)
 
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", apiHandler))
 	mux.Handle("/internal/", http.StripPrefix("/internal", internalApiHandler))

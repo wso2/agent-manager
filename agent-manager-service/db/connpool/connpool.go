@@ -116,7 +116,8 @@ func (c *connPool) QueryRowContext(ctx context.Context, query string, args ...in
 
 func (c *connPool) retry(ctx context.Context, fn string, op func() error) {
 	var err error
-	for attempts := 1; attempts <= c.retryParams.MaxRetries; attempts++ {
+	maxAttempts := c.retryParams.MaxRetries + 1
+	for attempts := 1; attempts <= maxAttempts; attempts++ {
 		// Check context before attempting operation
 		select {
 		// Context was cancelled (timeout/user cancellation)
@@ -140,7 +141,7 @@ func (c *connPool) retry(ctx context.Context, fn string, op func() error) {
 			"attempt", attempts,
 			"fn", fn)
 
-		if attempts < c.retryParams.MaxRetries {
+		if attempts < maxAttempts {
 			backoffDuration := c.retryParams.BackoffFunc(attempts)
 
 			select {

@@ -156,7 +156,7 @@ func isRetryableK8sError(err error) bool {
 		"temporary failure",
 		"network is unreachable",
 		"no such host",
-		"EOF",
+		"eof",
 		"broken pipe",
 		"client rate limiter",
 	}

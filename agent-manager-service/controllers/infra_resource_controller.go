@@ -74,14 +74,14 @@ func (c *infraResourceController) ListOrganizations(w http.ResponseWriter, r *ht
 	// Parse and validate pagination parameters
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < 1 || limit > 50 {
-		log.Error("ListAgents: invalid limit parameter", "limit", limitStr)
+		log.Error("ListOrganizations: invalid limit parameter", "limit", limitStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and 50")
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < 0 {
-		log.Error("ListAgents: invalid offset parameter", "offset", offsetStr)
+		log.Error("ListOrganizations: invalid offset parameter", "offset", offsetStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter: must be 0 or greater")
 		return
 	}
@@ -149,14 +149,14 @@ func (c *infraResourceController) ListProjects(w http.ResponseWriter, r *http.Re
 	// Parse and validate pagination parameters
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < 1 || limit > 50 {
-		log.Error("ListAgents: invalid limit parameter", "limit", limitStr)
+		log.Error("ListProjects: invalid limit parameter", "limit", limitStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and 50")
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < 0 {
-		log.Error("ListAgents: invalid offset parameter", "offset", offsetStr)
+		log.Error("ListProjects: invalid offset parameter", "offset", offsetStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter: must be 0 or greater")
 		return
 	}
@@ -316,13 +316,13 @@ func (c *infraResourceController) CreateOrganization(w http.ResponseWriter, r *h
 	// Parse and validate request body
 	var payload spec.CreateOrganizationRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("CreateAgent: failed to decode request body", "error", err)
+		log.Error("CreateOrganization: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if err := utils.ValidateResourceName(payload.Name, "organization"); err != nil {
-		log.Error("CreateAgent: invalid org name", "orgName", payload.Name, "error", err)
+		log.Error("CreateOrganization: invalid org name", "orgName", payload.Name, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid org name")
 		return
 	}
