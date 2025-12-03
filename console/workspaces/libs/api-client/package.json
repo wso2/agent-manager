@@ -1,0 +1,44 @@
+{
+  "name": "@agent-management-platform/api-client",
+  "version": "1.0.0",
+  "description": "API client library for agent management platform",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "rebuild": "npm run clean && npm run build",
+    "lint": "eslint .",
+    "dev": "tsc -b --watch",
+    "lint:fix": "eslint . --fix"
+  },
+  "keywords": ["api", "client", "agent management platform"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "@types/react": "^19.1.16",
+    "@types/react-dom": "^19.1.9",
+    "@types/lodash": "^4.17.17",
+    "eslint": "^9.36.0"
+  },
+  "peerDependencies": {
+    "@babel/runtime-corejs3": "^7.11.2"
+  },
+  "dependencies": {
+    "@asgardeo/auth-react": "^3.0.0",
+    "react-router-dom": "^6.28.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "@agent-management-platform/types": "workspace:*",
+    "@agent-management-platform/eslint-config": "workspace:*",
+    "@tanstack/react-query": "~5.90.5",
+    "clsx": "~2.1.1",
+    "dayjs": "~1.11.18",
+    "lodash": "^4.17.21",
+    "yup": "^1.4.0",
+    "@agent-management-platform/auth": "workspace:*"
+  }
+}
+

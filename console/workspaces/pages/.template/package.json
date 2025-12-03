@@ -1,0 +1,32 @@
+{
+  "name": "generator-agent-page",
+  "version": "1.0.0",
+  "description": "Yeoman generator for AI Agent Management Platform page components",
+  "main": "generators/app/index.js",
+  "files": [
+    "generators"
+  ],
+  "scripts": {
+    "test": "echo 'No tests'",
+    "build": "echo 'No build'",
+    "lint": "echo 'No lint'",
+    "dev": "echo 'No dev'"
+  },
+  "keywords": [
+    "yeoman-generator",
+    "ai",
+    "agents",
+    "react",
+    "typescript"
+  ],
+  "dependencies": {
+    "yeoman-generator": "^5.0.0",
+    "dayjs": "~1.11.18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-org/agent-management-platform.git"
+  },
+  "author": "",
+  "license": "Apache-2.0"
+}
