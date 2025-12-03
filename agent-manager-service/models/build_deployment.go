@@ -72,7 +72,7 @@ type BuildResponse struct {
 	StartedAt   time.Time `json:"startedAt"`
 	Image       string    `json:"image,omitempty"`
 	Branch      string    `json:"branch,omitempty"`
-	EndedAt     time.Time `json:"endedAt,omitempty"`
+	EndedAt     *time.Time `json:"endedAt,omitempty"`
 }
 
 // BuildStep represents a step in the build process

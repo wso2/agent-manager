@@ -240,6 +240,7 @@ func (c *infraResourceController) CreateProject(w http.ResponseWriter, r *http.R
 		Name:        payload.Name,
 		DisplayName: payload.DisplayName,
 		Description: utils.StrPointerAsStr(payload.Description, ""),
+		DeploymentPipeline: payload.DeploymentPipeline,
 		OrgName:     orgName,
 		CreatedAt:   time.Now(),
 	}

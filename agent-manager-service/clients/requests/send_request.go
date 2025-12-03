@@ -93,7 +93,7 @@ func SendRequest(ctx context.Context, client HttpClient, req *HttpRequest, opts 
 			respBody, err := io.ReadAll(resp.Body)
 			closeErr := resp.Body.Close()
 			if closeErr != nil {
-				log.Info("Warning: failed to close response body", slog.String("error", closeErr.Error()))
+				log.Warn("failed to close response body", slog.String("error", closeErr.Error()))
 			}
 			if err != nil {
 				return &Result{err: fmt.Errorf("failed to read response body: %w", err)}

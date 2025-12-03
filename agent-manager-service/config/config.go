@@ -68,7 +68,9 @@ type OTELConfig struct {
 }
 type ObserverConfig struct {
 	// Observer service URL
-	URL string
+	URL      string
+	Username string
+	Password string `json:"-"`
 }
 
 type POSTGRESQL struct {

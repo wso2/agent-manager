@@ -111,7 +111,9 @@ func loadEnvs() {
 
 	// Observer service configuration - temporarily use localhost for agent-manager-service to access observer service
 	config.Observer = ObserverConfig{
-		URL: r.readOptionalString("OBSERVER_URL", "http://localhost:8085"),
+		URL:      r.readOptionalString("OBSERVER_URL", "http://localhost:8085"),
+		Username: r.readOptionalString("OBSERVER_USERNAME", "dummy"),
+		Password: r.readOptionalString("OBSERVER_PASSWORD", "dummy"),
 	}
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
 

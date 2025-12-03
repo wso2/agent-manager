@@ -478,6 +478,9 @@ func (k *openChoreoSvcClient) DeployAgentComponent(ctx context.Context, orgName 
 }
 
 func (k *openChoreoSvcClient) SetupDeployment(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest, envVars []spec.EnvironmentVariable) error {
+	if req.InputInterface == nil {
+		return fmt.Errorf("input interface is required for deployment setup")
+	}
 	endpointDetails, err := createEndpointDetails(req.Name, *req.InputInterface)
 	if err != nil {
 		return fmt.Errorf("failed to create endpoint details: %w", err)
@@ -586,7 +589,7 @@ func (k *openChoreoSvcClient) ListAgentBuilds(ctx context.Context, orgName strin
 			StartedAt:   build.CreationTimestamp.Time,
 			Image:       build.Status.ImageStatus.Image,
 			Branch:      build.Spec.Repository.Revision.Branch,
-			EndedAt:     endedAtTime,
+			EndedAt:     &endedAtTime,
 		})
 	}
 
@@ -1035,8 +1038,8 @@ func (k *openChoreoSvcClient) CreateBuildPlaneForOrganization(ctx context.Contex
 				"url": "http://observer.openchoreo-observability-plane:8080",
 				"authentication": map[string]interface{}{
 					"basicAuth": map[string]interface{}{
-						"username": "dummy",
-						"password": "dummy",
+						"username": config.GetConfig().Observer.Username,
+						"password": config.GetConfig().Observer.Password,
 					},
 				},
 			},
@@ -1097,8 +1100,8 @@ func (k *openChoreoSvcClient) CreateDataPlaneForOrganization(ctx context.Context
 				"url": "http://observer.openchoreo-observability-plane:8080",
 				"authentication": map[string]interface{}{
 					"basicAuth": map[string]interface{}{
-						"username": "dummy",
-						"password": "dummy",
+						"username": config.GetConfig().Observer.Username,
+						"password": config.GetConfig().Observer.Password,
 					},
 				},
 			},

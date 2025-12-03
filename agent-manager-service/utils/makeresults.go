@@ -82,7 +82,7 @@ func ConvertToBuildResponse(build *models.BuildResponse) spec.BuildResponse {
 		ImageId:     &build.Image,
 		BuildName:   build.Name,
 		Branch:      build.Branch,
-		EndedAt:     &build.EndedAt,
+		EndedAt:     build.EndedAt,
 	}
 }
 
@@ -124,7 +124,7 @@ func ConvertToBuildDetailsResponse(buildDetails *models.BuildDetailsResponse) sp
 		Percent:         &buildDetails.Percent,
 		Steps:           steps,
 		DurationSeconds: &buildDetails.DurationSeconds,
-		EndedAt:         &buildDetails.EndedAt,
+		EndedAt:         buildDetails.EndedAt,
 	}
 }
 

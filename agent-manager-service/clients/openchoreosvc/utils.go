@@ -360,7 +360,7 @@ func toBuildDetailsResponse(build *v1alpha1.Build) (*models.BuildDetailsResponse
 
 	// Set end time if build is completed
 	if endTime := findBuildEndTime(build.Status.Conditions); endTime != nil {
-		buildResp.EndedAt = endTime.Time
+		buildResp.EndedAt = &endTime.Time
 		// Calculate duration in seconds
 		duration := endTime.Sub(build.CreationTimestamp.Time).Seconds()
 		buildResp.DurationSeconds = int32(duration)
