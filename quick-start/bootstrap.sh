@@ -217,7 +217,7 @@ else
         echo ""
     fi
     
-    if ! setup_kind_cluster "openchoreo-local" "${SCRIPT_DIR}/../deployments/kind-config.yaml"; then
+    if ! setup_kind_cluster "openchoreo-local" "${SCRIPT_DIR}/kind-config.yaml"; then
         echo ""
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         log_error "Failed to setup Kind cluster"
@@ -339,6 +339,21 @@ if ! kubectl get namespace openchoreo-observability-plane >/dev/null 2>&1; then
     exit 1
 fi
 
+
+if ! kubectl get namespace openchoreo-build-plane >/dev/null 2>&1; then
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_error "OpenChoreo Build Plane not found"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "The Agent Management Platform requires OpenChoreo Build Plane."
+    echo ""
+    echo "This should have been installed in Step 3."
+    echo "Please run the full bootstrap"
+    echo ""
+    exit 1
+fi
+
 # Install platform components
 if [[ "$VERBOSE" == "false" ]]; then
     echo "Installing components:"
@@ -400,6 +415,22 @@ fi
 
 if [[ "$VERBOSE" == "false" ]]; then
     echo "✓ Observability stack ready"
+    echo ""
+fi
+
+if ! install_build_ci; then
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_error "Failed to install Build CI"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Build CI installation failed."
+    echo ""
+    exit 1
+fi
+
+if [[ "$VERBOSE" == "false" ]]; then
+    echo "✓ Build CI ready"
     echo ""
 fi
 

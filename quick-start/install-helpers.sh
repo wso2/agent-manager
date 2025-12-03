@@ -647,6 +647,30 @@ install_openchoreo_data_plane() {
     if ! kubectl wait --for=condition=Ready pod --all -n openchoreo-data-plane --timeout=600s 2>/dev/null; then
         log_warning "Some Data Plane pods may still be starting (non-fatal)"
     fi
+
+    # Register the Data Plane
+    log_info "Registering Data Plane..."
+    if curl -s https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.3/install/add-default-dataplane.sh | bash; then
+        log_success "Data Plane registered successfully"
+    else
+        log_warning "Data Plane registration script failed (non-fatal)"
+    fi
+
+    log_info "Configuring observability integration..."
+
+        # Wait for default resources to be created
+    log_info "Waiting for default DataPlane and BuildPlane resources..."
+    sleep 10
+
+        # Configure DataPlane observer (non-fatal)
+    if kubectl get dataplane default -n default &>/dev/null; then
+        kubectl patch dataplane default -n default --type merge \
+            -p '{"spec":{"observer":{"url":"http://observer.openchoreo-observability-plane:8080","authentication":{"basicAuth":{"username":"dummy","password":"dummy"}}}}}' \
+            && log_success "DataPlane observer configured" \
+            || log_warning "DataPlane observer configuration failed (non-fatal)"
+    else
+        log_warning "DataPlane resource not found yet (will use default observer)"
+    fi
     
     log_success "OpenChoreo Data Plane ready"
     return 0
@@ -718,6 +742,18 @@ install_openchoreo_core() {
         return 1
     fi
     echo ""
+
+    # Install Build Plane
+    if ! install_openchoreo_build_plane; then
+        log_error "Failed to install OpenChoreo Build Plane"
+        echo ""
+        echo "   Troubleshooting:"
+        echo "   1. Check pod status: kubectl get pods -n openchoreo-build-plane"
+        echo "   2. View logs: kubectl logs -n openchoreo-build-plane <pod-name>"
+        echo ""
+        return 1
+    fi
+    echo ""
     
     # Install Observability Plane (required for Agent Management Platform)
     if ! install_openchoreo_observability_plane; then
@@ -735,6 +771,47 @@ install_openchoreo_core() {
     echo ""
     
     log_success "OpenChoreo core components installed successfully"
+    return 0
+}
+
+install_openchoreo_build_plane() {
+    log_info "Installing OpenChoreo Build Plane (this may take up to 10 minutes)..."
+    
+    if helm status build-plane -n openchoreo-build-plane >/dev/null 2>&1; then
+        log_warning "Build Plane already installed, skipping..."
+        return 0
+    fi
+
+    install_remote_helm_chart "build-plane" \
+        "${OPENCHOREO_REGISTRY}/openchoreo-build-plane" \
+        "openchoreo-build-plane" \
+        "true" \
+        "true" \
+        "600" \
+        "--version" "$OPENCHOREO_VERSION"
+
+    log_info "Waiting for Build Plane pods to be ready..."
+    if ! kubectl wait --for=condition=Ready pod --all -n openchoreo-build-plane --timeout=600s 2>/dev/null; then
+        log_warning "Some Build Plane pods may still be starting (non-fatal)"
+    fi
+        # Configure Build Plane
+    log_info "Configuring Build Plane..."
+    if curl -s https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.3/install/add-build-plane.sh | bash; then
+        log_success "Build Plane configured successfully"
+    else
+        log_warning "Build Plane configuration script failed (non-fatal)"
+    fi
+
+    if kubectl get buildplane default -n default &>/dev/null; then
+        kubectl patch buildplane default -n default --type merge \
+            -p '{"spec":{"observer":{"url":"http://observer.openchoreo-observability-plane:8080","authentication":{"basicAuth":{"username":"dummy","password":"dummy"}}}}}' \
+            && log_success "BuildPlane observer configured" \
+            || log_warning "BuildPlane observer configuration failed (non-fatal)"
+    else
+        log_warning "BuildPlane resource not found yet (will use default observer)"
+    fi
+    
+    log_success "OpenChoreo Build Plane ready"
     return 0
 }
 
