@@ -1,0 +1,100 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: agent-manager-db
+    environment:
+      POSTGRES_DB: agentmanager
+      POSTGRES_USER: agentmanager
+      POSTGRES_PASSWORD: agentmanager
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentmanager"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agent-manager
+
+  # Agent Manager Service (Go Backend)
+  agent-manager-service:
+    build:
+      context: ../agent-manager-service
+      dockerfile: Dockerfile.dev
+    container_name: agent-manager-service
+    ports:
+      - "8080:8080"
+    environment:
+      # Database Configuration
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=agentmanager
+      - DB_PASSWORD=agentmanager
+      - DB_NAME=agentmanager
+      # Server Configuration
+      - SERVER_PORT=8080
+      # Kubernetes Configuration
+      - KUBECONFIG=/app/.kube/config
+      - API_KEY_VALUE=abc-def-123
+      - IS_LOCAL_DEV_ENV=true
+      # Optional: External Service URLs (add when needed)
+      # - OPENCHOREO_API_URL=http://host.docker.internal:8000
+      # - OPENSEARCH_URL=http://host.docker.internal:9200
+    volumes:
+      # Mount source code for hot-reloading
+      - ../agent-manager-service:/app
+      # Mount Docker-specific kubeconfig
+      - ~/.kube/config-docker:/app/.kube/config:ro
+      # Exclude vendor and tmp directories from mount
+      - /app/vendor
+      - /app/tmp
+      - /app/.bin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - agent-manager
+      - kind # Connect to Kind cluster network for hostname resolution
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # Agent Manager Console (React Frontend)
+  agent-manager-console:
+    build:
+      context: ../console
+      dockerfile: Dockerfile.dev
+    container_name: agent-manager-console
+    ports:
+      - "3000:3000"
+    environment:
+      - AUTH_CLIENT_ID=null
+      - AUTH_BASE_URL=null
+      - SIGN_IN_REDIRECT_URL=null
+      - SIGN_OUT_REDIRECT_URL=null
+      - API_BASE_URL=http://localhost:8080
+      - DISABLE_AUTH=true
+      - OBS_API_BASE_URL=http://localhost:9098
+    volumes:
+      # Mount source code for hot-reloading with Vite HMR
+      - ../console:/app
+      # Exclude directories with platform-specific binaries (use container's Linux versions)
+      - console_node_modules:/app/node_modules
+      - console_common_temp:/app/common/temp
+    networks:
+      - agent-manager
+    depends_on:
+      - agent-manager-service
+
+volumes:
+  postgres_data:
+  console_node_modules:
+  console_common_temp:
+
+networks:
+  agent-manager:
+    driver: bridge
+  kind:
+    external: true
