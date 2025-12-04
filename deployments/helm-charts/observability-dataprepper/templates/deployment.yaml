@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.deployment.name }}
+  namespace: {{ .Values.deployment.namespace }}
+spec:
+  replicas: {{ .Values.deployment.replicaCount }}
+  selector:
+    matchLabels:
+      app: data-prepper
+  template:
+    metadata:
+      labels:
+        app: data-prepper
+    spec:
+      containers:
+        - name: data-prepper
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: otlp-traces
+              containerPort: {{ .Values.otlp.port }}
+          volumeMounts:
+            - name: dp-config
+              mountPath: /usr/share/data-prepper/config/data-prepper-config.yaml
+              subPath: data-prepper-config.yaml
+            - name: dp-config
+              mountPath: /usr/share/data-prepper/otel-v1-apm-span-index-standard-template.json
+              subPath: otel-v1-apm-span-index-standard-template.json
+            - name: dp-config
+              mountPath: /usr/share/data-prepper/pipelines/pipelines.yaml
+              subPath: pipelines.yaml
+          resources:
+            limits:
+              memory: {{ .Values.deployment.resourceLimits.memory }}
+              cpu: {{ .Values.deployment.resourceLimits.cpu }}
+            requests:
+              memory: {{ .Values.deployment.resourceRequests.memory }}
+              cpu: {{ .Values.deployment.resourceRequests.cpu }}
+      volumes:
+        - name: dp-config
+          configMap:
+            name: data-prepper-config
+---
+{{- if .Values.tracesObserver.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.tracesObserver.name }}
+  namespace: {{ .Values.tracesObserver.namespace }}
+spec:
+  replicas: {{ .Values.tracesObserver.replicaCount }}
+  selector:
+    matchLabels:
+      app: traces-observer
+  template:
+    metadata:
+      labels:
+        app: traces-observer
+    spec:
+      containers:
+        - name: traces-observer
+          image: {{ .Values.tracesObserver.image.repository }}:{{ .Values.tracesObserver.image.tag }}
+          imagePullPolicy: {{ .Values.tracesObserver.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.tracesObserver.port }}
+          env:
+            - name: TRACES_OBSERVER_PORT
+              value: "{{ .Values.tracesObserver.port }}"
+            - name: OPENSEARCH_ADDRESS
+              value: {{ .Values.tracesObserver.env.opensearchAddress }}
+            - name: OPENSEARCH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: opensearch-credentials
+                  key: username
+            - name: OPENSEARCH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opensearch-credentials
+                  key: password
+            - name: OPENSEARCH_TRACE_INDEX
+              value: {{ .Values.tracesObserver.env.opensearchTraceIndex }}
+          resources:
+            limits:
+              memory: {{ .Values.tracesObserver.resourceLimits.memory }}
+              cpu: {{ .Values.tracesObserver.resourceLimits.cpu }}
+            requests:
+              memory: {{ .Values.tracesObserver.resourceRequests.memory }}
+              cpu: {{ .Values.tracesObserver.resourceRequests.cpu }}
+{{- end }}
