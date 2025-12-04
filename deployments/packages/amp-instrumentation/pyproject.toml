@@ -1,0 +1,29 @@
+[project]
+name = "amp-instrumentation"
+version = "1.0.0"
+description = "Automatic instrumentation for Python applications using WSO2 Agent Management Platform and Traceloop SDK"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "WSO2", email = "hansi@wso2.org" }
+]
+maintainers = [
+    { name = "WSO2", email = "hansi@wso2.org" }
+]
+dependencies = [
+    "traceloop-sdk>=0.47.0",
+]
+
+[project.urls]
+Repository = "https://github.com/wso2/ai-agent-management-platform"
+
+[project.scripts]
+amp-instrument = "amp_instrumentation.cli.main:cli"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatchling.build.targets.wheel]
+packages = ["src/amp_instrumentation"]
