@@ -1,4 +1,5 @@
 {{ if .Values.global.defaultResources.enabled }}
+---
 apiVersion: argoproj.io/v1alpha1
 kind: ClusterWorkflowTemplate
 metadata:
@@ -133,22 +134,26 @@ spec:
             ensure_cached "$RUN_IMG" "$CACHE_DIR/google-run.tar"
 
             # Build with Google Buildpacks - create pack command with proper environment variables
-            CMD_ARGS="--builder $BUILDER --docker-host inherit --path $WORKDIR/$APP_PATH --pull-policy if-not-present"
+            declare -a CMD_ARGS=()
+            CMD_ARGS+=("--builder" "$BUILDER")
+            CMD_ARGS+=("--docker-host" "inherit")
+            CMD_ARGS+=("--path" "$WORKDIR/$APP_PATH")
+            CMD_ARGS+=("--pull-policy" "if-not-present")
             
             if [ -n "$GOOGLE_ENTRYPOINT" ]; then
               echo "Setting GOOGLE_ENTRYPOINT=$GOOGLE_ENTRYPOINT"
-              CMD_ARGS="$CMD_ARGS --env GOOGLE_ENTRYPOINT=\"$GOOGLE_ENTRYPOINT\""
+              CMD_ARGS+=("--env" "GOOGLE_ENTRYPOINT=$GOOGLE_ENTRYPOINT")
             fi
             if [ -n "$LANGUAGE_VERSION" ]; then
               echo "Setting $LANGUAGE_VERSION_ENV_VAR_NAME=$LANGUAGE_VERSION"
-              CMD_ARGS="$CMD_ARGS --env $LANGUAGE_VERSION_ENV_VAR_NAME=$LANGUAGE_VERSION"
+              CMD_ARGS+=("--env" "$LANGUAGE_VERSION_ENV_VAR_NAME=$LANGUAGE_VERSION")
             fi
 
             # Execute pack build command
-            echo "Building image $IMAGE with CMD ARGS: $CMD_ARGS"
+            echo "Building image $IMAGE with CMD ARGS: ${CMD_ARGS[@]}"
 
             # Run build using eval to handle quoted arguments properly
-            eval "/usr/local/bin/pack build \"$IMAGE\" $CMD_ARGS"
+            /usr/local/bin/pack build "$IMAGE" "${CMD_ARGS[@]}"
 
             podman save -o /mnt/vol/app-image.tar "$IMAGE"
         command:
@@ -217,8 +222,8 @@ spec:
             #####################################################################
             podman load -i /mnt/vol/app-image.tar
 
-            podman tag $SRC_IMAGE $REGISTRY_PUSH/$SRC_IMAGE
-            podman push --tls-verify=false $REGISTRY_PUSH/$SRC_IMAGE
+            podman tag "$SRC_IMAGE" "$REGISTRY_PUSH/$SRC_IMAGE"
+            podman push --tls-verify=false "$REGISTRY_PUSH/$SRC_IMAGE"
 
             #####################################################################
             # 5. Emit image reference (for later steps/kubelet pulls)
