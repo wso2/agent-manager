@@ -70,7 +70,7 @@ Run the container (example):
 
 ```bash
 docker run --rm -p 9098:9098 \
-	-e OPENSEARCH_URL=http://host.docker.internal:9200 \
+	-e OPENSEARCH_ADDRESS=http://host.docker.internal:9200 \
 	-e OPENSEARCH_USERNAME=admin \
 	-e OPENSEARCH_PASSWORD=admin \
 	-e OPENSEARCH_TRACE_INDEX=custom-otel-span-index \
@@ -87,6 +87,7 @@ All APIs use standard GET requests with query parameters
 Retrieves a list of trace overviews for a specific service with optional time filtering and pagination.
 
 **Query Parameters:**
+
 - `serviceName` (required) - Name of the service to query traces for
 - `startTime` (optional) - Start time in RFC3339 format (e.g., `2025-11-03T00:00:00Z`)
 - `endTime` (optional) - End time in RFC3339 format (e.g., `2025-11-08T23:59:59Z`)
@@ -104,17 +105,17 @@ curl --location 'http://localhost:9098/api/traces?serviceName=sample-app&startTi
 
 ```json
 {
-	"traces": [
-		{
-			"traceId": "5974d036b3d7709f2fc9f2b48461c176",
-			"rootSpanId": "58f16238f09ae1b2",
-			"rootSpanName": "LangGraph.workflow",
-			"startTime": "2025-11-07T06:23:24.035086494Z",
-			"endTime": "2025-11-07T06:23:27.545584559Z",
-			"spanCount": 8
-		}
-	],
-	"totalCount": 1
+  "traces": [
+    {
+      "traceId": "5974d036b3d7709f2fc9f2b48461c176",
+      "rootSpanId": "58f16238f09ae1b2",
+      "rootSpanName": "LangGraph.workflow",
+      "startTime": "2025-11-07T06:23:24.035086494Z",
+      "endTime": "2025-11-07T06:23:27.545584559Z",
+      "spanCount": 8
+    }
+  ],
+  "totalCount": 1
 }
 ```
 
@@ -123,6 +124,7 @@ curl --location 'http://localhost:9098/api/traces?serviceName=sample-app&startTi
 Retrieves all spans for a specific trace ID and service.
 
 **Query Parameters:**
+
 - `traceId` (required) - The trace ID to retrieve spans for
 - `serviceName` (required) - Name of the service
 - `sortOrder` (optional) - Sort order for spans: `asc` or `desc` (default: `asc` - chronological)
@@ -138,41 +140,41 @@ curl --location 'http://localhost:9098/api/trace?traceId=21a29d5d24837ca724b8751
 
 ```json
 {
-	"spans": [
-		{
-			"traceId": "21a29d5d24837ca724b8751494e70a95",
-			"spanId": "e2c22d3d4b7736bd",
-			"name": "LangGraph.workflow",
-			"service": "langchain-docker-app",
-			"startTime": "2025-11-03T11:42:18.329535246Z",
-			"endTime": "2025-11-03T11:42:20.55201954Z",
-			"duration": 2222484,
-			"kind": "SPAN_KIND_INTERNAL",
-			"status": "0",
-			"attributes": {
-				"traceloop.entity.input": "{...}",
-				"traceloop.entity.output": "{...}",
-				"traceloop.workflow.name": "LangGraph"
-			}
-		},
-		{
-			"traceId": "21a29d5d24837ca724b8751494e70a95",
-			"spanId": "c189ec26ae2a0bb5",
-			"parentSpanId": "e2c22d3d4b7736bd",
-			"name": "agent.task",
-			"service": "langchain-docker-app",
-			"startTime": "2025-11-03T11:42:18.331008193Z",
-			"endTime": "2025-11-03T11:42:20.55134794Z",
-			"duration": 2220339,
-			"kind": "SPAN_KIND_INTERNAL",
-			"status": "0",
-			"attributes": {
-				"traceloop.entity.name": "agent",
-				"traceloop.workflow.name": "LangGraph"
-			}
-		}
-	],
-	"totalCount": 2
+  "spans": [
+    {
+      "traceId": "21a29d5d24837ca724b8751494e70a95",
+      "spanId": "e2c22d3d4b7736bd",
+      "name": "LangGraph.workflow",
+      "service": "langchain-docker-app",
+      "startTime": "2025-11-03T11:42:18.329535246Z",
+      "endTime": "2025-11-03T11:42:20.55201954Z",
+      "duration": 2222484,
+      "kind": "SPAN_KIND_INTERNAL",
+      "status": "0",
+      "attributes": {
+        "traceloop.entity.input": "{...}",
+        "traceloop.entity.output": "{...}",
+        "traceloop.workflow.name": "LangGraph"
+      }
+    },
+    {
+      "traceId": "21a29d5d24837ca724b8751494e70a95",
+      "spanId": "c189ec26ae2a0bb5",
+      "parentSpanId": "e2c22d3d4b7736bd",
+      "name": "agent.task",
+      "service": "langchain-docker-app",
+      "startTime": "2025-11-03T11:42:18.331008193Z",
+      "endTime": "2025-11-03T11:42:20.55134794Z",
+      "duration": 2220339,
+      "kind": "SPAN_KIND_INTERNAL",
+      "status": "0",
+      "attributes": {
+        "traceloop.entity.name": "agent",
+        "traceloop.workflow.name": "LangGraph"
+      }
+    }
+  ],
+  "totalCount": 2
 }
 ```
 
@@ -183,10 +185,11 @@ curl http://localhost:9098/health
 ```
 
 **Response (200):**
+
 ```json
 {
-	"status": "healthy",
-	"timestamp": "2025-11-09T12:34:56Z"
+  "status": "healthy",
+  "timestamp": "2025-11-09T12:34:56Z"
 }
 ```
 

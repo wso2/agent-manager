@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"time"
 
 	"github.com/wso2-enterprise/agent-management-platform/traces-observer-service/opensearch"
@@ -105,6 +106,12 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 			})
 		}
 	}
+
+	
+	// Sort by StartTime (descending) for consistent pagination
+	sort.Slice(allOverviews, func(i, j int) bool {
+		return allOverviews[i].StartTime > allOverviews[j].StartTime
+	})
 
 	// Apply pagination to the trace overviews
 	totalCount := len(allOverviews)

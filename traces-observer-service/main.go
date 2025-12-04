@@ -45,10 +45,8 @@ func main() {
 	// Initialize OpenSearch client
 	osClient, err := opensearch.NewClient(&cfg.OpenSearch)
 	if err != nil {
+		// log.Fatalf internally calls os.Exit(1)
 		log.Fatalf("Failed to create OpenSearch client: %v", err)
-		// Exit if OpenSearch client cannot be created
-		// Raise Error and exit
-		os.Exit(1)
 	}
 
 	// Initialize service

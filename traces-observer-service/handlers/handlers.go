@@ -194,9 +194,10 @@ func (h *Handler) GetTraceByIdAndService(w http.ResponseWriter, r *http.Request)
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if err := h.controllers.HealthCheck(ctx); err != nil {
+		log.Printf("Health check failed: %v", err)
 		h.writeJSON(w, http.StatusServiceUnavailable, map[string]string{
 			"status": "unhealthy",
-			"error":  err.Error(),
+			"error":  "service unavailable",
 		})
 		return
 	}

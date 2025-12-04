@@ -49,8 +49,8 @@ func Load() (*Config, error) {
 		},
 		OpenSearch: OpenSearchConfig{
 			Address:  getEnv("OPENSEARCH_ADDRESS", "http://localhost:9200"),
-			Username: getEnv("OPENSEARCH_USERNAME", "admin"),
-			Password: getEnv("OPENSEARCH_PASSWORD", "admin"),
+			Username: getEnv("OPENSEARCH_USERNAME", ""),
+			Password: getEnv("OPENSEARCH_PASSWORD", ""),
 			Index:    getEnv("OPENSEARCH_TRACE_INDEX", "custom-otel-span-index"),
 		},
 	}
@@ -64,6 +64,9 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) validate() error {
+	if c.OpenSearch.Username == "" || c.OpenSearch.Password == "" {
+		return fmt.Errorf("opensearch username and password are required")
+	}
 	if c.Server.Port <= 0 || c.Server.Port > 65535 {
 		return fmt.Errorf("invalid server port: %d", c.Server.Port)
 	}
