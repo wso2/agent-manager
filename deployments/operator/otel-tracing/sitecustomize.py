@@ -23,4 +23,4 @@ try:
     Traceloop.set_association_properties({ "component_id": os.getenv("AMP_COMPONENT_ID", "default-component") })
     logger.info("Automatic Tracing initialized successfully.")
 except Exception as e:
-    logger.error(f"Failed to initialize Automatic Tracing: {e}")
+    logger.exception(f"Failed to initialize Automatic Tracing: {e}")

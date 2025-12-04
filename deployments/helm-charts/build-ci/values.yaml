@@ -9,7 +9,10 @@ global:
     # Use host.docker.internal for Docker Desktop/Kind to access host machine
     url: "http://host.docker.internal:8080"
     apiKeyHeader: "X-API-Key"
-    apiKey: "abc-def-123" # Temporary for development;
+    # -- API Key for agent manager authentication
+    # Provide it during installation with:
+    # helm install custom-build-ci-workflows <path> --namespace <ns> --set global.agentManagerService.apiKey=your-secret-key
+    apiKey: null
 
   # -- Configuration for the default workflow templates required for building container images.
   defaultResources:

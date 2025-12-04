@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+PROJECT_ROOT="$1"
+
 echo "=== Installing OpenChoreo on Kind Cluster ==="
 
 # Check prerequisites
@@ -135,7 +137,7 @@ if [ "$INSTALL_BUILD_PLANE" = "true" ]; then
     if helm status custom-build-ci-workflows -n openchoreo-build-plane &>/dev/null; then
         echo "⏭️  Custom Build CI Workflows already installed, skipping..."
     else
-        helm install custom-build-ci-workflows ../helm-charts/build-ci --namespace openchoreo-build-plane
+        helm install custom-build-ci-workflows $PROJECT_ROOT/deployments/helm-charts/build-ci --namespace openchoreo-build-plane
         echo "✅ Custom Build CI Workflows installed successfully"
     fi
     echo ""
@@ -165,10 +167,10 @@ if [ "$INSTALL_OBSERVABILITY" = "true" ]; then
         echo "⏭️  Observability Dataprepper already installed, skipping..."
     else
         echo "Building and loading Traces Observer Service Docker image into Kind cluster..."
-        make -C $1/traces-observer-service docker-load-kind
+        make -C $PROJECT_ROOT/traces-observer-service docker-load-kind
         sleep 10        
         echo "   Installing Dataprepper & Traces Observer Service to the Observability Plane for tracing ingestion..."
-        helm install observability-dataprepper $1/deployments/helm-charts/observability-dataprepper \
+        helm install observability-dataprepper $PROJECT_ROOT/deployments/helm-charts/observability-dataprepper \
           --create-namespace \
           --namespace openchoreo-observability-plane \
           --timeout=10m

@@ -280,8 +280,6 @@ spec:
               echo "Build callback API call failed"
               exit 1
             fi
-        securityContext:
-          privileged: true
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
