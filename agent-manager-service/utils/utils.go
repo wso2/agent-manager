@@ -45,13 +45,15 @@ func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
 		if err := validateRepoDetails(payload.Provisioning.Repository); err != nil {
 			return fmt.Errorf("invalid repository details: %w", err)
 		}
-
 		// Validate input interface
 		if payload.InputInterface == nil {
 			return fmt.Errorf("inputInterface is required for internal agents")
 		}
 		if err := validateInputInterface(*payload.InputInterface); err != nil {
 			return fmt.Errorf("invalid inputInterface: %w", err)
+		}
+		if payload.RuntimeConfigs == nil {
+			return fmt.Errorf("runtimeConfigs is required for internal agents")
 		}
 		if err := validateLanguage(payload.RuntimeConfigs.Language, payload.RuntimeConfigs.LanguageVersion); err != nil {
 			return fmt.Errorf("invalid language: %w", err)

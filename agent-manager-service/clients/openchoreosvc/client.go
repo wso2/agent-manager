@@ -478,9 +478,6 @@ func (k *openChoreoSvcClient) DeployAgentComponent(ctx context.Context, orgName 
 }
 
 func (k *openChoreoSvcClient) SetupDeployment(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest, envVars []spec.EnvironmentVariable) error {
-	if req.InputInterface == nil {
-		return fmt.Errorf("input interface is required for deployment setup")
-	}
 	endpointDetails, err := createEndpointDetails(req.Name, *req.InputInterface)
 	if err != nil {
 		return fmt.Errorf("failed to create endpoint details: %w", err)
@@ -1229,7 +1226,7 @@ func (k *openChoreoSvcClient) CreateAPIClassDefaultWithCORS(ctx context.Context,
 			RESTPolicy: &v1alpha1.RESTAPIPolicy{
 				Defaults: &v1alpha1.RESTPolicy{
 					CORS: &v1alpha1.CORSPolicy{
-						AllowOrigins: []string{"http://localhost:3000"},
+						AllowOrigins: []string{config.GetConfig().CORSAllowedOrigin},
 						AllowMethods: []string{"GET", "POST", "PUT", "DELETE"},
 						AllowHeaders: []string{"Content-Type", "Authorization"},
 						MaxAge:       &maxAge,

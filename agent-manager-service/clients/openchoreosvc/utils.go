@@ -327,7 +327,7 @@ func createEndpointDetails(agentName string, inputInterface spec.InputInterface)
 		}
 	}
 
-	return endpointDetails, nil
+	return nil, fmt.Errorf("unsupported InputInterface.Type: %q", inputInterface.Type)
 }
 
 func toBuildDetailsResponse(build *v1alpha1.Build) (*models.BuildDetailsResponse, error) {
