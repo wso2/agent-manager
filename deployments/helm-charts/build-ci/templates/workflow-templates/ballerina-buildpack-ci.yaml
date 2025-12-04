@@ -1,0 +1,311 @@
+{{ if .Values.global.defaultResources.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: ballerina-buildpack-ci
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "15"
+  labels:
+    {{- include "agent-manager-build-ci-workflows.labels" . | nindent 4 }}
+spec:
+  entrypoint: build-workflow
+  templates:
+    - name: build-workflow
+      steps:
+        - - name: clone-step
+            template: clone-step
+        - - name: build-step
+            template: build-step
+            arguments:
+              parameters:
+                - name: git-revision
+                  value: '{{ "{{" }}steps.clone-step.outputs.parameters.git-revision{{ "}}" }}'
+        - - name: push-step
+            template: push-step
+            arguments:
+              parameters:
+                - name: git-revision
+                  value: '{{ "{{" }}steps.clone-step.outputs.parameters.git-revision{{ "}}" }}'
+        - - name: build-callback-step
+            template: build-callback-step
+            arguments:
+              parameters:
+                - name: image
+                  value: '{{ "{{" }}steps.push-step.outputs.parameters.image{{ "}}" }}'
+    - name: clone-step
+      outputs:
+        parameters:
+          - name: git-revision
+            valueFrom:
+              path: /tmp/git-revision.txt
+      container:
+        args:
+          - |-
+            set -e
+
+            BRANCH={{ "{{" }}workflow.parameters.branch{{ "}}" }}
+            REPO={{ "{{" }}workflow.parameters.git-repo{{ "}}" }}
+            COMMIT={{ "{{" }}workflow.parameters.commit{{ "}}" }}
+
+            if [[ -n "$COMMIT" ]]; then
+                echo "Cloning specific commit: $COMMIT"
+                git clone --no-checkout --depth 1 "$REPO" /mnt/vol/source
+                cd /mnt/vol/source
+                git config --global advice.detachedHead false
+                git fetch --depth 1 origin "$COMMIT"
+                git checkout "$COMMIT"
+                echo -n "$COMMIT" | cut -c1-8 > /tmp/git-revision.txt
+            else
+                echo "Cloning branch: $BRANCH with latest commit"
+                git clone --single-branch --branch $BRANCH --depth 1 "$REPO" /mnt/vol/source
+                cd /mnt/vol/source
+                COMMIT_SHA=$(git rev-parse HEAD)
+                echo -n "$COMMIT_SHA" | cut -c1-8 > /tmp/git-revision.txt
+            fi
+        command:
+          - sh
+          - -c
+        image: alpine/git
+        name: ""
+        volumeMounts:
+          - mountPath: /mnt/vol
+            name: workspace
+    - name: build-step
+      inputs:
+        parameters:
+          - name: git-revision
+      container:
+        args:
+          - |-
+            set -e
+
+            WORKDIR=/mnt/vol/source
+            CACHE_DIR=/shared/podman/cache
+
+            IMAGE="{{ "{{" }}workflow.parameters.image-name{{ "}}" }}:{{ "{{" }}workflow.parameters.image-tag{{ "}}" }}-{{ "{{" }}inputs.parameters.git-revision{{ "}}" }}"
+            APP_PATH="{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
+
+            echo "Building image: $IMAGE from path: $WORKDIR/$APP_PATH"
+
+
+            BUILDER="{{ .Values.global.defaultResources.ballerinaBuildpack.builder }}"
+            RUN_IMAGE="{{ .Values.global.defaultResources.ballerinaBuildpack.runImage }}"
+
+            #####################################################################
+            # 1. Podman daemon + storage.conf
+            #####################################################################
+            mkdir -p /etc/containers
+            cat > /etc/containers/storage.conf <<EOF
+            [storage]
+            driver = "overlay"
+            runroot = "/run/containers/storage"
+            graphroot = "/var/lib/containers/storage"
+            [storage.options.overlay]
+            mount_program = "/usr/bin/fuse-overlayfs"
+            EOF
+
+            podman system service --time=0 &
+            until podman info --format '{{ "{{" }}.Host.RemoteSocket.Exists{{ "}}" }}' 2>/dev/null | grep -q true; do sleep 1; done
+
+            #####################################################################
+            # 2. Cache builder/run images
+            #####################################################################
+            ensure_cached () {
+              local image=$1 tar=$2
+              if [[ ! -f "$tar" ]]; then
+                podman pull "$image"
+                podman save -o "$tar" "$image"
+              else
+                podman load -i "$tar" 2>/dev/null || {
+                  podman pull "$image"
+                  podman save -o "$tar" "$image"
+                }
+              fi
+            }
+
+            #####################################################################
+            # 3. Build with Ballerina Buildpacks
+            #####################################################################
+            ensure_cached "$BUILDER" "$CACHE_DIR/ballerina-builder.tar"
+            ensure_cached "$RUN_IMAGE" "$CACHE_DIR/ballerina-run.tar"
+
+            /usr/local/bin/pack build "$IMAGE" \
+              --builder "$BUILDER" \
+              --docker-host inherit \
+              --path "$WORKDIR/$APP_PATH" \
+              --volume "/mnt/vol:/app/generated-artifacts:rw" \
+              --pull-policy if-not-present
+
+            podman save -o /mnt/vol/app-image.tar "$IMAGE"
+        command:
+          - sh
+          - -c
+        image: ghcr.io/openchoreo/podman-runner:v1.0
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - mountPath: /mnt/vol
+            name: workspace
+          - mountPath: /shared/podman/cache
+            name: podman-cache
+    - name: push-step
+      inputs:
+        parameters:
+          - name: git-revision
+      outputs:
+        parameters:
+          - name: image
+            valueFrom:
+              path: /tmp/image.txt
+      container:
+        args:
+          - |-
+            set -e
+            #####################################################################
+            # 1. Inputs
+            #####################################################################
+            GIT_REVISION={{ "{{" }}inputs.parameters.git-revision{{ "}}" }}
+            IMAGE_NAME={{ "{{" }}workflow.parameters.image-name{{ "}}" }}
+            IMAGE_TAG={{ "{{" }}workflow.parameters.image-tag{{ "}}" }}
+            SRC_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
+
+            #####################################################################
+            # 2. Registry endpoints from Helm values
+            #    - type: "local" or "external"
+            #    - choose the right push/pull endpoints
+            #####################################################################
+            REGISTRY_TYPE="{{ .Values.global.defaultResources.registry.type | default "local" }}"
+
+            if [ "${REGISTRY_TYPE}" = "local" ]; then
+              REGISTRY_PULL="{{ .Values.global.defaultResources.registry.local.pullEndpoint }}"
+              REGISTRY_PUSH="{{ .Values.global.defaultResources.registry.local.pushEndpoint }}"
+            else
+              REGISTRY_PULL="{{ .Values.global.defaultResources.registry.external.endpoint }}"
+              REGISTRY_PUSH="{{ .Values.global.defaultResources.registry.external.endpoint }}"
+            fi
+
+            #####################################################################
+            # 3. Podman storage configuration
+            #####################################################################
+            mkdir -p /etc/containers
+            cat <<EOF > /etc/containers/storage.conf
+            [storage]
+            driver = "overlay"
+            runroot = "/run/containers/storage"
+            graphroot = "/var/lib/containers/storage"
+            [storage.options.overlay]
+            mount_program = "/usr/bin/fuse-overlayfs"
+            EOF
+
+            #####################################################################
+            # 4. Load the tarred image and push to the selected registry
+            #####################################################################
+            podman load -i /mnt/vol/app-image.tar
+
+            podman tag $SRC_IMAGE $REGISTRY_PUSH/$SRC_IMAGE
+            podman push --tls-verify=false $REGISTRY_PUSH/$SRC_IMAGE
+
+            #####################################################################
+            # 5. Emit image reference (for later steps/kubelet pulls)
+            #####################################################################
+            echo -n "$REGISTRY_PULL/$SRC_IMAGE" > /tmp/image.txt
+
+        command:
+          - sh
+          - -c
+        image: ghcr.io/openchoreo/podman-runner:v1.0
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - mountPath: /mnt/vol
+            name: workspace
+    - name: build-callback-step
+      inputs:
+        parameters:
+          - name: image
+      container:
+        image: ghcr.io/openchoreo/podman-runner:v1.0
+        command: [ sh, -c ]
+        args:
+          - |-
+            set -e
+
+            #####################################################################
+            # 1. Initialize variables
+            #####################################################################
+            IMAGE={{ "{{" }}inputs.parameters.image{{ "}}" }}
+            PROJECT_NAME={{ "{{" }}workflow.parameters.project-name{{ "}}" }}
+            COMPONENT_NAME={{ "{{" }}workflow.parameters.component-name{{ "}}" }}
+            ORG_NAME=$(echo {{ "{{" }}workflow.namespace{{ "}}" }} | sed 's/^openchoreo-ci-//')
+            
+            #####################################################################
+            # 2. Prepare callback payload
+            #####################################################################
+            CALLBACK_PAYLOAD=$(cat <<EOF
+            {
+              "imageId": "$IMAGE",
+              "agentName": "$COMPONENT_NAME",
+              "projectName": "$PROJECT_NAME",
+              "orgName": "$ORG_NAME"
+            }
+            EOF
+            )
+
+            #####################################################################
+            # 3. Make API call to agent-manager service
+            #####################################################################
+            AGENT_MANAGER_BASE_URL="{{ .Values.global.agentManagerService.url }}"
+            CALLBACK_ENDPOINT="$AGENT_MANAGER_BASE_URL/internal/builds/callback"
+            AUTH_HEADER="{{ .Values.global.agentManagerService.apiKeyHeader }}"
+            API_KEY="{{ .Values.global.agentManagerService.apiKey }}"
+            
+            echo "Calling build callback API with payload:"
+            echo "$CALLBACK_PAYLOAD"
+            echo "Endpoint: $CALLBACK_ENDPOINT"
+            
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "$AUTH_HEADER: $API_KEY" \
+              -d "$CALLBACK_PAYLOAD" \
+              "$CALLBACK_ENDPOINT" \
+              --max-time 30 \
+              --retry 3 \
+              --retry-delay 5 \
+              --fail-with-body
+            
+            if [ $? -eq 0 ]; then
+              echo "Build callback API call successful"
+            else
+              echo "Build callback API call failed"
+              exit 1
+            fi
+        securityContext:
+          privileged: true
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: openchoreo.dev/noderole
+                operator: In
+                values:
+                  - workflow-runner
+  ttlStrategy:
+    secondsAfterFailure: 3600
+    secondsAfterSuccess: 3600
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+  volumes:
+    - hostPath:
+        path: /shared/podman/cache
+        type: DirectoryOrCreate
+      name: podman-cache
+{{ end }}
