@@ -1514,7 +1514,6 @@ func (k *openChoreoSvcClient) CleanupOrganizationResources(ctx context.Context, 
 	// Log cleanup errors but don't fail the cleanup operation
 	if len(cleanupErrors) > 0 {
 		log.Printf("Cleanup completed with errors: %v", cleanupErrors)
-		return fmt.Errorf("cleanup completed with errors: %v", cleanupErrors)
 	}
 
 	return nil
