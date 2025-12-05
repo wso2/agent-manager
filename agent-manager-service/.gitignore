@@ -1,0 +1,11 @@
+# Log files
+*.log
+
+# Environment files
+local.development.env
+.env
+.idea
+.vscode
+localdata/*
+.DS_Store
+.bin

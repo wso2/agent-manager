@@ -1,0 +1,1671 @@
+openapi: 3.0.3
+info:
+  version: 1.0.0
+  title: Agent Manager Service API
+servers:
+  - url: /api/v1
+paths:
+  /orgs:
+    get:
+      summary: List all organizations
+      operationId: listOrganizations
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of results to return
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+        - name: offset
+          in: query
+          description: Number of results to skip
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        "200":
+          description: List of organizations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationListResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Create a new organization
+      operationId: createOrganization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrganizationRequest"
+      responses:
+        "202":
+          description: Organization creation initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}:
+    get:
+      summary: Get organization details
+      operationId: getOrganization
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Organization details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationResponse"
+        "404":
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects:
+    post:
+      summary: Create a new project
+      operationId: createProject
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectRequest"
+      responses:
+        "202":
+          description: Project creation initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Project already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      summary: List all projects in an organization
+      operationId: listProjects
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of results to return
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+        - name: offset
+          in: query
+          description: Number of results to skip
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectListResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}:
+    get:
+      summary: Get project details
+      operationId: getProject
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Project details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents:
+    post:
+      summary: Create a new agent
+      operationId: createAgent
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAgentRequest"
+      responses:
+        "202":
+          description: Agent creation initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Agent already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      summary: List all agents in a project of an organization
+      operationId: listAgents
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of results to return
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+        - name: offset
+          in: query
+          description: Number of results to skip
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        "200":
+          description: List of agents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentListResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}:
+    get:
+      summary: Get agent details
+      operationId: getAgent
+      parameters:
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete agent
+      operationId: deleteAgent
+      parameters:
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Agent deleted successfully
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/generate-name:
+    post:
+      summary: Get name by display name
+      description: Retrieve name using display name for a specific resource
+      operationId: getNameByDisplayName
+      parameters:
+        - name: orgName
+          in: path
+          description: Organization name
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceNameRequest"
+      responses:
+        "200":
+          description: Agent name retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceNameResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds:
+    post:
+      summary: Build an agent
+      operationId: buildAgent
+      parameters:
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: commitId
+          in: query
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Build initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuildResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      summary: Get Builds of an Agent
+      operationId: getAgentBuilds
+      parameters:
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of results to return
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+        - name: offset
+          in: query
+          description: Number of results to skip
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        "200":
+          description: fetch builds successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuildsListResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds/{buildName}:
+    get:
+      summary: Get build details
+      operationId: getBuild
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: buildName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Build details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuildDetailsResponse"
+        "404":
+          description: Build not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds/{buildName}/build-logs:
+    get:
+      summary: Get build logs
+      operationId: getBuildLogs
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: buildName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Build logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuildLogsResponse"
+        "404":
+          description: Build not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments:
+    post:
+      summary: Deploy an agent
+      operationId: deployAgent
+      parameters:
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeployAgentRequest"
+      responses:
+        "202":
+          description: Agent deployed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      summary: List agent deployments with detailed information
+      description: Retrieves detailed deployment information for a specific agent across all environments
+      operationId: listAgentDeployments
+      parameters:
+        - name: agentName
+          in: path
+          description: Unique name of the agent
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          description: Organization name
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          description: Project name
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Map of environment names to deployment details, ordered by deployment pipeline sequence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentListResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/endpoints:
+    get:
+      summary: Get agent endpoints for a specific environment
+      description: Retrieves endpoint configurations for an agent in a specific environment
+      operationId: getAgentEndpoints
+      parameters:
+        - name: agentName
+          in: path
+          description: Unique name of the agent
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          description: Organization name
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          description: Project name
+          required: true
+          schema:
+            type: string
+        - name: environment
+          in: query
+          description: Environment name
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Map of endpoint names to endpoint configurations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EndpointsResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations:
+    get:
+      summary: Get agent configurations for a specific environment
+      description: Retrieves configuration settings for an agent in a specific environment
+      operationId: getAgentConfigurations
+      parameters:
+        - name: agentName
+          in: path
+          description: Unique name of the agent
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          description: Organization name
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          description: Project name
+          required: true
+          schema:
+            type: string
+        - name: environment
+          in: query
+          description: Environment name
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent configuration details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigurationResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/environments:
+    get:
+      summary: List all environments in an organization
+      description: Retrieves all environments available in the specified organization
+      operationId: listEnvironments
+      parameters:
+        - name: orgName
+          in: path
+          description: Organization name
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of environments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvironmentListResponse"
+        "404":
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /orgs/{orgName}/projects/{projName}/deployment-pipeline:
+    get:
+      summary: Get deployment pipeline for a project
+      description: Retrieves the deployment pipeline configuration for the specified project within an organization
+      operationId: getDeploymentPipeline
+      parameters:
+        - name: orgName
+          in: path
+          description: Organization name
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          description: Project name
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deployment pipeline details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentPipelineResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    CreateOrganizationRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Name of the organization
+
+    CreateProjectRequest:
+      type: object
+      required:
+        - name
+        - deploymentPipeline
+        - displayName
+      properties:
+        name:
+          type: string
+          description: Name of the project
+        displayName:
+          type: string
+          description: Display name of the project
+        description:
+          type: string
+          description: Description of the project
+        deploymentPipeline:
+          type: string
+
+    Provisioning:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [internal]
+          description: Type of provisioning
+        repository:
+          $ref: "#/components/schemas/RepositoryConfig"
+
+    CreateAgentRequest:
+      type: object
+      required:
+        - name
+        - displayName
+        - provisioning
+      properties:
+        provisioning:
+          $ref: "#/components/schemas/Provisioning"
+        name:
+          type: string
+          description: Unique name of the agent
+        displayName:
+          type: string
+          description: Display name of the agent
+        description:
+          type: string
+          description: Description of the agent
+        runtimeConfigs:
+          $ref: "#/components/schemas/RuntimeConfiguration"
+        inputInterface:
+          $ref: "#/components/schemas/InputInterface"
+    AgentResponse:
+      type: object
+      properties:
+        name:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        projectName:
+          type: string
+        status:
+          type: string
+          description: Current status of the agent
+        provisioning:
+          $ref: "#/components/schemas/Provisioning"
+      required:
+        - name
+        - displayName
+        - createdAt
+        - projectName
+        - description
+        - provisioning
+    ResourceNameRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+          description: Display name of the agent
+        resourceType:
+          type: string
+          description: Type of resource (e.g., agent, project)
+        projectName:
+          type: string
+          description: Name of the project (required if resourceType is agent)
+      required:
+        - displayName
+        - resourceType
+    ResourceNameResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The resource name
+        displayName:
+          type: string
+          description: The display name of the resource
+        resourceType:
+          type: string
+          description: Type of resource (e.g., agent, project)
+      required:
+        - name
+        - displayName
+        - resourceType
+    AgentListResponse:
+      type: object
+      properties:
+        agents:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentResponse"
+        total:
+          type: integer
+          description: Total number of agents matching the query
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required:
+        - agents
+        - total
+        - limit
+        - offset
+    BuildsListResponse:
+      type: object
+      properties:
+        builds:
+          type: array
+          items:
+            $ref: "#/components/schemas/BuildResponse"
+        total:
+          type: integer
+          description: Total number of builds matching the query
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required:
+        - builds
+        - total
+        - limit
+        - offset
+    # Repository Configuration
+    RepositoryConfig:
+      type: object
+      description: Git repository configuration
+      required:
+        - url
+        - branch
+        - appPath
+      properties:
+        url:
+          type: string
+          description: URL of the git repository
+        branch:
+          type: string
+          description: Branch to use
+        appPath:
+          type: string
+          description: Path within the repository where the source code resides
+    BuildResponse:
+      type: object
+      properties:
+        buildId:
+          type: string
+        buildName:
+          type: string
+        projectName:
+          type: string
+        agentName:
+          type: string
+        commitId:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+        imageId:
+          type: string
+        status:
+          type: string
+          enum: [BuildInProgress, BuildTriggered, BuildCompleted]
+        branch:
+          type: string
+      required:
+        - buildName
+        - projectName
+        - agentName
+        - startedAt
+        - commitId
+        - branch
+    LogEntry:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        log:
+          type: string
+        logLevel:
+          type: string
+          enum: [INFO, WARN, ERROR, DEBUG]
+      required:
+        - timestamp
+        - log
+        - logLevel
+    BuildLogsResponse:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/LogEntry"
+        totalCount:
+          type: integer
+        tookMs:
+          type: number
+          format: float
+      required:
+        - logs
+        - totalCount
+        - tookMs
+    BuildStep:
+      type: object
+      properties:
+        type:
+          type: string
+          description: Type of build step
+          enum:
+            [BuildInitiated, BuildTriggered, BuildCompleted, WorkloadUpdated]
+        status:
+          type: string
+          description: Status of the build step
+          enum: [True, False, Unknown]
+        message:
+          type: string
+          description: Human-readable message about the step
+        at:
+          type: string
+          format: date-time
+          description: Timestamp when the step occurred
+      required:
+        - type
+        - status
+        - message
+        - at
+
+    BuildDetailsResponse:
+      allOf:
+        - $ref: "#/components/schemas/BuildResponse"
+        - type: object
+          properties:
+            percent:
+              type: number
+              format: float
+              description: Build completion percentage (0-100)
+              minimum: 0
+              maximum: 100
+            steps:
+              type: array
+              description: Array of build steps with their status
+              items:
+                $ref: "#/components/schemas/BuildStep"
+            durationSeconds:
+              type: integer
+              description: Build duration in seconds
+              minimum: 0
+
+    # Deployment Schemas
+    DeployAgentRequest:
+      type: object
+      properties:
+        imageId:
+          type: string
+          description: Container image ID to deploy
+        env:
+          type: array
+          description: Environment variables
+          items:
+            $ref: "#/components/schemas/EnvironmentVariable"
+      required:
+        - imageId
+    RuntimeConfiguration:
+      type: object
+      properties:
+        env:
+          type: array
+          description: Environment variables
+          items:
+            $ref: "#/components/schemas/EnvironmentVariable"
+        runCommand:
+          type: string
+        languageVersion:
+          type: string
+        language:
+          type: string
+      required:
+        - language
+    EnvironmentVariable:
+      type: object
+      required:
+        - key
+        - value
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+    InputInterface:
+      type: object
+      description: Endpoint configurations
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          description: Type of input interface (e.g., default, custom)
+          enum: [DEFAULT, CUSTOM]
+        customOpenAPISpec:
+          $ref: "#/components/schemas/EndpointSpec"
+    EndpointSpec:
+      type: object
+      required:
+        - port
+        - schema
+        - basePath
+      properties:
+        port:
+          type: integer
+          description: Port number
+          minimum: 1
+          maximum: 65535
+        schema:
+          $ref: "#/components/schemas/EndpointSchema"
+        basePath:
+          type: string
+          description: Base path for the endpoint
+    EndpointSchema:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: Schema content
+    DeploymentResponse:
+      type: object
+      properties:
+        agentName:
+          type: string
+        projectName:
+          type: string
+        imageId:
+          type: string
+        environment:
+          type: string
+      required:
+        - agentName
+        - projectName
+        - imageId
+        - environment
+
+    DeploymentEndpoint:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the endpoint
+        url:
+          type: string
+          description: URL of the endpoint
+        visibility:
+          type: string
+          description: Visibility level of the endpoint
+          enum: [Public, Private, Internal]
+      required:
+        - name
+        - url
+        - visibility
+
+    DeploymentDetailsResponse:
+      type: object
+      properties:
+        imageId:
+          type: string
+          description: Container image ID
+        status:
+          type: string
+          description: Deployment status
+        lastDeployed:
+          type: string
+          format: date-time
+          description: Timestamp of last deployment
+        endpoints:
+          type: array
+          description: List of deployment endpoints
+          items:
+            $ref: "#/components/schemas/DeploymentEndpoint"
+        sourceEnvironment:
+          $ref: "#/components/schemas/EnvironmentObject"
+        environmentDisplayName:
+          type: string
+          description: Environment display name
+        promotionTargetEnvironment:
+          type: object
+          description: Promotion target environment details
+          properties:
+            name:
+              type: string
+              description: name of the promotion target environment
+            displayName:
+              type: string
+              description: Human-readable display name of the promotion target environment
+          required:
+            - name
+            - displayName
+      required:
+        - imageId
+        - status
+        - lastDeployed
+        - endpoints
+        - sourceEnvironment
+    DeploymentListResponse:
+      type: object
+      additionalProperties:
+        $ref: "#/components/schemas/DeploymentDetailsResponse"
+      description: Map of environment names to deployment details. Keys are ordered according to deployment pipeline sequence.
+
+    EnvironmentObject:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Environment name
+        displayName:
+          type: string
+          description: Human-readable display name of the environment
+      required:
+        - name
+        - displayName
+
+    EndpointConfiguration:
+      type: object
+      properties:
+        url:
+          type: string
+          description: URL of the endpoint
+        endpointName:
+          type: string
+          description: Name of the endpoint
+        schema:
+          $ref: "#/components/schemas/EndpointSchema"
+        visibility:
+          type: string
+          description: Visibility level of the endpoint
+      required:
+        - url
+        - endpointName
+        - schema
+        - visibility
+
+    EndpointsResponse:
+      type: object
+      additionalProperties:
+        $ref: "#/components/schemas/EndpointConfiguration"
+      description: Map of endpoint names to endpoint configurations
+
+    Environment:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the environment
+        namespace:
+          type: string
+          description: Kubernetes namespace for the environment
+        displayName:
+          type: string
+          description: Human-readable display name
+        isProduction:
+          type: boolean
+          description: Whether this is a production environment
+        dnsPrefix:
+          type: string
+          description: DNS prefix for the environment
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the environment was created
+      required:
+        - name
+        - namespace
+        - isProduction
+        - createdAt
+
+    EnvironmentListResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/Environment"
+      description: List of environments
+
+    DeploymentPipelineResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the deployment pipeline
+        displayName:
+          type: string
+          description: Human-readable display name
+        description:
+          type: string
+          description: Description of the deployment pipeline
+        orgName:
+          type: string
+          description: Organization name
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the pipeline was created
+        promotionPaths:
+          type: array
+          description: List of promotion paths in the pipeline
+          items:
+            $ref: "#/components/schemas/PromotionPath"
+      required:
+        - name
+        - displayName
+        - description
+        - orgName
+        - createdAt
+        - promotionPaths
+
+    PromotionPath:
+      type: object
+      properties:
+        sourceEnvironmentRef:
+          type: string
+          description: Reference to the source environment
+        targetEnvironmentRefs:
+          type: array
+          description: List of target environment references
+          items:
+            $ref: "#/components/schemas/TargetEnvironmentRef"
+      required:
+        - sourceEnvironmentRef
+        - targetEnvironmentRefs
+
+    TargetEnvironmentRef:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the target environment
+      required:
+        - name
+
+    ConfigurationResponse:
+      type: object
+      properties:
+        projectName:
+          type: string
+          description: Name of the project
+        agentName:
+          type: string
+          description: Name of the agent
+        environment:
+          type: string
+          description: Environment name
+        configurations:
+          type: array
+          description: List of configuration key-value pairs
+          items:
+            $ref: "#/components/schemas/ConfigurationItem"
+      required:
+        - projectName
+        - agentName
+        - environment
+        - configurations
+
+    ConfigurationItem:
+      type: object
+      properties:
+        key:
+          type: string
+          description: Configuration key
+        value:
+          type: string
+          description: Configuration value
+      required:
+        - key
+        - value
+
+    OrganizationResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the organization
+        displayName:
+          type: string
+          description: Display name of the organization
+        description:
+          type: string
+          description: Description of the organization
+        namespace:
+          type: string
+          description: Namespace of the organization
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the organization was created
+      required:
+        - name
+        - createdAt
+        - displayName
+        - description
+        - namespace
+    OrganizationListItem:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the organization
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the organization was created
+      required:
+        - name
+        - createdAt
+
+    OrganizationListResponse:
+      type: object
+      properties:
+        organizations:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrganizationListItem"
+        total:
+          type: integer
+          description: Total number of organizations matching the query
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required:
+        - organizations
+        - total
+        - limit
+        - offset
+
+    ProjectResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the project
+        orgName:
+          type: string
+          description: Name of the organization
+        displayName:
+          type: string
+          description: Display name of the project
+        description:
+          type: string
+          description: Description of the project
+        deploymentPipeline:
+          type: string
+          description: Deployment pipeline associated with the project
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the project was created
+      required:
+        - name
+        - orgName
+        - displayName
+        - description
+        - deploymentPipeline
+        - createdAt
+
+    ProjectListItem:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the project
+        orgName:
+          type: string
+          description: Name of the organization
+        displayName:
+          type: string
+          description: Display name of the project
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the project was created
+      required:
+        - name
+        - orgName
+        - displayName
+        - createdAt
+
+    ProjectListResponse:
+      type: object
+      properties:
+        projects:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectListItem"
+        total:
+          type: integer
+          description: Total number of projects matching the query
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required:
+        - projects
+        - total
+        - limit
+        - offset
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Human-readable error message
+        description:
+          type: string
+          description: Error description
+        additionalData:
+          type: object
+          additionalProperties: true
+      required:
+        - message

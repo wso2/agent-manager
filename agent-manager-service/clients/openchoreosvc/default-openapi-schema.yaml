@@ -1,0 +1,31 @@
+openapi: 3.0.3
+info:
+  title: Default Agent API
+  description: >
+    Minimal API with a single invocation endpoint. Both request and response
+    are free-form JSON objects (no fixed schema).
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+paths:
+  /invocation:
+    post:
+      summary: Invoke an action
+      operationId: Invoke
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Arbitrary JSON request body
+              additionalProperties: true
+      responses:
+        "200":
+          description: Successful invocation
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Arbitrary JSON response body
+                additionalProperties: true
