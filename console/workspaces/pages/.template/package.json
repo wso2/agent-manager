@@ -20,8 +20,8 @@
     "typescript"
   ],
   "dependencies": {
-    "yeoman-generator": "^5.0.0",
-    "dayjs": "~1.11.18"
+    "yeoman-generator": "5.0.0",
+    "dayjs": "1.11.18"
   },
   "repository": {
     "type": "git",
