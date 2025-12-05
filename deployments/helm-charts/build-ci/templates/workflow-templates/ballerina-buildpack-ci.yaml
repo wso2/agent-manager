@@ -131,13 +131,12 @@ spec:
             ensure_cached "$BUILDER" "$CACHE_DIR/ballerina-builder.tar"
             ensure_cached "$RUN_IMAGE" "$CACHE_DIR/ballerina-run.tar"
 
-            declare -a CMD_ARGS=()
-            CMD_ARGS+=("--builder" "$BUILDER")
-            CMD_ARGS+=("--docker-host" "inherit")
-            CMD_ARGS+=("--path" "$WORKDIR/$APP_PATH")
-            CMD_ARGS+=("--volume" "/mnt/vol:/app/generated-artifacts:rw")
-            CMD_ARGS+=("--pull-policy" "if-not-present")
-            /usr/local/bin/pack build "$IMAGE" "${CMD_ARGS[@]}"
+            /usr/local/bin/pack build "$IMAGE" \
+              --builder "$BUILDER" \
+              --docker-host inherit \
+              --path "$WORKDIR/$APP_PATH" \
+              --volume "/mnt/vol:/app/generated-artifacts:rw" \
+              --pull-policy if-not-present
 
             podman save -o /mnt/vol/app-image.tar "$IMAGE"
         command:

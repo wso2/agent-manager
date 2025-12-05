@@ -310,6 +310,7 @@ func createEndpointDetails(agentName string, inputInterface spec.InputInterface)
 			Port:   inputInterface.CustomOpenAPISpec.Port,
 			Schema: inputInterface.CustomOpenAPISpec.Schema,
 		}
+		return endpointDetails, nil
 	}
 
 	if inputInterface.Type == EndpointTypeDefault {
@@ -325,6 +326,7 @@ func createEndpointDetails(agentName string, inputInterface spec.InputInterface)
 				Content: utils.StrPointerAsStr(defaultOpenAPISchema, ""),
 			},
 		}
+		return endpointDetails, nil
 	}
 
 	return nil, fmt.Errorf("unsupported InputInterface.Type: %q", inputInterface.Type)
