@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
+# ============================================================================
+# Agent Management Platform - Complete Bootstrap Installation
+# ============================================================================
+# This script provides a single-command installation that:
+# 1. Creates a Kind cluster
+# 2. Installs OpenChoreo
+# 3. Installs Agent Management Platform
+#
+# Usage:
+#   ./bootstrap.sh              # Full installation
+#   ./bootstrap.sh --minimal    # Skip optional OpenChoreo components
+#   ./bootstrap.sh --verbose    # Show detailed output
+#   ./bootstrap.sh --help       # Show help
+# ============================================================================
+
 # Get the absolute path of the script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -9,13 +24,28 @@ source "${SCRIPT_DIR}/install-helpers.sh"
 
 # Configuration
 VERBOSE="${VERBOSE:-false}"
+SKIP_KIND="${SKIP_KIND:-false}"
+SKIP_OPENCHOREO="${SKIP_OPENCHOREO:-false}"
 AUTO_PORT_FORWARD="${AUTO_PORT_FORWARD:-true}"
+MINIMAL_MODE="${MINIMAL_MODE:-false}"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --verbose|-v)
             VERBOSE=true
+            shift
+            ;;
+        --minimal|--core-only)
+            MINIMAL_MODE=true
+            shift
+            ;;
+        --skip-kind)
+            SKIP_KIND=true
+            shift
+            ;;
+        --skip-openchoreo)
+            SKIP_OPENCHOREO=true
             shift
             ;;
         --no-port-forward)
@@ -32,20 +62,50 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
-            echo "Usage: $0 [OPTIONS]"
-            echo ""
-            echo "Install Agent Management Platform with observability"
-            echo ""
-            echo "Options:"
-            echo "  --verbose, -v           Show detailed installation output"
-            echo "  --no-port-forward       Skip automatic port forwarding"
-            echo "  --config FILE           Use custom configuration file"
-            echo "  --help, -h              Show this help message"
-            echo ""
-            echo "Examples:"
-            echo "  $0                      # Simple installation"
-            echo "  $0 --verbose            # Installation with detailed output"
-            echo "  $0 --config custom.yaml # Installation with custom config"
+            cat << EOF
+
+🚀 Agent Management Platform - Bootstrap Installation
+
+This script provides a complete one-command installation of:
+  • Kind cluster (Kubernetes in Docker)
+  • OpenChoreo platform
+  • Agent Management Platform with observability
+
+Usage:
+  $0 [OPTIONS]
+
+Options:
+  --verbose, -v           Show detailed installation output
+  --minimal, --core-only  Install only core OpenChoreo components (faster)
+  --skip-kind             Skip Kind cluster creation (use existing cluster)
+  --skip-openchoreo       Skip OpenChoreo installation (install platform only)
+  --no-port-forward       Skip automatic port forwarding
+  --config FILE           Use custom configuration file for platform
+  --help, -h              Show this help message
+
+Examples:
+  $0                      # Full installation (recommended)
+  $0 --verbose            # Full installation with detailed output
+  $0 --minimal            # Faster installation with core components only
+  $0 --skip-kind          # Use existing Kind cluster
+  $0 --config custom.yaml # Installation with custom platform config
+
+Prerequisites:
+  • Docker (Docker Desktop or Colima)
+  • kubectl
+  • helm
+  • kind
+
+Installation Time:
+  • Full installation: ~15-20 minutes
+  • Minimal installation: ~10-12 minutes
+
+For more information:
+  • Quick Start Guide: ./QUICK_START.md
+  • Troubleshooting: ./TROUBLESHOOTING.md
+  • Documentation: https://github.com/wso2/agent-management-platform
+
+EOF
             exit 0
             ;;
         *)
@@ -56,71 +116,338 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Print simple header
-if [[ "$VERBOSE" == "false" ]]; then
-    echo ""
-    echo "🚀 Installing Agent Management Platform..."
-    echo ""
+# ============================================================================
+# MAIN INSTALLATION FLOW
+# ============================================================================
+
+# Print header
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🚀 Agent Management Platform - Bootstrap"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+if [[ "$MINIMAL_MODE" == "true" ]]; then
+    echo "Mode: Minimal (core components only)"
 else
-    log_info "Starting Agent Management Platform installation..."
-    log_info "Configuration:"
-    log_info "  Kubernetes context: $(kubectl config current-context)"
-    log_info "  Platform namespace: $AMP_NS"
-    log_info "  Observability namespace: $OBSERVABILITY_NS"
+    echo "Mode: Full installation"
+fi
+
+if [[ "$VERBOSE" == "true" ]]; then
+    echo "Verbosity: Detailed output enabled"
+fi
+
+echo ""
+echo "This will install:"
+echo "  ✓ Kind cluster (local Kubernetes)"
+echo "  ✓ OpenChoreo platform"
+echo "  ✓ Agent Management Platform"
+echo "  ✓ Observability stack"
+echo ""
+
+if [[ "$VERBOSE" == "false" ]]; then
+    echo "💡 Tip: Use --verbose for detailed progress information"
     echo ""
 fi
 
-# Step 1: Verify prerequisites
-if [[ "$VERBOSE" == "false" ]]; then
-    echo "✓ Validating prerequisites..."
+# Estimate installation time
+if [[ "$MINIMAL_MODE" == "true" ]]; then
+    echo "⏱️  Estimated time: 10-12 minutes"
 else
-    log_info "Step 1: Validating prerequisites..."
+    echo "⏱️  Estimated time: 15-20 minutes"
+fi
+echo ""
+
+# ============================================================================
+# STEP 1: VERIFY PREREQUISITES
+# ============================================================================
+
+if [[ "$VERBOSE" == "false" ]]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "Step 1/4: Verifying prerequisites..."
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+else
+    log_info "Step 1/4: Verifying prerequisites..."
+    echo ""
 fi
 
-if ! verify_prerequisites_silent; then
-    log_error "Prerequisites check failed. Run with --verbose for details."
+if ! verify_openchoreo_prerequisites; then
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_error "Prerequisites check failed"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Please install the missing prerequisites and try again."
+    echo ""
     exit 1
 fi
 
-# Step 2: Install Core Platform
 if [[ "$VERBOSE" == "false" ]]; then
-    echo "✓ Installing platform components..."
+    echo "✓ All prerequisites verified"
 else
-    log_info "Step 2: Installing Agent Management Platform..."
+    log_success "Prerequisites check passed"
+fi
+echo ""
+
+# ============================================================================
+# STEP 2: SETUP KIND CLUSTER
+# ============================================================================
+
+if [[ "$SKIP_KIND" == "true" ]]; then
+    if [[ "$VERBOSE" == "false" ]]; then
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "Step 2/4: Skipping Kind cluster setup (--skip-kind)"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+    else
+        log_info "Step 2/4: Skipping Kind cluster setup (--skip-kind)"
+        echo ""
+    fi
+else
+    if [[ "$VERBOSE" == "false" ]]; then
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "Step 2/4: Setting up Kind cluster..."
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "⏱️  This may take 2-3 minutes..."
+        echo ""
+    else
+        log_info "Step 2/4: Setting up Kind cluster..."
+        echo ""
+    fi
+    
+    if ! setup_kind_cluster "openchoreo-local" "${SCRIPT_DIR}/kind-config.yaml"; then
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log_error "Failed to setup Kind cluster"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "The Kind cluster could not be created."
+        echo ""
+        echo "Common solutions:"
+        echo "  1. Delete existing cluster: kind delete cluster --name openchoreo-local"
+        echo "  2. Restart Docker"
+        echo "  3. Check Docker has sufficient resources (4GB+ RAM recommended)"
+        echo ""
+        echo "For more help, see: ./TROUBLESHOOTING.md"
+        echo ""
+        exit 1
+    fi
+    
+    if [[ "$VERBOSE" == "false" ]]; then
+        echo "✓ Kind cluster ready"
+    fi
+    echo ""
+fi
+
+# ============================================================================
+# STEP 3: INSTALL OPENCHOREO
+# ============================================================================
+
+if [[ "$SKIP_OPENCHOREO" == "true" ]]; then
+    if [[ "$VERBOSE" == "false" ]]; then
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "Step 3/4: Skipping OpenChoreo installation (--skip-openchoreo)"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+    else
+        log_info "Step 3/4: Skipping OpenChoreo installation (--skip-openchoreo)"
+        echo ""
+    fi
+else
+    if [[ "$VERBOSE" == "false" ]]; then
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "Step 3/4: Installing OpenChoreo..."
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        if [[ "$MINIMAL_MODE" == "true" ]]; then
+            echo "⏱️  This may take 10-12 minutes (core components only)..."
+        else
+            echo "⏱️  This may take 12-15 minutes (full installation)..."
+        fi
+        echo ""
+        echo "Installing components:"
+        echo "  • Cilium CNI"
+        echo "  • OpenChoreo Control Plane"
+        echo "  • OpenChoreo Data Plane"
+        echo "  • OpenChoreo Observability Plane"
+        echo ""
+    else
+        log_info "Step 3/4: Installing OpenChoreo..."
+        echo ""
+    fi
+    
+    # Install core components
+    if ! install_openchoreo_core; then
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log_error "Failed to install OpenChoreo"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "OpenChoreo installation failed."
+        echo ""
+        echo "Troubleshooting steps:"
+        echo "  1. Check cluster status: kubectl get nodes"
+        echo "  2. Check pod status: kubectl get pods --all-namespaces"
+        echo "  3. View logs: kubectl logs -n <namespace> <pod-name>"
+        echo "  4. Ensure Docker has sufficient resources (4GB+ RAM)"
+        echo ""
+        echo "To clean up and retry:"
+        echo "  ./uninstall.sh"
+        echo "  ./bootstrap.sh"
+        echo ""
+        echo "For more help, see: ./TROUBLESHOOTING.md"
+        echo ""
+        exit 1
+    fi
+    
+    if [[ "$VERBOSE" == "false" ]]; then
+        echo "✓ OpenChoreo installed successfully"
+    fi
+    echo ""
+fi
+
+# ============================================================================
+# STEP 4: INSTALL AGENT MANAGEMENT PLATFORM
+# ============================================================================
+
+if [[ "$VERBOSE" == "false" ]]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "Step 4/4: Installing Agent Management Platform..."
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "⏱️  This may take 5-8 minutes..."
+    echo ""
+else
+    log_info "Step 4/4: Installing Agent Management Platform..."
+    echo ""
+fi
+
+# Verify OpenChoreo Observability Plane is available
+if ! kubectl get namespace openchoreo-observability-plane >/dev/null 2>&1; then
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_error "OpenChoreo Observability Plane not found"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "The Agent Management Platform requires OpenChoreo Observability Plane."
+    echo ""
+    echo "This should have been installed in Step 3."
+    echo "Please run the full bootstrap without --skip-openchoreo"
+    echo ""
+    exit 1
+fi
+
+
+if ! kubectl get namespace openchoreo-build-plane >/dev/null 2>&1; then
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_error "OpenChoreo Build Plane not found"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "The Agent Management Platform requires OpenChoreo Build Plane."
+    echo ""
+    echo "This should have been installed in Step 3."
+    echo "Please run the full bootstrap"
+    echo ""
+    exit 1
+fi
+
+# Install platform components
+if [[ "$VERBOSE" == "false" ]]; then
+    echo "Installing components:"
+    echo "  • PostgreSQL database"
+    echo "  • Agent Manager Service"
+    echo "  • Console (Web UI)"
+    echo "  • Observability stack"
+    echo ""
 fi
 
 if ! install_agent_management_platform_silent; then
-    log_error "Platform installation failed. Run with --verbose for details."
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_error "Failed to install Agent Management Platform"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Platform installation failed."
+    echo ""
+    echo "Troubleshooting steps:"
+    echo "  1. Check pod status: kubectl get pods -n agent-management-platform"
+    echo "  2. View logs: kubectl logs -n agent-management-platform <pod-name>"
+    echo "  3. Check Helm release: helm list -n agent-management-platform"
+    echo ""
+    echo "To retry platform installation only:"
+    echo "  ./install.sh"
+    echo ""
+    echo "For more help, see: ./TROUBLESHOOTING.md"
+    echo ""
     exit 1
 fi
 
-# Step 3: Install Observability (always enabled)
 if [[ "$VERBOSE" == "false" ]]; then
-    echo "✓ Installing observability stack..."
-else
-    log_info "Step 3: Installing Observability Stack..."
+    echo "✓ Platform components installed"
+    echo ""
+fi
+
+# Install observability
+if [[ "$VERBOSE" == "false" ]]; then
+    echo "Installing observability stack..."
+    echo ""
 fi
 
 if ! install_observability_dataprepper_silent; then
-    log_error "Observability installation failed. Run with --verbose for details."
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_error "Failed to install observability stack"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Observability installation failed."
+    echo ""
+    echo "The platform is installed but observability features may not work."
+    echo ""
+    echo "Troubleshooting steps:"
+    echo "  1. Check pod status: kubectl get pods -n openchoreo-observability-plane"
+    echo "  2. View logs: kubectl logs -n openchoreo-observability-plane <pod-name>"
+    echo ""
     exit 1
 fi
 
-# Step 4: Start services
 if [[ "$VERBOSE" == "false" ]]; then
-    echo "✓ Starting services..."
-else
-    log_info "Step 4: Starting port forwarding..."
+    echo "✓ Observability stack ready"
+    echo ""
 fi
 
-# Start port forwarding
+if ! install_build_ci; then
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_error "Failed to install Build CI"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Build CI installation failed."
+    echo ""
+    exit 1
+fi
+
+if [[ "$VERBOSE" == "false" ]]; then
+    echo "✓ Build CI ready"
+    echo ""
+fi
+
+# ============================================================================
+# STEP 5: START PORT FORWARDING
+# ============================================================================
+
 if [[ "${AUTO_PORT_FORWARD}" == "true" ]]; then
+    if [[ "$VERBOSE" == "false" ]]; then
+        echo "Starting port forwarding..."
+        echo ""
+    else
+        log_info "Starting port forwarding in background..."
+    fi
+    
     PORT_FORWARD_SCRIPT="${SCRIPT_DIR}/port-forward.sh"
     if [[ -f "$PORT_FORWARD_SCRIPT" ]]; then
-        if [[ "$VERBOSE" == "true" ]]; then
-            log_info "Starting port forwarding in background..."
-        fi
-        
         # Run port-forward script in background
         bash "$PORT_FORWARD_SCRIPT" > /dev/null 2>&1 &
         PORT_FORWARD_PID=$!
@@ -129,15 +456,25 @@ if [[ "${AUTO_PORT_FORWARD}" == "true" ]]; then
         echo "$PORT_FORWARD_PID" > "${SCRIPT_DIR}/.port-forward.pid"
         
         # Give port forwarding a moment to start
-        sleep 2
+        sleep 3
+        
+        if [[ "$VERBOSE" == "false" ]]; then
+            echo "✓ Port forwarding active"
+        else
+            log_success "Port forwarding started (PID: $PORT_FORWARD_PID)"
+        fi
     else
         if [[ "$VERBOSE" == "true" ]]; then
             log_warning "Port forward script not found at: $PORT_FORWARD_SCRIPT"
         fi
     fi
+    echo ""
 fi
 
-# Print success message
+# ============================================================================
+# SUCCESS MESSAGE
+# ============================================================================
+
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "✅ Installation Complete!"
@@ -152,27 +489,37 @@ echo "   Data Prepper:    http://localhost:21893"
 echo ""
 echo "🚀 Next steps:"
 echo ""
-echo "   1. Open console: open http://localhost:3000"
-echo "   2. Deploy sample agent: cd ../runtime/sample-agents/python-agent"
+echo "   1. Open console:     open http://localhost:3000"
+echo "   2. Deploy an agent:  cd ../runtime/sample-agents/python-agent"
 echo "   3. View traces in the console"
 echo ""
-echo "📚 Documentation: https://github.com/wso2/agent-management-platform"
-echo ""
+
+
 if [[ "${AUTO_PORT_FORWARD}" == "true" ]]; then
-    echo "💡 To stop port forwarding: ./stop-port-forward.sh"
+    echo "💡 Port forwarding is running in the background"
+    echo "   To stop: ./stop-port-forward.sh"
     echo ""
 fi
 
+echo "🛑 To uninstall everything:"
+echo "   ./uninstall.sh"
+echo ""
+
 if [[ "$VERBOSE" == "true" ]]; then
     echo ""
-    log_info "Installation Details:"
-    log_info "  Cluster: $(kubectl config current-context)"
-    log_info "  Platform Namespace: $AMP_NS"
-    log_info "  Observability Namespace: $OBSERVABILITY_NS"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_info "Installation Summary"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    log_info "Cluster: $(kubectl config current-context)"
+    log_info "Platform Namespace: $AMP_NS"
+    log_info "Observability Namespace: $OBSERVABILITY_NS"
     echo ""
     log_info "Deployed Components:"
+    echo ""
     kubectl get pods -n "$AMP_NS" 2>/dev/null || true
     echo ""
     kubectl get pods -n "$OBSERVABILITY_NS" 2>/dev/null || true
+    echo ""
 fi
 

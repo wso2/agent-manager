@@ -1,0 +1,41 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named {{ .Release.Name }}.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+  $ helm get all {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+{{- if .Values.ingress.enabled }}
+
+The application is accessible via Ingress:
+
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+
+{{- else }}
+
+To access the console, run:
+
+  export POD_NAME=$(kubectl get pods -n {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "agent-management-platform.name" . }},app.kubernetes.io/component=console" -o jsonpath="{.items[0].metadata.name}")
+  kubectl port-forward -n {{ .Release.Namespace }} $POD_NAME 3000:8080
+
+Then visit: http://localhost:3000
+
+To access the API, run:
+
+  export POD_NAME=$(kubectl get pods -n {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "agent-management-platform.name" . }},app.kubernetes.io/component=agent-manager-service" -o jsonpath="{.items[0].metadata.name}")
+  kubectl port-forward -n {{ .Release.Namespace }} $POD_NAME 8080:8080
+
+Then the API is available at: http://localhost:8080
+
+{{- end }}
+
+Next steps:
+1. Install observability-dataprepper chart (if needed)
+2. Install build-ci chart (if needed)
+3. Configure your agents to connect to this platform
+
+For more information, visit: https://github.com/wso2-enterprise/agent-management-platform

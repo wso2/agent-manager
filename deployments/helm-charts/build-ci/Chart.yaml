@@ -1,6 +1,0 @@
-apiVersion: v2
-name: agent-manager-build-ci-workflows
-description: A Helm chart for agent manager build CI workflows
-type: application
-version: 0.1.0
-appVersion: "0.1.0"

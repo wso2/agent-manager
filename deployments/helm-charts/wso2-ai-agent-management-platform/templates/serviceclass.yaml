@@ -1,0 +1,47 @@
+apiVersion: openchoreo.dev/v1alpha1
+kind: ServiceClass
+metadata:
+  name: default-otel-supported
+  namespace: default
+spec:
+  deploymentTemplate:
+    template:
+      spec:
+        volumes:
+          - name: otel-tracing-sdk-volume
+            emptyDir: {}
+        containers:
+          - name: main
+            volumeMounts:
+              - name: otel-tracing-sdk-volume
+                mountPath: /otel-tracing-sdk
+            resources:
+              requests:
+                cpu: 100m
+                memory: 64Mi
+              limits:
+                cpu: 400m
+                memory: 256Mi
+            env:
+              - name: PYTHONPATH
+                value: /otel-tracing-sdk
+              - name: AMP_TRACELOOP_TRACE_CONTENT
+                value: "true"
+              - name: AMP_OTEL_EXPORTER_OTLP_INSECURE
+                value: "true"
+              - name: AMP_TRACELOOP_METRICS_ENABLED
+                value: "false"
+              - name: AMP_TRACELOOP_TELEMETRY_ENABLED
+                value: "true"
+              - name: AMP_OTEL_EXPORTER_OTLP_ENDPOINT
+                value: http://data-prepper.openchoreo-observability-plane.svc.cluster.local:21893
+        initContainers:
+          - name: setup-instrumentation
+            image: ghcr.io/hanzjk/otel-instrumentation-setup:v1.0.1@sha256:c4d5a81d1112f5ea8bbbc1a9e3e3fd46c4a10b9c88c4d513677c364e4e63a7e4
+            imagePullPolicy: IfNotPresent
+            env:
+              - name: INSTRUMENTATION_PROVIDER
+                value: otel-tracing
+            volumeMounts:
+              - name: otel-tracing-sdk-volume
+                mountPath: /otel-tracing-sdk
