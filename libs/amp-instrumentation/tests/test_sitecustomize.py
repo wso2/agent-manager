@@ -25,17 +25,19 @@ def test_sitecustomize_initialization_failure_exits_with_error():
     """
     Test that sitecustomize.py exits with error code 1 when initialization fails.
     """
-    bootstrap_dir = Path(__file__).parent.parent / "src" / "amp_instrumentation" / "_bootstrap"
+    bootstrap_dir = (
+        Path(__file__).parent.parent / "src" / "amp_instrumentation" / "_bootstrap"
+    )
 
     # Test script that imports sitecustomize (which will fail due to missing env vars)
-    script = 'import sitecustomize'
+    script = "import sitecustomize"
 
     # Run WITHOUT required environment variables to trigger initialization failure
     result = subprocess.run(
         [sys.executable, "-c", script],
         env={"PYTHONPATH": str(bootstrap_dir)},
         capture_output=True,
-        text=True
+        text=True,
     )
 
     # Should exit with error code 1
@@ -53,30 +55,29 @@ def test_sitecustomize_successful_initialization():
     This verifies that sitecustomize actually initializes instrumentation when
     imported with proper environment variable configuration.
     """
-    bootstrap_dir = Path(__file__).parent.parent / "src" / "amp_instrumentation" / "_bootstrap"
+    bootstrap_dir = (
+        Path(__file__).parent.parent / "src" / "amp_instrumentation" / "_bootstrap"
+    )
 
     # Test script that imports sitecustomize and verifies initialization
-    script = '''
+    script = """
 import sitecustomize
 from amp_instrumentation._bootstrap import initialization
 # Check that initialization was successful
 assert initialization._initialized is True, "Instrumentation should be initialized"
 print("INIT_SUCCESS")
-'''
+"""
 
     # Run with required environment variables
     env = {
         "PYTHONPATH": str(bootstrap_dir),
-        "AMP_APP_NAME": "test-app",
-        "AMP_OTEL_EXPORTER_OTLP_ENDPOINT": "https://otel.example.com",
-        "AMP_API_KEY": "test-key"
+        "AMP_AGENT_NAME": "test-app",
+        "AMP_OTEL_ENDPOINT": "https://otel.example.com",
+        "AMP_AGENT_API_KEY": "test-key",
     }
 
     result = subprocess.run(
-        [sys.executable, "-c", script],
-        env=env,
-        capture_output=True,
-        text=True
+        [sys.executable, "-c", script], env=env, capture_output=True, text=True
     )
 
     # Should exit successfully

@@ -30,14 +30,14 @@ class TestRunWithSitecustomize:
 
     def test_no_args_exits_with_error(self):
         """Test that calling without args exits with error."""
-        with patch('sys.stderr', StringIO()):
+        with patch("sys.stderr", StringIO()):
             with pytest.raises(SystemExit) as exc_info:
                 # Call the function with empty arguments
-                main.run_with_sitecustomize([])  
+                main.run_with_sitecustomize([])
 
         assert exc_info.value.code == 1
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_successful_execution(self, mock_run, tmp_path):
         """Test successful command execution with proper environment setup."""
         # Create mock bootstrap directory
@@ -45,17 +45,19 @@ class TestRunWithSitecustomize:
         bootstrap_dir.mkdir()
 
         # Mock the package directory structure
-        with patch.object(Path, 'parent', tmp_path):
+        with patch.object(Path, "parent", tmp_path):
             # Mock subprocess.run to return success
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_run.return_value = mock_result
 
             # Patch check_sitecustomize_conflicts to avoid stderr output
-            with patch('amp_instrumentation.cli.main.check_sitecustomize_conflicts'):
+            with patch("amp_instrumentation.cli.main.check_sitecustomize_conflicts"):
                 with pytest.raises(SystemExit) as exc_info:
                     # Simulate the __file__ being in cli/main.py
-                    with patch.object(main, '__file__', str(tmp_path / "cli" / "main.py")):
+                    with patch.object(
+                        main, "__file__", str(tmp_path / "cli" / "main.py")
+                    ):
                         main.run_with_sitecustomize(["python", "test.py"])
 
         # Should exit with return code from subprocess
@@ -66,12 +68,12 @@ class TestRunWithSitecustomize:
         call_args = mock_run.call_args
 
         # Check that env was passed to subprocess.run
-        assert 'env' in call_args.kwargs
-        env = call_args.kwargs['env']
+        assert "env" in call_args.kwargs
+        env = call_args.kwargs["env"]
 
         # Verify PYTHONPATH was modified to include bootstrap directory
-        assert 'PYTHONPATH' in env
-        pythonpath = env['PYTHONPATH']
+        assert "PYTHONPATH" in env
+        pythonpath = env["PYTHONPATH"]
         assert str(bootstrap_dir) in pythonpath
 
         # Verify the command was correct
@@ -88,10 +90,10 @@ class TestRunWithSitecustomize:
         cli_dir = package_dir / "cli"
         cli_dir.mkdir()
 
-        with patch('sys.stderr', StringIO()) as mock_stderr:
+        with patch("sys.stderr", StringIO()) as mock_stderr:
             with pytest.raises(SystemExit) as exc_info:
                 # Simulate the __file__ being in cli/main.py
-                with patch.object(main, '__file__', str(cli_dir / "main.py")):
+                with patch.object(main, "__file__", str(cli_dir / "main.py")):
                     main.run_with_sitecustomize(["python", "test.py"])
 
         # Should exit with error code 1
@@ -102,6 +104,7 @@ class TestRunWithSitecustomize:
         assert "Error: Bootstrap directory not found" in stderr_output
         assert "Package may not be properly installed" in stderr_output
         assert "pip install --force-reinstall" in stderr_output
+
 
 class TestCheckSitecustomizeConflicts:
     """Test the check_sitecustomize_conflicts function."""
@@ -123,13 +126,15 @@ class TestCheckSitecustomizeConflicts:
             os.chdir(tmp_path)
 
             # Capture stderr output
-            with patch('sys.stderr', StringIO()) as mock_stderr:
+            with patch("sys.stderr", StringIO()) as mock_stderr:
                 main.check_sitecustomize_conflicts()
 
                 stderr_output = mock_stderr.getvalue()
                 # Verify warning was printed
                 assert "Warning: Found existing sitecustomize.py" in stderr_output
-                assert "This may conflict with WSO2 AMP instrumentation" in stderr_output
+                assert (
+                    "This may conflict with WSO2 AMP instrumentation" in stderr_output
+                )
         finally:
             os.chdir(original_cwd)
 
@@ -146,7 +151,7 @@ class TestCheckSitecustomizeConflicts:
             os.chdir(tmp_path)
 
             # Capture stderr output
-            with patch('sys.stderr', StringIO()) as mock_stderr:
+            with patch("sys.stderr", StringIO()) as mock_stderr:
                 main.check_sitecustomize_conflicts()
 
                 stderr_output = mock_stderr.getvalue()
@@ -160,11 +165,12 @@ class TestCheckSitecustomizeConflicts:
 class TestCLI:
     """Test the main CLI entry point."""
 
-    @patch('amp_instrumentation.cli.main.run_with_sitecustomize')
+    @patch("amp_instrumentation.cli.main.run_with_sitecustomize")
     def test_cli_passes_args(self, mock_run):
         """Test that CLI passes arguments to run_with_sitecustomize."""
-        with patch.object(sys, 'argv', ['wso2-agent-trace', 'python', 'script.py', '--arg']):
+        with patch.object(
+            sys, "argv", ["wso2-agent-trace", "python", "script.py", "--arg"]
+        ):
             main.cli()
 
-        mock_run.assert_called_once_with(['python', 'script.py', '--arg'])
-
+        mock_run.assert_called_once_with(["python", "script.py", "--arg"])

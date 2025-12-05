@@ -33,9 +33,9 @@ def clean_environment() -> Generator[None, None, None]:
 
     # Remove AMP-related environment variables
     amp_vars = [
-        "AMP_APP_NAME",
-        "AMP_OTEL_EXPORTER_OTLP_ENDPOINT",
-        "AMP_API_KEY",
+        "AMP_AGENT_NAME",
+        "AMP_OTEL_ENDPOINT",
+        "AMP_AGENT_API_KEY",
     ]
 
     for var in amp_vars:
@@ -57,9 +57,9 @@ def set_env_vars() -> Dict[str, str]:
         Dictionary with valid AMP configuration
     """
     return {
-        "AMP_APP_NAME": "test-app",
-        "AMP_OTEL_EXPORTER_OTLP_ENDPOINT": "https://otel.example.com",
-        "AMP_API_KEY": "test-api-key",
+        "AMP_AGENT_NAME": "test-app",
+        "AMP_OTEL_ENDPOINT": "https://otel.example.com",
+        "AMP_AGENT_API_KEY": "test-api-key",
     }
 
 
@@ -88,6 +88,7 @@ def mock_traceloop(monkeypatch):
     Args:
         monkeypatch: Pytest monkeypatch fixture
     """
+
     class MockTraceloop:
         initialized = False
         init_kwargs = {}
@@ -112,12 +113,12 @@ def mock_traceloop(monkeypatch):
 
     mock_module = MagicMock()
     mock_module.Traceloop = MockTraceloop
-    sys.modules['traceloop.sdk'] = mock_module
+    sys.modules["traceloop.sdk"] = mock_module
 
     yield MockTraceloop
 
     # Clean up
-    if 'traceloop.sdk' in sys.modules:
-        del sys.modules['traceloop.sdk']
-    if 'traceloop' in sys.modules:
-        del sys.modules['traceloop']
+    if "traceloop.sdk" in sys.modules:
+        del sys.modules["traceloop.sdk"]
+    if "traceloop" in sys.modules:
+        del sys.modules["traceloop"]

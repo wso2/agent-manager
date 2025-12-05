@@ -20,9 +20,10 @@ This module centralizes all environment variable names used for configuration.
 """
 
 # Application Configuration
-AMP_APP_NAME = "AMP_APP_NAME"
-AMP_OTEL_EXPORTER_OTLP_ENDPOINT = "AMP_OTEL_EXPORTER_OTLP_ENDPOINT"
-AMP_API_KEY = "AMP_API_KEY"
+AMP_AGENT_NAME = "AMP_AGENT_NAME"
+AMP_OTEL_ENDPOINT = "AMP_OTEL_ENDPOINT"
+AMP_AGENT_API_KEY = "AMP_AGENT_API_KEY"
+AMP_TRACE_CONTENT = "AMP_TRACE_CONTENT"
 
 # Downstream environment variables that get set for Traceloop
 TRACELOOP_TRACE_CONTENT = "TRACELOOP_TRACE_CONTENT"

@@ -36,10 +36,13 @@ def check_sitecustomize_conflicts() -> None:
     as it may interfere with WSO2 AMP instrumentation.
     """
     cwd = os.getcwd()
-    sitecustomize_path = Path(cwd) / 'sitecustomize.py'
+    sitecustomize_path = Path(cwd) / "sitecustomize.py"
 
     if sitecustomize_path.exists():
-        print("Warning: Found existing sitecustomize.py in current directory.", file=sys.stderr)
+        print(
+            "Warning: Found existing sitecustomize.py in current directory.",
+            file=sys.stderr,
+        )
         print("This may conflict with WSO2 AMP instrumentation.", file=sys.stderr)
         print("", file=sys.stderr)
 
@@ -74,20 +77,25 @@ def run_with_sitecustomize(args: List[str]) -> NoReturn:
     bootstrap_dir = package_dir / "_bootstrap"
 
     if not bootstrap_dir.exists():
-        print(f"Error: Bootstrap directory not found at {bootstrap_dir}", file=sys.stderr)
+        print(
+            f"Error: Bootstrap directory not found at {bootstrap_dir}", file=sys.stderr
+        )
         print("Package may not be properly installed.", file=sys.stderr)
-        print("Try reinstalling with: pip install --force-reinstall wso2-agent-instrumentation", file=sys.stderr)
+        print(
+            "Try reinstalling with: pip install --force-reinstall wso2-agent-instrumentation",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Prepare environment with modified PYTHONPATH
     env: Dict[str, str] = os.environ.copy()
-    current_pythonpath = env.get('PYTHONPATH', '')
+    current_pythonpath = env.get("PYTHONPATH", "")
 
     # Prepend bootstrap directory to PYTHONPATH
     if current_pythonpath:
-        env['PYTHONPATH'] = f"{bootstrap_dir}{os.pathsep}{current_pythonpath}"
+        env["PYTHONPATH"] = f"{bootstrap_dir}{os.pathsep}{current_pythonpath}"
     else:
-        env['PYTHONPATH'] = str(bootstrap_dir)
+        env["PYTHONPATH"] = str(bootstrap_dir)
 
     # Run the command with modified environment
     try:
@@ -114,5 +122,5 @@ def cli() -> None:
     run_with_sitecustomize(args)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()

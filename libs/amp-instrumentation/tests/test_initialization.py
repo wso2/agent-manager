@@ -19,7 +19,7 @@
 import os
 import pytest
 from amp_instrumentation._bootstrap import initialization
-from amp_instrumentation._bootstrap import environment_variables as env_vars
+from amp_instrumentation._bootstrap import constants as env_vars
 
 
 class TestGetRequiredEnvVar:
@@ -47,16 +47,17 @@ class TestGetRequiredEnvVar:
         assert "WHITESPACE_VAR" in str(exc_info.value)
 
 
-
 class TestInitializeInstrumentation:
     """Test the initialize_instrumentation function."""
 
     def test_successful_initialization(self, clean_environment, mock_traceloop):
         """Test successful initialization with all required env vars."""
         # Set required environment variables
-        os.environ[env_vars.AMP_APP_NAME] = "test-app"
-        os.environ[env_vars.AMP_OTEL_EXPORTER_OTLP_ENDPOINT] = "https://otel.example.com"
-        os.environ[env_vars.AMP_API_KEY] = "test-key"
+        os.environ[env_vars.AMP_AGENT_NAME] = "test-app"
+        os.environ[env_vars.AMP_OTEL_ENDPOINT] = (
+            "https://otel.example.com"
+        )
+        os.environ[env_vars.AMP_AGENT_API_KEY] = "test-key"
 
         # Reset initialization state
         initialization._initialized = False

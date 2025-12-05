@@ -22,7 +22,7 @@ This module contains the core initialization function for instrumentation.
 import os
 import logging
 import threading
-from . import environment_variables as env_vars
+from . import constants as env_vars
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,7 @@ _init_lock = threading.Lock()
 
 class ConfigurationError(Exception):
     """Raised when required configuration is missing or invalid."""
+
     pass
 
 
@@ -65,12 +66,15 @@ def initialize_instrumentation() -> None:
 
         try:
             # Validate and read required configuration
-            app_name = _get_required_env_var(env_vars.AMP_APP_NAME)
-            otel_endpoint = _get_required_env_var(env_vars.AMP_OTEL_EXPORTER_OTLP_ENDPOINT)
-            api_key = _get_required_env_var(env_vars.AMP_API_KEY)
+            app_name = _get_required_env_var(env_vars.AMP_AGENT_NAME)
+            otel_endpoint = _get_required_env_var(env_vars.AMP_OTEL_ENDPOINT)
+            api_key = _get_required_env_var(env_vars.AMP_AGENT_API_KEY)
+
+            # Get trace content setting (default: true)
+            trace_content = os.getenv(env_vars.AMP_TRACE_CONTENT, "true")
 
             # Set Traceloop environment variables
-            os.environ[env_vars.TRACELOOP_TRACE_CONTENT] = "true"
+            os.environ[env_vars.TRACELOOP_TRACE_CONTENT] = trace_content
             os.environ[env_vars.TRACELOOP_METRICS_ENABLED] = "false"
             os.environ[env_vars.OTEL_EXPORTER_OTLP_INSECURE] = "true"
 
@@ -82,21 +86,27 @@ def initialize_instrumentation() -> None:
                 telemetry_enabled=False,
                 app_name=app_name,
                 api_endpoint=otel_endpoint,
-                headers={"x-api-key": api_key}
+                headers={"x-api-key": api_key},
             )
 
             _initialized = True
-            logger.info(f"Instrumentation initialized successfully for application: {app_name}")
+            logger.info(
+                f"Instrumentation initialized successfully for application: {app_name}"
+            )
 
         except ConfigurationError as e:
             logger.error(f"Configuration error: {e}")
             raise
 
         except ImportError as e:
-            logger.error(f"Failed to import traceloop-sdk: {e}. Ensure traceloop-sdk is installed.")
-            raise 
-
+            logger.error(
+                f"Failed to import traceloop-sdk: {e}. Ensure traceloop-sdk is installed."
+            )
+            raise
 
         except Exception as e:
-            logger.error(f"Unexpected error during instrumentation initialization: {e}", exc_info=True)
-            raise  
+            logger.error(
+                f"Unexpected error during instrumentation initialization: {e}",
+                exc_info=True,
+            )
+            raise
