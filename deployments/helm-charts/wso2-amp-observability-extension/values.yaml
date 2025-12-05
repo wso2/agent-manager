@@ -34,8 +34,8 @@ opensearch:
   indexType: custom
   indexName: custom-otel-span-index
   namespace: openchoreo-observability-plane
-  username: admin
-  password: admin
+  username: ""
+  password: ""
   insecure: true
   # Path inside the container where the index template is mounted
   templatePath: /usr/share/data-prepper/otel-v1-apm-span-index-standard-template.json
@@ -43,12 +43,12 @@ opensearch:
 # Traces Observer Service config
 tracesObserver:
   enabled: true
-  name: traces-observer-service
+  name: amp-trace-observer
   namespace: openchoreo-observability-plane
   replicaCount: 1
   image:
-    repository: ghcr.io/agent-mgt-platform/traces-observer-service
-    tag: latest
+    repository: ghcr.io/wso2/amp-trace-observer
+    tag: "0.0.0-dev"
     pullPolicy: IfNotPresent
   port: 9098
   resourceLimits:

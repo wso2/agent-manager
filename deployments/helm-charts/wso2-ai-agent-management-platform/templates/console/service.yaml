@@ -15,4 +15,3 @@ spec:
   selector:
     {{- include "agent-management-platform.console.selectorLabels" . | nindent 4 }}
 {{- end }}
-

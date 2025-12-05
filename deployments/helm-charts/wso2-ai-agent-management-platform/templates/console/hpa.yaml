@@ -30,4 +30,3 @@ spec:
           averageUtilization: {{ .Values.console.autoscaling.targetMemoryUtilizationPercentage }}
     {{- end }}
 {{- end }}
-

@@ -37,8 +37,8 @@ agentManagerService:
   replicaCount: 1
 
   image:
-    repository: ghcr.io/agent-mgt-platform/agent-manager-service
-    tag: "v1.0.1"
+    repository: ghcr.io/wso2/amp-api
+    tag: "0.0.0-dev"
     pullPolicy: IfNotPresent
 
   service:
@@ -130,8 +130,8 @@ console:
   replicaCount: 1
 
   image:
-    repository: ghcr.io/agent-mgt-platform/agent-manager-console
-    tag: "v1.0.0"
+    repository: ghcr.io/wso2/amp-console
+    tag: "0.0.0-dev"
     pullPolicy: Always
 
   service:
@@ -193,8 +193,8 @@ dbMigration:
   enabled: true
 
   image:
-    repository: ghcr.io/agent-mgt-platform/agent-manager-service
-    tag: "v1.0.1"
+    repository: ghcr.io/wso2/amp-api
+    tag: "0.0.0-dev"
     pullPolicy: IfNotPresent
 
   resources:

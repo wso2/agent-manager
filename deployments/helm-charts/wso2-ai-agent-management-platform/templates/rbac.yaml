@@ -23,4 +23,3 @@ subjects:
     name: {{ include "agent-management-platform.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
 {{- end }}
-

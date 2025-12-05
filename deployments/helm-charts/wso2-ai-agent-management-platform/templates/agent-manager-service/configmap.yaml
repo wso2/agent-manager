@@ -27,4 +27,3 @@ data:
   OTEL_EXPORTER_OTLP_INSECURE: {{ .Values.agentManagerService.config.otel.exporterInsecure | quote }}
   OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.agentManagerService.config.otel.exporterEndpoint | quote }}
 {{- end }}
-
