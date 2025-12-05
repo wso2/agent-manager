@@ -169,7 +169,7 @@ class TestCLI:
     def test_cli_passes_args(self, mock_run):
         """Test that CLI passes arguments to run_with_sitecustomize."""
         with patch.object(
-            sys, "argv", ["wso2-agent-trace", "python", "script.py", "--arg"]
+            sys, "argv", ["amp-instrument", "python", "script.py", "--arg"]
         ):
             main.cli()
 

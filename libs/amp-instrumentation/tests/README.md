@@ -42,7 +42,7 @@ open htmlcov/index.html
 
 ```bash
 pip install -e .
-pip list | grep wso2-agent-instrumentation
+pip list | grep amp-instrumentation
 ```
 
 **Missing dependencies:**

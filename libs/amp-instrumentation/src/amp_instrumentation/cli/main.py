@@ -65,7 +65,7 @@ def run_with_sitecustomize(args: List[str]) -> NoReturn:
     # Validate that we have arguments to run
     if not args:
         print("Error: No command specified.", file=sys.stderr)
-        print("Usage: wso2-agent-trace <command> [args...]", file=sys.stderr)
+        print("Usage: amp-instrument <command> [args...]", file=sys.stderr)
         sys.exit(1)
 
     # Check for potential conflicts
@@ -82,7 +82,7 @@ def run_with_sitecustomize(args: List[str]) -> NoReturn:
         )
         print("Package may not be properly installed.", file=sys.stderr)
         print(
-            "Try reinstalling with: pip install --force-reinstall wso2-agent-instrumentation",
+            "Try reinstalling with: pip install --force-reinstall amp-instrumentation",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -108,15 +108,15 @@ def run_with_sitecustomize(args: List[str]) -> NoReturn:
 
 def cli() -> None:
     """
-    Main CLI entry point for wso2-agent-trace command.
+    Main CLI entry point for amp-instrument command.
 
     This function is registered as a console script entry point in pyproject.toml.
     It wraps any Python command with automatic WSO2 AMP instrumentation.
 
     Usage:
-        wso2-agent-trace python my_script.py
-        wso2-agent-trace uvicorn app:main --reload
-        wso2-agent-trace poetry run python script.py
+        amp-instrument python my_script.py
+        amp-instrument uvicorn app:main --reload
+        amp-instrument poetry run python script.py
     """
     args = sys.argv[1:]
     run_with_sitecustomize(args)
