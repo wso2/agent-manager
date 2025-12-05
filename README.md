@@ -1,10 +1,10 @@
-# WSO2 Agent Manager
+# WSO2 Agent Management Platform
 
 An open control plane designed for enterprises to deploy, manage, and govern AI agents at scale.
 
 ## Overview
 
-WSO2 Agent Manager provides a comprehensive platform for enterprise AI agent management. It enables organizations to deploy AI agents (both internally hosted and externally deployed), monitor their behavior through full-stack observability, and enforce governance policies at scale.
+WSO2 Agent Management Platform provides a comprehensive platform for enterprise AI agent management. It enables organizations to deploy AI agents (both internally hosted and externally deployed), monitor their behavior through full-stack observability, and enforce governance policies at scale.
 
 Built on [OpenChoreo](https://github.com/openchoreo/openchoreo) for internal agent deployments, the platform leverages OpenTelemetry for extensible instrumentation across multiple AI frameworks.
 
@@ -29,7 +29,7 @@ Built on [OpenChoreo](https://github.com/openchoreo/openchoreo) for internal age
 
 ## Helm Charts
 
-Deploy WSO2 Agent Manager on Kubernetes using our Helm charts:
+Deploy WSO2 Agent Management Platform on Kubernetes using our Helm charts:
 
 | Chart | Description |
 |-------|-------------|
