@@ -1,0 +1,41 @@
+{{- if .Values.console.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "agent-management-platform.console.fullname" . }}
+  labels:
+    {{- include "agent-management-platform.console.labels" . | nindent 4 }}
+data:
+  # Authentication configuration
+  AUTH_CLIENT_ID: {{ .Values.console.config.auth.clientId | quote }}
+  AUTH_BASE_URL: {{ .Values.console.config.auth.baseUrl | quote }}
+  SIGN_IN_REDIRECT_URL: {{ .Values.console.config.auth.signInRedirectURL | quote }}
+  SIGN_OUT_REDIRECT_URL: {{ .Values.console.config.auth.signOutRedirectURL | quote }}
+
+  # Disable authentication flag
+  DISABLE_AUTH: {{ .Values.console.config.disableAuth | quote }}
+
+  # Backend API URL (auto-configure if empty)
+  API_BASE_URL: {{ .Values.console.config.apiBaseUrl | default (printf "http://%s:%d" (include "agent-management-platform.agentManagerService.fullname" .) (int .Values.agentManagerService.service.port)) | quote }}
+
+  # Observability API URL (optional)
+  OBS_API_BASE_URL: {{ .Values.console.config.obsApiBaseUrl | quote }}
+
+  # Runtime configuration file (config.js) for the console
+  # This matches the structure expected by the console application
+  config.js: |
+    window.__RUNTIME_CONFIG__ = {
+      authConfig: {
+        signInRedirectURL: "{{ .Values.console.config.auth.signInRedirectURL }}",
+        signOutRedirectURL: "{{ .Values.console.config.auth.signOutRedirectURL }}",
+        clientID: "{{ .Values.console.config.auth.clientId }}",
+        baseUrl: "{{ .Values.console.config.auth.baseUrl }}",
+        scope: ['openid', 'profile'],
+        storage: 'sessionStorage'
+      },
+      disableAuth: {{ .Values.console.config.disableAuth }},
+      apiBaseUrl: "{{ .Values.console.config.apiBaseUrl | default (printf "http://%s:%d" (include "agent-management-platform.agentManagerService.fullname" .) (int .Values.agentManagerService.service.port)) }}",
+      obsApiBaseUrl: "{{ .Values.console.config.obsApiBaseUrl }}"
+    };
+{{- end }}
+

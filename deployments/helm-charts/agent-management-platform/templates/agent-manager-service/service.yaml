@@ -1,0 +1,22 @@
+{{- if .Values.agentManagerService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agent-management-platform.agentManagerService.fullname" . }}
+  labels:
+    {{- include "agent-management-platform.agentManagerService.labels" . | nindent 4 }}
+  {{- with .Values.agentManagerService.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.agentManagerService.service.type }}
+  ports:
+    - port: {{ .Values.agentManagerService.service.port }}
+      targetPort: {{ .Values.agentManagerService.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "agent-management-platform.agentManagerService.selectorLabels" . | nindent 4 }}
+{{- end }}
+

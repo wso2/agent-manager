@@ -1,0 +1,87 @@
+{{- if .Values.dbMigration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "agent-management-platform.fullname" . }}-db-migration
+  labels:
+    {{- include "agent-management-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: db-migration
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: {{ .Values.dbMigration.backoffLimit }}
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      name: {{ include "agent-management-platform.fullname" . }}-db-migration
+      labels:
+        {{- include "agent-management-platform.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: db-migration
+    spec:
+      {{- include "agent-management-platform.imagePullSecrets" . | nindent 6 }}
+      restartPolicy: Never
+      {{- with .Values.dbMigration.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.postgresql.enabled }}
+      initContainers:
+        - name: wait-for-db
+          image: postgres:16-alpine
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h {{ include "agent-management-platform.postgresql.host" . }} -p {{ include "agent-management-platform.postgresql.port" . }} -U {{ include "agent-management-platform.postgresql.username" . }}; do
+                echo "Waiting for PostgreSQL to be ready..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready!"
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agent-management-platform.postgresql.secretName" . }}
+                  key: {{ include "agent-management-platform.postgresql.secretPasswordKey" . }}
+      {{- end }}
+      containers:
+        - name: db-migration
+          {{- with .Values.dbMigration.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.dbMigration.image.repository }}:{{ .Values.dbMigration.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.dbMigration.image.pullPolicy }}
+          command:
+            - /go/bin/agent-manager-service
+            - -migrate
+            - -server=false
+          env:
+            - name: DB_HOST
+              value: {{ include "agent-management-platform.postgresql.host" . | quote }}
+            - name: DB_PORT
+              value: {{ include "agent-management-platform.postgresql.port" . | quote }}
+            - name: DB_NAME
+              value: {{ include "agent-management-platform.postgresql.database" . | quote }}
+            - name: DB_USER
+              value: {{ include "agent-management-platform.postgresql.username" . | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agent-management-platform.postgresql.secretName" . }}
+                  key: {{ include "agent-management-platform.postgresql.secretPasswordKey" . }}
+            - name: API_KEY_VALUE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.agentManagerService.config.apiKey.existingSecret | default (include "agent-management-platform.agentManagerService.fullname" .) }}
+                  key: {{ .Values.agentManagerService.config.apiKey.existingSecretKey | default "api-key" }}
+            - name: LOG_LEVEL
+              value: "INFO"
+          {{- with .Values.dbMigration.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}
+

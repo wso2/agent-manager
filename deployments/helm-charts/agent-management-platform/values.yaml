@@ -1,0 +1,251 @@
+# Default values for agent-management-platform
+global:
+  imagePullSecrets: []
+  storageClass: ""
+
+# PostgreSQL Database Configuration
+postgresql:
+  enabled: true
+  external:
+    host: ""
+    port: 5432
+    database: agentmanager
+    username: agentmanager
+    password: ""
+    existingSecret: ""
+    existingSecretPasswordKey: "password"
+  # Image configuration - use stable PostgreSQL 16 image
+  auth:
+    database: agentmanager
+    username: agentmanager
+    password: "agentmanager"
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 512Mi
+        cpu: 500m
+
+# Agent Manager Service Configuration
+agentManagerService:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: ghcr.io/agent-mgt-platform/agent-manager-service
+    tag: "v1.0.1"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: NodePort
+    port: 8080
+    targetPort: 8080
+    annotations: {}
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: ~
+
+  # Health checks
+  livenessProbe:
+    tcpSocket:
+      port: 8080
+    initialDelaySeconds: 15
+    periodSeconds: 10
+
+  readinessProbe:
+      tcpSocket:
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 10
+
+  # Application configuration
+  config:
+    serverHost: "0.0.0.0"
+    logLevel: "INFO"
+    autoMaxProcsEnabled: "true"
+    authHeader: "Authorization"
+    dbOperationTimeout: 30
+    healthCheckTimeout: 5
+    defaultHTTPPort: 8080
+    corsAllowedOrigin: "*"
+
+    # API Key configuration
+    apiKey:
+      header: "X-API-Key"
+      value: "abc-def-123"
+      existingSecret: ""
+      existingSecretKey: "api-key"
+
+    # Kubeconfig (empty for in-cluster, or provide config)
+    kubeconfig: ""
+
+    # OpenTelemetry configuration
+    otel:
+      instrumentationImage: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:latest"
+      instrumentationProvider: "opentelemetry"
+      sdkVolumeName: "opentelemetry-auto-instrumentation"
+      sdkMountPath: "/otel-auto-instrumentation"
+      traceContent: "true"
+      metricsEnabled: "true"
+      telemetryEnabled: "true"
+      exporterInsecure: "true"
+      exporterEndpoint: "http://data-prepper.openchoreo-observability-plane:4317"
+
+  # Pod-level configurations
+  podAnnotations: {}
+  podLabels: {}
+  # Pod security context - defaults to fsGroup: 1000 if not specified
+  # Note: If you encounter "too many open files" errors, this is typically caused by
+  # the Kubernetes client watching too many resources. Consider:
+  # 1. Reducing the number of watched resources in the application
+  # 2. Implementing resource filtering in watchers
+  # 3. Increasing limits at the node/cluster level
+  podSecurityContext: {}
+  # Container security context - defaults to secure settings if not specified
+  securityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Console (Frontend) Configuration
+console:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: ghcr.io/agent-mgt-platform/agent-manager-console
+    tag: "v1.0.0"
+    pullPolicy: Always
+
+  service:
+    type: NodePort
+    port: 3000
+    targetPort: 3000
+
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 256Mi
+      cpu: 200m
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: ~
+
+  # Health checks
+  livenessProbe: null
+  readinessProbe: null
+
+  # Frontend configuration
+  config:
+    # Authentication (set to "" to disable)
+    auth:
+      clientId: ""
+      baseUrl: ""
+      signInRedirectURL: ""
+      signOutRedirectURL: ""
+      existingSecret: ""
+
+    # Disable auth for development
+    disableAuth: "true"
+
+    # Backend API URLs (will be auto-configured if empty)
+    apiBaseUrl: "http://localhost:8080"  # Defaults to: http://{{ .Release.Name }}-agent-manager-service:8080
+    obsApiBaseUrl: "http://localhost:9098"  # Optional observability API
+
+  # Pod-level configurations
+  podAnnotations: {}
+  podLabels: {}
+  # Pod security context - optional, no defaults to allow image to use its own user
+  # If you need to set fsGroup or other pod-level security settings, specify them here
+  podSecurityContext: {}
+  # Container security context - defaults to secure settings (without runAsUser to allow image default)
+  # If you need to set runAsUser or other container-level security settings, specify them here
+  securityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Database Migration Job Configuration
+dbMigration:
+  enabled: true
+
+  image:
+    repository: ghcr.io/agent-mgt-platform/agent-manager-service
+    tag: "v1.0.1"
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 256Mi
+      cpu: 200m
+
+  backoffLimit: 3
+  podSecurityContext: {}
+  securityContext: {}
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+  hosts:
+    - host: agent-manager.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service: console
+        - path: /api(/|$)(.*)
+          pathType: ImplementationSpecific
+          service: agent-manager-service
+  tls: []
+
+# ServiceAccount Configuration
+serviceAccount:
+  create: true
+  name: "agent-management-platform"
+  annotations: {}
+  automount: true
+
+# RBAC Configuration
+rbac:
+  create: true
+  # Rules for managing agents and k8s resources
+  # Full permissions for agent management operations
+  rules:
+    - apiGroups: ["*"]
+      resources: ["*"]
+      verbs: ["*"]
+
+# Global volume mounts and volumes (optional)
+volumeMounts: []
+volumes: []
+
+# Common labels to add to all resources
+commonLabels: {}

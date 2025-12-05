@@ -1,0 +1,33 @@
+{{- if and .Values.agentManagerService.enabled .Values.agentManagerService.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "agent-management-platform.agentManagerService.fullname" . }}
+  labels:
+    {{- include "agent-management-platform.agentManagerService.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "agent-management-platform.agentManagerService.fullname" . }}
+  minReplicas: {{ .Values.agentManagerService.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.agentManagerService.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.agentManagerService.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.agentManagerService.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.agentManagerService.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.agentManagerService.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}
+

@@ -25,7 +25,7 @@ otlp:
 service:
   name: data-prepper
   namespace: openchoreo-observability-plane
-  type: ClusterIP
+  type: NodePort
 
 # OpenSearch sink config
 opensearch:
@@ -34,8 +34,8 @@ opensearch:
   indexType: custom
   indexName: custom-otel-span-index
   namespace: openchoreo-observability-plane
-  username: "" # Override with actual credentials via --set
-  password: "" # Override with actual credentials via --set
+  username: admin
+  password: admin
   insecure: true
   # Path inside the container where the index template is mounted
   templatePath: /usr/share/data-prepper/otel-v1-apm-span-index-standard-template.json
@@ -47,7 +47,7 @@ tracesObserver:
   namespace: openchoreo-observability-plane
   replicaCount: 1
   image:
-    repository: traces-observer
+    repository: ghcr.io/agent-mgt-platform/traces-observer-service
     tag: latest
     pullPolicy: IfNotPresent
   port: 9098
@@ -58,7 +58,7 @@ tracesObserver:
     memory: 128Mi
     cpu: 250m
   service:
-    type: ClusterIP
+    type: NodePort
   env:
     opensearchAddress: http://opensearch.openchoreo-observability-plane.svc.cluster.local:9200
     opensearchTraceIndex: custom-otel-span-index

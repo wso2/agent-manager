@@ -1,6 +1,17 @@
 apiVersion: v2
-name: agent-manager-build-ci-workflows
-description: A Helm chart for agent manager build CI workflows
+name: wso2-amp-build-extension
+description: A Helm chart to add Build CI functionality for the Agent Management Platform, by Deploying and Configuring Build CI workflows.
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.0.0-dev
+appVersion: "0.0.0-dev"
+
+keywords:
+  - wso2
+  - ai
+  - agent-management
+  - ai-agents
+  - build-ci
+
+maintainers:
+  - name: WSO2
+    url: https://wso2.com

@@ -1,0 +1,30 @@
+{{- if .Values.agentManagerService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "agent-management-platform.agentManagerService.fullname" . }}
+  labels:
+    {{- include "agent-management-platform.agentManagerService.labels" . | nindent 4 }}
+data:
+  SERVER_HOST: {{ .Values.agentManagerService.config.serverHost | quote }}
+  SERVER_PORT: {{ .Values.agentManagerService.service.targetPort | quote }}
+  LOG_LEVEL: {{ .Values.agentManagerService.config.logLevel | quote }}
+  AUTO_MAX_PROCS_ENABLED: {{ .Values.agentManagerService.config.autoMaxProcsEnabled | quote }}
+  AUTH_HEADER: {{ .Values.agentManagerService.config.authHeader | default "Authorization" | quote }}
+  DB_OPERATION_TIMEOUT_SECONDS: {{ .Values.agentManagerService.config.dbOperationTimeout | quote }}
+  HEALTH_CHECK_TIMEOUT_SECONDS: {{ .Values.agentManagerService.config.healthCheckTimeout | quote }}
+  DEFAULT_HTTP_PORT: {{ .Values.agentManagerService.config.defaultHTTPPort | quote }}
+  CORS_ALLOWED_ORIGIN: {{ .Values.agentManagerService.config.corsAllowedOrigin | quote }}
+  API_KEY_HEADER: {{ .Values.agentManagerService.config.apiKey.header | quote }}
+  KUBECONFIG: {{ .Values.agentManagerService.config.kubeconfig | quote }}
+  OTEL_INSTRUMENTATION_IMAGE: {{ .Values.agentManagerService.config.otel.instrumentationImage | quote }}
+  OTEL_INSTRUMENTATION_PROVIDER: {{ .Values.agentManagerService.config.otel.instrumentationProvider | quote }}
+  OTEL_SDK_VOLUME_NAME: {{ .Values.agentManagerService.config.otel.sdkVolumeName | quote }}
+  OTEL_SDK_MOUNT_PATH: {{ .Values.agentManagerService.config.otel.sdkMountPath | quote }}
+  OTEL_TRACELOOP_TRACE_CONTENT: {{ .Values.agentManagerService.config.otel.traceContent | quote }}
+  OTEL_TRACELOOP_METRICS_ENABLED: {{ .Values.agentManagerService.config.otel.metricsEnabled | quote }}
+  OTEL_TRACELOOP_TELEMETRY_ENABLED: {{ .Values.agentManagerService.config.otel.telemetryEnabled | quote }}
+  OTEL_EXPORTER_OTLP_INSECURE: {{ .Values.agentManagerService.config.otel.exporterInsecure | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.agentManagerService.config.otel.exporterEndpoint | quote }}
+{{- end }}
+

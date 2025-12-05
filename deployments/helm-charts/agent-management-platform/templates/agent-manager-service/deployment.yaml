@@ -1,0 +1,133 @@
+{{- if .Values.agentManagerService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent-management-platform.agentManagerService.fullname" . }}
+  labels:
+    {{- include "agent-management-platform.agentManagerService.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.agentManagerService.autoscaling.enabled }}
+  replicas: {{ .Values.agentManagerService.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "agent-management-platform.agentManagerService.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/agent-manager-service/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/agent-manager-service/secret.yaml") . | sha256sum }}
+        {{- with .Values.agentManagerService.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "agent-management-platform.agentManagerService.selectorLabels" . | nindent 8 }}
+        {{- with .Values.agentManagerService.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "agent-management-platform.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "agent-management-platform.serviceAccountName" . }}
+      {{- if .Values.agentManagerService.podSecurityContext }}
+      securityContext:
+        {{- toYaml .Values.agentManagerService.podSecurityContext | nindent 8 }}
+      {{- else }}
+      securityContext:
+        fsGroup: 1000
+      {{- end }}
+      {{- if .Values.postgresql.enabled }}
+      initContainers:
+        - name: wait-for-db
+          image: postgres:16-alpine
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h {{ include "agent-management-platform.postgresql.host" . }} -p {{ include "agent-management-platform.postgresql.port" . }} -U {{ include "agent-management-platform.postgresql.username" . }}; do
+                echo "Waiting for PostgreSQL to be ready..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready!"
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agent-management-platform.postgresql.secretName" . }}
+                  key: {{ include "agent-management-platform.postgresql.secretPasswordKey" . }}
+      {{- end }}
+      containers:
+        - name: agent-manager-service
+          {{- if .Values.agentManagerService.securityContext }}
+          securityContext:
+            {{- toYaml .Values.agentManagerService.securityContext | nindent 12 }}
+          {{- else }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          {{- end }}
+          image: "{{ .Values.agentManagerService.image.repository }}:{{ .Values.agentManagerService.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.agentManagerService.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.agentManagerService.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: DB_HOST
+              value: {{ include "agent-management-platform.postgresql.host" . | quote }}
+            - name: DB_PORT
+              value: {{ include "agent-management-platform.postgresql.port" . | quote }}
+            - name: DB_NAME
+              value: {{ include "agent-management-platform.postgresql.database" . | quote }}
+            - name: DB_USER
+              value: {{ include "agent-management-platform.postgresql.username" . | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agent-management-platform.postgresql.secretName" . }}
+                  key: {{ include "agent-management-platform.postgresql.secretPasswordKey" . }}
+            - name: API_KEY_VALUE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.agentManagerService.config.apiKey.existingSecret | default (include "agent-management-platform.agentManagerService.fullname" .) }}
+                  key: {{ .Values.agentManagerService.config.apiKey.existingSecretKey | default "api-key" }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "agent-management-platform.agentManagerService.fullname" . }}
+          {{- with .Values.agentManagerService.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.agentManagerService.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.agentManagerService.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.agentManagerService.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.agentManagerService.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.agentManagerService.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+

@@ -1,0 +1,18 @@
+{{- if .Values.console.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agent-management-platform.console.fullname" . }}
+  labels:
+    {{- include "agent-management-platform.console.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.console.service.type }}
+  ports:
+    - port: {{ .Values.console.service.port }}
+      targetPort: {{ .Values.console.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "agent-management-platform.console.selectorLabels" . | nindent 4 }}
+{{- end }}
+
