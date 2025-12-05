@@ -32,9 +32,9 @@ export function Build() {
   const [searchParams, setSearchParams] = useSearchParams();
   const isBuildPanelOpen = searchParams.get('buildPanel') === 'open';
 
-  // eslint-disable-next-line max-len
+   
   const isOverview = useMatch(absoluteRouteMap.children.org.children.projects.children.agents.path);
-  // eslint-disable-next-line max-len
+   
   const isRun = useMatch(absoluteRouteMap.children.org.children.projects.children.agents.path);
 
   const navLinks: GroupNavLinks[] = [

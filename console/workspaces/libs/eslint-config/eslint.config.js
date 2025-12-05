@@ -27,7 +27,7 @@ export default tseslint.config(
   tseslint.configs.recommended,
   pluginReact.configs.flat.recommended,
   {
-    ignores: ['eslint.config.js', 'dist/**', 'node_modules/**', '*.config.js', '*.config.ts'],
+    ignores: ['eslint.config.js', 'dist/**', 'node_modules/**', '*.config.js', '*.config.ts', '*.stories.tsx',],
   },
   {
     plugins: {

@@ -63,7 +63,7 @@ export const TopNavBar: React.FC = () => {
     return (
         <Box display="flex" gap={1}>
             <TopNavBarGroup
-                // eslint-disable-next-line max-len
+                 
                 tabs={sortedEnvironments.map((env) => {
                     const tabSearchParams = new URLSearchParams(searchParams);
                     tabSearchParams.set('environment', env.name);
