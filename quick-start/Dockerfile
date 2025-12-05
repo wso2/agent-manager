@@ -29,7 +29,6 @@ COPY install-helpers.sh /app/install-helpers.sh
 RUN chmod +x /app/install-helpers.sh
 
 COPY kind-config.yaml /app/kind-config.yaml
-RUN chmod +x /app/kind-config.yaml
 
 COPY install.sh /app/install.sh
 RUN chmod +x /app/install.sh

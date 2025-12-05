@@ -10,10 +10,10 @@ set -eo pipefail
 # 3. Installs Agent Management Platform
 #
 # Usage:
-#   ./bootstrap.sh              # Full installation
-#   ./bootstrap.sh --minimal    # Skip optional OpenChoreo components
-#   ./bootstrap.sh --verbose    # Show detailed output
-#   ./bootstrap.sh --help       # Show help
+#   ./install.sh              # Full installation
+#   ./install.sh --minimal    # Skip optional OpenChoreo components
+#   ./install.sh --verbose    # Show detailed output
+#   ./install.sh --help       # Show help
 # ============================================================================
 
 # Get the absolute path of the script directory
@@ -101,8 +101,8 @@ Installation Time:
   • Minimal installation: ~10-12 minutes
 
 For more information:
-  • Quick Start Guide: ./QUICK_START.md
-  • Troubleshooting: ./TROUBLESHOOTING.md
+  • Quick Start Guide: https://github.com/wso2/ai-agent-management-platform/blob/main/docs/quick-start.md
+  • Troubleshooting: See README.md for troubleshooting section
   • Documentation: https://github.com/wso2/agent-management-platform
 
 EOF
@@ -230,7 +230,7 @@ else
         echo "  2. Restart Docker"
         echo "  3. Check Docker has sufficient resources (4GB+ RAM recommended)"
         echo ""
-        echo "For more help, see: ./TROUBLESHOOTING.md"
+        echo "For more help, see: ./README.md"
         echo ""
         exit 1
     fi
@@ -295,9 +295,9 @@ else
         echo ""
         echo "To clean up and retry:"
         echo "  ./uninstall.sh"
-        echo "  ./bootstrap.sh"
+        echo "  ./install.sh"
         echo ""
-        echo "For more help, see: ./TROUBLESHOOTING.md"
+        echo "For more help, see: ./README.md"
         echo ""
         exit 1
     fi

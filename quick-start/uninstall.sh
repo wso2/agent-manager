@@ -95,9 +95,13 @@ echo ""
 
 # Uninstall Agent Management Platform
 log_info "Uninstalling Agent Management Platform..."
-if helm_release_exists "agent-management-platform" "$AMP_NS"; then
+# Check for both release names (silent version uses "amp", non-silent uses "agent-management-platform")
+if helm_release_exists "amp" "$AMP_NS"; then
+    helm uninstall amp -n "$AMP_NS" 2>/dev/null || true
+    log_success "Agent Management Platform uninstalled (release: amp)"
+elif helm_release_exists "agent-management-platform" "$AMP_NS"; then
     helm uninstall agent-management-platform -n "$AMP_NS" 2>/dev/null || true
-    log_success "Agent Management Platform uninstalled"
+    log_success "Agent Management Platform uninstalled (release: agent-management-platform)"
 else
     log_info "Agent Management Platform not found, skipping"
 fi
