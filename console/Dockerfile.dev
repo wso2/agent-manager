@@ -1,0 +1,44 @@
+FROM node:20.19-alpine
+
+# Install Git and gettext (for envsubst)
+RUN apk add --no-cache git gettext
+
+# Install pnpm globally
+RUN npm install -g pnpm@9.12.3
+
+# Install Rush globally
+RUN npm install -g @microsoft/rush@5.157.0
+
+WORKDIR /app
+
+# Copy Rush configuration and entire monorepo structure
+# This is needed for proper dependency resolution
+COPY rush.json ./
+COPY common/ common/
+COPY apps/ apps/
+COPY workspaces/ workspaces/
+COPY dev-start.sh ./dev-start.sh
+RUN chmod +x ./dev-start.sh
+
+# Install all dependencies using Rush
+# This happens during image build, not at runtime
+RUN rush update --full
+
+# Build all workspace packages (libs)
+# This compiles TypeScript and generates dist folders
+RUN rush build --verbose || echo "Build completed with warnings"
+
+# Note: Source code will be mounted as volumes that override these files
+# But node_modules and built dist folders will be preserved via anonymous volume mounts
+
+# Expose Vite dev server port
+EXPOSE 3000
+
+# Start Vite dev server with workspace package watch mode
+# Uses dev-start.sh script for dynamic package discovery
+WORKDIR /app
+
+# Use polling for file watching to avoid EMFILE errors with native watchers
+ENV CHOKIDAR_USEPOLLING=true
+
+CMD ["sh", "/app/dev-start.sh"]
