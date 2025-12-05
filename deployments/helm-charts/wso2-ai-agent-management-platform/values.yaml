@@ -47,6 +47,11 @@ agentManagerService:
     targetPort: 8080
     annotations: {}
 
+  observer:
+    url: "http://observer.openchoreo-observability-plane:8080"
+    username: "admin"
+    password: "admin"
+
   resources:
     requests:
       memory: 256Mi
@@ -85,6 +90,9 @@ agentManagerService:
     healthCheckTimeout: 5
     defaultHTTPPort: 8080
     corsAllowedOrigin: "*"
+    observerURL: "http://observer.openchoreo-observability-plane:8080"
+    observerUsername: "admin"
+    observerPassword: "admin"
 
     # API Key configuration
     apiKey:
@@ -229,7 +237,7 @@ ingress:
 # ServiceAccount Configuration
 serviceAccount:
   create: true
-  name: "amp"
+  name: "agent-management-platform"
   annotations: {}
   automount: true
 

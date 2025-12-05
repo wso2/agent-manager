@@ -34,8 +34,8 @@ opensearch:
   indexType: custom
   indexName: custom-otel-span-index
   namespace: openchoreo-observability-plane
-  username: ""
-  password: ""
+  username: "admin"
+  password: "admin"
   insecure: true
   # Path inside the container where the index template is mounted
   templatePath: /usr/share/data-prepper/otel-v1-apm-span-index-standard-template.json
