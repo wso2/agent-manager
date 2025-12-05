@@ -35,11 +35,11 @@ spec:
             backend:
               service:
                 {{- if eq .service "console" }}
-                name: {{ include "agent-management-platform.console.fullname" $ }}
+                name: amp-console
                 port:
                   number: {{ $.Values.console.service.port }}
                 {{- else if eq .service "agent-manager-service" }}
-                name: {{ include "agent-management-platform.agentManagerService.fullname" $ }}
+                name: amp-api
                 port:
                   number: {{ $.Values.agentManagerService.service.port }}
                 {{- end }}

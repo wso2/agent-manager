@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "agent-management-platform.console.fullname" . }}
+  name: amp-console
   labels:
     {{- include "agent-management-platform.console.labels" . | nindent 4 }}
 spec:

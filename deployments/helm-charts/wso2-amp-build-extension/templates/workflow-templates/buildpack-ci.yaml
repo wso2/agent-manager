@@ -8,7 +8,7 @@ metadata:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "15"
   labels:
-    {{- include "agent-manager-build-ci-workflows.labels" . | nindent 4 }}
+    {{- include "amp-build-extension.labels" . | nindent 4 }}
 spec:
   entrypoint: build-workflow
   templates:

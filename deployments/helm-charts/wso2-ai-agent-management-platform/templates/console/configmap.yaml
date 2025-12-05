@@ -16,7 +16,7 @@ data:
   DISABLE_AUTH: {{ .Values.console.config.disableAuth | quote }}
 
   # Backend API URL (auto-configure if empty)
-  API_BASE_URL: {{ .Values.console.config.apiBaseUrl | default (printf "http://%s:%d" (include "agent-management-platform.agentManagerService.fullname" .) (int .Values.agentManagerService.service.port)) | quote }}
+  API_BASE_URL: {{ .Values.console.config.apiBaseUrl | default (printf "http://%s:%d" "amp-api" (int .Values.agentManagerService.service.port)) | quote }}
 
   # Observability API URL (optional)
   OBS_API_BASE_URL: {{ .Values.console.config.obsApiBaseUrl | quote }}
@@ -34,7 +34,7 @@ data:
         storage: 'sessionStorage'
       },
       disableAuth: {{ .Values.console.config.disableAuth }},
-      apiBaseUrl: "{{ .Values.console.config.apiBaseUrl | default (printf "http://%s:%d" (include "agent-management-platform.agentManagerService.fullname" .) (int .Values.agentManagerService.service.port)) }}",
+      apiBaseUrl: "{{ .Values.console.config.apiBaseUrl | default (printf "http://%s:%d" "amp-api" (int .Values.agentManagerService.service.port)) }}",
       obsApiBaseUrl: "{{ .Values.console.config.obsApiBaseUrl }}"
     };
 {{- end }}

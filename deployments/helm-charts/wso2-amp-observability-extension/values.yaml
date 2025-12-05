@@ -43,11 +43,11 @@ opensearch:
 # Traces Observer Service config
 tracesObserver:
   enabled: true
-  name: amp-trace-observer
+  name: amp-traces-observer
   namespace: openchoreo-observability-plane
   replicaCount: 1
   image:
-    repository: ghcr.io/wso2/amp-trace-observer
+    repository: ghcr.io/wso2/amp-traces-observer
     tag: "0.0.0-dev"
     pullPolicy: IfNotPresent
   port: 9098

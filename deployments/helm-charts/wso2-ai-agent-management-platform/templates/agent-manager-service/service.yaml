@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "agent-management-platform.agentManagerService.fullname" . }}
+  name: amp-api
   labels:
     {{- include "agent-management-platform.agentManagerService.labels" . | nindent 4 }}
   {{- with .Values.agentManagerService.service.annotations }}
