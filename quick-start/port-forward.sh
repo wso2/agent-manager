@@ -1,71 +1,213 @@
 #!/usr/bin/env bash
 
 # Port forwarding script for Agent Management Platform services
-# This script sets up port forwarding for all 4 required ports
+# Uses socat to forward ports from container to Kind worker node NodePorts
+# Modeled after OpenChoreo's approach for reliability
 
-set -e
+set -eo pipefail
 
 # Default namespaces (can be overridden via environment variables)
-AMP_NS="${AMP_NS:-agent-management-platform}"
+AMP_NS="${AMP_NS:-wso2-amp}"
 OBSERVABILITY_NS="${OBSERVABILITY_NS:-openchoreo-observability-plane}"
 DATA_PLANE_NS="${DATA_PLANE_NS:-openchoreo-data-plane}"
+CLUSTER_NAME="${CLUSTER_NAME:-openchoreo-local}"
+WORKER_NODE="${WORKER_NODE:-${CLUSTER_NAME}-worker}"
 
-echo "Starting port forwarding for Agent Management Platform services..."
-echo "Namespaces:"
-echo "  - AMP: $AMP_NS"
-echo "  - Observability: $OBSERVABILITY_NS"
-echo "  - Data Plane: $DATA_PLANE_NS"
-echo ""
+# Color codes for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+RESET='\033[0m'
 
-# Port forward Console (3000)
-echo "Port forwarding Console (3000)..."
-kubectl port-forward -n "$AMP_NS" svc/agent-management-platform-console 3000:3000 &
-CONSOLE_PID=$!
+log_info() {
+    echo -e "${BLUE}[INFO]${RESET} $1"
+}
 
-# Port forward Agent Manager Service (8080)
-echo "Port forwarding Agent Manager Service (8080)..."
-kubectl port-forward -n "$AMP_NS" svc/agent-management-platform-agent-manager-service 8080:8080 &
-AGENT_MGR_PID=$!
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${RESET} $1"
+}
 
-# Port forward Traces Observer Service (9098) - Required
-echo "Port forwarding Traces Observer Service (9098)..."
-if kubectl get svc traces-observer-service -n "$OBSERVABILITY_NS" >/dev/null 2>&1; then
-    kubectl port-forward -n "$OBSERVABILITY_NS" svc/traces-observer-service 9098:9098 &
-    TRACES_PID=$!
-else
-    echo "⚠️  Warning: Traces Observer Service not found in $OBSERVABILITY_NS"
-fi
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${RESET} $1"
+}
 
-# Port forward Data Prepper (21893) - Required
-echo "Port forwarding Data Prepper (21893)..."
-if kubectl get svc data-prepper -n "$OBSERVABILITY_NS" >/dev/null 2>&1; then
-    kubectl port-forward -n "$OBSERVABILITY_NS" svc/data-prepper 21893:21893 &
-    DATAPREPPER_PID=$!
-else
-    echo "⚠️  Warning: Data Prepper not found in $OBSERVABILITY_NS"
-fi
+log_error() {
+    echo -e "${RED}[ERROR]${RESET} $1"
+}
 
-# Port forward External gateway (8443) - Required
-echo "Port forwarding External gateway (8443)..."
-if kubectl get svc gateway-external -n "$DATA_PLANE_NS" >/dev/null 2>&1; then
-    kubectl port-forward -n "$DATA_PLANE_NS" svc/gateway-external 8443:443 &
-    EXTERNAL_GATEWAY_PID=$!
-else
-    echo "⚠️  Warning: External gateway not found in $DATA_PLANE_NS"
-fi
+# Check if socat is installed
+check_socat() {
+    if ! command -v socat >/dev/null 2>&1; then
+        log_error "socat is not installed"
+        echo ""
+        echo "Please install socat:"
+        echo "  • macOS: brew install socat"
+        echo "  • Ubuntu/Debian: apt-get install socat"
+        echo "  • Alpine: apk add socat"
+        echo ""
+        return 1
+    fi
+    return 0
+}
 
-echo ""
-echo "✓ Port forwarding active!"
-echo ""
-echo "Services accessible at:"
-echo "  - Console:         http://localhost:3000"
-echo "  - Agent Manager:   http://localhost:8080"
-echo "  - Traces Observer: http://localhost:9098"
-echo "  - Data Prepper:    http://localhost:21893"
-echo "  - External gateway:  http://localhost:8443"
-echo ""
-echo "Press Ctrl+C to stop all port forwarding"
-echo ""
+# Get NodePort for a service
+get_nodeport() {
+    local svc_name="$1"
+    local namespace="$2"
+    local port_name="${3:-}"
+    local timeout=30
+    local elapsed=0
 
-# Wait for all background processes
-wait
+    log_info "Finding NodePort for $svc_name in $namespace..."
+
+    while [ $elapsed -lt $timeout ]; do
+        local nodeport
+        if [ -n "$port_name" ]; then
+            # Get NodePort by port name
+            nodeport=$(kubectl get svc "$svc_name" -n "$namespace" \
+                -o jsonpath="{.spec.ports[?(@.name=='$port_name')].nodePort}" 2>/dev/null) || true
+        else
+            # Get first NodePort
+            nodeport=$(kubectl get svc "$svc_name" -n "$namespace" \
+                -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null) || true
+        fi
+
+        if [[ -n "$nodeport" && "$nodeport" != "null" ]]; then
+            echo "$nodeport"
+            return 0
+        fi
+
+        log_info "Waiting for service $svc_name... (attempt $((elapsed / 2 + 1))/15)"
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+
+    log_error "Could not retrieve NodePort for $svc_name"
+    return 1
+}
+
+# Setup port forwarding using socat
+setup_port_forward() {
+    local local_port="$1"
+    local nodeport="$2"
+    local description="$3"
+
+    log_info "Setting up port-forward proxy from $local_port to $WORKER_NODE:$nodeport ($description)..."
+
+    if socat TCP-LISTEN:$local_port,fork,reuseaddr TCP:$WORKER_NODE:$nodeport &
+    then
+        local pid=$!
+        sleep 1
+        if kill -0 $pid 2>/dev/null; then
+            log_success "$description forwarding active (PID: $pid)"
+            return 0
+        else
+            log_error "$description forwarding failed to start"
+            return 1
+        fi
+    else
+        log_error "Failed to start socat for $description"
+        return 1
+    fi
+}
+
+# Kill existing socat processes
+cleanup_existing() {
+    log_info "Cleaning up existing socat processes..."
+    pkill socat 2>/dev/null || true
+    sleep 1
+}
+
+# Main execution
+main() {
+    echo ""
+    log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_info "Agent Management Platform - Port Forwarding"
+    log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    log_info "Using socat-based port forwarding (OpenChoreo approach)"
+    echo ""
+    log_info "Configuration:"
+    log_info "  Cluster: $CLUSTER_NAME"
+    log_info "  Worker Node: $WORKER_NODE"
+    log_info "  AMP Namespace: $AMP_NS"
+    log_info "  Observability Namespace: $OBSERVABILITY_NS"
+    log_info "  Data Plane Namespace: $DATA_PLANE_NS"
+    echo ""
+
+    # Verify prerequisites
+    if ! check_socat; then
+        exit 1
+    fi
+
+    # Cleanup existing socat processes
+    cleanup_existing
+
+    # Port forward Console (3000)
+    log_info "Setting up Console port forwarding (3000)..."
+    if nodeport_console=$(get_nodeport "amp-console" "$AMP_NS"); then
+        setup_port_forward 3000 "$nodeport_console" "Console"
+    else
+        log_warning "Skipping Console (service not ready or not NodePort type)"
+    fi
+    echo ""
+
+    # Port forward Agent Manager Service (8080)
+    log_info "Setting up Agent Manager Service port forwarding (8080)..."
+    if nodeport_agent_mgr=$(get_nodeport "amp-api" "$AMP_NS"); then
+        setup_port_forward 8080 "$nodeport_agent_mgr" "Agent Manager Service"
+    else
+        log_warning "Skipping Agent Manager Service (service not ready or not NodePort type)"
+    fi
+    echo ""
+
+    # Port forward Traces Observer Service (9098)
+    log_info "Setting up Traces Observer Service port forwarding (9098)..."
+    if nodeport_traces=$(get_nodeport "amp-traces-observer" "$OBSERVABILITY_NS"); then
+        setup_port_forward 9098 "$nodeport_traces" "Traces Observer Service"
+    else
+        log_warning "Skipping Traces Observer Service (service not found or not NodePort type)"
+    fi
+    echo ""
+
+    # Port forward Data Prepper (21893)
+    log_info "Setting up Data Prepper port forwarding (21893)..."
+    if nodeport_dataprepper=$(get_nodeport "data-prepper" "$OBSERVABILITY_NS"); then
+        setup_port_forward 21893 "$nodeport_dataprepper" "Data Prepper"
+    else
+        log_warning "Skipping Data Prepper (service not found or not NodePort type)"
+    fi
+    echo ""
+
+    # Port forward External Gateway (8443)
+    log_info "Setting up External Gateway port forwarding (8443)..."
+    # Gateway uses LoadBalancer which creates NodePort in Kind
+    if nodeport_gateway=$(get_nodeport "gateway-external" "$DATA_PLANE_NS"); then
+        setup_port_forward 8443 "$nodeport_gateway" "External Gateway"
+    else
+        log_warning "Skipping External Gateway (service not found)"
+    fi
+    echo ""
+
+    log_success "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    log_success "Port forwarding setup complete!"
+    log_success "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    log_info "Services accessible at:"
+    echo "  • Console:           http://localhost:3000"
+    echo "  • Agent Manager:     http://localhost:8080"
+    echo "  • Traces Observer:   http://localhost:9098"
+    echo "  • Data Prepper:      http://localhost:21893"
+    echo "  • External Gateway:  https://localhost:8443"
+    echo ""
+    log_info "Port forwarding is running in the background"
+    log_info "To stop: pkill socat or ./stop-port-forward.sh"
+    echo ""
+}
+
+# Trap to cleanup on exit
+trap cleanup_existing EXIT INT TERM
+
+# Run main
+main

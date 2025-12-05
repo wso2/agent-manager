@@ -172,7 +172,7 @@ console:
     disableAuth: "true"
 
     # Backend API URLs (will be auto-configured if empty)
-    apiBaseUrl: "http://localhost:8080"  # Defaults to: http://{{ .Release.Name }}-agent-manager-service:8080
+    apiBaseUrl: "http://localhost:8080"  # Defaults to: http://amp-api:8080
     obsApiBaseUrl: "http://localhost:9098"  # Optional observability API
 
   # Pod-level configurations
@@ -229,7 +229,7 @@ ingress:
 # ServiceAccount Configuration
 serviceAccount:
   create: true
-  name: "agent-management-platform"
+  name: "amp"
   annotations: {}
   automount: true
 

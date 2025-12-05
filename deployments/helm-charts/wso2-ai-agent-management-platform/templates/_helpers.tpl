@@ -7,17 +7,13 @@ Expand the name of the chart.
 
 {{/*
 Create a default fully qualified app name.
+Uses simple naming: "amp" instead of release-name-chart-name format
 */}}
 {{- define "agent-management-platform.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
-{{- if contains $name .Release.Name }}
-{{- .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-{{- end }}
+{{- print "amp" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 {{- end }}
 
@@ -53,10 +49,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/*
 Create the name of the service account to use
+Uses simple naming: "amp" instead of release-name-chart-name
 */}}
 {{- define "agent-management-platform.serviceAccountName" -}}
 {{- if or .Values.serviceAccount.create .Values.rbac.create }}
-{{- default (include "agent-management-platform.fullname" .) .Values.serviceAccount.name }}
+{{- default "amp" .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
@@ -70,9 +67,10 @@ Agent Manager Service Helpers
 
 {{/*
 Agent Manager Service fullname
+Uses simple naming: "amp-api" instead of release-name-chart-name-agent-manager-service
 */}}
 {{- define "agent-management-platform.agentManagerService.fullname" -}}
-{{- printf "%s-agent-manager-service" (include "agent-management-platform.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- print "amp-api" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
@@ -99,9 +97,10 @@ Console Helpers
 
 {{/*
 Console fullname
+Uses simple naming: "amp-console" instead of release-name-chart-name-console
 */}}
 {{- define "agent-management-platform.console.fullname" -}}
-{{- printf "%s-console" (include "agent-management-platform.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- print "amp-console" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
@@ -128,10 +127,11 @@ Database Helpers
 
 {{/*
 PostgreSQL host
+Uses simple naming: "amp-postgresql" instead of release-name-postgresql
 */}}
 {{- define "agent-management-platform.postgresql.host" -}}
 {{- if .Values.postgresql.enabled }}
-{{- printf "%s-postgresql" .Release.Name }}
+{{- print "amp-postgresql" }}
 {{- else }}
 {{- .Values.postgresql.external.host }}
 {{- end }}
@@ -172,19 +172,20 @@ PostgreSQL username
 
 {{/*
 PostgreSQL password secret name
+Uses simple naming: "amp-postgresql" instead of release-name-postgresql
 */}}
 {{- define "agent-management-platform.postgresql.secretName" -}}
 {{- if .Values.postgresql.enabled }}
 {{- if .Values.postgresql.auth.existingSecret }}
 {{- .Values.postgresql.auth.existingSecret }}
 {{- else }}
-{{- printf "%s-postgresql" .Release.Name }}
+{{- print "amp-postgresql" }}
 {{- end }}
 {{- else }}
 {{- if .Values.postgresql.external.existingSecret }}
 {{- .Values.postgresql.external.existingSecret }}
 {{- else }}
-{{- printf "%s-postgresql-external" (include "agent-management-platform.fullname" .) }}
+{{- print "amp-postgresql-external" }}
 {{- end }}
 {{- end }}
 {{- end }}

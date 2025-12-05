@@ -14,18 +14,18 @@ RESET='\033[0m'
 
 # Configuration variables
 # Remote Helm chart repository and versions
-HELM_CHART_REGISTRY="${HELM_CHART_REGISTRY:-ghcr.io/agent-mgt-platform}"
+HELM_CHART_REGISTRY="${HELM_CHART_REGISTRY:-ghcr.io/wso2}"
 AMP_CHART_VERSION="${AMP_CHART_VERSION:-0.1.0}"
 BUILD_CI_CHART_VERSION="${BUILD_CI_CHART_VERSION:-0.1.0}"
 OBSERVABILITY_CHART_VERSION="${OBSERVABILITY_CHART_VERSION:-0.1.1}"
 
 # Chart names
-AMP_CHART_NAME="agent-management-platform"
-BUILD_CI_CHART_NAME="agent-manager-build-ci-workflows"
-OBSERVABILITY_CHART_NAME="amp-observability-traces"
+AMP_CHART_NAME="wso2-ai-agent-management-platform"
+BUILD_CI_CHART_NAME="wso2-amp-build-extension"
+OBSERVABILITY_CHART_NAME="wso2-amp-observability-extension"
 
 # Default namespace definitions (can be overridden via environment variables)
-AMP_NS="${AMP_NS:-agent-management-platform}"
+AMP_NS="${AMP_NS:-wso2-amp}"
 BUILD_CI_NS="${BUILD_CI_NS:-openchoreo-build-plane}"
 OBSERVABILITY_NS="${OBSERVABILITY_NS:-openchoreo-observability-plane}"
 
@@ -240,8 +240,9 @@ install_agent_management_platform() {
 
     # Add version to helm args
     local version_args=("--version" "$chart_version")
+    local release_name="agent-management-platform"
     
-    install_remote_helm_chart "agent-management-platform" "$chart_ref" "$AMP_NS" "true" "false" "1800" \
+    install_remote_helm_chart "$release_name" "$chart_ref" "$AMP_NS" "true" "false" "1800" \
         "${version_args[@]}" "${AMP_HELM_ARGS[@]}"
 
     # Stop the monitoring process
@@ -249,15 +250,15 @@ install_agent_management_platform() {
 
     # Wait for PostgreSQL to be ready
     log_info "Waiting for PostgreSQL to be ready..."
-    wait_for_deployment "agent-management-platform-postgresql" "$AMP_NS" 600
+    wait_for_deployment "${release_name}-postgresql" "$AMP_NS" 600
 
     # Wait for agent manager service to be ready
     log_info "Waiting for Agent Manager Service to be ready..."
-    wait_for_deployment "agent-manager-service" "$AMP_NS" 600
+    wait_for_deployment "amp-api" "$AMP_NS" 600
 
     # Wait for console to be ready
     log_info "Waiting for Console to be ready..."
-    wait_for_deployment "console" "$AMP_NS" 600
+    wait_for_deployment "amp-console" "$AMP_NS" 600
 
     # Patch APIClass for CORS configuration
     local apiclass_name="${APICLASS_NAME:-default-with-cors}"
@@ -304,9 +305,9 @@ install_observability_dataprepper() {
     wait_for_deployment "data-prepper" "$OBSERVABILITY_NS" 600
 
     # Wait for traces-observer if enabled
-    if kubectl get deployment traces-observer-service -n "$OBSERVABILITY_NS" >/dev/null 2>&1; then
+    if kubectl get deployment amp-traces-observer -n "$OBSERVABILITY_NS" >/dev/null 2>&1; then
         log_info "Waiting for Traces Observer Service to be ready..."
-        wait_for_deployment "traces-observer-service" "$OBSERVABILITY_NS" 600
+        wait_for_deployment "amp-traces-observer" "$OBSERVABILITY_NS" 600
     fi
 }
 
@@ -321,8 +322,8 @@ install_observability_dataprepper_silent() {
     
     wait_for_deployment "data-prepper" "$OBSERVABILITY_NS" 600 >/dev/null 2>&1 || return 1
     
-    if kubectl get deployment traces-observer-service -n "$OBSERVABILITY_NS" >/dev/null 2>&1; then
-        wait_for_deployment "traces-observer-service" "$OBSERVABILITY_NS" 600 >/dev/null 2>&1 || return 1
+    if kubectl get deployment amp-traces-observer -n "$OBSERVABILITY_NS" >/dev/null 2>&1; then
+        wait_for_deployment "amp-traces-observer" "$OBSERVABILITY_NS" 600 >/dev/null 2>&1 || return 1
     fi
     
     return 0
@@ -333,13 +334,15 @@ install_agent_management_platform_silent() {
     local chart_ref="oci://${HELM_CHART_REGISTRY}/${AMP_CHART_NAME}"
     local chart_version="${AMP_CHART_VERSION}"
     local version_args=("--version" "$chart_version")
+    local release_name="agent-management-platform"
     
-    install_remote_helm_chart "agent-management-platform" "$chart_ref" "$AMP_NS" "true" "false" "1800" \
+    install_remote_helm_chart "$release_name" "$chart_ref" "$AMP_NS" "true" "false" "1800" \
         "${version_args[@]}" "${AMP_HELM_ARGS[@]}" >/dev/null 2>&1 || return 1
     
-    wait_for_deployment "agent-management-platform-postgresql" "$AMP_NS" 600 >/dev/null 2>&1 || return 1
-    wait_for_deployment "agent-manager-service" "$AMP_NS" 600 >/dev/null 2>&1 || return 1
-    wait_for_deployment "console" "$AMP_NS" 600 >/dev/null 2>&1 || return 1
+    wait_for_deployment "amp-postgresql" "$AMP_NS" 600 >/dev/null 2>&1 || return 1
+    # Use simple names for deployments (amp-api, amp-console)
+    wait_for_deployment "amp-api" "$AMP_NS" 600 >/dev/null 2>&1 || return 1
+    wait_for_deployment "amp-console" "$AMP_NS" 600 >/dev/null 2>&1 || return 1
     
     # Patch APIClass for CORS configuration
     local apiclass_name="${APICLASS_NAME:-default-with-cors}"
@@ -427,12 +430,12 @@ print_installation_summary() {
     kubectl get pods -n "$AMP_NS" 2>/dev/null || true
     echo ""
     log_info "To access the console, run:"
-    log_info "  kubectl port-forward -n $AMP_NS svc/console 8080:80"
-    log_info "  Then open: http://localhost:8080"
+    log_info "  kubectl port-forward -n $AMP_NS svc/amp-console 3000:3000"
+    log_info "  Then open: http://localhost:3000"
     echo ""
     log_info "To access the agent manager API, run:"
-    log_info "  kubectl port-forward -n $AMP_NS svc/agent-manager-service 8081:8080"
-    log_info "  API endpoint: http://localhost:8081"
+    log_info "  kubectl port-forward -n $AMP_NS svc/amp-api 8080:8080"
+    log_info "  API endpoint: http://localhost:8080"
 }
 
 # Clean up function
