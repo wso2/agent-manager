@@ -1,0 +1,28 @@
+{
+  "config": {
+    "charts-base-path": "deployments/helm-charts"
+  },
+  "images": [
+    {
+      "name": "amp-console",
+      "dir": "console"
+    },
+    {
+      "name": "amp-api",
+      "dir": "agent-manager-service"
+    },
+    {
+      "name": "amp-traces-observer",
+      "dir": "traces-observer-service"
+    },
+    {
+      "name": "amp-quick-start",
+      "dir": "quick-start"
+    }
+  ],
+  "charts": [
+    "wso2-ai-agent-management-platform",
+    "wso2-amp-build-extension",
+    "wso2-amp-observability-extension"
+  ]
+}

@@ -1,0 +1,42 @@
+name: 'Build and Push Docker Image'
+description: 'Build and push a Docker image to GitHub Container Registry'
+
+inputs:
+  service-dir:
+    description: 'Service directory name containing Dockerfile'
+    required: true
+  image-name:
+    description: 'Image name to push (e.g., amp-console)'
+    required: true
+  registry:
+    description: 'Container registry URL'
+    required: true
+    default: 'ghcr.io'
+  registry-org:
+    description: 'Registry organization/namespace'
+    required: true
+  tag:
+    description: 'Image tag (usually release tag)'
+    required: true
+  github-token:
+    description: 'GitHub token for authentication'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./${{ inputs.service-dir }}
+        file: ./${{ inputs.service-dir }}/Dockerfile
+        push: true
+        platforms: linux/amd64,linux/arm64
+        tags: ${{ inputs.registry }}/${{ inputs.registry-org }}/${{ inputs.image-name }}:${{ inputs.tag }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Log image details
+      run: |
+        echo "Built and pushed: ${{ inputs.registry }}/${{ inputs.registry-org }}/${{ inputs.image-name }}:${{ inputs.tag }}"
+      shell: bash
