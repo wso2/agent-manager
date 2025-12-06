@@ -14,7 +14,7 @@ RESET='\033[0m'
 
 # Configuration variables
 # Remote Helm chart repository and versions
-HELM_CHART_REGISTRY="${HELM_CHART_REGISTRY:-ghcr.io/agent-mgt-platform}"
+HELM_CHART_REGISTRY="${HELM_CHART_REGISTRY:-ghcr.io/wso2}"
 AMP_CHART_VERSION="${AMP_CHART_VERSION:-0.0.0-dev}"
 BUILD_CI_CHART_VERSION="${BUILD_CI_CHART_VERSION:-0.0.0-dev}"
 OBSERVABILITY_CHART_VERSION="${OBSERVABILITY_CHART_VERSION:-0.0.0-dev}"
@@ -706,7 +706,7 @@ setup_kind_cluster() {
 # Wait for Kind cluster to be ready
 wait_for_kind_cluster_ready() {
     local cluster_name="${1:-openchoreo-local}"
-    local timeout=120
+    local timeout=600
     local elapsed=0
     
     while [ $elapsed -lt $timeout ]; do

@@ -480,4 +480,3 @@ if [[ "$VERBOSE" == "true" ]]; then
     kubectl get pods -n "$OBSERVABILITY_NS" 2>/dev/null || true
     echo ""
 fi
-

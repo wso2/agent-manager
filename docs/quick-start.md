@@ -47,7 +47,6 @@ This installs everything you need:
 3. **OpenChoreo Installation**: Installs OpenChoreo Control Plane, Data Plane, Build Plane, and Observability Plane
 4. **Platform Installation**: Installs Agent Management Platform with PostgreSQL, API, and Console
 5. **Observability Setup**: Configures DataPrepper and Traces Observer
-6. **Port Forwarding**: Automatically sets up port forwarding for all services
 
 ## Access Your Platform
 
