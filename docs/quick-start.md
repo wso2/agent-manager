@@ -13,17 +13,15 @@ The quick-start includes a dev container with all required tools pre-installed (
 
 ### Step 1: Run the Dev Container
 
-From the `quick-start` directory:
-
 ```bash
-docker run -it --rm \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v $(pwd):/workspace \
-  -p 3000:3000 \
-  -p 8080:8080 \
-  -p 9098:9098 \
-  -p 21893:21893 \
-  ghcr.io/wso2/amp-quick-start:0.0.1
+docker  run  -it --rm --name wso2-amp \
+    -v  /var/run/docker.sock:/var/run/docker.sock \
+    -p 127.0.0.1:3000:3000 \
+    -p 127.0.0.1:8080:8080 \
+    -p 127.0.0.1:9098:9098 \
+    -p 127.0.0.1:21893:21893 \
+    -p 127.0.0.1:8443:8443 \
+  ghcr.io/wso2/amp-quick-start:v0.0.1
 ```
 
 ### Step 2: Run Installation Inside Container
@@ -31,7 +29,6 @@ docker run -it --rm \
 Once inside the container, run the installation script:
 
 ```bash
-cd /workspace
 ./install.sh
 ```
 
@@ -54,12 +51,19 @@ This installs everything you need:
 
 ## Access Your Platform
 
-After installation completes, your platform is automatically accessible at:
+After installation completes, run 
+
+```bash
+./port-forward.sh
+```
+
+this will start port-forwarding for all the required services.
 
 - **Console**: http://localhost:3000
 - **API**: http://localhost:8080
 - **Traces Observer**: http://localhost:9098
 - **Data Prepper**: http://localhost:21893
+- **Gateway**: https://localhost:8443
 
 ## Uninstall
 

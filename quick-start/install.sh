@@ -26,7 +26,6 @@ source "${SCRIPT_DIR}/install-helpers.sh"
 VERBOSE="${VERBOSE:-false}"
 SKIP_KIND="${SKIP_KIND:-false}"
 SKIP_OPENCHOREO="${SKIP_OPENCHOREO:-false}"
-AUTO_PORT_FORWARD="${AUTO_PORT_FORWARD:-true}"
 MINIMAL_MODE="${MINIMAL_MODE:-false}"
 
 # Parse command line arguments
@@ -46,10 +45,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-openchoreo)
             SKIP_OPENCHOREO=true
-            shift
-            ;;
-        --no-port-forward)
-            AUTO_PORT_FORWARD=false
             shift
             ;;
         --config)
@@ -79,7 +74,6 @@ Options:
   --minimal, --core-only  Install only core OpenChoreo components (faster)
   --skip-kind             Skip Kind cluster creation (use existing cluster)
   --skip-openchoreo       Skip OpenChoreo installation (install platform only)
-  --no-port-forward       Skip automatic port forwarding
   --config FILE           Use custom configuration file for platform
   --help, -h              Show this help message
 
@@ -89,6 +83,9 @@ Examples:
   $0 --minimal            # Faster installation with core components only
   $0 --skip-kind          # Use existing Kind cluster
   $0 --config custom.yaml # Installation with custom platform config
+
+After installation:
+  Run ./port-forward.sh to access services from localhost
 
 Prerequisites:
   • Docker (Docker Desktop or Colima)
@@ -435,43 +432,6 @@ if [[ "$VERBOSE" == "false" ]]; then
 fi
 
 # ============================================================================
-# STEP 5: START PORT FORWARDING
-# ============================================================================
-
-if [[ "${AUTO_PORT_FORWARD}" == "true" ]]; then
-    if [[ "$VERBOSE" == "false" ]]; then
-        echo "Starting port forwarding..."
-        echo ""
-    else
-        log_info "Starting port forwarding in background..."
-    fi
-    
-    PORT_FORWARD_SCRIPT="${SCRIPT_DIR}/port-forward.sh"
-    if [[ -f "$PORT_FORWARD_SCRIPT" ]]; then
-        # Run port-forward script in background
-        bash "$PORT_FORWARD_SCRIPT" > /dev/null 2>&1 &
-        PORT_FORWARD_PID=$!
-        
-        # Save PID to file for easy cleanup
-        echo "$PORT_FORWARD_PID" > "${SCRIPT_DIR}/.port-forward.pid"
-        
-        # Give port forwarding a moment to start
-        sleep 3
-        
-        if [[ "$VERBOSE" == "false" ]]; then
-            echo "✓ Port forwarding active"
-        else
-            log_success "Port forwarding started (PID: $PORT_FORWARD_PID)"
-        fi
-    else
-        if [[ "$VERBOSE" == "true" ]]; then
-            log_warning "Port forward script not found at: $PORT_FORWARD_SCRIPT"
-        fi
-    fi
-    echo ""
-fi
-
-# ============================================================================
 # SUCCESS MESSAGE
 # ============================================================================
 
@@ -480,27 +440,25 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "✅ Installation Complete!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "🌐 Access your platform:"
-echo ""
-echo "   Console:         http://localhost:3000"
-echo "   API:             http://localhost:8080"
-echo "   Traces Observer: http://localhost:9098"
-echo "   Data Prepper:    http://localhost:21893"
-echo ""
 echo "🚀 Next steps:"
 echo ""
-echo "   1. Open console:     open http://localhost:3000"
-echo "   2. Deploy an agent:  cd ../runtime/sample-agents/python-agent"
-echo "   3. View traces in the console"
+echo "   1. Start port forwarding:"
+echo "      ./port-forward.sh"
 echo ""
-
-
-if [[ "${AUTO_PORT_FORWARD}" == "true" ]]; then
-    echo "💡 Port forwarding is running in the background"
-    echo "   To stop: ./stop-port-forward.sh"
-    echo ""
-fi
-
+echo "   2. Access your platform:"
+echo "      Console:         http://localhost:3000"
+echo "      API:             http://localhost:8080"
+echo "      Traces Observer: http://localhost:9098"
+echo "      Data Prepper:    http://localhost:21893"
+echo ""
+echo "   3. Deploy an agent:"
+echo "      cd ../runtime/sample-agents/python-agent"
+echo ""
+echo "   4. View traces in the console"
+echo ""
+echo "💡 Port forwarding must be running to access services from localhost"
+echo "   To stop: Press Ctrl+C in the port-forward.sh terminal"
+echo ""
 echo "🛑 To uninstall everything:"
 echo "   ./uninstall.sh"
 echo ""
