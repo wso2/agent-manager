@@ -18,15 +18,15 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "typescript": "~5.9.3",
-    "eslint": "^9.36.0",
-    "tsx": "^4.7.0"
+    "typescript": "5.9.3",
+    "eslint": "9.36.0",
+    "tsx": "4.7.0"
   },
   "dependencies": {
-    "@asgardeo/auth-react": "^3.0.0",
+    "@asgardeo/auth-react": "3.0.0",
     "@agent-management-platform/eslint-config": "workspace:*",
-    "dayjs": "~1.11.18",
-    "yup": "^1.4.0"
+    "dayjs": "1.11.18",
+    "yup": "1.4.0"
   }
 }
 
