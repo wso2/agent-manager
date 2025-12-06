@@ -64,10 +64,6 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
-            - name: config-js
-              mountPath: /app/config.js
-              subPath: config.js
-              readOnly: true
             - name: nginx-cache
               mountPath: /var/cache/nginx
             - name: nginx-run
@@ -78,12 +74,6 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
       volumes:
-        - name: config-js
-          configMap:
-            name: {{ include "agent-management-platform.console.fullname" . }}
-            items:
-              - key: config.js
-                path: config.js
         - name: nginx-cache
           emptyDir: {}
         - name: nginx-run
