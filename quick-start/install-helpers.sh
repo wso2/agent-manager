@@ -579,31 +579,57 @@ setup_kind_cluster() {
             sleep 5
         fi
         
-        # Always refresh kubeconfig with correct internal IP (critical for containerized environments)
+        # Always refresh kubeconfig (critical for both local and containerized environments)
         log_info "Refreshing kubeconfig for existing cluster..."
-        
-        # Get control plane IP from Docker network (prefer kind network)
-        local control_plane_ip=$(docker inspect "${control_plane_container}" --format '{{range $key, $value := .NetworkSettings.Networks}}{{if eq $key "kind"}}{{$value.IPAddress}}{{end}}{{end}}' 2>/dev/null | head -1)
-        
-        # Fallback to any network IP if kind network IP not found
-        if [[ -z "$control_plane_ip" ]]; then
-            control_plane_ip=$(docker inspect "${control_plane_container}" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null | head -1)
+
+        # Detect if running in containerized environment
+        local is_containerized=false
+        if [[ -f /.dockerenv ]] || [[ -d /state ]]; then
+            is_containerized=true
         fi
-        
-        # Configure kubeconfig with internal IP
-        if [[ -n "$control_plane_ip" ]]; then
-            log_info "Configuring kubeconfig with control plane IP: ${control_plane_ip}"
-            mkdir -p /state/kube
-            if kind get kubeconfig --name "${cluster_name}" 2>/dev/null | sed "s|server: https://127.0.0.1:[0-9]*|server: https://${control_plane_ip}:6443|" > /state/kube/config-internal.yaml; then
-                export KUBECONFIG=/state/kube/config-internal.yaml
-                kubectl config use-context "kind-${cluster_name}" >/dev/null 2>&1 || true
+
+        if [[ "$is_containerized" == "true" ]]; then
+            # Containerized environment: use internal IP
+            log_info "Detected containerized environment, using internal IP..."
+
+            # Get control plane IP from Docker network (prefer kind network)
+            local control_plane_ip=$(docker inspect "${control_plane_container}" --format '{{range $key, $value := .NetworkSettings.Networks}}{{if eq $key "kind"}}{{$value.IPAddress}}{{end}}{{end}}' 2>/dev/null | head -1)
+
+            # Fallback to any network IP if kind network IP not found
+            if [[ -z "$control_plane_ip" ]]; then
+                control_plane_ip=$(docker inspect "${control_plane_container}" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null | head -1)
+            fi
+
+            # Configure kubeconfig with internal IP
+            if [[ -n "$control_plane_ip" ]]; then
+                log_info "Configuring kubeconfig with control plane IP: ${control_plane_ip}"
+                mkdir -p /state/kube
+                if kind get kubeconfig --name "${cluster_name}" 2>/dev/null | sed "s|server: https://127.0.0.1:[0-9]*|server: https://${control_plane_ip}:6443|" > /state/kube/config-internal.yaml; then
+                    export KUBECONFIG=/state/kube/config-internal.yaml
+                    kubectl config use-context "kind-${cluster_name}" >/dev/null 2>&1 || true
+                fi
+            else
+                log_warning "Could not determine control plane IP, trying default kubeconfig"
+                mkdir -p /state/kube
+                if kind get kubeconfig --name "${cluster_name}" >/dev/null 2>&1 > /state/kube/config-internal.yaml; then
+                    export KUBECONFIG=/state/kube/config-internal.yaml
+                    kubectl config use-context "kind-${cluster_name}" >/dev/null 2>&1 || true
+                fi
             fi
         else
-            log_warning "Could not determine control plane IP, trying default kubeconfig"
-            mkdir -p /state/kube
-            if kind get kubeconfig --name "${cluster_name}" >/dev/null 2>&1 > /state/kube/config-internal.yaml; then
-                export KUBECONFIG=/state/kube/config-internal.yaml
+            # Local environment: use Kind's built-in kubeconfig export with current port
+            log_info "Detected local environment, updating kubeconfig..."
+            if kind export kubeconfig --name "${cluster_name}" 2>&1 | grep -v "warning"; then
+                log_success "Kubeconfig updated successfully"
                 kubectl config use-context "kind-${cluster_name}" >/dev/null 2>&1 || true
+            else
+                log_warning "Failed to export kubeconfig, attempting manual refresh..."
+                # Manually update the kubeconfig in default location
+                kind get kubeconfig --name "${cluster_name}" > "${HOME}/.kube/config-${cluster_name}" 2>/dev/null || true
+                if [[ -f "${HOME}/.kube/config-${cluster_name}" ]]; then
+                    export KUBECONFIG="${HOME}/.kube/config-${cluster_name}"
+                    kubectl config use-context "kind-${cluster_name}" >/dev/null 2>&1 || true
+                fi
             fi
         fi
         
@@ -628,10 +654,17 @@ setup_kind_cluster() {
             fi
             
             # Refresh kubeconfig again if first retry
-            if [[ $retry_count -eq 1 ]] && [[ -n "$control_plane_ip" ]]; then
+            if [[ $retry_count -eq 1 ]]; then
                 log_info "Retrying kubeconfig refresh..."
-                if kind get kubeconfig --name "${cluster_name}" 2>/dev/null | sed "s|server: https://127.0.0.1:[0-9]*|server: https://${control_plane_ip}:6443|" > /state/kube/config-internal.yaml; then
-                    export KUBECONFIG=/state/kube/config-internal.yaml
+                if [[ "$is_containerized" == "true" ]] && [[ -n "$control_plane_ip" ]]; then
+                    # Containerized retry
+                    if kind get kubeconfig --name "${cluster_name}" 2>/dev/null | sed "s|server: https://127.0.0.1:[0-9]*|server: https://${control_plane_ip}:6443|" > /state/kube/config-internal.yaml; then
+                        export KUBECONFIG=/state/kube/config-internal.yaml
+                        kubectl config use-context "kind-${cluster_name}" >/dev/null 2>&1 || true
+                    fi
+                else
+                    # Local environment retry
+                    kind export kubeconfig --name "${cluster_name}" >/dev/null 2>&1 || true
                     kubectl config use-context "kind-${cluster_name}" >/dev/null 2>&1 || true
                 fi
             fi
@@ -645,8 +678,11 @@ setup_kind_cluster() {
         
         if [ "$cluster_accessible" = true ]; then
             log_success "Using existing Kind cluster '$cluster_name'"
-            if [[ -n "$control_plane_ip" ]]; then
-                echo "✓ kubectl configured to connect at ${control_plane_ip}"
+            if [[ "$is_containerized" == "true" ]] && [[ -n "$control_plane_ip" ]]; then
+                echo "✓ kubectl configured to connect at ${control_plane_ip} (container network)"
+            else
+                local api_port=$(kubectl config view -o jsonpath="{.clusters[?(@.name=='kind-${cluster_name}')].cluster.server}" 2>/dev/null | grep -oE '[0-9]+$' || echo "unknown")
+                echo "✓ kubectl configured to connect at localhost:${api_port}"
             fi
             return 0
         else
@@ -691,34 +727,114 @@ setup_kind_cluster() {
         echo ""
         return 1
     fi
-    
-    # Wait for cluster to be ready
-    log_info "Waiting for cluster nodes to be ready..."
-    if ! wait_for_kind_cluster_ready "$cluster_name"; then
-        log_error "Cluster nodes did not become ready in time"
-        return 1
-    fi
-    
-    log_success "Kind cluster is ready"
-    return 0
-}
 
-# Wait for Kind cluster to be ready
-wait_for_kind_cluster_ready() {
-    local cluster_name="${1:-openchoreo-local}"
-    local timeout=600
-    local elapsed=0
-    
-    while [ $elapsed -lt $timeout ]; do
-        if kubectl get nodes --context "kind-${cluster_name}" >/dev/null 2>&1; then
-            if kubectl wait --for=condition=Ready nodes --all --timeout=10s --context "kind-${cluster_name}" >/dev/null 2>&1; then
-                return 0
+    # Configure kubeconfig immediately after cluster creation
+    log_info "Configuring kubectl access..."
+
+    # Detect if running in containerized environment
+    local is_containerized=false
+    if [[ -f /.dockerenv ]] || [[ -d /state ]]; then
+        is_containerized=true
+    fi
+
+    if [[ "$is_containerized" == "true" ]]; then
+        # Containerized environment: use internal IP
+        local control_plane_container="${cluster_name}-control-plane"
+        local control_plane_ip=$(docker inspect "${control_plane_container}" --format '{{range $key, $value := .NetworkSettings.Networks}}{{if eq $key "kind"}}{{$value.IPAddress}}{{end}}{{end}}' 2>/dev/null | head -1)
+
+        if [[ -z "$control_plane_ip" ]]; then
+            control_plane_ip=$(docker inspect "${control_plane_container}" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null | head -1)
+        fi
+
+        if [[ -n "$control_plane_ip" ]]; then
+            mkdir -p /state/kube
+            if kind get kubeconfig --name "${cluster_name}" 2>/dev/null | sed "s|server: https://127.0.0.1:[0-9]*|server: https://${control_plane_ip}:6443|" > /state/kube/config-internal.yaml; then
+                export KUBECONFIG=/state/kube/config-internal.yaml
+                kubectl config use-context "kind-${cluster_name}" >/dev/null 2>&1 || true
+                log_success "kubectl configured with internal IP: ${control_plane_ip}"
             fi
         fi
-        sleep 5
-        elapsed=$((elapsed + 5))
+    else
+        # Local environment: use Kind's built-in kubeconfig export
+        if kind export kubeconfig --name "${cluster_name}" 2>&1 | grep -v "warning"; then
+            kubectl config use-context "kind-${cluster_name}" >/dev/null 2>&1 || true
+            local api_port=$(kubectl config view -o jsonpath="{.clusters[?(@.name=='kind-${cluster_name}')].cluster.server}" 2>/dev/null | grep -oE '[0-9]+$' || echo "6443")
+            log_success "kubectl configured at localhost:${api_port}"
+        else
+            log_warning "Failed to export kubeconfig automatically"
+        fi
+    fi
+
+    # Verify API server is accessible (lightweight check)
+    # NOTE: We do NOT wait for nodes to be Ready here because:
+    # - disableDefaultCNI: true means nodes won't be Ready until CNI is installed
+    # - OpenChoreo installation (next step) installs Cilium CNI
+    # - Nodes will become Ready after Cilium is installed
+    log_info "Verifying Kubernetes API server is accessible..."
+
+    local max_retries=30
+    local retry_count=0
+
+    while [ $retry_count -lt $max_retries ]; do
+        if kubectl cluster-info --context "kind-${cluster_name}" >/dev/null 2>&1; then
+            log_success "Kubernetes API server is accessible"
+
+            # Show cluster info for debugging
+            if [[ "$VERBOSE" == "true" ]]; then
+                echo ""
+                log_info "Cluster nodes (will become Ready after CNI installation):"
+                kubectl get nodes --context "kind-${cluster_name}" 2>/dev/null || true
+                echo ""
+            fi
+
+            log_success "Kind cluster is ready for OpenChoreo installation"
+            return 0
+        fi
+
+        retry_count=$((retry_count + 1))
+        if [ $retry_count -lt $max_retries ]; then
+            sleep 2
+        fi
     done
-    
+
+    log_error "Kubernetes API server did not become accessible"
+    echo ""
+    echo "   Troubleshooting:"
+    echo "   1. Check control plane logs: docker logs ${cluster_name}-control-plane"
+    echo "   2. Verify containers are running: docker ps | grep ${cluster_name}"
+    echo ""
+    return 1
+}
+
+# Wait for Kind cluster to be ready (API server accessible check only)
+# NOTE: This function now only verifies API server accessibility, not node readiness.
+# Nodes will become Ready after CNI installation (handled by OpenChoreo/Cilium).
+wait_for_kind_cluster_ready() {
+    local cluster_name="${1:-openchoreo-local}"
+    local timeout=60  # Reduced from 600s to 60s since we only check API server
+    local elapsed=0
+    local check_interval=2
+
+    log_info "Verifying Kubernetes API server is accessible..."
+
+    while [ $elapsed -lt $timeout ]; do
+        # Check if API server is accessible
+        if kubectl cluster-info --context "kind-${cluster_name}" >/dev/null 2>&1; then
+            log_success "Kubernetes API server is accessible"
+            return 0
+        fi
+
+        sleep $check_interval
+        elapsed=$((elapsed + check_interval))
+    done
+
+    echo ""
+    log_error "Kubernetes API server did not become accessible within ${timeout}s"
+    echo ""
+    log_info "Cluster status:"
+    docker ps | grep "${cluster_name}" || echo "No cluster containers found"
+    echo ""
+
     return 1
 }
 
