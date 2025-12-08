@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from "react";
-import { Box, Button, Chip, CircularProgress, Drawer, Typography, useTheme } from "@mui/material";
-import { DataListingTable, TableColumn, renderStatusChip } from "@agent-management-platform/views";
-import { DataArray, Rocket } from "@mui/icons-material";
+import { Box, Button, CircularProgress, Typography, useTheme } from "@wso2/oxygen-ui";
+import { DataListingTable, TableColumn, renderStatusChip, InitialState, DrawerWrapper } from "@agent-management-platform/views";
+import { Rocket } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { BuildLogs, DeploymentConfig } from "@agent-management-platform/shared-component";
 import { useGetAgentBuilds } from "@agent-management-platform/api-client";
@@ -79,16 +79,10 @@ export function BuildTable() {
             label: "Branch",
             width: "15%",
             render: (value, row) => (
-                <Chip
-                    label={`${value} : ${row.commit}`}
-                    size="small"
-                    variant="outlined"
-                    sx={{
-                        borderColor: theme.palette.divider,
-                        color: theme.palette.text.secondary,
-                        backgroundColor: theme.palette.background.default,
-                    }}
-                />
+                <Typography noWrap variant="body2">
+                    {`${value} : ${row.commit}`}
+                </Typography>
+            
             ),
         },
         {
@@ -132,7 +126,6 @@ export function BuildTable() {
                         color="primary"
                         onClick={() => handleBuildClick(row.title, 'logs')}
                         size="small"
-                        startIcon={<DataArray fontSize="small" />}
                     >
                        Build Logs
                     </Button>
@@ -145,19 +138,29 @@ export function BuildTable() {
                         startIcon={
                             row.status === "BuildInProgress" ?
                                 <CircularProgress color="inherit" size={14} /> :
-                                <Rocket fontSize="small" />
+                                <Rocket size={16} />
                         }
                     >
-                        {row.status === "BuildInProgress" ? "Building..." : "Deploy"}
+                        {row.status === "BuildInProgress" ? "Building" : "Deploy"}
                     </Button>
                 </Box>
             )
         },
     ], [theme, handleBuildClick]);
 
+    // Define initial state for sorting - most recent builds first
+    const tableInitialState: InitialState<BuildRow> = useMemo(() => ({
+        sorting: {
+            sortModel: [{
+                field: 'startedAt',
+                sort: 'desc'
+            }]
+        }
+    }), []);
+
     return (
         (
-            <>
+            <Box display="flex" borderRadius={1} flexDirection="column" bgcolor={"background.paper"}>
                 <DataListingTable
                     data={rows.map(row => ({
                         ...row,
@@ -167,50 +170,31 @@ export function BuildTable() {
                     pagination
                     pageSize={5}
                     maxRows={rows.length}
-                    defaultSortBy="startedAt"
-                    defaultSortDirection="desc"
+                    initialState={tableInitialState}
                 />
-                <Drawer
-                    anchor="right"
-                    open={!!selectedBuildName}
-                    onClose={clearSelectedBuild}
-                    sx={{
-                        zIndex: 1300,
-                    }}
-                >
-                    <Box
-                        width={theme.spacing(100)}
-                        p={2}
-                        height="100%"
-                        display="flex"
-                        flexDirection="column"
-                        gap={2}
-                        bgcolor={theme.palette.background.paper}
-                    >
-                        {selectedPanel === 'deploy' && (
-                            <DeploymentConfig
-                                onClose={clearSelectedBuild}
-                                imageId={rows.find(row =>
-                                    row.id === selectedBuildName)?.imageId || 'busybox'}
-                                to="development"
-                                orgName={orgId || ''}
-                                projName={projectId || ''}
-                                agentName={agentId || ''}
-                            />
-                        )}
-                        {selectedPanel === 'logs' && selectedBuildName && (
-                            <BuildLogs
-                                onClose={clearSelectedBuild}
-                                orgName={orgId || ''}
-                                projName={projectId || ''}
-                                agentName={agentId || ''}
-                                buildName={selectedBuildName}
-                            />
-                            // <>Build Logs</>
-                        )}
-                    </Box>
-                </Drawer>
-            </>
+                <DrawerWrapper open={!!selectedBuildName} onClose={clearSelectedBuild}>
+                    {selectedPanel === 'deploy' && (
+                        <DeploymentConfig
+                            onClose={clearSelectedBuild}
+                            imageId={rows.find(row =>
+                                row.id === selectedBuildName)?.imageId || 'busybox'}
+                            to="development"
+                            orgName={orgId || ''}
+                            projName={projectId || ''}
+                            agentName={agentId || ''}
+                        />
+                    )}
+                    {selectedPanel === 'logs' && selectedBuildName && (
+                        <BuildLogs
+                            onClose={clearSelectedBuild}
+                            orgName={orgId || ''}
+                            projName={projectId || ''}
+                            agentName={agentId || ''}
+                            buildName={selectedBuildName}
+                        />
+                    )}
+                </DrawerWrapper>
+            </Box>
         )
 
     );

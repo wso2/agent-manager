@@ -1,21 +1,3 @@
-/**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
- *
- * WSO2 LLC. licenses this file to you under the Apache License,
- * Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 import { ReactNode } from 'react';
 import {
   Menu,
@@ -26,7 +8,7 @@ import {
   Typography,
   Divider,
   useTheme,
-} from '@mui/material';
+} from '@wso2/oxygen-ui';
 import { Link as RouterLink } from "react-router-dom"
 
 export interface UserMenuItem {
@@ -76,13 +58,13 @@ export function UserMenu({
       slotProps={{
         paper: {
           sx: {
-            minWidth: theme.spacing(24),
+            minWidth: 24,
           }
         }
       }}
     >
       {/* User Info Header */}
-      <Box sx={{ px: theme.spacing(2), py: theme.spacing(1.5), borderBottom: `1px solid ${theme.palette.divider}` }}>
+      <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
           {user.name}
         </Typography>

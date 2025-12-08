@@ -1,6 +1,6 @@
-import { Box, CircularProgress, Skeleton } from "@mui/material";
+import { Box, CircularProgress, Skeleton } from "@wso2/oxygen-ui";
 import { StatusCard } from '@agent-management-platform/views';
-import { CheckCircle as CheckCircleIcon, Error, PlayArrow, Warning } from '@mui/icons-material';
+import { CheckCircle as CheckCircleIcon, XCircle as Error, Play as PlayArrow, AlertTriangle as Warning } from '@wso2/oxygen-ui-icons-react';
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -19,15 +19,15 @@ export interface TopCardsProps {
 const getBuildIcon = (status: BuildStatus) => {
     switch (status) {
         case "Completed":
-            return <CheckCircleIcon />;
+            return <CheckCircleIcon size={20} />;
         case "BuildTriggered":
-            return <PlayArrow />;
+            return <PlayArrow size={20} />;
         case "BuildInProgress":
             return <CircularProgress size={20} color="inherit" />;
         case "BuildFailed":
-            return <Error />;
+            return <Error size={20} />;
         default:
-            return <Error />;
+            return <Error size={20} />;
     }
 }
 const percIcon = (percentage: number) => {
@@ -35,13 +35,13 @@ const percIcon = (percentage: number) => {
         return <CircularProgress size={20} color="inherit" />;
     }
     if (percentage >= 0.9) {
-        return <CheckCircleIcon fontSize="small" color="inherit" />;
+        return <CheckCircleIcon size={20}  />;
     }
     else if (percentage >= 0.5) {
-        return <Warning fontSize="small" />;
+        return <Warning size={20} />;
     }
     else {
-        return <Error fontSize="small" />;
+        return <Error size={20} />;
     }
 }
 const percIconVariant = (percentage: number) => {
@@ -88,20 +88,7 @@ const getTagVariant = (status: BuildStatus): 'success' | 'warning' | 'error' | '
             return "default";
     }
 }
-const getTagText = (status: BuildStatus) => {
-    switch (status) {
-        case "Completed":
-            return "Success";
-        case "BuildFailed":
-            return "Failed";
-        case "BuildInProgress":
-            return "In Progress";
-        case "BuildTriggered":
-            return "Triggered";
-        default:
-            return "Unknown";
-    }
-}
+
 function TopCardsSkeleton() {
     return (
         <Box sx={{
@@ -131,7 +118,6 @@ export const TopCards: React.FC = (
 
     // Summery
     const succesfullBuildCount = builds?.builds.filter((build) => build.status === 'Completed').length ?? 0;
-    const inProgressBuildCount = builds?.builds.filter((build) => build.status === 'BuildInProgress' || build.status === 'BuildTriggered').length ?? 0;
     const failedBuildCount = builds?.builds.filter((build) => build.status === 'BuildFailed').length ?? 0;
 
 
@@ -155,7 +141,6 @@ export const TopCards: React.FC = (
                 subtitle={dayjs(latestBuildStartedTime).fromNow()}
                 icon={getBuildIcon(latestBuildStatus as BuildStatus)}
                 iconVariant={getBuildIconVariant(latestBuildStatus as BuildStatus)}
-                tag={getTagText(latestBuildStatus as BuildStatus)}
                 tagVariant={getTagVariant(latestBuildStatus as BuildStatus)}
                 minWidth="100%"
             />
@@ -172,16 +157,6 @@ export const TopCards: React.FC = (
                 tagVariant={
                     percIconVariant(succesfullBuildCount
                         / (succesfullBuildCount + failedBuildCount))}
-                minWidth="100%"
-            />
-            <StatusCard
-                title="Build Status"
-                value={`${inProgressBuildCount}/${builds?.builds.length ?? 0}`}
-                subtitle="in progress"
-                icon={getBuildIcon(latestBuildStatus as BuildStatus)}
-                iconVariant={getBuildIconVariant(latestBuildStatus as BuildStatus)}
-                tag={`${inProgressBuildCount}/${builds?.builds.length ?? 0}`}
-                tagVariant={getTagVariant(latestBuildStatus as BuildStatus)}
                 minWidth="100%"
             />
         </Box>

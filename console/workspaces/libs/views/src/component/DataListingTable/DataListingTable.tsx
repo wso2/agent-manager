@@ -1,29 +1,24 @@
-/**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
- *
- * WSO2 LLC. licenses this file to you under the Apache License,
- * Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 import React, { useState, useMemo } from 'react';
-import { Table, TableContainer, Paper, Box, Typography, useTheme, TablePagination, Chip, CircularProgress } from '@mui/material';
+import { 
+  Table, 
+  TableContainer, 
+  Paper, 
+  Box, 
+  Typography, 
+  TablePagination, 
+  Chip, 
+  CircularProgress 
+} from '@wso2/oxygen-ui';
 import { TableHeader } from './subcomponents/TableHeader';
 import { TableBody } from './subcomponents/TableBody';
 import { LoadingState } from './subcomponents/LoadingState';
 import { EmptyState } from './subcomponents/EmptyState';
 import { ActionItem } from './subcomponents/ActionMenu';
-import { CheckCircle, CircleOutlined, ErrorOutline } from '@mui/icons-material';
+import { 
+  CheckCircle, 
+  Circle as CircleOutlined, 
+  XCircle as ErrorOutline 
+} from '@wso2/oxygen-ui-icons-react';
 
 export interface TableColumn<T = any> {
   id: keyof T | string;
@@ -44,6 +39,17 @@ export interface MetricsData {
   metricsColor: 'success' | 'warning' | 'error';
 }
 
+export interface SortModel<T = any> {
+  field: keyof T | string;
+  sort: 'asc' | 'desc';
+}
+
+export interface InitialState<T = any> {
+  sorting?: {
+    sortModel?: SortModel<T>[];
+  };
+}
+
 export interface DataListingTableProps<T = any> {
   data: T[];
   columns: TableColumn<T>[];
@@ -60,6 +66,7 @@ export interface DataListingTableProps<T = any> {
   maxRows?: number;
   onPageChange?: (page: number, rowsPerPage: number) => void;
   // Sorting props
+  initialState?: InitialState<T>;
   defaultSortBy?: keyof T | string;
   defaultSortDirection?: 'asc' | 'desc';
   // Row mouse events
@@ -83,6 +90,7 @@ export const DataListingTable = <T extends Record<string, any>>({
   pageSize = 10,
   maxRows,
   onPageChange,
+  initialState,
   defaultSortBy,
   defaultSortDirection = 'asc',
   onRowMouseEnter,
@@ -91,9 +99,23 @@ export const DataListingTable = <T extends Record<string, any>>({
   onRowFocusOut,
   onRowClick,
 }: DataListingTableProps<T>) => {
-  const theme = useTheme();
-  const [sortBy, setSortBy] = useState<keyof T | string>(defaultSortBy || '');
-  const [sortDirection, setSortDirection] = useState<SortDirection>(defaultSortDirection);
+  // Determine initial sort values from initialState or fallback to defaultSort props
+  const getInitialSortBy = () => {
+    if (initialState?.sorting?.sortModel && initialState.sorting.sortModel.length > 0) {
+      return initialState.sorting.sortModel[0].field;
+    }
+    return defaultSortBy || '';
+  };
+
+  const getInitialSortDirection = (): SortDirection => {
+    if (initialState?.sorting?.sortModel && initialState.sorting.sortModel.length > 0) {
+      return initialState.sorting.sortModel[0].sort;
+    }
+    return defaultSortDirection;
+  };
+
+  const [sortBy, setSortBy] = useState<keyof T | string>(getInitialSortBy());
+  const [sortDirection, setSortDirection] = useState<SortDirection>(getInitialSortDirection());
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(pageSize);
 
@@ -163,18 +185,14 @@ export const DataListingTable = <T extends Record<string, any>>({
   }
 
   return (
-    <TableContainer
-      component={Paper}
-      elevation={0}
-      sx={{
-        backgroundColor: 'transparent',
-        borderRadius: 0,
-        border: 'none',
+    <Paper 
+      sx={{ 
+        width: '100%',
         boxShadow: 'none',
       }}
     >
-      <Box minHeight={theme.spacing(50)}>
-        <Table sx={{ borderCollapse: 'separate', borderSpacing: `0 ${theme.spacing(1)}` }}>
+      <TableContainer>
+        <Table>
           <TableHeader
             columns={columns}
             sortBy={sortBy}
@@ -194,7 +212,7 @@ export const DataListingTable = <T extends Record<string, any>>({
             onRowClick={onRowClick}
           />
         </Table>
-      </Box>
+      </TableContainer>
       {pagination && totalRows > 5 && (
         <TablePagination
           rowsPerPageOptions={[5, 10, 25, 50]}
@@ -204,25 +222,22 @@ export const DataListingTable = <T extends Record<string, any>>({
           page={page}
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
-          sx={{
-            // borderTop: `1px solid ${theme.palette.divider}`,
-          }}
         />
       )}
-    </TableContainer>
+    </Paper>
   );
 };
 
 const getStatusIcon = (status: StatusConfig) => {
   switch (status.color) {
     case 'success':
-      return <CheckCircle />;
+      return <CheckCircle size={16} />;
     case 'warning':
       return <CircularProgress size={14} color="warning" />;
     case 'error':
-      return <ErrorOutline />;
+      return <ErrorOutline size={16} />;
     default:
-      return <CircleOutlined />;
+      return <CircleOutlined size={16} />;
   }
 };
 // Generic helper functions for common use cases

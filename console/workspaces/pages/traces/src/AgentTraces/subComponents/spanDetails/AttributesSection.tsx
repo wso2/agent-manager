@@ -1,22 +1,4 @@
-/**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
- *
- * WSO2 LLC. licenses this file to you under the Apache License,
- * Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-import { Box, Card, CardContent, Typography, alpha, useTheme } from "@mui/material";
+import { Box, Card, CardContent, Typography, alpha, useTheme } from "@wso2/oxygen-ui";
 import { useCallback } from "react";
 
 interface AttributesSectionProps {
@@ -80,7 +62,7 @@ export function AttributesSection({ attributes }: AttributesSectionProps) {
                 fontWeight="bold" 
                 sx={{ 
                     color: theme.palette.text.secondary, 
-                    mb: theme.spacing(1.5) 
+                    mb: 1.5 
                 }}
             >
                 Attributes
@@ -89,7 +71,7 @@ export function AttributesSection({ attributes }: AttributesSectionProps) {
                 sx={{ 
                     display: 'flex', 
                     flexDirection: 'column', 
-                    gap: theme.spacing(2) 
+                    gap: 2 
                 }}
             >
                 {Object.entries(attributes).map(([key, value]) => (
@@ -100,7 +82,7 @@ export function AttributesSection({ attributes }: AttributesSectionProps) {
                             sx={{
                                 color: theme.palette.text.secondary,
                                 display: 'block',
-                                mb: theme.spacing(0.75)
+                                mb: 0.75
                             }}
                         >
                             {key}
@@ -108,14 +90,14 @@ export function AttributesSection({ attributes }: AttributesSectionProps) {
                         <Card
                             variant="outlined"
                             sx={{
-                                maxHeight: isJsonObject(value) ? theme.spacing(37.5) : 'auto',
+                                maxHeight: isJsonObject(value) ? 375 : 'auto',
                                 overflow: 'auto',
                                 bgcolor: theme.palette.mode === 'dark' 
                                     ? alpha(theme.palette.common.black, 0.2)
                                     : alpha(theme.palette.common.black, 0.03),
                             }}
                         >
-                            <CardContent sx={{ '&:last-child': { pb: theme.spacing(1.5) } }}>
+                            <CardContent sx={{ '&:last-child': { pb: 1.5 } }}>
                                 <Typography 
                                     component="pre"
                                     variant="body2" 

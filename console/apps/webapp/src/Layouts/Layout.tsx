@@ -1,28 +1,9 @@
-/**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
- *
- * WSO2 LLC. licenses this file to you under the Apache License,
- * Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 import { useAuthHooks } from '@agent-management-platform/auth';
 import { Outlet, useParams, useNavigate, generatePath } from "react-router-dom";
-import { Box } from '@mui/material';
+import { Box } from '@wso2/oxygen-ui';
 import { useNavigationItems } from './navigationItems';
 import { createUserMenuItems } from './userMenuItems';
-import { MainLayout } from '@agent-management-platform/views';
-import { ThemeSelector } from '../components/ThemeSelector';
+import { displayProvisionTypes, MainLayout } from '@agent-management-platform/views';
 import { useListAgents, useListOrganizations, useListProjects } from '@agent-management-platform/api-client';
 import { absoluteRouteMap } from '@agent-management-platform/types';
 import { useMemo } from 'react';
@@ -53,6 +34,7 @@ export function Layout() {
 
   return (
     <MainLayout
+      sidebarCollapsed={false}
       user={{
         name: userInfo?.displayName ?? userInfo?.username ?? '',
         email: userInfo?.username ?? userInfo?.orgHandle ?? '',
@@ -86,6 +68,7 @@ export function Layout() {
         options: agents?.agents?.map((agent) => ({
           id: agent.name,
           label: agent.displayName,
+          typeLabel: displayProvisionTypes(agent.provisioning.type),
         })) ?? [],
         onChange: (value) => {
           navigate(generatePath(
@@ -111,8 +94,6 @@ export function Layout() {
     ]}
       userMenuItems={createUserMenuItems(orgId ?? '', logout)}
       navigationItems={navigationItems}
-      rightElements={
-        <ThemeSelector />}
     >
       <Box
         p={1}

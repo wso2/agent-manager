@@ -1,21 +1,3 @@
-/**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
- *
- * WSO2 LLC. licenses this file to you under the Apache License,
- * Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 import React from 'react';
 import {
     Card,
@@ -26,7 +8,7 @@ import {
     useTheme,
     alpha,
     Box,
-} from '@mui/material';
+} from '@wso2/oxygen-ui';
 
 export interface StatusCardProps {
     /** The title/label for the status card */
@@ -91,9 +73,9 @@ export function StatusCard({
             onClick={handleClick}
             sx={{
                 position: 'relative',
-                borderRadius: theme.shape.borderRadius,
-                boxShadow: theme.shadows[2],
-                backgroundColor: theme.palette.background.paper,
+                "&.MuiCard-root": {
+                    backgroundColor: 'background.paper',
+                },
                 transition: theme.transitions.create(['box-shadow', 'transform'], {
                     duration: theme.transitions.duration.short,
                 }),
@@ -104,7 +86,7 @@ export function StatusCard({
                 } : {},
             }}
         >
-            <CardContent sx={{ padding: theme.spacing(2) }}>
+            <CardContent>
                 {tag && (
                     <Chip
                         label={tag}
@@ -113,29 +95,27 @@ export function StatusCard({
                         variant="outlined"
                         sx={{
                             position: 'absolute',
-                            top: theme.spacing(1.5),
-                            right: theme.spacing(1.5),
-                            height: theme.spacing(3),
-                            fontSize: theme.typography.caption.fontSize,
-                            fontWeight: theme.typography.fontWeightMedium,
-                            borderRadius: theme.shape.borderRadius,
+                            top: 8,
+                            right: 8,
                         }}
                     />
                 )}
-                <Box display="flex" alignItems="center" gap={theme.spacing(2)}>
+                <Box display="flex" alignItems="center" gap={2}>
                     <Avatar
                         sx={{
-                            width: theme.spacing(5),
-                            height: theme.spacing(5),
-                            backgroundColor: alpha(primaryColor, 0.2),
-                            color: primaryColor,
+                            width: 64,
+                            height: 64,
+                            "&.MuiAvatar-root": {
+                                color: primaryColor,
+                                backgroundColor: alpha(primaryColor, 0.1),
+                            },
                         }}
                     >
                         {icon}
                     </Avatar>
-                    <Box flexDirection="column" display="flex" gap={theme.spacing(0.5)}>
-                        <Typography variant="body2">{title}</Typography>
-                        <Typography variant="h4">{value}</Typography>
+                    <Box flexDirection="column" display="flex" gap={0.5}>
+                        <Typography variant="caption">{title}</Typography>
+                        <Typography variant="h5">{value}</Typography>
                         <Typography variant="caption">{subtitle}</Typography>
                     </Box>
                 </Box>

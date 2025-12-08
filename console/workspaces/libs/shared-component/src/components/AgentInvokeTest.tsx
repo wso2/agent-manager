@@ -1,21 +1,3 @@
-/**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
- *
- * WSO2 LLC. licenses this file to you under the Apache License,
- * Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 import React, { useEffect, useMemo, useState } from 'react';
 import {
     Box,
@@ -31,8 +13,8 @@ import {
     InputAdornment,
     Select,
     MenuItem,
-} from '@mui/material';
-import { ArrowDropDown, PlayArrow } from '@mui/icons-material';
+} from '@wso2/oxygen-ui';
+import { ChevronDown as ArrowDropDown, Play as PlayArrow } from '@wso2/oxygen-ui-icons-react';
 import { useGetAgentEndpoints } from '@agent-management-platform/api-client';
 import { useParams } from 'react-router-dom';
 
@@ -165,7 +147,7 @@ export function AgentInvokeTest({
                                         size="small"
                                         color="default"
                                         sx={{
-                                            height: theme.spacing(3),
+                                            height: 3,
                                             fontSize: '0.75rem',
                                         }}
                                     />
@@ -189,10 +171,10 @@ export function AgentInvokeTest({
                     }}
                     sx={{
                         flex: 1,
-                        minWidth: theme.spacing(30),
+                        minWidth: 30,
                         m: 0,
                         "& .MuiInputBase-root": {
-                            padding: theme.spacing(0),
+                            padding: 0,
                         },
                     }}
                 />
@@ -230,12 +212,12 @@ export function AgentInvokeTest({
                 sx={{
                     '& .MuiInputBase-root': {
                         fontFamily: 'monospace',
-                        padding: theme.spacing(0),
+                        padding: 0,
                         fontSize: theme.typography.body2.fontSize,
                     },
                     '& .MuiInputBase-input': {
-                        minHeight: theme.spacing(25),
-                        padding: theme.spacing(2),
+                        minHeight: 25,
+                        padding: 2,
                     },
                 }}
             />
@@ -252,7 +234,7 @@ export function AgentInvokeTest({
                         size="small"
                         variant="outlined"
                         sx={{
-                            height: theme.spacing(3),
+                            height: 3,
                         }}
                     />
                     <Typography variant="caption" color="text.secondary">
@@ -290,8 +272,8 @@ export function AgentInvokeTest({
                         variant="outlined"
                         sx={{
                             backgroundColor: theme.palette.background.default,
-                            padding: theme.spacing(2),
-                            maxHeight: theme.spacing(50),
+                            padding: 2,
+                            maxHeight: 50,
                             overflow: 'auto',
                         }}
                     >

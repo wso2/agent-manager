@@ -1,21 +1,3 @@
-/**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
- *
- * WSO2 LLC. licenses this file to you under the Apache License,
- * Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 import React from 'react';
 import {
     alpha,
@@ -23,12 +5,12 @@ import {
     ButtonBase,
     Typography,
     useTheme
-} from '@mui/material';
+} from '@wso2/oxygen-ui';
 import {
     Home as HomeIcon,
-    ChatBubbleOutline as ChatBubbleIcon,
-    GpsFixed as TargetIcon,
-} from '@mui/icons-material';
+    MessageCircle as ChatBubbleIcon,
+    Target as TargetIcon,
+} from '@wso2/oxygen-ui-icons-react';
 import { Link } from 'react-router-dom';
 
 // Navigation link interface
@@ -75,11 +57,11 @@ const defaultNavLinks: GroupNavLinks[] = [
                 path: '/overview'
             },
             {
-                id: 'try-out',
+                id: 'Try Out',
                 label: 'Try Out',
                 icon: <ChatBubbleIcon />,
                 isActive: false,
-                path: '/try-out'
+                path: '/Try Out'
             },
             {
                 id: 'evaluate',
@@ -104,11 +86,11 @@ export const SubTopNavBar: React.FC<SubTopNavBarProps> = ({
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 borderRadius: theme.shape.borderRadius,
-                p: theme.spacing(0.25),
-                mt: theme.spacing(1),
+                p: 0.25,
+                mt: 1,
             }}
         >
-            <Box display="flex" gap={theme.spacing(1)}>
+            <Box display="flex" gap={1}>
                 {
                     navLinks.map((group: GroupNavLinks) => (
                         <Box key={group.id}
@@ -125,8 +107,8 @@ export const SubTopNavBar: React.FC<SubTopNavBarProps> = ({
                                     to={link.path}
                                     sx={{
                                         textDecoration: 'none',
-                                        p: theme.spacing(0.5),
-                                        // borderRadius: theme.spacing(1),
+                                        p: 0.5,
+                                        // borderRadius: 1,
                                         background: link.isActive ?
                                             alpha(theme.palette.primary.main, 0.2) :
                                             theme.palette.background.paper,
@@ -138,7 +120,7 @@ export const SubTopNavBar: React.FC<SubTopNavBarProps> = ({
                                         },
                                     }}
                                 >
-                                    <Box display="flex" alignItems="center" px={theme.spacing(1)} gap={theme.spacing(1)}>
+                                    <Box display="flex" alignItems="center" px={1} gap={1}>
                                         <Box display="flex">
                                             {link.icon}
                                         </Box>
@@ -154,7 +136,7 @@ export const SubTopNavBar: React.FC<SubTopNavBarProps> = ({
             </Box>
             {/* Right side - Action Buttons */}
             {actionButtons && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: theme.spacing(1) }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     {actionButtons}
                 </Box>
             )}

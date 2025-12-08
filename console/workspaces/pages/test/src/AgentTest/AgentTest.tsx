@@ -1,315 +1,261 @@
-/**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
- *
- * WSO2 LLC. licenses this file to you under the Apache License,
- * Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
-    Box,
-    Button,
-    Chip,
-    TextField,
-    Typography,
-    Paper,
-    useTheme,
-    Alert,
-    CircularProgress,
-    Stack,
-    InputAdornment,
-    Select,
-    MenuItem,
-} from '@mui/material';
-import { ArrowDropDown, PlayArrow } from '@mui/icons-material';
-import { useGetAgentEndpoints } from '@agent-management-platform/api-client';
-import { useParams } from 'react-router-dom';
+  Box,
+  Button,
+  TextField,
+  Typography,
+  Alert,
+  CircularProgress,
+} from "@wso2/oxygen-ui";
+import { MessageCircle, Send } from "@wso2/oxygen-ui-icons-react";
+import { useGetAgentEndpoints } from "@agent-management-platform/api-client";
+import { useParams } from "react-router-dom";
+import { ChatMessage } from "./subComponents/ChatMessage";
+import { NoDataFound } from "@agent-management-platform/views";
 
 export interface AgentTestProps {
-    defaultBody?: Record<string, unknown>;
+  defaultBody?: Record<string, unknown>;
+}
+
+interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
 }
 
 export function AgentTest({
-    defaultBody = {
-        thread_id: 123,
-        question: "Hi, How can you help me?"
-      }
-      
+  defaultBody = {
+    thread_id: 123,
+    passenger_id: "2021 652719",
+    question: "Hi, How can you help me?",
+  },
 }: AgentTestProps) {
-    const theme = useTheme();
-    const [endpoint, setEndpoint] = useState("");
-    const [requestBody, setRequestBody] = useState(JSON.stringify(defaultBody, null, 2));
-    const [response, setResponse] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const { agentId, orgId, projectId, envId } = useParams();
-    const { data: endpoints } = useGetAgentEndpoints(
-        {
-            projName: projectId ?? '',
-            orgName: orgId ?? '',
-            agentName: agentId ?? '',
-        }, {
-        environment: envId ?? '',
+  const [endpoint, setEndpoint] = useState("");
+  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { agentId, orgId, projectId, envId } = useParams();
+  const { data: endpoints } = useGetAgentEndpoints(
+    {
+      projName: projectId ?? "",
+      orgName: orgId ?? "",
+      agentName: agentId ?? "",
+    },
+    {
+      environment: envId ?? "",
     }
-    )
-    const endpointOptions = useMemo(() => {
-        return Object.entries(endpoints ?? {}).map(
-            ([key, value]) => ({ label: key, value: value.url }));
-    }, [endpoints])
+  );
+  const endpointOptions = useMemo(() => {
+    return Object.entries(endpoints ?? {}).map(([key, value]) => ({
+      label: key,
+      value: value.url,
+    }));
+  }, [endpoints]);
 
-    useEffect(() => {
-        if (endpointOptions.length > 0) {
-            setEndpoint(endpointOptions[0].value + '/invocations');
-        }
-    }, [endpointOptions]);
-    
-    const handleRunTest = async () => {
-        setError(null);
-        setResponse(null);
-        setIsLoading(true);
+  useEffect(() => {
+    if (endpointOptions.length > 0) {
+      setEndpoint(endpointOptions[0].value + "/invocations");
+    }
+  }, [endpointOptions]);
 
-        try {
-            // Validate JSON
-            let parsedBody: object;
-            try {
-                parsedBody = JSON.parse(requestBody);
-            } catch {
-                setError('Invalid JSON format in request body');
-                setIsLoading(false);
-                return;
-            }
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-            const apiResponse = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    
-                },
-                body: JSON.stringify(parsedBody),
-                referrerPolicy: ''
-                
-            });
+  const handleSendMessage = async () => {
+    if (!message.trim() || isLoading) return;
 
-            let responseData: unknown;
-            const contentType = apiResponse.headers.get('content-type');
-            if (contentType && contentType.includes('application/json')) {
-                responseData = await apiResponse.json();
-            } else {
-                responseData = await apiResponse.text();
-            }
-
-            if (!apiResponse.ok) {
-                const errorMessage = typeof responseData === 'string'
-                    ? responseData
-                    : JSON.stringify(responseData, null, 2);
-                setError(`Request failed with status ${apiResponse.status}: ${errorMessage}`);
-            } else {
-                const responseText = typeof responseData === 'string'
-                    ? responseData
-                    : JSON.stringify(responseData, null, 2);
-                setResponse(responseText);
-            }
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred while making the request');
-        } finally {
-            setIsLoading(false);
-        }
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      role: "user",
+      content: message.trim(),
+      timestamp: new Date(),
     };
 
-    const handleKeyDown = (event: React.KeyboardEvent) => {
-        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-            event.preventDefault();
-            handleRunTest();
-        }
-    };
+    setMessages((prev) => [...prev, userMessage]);
+    setMessage("");
+    setError(null);
+    setIsLoading(true);
 
-    const characterCount = requestBody.length;
-    const isJsonValid = (() => {
-        try {
-            JSON.parse(requestBody);
-            return true;
-        } catch {
-            return false;
-        }
-    })();
+    try {
+      const requestBody = {
+        ...defaultBody,
+        question: userMessage.content,
+      };
 
-    return (
-        <Box display="flex" flexDirection="column" pt={2} gap={2} width="100%">
-            {/* API Request Header */}
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+      const apiResponse = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+        referrerPolicy: "",
+      });
 
-                <TextField
-                    value={endpoint}
-                    onChange={(e) => setEndpoint(e.target.value)}
-                    placeholder="/agent/invoke"
-                    variant="outlined"
-                    size="small"
-                    slotProps={{
-                        input: {
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <Chip
-                                        label="POST"
-                                        size="small"
-                                        color="default"
-                                        sx={{
-                                            height: theme.spacing(3),
-                                            fontSize: '0.75rem',
-                                        }}
-                                    />
-                                </InputAdornment>
-                            ),
-                            endAdornment: (
-                                <InputAdornment position="end">
-                                    <Button
-                                        variant="text"
-                                        size="small"
-                                        endIcon={<ArrowDropDown fontSize="inherit" />}
-                                        sx={{
-                                            textTransform: 'none',
-                                        }}
-                                    >
-                                        Samples
-                                    </Button>
-                                </InputAdornment>
-                            ),
-                        },
-                    }}
-                    sx={{
-                        flex: 1,
-                        minWidth: theme.spacing(30),
-                        m: 0,
-                        "& .MuiInputBase-root": {
-                            padding: theme.spacing(0),
-                        },
-                    }}
-                />
-                {
-                    endpointOptions.length > 1 && (
-                        <Select
-                            value={endpoint}
-                            onChange={(e) => setEndpoint(e.target.value)}
-                            variant="outlined"
-                            size="small"
-                        >
-                            {
-                                endpointOptions.map((option) => (
-                                    <MenuItem key={option.value} value={option.value}>
-                                        {option.label}
-                                    </MenuItem>
-                                ))
-                            }
-                        </Select>
-                    )
-                }
+      let responseData: unknown;
+      const contentType = apiResponse.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        responseData = await apiResponse.json();
+      } else {
+        responseData = await apiResponse.text();
+      }
+
+      if (!apiResponse.ok) {
+        const errorMessage =
+          typeof responseData === "string"
+            ? responseData
+            : JSON.stringify(responseData, null, 2);
+        setError(
+          `Request failed with status ${apiResponse.status}: ${errorMessage}`
+        );
+
+        const errorMessageObj: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: `Error: ${errorMessage}`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errorMessageObj]);
+      } else {
+        const responseText =
+          typeof responseData === "string"
+            ? responseData
+            : JSON.stringify(responseData, null, 2);
+
+        const assistantMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: responseText,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      }
+    } catch (err) {
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : "An error occurred while making the request";
+      setError(errorMsg);
+
+      const errorMessageObj: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: `Error: ${errorMsg}`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessageObj]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  return (
+    <Box
+      display="flex"
+      flexDirection="column"
+      minHeight="calc(100vh - 200px)"
+      width="100%"
+    >
+      {/* Chat Messages Area */}
+      <Box
+        flex={1}
+        overflow="auto"
+        display="flex"
+        flexDirection="column"
+        justifyContent="flex-end"
+        gap={2}
+        p={2}
+        sx={{
+          flexGrow: 1,
+        }}
+      >
+        {messages.length === 0 && (
+          <NoDataFound
+            message="Start a conversation"
+            subtitle="Send a message to begin chatting with the agent"
+            icon={<MessageCircle />}
+          />
+        )}
+
+        {messages.map((msg) => (
+          <ChatMessage
+            key={msg.id}
+            id={msg.id}
+            role={msg.role}
+            content={msg.content}
+          />
+        ))}
+
+        {isLoading && (
+          <Box display="flex" justifyContent="flex-start" width="100%">
+            <Box display="flex" gap={1} alignItems="flex-start">
+              <CircularProgress size={16} />
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ fontSize: "0.875rem" }}
+              >
+                Loading...
+              </Typography>
             </Box>
+          </Box>
+        )}
+        <div ref={messagesEndRef} />
+      </Box>
 
-            {/* Request Body Editor */}
+      {/* Error Display */}
+      {error && (
+        <Alert
+          severity="error"
+          onClose={() => setError(null)}
+          sx={{
+            borderRadius: 1,
+          }}
+        >
+          {error}
+        </Alert>
+      )}
 
-            <TextField
-                multiline
-                fullWidth
-                value={requestBody}
-                onChange={(e) => setRequestBody(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder='{"message": "Hello, how can you help me?", "context": {...}}'
-                variant="outlined"
-                error={!isJsonValid && requestBody.length > 0}
-                sx={{
-                    '& .MuiInputBase-root': {
-                        fontFamily: 'monospace',
-                        padding: theme.spacing(0),
-                        fontSize: theme.typography.body2.fontSize,
-                    },
-                    '& .MuiInputBase-input': {
-                        minHeight: theme.spacing(25),
-                        padding: theme.spacing(2),
-                    },
-                }}
-            />
-
-
-            {/* Status Bar and Run Button */}
-            <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
-                <Stack direction="row" spacing={2} alignItems="center">
-                    <Typography variant="caption" color="text.secondary">
-                        {characterCount} characters
-                    </Typography>
-                    <Chip
-                        label="JSON format"
-                        size="small"
-                        variant="outlined"
-                        sx={{
-                            height: theme.spacing(3),
-                        }}
-                    />
-                    <Typography variant="caption" color="text.secondary">
-                        ⌘ + Enter
-                    </Typography>
-                </Stack>
-                <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={handleRunTest}
-                    disabled={isLoading || !isJsonValid}
-                    startIcon={isLoading ? <CircularProgress size={16} /> : <PlayArrow />}
-                    sx={{
-                        textTransform: 'none',
-                    }}
-                >
-                    {isLoading ? 'Running...' : 'Run Test'}
-                </Button>
-            </Box>
-
-            {/* Error Display */}
-            {error && (
-                <Alert severity="error" onClose={() => setError(null)}>
-                    {error}
-                </Alert>
-            )}
-
-            {/* Response Display */}
-            {response && (
-                <Box display="flex" flexDirection="column" gap={1}>
-                    <Typography variant="subtitle2" fontWeight="medium">
-                        Response
-                    </Typography>
-                    <Paper
-                        variant="outlined"
-                        sx={{
-                            backgroundColor: theme.palette.background.default,
-                            padding: theme.spacing(2),
-                            maxHeight: theme.spacing(50),
-                            overflow: 'auto',
-                        }}
-                    >
-                        <Typography
-                            component="pre"
-                            sx={{
-                                fontFamily: 'monospace',
-                                fontSize: theme.typography.body2.fontSize,
-                                margin: 0,
-                                whiteSpace: 'pre-wrap',
-                                wordBreak: 'break-word',
-                            }}
-                        >
-                            {response}
-                        </Typography>
-                    </Paper>
-                </Box>
-            )}
-        </Box>
-    );
+      {/* Message Input Area */}
+      <Box
+        display="flex"
+        justifyContent="flex-end"
+        alignItems="center"
+        gap={1}
+        pt={2}
+      >
+        <TextField
+          fullWidth
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Type your message..."
+          variant="outlined"
+          size="small"
+          disabled={isLoading}
+        />
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleSendMessage}
+          disabled={isLoading || !message.trim()}
+          startIcon={
+            isLoading ? <CircularProgress size={16} /> : <Send size={16} />
+          }
+        >
+          {isLoading ? "Sending" : "Send"}
+        </Button>
+      </Box>
+    </Box>
+  );
 }
-

@@ -1,47 +1,70 @@
-/**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
- *
- * WSO2 LLC. licenses this file to you under the Apache License,
- * Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 import React, { ReactNode } from 'react';
 import {
-  AppBar,
   Typography,
-  IconButton,
   Box,
   Avatar,
   useTheme,
-  Collapse,
   ButtonBase,
-  Divider,
-} from '@mui/material';
-import {
-  Notes,
-  MenuOpen,
-  KeyboardArrowDown,
-} from '@mui/icons-material';
+  Layout,
+  ColorSchemeToggle,
+  AppBar,
+} from '@wso2/oxygen-ui';
+import { ChevronDown } from '@wso2/oxygen-ui-icons-react';
 import { User } from './UserMenu';
 import { TopSelecter, TopSelecterProps } from './TopSelecter';
 import { Link } from 'react-router-dom';
 
+export function Logo() {
+  const theme = useTheme();
+  const brandColor = theme.palette.text.primary;
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        color: brandColor,
+      }}
+    >
+      <Box
+        sx={{
+          width: theme.spacing(5),
+          height: theme.spacing(5),
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: 0.5,
+          fontSize: theme.typography.pxToRem(18),
+          backgroundColor: theme.palette.primary.main,
+          color: theme.palette.primary.contrastText,
+        }}
+      >
+        AI
+      </Box>
+      <Box sx={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+        <Typography
+          color="textSecondary"
+          sx={{
+            fontSize: theme.typography.pxToRem(8),
+            letterSpacing: 0.2,
+          }}
+        >
+          WSO2
+        </Typography>
+        <Typography
+          variant="caption"
+          color="textPrimary"
+          fontSize={theme.typography.pxToRem(12)}
+          fontWeight={600}
+          sx={{ letterSpacing: 0.05 }}
+        >
+          Agent Management Platform
+        </Typography>
+      </Box>
+    </Box>
+  );
+}
 export interface NavBarToolbarProps {
-  /** App logo component or text */
-  logo?: ReactNode;
-  /** Whether to show the app title */
-  showAppTitle?: boolean;
   /** Whether the sidebar is collapsed (icons only) */
   sidebarOpen?: boolean;
   /** Whether this is mobile view */
@@ -65,175 +88,113 @@ export interface NavBarToolbarProps {
 }
 
 export function NavBarToolbar({
-  logo,
-  showAppTitle = true,
-  sidebarOpen = false,
-  isMobile = false,
   leftElements,
   rightElements,
   user,
-  onSidebarToggle,
   onUserMenuOpen,
   topSelectorsProps,
   homePath,
 }: NavBarToolbarProps) {
   const theme = useTheme();
   return (
-    <AppBar
-      position="fixed"
-      sx={{
-        zIndex: theme.zIndex.drawer + 1,
-        transition: theme.transitions.create(['width', 'margin'], {
-          easing: theme.transitions.easing.sharp,
-          duration: theme.transitions.duration.enteringScreen,
-        }),
-      }}
-    >
-      <Box sx={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        width: '100%',
-        paddingRight: theme.spacing(1),
-        height: theme.spacing(8),
-      }}>
-        {/* sidebar toggle button */}
-
+    <Layout.Navbar>
+      <AppBar
+        position="static"
+        sx={{ zIndex: theme.zIndex.drawer + 1, borderRadius: 0 }}
+      >
         <Box
-          // width={theme.spacing(30)}
-          paddingRight={theme.spacing(1)}
           sx={{
             display: 'flex',
             alignItems: 'center',
-            height: '100%',
-          }}>
-          {isMobile && (
-            <IconButton
-              color="inherit"
-              aria-label="toggle sidebar"
-              onClick={onSidebarToggle}
-              sx={{ mr: theme.spacing(2) }}
-            >
-              {sidebarOpen ? <MenuOpen color="secondary" /> : <Notes color="secondary" />}
-            </IconButton>
-          )}
-
-          <ButtonBase
+            justifyContent: 'space-between',
+            width: '100%',
+            height: theme.spacing(8),
+          }}
+        >
+          <Box
+            paddingRight={1}
             sx={{
               display: 'flex',
-              alignItems: 'center', gap: theme.spacing(2),
-              padding: theme.spacing(1),
-              marginY: theme.spacing(1),
-              borderRadius: theme.spacing(1),
-              "&:hover": {
-                backgroundColor: theme.palette.action.hover,
-              },
+              alignItems: 'center',
+              height: '100%',
             }}
-            component={Link}
-            to={homePath ?? '/'}
           >
-            {logo && (
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                {logo}
-              </Box>
-            )}
-            {/* App Title (only show when sidebar is collapsed, hide on mobile) */}
-
-            <Collapse
-              in={showAppTitle}
-              mountOnEnter
-              unmountOnExit
-              orientation="horizontal"
+            <ButtonBase
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                padding: 1,
+                marginY: 1,
+                borderRadius: 1,
+              }}
+              component={Link}
+              to={homePath ?? '/'}
             >
-              <Box display="flex" flexDirection="column" alignItems="flex-start">
-                <Typography variant="caption" color="text.secondary">
-                  WSO2
-                </Typography>
-                <Typography
-                  variant="h5"
-                  noWrap
-                  color="primary"
-                >
-                  AI Agent Manager
-                </Typography>
-              </Box>
-            </Collapse>
-          </ButtonBase>
-          <Divider orientation="vertical" flexItem />
-        </Box>
-        <Box display="flex" alignItems="center" gap={theme.spacing(1)}>
-          {
-            topSelectorsProps?.map((tsProps) => (
+              <Logo />
+            </ButtonBase>
+          </Box>
+          <Box display="flex" alignItems="center" gap={1}>
+            {topSelectorsProps?.map((tsProps) => (
               <TopSelecter key={tsProps.label} {...tsProps} />
-            ))
-          }
-        </Box>
-
-        {/* Left Elements */}
-        {leftElements && (
-          <Box sx={{ ml: theme.spacing(2), display: 'flex', alignItems: 'center' }}>
-            {leftElements}
+            ))}
           </Box>
-        )}
 
-        {/* Spacer */}
-        <Box sx={{ flexGrow: 1 }} />
-
-        {/* Right Elements */}
-        {rightElements && (
-          <Box sx={{ mr: theme.spacing(2), display: 'flex', alignItems: 'center' }}>
-            {rightElements}
-          </Box>
-        )}
-
-        {/* User Menu */}
-        {user && (
-          <ButtonBase
-            onClick={onUserMenuOpen}
-            sx={{
-              "&:hover": {
-                backgroundColor: theme.palette.action.hover,
-              },
-              padding: theme.spacing(1),
-              borderRadius: theme.spacing(1),
-            }}
-          >
-            <Box display="flex" alignItems="center" gap={theme.spacing(1)}>
-              {user.avatar ? (
-                <Avatar
-                  src={user.avatar}
-                  alt={user.name}
-                  sx={{
-                    padding: 1,
-                    background: `linear-gradient(45deg, ${theme.palette.primary.main} 30%, ${theme.palette.secondary.main} 90%)`,
-                    color: theme.palette.primary.contrastText,
-                    fontWeight: 'bold'
-                  }}
-                />
-              ) : (
-                <Avatar sx={{
-                  padding: 1,
-                  background: `linear-gradient(45deg, ${theme.palette.primary.main} 30%, ${theme.palette.secondary.main} 90%)`,
-                  color: theme.palette.primary.contrastText,
-                  fontWeight: 'bold'
-                }}>
-                  {user.name.split(' ').map(name => name.charAt(0).toUpperCase()).join('')}
-                </Avatar>
-              )}
-              <Box display="flex" flexDirection="column" textAlign="left">
-                <Typography variant="body2" fontWeight={600} color={theme.palette.text.primary}>
-                  {user.name}
-                </Typography>
-                <Typography variant="caption">
-                  {user.email}
-                </Typography>
-              </Box>
-              <KeyboardArrowDown color="secondary" fontSize='small' />
+          {/* Left Elements */}
+          {leftElements && (
+            <Box sx={{ ml: 2, display: 'flex', alignItems: 'center' }}>
+              {leftElements}
             </Box>
+          )}
 
-          </ButtonBase>
-        )}
-      </Box>
-    </AppBar>
+          {/* Spacer */}
+          <Box sx={{ flexGrow: 1 }} />
+
+          {/* Right Elements */}
+          {rightElements && (
+            <Box sx={{ mr: 2, display: 'flex', alignItems: 'center' }}>
+              {rightElements}
+            </Box>
+          )}
+          <ColorSchemeToggle/>
+          {/* User Menu */}
+          {user && (
+            <ButtonBase
+              onClick={onUserMenuOpen}
+              sx={{
+                padding: 1,
+                borderRadius: 1,
+              }}
+            >
+              <Box display="flex" alignItems="center" gap={1}>
+                {user.avatar ? (
+                  <Avatar src={user.avatar} alt={user.name} />
+                ) : (
+                  <Avatar>
+                    {user.name
+                      .split(' ')
+                      .map((name) => name.charAt(0).toUpperCase())
+                      .join('')}
+                  </Avatar>
+                )}
+                <Box display="flex" flexDirection="column" textAlign="left">
+                  <Typography
+                    variant="body2"
+                    fontWeight={600}
+                    color="textPrimary"
+                  >
+                    {user.name}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    {user.email}
+                  </Typography>
+                </Box>
+                <ChevronDown size={16} color={theme.palette.text.secondary} />
+              </Box>
+            </ButtonBase>
+          )}
+        </Box>
+      </AppBar>
+    </Layout.Navbar>
   );
 }

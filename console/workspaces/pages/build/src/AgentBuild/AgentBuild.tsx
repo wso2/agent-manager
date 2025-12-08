@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Skeleton } from '@mui/material';
+import { Box, Skeleton } from '@wso2/oxygen-ui';
 import { TopCards } from './subComponents/TopCards';
 import { BuildTable } from './subComponents/BuildTable';
 import { FadeIn } from '@agent-management-platform/views';
@@ -31,7 +31,7 @@ export const AgentBuild: React.FC = () => {
 
   return (
     <FadeIn>
-      <Box pt={1} gap={2} display="flex" flexDirection="column">
+      <Box gap={2} pt={2} pb={2} display="flex" flexDirection="column">
         <TopCards />
         <BuildTable />
       </Box>

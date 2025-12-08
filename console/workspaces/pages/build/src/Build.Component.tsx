@@ -1,8 +1,8 @@
 import React, { useCallback } from 'react';
 import { AgentBuild } from './AgentBuild/AgentBuild';
-import { FadeIn } from '@agent-management-platform/views';
-import { Button, Drawer, Box, useTheme } from '@mui/material';
-import { BuildOutlined } from '@mui/icons-material';
+import { FadeIn, DrawerWrapper } from '@agent-management-platform/views';
+import { Button, Box } from '@wso2/oxygen-ui';
+import { Wrench as BuildOutlined } from '@wso2/oxygen-ui-icons-react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { BuildPanel } from '@agent-management-platform/shared-component';
 
@@ -10,7 +10,6 @@ export const BuildComponent: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const { orgId, projectId, agentId } = useParams();
-  const theme = useTheme();
 
   const isBuildPanelOpen = searchParams.get('buildPanel') === 'open';
 
@@ -28,42 +27,24 @@ export const BuildComponent: React.FC = () => {
 
   return (
     <FadeIn>
-      <Box width="100%" display="flex" justifyContent="flex-end" py={1}>
+      <Box width="100%" display="flex" justifyContent="flex-end">
         <Button
           onClick={handleBuild}
           variant="contained"
-          size="small"
-          color="inherit"
-          startIcon={<BuildOutlined fontSize="inherit" />}>
-          Build Latest
+          color="primary"
+          startIcon={<BuildOutlined size={16} />}>
+          Trigger a Build
         </Button>
       </Box>
       <AgentBuild />
-      <Drawer
-        anchor="right"
-        open={isBuildPanelOpen}
-        onClose={closeBuildPanel}
-        sx={{
-          zIndex: 1300,
-        }}
-      >
-        <Box
-          width={theme.spacing(100)}
-          p={2}
-          height="100%"
-          display="flex"
-          flexDirection="column"
-          gap={2}
-          bgcolor={theme.palette.background.paper}
-        >
-          <BuildPanel
-            onClose={closeBuildPanel}
-            orgName={orgId || ''}
-            projName={projectId || ''}
-            agentName={agentId || ''}
-          />
-        </Box>
-      </Drawer>
+      <DrawerWrapper open={isBuildPanelOpen} onClose={closeBuildPanel}>
+        <BuildPanel
+          onClose={closeBuildPanel}
+          orgName={orgId || ''}
+          projName={projectId || ''}
+          agentName={agentId || ''}
+        />
+      </DrawerWrapper>
     </FadeIn >
   );
 };

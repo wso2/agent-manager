@@ -1,145 +1,161 @@
-/**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
- *
- * WSO2 LLC. licenses this file to you under the Apache License,
- * Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-import { NoDataFound, PageLayout } from "@agent-management-platform/views";
+import {
+  BackgoundLoader,
+  NoDataFound,
+  PageLayout,
+} from "@agent-management-platform/views";
 import { useListProjects } from "@agent-management-platform/api-client";
 import { generatePath, Link, useParams } from "react-router-dom";
-import { absoluteRouteMap, ProjectResponse } from "@agent-management-platform/types";
-import { alpha, Avatar, Box, ButtonBase, Card, TextField, Typography, useTheme } from "@mui/material";
+import {
+  absoluteRouteMap,
+  ProjectResponse,
+} from "@agent-management-platform/types";
+import {
+  Avatar,
+  Box,
+  ButtonBase,
+  Card,
+  CardContent,
+  TextField,
+  Typography,
+  useTheme,
+} from "@wso2/oxygen-ui";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { PersonOutline, SearchRounded, TimerOutlined } from "@mui/icons-material";
+import {
+  Package,
+  User as PersonOutline,
+  Search as SearchRounded,
+  Clock as TimerOutlined,
+} from "@wso2/oxygen-ui-icons-react";
 import { useMemo, useState } from "react";
 
 dayjs.extend(relativeTime);
 
 function ProjectCard(props: { project: ProjectResponse }) {
-    const { project } = props;
-    const theme = useTheme();
-    const { orgId } = useParams();
-    return (
-        <ButtonBase
-            component={Link}
-            to={generatePath(absoluteRouteMap.children.org.children.projects.path,
-                { orgId: orgId, projectId: project.name })}
-        >
-            <Card
+  const { project } = props;
+  const theme = useTheme();
+  const { orgId } = useParams();
+  return (
+    <ButtonBase
+      component={Link}
+      to={generatePath(absoluteRouteMap.children.org.children.projects.path, {
+        orgId: orgId,
+        projectId: project.name,
+      })}
+    >
+      <Card
+        sx={{
+          minWidth: 320,
+          transition: theme.transitions.create(["all"], {
+            duration: theme.transitions.duration.short,
+          }),
+          "&.MuiCard-root": {
+            backgroundColor: "background.paper",
+          },
+          "&:hover": {
+            borderColor: "primary.main",
+            backgroundColor: "background.default",
+            transform: "translateY(-2px)",
+          },
+        }}
+      >
+        <CardContent>
+          <Box display="flex" alignItems="center" gap={1.5}>
+            <Avatar
+              sx={{
+                height: 64,
+                width: 64,
+                "&.MuiAvatar-root": {
+                  transition: theme.transitions.create(["all"], {
+                    duration: theme.transitions.duration.short,
+                  }),
+                  bgcolor: "secondary.main",
+                },
+              }}
             >
-                <Box
-                    sx={{
-                        display: 'flex',
-                        width: theme.spacing(40),
-                        height: theme.spacing(20),
-                        flexDirection: 'column',
-                        gap: 2,
-                        p: theme.spacing(2),
-                        justifyContent: 'flex-start',
-                        alignItems: 'flex-start',
-                        "&:hover": {
-                            backgroundColor: theme.palette.action.hover,
-                        },
-                    }}
-                >
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-
-                        }}
-                    >
-                        <Avatar sx={{ background: `linear-gradient(45deg, ${alpha(theme.palette.primary.main, 0.5)} 30%, ${alpha(theme.palette.secondary.main, 0.5)} 90%)` }} >
-                            <PersonOutline fontSize="inherit" />
-                        </Avatar>
-                        <Box
-                            sx={{
-                                p: 2,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'flex-start',
-                            }}>
-                            <Typography variant="h6">{project.displayName}</Typography>
-                            <Typography variant="body2" color="text.secondary">{project.description ?
-                                project.description : 'No description'}
-                            </Typography>
-                        </Box>
-
-                    </Box>
-                    <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'flex-start',
-                        }}
-                    >
-                        <TimerOutlined fontSize="inherit" />
-                        &nbsp;
-                        {dayjs(project.createdAt).fromNow()}
-                    </Typography>
-                </Box>
-            </Card>
-        </ButtonBase>
-    );
+              <Package fontSize="inherit" size={24} />
+            </Avatar>
+            <Box display="flex" flexDirection="column" alignItems="flex-start">
+              <Typography variant="h5">{project.displayName}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {project.description ? project.description : "No description"}
+              </Typography>
+            </Box>
+          </Box>
+          <Typography
+            variant="body2"
+            color="textPrimary"
+            sx={{
+              mt: 2,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-start",
+            }}
+          >
+            <TimerOutlined size={16} />
+            &nbsp;
+            {dayjs(project.createdAt).fromNow()}
+          </Typography>
+        </CardContent>
+      </Card>
+    </ButtonBase>
+  );
 }
 
 export function ProjectList() {
-    const { orgId } = useParams();
-    const { data: projects } = useListProjects({
-        orgName: orgId ?? 'default',
-    });
-    const theme = useTheme();
-    const [search, setSearch] = useState('');
+  const { orgId } = useParams();
+  const { data: projects, isRefetching } = useListProjects({
+    orgName: orgId ?? "default",
+  });
+  const [search, setSearch] = useState("");
 
-    const filteredProjects = useMemo(() =>
-        projects?.projects?.filter((project) =>
-            project.displayName.toLowerCase().includes(search.toLowerCase())) || [],
-        [projects, search]);
+  const filteredProjects = useMemo(
+    () =>
+      projects?.projects?.filter((project) =>
+        project.displayName.toLowerCase().includes(search.toLowerCase())
+      ) || [],
+    [projects, search]
+  );
 
-    return (
-        <PageLayout
-            title="Projects"
-            description="List of projects"
+  return (
+    <PageLayout title="Projects" description="List of projects">
+      {isRefetching && <BackgoundLoader />}
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <TextField
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          slotProps={{ input: { endAdornment: <SearchRounded size={16} /> } }}
+          fullWidth
+          variant="outlined"
+          placeholder="Search Projects"
+          disabled={!projects?.projects?.length}
+        />
+        <Box
+          sx={{
+            display: "inline-flex",
+            flexWrap: "wrap",
+            gap: 2,
+            width: "100%",
+            justifyContent: "start",
+            alignItems: "start",
+            overflow: "visible",
+            minHeight: "calc(100vh - 250px)",
+          }}
         >
-            <TextField
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                slotProps={{ input: { endAdornment: <SearchRounded fontSize='small' /> } }}
-                fullWidth
-                size='small'
-                sx={{
-                    m: theme.spacing(1, 0),
-                }}
-                variant='standard'
-                placeholder='Search agents'
-                disabled={!projects?.projects?.length}
+          {filteredProjects?.map((project) => (
+            <ProjectCard key={project.createdAt} project={project} />
+          ))}
+          {filteredProjects?.length === 0 && (
+            <Box display="flex" width="100%" justifyContent="center" alignItems="center" pt={10} height="100%">
+            <NoDataFound
+              message="No projects found"
+              subtitle="Create a new project to get started"
+              icon={<PersonOutline fontSize="inherit" />}
             />
-            <Box sx={{ display: 'inline-flex', flexWrap: 'wrap', gap: 2, py: theme.spacing(2) }}>
-                {filteredProjects?.map((project) => (
-                    <ProjectCard key={project.createdAt} project={project} />
-                ))}
             </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', pt: theme.spacing(10), height: '100%' }}>
-                {filteredProjects?.length === 0 && (
-                    <NoDataFound message="No projects found" subtitle="Create a new project to get started" icon={<PersonOutline fontSize="inherit" />} />
-                )}
-            </Box>
-        </PageLayout>
-    );
+          )}
+        </Box>
+      </Box>
+    </PageLayout>
+  );
 }

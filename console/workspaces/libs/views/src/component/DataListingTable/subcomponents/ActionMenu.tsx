@@ -1,24 +1,6 @@
-/**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
- *
- * WSO2 LLC. licenses this file to you under the Apache License,
- * Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 import React, { useState } from 'react';
-import { IconButton, Menu, MenuItem, useTheme } from '@mui/material';
-import { MoreVert } from '@mui/icons-material';
+import { IconButton, Menu, MenuItem } from '@wso2/oxygen-ui';
+import { MoreVertical as MoreVert } from '@wso2/oxygen-ui-icons-react';
 
 export interface ActionItem {
   label: string;
@@ -37,7 +19,6 @@ export const ActionMenu = <T extends Record<string, any>>({
   actions,
   onActionClick,
 }: ActionMenuProps<T>) => {
-  const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -62,13 +43,6 @@ export const ActionMenu = <T extends Record<string, any>>({
         onClick={handleMenuOpen}
         size="small"
         aria-label="actions"
-        sx={{
-          color: theme.palette.text.secondary,
-          '&:hover': {
-            backgroundColor: theme.palette.action.hover,
-            color: theme.palette.text.primary,
-          },
-        }}
       >
         <MoreVert />
       </IconButton>
@@ -84,27 +58,11 @@ export const ActionMenu = <T extends Record<string, any>>({
           vertical: 'top',
           horizontal: 'right',
         }}
-        PaperProps={{
-          sx: {
-            backgroundColor: theme.palette.background.paper,
-            border: `1px solid ${theme.palette.divider}`,
-            boxShadow: theme.shadows[3],
-            minWidth: 160,
-          },
-        }}
       >
         {actions.map((action) => (
           <MenuItem
             key={action.value}
             onClick={() => handleActionClick(action)}
-            sx={{
-              fontSize: theme.typography.body2.fontSize,
-              color: theme.palette.text.primary,
-              padding: theme.spacing(1, 2),
-              '&:hover': {
-                backgroundColor: theme.palette.action.hover,
-              },
-            }}
           >
             {action.label}
           </MenuItem>

@@ -1,38 +1,19 @@
-/**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
- *
- * WSO2 LLC. licenses this file to you under the Apache License,
- * Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-import React, { useState } from 'react';
-import { Alert, Box } from '@mui/material';
-import { MainActionPanel, PageLayoutContent } from '@agent-management-platform/views'
-import { AgentSummaryPanel } from './components/AgentSummaryPanel';
+import React, { useCallback, useMemo } from 'react';
+import { Alert, Box } from '@wso2/oxygen-ui';
+import { PageLayout } from '@agent-management-platform/views'
 import { generatePath, useNavigate, useParams } from 'react-router-dom';
-import { absoluteRouteMap, CreateAgentRequest, OrgProjPathParams } from '@agent-management-platform/types';
+import { absoluteRouteMap, OrgProjPathParams } from '@agent-management-platform/types';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { addAgentSchema, type AddAgentFormValues } from './form/schema';
 import { useCreateAgent } from '@agent-management-platform/api-client';
-import { NewAgentOptions } from './components/NewAgentOptions';
-import { NewAgentFromSource } from './components/NewAgentFromSource';
-import { ConnectNewAgent } from './components/ConnectNewAgent';
+import { AgentFlowRouter } from './components/AgentFlowRouter';
+import { CreateButtons } from './components/CreateButtons';
+import { useAgentFlow } from './hooks/useAgentFlow';
+import { buildAgentCreationPayload } from './utils/buildAgentPayload';
 
 export const AddNewAgent: React.FC = () => {
   const navigate = useNavigate();
-  const [selectedOption, setSelectedOption] = useState<'new' | 'existing' | null>(null);
   const { orgId, projectId } = useParams<{ orgId: string; projectId?: string }>();
   const methods = useForm<AddAgentFormValues>({
     resolver: yupResolver(addAgentSchema),
@@ -42,7 +23,7 @@ export const AddNewAgent: React.FC = () => {
       description: '',
       repositoryUrl: '',
       branch: 'main',
-      appPath: '/',
+      appPath: '',
       runCommand: 'python main.py',
       language: 'python',
       languageVersion: '3.11',
@@ -59,144 +40,104 @@ export const AddNewAgent: React.FC = () => {
   });
   const { mutate: createAgent, isPending, error } = useCreateAgent();
 
-  const handleCancel = () => {
-    navigate(generatePath(absoluteRouteMap.children.org.children.projects.path, { orgId: orgId ?? '', projectId: projectId ?? 'default' }));
-  };
+  const params = useMemo<OrgProjPathParams>(() => ({
+    orgName: orgId ?? 'default',
+    projName: projectId ?? 'default'
+  }), [orgId, projectId]);
 
-  const handleAddAgent = methods.handleSubmit((values) => {
-    const params = { orgName: orgId ?? 'default', projName: projectId ?? 'default' };
+  const { selectedOption, handleSelect } = useAgentFlow(methods, orgId, projectId);
 
-    const getAgentCreationPayload = (data: AddAgentFormValues): 
-    { params: OrgProjPathParams; body: CreateAgentRequest } => {
-      if (data.deploymentType === 'new') {
-        return {
-          params,
-          body: {
-            name: data.name,
-            displayName: data.displayName,
-            description: data.description?.trim() || undefined,
-            provisioning: {
-              type: 'internal',
-              repository: {
-                url: data.repositoryUrl ?? '',
-                branch: data.branch ?? 'main',
-                appPath: data.appPath ?? '/',
-              },
-            },
-            runtimeConfigs: {
-              language: data.language ?? 'python',
-              languageVersion: data.languageVersion ?? '3.11',
-              runCommand: data.runCommand ?? '',
-              env: data.env.filter(e => e.key && e.value).map(
-                e => ({ key: e.key!, value: e.value! })),
-            },
-            inputInterface: {
-              type: data.interfaceType,
-              ...(data.interfaceType === 'CUSTOM' && {
-                customOpenAPISpec: {
-                  port: Number(data.port),
-                  basePath: data.basePath || '/',
-                  schema: { content: data.openApiContent ?? '' },
-                },
-              }),
-            },
-          }
-        };
+  const handleCancel = useCallback(() => {
+    navigate(generatePath(
+      absoluteRouteMap.children.org.children.projects.path,
+      { orgId: orgId ?? '', projectId: projectId ?? 'default' }
+    ));
+  }, [navigate, orgId, projectId]);
+
+  const onSubmit = useCallback((values: AddAgentFormValues) => {
+    const payload = buildAgentCreationPayload(values, params);
+
+    createAgent(payload, {
+      onSuccess: () => {
+        navigate(generatePath(
+          absoluteRouteMap.children.org.children.projects.children.agents.path,
+          {
+            orgId: params.orgName ?? '',
+            projectId: params.projName ?? '',
+            agentId: payload.body.name
+          }));
+      },
+      onError: (e: unknown) => {
+        // TODO: Show error toast/notification to user
+        // eslint-disable-next-line no-console
+        console.error('Failed to create agent:', e);
       }
-      return {
-        params,
-        body: {
-          name: data.name,
-          displayName: data.displayName,
-          description: data.description,
-          provisioning: {
-            type: 'external',
-          },
-        }
-      };
-    };
+    });
+  }, [createAgent, navigate, params]);
 
+  const handleAddAgent = useMemo(() => methods.handleSubmit(onSubmit), [methods, onSubmit]);
 
-    const payload = getAgentCreationPayload(values);
-    
-    createAgent(payload,
-      {
-        onSuccess: () => {
-          navigate(generatePath(
-            absoluteRouteMap.children.org.children.projects.children.agents.path, { orgId: params.orgName ?? '', projectId: params.projName ?? '', agentId: payload.body.name }));
-        },
-        onError: (e: unknown) => {
-          // TODO: Show error toast/notification to user
-          // eslint-disable-next-line no-console
-          console.error('Failed to create agent:', e);
-        }
-      }
-    );
-  });
-
-  const handleSelect = (option: 'new' | 'existing') => {
-    setSelectedOption(option);
-    methods.setValue('deploymentType', option);
-  };
-
-  const createContent = () => {
-    if (selectedOption === 'new') {
-      return <NewAgentFromSource methods={methods} />;
-    }
-    if (selectedOption === 'existing') {
-      return <ConnectNewAgent methods={methods} />;
-    }
-    return <NewAgentOptions onSelect={handleSelect} />;
-  };
-
-  const getPageMetadata = () => {
+  const pageMetadata = useMemo(() => {
     if (selectedOption === 'new') {
       return {
-        title: 'Deploy New Agent',
-        description: 'Deploy your AI agent to development environment from a GitHub repository'
+        title: 'Create a Platform-Hosted Agent',
+        description: 'Specify the source repository, select the agent type, and deploy it on the platform.',
+        backable: true
       };
     }
     if (selectedOption === 'existing') {
       return {
-        title: 'Connect Existing Agent',
-        description: 'Integrate your already deployed agent with the platform using OpenTelemetry'
+        title: 'Register an Externally-Hosted Agent',
+        description: 'Provide basic information to register your externally-hosted agent on the platform.',
+        backable: true
       };
     }
     return {
-      title: 'Add New Agent',
-      description: 'Choose how to add your agent to the platform'
+      title: 'Add a New Agent',
+      description: 'Choose how you want to get started. You can deploy an agent on the platform or register an agent that already runs elsewhere.',
+      backable: false
     };
-  };
+  }, [selectedOption]);
 
-  const { title, description } = getPageMetadata();
+  const { title, description, backable } = pageMetadata;
 
   return (
-    <PageLayoutContent title={title} description={description}>
-      {createContent()}
+    <PageLayout title={title} description={description} disableIcon
+      backHref={backable ?
+        generatePath(
+          absoluteRouteMap.children.org.children.projects.children.newAgent.path,
+          { orgId: orgId ?? '', projectId: projectId ?? 'default' }
+        ) :
+        generatePath(
+          absoluteRouteMap.children.org.children.projects.path,
+          { orgId: orgId ?? '', projectId: projectId ?? 'default' }
+        )
+      }
+      backLabel={backable ? 'Back to Agent Hosting Options' : "Back to Projects Home"}
+    >
+      <Box display="flex" flexDirection="column" gap={2}>
+        <AgentFlowRouter
+          methods={methods}
+          onSelect={handleSelect}
+        />
 
-      {!!error && (
-        <Alert severity="error" sx={{ mt: 2 }}>
-          {error instanceof Error ? error.message : 'Failed to create agent'}
-        </Alert>
-      )}
+        {!!error && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {error instanceof Error ? error.message : 'Failed to create agent'}
+          </Alert>
+        )}
 
-      {selectedOption && (
-        <>
-          <Box position="relative" height={180} />
-          <MainActionPanel>
-            <AgentSummaryPanel
-              control={methods.control}
-              errors={methods.formState.errors}
-              isValid={methods.formState.isValid}
-              isPending={isPending}
-              onCancel={handleCancel}
-              onSubmit={handleAddAgent}
-              mode={selectedOption === 'existing' ? 'connect' : 'deploy'}
-            />
-          </MainActionPanel>
-        </>
-      )}
-    </PageLayoutContent>
+        {selectedOption && (
+          <CreateButtons
+            isValid={methods.formState.isValid}
+            isPending={isPending}
+            onCancel={handleCancel}
+            onSubmit={handleAddAgent}
+            mode={selectedOption === 'existing' ? 'connect' : 'deploy'}
+          />
+        )}
+      </Box>
+    </PageLayout>
   );
 };
 
