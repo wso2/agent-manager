@@ -16,7 +16,6 @@ data:
   AUTH_HEADER: {{ .Values.agentManagerService.config.authHeader | default "Authorization" | quote }}
   DB_OPERATION_TIMEOUT_SECONDS: {{ .Values.agentManagerService.config.dbOperationTimeout | quote }}
   HEALTH_CHECK_TIMEOUT_SECONDS: {{ .Values.agentManagerService.config.healthCheckTimeout | quote }}
-  DEFAULT_HTTP_PORT: {{ .Values.agentManagerService.config.defaultHTTPPort | quote }}
   CORS_ALLOWED_ORIGIN: {{ .Values.agentManagerService.config.corsAllowedOrigin | quote }}
   API_KEY_HEADER: {{ .Values.agentManagerService.config.apiKey.header | quote }}
   KUBECONFIG: {{ .Values.agentManagerService.config.kubeconfig | quote }}
