@@ -72,7 +72,7 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Update package version
+      - name: Commit package version update
         run: |
           # Update version in pyproject.toml
           sed -i 's/^version = ".*"/version = "${{ inputs.target_version }}"/' pyproject.toml
@@ -87,7 +87,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pyproject.toml
           git commit -m "Bump version to ${{ inputs.target_version }}"
-          git push origin ${{ inputs.branch }}
 
       - name: Install build tools
         run: |
@@ -107,7 +106,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a ${{ env.RELEASE_TAG }} -m "AMP Instrumentation ${{ env.VERSION }}"
+          if git rev-parse ${{ env.RELEASE_TAG }} >/dev/null 2>&1; then
+            echo "Tag ${{ env.RELEASE_TAG }} already exists, deleting and recreating..."
+            git tag -d "${{ env.RELEASE_TAG }}" || true
+            git push origin ":refs/tags/${{ env.RELEASE_TAG }}" || true
+          fi
+          git tag -a ${{ env.RELEASE_TAG }} -m "Release ${{ env.VERSION }}"
           git push origin ${{ env.RELEASE_TAG }}
 
       - name: Create GitHub Release
