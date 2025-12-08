@@ -113,7 +113,7 @@ export function AgentTest({
         referrerPolicy: "",
       });
 
-      let responseData: unknown;
+      let responseData: any;
       const contentType = apiResponse.headers.get("content-type");
       if (contentType && contentType.includes("application/json")) {
         responseData = await apiResponse.json();
@@ -139,9 +139,9 @@ export function AgentTest({
         setMessages((prev) => [...prev, errorMessageObj]);
       } else {
         const responseText =
-          typeof responseData === "string"
-            ? responseData
-            : JSON.stringify(responseData, null, 2);
+          typeof responseData?.results === "string"
+            ? responseData.results as string
+            : JSON.stringify(responseData?.result, null, 4);
 
         const assistantMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),

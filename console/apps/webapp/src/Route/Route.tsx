@@ -118,7 +118,7 @@ export function RootRouter() {
                         .agents.children.environment.children.tryOut.path
                     }
                     element={
-                      <PageLayout title={testMetadata.title} disableIcon>
+                      <PageLayout title={"Test your agent"} disableIcon>
                         <testMetadata.levels.component />
                       </PageLayout>
                     }

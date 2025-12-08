@@ -82,7 +82,7 @@ export const ConnectAgentForm = () => {
 
   return (
     <Box display="flex" flexDirection="column" gap={2} flexGrow={1}>
-      <Card variant="outlined" sx={{ "& .MuiCardContent-root": { backgroundColor: "background.paper" } }}>
+      <Card variant="outlined">
         <CardContent sx={{ gap: 1, display: "flex", flexDirection: "column" }}>
           <Box display="flex" flexDirection="column" gap={1}>
             <Typography variant="h5">Agent Details</Typography>

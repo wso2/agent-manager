@@ -26,6 +26,7 @@ import { useListAgents, useDeleteAgent } from '@agent-management-platform/api-cl
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { AgentTypeSummery } from './subComponents/AgentTypeSummery';
+// import { AgentTypeSummery } from './subComponents/AgentTypeSummery';
 
 dayjs.extend(relativeTime);
 

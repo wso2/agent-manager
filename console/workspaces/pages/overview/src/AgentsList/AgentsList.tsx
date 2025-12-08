@@ -225,12 +225,21 @@ export const AgentsList: React.FC = () => {
                   </Avatar>
                   <Box
                     display="flex"
-                    flexDirection="column"
                     alignItems="flex-start"
+                    gap={1}
                   >
                     <Typography variant="body1">
                       {agentInfo.displayName}
                     </Typography>
+                    {row.provisioning.type !== "internal" && (
+                      <Chip
+                        label={
+                          displayProvisionTypes((row.provisioning as Provisioning).type)
+                        }
+                        size="small"
+                        variant="outlined"
+                      />
+                    )}
                   </Box>
                 </Box>
               </ButtonBase>
@@ -247,21 +256,6 @@ export const AgentsList: React.FC = () => {
               {(value as string).substring(0, 40) +
                 ((value as string).length > 40 ? "..." : "")}
             </Typography>
-          ),
-        },
-        {
-          id: "provisioning",
-          label: "Host",
-          width: "10%",
-          align: "center",
-          render: (value) => (
-            <Chip
-              label={
-                displayProvisionTypes((value as Provisioning).type)
-              }
-              size="small"
-              variant="outlined"
-            />
           ),
         },
         {
@@ -379,7 +373,7 @@ export const AgentsList: React.FC = () => {
                 )
               }
             >
-                Add Agent
+              Add Agent
             </Button>
           </Box>
 
@@ -391,19 +385,19 @@ export const AgentsList: React.FC = () => {
 
           {!isLoading && !!data?.agents?.length && (
             <Box bgcolor="background.paper" borderRadius={1}>
-            <DataListingTable
-              data={agentsWithHref}
-              columns={columns}
-              pagination={true}
-              pageSize={5}
-              maxRows={agentsWithHref?.length}
-              initialState={tableInitialState}
-              onRowMouseEnter={handleRowMouseEnter}
-              onRowMouseLeave={handleRowMouseLeave}
-              onRowFocusIn={handleRowMouseEnter}
-              onRowFocusOut={handleRowMouseLeave}
-              onRowClick={(row) => navigate(row?.href)}
-            />
+              <DataListingTable
+                data={agentsWithHref}
+                columns={columns}
+                pagination={true}
+                pageSize={5}
+                maxRows={agentsWithHref?.length}
+                initialState={tableInitialState}
+                onRowMouseEnter={handleRowMouseEnter}
+                onRowMouseLeave={handleRowMouseLeave}
+                onRowFocusIn={handleRowMouseEnter}
+                onRowFocusOut={handleRowMouseLeave}
+                onRowClick={(row) => navigate(row?.href)}
+              />
             </Box>
           )}
 

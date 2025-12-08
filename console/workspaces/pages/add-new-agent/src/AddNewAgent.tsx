@@ -83,7 +83,9 @@ export const AddNewAgent: React.FC = () => {
             orgId: params.orgName ?? '',
             projectId: params.projName ?? '',
             agentId: payload.body.name
-          }));
+          })
+        + "?setup=true"
+        );
       },
       onError: (e: unknown) => {
         // TODO: Show error toast/notification to user

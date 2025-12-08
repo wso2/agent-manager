@@ -49,11 +49,11 @@ export function AgentTypeSummery() {
             <CardContent>
                 <Box display="flex" flexDirection="column" gap={1.5}>
                     <Typography variant='h6'>
-                        Agent Types
+                        Agent Deployments
                     </Typography>
                     <TypeLine label="External" value={externalCount} icon={<Link size={16} />} />
                     <Divider />
-                    <TypeLine label="Internal" value={internalCount} icon={<RocketLaunchOutlined size={16} />} />
+                    <TypeLine label="Platform" value={internalCount} icon={<RocketLaunchOutlined size={16} />} />
                     <Divider />
                     <TypeLine label="Total" bold value={data?.agents?.length ?? 0} />
                 </Box>

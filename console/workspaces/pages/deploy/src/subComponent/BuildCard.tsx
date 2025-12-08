@@ -35,10 +35,10 @@ import {
   Rocket,
 } from "@wso2/oxygen-ui-icons-react";
 import { DeploymentConfig } from "@agent-management-platform/shared-component";
-import { DrawerWrapper } from "@agent-management-platform/views";
+import { DrawerWrapper, NoDataFound } from "@agent-management-platform/views";
 import { BuildSelectorDrawer } from "./BuildSelectorDrawer";
 import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
+import relativeTime from "dayjs/plugin/relativeTime"
 
 dayjs.extend(relativeTime);
 
@@ -151,21 +151,18 @@ export function BuildCard() {
       <Card
         variant="outlined"
         sx={{
-          backgroundColor: "background.paper",
-          width: 350,
-          height: "100%",
+          "& .MuiCardContent-root": {
+            backgroundColor: "background.paper",
+            gap: 2,
+            display: "flex",
+            width: 350,
+          },
+          height: "fit-content",
         }}
       >
         <CardContent>
-          <Box
-            display="flex"
-            justifyContent="center"
-            alignItems="center"
-            minHeight="200px"
-          >
-            <Typography variant="body1" color="text.secondary">
-              No builds available
-            </Typography>
+          <Box display="flex" flexGrow={1} pt={2} justifyContent="center" alignItems="center">
+            <NoDataFound message="No builds available" icon={<Rocket size={32} />} />
           </Box>
         </CardContent>
       </Card>
