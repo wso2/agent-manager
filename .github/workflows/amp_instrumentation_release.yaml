@@ -107,9 +107,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           if git rev-parse ${{ env.RELEASE_TAG }} >/dev/null 2>&1; then
-            echo "Tag ${{ env.RELEASE_TAG }} already exists, deleting and recreating..."
-            git tag -d "${{ env.RELEASE_TAG }}" || true
-            git push origin ":refs/tags/${{ env.RELEASE_TAG }}" || true
+            echo "Error: Tag ${{ env.RELEASE_TAG }} already exists. Please use a different version."
+            exit 1
           fi
           git tag -a ${{ env.RELEASE_TAG }} -m "Release ${{ env.VERSION }}"
           git push origin ${{ env.RELEASE_TAG }}
