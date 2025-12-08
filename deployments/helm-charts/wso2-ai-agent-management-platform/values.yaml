@@ -88,7 +88,6 @@ agentManagerService:
     authHeader: "Authorization"
     dbOperationTimeout: 30
     healthCheckTimeout: 5
-    defaultHTTPPort: 8080
     corsAllowedOrigin: "*"
     observerURL: "http://observer.openchoreo-observability-plane:8080"
     observerUsername: "admin"
