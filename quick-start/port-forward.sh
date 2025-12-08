@@ -21,34 +21,62 @@ BLUE='\033[0;34m'
 RESET='\033[0m'
 
 log_info() {
-    echo -e "${BLUE}[INFO]${RESET} $1"
+    echo -e "${BLUE}[INFO]${RESET} $1" >&2
 }
 
 log_success() {
-    echo -e "${GREEN}[SUCCESS]${RESET} $1"
+    echo -e "${GREEN}[SUCCESS]${RESET} $1" >&2
 }
 
 log_warning() {
-    echo -e "${YELLOW}[WARNING]${RESET} $1"
+    echo -e "${YELLOW}[WARNING]${RESET} $1" >&2
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${RESET} $1"
+    echo -e "${RED}[ERROR]${RESET} $1" >&2
 }
 
 # Check if socat is installed
 check_socat() {
     if ! command -v socat >/dev/null 2>&1; then
         log_error "socat is not installed"
-        echo ""
-        echo "Please install socat:"
-        echo "  • macOS: brew install socat"
-        echo "  • Ubuntu/Debian: apt-get install socat"
-        echo "  • Alpine: apk add socat"
-        echo ""
+        echo "" >&2
+        echo "Please install socat:" >&2
+        echo "  • macOS: brew install socat" >&2
+        echo "  • Ubuntu/Debian: apt-get install socat" >&2
+        echo "  • Alpine: apk add socat" >&2
+        echo "" >&2
         return 1
     fi
     return 0
+}
+
+# Check if service backend is healthy and responding
+verify_backend_health() {
+    local worker_node="$1"
+    local node_port="$2"
+    local description="$3"
+    local timeout="${4:-60}"
+
+    log_info "Verifying $description backend is ready..."
+
+    local elapsed=0
+    while [ $elapsed -lt $timeout ]; do
+        # Try to connect to the backend service
+        if timeout 5 bash -c "echo > /dev/tcp/$worker_node/$node_port" 2>/dev/null; then
+            log_success "$description backend is responding"
+            return 0
+        fi
+
+        if [ $((elapsed % 10)) -eq 0 ] && [ $elapsed -gt 0 ]; then
+            log_info "Waiting for $description to be ready... ($elapsed/$timeout seconds)"
+        fi
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+
+    log_warning "$description backend not responding after ${timeout}s (may still be starting)"
+    return 1
 }
 
 # Get NodePort for a service
@@ -92,10 +120,18 @@ setup_port_forward() {
     local local_port="$1"
     local nodeport="$2"
     local description="$3"
+    local verify_health="${4:-true}"
+
+    # Verify backend health before setting up port forward
+    if [[ "$verify_health" == "true" ]]; then
+        if ! verify_backend_health "$WORKER_NODE" "$nodeport" "$description" 60; then
+            log_warning "Proceeding with port forwarding despite health check warning"
+        fi
+    fi
 
     log_info "Setting up port-forward proxy from $local_port to $WORKER_NODE:$nodeport ($description)..."
 
-    if socat TCP-LISTEN:$local_port,fork,reuseaddr TCP:$WORKER_NODE:$nodeport &
+    if socat TCP-LISTEN:$local_port,fork,reuseaddr,bind=0.0.0.0 TCP:$WORKER_NODE:$nodeport &
     then
         local pid=$!
         sleep 1
@@ -121,20 +157,20 @@ cleanup_existing() {
 
 # Main execution
 main() {
-    echo ""
+    echo "" >&2
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     log_info "Agent Management Platform - Port Forwarding"
     log_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
+    echo "" >&2
     log_info "Using socat-based port forwarding (OpenChoreo approach)"
-    echo ""
+    echo "" >&2
     log_info "Configuration:"
     log_info "  Cluster: $CLUSTER_NAME"
     log_info "  Worker Node: $WORKER_NODE"
     log_info "  AMP Namespace: $AMP_NS"
     log_info "  Observability Namespace: $OBSERVABILITY_NS"
     log_info "  Data Plane Namespace: $DATA_PLANE_NS"
-    echo ""
+    echo "" >&2
 
     # Verify prerequisites
     if ! check_socat; then
@@ -151,7 +187,7 @@ main() {
     else
         log_warning "Skipping Console (service not ready or not NodePort type)"
     fi
-    echo ""
+    echo "" >&2
 
     # Port forward Agent Manager Service (8080)
     log_info "Setting up Agent Manager Service port forwarding (8080)..."
@@ -160,7 +196,7 @@ main() {
     else
         log_warning "Skipping Agent Manager Service (service not ready or not NodePort type)"
     fi
-    echo ""
+    echo "" >&2
 
     # Port forward Traces Observer Service (9098)
     log_info "Setting up Traces Observer Service port forwarding (9098)..."
@@ -169,7 +205,7 @@ main() {
     else
         log_warning "Skipping Traces Observer Service (service not found or not NodePort type)"
     fi
-    echo ""
+    echo "" >&2
 
     # Port forward Data Prepper (21893)
     log_info "Setting up Data Prepper port forwarding (21893)..."
@@ -178,7 +214,7 @@ main() {
     else
         log_warning "Skipping Data Prepper (service not found or not NodePort type)"
     fi
-    echo ""
+    echo "" >&2
 
     # Port forward External Gateway (8443)
     log_info "Setting up External Gateway port forwarding (8443)..."
@@ -188,26 +224,28 @@ main() {
     else
         log_warning "Skipping External Gateway (service not found)"
     fi
-    echo ""
+    echo "" >&2
 
     log_success "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     log_success "Port forwarding setup complete!"
     log_success "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
+    echo "" >&2
     log_info "Services accessible at:"
-    echo "  • Console:           http://localhost:3000"
-    echo "  • Agent Manager:     http://localhost:8080"
-    echo "  • Traces Observer:   http://localhost:9098"
-    echo "  • Data Prepper:      http://localhost:21893"
-    echo "  • External Gateway:  https://localhost:8443"
-    echo ""
-    log_info "Port forwarding is running in the background"
-    log_info "To stop: pkill socat or ./stop-port-forward.sh"
-    echo ""
+    echo "  • Console:           http://localhost:3000" >&2
+    echo "  • Agent Manager:     http://localhost:8080" >&2
+    echo "  • Traces Observer:   http://localhost:9098" >&2
+    echo "  • Data Prepper:      http://localhost:21893" >&2
+    echo "  • External Gateway:  https://localhost:8443" >&2
+    echo "" >&2
+    log_info "Port forwarding is active. Press Ctrl+C to stop."
+    echo "" >&2
+
+    # Keep the script running and wait for interrupt
+    wait
 }
 
-# Trap to cleanup on exit
-trap cleanup_existing EXIT INT TERM
+# Trap to cleanup on interrupt
+trap cleanup_existing INT TERM
 
 # Run main
 main

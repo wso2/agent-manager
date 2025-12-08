@@ -14,7 +14,7 @@ RESET='\033[0m'
 
 # Configuration variables
 # Remote Helm chart repository and versions
-HELM_CHART_REGISTRY="${HELM_CHART_REGISTRY:-ghcr.io/agent-mgt-platform}"
+HELM_CHART_REGISTRY="${HELM_CHART_REGISTRY:-ghcr.io/wso2}"
 AMP_CHART_VERSION="${AMP_CHART_VERSION:-0.0.0-dev}"
 BUILD_CI_CHART_VERSION="${BUILD_CI_CHART_VERSION:-0.0.0-dev}"
 OBSERVABILITY_CHART_VERSION="${OBSERVABILITY_CHART_VERSION:-0.0.0-dev}"
@@ -280,7 +280,7 @@ install_agent_management_platform() {
 
 # Install Build CI
 install_build_ci() {
-    log_info "Installing Build CI Workflows..."
+    log_info "Installing Build Workflow Extensions..."
 
     local chart_ref="oci://${HELM_CHART_REGISTRY}/${BUILD_CI_CHART_NAME}"
     local chart_version="${BUILD_CI_CHART_VERSION}"
@@ -290,15 +290,15 @@ install_build_ci() {
     # Add version to helm args
     local version_args=("--version" "$chart_version")
     
-    install_remote_helm_chart "agent-manager-build-ci" "$chart_ref" "$BUILD_CI_NS" "true" "false" "1800" \
+    install_remote_helm_chart "build-workflow-extensions" "$chart_ref" "$BUILD_CI_NS" "true" "false" "1800" \
         "${version_args[@]}" "${BUILD_CI_HELM_ARGS[@]}"
 
-    log_success "Build CI Workflows installed successfully"
+    log_success "Build Workflow Extensions installed successfully"
 }
 
 # Install Observability DataPrepper
 install_observability_dataprepper() {
-    log_info "Installing Observability DataPrepper..."
+    log_info "Installing Observability Extensions..."
 
     local chart_ref="oci://${HELM_CHART_REGISTRY}/${OBSERVABILITY_CHART_NAME}"
     local chart_version="${OBSERVABILITY_CHART_VERSION}"
@@ -555,17 +555,109 @@ setup_kind_cluster() {
     
     log_info "Setting up Kind cluster '$cluster_name'..."
     
+    # Ensure container is connected to kind network (critical when running in Docker container)
+    if docker network inspect kind &>/dev/null 2>&1; then
+        local container_id="$(cat /etc/hostname 2>/dev/null || echo "")"
+        if [[ -n "$container_id" ]] && [[ "$container_id" != "localhost" ]]; then
+            if [ "$(docker inspect -f '{{json .NetworkSettings.Networks.kind}}' "${container_id}" 2>/dev/null)" = "null" ]; then
+                log_info "Connecting container to kind network..."
+                docker network connect "kind" "${container_id}" >/dev/null 2>&1 || true
+                sleep 2
+            fi
+        fi
+    fi
+    
     # Check if cluster already exists
     if kind get clusters 2>/dev/null | grep -q "^${cluster_name}$"; then
         log_warning "Kind cluster '$cluster_name' already exists"
         
-        # Verify cluster is accessible
-        if kubectl cluster-info --context "kind-${cluster_name}" >/dev/null 2>&1; then
+        # Check if cluster container is actually running
+        local control_plane_container="${cluster_name}-control-plane"
+        if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${control_plane_container}$"; then
+            log_warning "Cluster container '$control_plane_container' is not running. Attempting to recover..."
+            docker start "${control_plane_container}" >/dev/null 2>&1 || true
+            sleep 5
+        fi
+        
+        # Always refresh kubeconfig with correct internal IP (critical for containerized environments)
+        log_info "Refreshing kubeconfig for existing cluster..."
+        
+        # Get control plane IP from Docker network (prefer kind network)
+        local control_plane_ip=$(docker inspect "${control_plane_container}" --format '{{range $key, $value := .NetworkSettings.Networks}}{{if eq $key "kind"}}{{$value.IPAddress}}{{end}}{{end}}' 2>/dev/null | head -1)
+        
+        # Fallback to any network IP if kind network IP not found
+        if [[ -z "$control_plane_ip" ]]; then
+            control_plane_ip=$(docker inspect "${control_plane_container}" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null | head -1)
+        fi
+        
+        # Configure kubeconfig with internal IP
+        if [[ -n "$control_plane_ip" ]]; then
+            log_info "Configuring kubeconfig with control plane IP: ${control_plane_ip}"
+            mkdir -p /state/kube
+            if kind get kubeconfig --name "${cluster_name}" 2>/dev/null | sed "s|server: https://127.0.0.1:[0-9]*|server: https://${control_plane_ip}:6443|" > /state/kube/config-internal.yaml; then
+                export KUBECONFIG=/state/kube/config-internal.yaml
+                kubectl config use-context "kind-${cluster_name}" >/dev/null 2>&1 || true
+            fi
+        else
+            log_warning "Could not determine control plane IP, trying default kubeconfig"
+            mkdir -p /state/kube
+            if kind get kubeconfig --name "${cluster_name}" >/dev/null 2>&1 > /state/kube/config-internal.yaml; then
+                export KUBECONFIG=/state/kube/config-internal.yaml
+                kubectl config use-context "kind-${cluster_name}" >/dev/null 2>&1 || true
+            fi
+        fi
+        
+        # Wait a moment for the API server to be ready
+        sleep 2
+        
+        # Verify cluster is accessible with retries
+        local max_retries=5
+        local retry_count=0
+        local cluster_accessible=false
+        
+        while [ $retry_count -lt $max_retries ]; do
+            if kubectl cluster-info >/dev/null 2>&1; then
+                cluster_accessible=true
+                break
+            fi
+            
+            # Try with explicit context
+            if kubectl cluster-info --context "kind-${cluster_name}" >/dev/null 2>&1; then
+                cluster_accessible=true
+                break
+            fi
+            
+            # Refresh kubeconfig again if first retry
+            if [[ $retry_count -eq 1 ]] && [[ -n "$control_plane_ip" ]]; then
+                log_info "Retrying kubeconfig refresh..."
+                if kind get kubeconfig --name "${cluster_name}" 2>/dev/null | sed "s|server: https://127.0.0.1:[0-9]*|server: https://${control_plane_ip}:6443|" > /state/kube/config-internal.yaml; then
+                    export KUBECONFIG=/state/kube/config-internal.yaml
+                    kubectl config use-context "kind-${cluster_name}" >/dev/null 2>&1 || true
+                fi
+            fi
+            
+            retry_count=$((retry_count + 1))
+            if [ $retry_count -lt $max_retries ]; then
+                log_info "Cluster not yet accessible, retrying ($retry_count/$max_retries)..."
+                sleep 3
+            fi
+        done
+        
+        if [ "$cluster_accessible" = true ]; then
             log_success "Using existing Kind cluster '$cluster_name'"
+            if [[ -n "$control_plane_ip" ]]; then
+                echo "✓ kubectl configured to connect at ${control_plane_ip}"
+            fi
             return 0
         else
-            log_error "Cluster exists but is not accessible. Please delete it first:"
-            echo "   kind delete cluster --name $cluster_name"
+            log_error "Cluster exists but is not accessible after recovery attempts."
+            echo ""
+            echo "   Troubleshooting steps:"
+            echo "   1. Check cluster container: docker ps | grep ${control_plane_container}"
+            echo "   2. Check container logs: docker logs ${control_plane_container}"
+            echo "   3. Verify network: docker network inspect kind"
+            echo "   4. Delete and recreate: kind delete cluster --name $cluster_name"
+            echo ""
             return 1
         fi
     fi
@@ -614,7 +706,7 @@ setup_kind_cluster() {
 # Wait for Kind cluster to be ready
 wait_for_kind_cluster_ready() {
     local cluster_name="${1:-openchoreo-local}"
-    local timeout=120
+    local timeout=600
     local elapsed=0
     
     while [ $elapsed -lt $timeout ]; do

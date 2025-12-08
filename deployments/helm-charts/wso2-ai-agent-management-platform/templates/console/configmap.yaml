@@ -20,21 +20,4 @@ data:
 
   # Observability API URL (optional)
   OBS_API_BASE_URL: {{ .Values.console.config.obsApiBaseUrl | quote }}
-
-  # Runtime configuration file (config.js) for the console
-  # This matches the structure expected by the console application
-  config.js: |
-    window.__RUNTIME_CONFIG__ = {
-      authConfig: {
-        signInRedirectURL: "{{ .Values.console.config.auth.signInRedirectURL }}",
-        signOutRedirectURL: "{{ .Values.console.config.auth.signOutRedirectURL }}",
-        clientID: "{{ .Values.console.config.auth.clientId }}",
-        baseUrl: "{{ .Values.console.config.auth.baseUrl }}",
-        scope: ['openid', 'profile'],
-        storage: 'sessionStorage'
-      },
-      disableAuth: {{ .Values.console.config.disableAuth }},
-      apiBaseUrl: "{{ .Values.console.config.apiBaseUrl | default (printf "http://%s:%d" "amp-api" (int .Values.agentManagerService.service.port)) }}",
-      obsApiBaseUrl: "{{ .Values.console.config.obsApiBaseUrl }}"
-    };
 {{- end }}
