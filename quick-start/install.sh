@@ -94,8 +94,8 @@ Prerequisites:
   • kind
 
 Installation Time:
-  • Full installation: ~15-20 minutes
-  • Minimal installation: ~10-12 minutes
+  • Full installation: ~10-15 minutes
+  • Minimal installation: ~5-8 minutes
 
 For more information:
   • Quick Start Guide: https://github.com/wso2/ai-agent-management-platform/blob/main/docs/quick-start.md
@@ -149,9 +149,9 @@ fi
 
 # Estimate installation time
 if [[ "$MINIMAL_MODE" == "true" ]]; then
-    echo "⏱️  Estimated time: 10-12 minutes"
+    echo "⏱️  Estimated time: 5-8 minutes"
 else
-    echo "⏱️  Estimated time: 15-20 minutes"
+    echo "⏱️  Estimated time: 10-15 minutes"
 fi
 echo ""
 
@@ -207,7 +207,9 @@ else
         echo "Step 2/4: Setting up Kind cluster..."
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo ""
-        echo "⏱️  This may take 2-3 minutes..."
+        echo "⏱️  This may take 1-2 minutes..."
+        echo ""
+        echo "💡 Note: Nodes will become Ready after CNI installation (Step 3)"
         echo ""
     else
         log_info "Step 2/4: Setting up Kind cluster..."
@@ -220,12 +222,29 @@ else
         log_error "Failed to setup Kind cluster"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo ""
-        echo "The Kind cluster could not be created."
+        echo "The Kind cluster could not be created or nodes did not become ready."
         echo ""
         echo "Common solutions:"
-        echo "  1. Delete existing cluster: kind delete cluster --name openchoreo-local"
-        echo "  2. Restart Docker"
-        echo "  3. Check Docker has sufficient resources (4GB+ RAM recommended)"
+        echo "  1. Delete existing cluster and retry:"
+        echo "       kind delete cluster --name openchoreo-local"
+        echo "       ./install.sh"
+        echo ""
+        echo "  2. Check Docker resources:"
+        echo "       • Ensure Docker is running (docker ps)"
+        echo "       • Allocate 4GB+ RAM to Docker"
+        echo "       • Check available disk space"
+        echo ""
+        echo "  3. Check if ports are available:"
+        echo "       • Port 6443 must be free for Kubernetes API"
+        echo "       lsof -i :6443  # Check if port is in use"
+        echo ""
+        echo "  4. View cluster logs for more details:"
+        echo "       docker logs openchoreo-local-control-plane"
+        echo "       docker logs openchoreo-local-worker"
+        echo ""
+        echo "  5. If using Colima, ensure it has sufficient resources:"
+        echo "       colima status"
+        echo "       colima start --cpu 4 --memory 8"
         echo ""
         echo "For more help, see: ./README.md"
         echo ""
@@ -447,14 +466,6 @@ echo "      ./port-forward.sh"
 echo ""
 echo "   2. Access your platform:"
 echo "      Console:         http://localhost:3000"
-echo "      API:             http://localhost:8080"
-echo "      Traces Observer: http://localhost:9098"
-echo "      Data Prepper:    http://localhost:21893"
-echo ""
-echo "   3. Deploy an agent:"
-echo "      cd ../runtime/sample-agents/python-agent"
-echo ""
-echo "   4. View traces in the console"
 echo ""
 echo "💡 Port forwarding must be running to access services from localhost"
 echo "   To stop: Press Ctrl+C in the port-forward.sh terminal"

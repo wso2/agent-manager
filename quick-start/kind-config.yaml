@@ -17,4 +17,4 @@ nodes:
         containerPath: /mnt/shared
 
 networking:
-  disableDefaultCNI: false
+  disableDefaultCNI: true  # Disable default CNI to use Cilium instead

@@ -4,8 +4,16 @@ Get the Agent Management Platform running with a single command using a dev cont
 
 ## Prerequisites
 
-- **Docker** (Docker Desktop or Colima)
-- **Docker Compose** (optional, for easier container management)
+Ensure the following before you begin:
+
+- **Docker** (Engine 26.0+ recommended)
+    Allocate at least 8 GB RAM and 4 CPUs.
+
+- **Mac users**: Use Colima for best compatibility
+
+  ```sh
+  colima start --vm-type=vz --vz-rosetta --cpu 4 --memory 8
+  ```
 
 ## 🚀 Installation Using Dev Container
 
@@ -21,7 +29,7 @@ docker  run  -it --rm --name wso2-amp \
     -p 127.0.0.1:9098:9098 \
     -p 127.0.0.1:21893:21893 \
     -p 127.0.0.1:8443:8443 \
-  ghcr.io/wso2/amp-quick-start:v0.0.1
+  ghcr.io/wso2/amp-quick-start:v0.0.0-dev
 ```
 
 ### Step 2: Run Installation Inside Container
