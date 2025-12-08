@@ -1,15 +1,15 @@
-# WSO2 Agent Management Platform (AMP) Instrumentation
+# WSO2 AI Agent Management Platform Instrumentation
 
-Automatic OpenTelemetry instrumentation for Python agents using the Traceloop SDK, with trace visibility in the WSO2 AI Agent Management Platform.
+Zero-code OpenTelemetry instrumentation for Python agents using the Traceloop SDK, with trace visibility in the WSO2 AI Agent Management Platform.
 
 ## Overview
 
-`amp-instrumentation` enables zero-code instrumentation for Python agents, automatically capturing traces for LLM calls, API requests, and other operations. It seamlessly wraps your agent’s execution with OpenTelemetry tracing powered by the Traceloop SDK.
+`amp-instrumentation` enables zero-code instrumentation for Python agents, automatically capturing traces for LLM calls, MCP requests, and other operations. It seamlessly wraps your agent’s execution with OpenTelemetry tracing powered by the Traceloop SDK.
 
 ## Features
 
 - **Zero Code Changes**: Instrument existing applications without modifying code
-- **Automatic Tracing**: Traces LLM calls, HTTP requests, database queries, and more
+- **Automatic Tracing**: Traces LLM calls, MCP requests, database queries, and more
 - **OpenTelemetry Compatible**: Uses industry-standard OpenTelemetry protocol
 - **Flexible Configuration**: Configure via environment variables
 - **Framework Agnostic**: Works with any Python application built using a wide range of agent frameworks supported by the TraceLoop SDK
@@ -24,7 +24,7 @@ pip install amp-instrumentation
 
 ### 1. Register Your Agent
 
-First, register your agent at the [WSO2 AI Agent Management Platform](https://github.com/hanzjk/ai-agent-management-platform) to obtain your agent API key and configuration details.
+First, register your agent at the [WSO2 AI Agent Management Platform](https://github.com/wso2/ai-agent-management-platform) to obtain your agent API key and configuration details.
 
 ### 2. Set Required Environment Variables
 
@@ -36,7 +36,7 @@ export AMP_AGENT_API_KEY="your-agent-api-key" # Agent-specific key generated aft
 
 ### 3. Run Your Application
 
-Use the `amp-instrument` command to wrap your application:
+Use the `amp-instrument` command to wrap your application run command:
 
 ```bash
 # Run a Python script
