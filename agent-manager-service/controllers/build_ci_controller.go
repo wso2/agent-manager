@@ -20,8 +20,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/middleware/logger"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/services"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 )
 
 type BuildCallbackPayload struct {

@@ -25,14 +25,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/api"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/config"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/api"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 
 	"go.uber.org/automaxprocs/maxprocs"
 
-	dbmigrations "github.com/wso2-enterprise/agent-management-platform/agent-manager-service/db_migrations"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/signals"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/wiring"
+	dbmigrations "github.com/wso2/ai-agent-management-platform/agent-manager-service/db_migrations"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/signals"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/wiring"
 )
 
 func setupLogger(cfg *config.Config) {

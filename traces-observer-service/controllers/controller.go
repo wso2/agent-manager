@@ -23,7 +23,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/wso2-enterprise/agent-management-platform/traces-observer-service/opensearch"
+	"github.com/wso2/ai-agent-management-platform/traces-observer-service/opensearch"
 )
 
 // TracingController provides tracing functionality

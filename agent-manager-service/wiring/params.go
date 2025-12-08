@@ -17,11 +17,11 @@
 package wiring
 
 import (
-	observabilitysvc "github.com/wso2-enterprise/agent-management-platform/agent-manager-service/clients/observabilitysvc"
-	clients "github.com/wso2-enterprise/agent-management-platform/agent-manager-service/clients/openchoreosvc"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/config"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/controllers"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/middleware/jwtassertion"
+	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
+	clients "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 )
 
 type AppParams struct {

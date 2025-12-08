@@ -1,4 +1,4 @@
-module github.com/wso2-enterprise/agent-management-platform/agent-manager-service
+module github.com/wso2/ai-agent-management-platform/agent-manager-service
 
 go 1.24.2
 

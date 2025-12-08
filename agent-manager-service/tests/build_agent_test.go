@@ -29,12 +29,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/clients/clientmocks"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/models"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/tests/apitestutils"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/utils"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/wiring"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/wiring"
 )
 
 var (

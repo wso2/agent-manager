@@ -61,7 +61,7 @@ export const InstrumentationDrawer = ({
           <SetupStep
             stepNumber={1}
             title="Install AMP Instrumentation Package"
-            code="pip install agent-instrumentation"
+            code="pip install amp-instrumentation"
             language="bash"
             fieldId="install"
             description="Provides the ability to instrument your agent and export traces."
@@ -69,9 +69,9 @@ export const InstrumentationDrawer = ({
           <SetupStep
             stepNumber={2}
             title="Set environment variables"
-            code={`export AMP_APP_NAME="${agentId}"
-export AMP_OTEL_EXPORTER_OTLP_ENDPOINT="${instrumentationUrl}"
-export AMP_API_KEY="${apiKey}"`}
+            code={`export AMP_AGENT_NAME="${agentId}"
+export AMP_OTEL_ENDPOINT="${instrumentationUrl}"
+export AMP_AGENT_API_KEY="${apiKey}"`}
             language="bash"
             fieldId="env"
             description="Sets the agent endpoint and agent-specific API key so traces can be exported securely."
@@ -79,7 +79,7 @@ export AMP_API_KEY="${apiKey}"`}
           <SetupStep
             stepNumber={3}
             title="Run Agent with Instrumentation Enabled"
-            code="agent-trace <run_command>"
+            code="amp-instrument <run_command>"
             language="bash"
             fieldId="run"
             description="Look at the code-block in the screenshot, that way we can give a default command but also tell in a comment that user should replace it with what makes sense for them."

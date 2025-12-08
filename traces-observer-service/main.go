@@ -26,11 +26,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/wso2-enterprise/agent-management-platform/traces-observer-service/config"
-	"github.com/wso2-enterprise/agent-management-platform/traces-observer-service/controllers"
-	"github.com/wso2-enterprise/agent-management-platform/traces-observer-service/handlers"
-	"github.com/wso2-enterprise/agent-management-platform/traces-observer-service/middleware"
-	"github.com/wso2-enterprise/agent-management-platform/traces-observer-service/opensearch"
+	"github.com/wso2/ai-agent-management-platform/traces-observer-service/config"
+	"github.com/wso2/ai-agent-management-platform/traces-observer-service/controllers"
+	"github.com/wso2/ai-agent-management-platform/traces-observer-service/handlers"
+	"github.com/wso2/ai-agent-management-platform/traces-observer-service/middleware"
+	"github.com/wso2/ai-agent-management-platform/traces-observer-service/opensearch"
 )
 
 func main() {

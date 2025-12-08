@@ -38,4 +38,4 @@ Next steps:
 2. Install build-ci chart (if needed)
 3. Configure your agents to connect to this platform
 
-For more information, visit: https://github.com/wso2-enterprise/agent-management-platform
+For more information, visit: https://github.com/wso2/ai-agent-management-platform

@@ -27,10 +27,10 @@ import (
 	"github.com/openchoreo/openchoreo/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/config"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/models"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/spec"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/utils"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // getDefaultOpenAPISchema reads and returns the default OpenAPI schema from file system

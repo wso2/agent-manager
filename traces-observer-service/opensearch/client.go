@@ -24,7 +24,7 @@ import (
 	"log"
 
 	"github.com/opensearch-project/opensearch-go"
-	"github.com/wso2-enterprise/agent-management-platform/traces-observer-service/config"
+	"github.com/wso2/ai-agent-management-platform/traces-observer-service/config"
 )
 
 // Client wraps the OpenSearch client

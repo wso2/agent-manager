@@ -37,10 +37,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/config"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/models"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/spec"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/utils"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // KubernetesConfigData holds the Kubernetes cluster configuration data

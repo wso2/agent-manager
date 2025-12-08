@@ -22,9 +22,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/clients/requests"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/config"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
 
 // Build log constants

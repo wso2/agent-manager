@@ -23,11 +23,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/middleware/logger"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/services"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/spec"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/utils"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 type InfraResourceController interface {

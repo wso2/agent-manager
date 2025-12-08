@@ -21,7 +21,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/utils"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 type loggerKey struct{}

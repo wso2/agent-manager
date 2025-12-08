@@ -17,8 +17,8 @@
 package utils
 
 import (
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/models"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/spec"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 )
 
 func ConvertToAgentListResponse(components []*models.AgentResponse) []spec.AgentResponse {

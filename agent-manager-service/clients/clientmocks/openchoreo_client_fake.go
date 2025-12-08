@@ -7,9 +7,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/clients/openchoreosvc"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/models"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/spec"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 )
 
 // OpenChoreoSvcClientMock is a mock implementation of openchoreosvc.OpenChoreoSvcClient.

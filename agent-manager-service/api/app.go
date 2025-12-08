@@ -19,10 +19,10 @@ package api
 import (
 	"net/http"
 
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/config"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/middleware"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/middleware/logger"
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/wiring"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/wiring"
 )
 
 // MakeHTTPHandler creates a new HTTP handler with middleware and routes

@@ -29,7 +29,7 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/middleware/logger"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 )
 
 type HttpClient interface {

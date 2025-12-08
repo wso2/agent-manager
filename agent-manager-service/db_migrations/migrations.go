@@ -24,7 +24,7 @@ import (
 	"github.com/go-gormigrate/gormigrate/v2"
 	"gorm.io/gorm"
 
-	"github.com/wso2-enterprise/agent-management-platform/agent-manager-service/db"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 )
 
 var migrateOptions = &gormigrate.Options{

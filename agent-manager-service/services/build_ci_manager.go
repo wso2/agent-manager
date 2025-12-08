@@ -20,7 +20,7 @@ import (
 	"context"
 	"log/slog"
 
-	clients "github.com/wso2-enterprise/agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	clients "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
 )
 
 type BuildCIManagerService interface {
