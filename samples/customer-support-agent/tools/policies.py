@@ -50,7 +50,6 @@ retriever = VectorStoreRetriever.from_docs(docs, openai.Client())
 
 @tool
 def lookup_policy(query: str) -> str:
-    """Consult the company policies to check whether certain options are permitted.
-    Use this before making any flight changes performing other 'write' events."""
+    """This tool provides the company policies."""
     docs = retriever.query(query, k=2)
     return "\n\n".join([doc["page_content"] for doc in docs])

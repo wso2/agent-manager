@@ -1,10 +1,9 @@
-import sqlite3
 from datetime import date, datetime
 from typing import Optional, Union
 
 from langchain_core.tools import tool
 
-from . import db
+from setup.db_config import get_db_connection
 
 
 @tool
@@ -28,17 +27,17 @@ def search_car_rentals(
     Returns:
         list[dict]: A list of car rental dictionaries matching the search criteria.
     """
-    conn = sqlite3.connect(db)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     query = "SELECT * FROM car_rentals WHERE 1=1"
     params = []
 
     if location:
-        query += " AND location LIKE ?"
+        query += " AND location LIKE %s"
         params.append(f"%{location}%")
     if name:
-        query += " AND name LIKE ?"
+        query += " AND name LIKE %s"
         params.append(f"%{name}%")
     # For our tutorial, we will let you match on any dates and price tier.
     # (since our toy dataset doesn't have much data)
@@ -63,10 +62,10 @@ def book_car_rental(rental_id: int) -> str:
     Returns:
         str: A message indicating whether the car rental was successfully booked or not.
     """
-    conn = sqlite3.connect(db)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("UPDATE car_rentals SET booked = 1 WHERE id = ?", (rental_id,))
+    cursor.execute("UPDATE car_rentals SET booked = 1 WHERE id = %s", (rental_id,))
     conn.commit()
 
     if cursor.rowcount > 0:
@@ -94,17 +93,17 @@ def update_car_rental(
     Returns:
         str: A message indicating whether the car rental was successfully updated or not.
     """
-    conn = sqlite3.connect(db)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     if start_date:
         cursor.execute(
-            "UPDATE car_rentals SET start_date = ? WHERE id = ?",
+            "UPDATE car_rentals SET start_date = %s WHERE id = %s",
             (start_date, rental_id),
         )
     if end_date:
         cursor.execute(
-            "UPDATE car_rentals SET end_date = ? WHERE id = ?", (end_date, rental_id)
+            "UPDATE car_rentals SET end_date = %s WHERE id = %s", (end_date, rental_id)
         )
 
     conn.commit()
@@ -128,10 +127,10 @@ def cancel_car_rental(rental_id: int) -> str:
     Returns:
         str: A message indicating whether the car rental was successfully cancelled or not.
     """
-    conn = sqlite3.connect(db)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("UPDATE car_rentals SET booked = 0 WHERE id = ?", (rental_id,))
+    cursor.execute("UPDATE car_rentals SET booked = 0 WHERE id = %s", (rental_id,))
     conn.commit()
 
     if cursor.rowcount > 0:

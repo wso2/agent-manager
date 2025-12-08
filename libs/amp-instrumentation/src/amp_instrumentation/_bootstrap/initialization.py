@@ -21,14 +21,39 @@ This module contains the core initialization function for instrumentation.
 
 import os
 import logging
+import sys
 import threading
 from . import constants as env_vars
-
-logger = logging.getLogger(__name__)
 
 # Track initialization state with thread safety
 _initialized = False
 _init_lock = threading.Lock()
+
+
+def configure_logging() -> None:
+    """
+    Configure logging for the amp_instrumentation package based on AMP_DEBUG environment variable.
+
+    If AMP_DEBUG=1, enables debug logging to stderr for the entire package.
+    Otherwise, uses NullHandler to remain silent.
+    """
+    if os.getenv(env_vars.AMP_DEBUG) == "1":
+        # Enable debug logging for package developers
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        )
+
+        # Configure the package root logger so all child loggers inherit
+        amp_logger = logging.getLogger("amp_instrumentation")
+        if not amp_logger.hasHandlers():
+            amp_logger.addHandler(handler)
+            amp_logger.setLevel(logging.DEBUG)
+    else:
+        # Use NullHandler by default
+        amp_logger = logging.getLogger("amp_instrumentation")
+        if not amp_logger.hasHandlers():
+            amp_logger.addHandler(logging.NullHandler())
 
 
 class ConfigurationError(Exception):
@@ -47,8 +72,7 @@ def _get_required_env_var(var_name: str) -> str:
     value = os.getenv(var_name)
     if not value or not value.strip():
         raise ConfigurationError(
-            f"Required environment variable '{var_name}' is not set or is empty. "
-            f"Please set this variable before running the application."
+            f"Environment variable '{var_name}' is required but not set."
         )
     return value.strip()
 
@@ -58,6 +82,9 @@ def initialize_instrumentation() -> None:
     Initialize instrumentation from environment variables.
     """
     global _initialized
+    
+    # Get logger for this module
+    logger = logging.getLogger(__name__)
 
     with _init_lock:
         if _initialized:
@@ -100,7 +127,7 @@ def initialize_instrumentation() -> None:
 
         except ImportError as e:
             logger.error(
-                f"Failed to import traceloop-sdk: {e}. Ensure traceloop-sdk is installed."
+                f"Failed to import traceloop-sdk: {e}."
             )
             raise
 

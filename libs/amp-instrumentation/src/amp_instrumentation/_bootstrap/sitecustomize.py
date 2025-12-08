@@ -20,21 +20,20 @@ the _bootstrap directory. It initializes WSO2 AMP instrumentation before any use
 """
 
 import logging
+import os
 import sys
-from amp_instrumentation._bootstrap.initialization import initialize_instrumentation
-
-# Configure logging only if not already configured
-# Use NullHandler to avoid interfering with user's logging setup
-logger = logging.getLogger(__name__)
-if not logger.handlers:
-    logger.addHandler(logging.NullHandler())
+from amp_instrumentation._bootstrap.initialization import configure_logging, initialize_instrumentation
 
 # Initialize automatically when this module is loaded
 try:
+    # Configure logging for the entire package
+    configure_logging()
+    
+    # Get logger for this module
+    logger = logging.getLogger(__name__)
+    
     initialize_instrumentation()
     logger.info("WSO2 AMP instrumentation initialized successfully")
 except Exception as e:
-    logger.error(f"Failed to initialize WSO2 AMP instrumentation: {e}", exc_info=True)
-    print(f"ERROR: WSO2 AMP instrumentation failed: {e}", file=sys.stderr)
-    print("Check your environment variables and configuration.", file=sys.stderr)
-    sys.exit(1)
+    print(f"Error: {e}", file=sys.stderr)
+    os._exit(1)

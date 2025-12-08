@@ -1,9 +1,8 @@
-import sqlite3
 from typing import Optional
 
 from langchain_core.tools import tool
 
-from . import db
+from setup.db_config import get_db_connection
 
 
 @tool
@@ -23,21 +22,21 @@ def search_trip_recommendations(
     Returns:
         list[dict]: A list of trip recommendation dictionaries matching the search criteria.
     """
-    conn = sqlite3.connect(db)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     query = "SELECT * FROM trip_recommendations WHERE 1=1"
     params = []
 
     if location:
-        query += " AND location LIKE ?"
+        query += " AND location LIKE %s"
         params.append(f"%{location}%")
     if name:
-        query += " AND name LIKE ?"
+        query += " AND name LIKE %s"
         params.append(f"%{name}%")
     if keywords:
         keyword_list = keywords.split(",")
-        keyword_conditions = " OR ".join(["keywords LIKE ?" for _ in keyword_list])
+        keyword_conditions = " OR ".join(["keywords LIKE %s" for _ in keyword_list])
         query += f" AND ({keyword_conditions})"
         params.extend([f"%{keyword.strip()}%" for keyword in keyword_list])
 
@@ -62,11 +61,11 @@ def book_excursion(recommendation_id: int) -> str:
     Returns:
         str: A message indicating whether the trip recommendation was successfully booked or not.
     """
-    conn = sqlite3.connect(db)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute(
-        "UPDATE trip_recommendations SET booked = 1 WHERE id = ?", (recommendation_id,)
+        "UPDATE trip_recommendations SET booked = 1 WHERE id = %s", (recommendation_id,)
     )
     conn.commit()
 
@@ -90,11 +89,11 @@ def update_excursion(recommendation_id: int, details: str) -> str:
     Returns:
         str: A message indicating whether the trip recommendation was successfully updated or not.
     """
-    conn = sqlite3.connect(db)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute(
-        "UPDATE trip_recommendations SET details = ? WHERE id = ?",
+        "UPDATE trip_recommendations SET details = %s WHERE id = %s",
         (details, recommendation_id),
     )
     conn.commit()
@@ -118,11 +117,11 @@ def cancel_excursion(recommendation_id: int) -> str:
     Returns:
         str: A message indicating whether the trip recommendation was successfully cancelled or not.
     """
-    conn = sqlite3.connect(db)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute(
-        "UPDATE trip_recommendations SET booked = 0 WHERE id = ?", (recommendation_id,)
+        "UPDATE trip_recommendations SET booked = 0 WHERE id = %s", (recommendation_id,)
     )
     conn.commit()
 

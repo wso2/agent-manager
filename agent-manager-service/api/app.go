@@ -39,10 +39,10 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 
 	// Apply middleware in reverse order (last middleware is applied first)
 	apiHandler := http.Handler(apiMux)
-	apiHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(apiHandler)
 	apiHandler = params.AuthMiddleware(apiHandler)
 	apiHandler = middleware.AddCorrelationID()(apiHandler)
 	apiHandler = logger.RequestLogger()(apiHandler)
+	apiHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(apiHandler)
 	apiHandler = middleware.RecovererOnPanic()(apiHandler)
 
 	// Create a mux for internal API routes

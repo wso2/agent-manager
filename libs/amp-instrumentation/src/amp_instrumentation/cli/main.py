@@ -40,11 +40,9 @@ def check_sitecustomize_conflicts() -> None:
 
     if sitecustomize_path.exists():
         print(
-            "Warning: Found existing sitecustomize.py in current directory.",
+            "Warning: Found sitecustomize.py in current directory, which may conflict with instrumentation.\n",
             file=sys.stderr,
         )
-        print("This may conflict with WSO2 AMP instrumentation.", file=sys.stderr)
-        print("", file=sys.stderr)
 
 
 def run_with_sitecustomize(args: List[str]) -> NoReturn:
@@ -64,8 +62,10 @@ def run_with_sitecustomize(args: List[str]) -> NoReturn:
     """
     # Validate that we have arguments to run
     if not args:
-        print("Error: No command specified.", file=sys.stderr)
-        print("Usage: amp-instrument <command> [args...]", file=sys.stderr)
+        print(
+            "Error: No command specified. Usage: amp-instrument <command> [args...]",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Check for potential conflicts
@@ -78,11 +78,7 @@ def run_with_sitecustomize(args: List[str]) -> NoReturn:
 
     if not bootstrap_dir.exists():
         print(
-            f"Error: Bootstrap directory not found at {bootstrap_dir}", file=sys.stderr
-        )
-        print("Package may not be properly installed.", file=sys.stderr)
-        print(
-            "Try reinstalling with: pip install --force-reinstall amp-instrumentation",
+            f"Error: Package installation is incomplete. Try: pip install --force-reinstall amp-instrumentation",
             file=sys.stderr,
         )
         sys.exit(1)

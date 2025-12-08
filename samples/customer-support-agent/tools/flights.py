@@ -1,4 +1,3 @@
-import sqlite3
 from datetime import date, datetime
 from typing import Optional
 
@@ -6,7 +5,7 @@ import pytz
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
-from . import db
+from setup.db_config import get_db_connection
 
 
 @tool
@@ -22,7 +21,7 @@ def fetch_user_flight_information(config: RunnableConfig) -> list[dict]:
     if not passenger_id:
         raise ValueError("No passenger ID configured.")
 
-    conn = sqlite3.connect(db)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     query = """
@@ -40,7 +39,7 @@ def fetch_user_flight_information(config: RunnableConfig) -> list[dict]:
                      JOIN ticket_flights tf ON t.ticket_no = tf.ticket_no
                      JOIN flights f ON tf.flight_id = f.flight_id
                      JOIN boarding_passes bp ON bp.ticket_no = t.ticket_no AND bp.flight_id = f.flight_id
-            WHERE t.passenger_id = ? \
+            WHERE t.passenger_id = %s
             """
     cursor.execute(query, (passenger_id,))
     rows = cursor.fetchall()
@@ -62,28 +61,28 @@ def search_flights(
         limit: int = 20,
 ) -> list[dict]:
     """Search for flights based on departure airport, arrival airport, and departure time range."""
-    conn = sqlite3.connect(db)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     query = "SELECT * FROM flights WHERE 1 = 1"
     params = []
 
     if departure_airport:
-        query += " AND departure_airport = ?"
+        query += " AND departure_airport = %s"
         params.append(departure_airport)
 
     if arrival_airport:
-        query += " AND arrival_airport = ?"
+        query += " AND arrival_airport = %s"
         params.append(arrival_airport)
 
     if start_time:
-        query += " AND scheduled_departure >= ?"
+        query += " AND scheduled_departure >= %s"
         params.append(start_time)
 
     if end_time:
-        query += " AND scheduled_departure <= ?"
+        query += " AND scheduled_departure <= %s"
         params.append(end_time)
-    query += " LIMIT ?"
+    query += " LIMIT %s"
     params.append(limit)
     cursor.execute(query, params)
     rows = cursor.fetchall()
@@ -106,11 +105,11 @@ def update_ticket_to_new_flight(
     if not passenger_id:
         raise ValueError("No passenger ID configured.")
 
-    conn = sqlite3.connect(db)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT departure_airport, arrival_airport, scheduled_departure FROM flights WHERE flight_id = ?",
+        "SELECT departure_airport, arrival_airport, scheduled_departure FROM flights WHERE flight_id = %s",
         (new_flight_id,),
     )
     new_flight = cursor.fetchone()
@@ -130,7 +129,7 @@ def update_ticket_to_new_flight(
         return f"Not permitted to reschedule to a flight that is less than 3 hours from the current time. Selected flight is at {departure_time}."
 
     cursor.execute(
-        "SELECT flight_id FROM ticket_flights WHERE ticket_no = ?", (ticket_no,)
+        "SELECT flight_id FROM ticket_flights WHERE ticket_no = %s", (ticket_no,)
     )
     current_flight = cursor.fetchone()
     if not current_flight:
@@ -140,7 +139,7 @@ def update_ticket_to_new_flight(
 
     # Check the signed-in user actually has this ticket
     cursor.execute(
-        "SELECT * FROM tickets WHERE ticket_no = ? AND passenger_id = ?",
+        "SELECT * FROM tickets WHERE ticket_no = %s AND passenger_id = %s",
         (ticket_no, passenger_id),
     )
     current_ticket = cursor.fetchone()
@@ -155,7 +154,7 @@ def update_ticket_to_new_flight(
     # it's inevitably going to get things wrong, so you **also** need to ensure your
     # API enforces valid behavior
     cursor.execute(
-        "UPDATE ticket_flights SET flight_id = ? WHERE ticket_no = ?",
+        "UPDATE ticket_flights SET flight_id = %s WHERE ticket_no = %s",
         (new_flight_id, ticket_no),
     )
     conn.commit()
@@ -172,11 +171,11 @@ def cancel_ticket(ticket_no: str, *, config: RunnableConfig) -> str:
     passenger_id = configuration.get("passenger_id", None)
     if not passenger_id:
         raise ValueError("No passenger ID configured.")
-    conn = sqlite3.connect(db)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT flight_id FROM ticket_flights WHERE ticket_no = ?", (ticket_no,)
+        "SELECT flight_id FROM ticket_flights WHERE ticket_no = %s", (ticket_no,)
     )
     existing_ticket = cursor.fetchone()
     if not existing_ticket:
@@ -186,7 +185,7 @@ def cancel_ticket(ticket_no: str, *, config: RunnableConfig) -> str:
 
     # Check the signed-in user actually has this ticket
     cursor.execute(
-        "SELECT ticket_no FROM tickets WHERE ticket_no = ? AND passenger_id = ?",
+        "SELECT ticket_no FROM tickets WHERE ticket_no = %s AND passenger_id = %s",
         (ticket_no, passenger_id),
     )
     current_ticket = cursor.fetchone()
@@ -195,7 +194,7 @@ def cancel_ticket(ticket_no: str, *, config: RunnableConfig) -> str:
         conn.close()
         return f"Current signed-in passenger with ID {passenger_id} not the owner of ticket {ticket_no}"
 
-    cursor.execute("DELETE FROM ticket_flights WHERE ticket_no = ?", (ticket_no,))
+    cursor.execute("DELETE FROM ticket_flights WHERE ticket_no = %s", (ticket_no,))
     conn.commit()
 
     cursor.close()

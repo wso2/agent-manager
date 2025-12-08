@@ -1,10 +1,9 @@
-import sqlite3
 from datetime import date, datetime
 from typing import Optional, Union
 
 from langchain_core.tools import tool
 
-from . import db
+from setup.db_config import get_db_connection
 
 
 @tool
@@ -28,17 +27,17 @@ def search_hotels(
     Returns:
         list[dict]: A list of hotel dictionaries matching the search criteria.
     """
-    conn = sqlite3.connect(db)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     query = "SELECT * FROM hotels WHERE 1=1"
     params = []
 
     if location:
-        query += " AND location LIKE ?"
+        query += " AND location LIKE %s"
         params.append(f"%{location}%")
     if name:
-        query += " AND name LIKE ?"
+        query += " AND name LIKE %s"
         params.append(f"%{name}%")
     # For the sake of this tutorial, we will let you match on any dates and price tier.
     cursor.execute(query, params)
@@ -62,10 +61,10 @@ def book_hotel(hotel_id: int) -> str:
     Returns:
         str: A message indicating whether the hotel was successfully booked or not.
     """
-    conn = sqlite3.connect(db)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("UPDATE hotels SET booked = 1 WHERE id = ?", (hotel_id,))
+    cursor.execute("UPDATE hotels SET booked = 1 WHERE id = %s", (hotel_id,))
     conn.commit()
 
     if cursor.rowcount > 0:
@@ -93,16 +92,16 @@ def update_hotel(
     Returns:
         str: A message indicating whether the hotel was successfully updated or not.
     """
-    conn = sqlite3.connect(db)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     if checkin_date:
         cursor.execute(
-            "UPDATE hotels SET checkin_date = ? WHERE id = ?", (checkin_date, hotel_id)
+            "UPDATE hotels SET checkin_date = %s WHERE id = %s", (checkin_date, hotel_id)
         )
     if checkout_date:
         cursor.execute(
-            "UPDATE hotels SET checkout_date = ? WHERE id = ?",
+            "UPDATE hotels SET checkout_date = %s WHERE id = %s",
             (checkout_date, hotel_id),
         )
 
@@ -127,10 +126,10 @@ def cancel_hotel(hotel_id: int) -> str:
     Returns:
         str: A message indicating whether the hotel was successfully cancelled or not.
     """
-    conn = sqlite3.connect(db)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("UPDATE hotels SET booked = 0 WHERE id = ?", (hotel_id,))
+    cursor.execute("UPDATE hotels SET booked = 0 WHERE id = %s", (hotel_id,))
     conn.commit()
 
     if cursor.rowcount > 0:
