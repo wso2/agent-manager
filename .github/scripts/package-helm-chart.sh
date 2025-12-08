@@ -4,15 +4,14 @@
 
 set -euo pipefail
 
-CHART_NAME="${1:-}"
-CHART_DIR="${2:-}"
-VERSION="${3:-}"
-HELM_REGISTRY="${4:-}"
-GITHUB_TOKEN="${5:-}"
+CHART_DIR="${1:-}"
+VERSION="${2:-}"
+HELM_REGISTRY="${3:-}"
+GITHUB_TOKEN="${4:-}"
 
-if [ -z "$CHART_NAME" ] || [ -z "$CHART_DIR" ] || [ -z "$VERSION" ] || [ -z "$HELM_REGISTRY" ] || [ -z "$GITHUB_TOKEN" ]; then
+if [ -z "$CHART_DIR" ] || [ -z "$VERSION" ] || [ -z "$HELM_REGISTRY" ] || [ -z "$GITHUB_TOKEN" ]; then
   echo "Error: Missing required arguments"
-  echo "Usage: package-helm-chart.sh <chart-name> <chart-dir> <version> <helm-registry> <github-token>"
+  echo "Usage: package-helm-chart.sh <chart-dir> <version> <helm-registry> <github-token>"
   exit 1
 fi
 
@@ -26,7 +25,29 @@ ACTOR="${GITHUB_ACTOR:-github-actions}"
 echo "$GITHUB_TOKEN" | helm registry login -u "$ACTOR" --password-stdin "${HELM_REGISTRY#oci://}"
 
 # Package and push
-helm package "$CHART_DIR" --version "$VERSION"
-helm push "${CHART_NAME}-${VERSION}.tgz" "$HELM_REGISTRY/"
+# Capture the output from helm package which prints the created filename
+# Format: "Successfully packaged chart and saved it to: chart-name-version.tgz"
+PACKAGE_OUTPUT=$(helm package "$CHART_DIR" --version "$VERSION" 2>&1)
 
-echo "✅ Pushed $CHART_NAME chart version $VERSION"
+# Extract the filename from the output (works with both relative and absolute paths)
+PACKAGED_FILE=$(echo "$PACKAGE_OUTPUT" | sed -n 's/.*Successfully packaged chart and saved it to: //p')
+
+if [ -z "$PACKAGED_FILE" ]; then
+  echo "Error: Failed to determine packaged chart filename from helm package output"
+  echo "helm package output: $PACKAGE_OUTPUT"
+  exit 1
+fi
+
+# Extract just the filename (without path) if helm package printed a full path
+PACKAGED_FILENAME=$(basename "$PACKAGED_FILE")
+
+# Verify the file exists
+if [ ! -f "$PACKAGED_FILENAME" ]; then
+  echo "Error: Packaged chart file not found: $PACKAGED_FILENAME"
+  echo "helm package output: $PACKAGE_OUTPUT"
+  exit 1
+fi
+
+helm push "$PACKAGED_FILENAME" "$HELM_REGISTRY/"
+
+echo "✅ Pushed $PACKAGED_FILENAME chart version $VERSION"

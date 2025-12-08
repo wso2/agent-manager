@@ -67,9 +67,9 @@ jobs:
           BRANCH_NAME="amp-${{ inputs.target-release }}"
           if git show-ref --verify --quiet refs/heads/$BRANCH_NAME; then
             echo "Branch $BRANCH_NAME already exists, checking it out"
-            git checkout $BRANCH_NAME
+            git checkout "$BRANCH_NAME"
           else
-            git checkout -b $BRANCH_NAME
+            git checkout -b "$BRANCH_NAME"
           fi
           echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "✅ Created/checked out branch: $BRANCH_NAME"
@@ -78,8 +78,7 @@ jobs:
       - name: Update Helm chart versions
         run: |
           bash .github/scripts/update-helm-charts.sh \
-            "${{ inputs.target-release }}" \
-            "amp/v${{ inputs.target-release }}"
+            "${{ inputs.target-release }}"
         shell: bash
 
       - name: Update docs versions
@@ -99,7 +98,7 @@ jobs:
       - name: Commit version updates
         id: commit-changes
         run: |
-          git add ./quick-start/install-helpers.sh ./deployments/helm-charts/*/Chart.yaml ./deployments/helm-charts/*/values.yaml ./docs/quick-start.md ./docs/install/single-cluster.md 2>/dev/null || true
+          git add "./quick-start/install-helpers.sh" "./deployments/helm-charts/*/Chart.yaml" "./deployments/helm-charts/*/values.yaml" "./docs/quick-start.md" "./docs/install/single-cluster.md" 2>/dev/null || true
           
           if git diff --staged --quiet; then
             echo "No changes to commit"
@@ -148,7 +147,7 @@ jobs:
           CHARTS_BASE_PATH=$(jq -r '.config["charts-base-path"]' "$CONFIG_FILE")
 
           # Expand images configuration (add resolved paths)
-          IMAGES=$(jq -c '[.images[] | {
+          IMAGES=$(jq -c --arg base "$CHARTS_BASE_PATH" '[.images[] | {
             name: .name,
             "service-dir": .dir,
             dockerfile: (.dir + "/Dockerfile")
@@ -165,8 +164,8 @@ jobs:
           echo "charts=$CHARTS" >> $GITHUB_OUTPUT
 
           echo "✅ Loaded configuration:"
-          echo "  - Images: $(echo $IMAGES | jq '. | length')"
-          echo "  - Charts: $(echo $CHARTS | jq '. | length')"
+          echo "  - Images: $(echo "$IMAGES" | jq '. | length')"
+          echo "  - Charts: $(echo "$CHARTS" | jq '. | length')"
         shell: bash
 
   build-images:
@@ -233,7 +232,6 @@ jobs:
         if: hashFiles(matrix.chart.chart-file) != ''
         run: |
           bash .github/scripts/package-helm-chart.sh \
-            "${{ matrix.chart.name }}" \
             "${{ matrix.chart.path }}" \
             "${{ inputs.target-release }}" \
             "${{ env.HELM_REGISTRY }}" \

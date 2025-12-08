@@ -5,11 +5,10 @@
 set -euo pipefail
 
 TARGET_VERSION="${1:-}"
-RELEASE_TAG="${2:-}"
 
-if [ -z "$TARGET_VERSION" ] || [ -z "$RELEASE_TAG" ]; then
+if [ -z "$TARGET_VERSION" ]; then
   echo "Error: Missing required arguments"
-  echo "Usage: update-helm-charts.sh <target-version> <release-tag>"
+  echo "Usage: update-helm-charts.sh <target-version>"
   exit 1
 fi
 

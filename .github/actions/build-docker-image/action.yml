@@ -18,9 +18,6 @@ inputs:
   tag:
     description: 'Image tag (usually release tag)'
     required: true
-  github-token:
-    description: 'GitHub token for authentication'
-    required: true
 
 runs:
   using: 'composite'
