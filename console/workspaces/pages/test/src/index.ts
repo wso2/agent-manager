@@ -22,7 +22,7 @@ import { TestOrganization } from './Test.Organization';
 import { FlaskConical as ScienceOutlined } from '@wso2/oxygen-ui-icons-react';
 
 export const metaData = {
-  title: 'Try your agent',
+  title: 'Test',
   description: 'A page component for Test',
   icon: ScienceOutlined,
   path: '/test',

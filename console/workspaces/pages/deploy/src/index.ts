@@ -22,7 +22,7 @@ import { DeployOrganization } from './Deploy.Organization';
 import { Rocket as RocketLaunchOutlined } from '@wso2/oxygen-ui-icons-react';
 
 export const metaData = {
-  title: 'Deployment',
+  title: 'Deploy',
   description: 'A page component for Deploy',
   icon: RocketLaunchOutlined,
   path: '/deploy',

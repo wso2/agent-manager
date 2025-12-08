@@ -22,7 +22,7 @@ export function displayProvisionTypes(provisionType?: string) {
   }
   switch (provisionType) {
     case "external":
-      return "Externally";
+      return "External";
     case "internal":
       return "Platform";
   }

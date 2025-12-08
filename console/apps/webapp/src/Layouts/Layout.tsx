@@ -32,12 +32,12 @@ export function Layout() {
     { orgId: string, projectId: string, agentId: string }>();
   const navigate = useNavigate();
   const navigationItems = useNavigationItems();
-  
+
   const { data: organizations } = useListOrganizations();
 
   const homePath = useMemo(() => {
     return generatePath(absoluteRouteMap.children.org.path, { orgId: organizations?.organizations?.[0]?.name ?? '' });
-  }, [organizations]);  
+  }, [organizations]);
 
   // Get all projects for the organization
   const { data: projects } = useListProjects({
@@ -81,35 +81,36 @@ export function Layout() {
           },
         },
         {
-        label: 'Agent',
-        selectedId: agentId,
-        options: agents?.agents?.map((agent) => ({
-          id: agent.name,
-          label: agent.displayName,
-          typeLabel: displayProvisionTypes(agent.provisioning.type),
-        })) ?? [],
-        onChange: (value) => {
-          navigate(generatePath(
-            absoluteRouteMap.children.org.children.projects.children.agents.path,
-            { orgId, projectId, agentId: value }))
-        },
-        disableClose: false,
-        onClick: () => {
-          navigate(generatePath(
-            absoluteRouteMap.children.org.children.projects.children.agents.path,
-            { orgId, projectId }))
-        },
-        onCreate: () => {
-          navigate(generatePath(
-            absoluteRouteMap.children.org.children.projects.children.newAgent.path, 
-            { orgId, projectId }));
-        },
-        onClose: () => {
-          navigate(generatePath(
-            absoluteRouteMap.children.org.children.projects.path, { orgId, projectId }));
-        },
-      }
-    ]}
+          label: 'Agent',
+          selectedId: agentId,
+          options: agents?.agents?.map((agent) => ({
+            id: agent.name,
+            label: agent.displayName,
+            typeLabel:
+              agent.provisioning.type === "external" ? displayProvisionTypes(agent.provisioning.type) : undefined,
+          })) ?? [],
+          onChange: (value) => {
+            navigate(generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents.path,
+              { orgId, projectId, agentId: value }))
+          },
+          disableClose: false,
+          onClick: () => {
+            navigate(generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents.path,
+              { orgId, projectId }))
+          },
+          onCreate: () => {
+            navigate(generatePath(
+              absoluteRouteMap.children.org.children.projects.children.newAgent.path,
+              { orgId, projectId }));
+          },
+          onClose: () => {
+            navigate(generatePath(
+              absoluteRouteMap.children.org.children.projects.path, { orgId, projectId }));
+          },
+        }
+      ]}
       userMenuItems={createUserMenuItems(orgId ?? '', logout)}
       navigationItems={navigationItems}
     >

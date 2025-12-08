@@ -176,7 +176,7 @@ export function DeployCard(props: DeployCardProps) {
           size="small"
           startIcon={<FlaskConical size={16} />}
         >
-          Try your agent
+          Try out
         </Button>
         <Button
           variant="text"

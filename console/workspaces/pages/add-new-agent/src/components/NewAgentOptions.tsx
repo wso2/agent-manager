@@ -45,8 +45,7 @@ export const NewAgentOptions = ({ onSelect }: NewAgentOptionsProps) => {
             <NewAgentTypeCard
                 type="new"
                 title="Platform-Hosted Agent"
-                subheader="Platform-Hosted Agent
-Description: Deploy and manage agents with full lifecycle support, including built-in CI/CD, scaling, observability, and governance."
+                subheader="Platform-Hosted Agent Deploy and manage agents with full lifecycle support, including built-in CI/CD, scaling, observability, and governance."
                 icon={<img src={ImageList.INTERNAL_AGENT} width={200} height={400} alt="Internal Agent" />}
                 onClick={handleSelect}
                 content={

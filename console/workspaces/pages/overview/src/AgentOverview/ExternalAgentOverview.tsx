@@ -18,8 +18,7 @@
 
 import { Box, Typography, Button } from "@wso2/oxygen-ui";
 import { Clock as AccessTime, Settings } from "@wso2/oxygen-ui-icons-react";
-import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { useGetAgent } from "@agent-management-platform/api-client";
 import { EnvironmentCard } from "@agent-management-platform/shared-component";
@@ -27,8 +26,8 @@ import { InstrumentationDrawer } from "./InstrumentationDrawer";
 
 export const ExternalAgentOverview = () => {
   const { agentId, orgId, projectId } = useParams();
-  const [isInstrumentationDrawerOpen, setIsInstrumentationDrawerOpen] =
-    useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const isInstrumentationDrawerOpen = searchParams.get("setup") === "true";
 
   const { data: agent } = useGetAgent({
     orgName: orgId ?? "default",
@@ -70,7 +69,7 @@ export const ExternalAgentOverview = () => {
               variant="text"
               size="small"
               startIcon={<Settings size={16} />}
-              onClick={() => setIsInstrumentationDrawerOpen(true)}
+              onClick={() => setSearchParams({ setup: "true" })}
             >
               Setup Agent
             </Button>
@@ -79,7 +78,7 @@ export const ExternalAgentOverview = () => {
       </Box>
       <InstrumentationDrawer
         open={isInstrumentationDrawerOpen}
-        onClose={() => setIsInstrumentationDrawerOpen(false)}
+        onClose={() => setSearchParams({})}
         agentId={agentId ?? ""}
         instrumentationUrl={instrumentationUrl}
         apiKey={apiKey}
