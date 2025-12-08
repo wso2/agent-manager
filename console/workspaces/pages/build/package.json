@@ -45,6 +45,8 @@
     "@mui/icons-material": "7.0.0",
     "@emotion/react": "11.13.5",
     "@emotion/styled": "11.13.5",
+    "@wso2/oxygen-ui": "0.0.1-alpha.9",
+    "@wso2/oxygen-ui-icons-react": "0.0.1-alpha.9",
     "@agent-management-platform/views": "workspace:*",
     "@agent-management-platform/api-client": "workspace:*",
     "@agent-management-platform/types": "workspace:*",

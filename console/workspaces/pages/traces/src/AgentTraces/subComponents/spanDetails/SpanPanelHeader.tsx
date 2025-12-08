@@ -16,8 +16,8 @@
  * under the License.
  */
 
-import { Box, Typography, IconButton } from "@mui/material";
-import { Close, Timeline } from "@mui/icons-material";
+import { Box, Typography, IconButton } from "@wso2/oxygen-ui";
+import { X as Close, GitBranch as Timeline } from "@wso2/oxygen-ui-icons-react";
 
 interface SpanPanelHeaderProps {
     onClose: () => void;

@@ -17,8 +17,8 @@
  */
 
 import React from 'react';
-import { IconButton, Tooltip } from '@mui/material';
-import { Brightness4, Brightness7, BrightnessAuto } from '@mui/icons-material';
+import { IconButton, Tooltip } from '@wso2/oxygen-ui';
+import { Moon as Brightness4, Sun as Brightness7, MonitorCog as BrightnessAuto } from '@wso2/oxygen-ui-icons-react';
 import { useTheme } from '../contexts/ThemeContext';
 
 /**

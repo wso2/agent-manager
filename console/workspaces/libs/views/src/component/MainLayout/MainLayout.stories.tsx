@@ -17,8 +17,8 @@
  */
 
 import type { Meta, StoryObj } from '@storybook/react';
-import { Box, Button, IconButton, Badge } from '@mui/material';
-import { Notifications, Search, Brightness4 } from '@mui/icons-material';
+import { Box, Button, IconButton, Badge } from '@wso2/oxygen-ui';
+import { Notifications, Search, Brightness4 } from '@wso2/oxygen-ui-icons-react';
 import { MainLayout } from './MainLayout';
 
 const meta: Meta<typeof MainLayout> = {
@@ -39,14 +39,6 @@ const meta: Meta<typeof MainLayout> = {
     },
   ],
   argTypes: {
-    appTitle: {
-      control: 'text',
-      description: 'The title of the application',
-    },
-    showAppTitle: {
-      control: 'boolean',
-      description: 'Whether to show the app title',
-    },
     sidebarCollapsed: {
       control: 'boolean',
       description: 'Whether the sidebar is collapsed (icons only)',
@@ -71,56 +63,9 @@ export const Default: Story = {
   },
 };
 
-// MainLayout with custom logo
-export const WithLogo: Story = {
-  args: {
-    logo: (
-      <Box
-        sx={{
-          width: 40,
-          height: 40,
-          borderRadius: 1,
-          background: 'linear-gradient(45deg, #cd00ef, #f4009e)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontWeight: 'bold',
-          fontSize: '1.2rem',
-        }}
-      >
-        AI
-      </Box>
-    ),
-    user: {
-      name: 'Jane Smith',
-      email: 'jane.smith@example.com',
-      avatar: 'https://i.pravatar.cc/150?img=1',
-    },
-  },
-};
-
 // MainLayout with custom navigation items
 export const WithCustomNavigation: Story = {
   args: {
-    logo: (
-      <Box
-        sx={{
-          width: 40,
-          height: 40,
-          borderRadius: 1,
-          background: 'linear-gradient(45deg, #cd00ef, #f4009e)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontWeight: 'bold',
-          fontSize: '1.2rem',
-        }}
-      >
-        AI
-      </Box>
-    ),
     user: {
       name: 'Alex Johnson',
       email: 'alex.johnson@example.com',
@@ -137,24 +82,6 @@ export const WithCustomNavigation: Story = {
 // MainLayout with custom user menu items
 export const WithCustomUserMenu: Story = {
   args: {
-    logo: (
-      <Box
-        sx={{
-          width: 40,
-          height: 40,
-          borderRadius: 1,
-          background: 'linear-gradient(45deg, #cd00ef, #f4009e)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontWeight: 'bold',
-          fontSize: '1.2rem',
-        }}
-      >
-        AI
-      </Box>
-    ),
     user: {
       name: 'Sarah Wilson',
       email: 'sarah.wilson@example.com',
@@ -173,24 +100,6 @@ export const WithCustomUserMenu: Story = {
 // MainLayout with external elements
 export const WithExternalElements: Story = {
   args: {
-    logo: (
-      <Box
-        sx={{
-          width: 40,
-          height: 40,
-          borderRadius: 1,
-          background: 'linear-gradient(45deg, #cd00ef, #f4009e)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontWeight: 'bold',
-          fontSize: '1.2rem',
-        }}
-      >
-        AI
-      </Box>
-    ),
     user: {
       name: 'Mike Chen',
       email: 'mike.chen@example.com',
@@ -221,24 +130,6 @@ export const WithExternalElements: Story = {
 // MainLayout without user menu
 export const WithoutUser: Story = {
   args: {
-    logo: (
-      <Box
-        sx={{
-          width: 40,
-          height: 40,
-          borderRadius: 1,
-          background: 'linear-gradient(45deg, #cd00ef, #f4009e)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontWeight: 'bold',
-          fontSize: '1.2rem',
-        }}
-      >
-        AI
-      </Box>
-    ),
     rightElements: (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Button variant="outlined" size="small">
@@ -252,67 +143,9 @@ export const WithoutUser: Story = {
   },
 };
 
-// MainLayout with long title
-export const WithLongTitle: Story = {
-  args: {
-    appTitle: 'AI Agent Management Platform - Advanced Dashboard',
-    user: {
-      name: 'Dr. Emily Rodriguez',
-      email: 'emily.rodriguez@ai-platform.com',
-    },
-  },
-};
-
-// MainLayout without title
-export const WithoutTitle: Story = {
-  args: {
-    showAppTitle: false,
-    logo: (
-      <Box
-        sx={{
-          width: 40,
-          height: 40,
-          borderRadius: 1,
-          background: 'linear-gradient(45deg, #cd00ef, #f4009e)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontWeight: 'bold',
-          fontSize: '1.2rem',
-        }}
-      >
-        AI
-      </Box>
-    ),
-    user: {
-      name: 'Tom Anderson',
-      email: 'tom.anderson@example.com',
-    },
-  },
-};
-
 // MainLayout with collapsed sidebar
 export const CollapsedSidebar: Story = {
   args: {
-    logo: (
-      <Box
-        sx={{
-          width: 40,
-          height: 40,
-          borderRadius: 1,
-          background: 'linear-gradient(45deg, #cd00ef, #f4009e)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontWeight: 'bold',
-          fontSize: '1.2rem',
-        }}
-      >
-        AI
-      </Box>
-    ),
     user: {
       name: 'Lisa Park',
       email: 'lisa.park@example.com',
@@ -326,31 +159,4 @@ export const CollapsedSidebar: Story = {
   },
 };
 
-// Logo visibility test - both states
-export const LogoVisibilityTest: Story = {
-  args: {
-    logo: (
-      <Box
-        sx={{
-          width: 40,
-          height: 40,
-          borderRadius: 1,
-          background: 'linear-gradient(45deg, #cd00ef, #f4009e)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontWeight: 'bold',
-          fontSize: '1.2rem',
-        }}
-      >
-        AI
-      </Box>
-    ),
-    user: {
-      name: 'Test User',
-      email: 'test@example.com',
-    },
-    appTitle: 'Logo Test',
-  },
-};
+// Logo visibility test story removed because logo is now always shown by default.

@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { TableRow as MuiTableRow, TableCell, useTheme } from '@mui/material';
+import { TableRow as OxygenTableRow, TableCell } from '@wso2/oxygen-ui';
 import { TableColumn } from '../DataListingTable';
 import { ActionMenu, ActionItem } from './ActionMenu';
 
@@ -44,15 +44,13 @@ export const TableRow = <T extends Record<string, any>>({
   onRowFocusOut,
   onRowClick,
 }: TableRowProps<T>) => {
-  const theme = useTheme();
-
   const getNestedValue = (obj: any, path: string | number | symbol) => {
     return String(path).split('.').reduce((current, key) => current?.[key], obj);
   };
 
   return (
-    <MuiTableRow
-      hover
+    <OxygenTableRow
+      hover = {!!onRowClick}
       onClick={onRowClick ? () => onRowClick(row) : undefined}
       onMouseEnter={onRowMouseEnter ? () => onRowMouseEnter(row) : undefined}
       onMouseLeave={onRowMouseLeave ? () => onRowMouseLeave(row) : undefined}
@@ -69,43 +67,13 @@ export const TableRow = <T extends Record<string, any>>({
         }
       } : undefined}
       sx={{
-        cursor: onRowAction ? 'pointer' : 'default',
-        backgroundColor: theme.palette.background.paper,
-        boxShadow: theme.shadows[1],
-        transition: theme.transitions.create(['box-shadow', 'background-color'], {
-          duration: theme.transitions.duration.short,
-        }),
-        '&:hover': {
-          // boxShadow: theme.shadows[2],
-          backgroundColor: theme.palette.background.paper,
-          // backgroundColor: 'red'
-        },
-        '& td': {
-          borderTop: `1px solid ${theme.palette.divider}`,
-          borderBottom: `1px solid ${theme.palette.divider}`,
-        },
-        '& td:first-of-type': {
-          borderLeft: `1px solid ${theme.palette.divider}`,
-          borderTopLeftRadius: theme.spacing(1),
-          borderBottomLeftRadius: theme.spacing(1),
-        },
-        '& td:last-of-type': {
-          borderRight: `1px solid ${theme.palette.divider}`,
-          borderTopRightRadius: theme.spacing(1),
-          borderBottomRightRadius: theme.spacing(1),
-        },
+        cursor: onRowClick ? 'pointer' : 'default',
       }}
     >
       {columns.map((column) => (
         <TableCell
           key={String(column.id)}
           align={column.align || 'left'}
-          sx={{
-            padding: theme.spacing(1, 2),
-            fontSize: theme.typography.body2.fontSize,
-            color: theme.palette.text.primary,
-            borderBottom: 'none',
-          }}
         >
           {column.render ? (
             column.render(getNestedValue(row, column.id), row)
@@ -115,15 +83,7 @@ export const TableRow = <T extends Record<string, any>>({
         </TableCell>
       ))}
       {actions.length > 0 && (
-        <TableCell
-          align="right"
-          sx={{
-            padding: theme.spacing(1.5, 2),
-            fontSize: theme.typography.body2.fontSize,
-            color: theme.palette.text.primary,
-            borderBottom: 'none',
-          }}
-        >
+        <TableCell align="right">
           <ActionMenu
             row={row}
             actions={actions}
@@ -131,6 +91,6 @@ export const TableRow = <T extends Record<string, any>>({
           />
         </TableCell>
       )}
-    </MuiTableRow>
+    </OxygenTableRow>
   );
 };

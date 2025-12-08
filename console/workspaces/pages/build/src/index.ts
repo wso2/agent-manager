@@ -19,12 +19,12 @@
 import { BuildComponent } from './Build.Component';
 import { BuildProject } from './Build.Project';
 import { BuildOrganization } from './Build.Organization';
-import { Dashboard } from '@mui/icons-material';
+import { Wrench as BuildOutlined } from '@wso2/oxygen-ui-icons-react';
 
 export const metaData = {
   title: 'Build',
   description: 'A page component for Build',
-  icon: Dashboard,
+  icon: BuildOutlined,
   path: '/build',
   component: BuildComponent,
   levels: {

@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Box, CircularProgress, Typography, useTheme } from '@mui/material';
+import { Box, CircularProgress, Typography } from '@wso2/oxygen-ui';
 
 export interface LoadingStateProps {
   message?: string;
@@ -28,8 +28,6 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
   message = 'Loading...',
   minHeight = 200,
 }) => {
-  const theme = useTheme();
-
   return (
     <Box 
       display="flex" 
@@ -37,22 +35,11 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
       justifyContent="center" 
       alignItems="center" 
       minHeight={minHeight}
-      gap={theme.spacing(2)}
-      padding={theme.spacing(4)}
+      gap={2}
+      padding={4}
     >
-      <CircularProgress 
-        size={40}
-        sx={{
-          color: theme.palette.primary.main,
-        }}
-      />
-      <Typography 
-        variant="body2" 
-        sx={{
-          color: theme.palette.text.secondary,
-          fontSize: theme.typography.body2.fontSize,
-        }}
-      >
+      <CircularProgress size={40} />
+      <Typography variant="body2">
         {message}
       </Typography>
     </Box>

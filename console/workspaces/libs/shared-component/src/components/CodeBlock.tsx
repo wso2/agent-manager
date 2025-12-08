@@ -16,11 +16,11 @@
  * under the License.
  */
 
-import { Box, IconButton, Tooltip } from "@mui/material";
-import { ContentCopy } from "@mui/icons-material";
+import { Box, IconButton, Tooltip } from "@wso2/oxygen-ui";
+import { Copy as ContentCopy } from "@wso2/oxygen-ui-icons-react";
 import { useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { materialOceanic } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 interface CodeBlockProps {
     code: string;
@@ -72,22 +72,19 @@ export const CodeBlock = ({
                             top: 8,
                             zIndex: 1,
                             color: 'grey.400',
-                            bgcolor: 'rgba(0, 0, 0, 0.3)',
-                            '&:hover': {
-                                bgcolor: 'rgba(0, 0, 0, 0.5)',
-                            }
                         }}
                     >
-                        <ContentCopy fontSize="small" />
+                        <ContentCopy size={16} />
                     </IconButton>
                 </Tooltip>
             )}
             <SyntaxHighlighter
                 language={language}
-                style={oneDark}
+                style={
+                   materialOceanic
+                }
                 customStyle={{
-                    margin: 0,
-                    borderRadius: '4px',
+                    margin: 0
                 }}
             >
                 {code}

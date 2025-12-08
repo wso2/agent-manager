@@ -17,8 +17,8 @@
  */
 
 import { useListAgents } from "@agent-management-platform/api-client";
-import { Link, RocketLaunchOutlined } from "@mui/icons-material";
-import { Box, Card, CardContent, Divider, Typography, useTheme } from "@mui/material";
+import { Link, Rocket as RocketLaunchOutlined } from "@wso2/oxygen-ui-icons-react";
+import { Box, Card, CardContent, Divider, Typography} from "@wso2/oxygen-ui";
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 
@@ -40,16 +40,14 @@ const TypeLine = (props: {
 };
 export function AgentTypeSummery() {
     const { orgId } = useParams<{ orgId: string }>();
-    const { data } = useListAgents({ orgName: orgId ?? 'default', projName: 'default' });
-    const theme = useTheme();
-    const [externalCount, internalCount] = useMemo(() => {
+    const { data } = useListAgents({ orgName: orgId ?? 'default', projName: 'default' });    const [externalCount, internalCount] = useMemo(() => {
         return [data?.agents?.filter((agent) => agent.provisioning.type === 'external')?.length ?? 0, data?.agents?.filter((agent) => agent.provisioning.type === 'internal')?.length ?? 0];
     }, [data]);
 
     return (
-        <Card variant="elevation" sx={{ minWidth: theme.spacing(40) }}>
+        <Card variant="elevation" sx={{ minWidth: 40 }}>
             <CardContent>
-                <Box display="flex" flexDirection="column" gap={theme.spacing(1.5)}>
+                <Box display="flex" flexDirection="column" gap={1.5}>
                     <Typography variant='h6'>
                         Agent Types
                     </Typography>

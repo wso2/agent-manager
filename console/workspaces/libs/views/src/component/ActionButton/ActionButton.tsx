@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Button, useTheme } from "@mui/material";
+import { Button, useTheme } from "@wso2/oxygen-ui";
 
 export interface ActionButtonProps {
     children: React.ReactNode;

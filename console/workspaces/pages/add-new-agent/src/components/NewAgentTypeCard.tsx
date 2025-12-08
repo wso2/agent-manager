@@ -16,96 +16,86 @@
  * under the License.
  */
 
-import { Card, CardActionArea, CardContent, Box, Typography, alpha } from "@mui/material";
-import { ArrowForward } from "@mui/icons-material";
+import {
+  Card,
+  CardActionArea,
+  CardContent,
+  Box,
+  Typography,
+} from "@wso2/oxygen-ui";
 
 interface NewAgentTypeCardProps {
-    type: string;
-    title: string;
-    subheader: string;
-    icon: React.ReactNode;
-    content: React.ReactNode;
-    onClick: (type: string) => void;
+  type: string;
+  title: string;
+  subheader: string;
+  icon: React.ReactNode;
+  content: React.ReactNode;
+  onClick: (type: string) => void;
 }
 
 export const NewAgentTypeCard = (props: NewAgentTypeCardProps) => {
-    const { type, title, subheader, icon, content, onClick } = props;
+  const { type, title, subheader, icon, content, onClick } = props;
+  const handleClick = () => {
+    onClick(type);
+  };
 
-    const handleClick = () => {
-        onClick(type);
-    };
-
-    return (
-        <Card
-            variant="outlined"
-            sx={{
-                height: '100%',
-                transition: 'all 0.3s ease-in-out',
-                '&:hover': {
-                    boxShadow: 4,
-                    borderColor: 'primary.main',
-                    transform: 'translateY(-4px)',
-                },
-            }}
+  return (
+    <Card
+      variant="outlined"
+      elevation={0}
+      sx={{
+        width: 450,
+        transition: "all 0.3s ease-in-out",
+        "&.MuiCard-root": {
+          backgroundColor: "background.paper",
+        },
+        "&:hover": {
+          borderColor: "primary.main",
+        },
+      }}
+    >
+      <CardActionArea
+        onClick={handleClick}
+        sx={{
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
+        <CardContent
+          sx={{
+            flexGrow: 1,
+            display: "flex",
+            flexDirection: "column",
+            width: "100%",
+            p: 3,
+            justifyContent: "center",
+            alignItems: "center",
+          }}
         >
-            <CardActionArea
-                onClick={handleClick}
-                sx={{
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'stretch',
-                    justifyContent: 'flex-start',
-                }}
-            >
-                <CardContent sx={{ flexGrow: 1, width: '100%', p: 3 }}>
-                    {/* Icon Header */}
-                    <Box
-                        sx={{
-                            mb: 2,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: 64,
-                            height: 64,
-                            borderRadius: 2,
-                            bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
-                            color: 'primary.main',
-                        }}
-                    >
-                        {icon}
-                    </Box>
+          <Typography variant="h4" textAlign="center" gutterBottom>
+            {title}
+          </Typography>
 
-                    {/* Title and Subheader */}
-                    <Typography variant="h5" component="div" gutterBottom>
-                        {title}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        {subheader}
-                    </Typography>
-
-                    {/* Content */}
-                    <Box sx={{ mb: 2 }}>
-                        {content}
-                    </Box>
-
-                    {/* Call to Action */}
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1,
-                            color: 'primary.main',
-                            mt: 'auto',
-                        }}
-                    >
-                        <Typography variant="body2" fontWeight="medium">
-                            Get Started
-                        </Typography>
-                        <ArrowForward fontSize="small" />
-                    </Box>
-                </CardContent>
-            </CardActionArea>
-        </Card>
-    );
+          <Box
+            sx={{
+              color: "primary.main",
+            }}
+          >
+            {icon}
+          </Box>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            textAlign="center"
+            sx={{ mb: 2 }}
+          >
+            {subheader}
+          </Typography>
+          <Box sx={{ mb: 2 }}>{content}</Box>
+        </CardContent>
+      </CardActionArea>
+    </Card>
+  );
 };

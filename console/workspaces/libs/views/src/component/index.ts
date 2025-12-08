@@ -29,3 +29,6 @@ export * from './FadeIn';
 export * from "./Loader";
 export * from './EnvVariableEditor';
 export * from './TraceExplorer';
+export * from './Image';
+export * from './FormElements';
+export * from './Drawer';

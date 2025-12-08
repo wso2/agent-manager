@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, Typography, useTheme } from "@mui/material";
+import { Box, Typography, useTheme } from "@wso2/oxygen-ui";
 import { ReactNode } from "react";
 
 interface InfoFieldProps {
@@ -36,7 +36,7 @@ export function InfoField({ label, value, isMonospace = false }: InfoFieldProps)
                 sx={{ 
                     color: theme.palette.text.secondary, 
                     display: 'block', 
-                    mb: theme.spacing(0.5) 
+                    mb: 0.5 
                 }}
             >
                 {label}

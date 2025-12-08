@@ -42,20 +42,47 @@ export const rootRouteMap: AppRoute = {
                     newAgent: {
                         path: 'newAgent',
                         index: true,
-                        children: {},
+                        children: {
+                            create: {
+                                path: 'create',
+                                index: true,
+                                children: {},
+                            },
+                            connect: {
+                                path: 'connect',
+                                index: true,
+                                children: {},
+                            },
+                        },
                     },
                     agents: {
                         path: 'agents/:agentId',
                         index: true,
                         children: {
-                            traces:{
-                                // Note that this is for external component traces
-                                path: 'traces/:traceId',
+                            observe:{
+                                path: 'observe',
                                 index: true,
-                                children: {},
+                                children: {
+                                    traces: {
+                                        path: 'traces',
+                                        index: true,
+                                        children: {
+                                            traceDetails: {
+                                                path: ':traceId',
+                                                index: true,
+                                                children: {},
+                                            },
+                                        },
+                                    }
+                                }
                             },
                             build: {
                                 path: 'build',
+                                index: true,
+                                children: {},
+                            },
+                            deployment:{
+                                path: "deployment",
                                 index: true,
                                 children: {},
                             },
@@ -71,16 +98,33 @@ export const rootRouteMap: AppRoute = {
                                     tryOut: {
                                         path: 'tryOut',
                                         index: true,
-                                        children: {},
+                                        children: {
+                                            api:{
+                                                path: 'api',
+                                                index: true,
+                                                children: {},
+                                            },
+                                            chat:{
+                                                path: 'chat',
+                                                index: true,
+                                                children: {},
+                                            },
+                                        },
                                     },
                                     observability: {
                                         path: 'observability',
                                         index: true,
                                         children: {
                                             traces: {
-                                                path: 'traces/:traceId',
+                                                path: 'traces',
                                                 index: true,
-                                                children: {},
+                                                children: {
+                                                    traceDetails: {
+                                                        path: ':traceId',
+                                                        index: true,
+                                                        children: {},
+                                                    },
+                                                },
                                             },
                                         },
                                     },

@@ -45,16 +45,16 @@ export const addAgentSchema = yup.object({
   displayName: yup
     .string()
     .trim()
-    .required('Display Name is required')
-    .min(3, 'Display name must be at least 3 characters')
-    .max(100, 'Display name must be at most 100 characters'),
+    .required('Name is required')
+    .min(3, 'Name must be at least 3 characters')
+    .max(100, 'Name must be at most 100 characters'),
   name: yup
     .string()
     .trim()
-    .required('Agent Name is required')
-    .matches(/^[a-z0-9-]+$/, 'Agent name must be lowercase letters, numbers, and hyphens only (no spaces)')
-    .min(3, 'Agent name must be at least 3 characters')
-    .max(50, 'Agent name must be at most 50 characters'),
+    .required('Name is required')
+    .matches(/^[a-z0-9-]+$/, 'Name must be lowercase letters, numbers, and hyphens only (no spaces)')
+    .min(3, 'Name must be at least 3 characters')
+    .max(50, 'Name must be at most 50 characters'),
   language: yup.string().trim().when('deploymentType', {
     is: 'new',
     then: (schema) => schema.required('Language is required'),

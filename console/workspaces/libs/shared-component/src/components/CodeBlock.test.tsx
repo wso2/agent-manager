@@ -19,7 +19,7 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { CodeBlock } from './CodeBlock';
-import { ThemeProvider, createTheme } from '@mui/material';
+import { ThemeProvider, createTheme } from '@wso2/oxygen-ui';
 
 // Mock clipboard API
 Object.assign(navigator, {

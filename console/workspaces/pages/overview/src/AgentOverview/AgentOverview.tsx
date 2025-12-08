@@ -18,9 +18,8 @@
 
 import { useGetAgent } from "@agent-management-platform/api-client";
 import { InternalAgentOverview } from "./InternalAgentOverview";
-import { ExternalAgentOverview } from "./ExternalAgentOverview";
-import { metaData as tracesMetadata } from '@agent-management-platform/traces';
 import { useParams } from "react-router-dom";
+import { ExternalAgentOverview } from "./ExternalAgentOverview";
 
 export function AgentOverview() {
     const { orgId, agentId, projectId } = useParams();
@@ -37,10 +36,7 @@ export function AgentOverview() {
     }
     if (agent?.provisioning.type === 'external') {
         return (
-            <>
-                <ExternalAgentOverview />
-                <tracesMetadata.levels.component />
-            </>
+            <ExternalAgentOverview />
         )
     }
 

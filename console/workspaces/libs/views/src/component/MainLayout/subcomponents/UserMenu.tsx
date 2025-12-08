@@ -26,7 +26,7 @@ import {
   Typography,
   Divider,
   useTheme,
-} from '@mui/material';
+} from '@wso2/oxygen-ui';
 import { Link as RouterLink } from "react-router-dom"
 
 export interface UserMenuItem {
@@ -76,13 +76,13 @@ export function UserMenu({
       slotProps={{
         paper: {
           sx: {
-            minWidth: theme.spacing(24),
+            minWidth: 24,
           }
         }
       }}
     >
       {/* User Info Header */}
-      <Box sx={{ px: theme.spacing(2), py: theme.spacing(1.5), borderBottom: `1px solid ${theme.palette.divider}` }}>
+      <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
           {user.name}
         </Typography>

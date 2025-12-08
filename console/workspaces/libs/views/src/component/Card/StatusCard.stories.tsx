@@ -24,7 +24,7 @@ import {
   Timer as TimerIcon,
   Error as ErrorIcon,
   Warning as WarningIcon 
-} from '@mui/icons-material';
+} from '@wso2/oxygen-ui-icons-react';
 
 const meta: Meta<typeof StatusCard> = {
   title: 'Components/Card/StatusCard',

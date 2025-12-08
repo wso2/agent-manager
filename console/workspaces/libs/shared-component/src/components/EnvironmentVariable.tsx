@@ -16,8 +16,8 @@
  * under the License.
  */
 
-import { Box, Button, Typography } from "@mui/material";
-import { Add, SettingsApplications } from "@mui/icons-material";
+import { Box, Button, Typography } from "@wso2/oxygen-ui";
+import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import { EnvVariableEditor } from "@agent-management-platform/views";
 
@@ -30,16 +30,13 @@ export const EnvironmentVariable = () => {
 
     return (
         <Box display="flex" flexDirection="column" gap={2} width="100%">
-            <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
-                <SettingsApplications fontSize="medium" color="disabled" />
-                <Typography variant="h5">
-                    Environment Variables (Optional)
-                </Typography>
-            </Box>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="h6">
+                Environment Variables (Optional)
+            </Typography>
+            <Typography variant="body2">
                 Set environment variables for your agent deployment.
             </Typography>
-            <Box display="flex" flexDirection="column">
+            <Box display="flex" flexDirection="column" gap={2}>
                 {fields.map((field: any, index: number) => (
                     <EnvVariableEditor
                         key={field.id}

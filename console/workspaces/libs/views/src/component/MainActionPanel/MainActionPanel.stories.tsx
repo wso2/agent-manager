@@ -26,7 +26,7 @@ import {
   IconButton,
   Divider,
   Chip
-} from '@mui/material';
+} from '@wso2/oxygen-ui';
 import { 
   Save, 
   Cancel, 
@@ -36,7 +36,7 @@ import {
   Close,
   CheckCircle,
   Warning
-} from '@mui/icons-material';
+} from '@wso2/oxygen-ui-icons-react';
 
 const meta: Meta<typeof MainActionPanel> = {
   title: 'AI Agent Management/Views/MainActionPanel',

@@ -28,7 +28,9 @@ export type {
   TableColumn, 
   StatusConfig, 
   MetricsData, 
-  DataListingTableProps 
+  DataListingTableProps,
+  SortModel,
+  InitialState
 } from './DataListingTable';
 
 export type { TableHeaderProps } from './subcomponents/TableHeader';

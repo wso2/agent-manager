@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, Card, CardContent, Typography, alpha, useTheme } from "@mui/material";
+import { Box, Card, CardContent, Typography, alpha, useTheme } from "@wso2/oxygen-ui";
 import { useCallback } from "react";
 
 interface AttributesSectionProps {
@@ -80,7 +80,7 @@ export function AttributesSection({ attributes }: AttributesSectionProps) {
                 fontWeight="bold" 
                 sx={{ 
                     color: theme.palette.text.secondary, 
-                    mb: theme.spacing(1.5) 
+                    mb: 1.5 
                 }}
             >
                 Attributes
@@ -89,7 +89,7 @@ export function AttributesSection({ attributes }: AttributesSectionProps) {
                 sx={{ 
                     display: 'flex', 
                     flexDirection: 'column', 
-                    gap: theme.spacing(2) 
+                    gap: 2 
                 }}
             >
                 {Object.entries(attributes).map(([key, value]) => (
@@ -100,7 +100,7 @@ export function AttributesSection({ attributes }: AttributesSectionProps) {
                             sx={{
                                 color: theme.palette.text.secondary,
                                 display: 'block',
-                                mb: theme.spacing(0.75)
+                                mb: 0.75
                             }}
                         >
                             {key}
@@ -108,14 +108,14 @@ export function AttributesSection({ attributes }: AttributesSectionProps) {
                         <Card
                             variant="outlined"
                             sx={{
-                                maxHeight: isJsonObject(value) ? theme.spacing(37.5) : 'auto',
+                                maxHeight: isJsonObject(value) ? 375 : 'auto',
                                 overflow: 'auto',
                                 bgcolor: theme.palette.mode === 'dark' 
                                     ? alpha(theme.palette.common.black, 0.2)
                                     : alpha(theme.palette.common.black, 0.03),
                             }}
                         >
-                            <CardContent sx={{ '&:last-child': { pb: theme.spacing(1.5) } }}>
+                            <CardContent sx={{ '&:last-child': { pb: 1.5 } }}>
                                 <Typography 
                                     component="pre"
                                     variant="body2" 

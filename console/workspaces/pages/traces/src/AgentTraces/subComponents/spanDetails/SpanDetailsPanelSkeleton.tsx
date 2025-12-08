@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, Divider, Skeleton, useTheme } from "@mui/material";
+import { Box, Divider, Skeleton, useTheme } from "@wso2/oxygen-ui";
 
 export function SpanDetailsPanelSkeleton() {
     const theme = useTheme();
@@ -24,12 +24,12 @@ export function SpanDetailsPanelSkeleton() {
     return (
         <Box
             sx={{
-                width: theme.spacing(80),
-                p: theme.spacing(2),
+                width: 80,
+                p: 2,
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: theme.spacing(2),
+                gap: 2,
                 bgcolor: theme.palette.background.paper
             }}
         >
@@ -41,8 +41,8 @@ export function SpanDetailsPanelSkeleton() {
                     alignItems: 'center' 
                 }}
             >
-                <Skeleton variant="text" width={theme.spacing(20)} height={theme.spacing(5)} />
-                <Skeleton variant="circular" width={theme.spacing(4)} height={theme.spacing(4)} />
+                <Skeleton variant="text" width={20} height={5} />
+                <Skeleton variant="circular" width={4} height={4} />
             </Box>
             <Divider />
             
@@ -51,19 +51,19 @@ export function SpanDetailsPanelSkeleton() {
                 sx={{ 
                     display: 'flex', 
                     flexDirection: 'column', 
-                    gap: theme.spacing(2), 
+                    gap: 2, 
                     overflow: 'auto', 
                     flex: 1 
                 }}
             >
                 {/* Basic Info Section */}
                 <Box>
-                    <Skeleton variant="text" width={theme.spacing(18)} height={theme.spacing(3)} />
+                    <Skeleton variant="text" width={18} height={3} />
                     <Skeleton 
                         variant="rectangular" 
                         width="100%" 
-                        height={theme.spacing(30)} 
-                        sx={{ mt: theme.spacing(1.5), borderRadius: 1 }} 
+                        height={30} 
+                        sx={{ mt: 1.5, borderRadius: 1 }} 
                     />
                 </Box>
 
@@ -71,12 +71,12 @@ export function SpanDetailsPanelSkeleton() {
 
                 {/* Timing Section */}
                 <Box>
-                    <Skeleton variant="text" width={theme.spacing(12)} height={theme.spacing(3)} />
+                    <Skeleton variant="text" width={12} height={3} />
                     <Skeleton 
                         variant="rectangular" 
                         width="100%" 
-                        height={theme.spacing(20)} 
-                        sx={{ mt: theme.spacing(1.5), borderRadius: 1 }} 
+                        height={20} 
+                        sx={{ mt: 1.5, borderRadius: 1 }} 
                     />
                 </Box>
 
@@ -84,12 +84,12 @@ export function SpanDetailsPanelSkeleton() {
 
                 {/* Status Section */}
                 <Box>
-                    <Skeleton variant="text" width={theme.spacing(10)} height={theme.spacing(3)} />
+                    <Skeleton variant="text" width={10} height={3} />
                     <Skeleton 
                         variant="rectangular" 
                         width="100%" 
-                        height={theme.spacing(15)} 
-                        sx={{ mt: theme.spacing(1.5), borderRadius: 1 }} 
+                        height={15} 
+                        sx={{ mt: 1.5, borderRadius: 1 }} 
                     />
                 </Box>
 
@@ -97,16 +97,16 @@ export function SpanDetailsPanelSkeleton() {
 
                 {/* Attributes Section */}
                 <Box>
-                    <Skeleton variant="text" width={theme.spacing(14)} height={theme.spacing(3)} />
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: theme.spacing(2), mt: theme.spacing(1.5) }}>
+                    <Skeleton variant="text" width={14} height={3} />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1.5 }}>
                         {[...Array(3)].map((_, index) => (
                             <Box key={index}>
-                                <Skeleton variant="text" width={theme.spacing(20)} height={theme.spacing(2.5)} />
+                                <Skeleton variant="text" width={20} height={2.5} />
                                 <Skeleton 
                                     variant="rectangular" 
                                     width="100%" 
-                                    height={theme.spacing(12)} 
-                                    sx={{ mt: theme.spacing(0.75), borderRadius: 1 }} 
+                                    height={12} 
+                                    sx={{ mt: 0.75, borderRadius: 1 }} 
                                 />
                             </Box>
                         ))}

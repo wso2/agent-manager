@@ -16,8 +16,8 @@
  * under the License.
  */
 
-import { Box, Typography, useTheme } from "@mui/material";
-import { SearchOffOutlined } from "@mui/icons-material";
+import { Box, Typography} from "@wso2/oxygen-ui";
+import { SearchX as SearchOffOutlined } from "@wso2/oxygen-ui-icons-react";
 import { FadeIn } from "../FadeIn/FadeIn";
 import { ReactNode } from "react";
 
@@ -33,9 +33,7 @@ export function NoDataFound({
     action,
     icon,
     subtitle
-}: NoDataFoundProps) {
-    const theme = useTheme();
-    return (
+}: NoDataFoundProps) {    return (
         <FadeIn>
             <Box sx={{
                 display: 'flex',
@@ -44,9 +42,14 @@ export function NoDataFound({
                 alignItems: 'center',
                 height: '100%',
                 color: 'text.secondary',
-                p: theme.spacing(2)
+                p: 2,
+                gap: 1
             }}>
-                {icon || <SearchOffOutlined sx={{ fontSize: 100, mb: 2, opacity: 0.2 }} color="inherit" />}
+                {icon || (
+                    <Box sx={{ fontSize: 100, mb: 2, opacity: 0.2, display: 'inline-flex' }}>
+                        <SearchOffOutlined size={100} color="primary" />
+                    </Box>
+                )}
                 <Typography variant="h6" align="center" color="textSecondary" sx={{ mb: subtitle ? 1 : 2 }}>
                     {message}
                 </Typography>

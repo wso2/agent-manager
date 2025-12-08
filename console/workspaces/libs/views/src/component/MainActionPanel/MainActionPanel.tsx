@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { alpha, Box, BoxProps, useTheme } from '@mui/material';
+import { alpha, Box, BoxProps, useTheme } from '@wso2/oxygen-ui';
 import clsx from 'clsx';
 
 export interface MainActionPanelProps extends Omit<BoxProps, 'children'> {

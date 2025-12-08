@@ -19,7 +19,7 @@
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { generatePath, Navigate, useLocation } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
-import { Button, Box, Typography } from "@mui/material";
+import { Button, Box, Typography } from "@wso2/oxygen-ui";
 
 export function Login() {
     const { isAuthenticated, login, userInfo } = useAuthHooks();

@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box } from "@mui/material";
+import { Box } from "@wso2/oxygen-ui";
 
 interface FadeInProps {
     children: React.ReactNode;

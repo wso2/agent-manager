@@ -16,56 +16,97 @@
  * under the License.
  */
 
-import React, { useMemo, useState } from 'react';
-import { Box, Collapse, useTheme } from '@mui/material';
-import { TopCards } from './subComponents/TopCards';
-import { TracesTable } from './subComponents/TracesTable';
-import { FadeIn } from '@agent-management-platform/views';
-import { useMatch, useParams } from 'react-router-dom';
-import { TraceDetails } from './subComponents/TraceDetails';
-import { absoluteRouteMap, TraceListTimeRange } from '@agent-management-platform/types';
-import { useGetAgent } from '@agent-management-platform/api-client';
+import React, { useState } from "react";
+import { Box } from "@wso2/oxygen-ui";
+import { TracesTable } from "@agent-management-platform/shared-component";
+import { FadeIn, PageLayout } from "@agent-management-platform/views";
+import { generatePath, Route, Routes, useParams } from "react-router-dom";
+import { TraceDetails } from "./subComponents/TraceDetails";
+import {
+  absoluteRouteMap,
+  relativeRouteMap,
+  TraceListTimeRange,
+} from "@agent-management-platform/types";
+import { useGetAgent } from "@agent-management-platform/api-client";
 
 export const AgentTraces: React.FC = () => {
-  const { agentId, orgId, projectId } = useParams();
+  const { agentId, orgId, projectId, envId } = useParams();
   const { data: agent } = useGetAgent({
-    orgName: orgId ?? '',
-    projName: projectId ?? '',
-    agentName: agentId ?? '',
+    orgName: orgId ?? "",
+    projName: projectId ?? "",
+    agentName: agentId ?? "",
   });
-  const theme = useTheme();
-  const [timeRange, setTimeRange] = useState<TraceListTimeRange>(TraceListTimeRange.ONE_DAY);
-  const absoluteRoutePattern = useMemo(() => {
-    if (agent?.provisioning.type === "internal") {
-      return absoluteRouteMap.children.org.
-        children.projects.children.agents.children.environment.
-        children.observability.children.traces.path
-    }
-    return absoluteRouteMap.children.org.children.projects.children.agents.children.traces.path;
-  }, [agent]);
-  const isTraceDetails = useMatch(absoluteRoutePattern);
+  const [timeRange, setTimeRange] = useState<TraceListTimeRange>(
+    TraceListTimeRange.ONE_DAY
+  );
+
   return (
     <FadeIn>
       <Box
         sx={{
-          pt: theme.spacing(1),
-          gap: theme.spacing(2),
-          display: 'flex',
-          flexDirection: 'column'
+          display: "flex",
+          pb: 2,
+          flexDirection: "column",
         }}
       >
-        <Collapse in={!isTraceDetails}>
-          <TopCards timeRange={timeRange} />
-        </Collapse>
-        {
-          isTraceDetails ? (
-            <TraceDetails />
-          ) : (
-            <TracesTable timeRange={timeRange} setTimeRange={setTimeRange} />
-          )
-        }
+        <Routes>
+          <Route
+            path={
+              agent?.provisioning.type === "internal"
+                ? relativeRouteMap.children.org.children.projects.children
+                    .agents.children.environment.children.observability.children
+                    .traces.path + "/*"
+                : relativeRouteMap.children.org.children.projects.children
+                    .agents.children.observe.children.traces.path + "/*"
+            }
+          >
+            <Route
+              index
+              element={
+                <PageLayout title="Traces" disableIcon>
+                  <TracesTable
+                    orgId={orgId ?? "default"}
+                    projectId={projectId ?? "default"}
+                    agentId={agentId ?? "default"}
+                    envId={envId ?? "default"}
+                    timeRange={timeRange}
+                    setTimeRange={setTimeRange}
+                  />
+                </PageLayout>
+              }
+            />
+            <Route
+              path={
+                agent?.provisioning.type === "internal"
+                  ? relativeRouteMap.children.org.children.projects.children
+                      .agents.children.environment.children.observability
+                      .children.traces.children.traceDetails.path
+                  : relativeRouteMap.children.org.children.projects.children
+                      .agents.children.observe.children.traces.children
+                      .traceDetails.path
+              }
+              element={
+                <PageLayout
+                  title="Trace Details"
+                  backLabel="Back to Traces"
+                  disableIcon
+                  backHref={generatePath(
+                    agent?.provisioning.type === "internal"
+                      ? absoluteRouteMap.children.org.children.projects.children
+                      .agents.children.environment.children.observability.children
+                      .traces.path
+                      : absoluteRouteMap.children.org.children.projects.children
+                      .agents.children.observe.children.traces.path,
+                    { orgId, projectId, agentId, envId }
+                  )}
+                >
+                  <TraceDetails />
+                </PageLayout>
+              }
+            />
+          </Route>
+        </Routes>
       </Box>
     </FadeIn>
   );
 };
-

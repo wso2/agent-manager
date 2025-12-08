@@ -19,12 +19,12 @@
 import { DeployComponent } from './Deploy.Component';
 import { DeployProject } from './Deploy.Project';
 import { DeployOrganization } from './Deploy.Organization';
-import { Dashboard } from '@mui/icons-material';
+import { Rocket as RocketLaunchOutlined } from '@wso2/oxygen-ui-icons-react';
 
 export const metaData = {
-  title: 'Deploy',
+  title: 'Deployment',
   description: 'A page component for Deploy',
-  icon: Dashboard,
+  icon: RocketLaunchOutlined,
   path: '/deploy',
   component: DeployComponent,
   levels: {

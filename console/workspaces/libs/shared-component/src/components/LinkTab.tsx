@@ -17,12 +17,12 @@
  */
 
 import {
-    BusinessSharp,
-    CircleOutlined, 
-    CircleRounded,
-    WarningRounded,
-} from "@mui/icons-material";
-import { Box, Button, ButtonGroup, useTheme } from "@mui/material";
+    Store as BusinessSharp,
+    Circle as CircleOutlined, 
+    Circle as CircleRounded,
+    AlertTriangle as WarningRounded,
+} from "@wso2/oxygen-ui-icons-react";
+import { Box, Button, ButtonGroup, CircularProgress, useTheme } from "@wso2/oxygen-ui";
 import { Link } from "react-router-dom";
 
 export enum TabStatus {
@@ -41,14 +41,14 @@ export interface LinkTabProps {
 }
 
 
-const getTabIcon = (status: TabStatus, isSelected: boolean) => {
+export const getTabIcon = (status: TabStatus, isSelected: boolean) => {
     switch (status) {
         case TabStatus.ACTIVE:
             return <CircleRounded color={"success"} />;
         case TabStatus.ERROR:
             return <WarningRounded color={isSelected ? "inherit" : "error"} />;
         case TabStatus.DEPLOYING:
-            return <CircleRounded color={isSelected ? "inherit" : "warning"} />;
+            return <CircularProgress color={isSelected ? "inherit" : "warning"} />;
         default: // INACTIVE
             return <CircleOutlined color={isSelected ? "inherit" : "disabled"} />;
     }

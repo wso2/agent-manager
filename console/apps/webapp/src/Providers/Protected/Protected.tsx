@@ -36,8 +36,8 @@ export const Protected = ({ children }: { children: React.ReactNode }) => {
     if (!isAuthenticated) {
         navigate(generatePath(absoluteRouteMap.children.login.path), { state: { from: pathname } });
     } else if (organizations?.organizations?.length && !orgId) {
-        navigate(generatePath(absoluteRouteMap.children.org.path, 
-            { orgId: organizations?.organizations[0].name }), { state: { from: pathname } });
+        navigate(generatePath(absoluteRouteMap.children.org.children.projects.path, 
+            { orgId: organizations?.organizations[0].name, projectId: 'default' }), { state: { from: pathname } });
     }
 
     return (

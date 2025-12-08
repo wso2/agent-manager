@@ -16,8 +16,8 @@
  * under the License.
  */
 
-import { Box, Button, Card, CardContent, Typography } from "@mui/material";
-import { Add, SettingsApplications } from "@mui/icons-material";
+import { Box, Button, Card, CardContent, Typography } from "@wso2/oxygen-ui";
+import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import { EnvVariableEditor } from "@agent-management-platform/views";
 
@@ -32,15 +32,11 @@ export const EnvironmentVariable = () => {
         <Card variant="outlined">
             <CardContent>
                 <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
-                    <SettingsApplications fontSize="medium" color="disabled" />
                     <Typography variant="h5">
                         Environment Variables (Optional)
                     </Typography>
                 </Box>
-                <Typography variant="body2" color="text.secondary">
-                    Set environment variables for your agent.
-                </Typography>
-                <Box display="flex" flexDirection="column" pt={2} gap={2}>
+                <Box display="flex" flexDirection="column" py={2} gap={2}>
                     {fields.map((field: any, index: number) => (
                         <EnvVariableEditor
                             key={field.id}
@@ -54,7 +50,7 @@ export const EnvironmentVariable = () => {
                     ))}
                 </Box>
                 <Button startIcon={<Add fontSize="small" />} disabled={isOneEmpty} variant="outlined" color="primary" onClick={() => append({ key: '', value: '' })}>
-                    Add Environment Variable
+                    Add
                 </Button>
             </CardContent>
         </Card>

@@ -16,8 +16,8 @@
  * under the License.
  */
 
-import { Box } from "@mui/material";
-import { ChatBubbleOutline as ChatBubbleIcon, AnalyticsOutlined } from '@mui/icons-material';
+import { Box } from "@wso2/oxygen-ui";
+import { MessageCircle as ChatBubbleIcon, BarChart3 as AnalyticsOutlined } from '@wso2/oxygen-ui-icons-react';
 import { GroupNavLinks, SubTopNavBar } from "./SubTopNavBar";
 import { generatePath, matchPath, Outlet, useLocation, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
@@ -30,7 +30,7 @@ export const EnvSubNavBar = () => {
             id: 'overview',
             navLinks: [
                 {
-                    id: 'try-out',
+                    id: 'Try Out',
                     label: 'Try Out',
                     icon: <ChatBubbleIcon />,
                     isActive: !!matchPath(
@@ -45,7 +45,7 @@ export const EnvSubNavBar = () => {
                     isActive: !!matchPath(
                         absoluteRouteMap.children.org.children.projects.children.
                             agents.children.environment.children.observability.wildPath, pathname),
-                    path: generatePath(absoluteRouteMap.children.org.children.projects.children.agents.children.environment.children.observability.path, { orgId: orgId ?? 'default', projectId: projectId ?? 'default', agentId: agentId ?? 'default', envId: envId ?? 'default' })
+                    path: generatePath(absoluteRouteMap.children.org.children.projects.children.agents.children.environment.children.observability.children.traces.path, { orgId: orgId ?? 'default', projectId: projectId ?? 'default', agentId: agentId ?? 'default', envId: envId ?? 'default' })
                 }
             ]
         }

@@ -19,12 +19,12 @@
 import { OverviewComponent } from './Overview.Component';
 import { OverviewProject } from './Overview.Project';
 import { OverviewOrganization } from './Overview.Organization';
-import { Dashboard } from '@mui/icons-material';
+import { Home } from '@wso2/oxygen-ui-icons-react';
 
 export const metaData = {
   title: 'Overview',
   description: 'A page component for Overview',
-  icon: Dashboard,
+  icon: Home,
   path: '/overview',
   component: OverviewComponent,
   levels: {

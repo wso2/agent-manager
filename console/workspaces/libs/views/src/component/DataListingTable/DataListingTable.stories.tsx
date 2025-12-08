@@ -18,7 +18,7 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 import { DataListingTable, TableColumn, renderStatusChip, renderMetrics } from './DataListingTable';
-import { Box, Typography, Chip } from '@mui/material';
+import { Box, Typography, Chip } from '@wso2/oxygen-ui';
 
 const meta: Meta<typeof DataListingTable> = {
   title: 'AI Agent Management/Views/DataListingTable',

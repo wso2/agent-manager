@@ -23,13 +23,19 @@ import {
   ListItemButton,
   ListItemText,
   useTheme,
-  Typography,
-  alpha,
-  Divider,
   Collapse,
   Tooltip,
-} from '@mui/material';
-import { ArrowDropDownOutlined, ArrowDropUpOutlined, ChevronLeftOutlined, ChevronRightOutlined, Menu } from '@mui/icons-material';
+  Skeleton,
+  Layout,
+  ListItemIcon,
+} from '@wso2/oxygen-ui';
+import {
+  ChevronDown as ArrowDropDownOutlined,
+  ChevronUp as ArrowDropUpOutlined,
+  ChevronLeft as ChevronLeftOutlined,
+  ChevronRight as ChevronRightOutlined,
+  Menu,
+} from '@wso2/oxygen-ui-icons-react';
 import { NavigationItemButton } from './NavigationItemButton';
 export interface NavigationItem {
   label: string;
@@ -46,7 +52,6 @@ export interface NavigationSection {
   type: 'section';
 }
 
-
 export interface SidebarProps {
   /** Whether the sidebar is collapsed (icons only) */
   sidebarOpen?: boolean;
@@ -58,6 +63,8 @@ export interface SidebarProps {
   isMobile?: boolean;
   /** Callback when navigation item is clicked */
   onNavigationClick?: () => void;
+  /** Drawer width */
+  drawerWidth: number | string;
 }
 
 // Action Button Component (internal to Sidebar, for buttons without href)
@@ -78,57 +85,34 @@ function ActionButton({
   sidebarOpen = true,
   subIcon,
 }: ActionButtonProps) {
-  const theme = useTheme();
-
   return (
     <Tooltip title={title} placement="right" disableHoverListener={sidebarOpen}>
       <ListItemButton
         onClick={onClick}
         selected={isSelected}
         sx={{
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: theme.spacing(5.5),
-          gap: 0.5,
-          m: 0,
-          transition: theme.transitions.create('all', { duration: theme.transitions.duration.short }),
-          '&.Mui-selected': {
-            backgroundColor: alpha(theme.palette.secondary.light, 0.4),
-            '&:hover': {
-              backgroundColor: alpha(theme.palette.secondary.light, 0.3),
-              opacity: 1,
-            },
-          },
-          '&:hover': {
-            backgroundColor: alpha(theme.palette.secondary.light, 0.2),
-            opacity: 1,
-          },
+          px: 1.5,
+          height: 44,
         }}
       >
         {icon && (
-          <Box sx={{ color: theme.palette.secondary.light }} display="flex" justifyContent="center" alignItems="center">
+          <ListItemIcon sx={{ minWidth: 40 }}>
             {icon}
-            {
-              subIcon && (
-                <Box sx={{ position: 'absolute', right: 0, top: 12, opacity: 0.5 }}>
-                  {subIcon}
-                </Box>
-              )}
-          </Box>
+            {subIcon && (
+              <Box
+                sx={{ position: 'absolute', right: 6, top: 12, opacity: 0.5 }}
+              >
+                {subIcon}
+              </Box>
+            )}
+          </ListItemIcon>
         )}
         {sidebarOpen && (
           <ListItemText
-            primary={
-              <Typography
-                variant="body2"
-                noWrap
-                sx={{
-                  color: theme.palette.secondary.light,
-                }}
-              >
-                {title}
-              </Typography>
-            }
+            sx={{
+              textWrap: 'nowrap',
+            }}
+            primary={title}
           />
         )}
       </ListItemButton>
@@ -142,10 +126,12 @@ export function Sidebar({
   navigationSections,
   isMobile = false,
   onNavigationClick,
+  drawerWidth,
 }: SidebarProps) {
   const theme = useTheme();
-  const drawerWidth = sidebarOpen ? theme.spacing(30) : theme.spacing(8); // 240px : 64px
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    new Set()
+  );
 
   const handleSectionToggle = (sectionTitle: string) => {
     setExpandedSections((prev) => {
@@ -159,63 +145,87 @@ export function Sidebar({
     });
   };
 
-  const isSectionExpanded = (sectionTitle: string) => expandedSections.has(sectionTitle);
+  const isSectionExpanded = (sectionTitle: string) =>
+    expandedSections.has(sectionTitle);
 
   return (
-    <Box
+    <Layout.Sidebar
       sx={{
         width: drawerWidth,
-        transition: theme.transitions.create('width', { duration: theme.transitions.duration.short }),
-        paddingTop: theme.spacing(10),
-        background: `linear-gradient(45deg, ${alpha(theme.palette.secondary.main, 1)} 0%, ${alpha(theme.palette.primary.main, 1)} 100%)`,
-        height: '100%',
-        overflowY: 'auto',
+        pt: 1,
+        px: 1,
         display: 'flex',
-        flexDirection: 'column',
+        borderRight: 1, 
+        borderColor: 'divider' ,
         justifyContent: 'space-between',
+        flexDirection: 'column',
+        bgcolor: 'background.default',
+        transition: theme.transitions.create('all', {
+          duration: theme.transitions.duration.short,
+        }),
       }}
     >
-      <Box sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        width: '100%',
-        gap: 0.5,
-      }}>
-        {navigationSections.map((navItem) => (
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          width: '100%',
+          gap: 1,
+        }}
+      >
+        {navigationSections.length === 0 && (
+          <Box display="flex" flexDirection="column" gap={1}>
+            <Skeleton
+              variant="rounded"
+              height={44}
+              width="100%"
+            />
+            <Skeleton
+              variant="rounded"
+              height={44}
+              width="100%"
+            />
+            <Skeleton
+              variant="rounded"
+              height={44}
+              width="100%"
+            />
+          </Box>
+        )}
+        {navigationSections.map((navItem) =>
           navItem.type === 'section' ? (
             <Box
               key={navItem.title}
               display="flex"
               flexDirection="column"
               sx={{
-                backgroundColor: (navItem.items.some(item => item.isActive)
-                  && !isSectionExpanded(navItem.title))
-                  ? alpha(
-                    theme.palette.primary.light, 0.2) : alpha(theme.palette.primary.dark, 0.1),
-                outline: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                borderRadius: theme.spacing(1),
-                mx: theme.spacing(1),
-                gap: 0.5,
+                borderRadius: 0.5,
               }}
             >
               <ActionButton
                 title={navItem.title}
-                icon={navItem.icon ?? <Menu fontSize="small" />}
+                icon={navItem.icon ?? <Menu size={16} />}
                 onClick={() => handleSectionToggle(navItem.title)}
                 sidebarOpen={sidebarOpen}
-                subIcon={isSectionExpanded(navItem.title) ? <ArrowDropUpOutlined fontSize="small" /> : <ArrowDropDownOutlined fontSize="small" />}
-              // isSelected={isSectionExpanded(navItem.title)}
+                subIcon={
+                  isSectionExpanded(navItem.title) ? (
+                    <ArrowDropUpOutlined size={16} />
+                  ) : (
+                    <ArrowDropDownOutlined size={16} />
+                  )
+                }
+                isSelected={
+                  navItem.items.some((item) => item.isActive) &&
+                  !isSectionExpanded(navItem.title)
+                }
               />
-              <Collapse in={isSectionExpanded(navItem.title)} timeout="auto" unmountOnExit>
+              <Collapse
+                in={isSectionExpanded(navItem.title)}
+                timeout="auto"
+                unmountOnExit
+              >
                 <List
                   key={navItem.title}
-                  sx={{
-                    p: 0,
-                    m: 0,
-                    gap: 0.5,
-                    display: 'flex',
-                    flexDirection: 'column',
-                  }}
                 >
                   {navItem.items.map((item, itemIndex) => (
                     <NavigationItemButton
@@ -231,7 +241,6 @@ export function Sidebar({
               </Collapse>
             </Box>
           ) : (
-            <Box key={navItem.label} px={1}>
               <NavigationItemButton
                 key={navItem.label}
                 item={{
@@ -246,20 +255,24 @@ export function Sidebar({
                 isMobile={isMobile}
                 onNavigationClick={onNavigationClick}
               />
-            </Box>
+       
           )
-        ))}
+        )}
       </Box>
       <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
-        <Divider sx={{ backgroundColor: alpha(theme.palette.secondary.contrastText, 0.2) }} orientation="horizontal" />
         <ActionButton
-          icon={sidebarOpen ? <ChevronLeftOutlined fontSize="medium" /> : <ChevronRightOutlined fontSize="small" />}
+          icon={
+            sidebarOpen ? (
+              <ChevronLeftOutlined fontSize="medium" />
+            ) : (
+              <ChevronRightOutlined fontSize="small" />
+            )
+          }
           title={sidebarOpen ? 'Collapse' : 'Expand'}
           onClick={onSidebarToggle}
           sidebarOpen={sidebarOpen}
         />
       </Box>
-    </Box >
-
+    </Layout.Sidebar>
   );
 }

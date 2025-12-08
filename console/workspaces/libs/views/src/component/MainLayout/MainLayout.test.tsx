@@ -17,8 +17,8 @@
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { ThemeProvider } from '@mui/material/styles';
-import { CssBaseline } from '@mui/material';
+import { ThemeProvider } from '@wso2/oxygen-ui';
+import { CssBaseline } from '@wso2/oxygen-ui';
 import { describe, it, expect, vi } from 'vitest';
 import { MainLayout } from './MainLayout';
 import { aiAgentTheme } from '../../theme';
@@ -37,18 +37,6 @@ describe('MainLayout', () => {
     renderWithTheme(<MainLayout />);
     
     expect(screen.getByText('AI Agent Manager')).toBeInTheDocument();
-  });
-
-  it('renders with custom app title', () => {
-    renderWithTheme(<MainLayout appTitle="Custom App" />);
-    
-    expect(screen.getByText('Custom App')).toBeInTheDocument();
-  });
-
-  it('hides app title when showAppTitle is false', () => {
-    renderWithTheme(<MainLayout showAppTitle={false} />);
-    
-    expect(screen.queryByText('AI Agent Manager')).not.toBeInTheDocument();
   });
 
   it('renders user avatar when user is provided', () => {
@@ -151,14 +139,6 @@ describe('MainLayout', () => {
     renderWithTheme(<MainLayout rightElements={rightElements} />);
     
     expect(screen.getByText('Right Button')).toBeInTheDocument();
-  });
-
-  it('renders custom logo when provided', () => {
-    const logo = <div data-testid="custom-logo">Logo</div>;
-    
-    renderWithTheme(<MainLayout logo={logo} />);
-    
-    expect(screen.getByTestId('custom-logo')).toBeInTheDocument();
   });
 
   it('closes mobile drawer when navigation item is clicked', async () => {

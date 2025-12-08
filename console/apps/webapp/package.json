@@ -42,7 +42,9 @@
     "@agent-management-platform/build": "workspace:*",
     "@agent-management-platform/deploy": "workspace:*",
     "@agent-management-platform/test": "workspace:*",
-    "@agent-management-platform/traces": "workspace:*"
+    "@agent-management-platform/traces": "workspace:*",
+    "@wso2/oxygen-ui-icons-react": "0.0.1-alpha.9",
+    "@wso2/oxygen-ui": "0.0.1-alpha.9"
   },
   "devDependencies": {
     "@types/node": "24.6.0",

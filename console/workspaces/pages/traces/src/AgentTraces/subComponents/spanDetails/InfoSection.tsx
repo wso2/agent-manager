@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, Card, CardContent, Typography, useTheme } from "@mui/material";
+import { Box, Card, CardContent, Typography, useTheme } from "@wso2/oxygen-ui";
 import { ReactNode } from "react";
 
 interface InfoSectionProps {
@@ -34,7 +34,7 @@ export function InfoSection({ title, children }: InfoSectionProps) {
                 fontWeight="bold" 
                 sx={{ 
                     color: theme.palette.text.secondary, 
-                    mb: theme.spacing(1.5) 
+                    mb: 1.5 
                 }}
             >
                 {title}
@@ -45,7 +45,7 @@ export function InfoSection({ title, children }: InfoSectionProps) {
                         sx={{ 
                             display: 'flex', 
                             flexDirection: 'column', 
-                            gap: theme.spacing(2) 
+                            gap: 2 
                         }}
                     >
                         {children}

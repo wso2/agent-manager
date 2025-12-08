@@ -17,11 +17,10 @@
  */
 
 import React from 'react';
-import { Box, useTheme } from '@mui/material';
+import { Box } from '@wso2/oxygen-ui';
 import { NoDataFound } from '../../NoDataFound/NoDataFound';
 
 export const EmptyState: React.FC = () => {
-  const theme = useTheme();
   return (
     <Box 
       display="flex" 
@@ -29,17 +28,10 @@ export const EmptyState: React.FC = () => {
       justifyContent="center" 
       alignItems="center" 
       minHeight={200}
-      gap={theme.spacing(2)}
-      padding={theme.spacing(4)}
-      sx={{
-        boxShadow: theme.shadows[1],
-        backgroundColor: theme.palette.background.paper,
-        borderRadius: theme.shape.borderRadius,
-      }}
+      gap={2}
+      padding={4}
     >
-      <NoDataFound
-        message="No data found"
-      />
+      <NoDataFound message="No data found" />
     </Box>
   );
 };

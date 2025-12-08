@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, Chip, Typography, useTheme } from "@mui/material";
+import { Box, Chip, Typography, useTheme } from "@wso2/oxygen-ui";
 import { Span } from "@agent-management-platform/types";
 import { InfoSection } from "./InfoSection";
 
@@ -36,7 +36,7 @@ export function StatusSection({ span }: StatusSectionProps) {
                     sx={{ 
                         color: theme.palette.text.secondary, 
                         display: 'block', 
-                        mb: theme.spacing(0.5) 
+                        mb: 0.5 
                     }}
                 >
                     Kind
@@ -51,7 +51,7 @@ export function StatusSection({ span }: StatusSectionProps) {
                     sx={{ 
                         color: theme.palette.text.secondary, 
                         display: 'block', 
-                        mb: theme.spacing(0.5) 
+                        mb: 0.5 
                     }}
                 >
                     Status

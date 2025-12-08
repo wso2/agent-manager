@@ -18,11 +18,10 @@
 
 import { useAuthHooks } from '@agent-management-platform/auth';
 import { Outlet, useParams, useNavigate, generatePath } from "react-router-dom";
-import { Box } from '@mui/material';
+import { Box } from '@wso2/oxygen-ui';
 import { useNavigationItems } from './navigationItems';
 import { createUserMenuItems } from './userMenuItems';
-import { MainLayout } from '@agent-management-platform/views';
-import { ThemeSelector } from '../components/ThemeSelector';
+import { displayProvisionTypes, MainLayout } from '@agent-management-platform/views';
 import { useListAgents, useListOrganizations, useListProjects } from '@agent-management-platform/api-client';
 import { absoluteRouteMap } from '@agent-management-platform/types';
 import { useMemo } from 'react';
@@ -53,6 +52,7 @@ export function Layout() {
 
   return (
     <MainLayout
+      sidebarCollapsed={false}
       user={{
         name: userInfo?.displayName ?? userInfo?.username ?? '',
         email: userInfo?.username ?? userInfo?.orgHandle ?? '',
@@ -86,6 +86,7 @@ export function Layout() {
         options: agents?.agents?.map((agent) => ({
           id: agent.name,
           label: agent.displayName,
+          typeLabel: displayProvisionTypes(agent.provisioning.type),
         })) ?? [],
         onChange: (value) => {
           navigate(generatePath(
@@ -111,8 +112,6 @@ export function Layout() {
     ]}
       userMenuItems={createUserMenuItems(orgId ?? '', logout)}
       navigationItems={navigationItems}
-      rightElements={
-        <ThemeSelector />}
     >
       <Box
         p={1}

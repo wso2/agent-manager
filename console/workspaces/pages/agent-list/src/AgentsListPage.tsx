@@ -17,9 +17,9 @@
  */
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { Box, TextField, Typography, Avatar, ButtonBase, Button, Alert, useTheme, Tooltip, Skeleton, Chip, alpha } from '@mui/material';
-import { AccessTimeRounded, Add, DeleteOutlineOutlined, SearchRounded } from '@mui/icons-material';
-import { PageLayout, DataListingTable, TableColumn, BackgoundLoader, NoDataFound, FadeIn } from '@agent-management-platform/views';
+import { Box, TextField, Typography, Avatar, ButtonBase, Button, Alert, useTheme, Tooltip, Skeleton, Chip, alpha } from '@wso2/oxygen-ui';
+import { Clock as AccessTimeRounded, Plus as Add, Trash2 as DeleteOutlineOutlined, Search as SearchRounded } from '@wso2/oxygen-ui-icons-react';
+import { PageLayout, DataListingTable, TableColumn, BackgoundLoader, NoDataFound, FadeIn, InitialState } from '@agent-management-platform/views';
 import { generatePath, Link, useNavigate, useParams } from 'react-router-dom';
 import { absoluteRouteMap, AgentResponse, Provisioning } from '@agent-management-platform/types';
 import { useListAgents, useDeleteAgent } from '@agent-management-platform/api-client';
@@ -117,10 +117,8 @@ export const AgentsListPage: React.FC = () => {
               <Avatar
                 variant='circular'
                 sx={{
-                  // backgroundColor: alpha(theme.palette.secondary.main, 0.2),
-                  background: `linear-gradient(to right, ${alpha(theme.palette.secondary.main, 0.1)}, ${alpha(theme.palette.primary.main, 0.1)})`,
-                  color: theme.palette.secondary.main,
-                  // fontWeight: 'bold',
+                  backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                  color: theme.palette.primary.main,
                   height: 40,
                   width: 40,
                 }}
@@ -210,6 +208,16 @@ export const AgentsListPage: React.FC = () => {
     },
   ] as TableColumn<AgentWithHref>[], [theme, handleDeleteAgent, hoveredAgentId, isTouchDevice]);
 
+  // Define initial state for sorting - most recently updated agents first
+  const tableInitialState: InitialState<AgentWithHref> = useMemo(() => ({
+    sorting: {
+      sortModel: [{
+        field: 'createdAt',
+        sort: 'desc'
+      }]
+    }
+  }), []);
+
   if (isLoading) {
     return <ListPageSkeleton />;
   }
@@ -238,8 +246,8 @@ export const AgentsListPage: React.FC = () => {
               sx={{
                 m: 0,
               }}
-              variant='standard'
-              placeholder='Search agents'
+              variant='outlined'
+              placeholder='Search agents '
               disabled={!data?.agents?.length}
             />
             <Button
@@ -254,8 +262,6 @@ export const AgentsListPage: React.FC = () => {
               </Typography>
             </Button>
           </Box>
-
-
           {error && (
             <Alert severity="error" variant='outlined'>
               {error.message}
@@ -269,8 +275,7 @@ export const AgentsListPage: React.FC = () => {
               pagination={true}
               pageSize={5}
               maxRows={agentsWithHref?.length}
-              defaultSortBy="createdAt"
-              defaultSortDirection="desc"
+              initialState={tableInitialState}
               onRowMouseEnter={handleRowMouseEnter}
               onRowMouseLeave={handleRowMouseLeave}
               onRowFocusIn={handleRowMouseEnter}
@@ -302,7 +307,7 @@ export const AgentsListPage: React.FC = () => {
             </Box>
           )}
         </Box>
-        <Box pt={theme.spacing(2)}>
+        <Box pt={2}>
           <AgentTypeSummery />
         </Box>
       </Box>

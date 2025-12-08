@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, Card, CardContent, Chip, Typography } from "@mui/material";
+import { Box, Card, CardContent, Chip, Typography } from "@wso2/oxygen-ui";
 import { useCallback, useState } from "react";
 
 interface FrameworkOption {

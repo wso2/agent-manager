@@ -29,3 +29,4 @@ export { metaData as buildMetadata } from '@agent-management-platform/build';
 export { metaData as deployMetadata } from '@agent-management-platform/deploy';
 export { metaData as testMetadata } from '@agent-management-platform/test';
 export { metaData as tracesMetadata } from '@agent-management-platform/traces';
+export { metaData as deploymentMetadata } from '@agent-management-platform/deploy';

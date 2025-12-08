@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { LinearProgress } from "@mui/material";
+import { LinearProgress } from "@wso2/oxygen-ui";
 
 export const BackgoundLoader: React.FC = () => {
     return (

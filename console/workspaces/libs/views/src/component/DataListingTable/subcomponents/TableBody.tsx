@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { TableBody as MuiTableBody } from '@mui/material';
+import { TableBody as MuiTableBody } from '@wso2/oxygen-ui';
 import { TableColumn } from '../DataListingTable';
 import { TableRow } from './TableRow';
 import { ActionItem } from './ActionMenu';

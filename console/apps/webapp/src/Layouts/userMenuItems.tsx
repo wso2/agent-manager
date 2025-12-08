@@ -16,17 +16,17 @@
  * under the License.
  */
 
-import { Logout, Settings } from '@mui/icons-material';
+import { LogOut as LogOutIcon, Settings as SettingsIcon } from '@wso2/oxygen-ui-icons-react';
 
 export const createUserMenuItems = (orgId: string, logout: () => void) => [
   {
     label: 'Settings',
     href: "/unknown" + orgId,
-    icon: <Settings fontSize='inherit' />,
+    icon: <SettingsIcon fontSize='inherit' />,
   },
   {
     label: 'Logout',
     onClick: () => logout(),
-    icon: <Logout fontSize='inherit' />,
+    icon: <LogOutIcon fontSize='inherit' />,
   },
 ];

@@ -28,14 +28,14 @@ import {
   CardHeader,
   IconButton,
   Stack
-} from '@mui/material';
+} from '@wso2/oxygen-ui';
 import { 
   PlayArrow, 
   Settings, 
   MoreVert,
   CheckCircle,
   Error
-} from '@mui/icons-material';
+} from '@wso2/oxygen-ui-icons-react';
 
 const meta: Meta<typeof Card> = {
   title: 'AI Agent Management/Views/Card',
