@@ -101,8 +101,7 @@ class TestRunWithSitecustomize:
 
         # Check that error message was printed to stderr
         stderr_output = mock_stderr.getvalue()
-        assert "Error: Bootstrap directory not found" in stderr_output
-        assert "Package may not be properly installed" in stderr_output
+        assert "Error: Package installation is incomplete" in stderr_output
         assert "pip install --force-reinstall" in stderr_output
 
 
@@ -131,10 +130,8 @@ class TestCheckSitecustomizeConflicts:
 
                 stderr_output = mock_stderr.getvalue()
                 # Verify warning was printed
-                assert "Warning: Found existing sitecustomize.py" in stderr_output
-                assert (
-                    "This may conflict with WSO2 AMP instrumentation" in stderr_output
-                )
+                assert "Warning: Found sitecustomize.py" in stderr_output
+                assert "may conflict with instrumentation" in stderr_output
         finally:
             os.chdir(original_cwd)
 

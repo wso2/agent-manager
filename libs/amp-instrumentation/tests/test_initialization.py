@@ -30,7 +30,7 @@ class TestGetRequiredEnvVar:
         with pytest.raises(initialization.ConfigurationError) as exc_info:
             initialization._get_required_env_var("MISSING_VAR")
         assert "MISSING_VAR" in str(exc_info.value)
-        assert "not set or is empty" in str(exc_info.value)
+        assert "is required but not set" in str(exc_info.value)
 
     def test_empty_variable_raises_error(self, clean_environment):
         """Test that empty variable raises ConfigurationError."""
@@ -54,9 +54,7 @@ class TestInitializeInstrumentation:
         """Test successful initialization with all required env vars."""
         # Set required environment variables
         os.environ[env_vars.AMP_AGENT_NAME] = "test-app"
-        os.environ[env_vars.AMP_OTEL_ENDPOINT] = (
-            "https://otel.example.com"
-        )
+        os.environ[env_vars.AMP_OTEL_ENDPOINT] = "https://otel.example.com"
         os.environ[env_vars.AMP_AGENT_API_KEY] = "test-key"
 
         # Reset initialization state

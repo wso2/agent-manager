@@ -44,8 +44,8 @@ def test_sitecustomize_initialization_failure_exits_with_error():
     assert result.returncode == 1, "Expected exit code 1 when initialization fails"
 
     # Should print error message to stderr
-    assert "ERROR: WSO2 AMP instrumentation failed" in result.stderr
-    assert "Check your environment variables and configuration" in result.stderr
+    assert "Error: Environment variable" in result.stderr
+    assert "is required but not set" in result.stderr
 
 
 def test_sitecustomize_successful_initialization():
