@@ -116,6 +116,13 @@ jobs:
           echo "✅ Created and pushed tag: $TAG"
         shell: bash
 
+      - name: Push branch
+        if: steps.commit-changes.outputs.committed == 'true'
+        run: |
+          git push origin "${{ steps.create-branch.outputs.branch }}"
+          echo "✅ Pushed branch"
+        shell: bash
+
   load-config:
     name: Load Release Configuration
     needs: prepare-release
@@ -195,7 +202,6 @@ jobs:
           registry: ${{ env.REGISTRY }}
           registry-org: ${{ env.REGISTRY_ORG }}
           tag: v${{ inputs.target-release }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   package-charts:
     name: Package ${{ matrix.chart.name }}
