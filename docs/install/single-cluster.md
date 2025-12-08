@@ -4,13 +4,15 @@ Install the Agent Management Platform on an existing OpenChoreo cluster.
 
 ## Prerequisites
 
-- **OpenChoreo cluster (v0.3.2+)** with the following components installed:
+- **OpenChoreo cluster (v0.3.0+)** with the following components installed:
   - OpenChoreo Control Plane
-  - OpenChoreo Data Plane
+  - OpenChoreo Data Plane 
   - OpenChoreo Build Plane
-  - OpenChoreo Observability Plane (required)
-- **kubectl** configured with access to the cluster
-- **Helm** v3.8+ installed
+  - OpenChoreo Observability Plane
+
+  Follow [OpenChoreo Single Cluster Setup](https://openchoreo.dev/docs/v0.3.x/getting-started/single-cluster/) to install open-choreo single cluster.
+
+
 - Sufficient permissions to create namespaces and deploy resources
 
 ## Verify Prerequisites
