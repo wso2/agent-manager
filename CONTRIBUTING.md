@@ -82,7 +82,7 @@ When reporting bugs, please include:
 
 - **Questions?** Start a [Q&A Discussion](https://github.com/wso2/ai-agent-management-platform/discussions/categories/q-a)
 - **Feature requests?** Open an [Ideas Discussion](https://github.com/wso2/ai-agent-management-platform/discussions/categories/ideas)
-- **Security issues?** Please report privately to security@wso2.com
+- **Security issues?** Please report privately to <security@wso2.com>
 
 ## License
 
