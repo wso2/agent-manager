@@ -1,0 +1,16 @@
+apiVersion: openchoreo.dev/v1alpha1
+kind: Environment
+metadata:
+  name: {{ .Values.environment.name }}
+  namespace: default
+  annotations:
+    openchoreo.dev/display-name: {{ .Values.environment.displayName }}
+    openchoreo.dev/description: {{ .Values.environment.description }}
+  labels:
+    openchoreo.dev/organization: {{ .Values.organization.name }}
+    openchoreo.dev/name: {{ .Values.environment.name }}
+spec:
+  dataPlaneRef: default
+  isProduction: {{ .Values.environment.isCritical }}
+  gateway:
+    dnsPrefix: {{ .Values.environment.dnsPrefix }}

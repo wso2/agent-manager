@@ -1,0 +1,47 @@
+# Default values for wso2-amp-platform-resources
+# This chart creates default OpenChoreo resources needed for the AI Agent Management Platform
+# All those resources are created in default namespace
+
+# Organization configuration
+organization:
+  # Name of the default organization
+  name: default
+  # Display name for the organization
+  displayName: "Default Organization"
+  # Description for the organization
+  description: "Default organization for WSO2 AI Agent Management Platform"
+
+# Environment configuration
+environment:
+  # Name of the default environment
+  name: default
+  # Display name for the environment
+  displayName: "Default Environment"
+  # Description for the environment
+  description: "Default environment for WSO2 AI Agent Management Platform"
+  # Is this environment critical/production?
+  isCritical: true
+  # DNS Prefix for the gateway
+  dnsPrefix: "default"
+
+# Deployment Pipeline configuration
+deploymentPipeline:
+  # Name of the default deployment pipeline
+  name: default
+  # Display name for the deployment pipeline
+  displayName: "Default Deployment Pipeline"
+  # Description for the deployment pipeline
+  description: "Default deployment pipeline for WSO2 AI Agent Management Platform"
+  # Promotion order for the deployment pipeline
+  promotionOrder:
+    - sourceEnvironmentRef: default
+      targetEnvironmentRefs: []
+
+# Project configuration
+project:
+  # Name of the default project
+  name: default
+  # Display name for the project
+  displayName: "Default Project"
+  # Description for the project
+  description: "Default project for WSO2 AI Agent Management Platform"

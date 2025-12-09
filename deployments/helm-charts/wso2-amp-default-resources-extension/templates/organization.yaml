@@ -1,0 +1,10 @@
+apiVersion: openchoreo.dev/v1alpha1
+kind: Organization
+metadata:
+  annotations:
+    openchoreo.dev/display-name: {{ .Values.organization.displayName }}
+    openchoreo.dev/description: {{ .Values.organization.description }}
+  labels:
+    openchoreo.dev/name: {{ .Values.organization.name }}
+  name: {{ .Values.organization.name }}
+spec: {}

@@ -1,0 +1,16 @@
+apiVersion: openchoreo.dev/v1alpha1
+kind: DeploymentPipeline
+metadata:
+  name: {{ .Values.deploymentPipeline.name }}
+  namespace: default
+  annotations:
+    openchoreo.dev/display-name:
+      {{ .Values.deploymentPipeline.displayName }}
+    openchoreo.dev/description:
+      {{ .Values.deploymentPipeline.description }}
+  labels:
+    openchoreo.dev/organization: {{ .Values.organization.name }}
+    openchoreo.dev/name: {{ .Values.deploymentPipeline.name }}
+spec:
+  promotionPaths:
+  {{- toYaml .Values.deploymentPipeline.promotionOrder | nindent 4 }}
