@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, Typography } from '@wso2/oxygen-ui';
 
 export interface <%= componentName %>ComponentProps {
   title?: string;

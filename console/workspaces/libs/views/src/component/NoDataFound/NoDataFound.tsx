@@ -16,19 +16,22 @@
  * under the License.
  */
 
-import { Box, Paper, Typography} from "@wso2/oxygen-ui";
-import { LucideProps, SearchX as SearchOffOutlined } from "@wso2/oxygen-ui-icons-react";
-import { FadeIn } from "../FadeIn/FadeIn";
-import { createElement, ReactNode } from "react";
+import { Box, Paper, Typography } from '@wso2/oxygen-ui';
+import {
+  LucideProps,
+  SearchX as SearchOffOutlined,
+} from '@wso2/oxygen-ui-icons-react';
+import { FadeIn } from '../FadeIn/FadeIn';
+import React, { createElement, ReactNode } from 'react';
 
 interface NoDataFoundProps {
-    message?: string;
-    action?: ReactNode;
-    icon?: ReactNode;
-    subtitle?: string;
-    iconElement?: React.ForwardRefExoticComponent<
-        Omit<LucideProps, 'ref'> & React.RefAttributes<SVGSVGElement>
-      >;
+  message?: string;
+  action?: ReactNode;
+  icon?: ReactNode;
+  iconElement?: React.ForwardRefExoticComponent<
+    Omit<LucideProps, 'ref'> & React.RefAttributes<SVGSVGElement>
+  >;
+  subtitle?: string;
 }
 
 export function NoDataFound({
@@ -52,7 +55,6 @@ export function NoDataFound({
           flexDirection: 'column',
           gap: 1,
           p: 4,
-          py: 10,
           "&.MuiPaper-root": {
             backgroundColor: 'background.default',
           },

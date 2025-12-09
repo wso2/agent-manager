@@ -16,5 +16,17 @@
  * under the License.
  */
 
+import { AddNewProject } from './AddNewProject';
+import { FolderPlus as FolderPlusOutlined } from '@wso2/oxygen-ui-icons-react';
+import { absoluteRouteMap } from '@agent-management-platform/types';
 
-export const createUserMenuItems = () => [];
+export const metaData = {
+  title: 'Add New Project',
+  description: 'A page component for Add New Project',
+  icon: FolderPlusOutlined,
+  path: absoluteRouteMap.children.org.children.newProject.path,
+  component: AddNewProject,
+};
+
+export { AddNewProject };
+export default AddNewProject;

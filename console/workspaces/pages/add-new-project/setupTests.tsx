@@ -16,5 +16,4 @@
  * under the License.
  */
 
-
-export const createUserMenuItems = () => [];
+import '@testing-library/jest-dom';

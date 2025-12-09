@@ -391,8 +391,11 @@
     {
       "packageName": "@agent-management-platform/traces",
       "projectFolder": "workspaces/pages/traces"
+    },
+    {
+      "packageName": "@agent-management-platform/add-new-project",
+      "projectFolder": "workspaces/pages/add-new-project"
     }
-    
     // {
     //   /**
     //    * The NPM package name of the project (must match package.json)

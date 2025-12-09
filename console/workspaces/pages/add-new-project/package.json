@@ -1,5 +1,5 @@
 {
-  "name": "@agent-management-platform/<%= name %>",
+  "name": "@agent-management-platform/add-new-project",
   "version": "1.0.0",
   "type": "module",
   "import": "./dist/index.js",
@@ -35,24 +35,24 @@
   "keywords": ["ai", "agents", "page", "react"],
   "author": "",
   "license": "Apache-2.0",
-  "description": "<%= description %>",
+  "description": "A page component for Add New Agent",
   "dependencies": {
     "clsx": "2.1.1",
     "react-dom": "19.1.1",
     "react-router-dom": "6.28.0",
-    "dayjs": "1.11.18",
     "@mui/material": "7.0.0",
     "@mui/icons-material": "7.0.0",
     "@emotion/react": "11.13.5",
     "@emotion/styled": "11.13.5",
+    "@wso2/oxygen-ui": "0.0.1-alpha.9",
+    "@wso2/oxygen-ui-icons-react": "0.0.1-alpha.9",
     "@agent-management-platform/views": "workspace:*",
     "@agent-management-platform/api-client": "workspace:*",
     "@agent-management-platform/types": "workspace:*",
+    "dayjs": "1.11.18",
     "yup": "1.4.0",
     "react-hook-form": "7.53.0",
-    "@hookform/resolvers": "3.9.0",
-    "@wso2/oxygen-ui": "0.0.1-alpha.9",
-    "@wso2/oxygen-ui-icons-react": "0.0.1-alpha.9"
+    "@hookform/resolvers": "3.9.0"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "8.6.13",

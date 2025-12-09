@@ -34,14 +34,12 @@ import { Link } from 'react-router-dom';
 
 export function Logo() {
   const theme = useTheme();
-  const brandColor = theme.palette.text.primary;
   return (
     <Box
       sx={{
         display: 'flex',
         alignItems: 'center',
         gap: 1.5,
-        color: brandColor,
       }}
     >
       <Box
@@ -53,8 +51,8 @@ export function Logo() {
           justifyContent: 'center',
           borderRadius: 0.5,
           fontSize: theme.typography.pxToRem(18),
-          backgroundColor: theme.palette.primary.main,
-          color: theme.palette.primary.contrastText,
+          backgroundColor: 'primary.main',
+          color: 'primary.contrastText',
         }}
       >
         AI
@@ -103,9 +101,12 @@ export interface NavBarToolbarProps {
   topSelectorsProps?: TopSelecterProps[];
   /** Home path */
   homePath?: string;
+  /** Whether to disable user menu */
+  disableUserMenu?: boolean;
 }
 
 export function NavBarToolbar({
+  disableUserMenu,
   leftElements,
   rightElements,
   user,
@@ -174,40 +175,47 @@ export function NavBarToolbar({
               {rightElements}
             </Box>
           )}
-          <ColorSchemeToggle/>
+          <ColorSchemeToggle />
           {/* User Menu */}
           {user && (
             <ButtonBase
               onClick={onUserMenuOpen}
+              disabled={disableUserMenu}
               sx={{
                 padding: 1,
                 borderRadius: 1,
               }}
             >
               <Box display="flex" alignItems="center" gap={1}>
+                {user.avatar}
                 {user.avatar ? (
-                  <Avatar src={user.avatar} alt={user.name} />
+                  <Avatar
+                    src={user.avatar}
+                    alt={user.name}
+                    variant="circular"
+                    sx={{
+                      height: 40,
+                      width: 40,
+                    }}
+                  />
                 ) : (
-                  <Avatar>
+                  <Avatar
+                    variant="circular"
+                    color="primary"
+                    sx={{
+                      height: 40,
+                      width: 40,
+                    }}
+                  >
                     {user.name
                       .split(' ')
                       .map((name) => name.charAt(0).toUpperCase())
                       .join('')}
                   </Avatar>
                 )}
-                <Box display="flex" flexDirection="column" textAlign="left">
-                  <Typography
-                    variant="body2"
-                    fontWeight={600}
-                    color="textPrimary"
-                  >
-                    {user.name}
-                  </Typography>
-                  <Typography variant="caption" color="textSecondary">
-                    {user.email}
-                  </Typography>
-                </Box>
-                <ChevronDown size={16} color={theme.palette.text.secondary} />
+                <Typography variant="caption" color="divider">
+                  <ChevronDown size={16} />
+                </Typography>
               </Box>
             </ButtonBase>
           )}

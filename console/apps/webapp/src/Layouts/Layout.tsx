@@ -34,7 +34,7 @@ import { absoluteRouteMap } from "@agent-management-platform/types";
 import { useMemo } from "react";
 
 export function Layout() {
-  const { userInfo, logout } = useAuthHooks();
+  const { userInfo } = useAuthHooks();
   const { orgId, projectId, agentId } = useParams<{
     orgId: string;
     projectId: string;
@@ -68,7 +68,6 @@ export function Layout() {
       user={{
         name: userInfo?.displayName ?? userInfo?.username ?? "",
         email: userInfo?.username ?? userInfo?.orgHandle ?? "",
-        avatar: userInfo?.username ?? "",
       }}
       homePath={homePath}
       topSelectorsProps={[
@@ -153,7 +152,7 @@ export function Layout() {
           },
         },
       ]}
-      userMenuItems={createUserMenuItems(orgId ?? "", logout)}
+      userMenuItems={createUserMenuItems()}
       navigationItems={navigationItems}
     >
       <Box p={1} flexGrow={1}>

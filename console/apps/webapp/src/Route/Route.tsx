@@ -27,6 +27,7 @@ import {
   buildMetadata,
   Login,
   deploymentMetadata,
+  addNewProjectPageMetaData,
 } from "../pages";
 import { relativeRouteMap } from "@agent-management-platform/types";
 import {
@@ -52,6 +53,10 @@ export function RootRouter() {
         >
           <Route path={relativeRouteMap.children.org.path}>
             <Route index element={<overviewMetadata.levels.organization />} />
+            <Route
+              path={relativeRouteMap.children.org.children.newProject.path}
+              element={<addNewProjectPageMetaData.component />}
+            />
             <Route path={relativeRouteMap.children.org.children.projects.path}>
               <Route index element={<overviewMetadata.levels.project />} />
               <Route

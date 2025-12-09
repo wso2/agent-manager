@@ -159,7 +159,7 @@ export function Sidebar({
         borderColor: 'divider' ,
         justifyContent: 'space-between',
         flexDirection: 'column',
-        bgcolor: 'background.default',
+        backgroundColor: "background.paper",
         transition: theme.transitions.create('all', {
           duration: theme.transitions.duration.short,
         }),

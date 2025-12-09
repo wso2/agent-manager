@@ -33,6 +33,7 @@
     "@fontsource/roboto": "5.2.5",
     "react-router-dom": "6.28.0",
     "@agent-management-platform/add-new-agent": "workspace:*",
+    "@agent-management-platform/add-new-project": "workspace:*",
     "@agent-management-platform/shared-component": "workspace:*",
     "yup": "1.4.0",
     "react-hook-form": "7.53.0",

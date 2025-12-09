@@ -16,5 +16,15 @@
  * under the License.
  */
 
+/// <reference types="vitest" />
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
-export const createUserMenuItems = () => [];
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './setupTests.tsx',
+  },
+});

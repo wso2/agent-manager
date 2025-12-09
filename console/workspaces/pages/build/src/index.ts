@@ -17,8 +17,6 @@
  */
 
 import { BuildComponent } from './Build.Component';
-import { BuildProject } from './Build.Project';
-import { BuildOrganization } from './Build.Organization';
 import { Wrench as BuildOutlined } from '@wso2/oxygen-ui-icons-react';
 
 export const metaData = {
@@ -29,15 +27,11 @@ export const metaData = {
   component: BuildComponent,
   levels: {
     component: BuildComponent,
-    project: BuildProject,
-    organization: BuildOrganization,
   },
 };
 
 export { 
-  BuildComponent,
-  BuildProject,
-  BuildOrganization,
+  BuildComponent
 };
 
 export default BuildComponent;

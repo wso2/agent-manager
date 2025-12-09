@@ -324,7 +324,7 @@ export const AgentsList: React.FC = () => {
     }
   }), []);
 
-  if (isLoading || isProjectLoading) {
+  if (isLoading || isProjectLoading || (isRefetching && !data?.agents?.length)) {
     return <ListPageSkeleton />;
   }
 
@@ -421,8 +421,7 @@ export const AgentsList: React.FC = () => {
             </Box>
           )}
 
-          {!isLoading && !data?.agents?.length && (
-   
+          {!isLoading && !data?.agents?.length && !isRefetching && (
               <NoDataFound
                 message="No agents found"
                 iconElement={User}

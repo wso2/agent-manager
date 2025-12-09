@@ -105,7 +105,7 @@ export function PageLayout({
                   flexDirection="column"
                   gap={1}
                 >
-                  <Box display="flex" gap={2} alignItems="center">
+                  <Box display="flex" gap={1} alignItems="center">
                     <Typography
                       variant={backHref ? 'h3' : 'h2'}
                     >
@@ -129,7 +129,7 @@ export function PageLayout({
         <Box>{actions && <Box>{actions}</Box>}</Box>
       </Box>
       <Box flexGrow={1} display="flex" flexDirection="column">
-        <Box gap={4} pt={1}>{children}</Box>
+        <Box gap={4} pt={2}>{children}</Box>
       </Box>
     </Box>
   );

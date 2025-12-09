@@ -16,7 +16,11 @@
  * under the License.
  */
 
-import { NoDataFound, PageLayout } from "@agent-management-platform/views";
+import {
+  FadeIn,
+  NoDataFound,
+  PageLayout,
+} from "@agent-management-platform/views";
 import { useListProjects } from "@agent-management-platform/api-client";
 import { generatePath, Link, useParams } from "react-router-dom";
 import {
@@ -52,9 +56,9 @@ dayjs.extend(relativeTime);
 
 const projectGridTemplate = {
   xs: "repeat(1, minmax(0, 1fr))",
-  sm: "repeat(2, minmax(0, 1fr))",
-  md: "repeat(3, minmax(0, 1fr))",
-  lg: "repeat(4, minmax(0, 1fr))",
+  md: "repeat(2, minmax(0, 1fr))",
+  lg: "repeat(3, minmax(0, 1fr))",
+  xl: "repeat(4, minmax(0, 1fr))",
 };
 
 function ProjectCard(props: { project: ProjectResponse }) {
@@ -62,88 +66,90 @@ function ProjectCard(props: { project: ProjectResponse }) {
   const theme = useTheme();
   const { orgId } = useParams();
   return (
-    <ButtonBase
-      component={Link}
-      to={generatePath(absoluteRouteMap.children.org.children.projects.path, {
-        orgId: orgId,
-        projectId: project.name,
-      })}
-      sx={{
-        display: "block",
-        width: "100%",
-        textAlign: "left",
-        height: "fit-content",
-      }}
-    >
-      <Card
+    <FadeIn>
+      <ButtonBase
         sx={{
           width: "100%",
-          height: "100%",
-          transition: theme.transitions.create(["all"], {
-            duration: theme.transitions.duration.short,
-          }),
-          p: 1,
-          pb: 0,
-          pt: 4,
-          "&.MuiCard-root": {
-            backgroundColor: "background.paper",
-          },
-          "&:hover": {
-            borderColor: "primary.main",
-            backgroundColor: "background.main",
-            transform: "translateY(-2px)",
-          },
         }}
+        component={Link}
+        to={generatePath(absoluteRouteMap.children.org.children.projects.path, {
+          orgId: orgId,
+          projectId: project.name,
+        })}
       >
-        <CardContent>
-          <Box display="flex" alignItems="center" gap={2}>
-            <Avatar
-              sx={{
-                height: 40,
-                width: 40,
-                "&.MuiAvatar-root": {
-                  transition: theme.transitions.create(["all"], {
-                    duration: theme.transitions.duration.short,
-                  }),
-                  bgcolor: "primary.light",
-                  color: "background.paper",
-                },
-              }}
+        <Card
+          sx={{
+            width: "100%",
+            transition: theme.transitions.create(["all"], {
+              duration: theme.transitions.duration.short,
+            }),
+            p: 1,
+            pb: 0,
+            pt: 4,
+            "&.MuiCard-root": {
+              backgroundColor: "background.paper",
+            },
+            "&:hover": {
+              borderColor: "primary.main",
+              backgroundColor: "background.main",
+              transform: "translateY(-2px)",
+            },
+          }}
+        >
+          <CardContent>
+            <Box display="flex" alignItems="center" gap={2}>
+              <Avatar
+                sx={{
+                  height: 40,
+                  width: 40,
+                  "&.MuiAvatar-root": {
+                    transition: theme.transitions.create(["all"], {
+                      duration: theme.transitions.duration.short,
+                    }),
+                    bgcolor: "primary.light",
+                    color: "background.paper",
+                  },
+                }}
+              >
+                <Package fontSize="inherit" size={24} />
+              </Avatar>
+              <Box
+                display="flex"
+                flexDirection="column"
+                alignItems="flex-start"
+              >
+                <Typography variant="h5" noWrap textOverflow="ellipsis">
+                  {project.displayName}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {project.description ? project.description : "No description"}
+                </Typography>
+              </Box>
+            </Box>
+            <Box
+              display="flex"
+              alignItems="center"
+              justifyContent="space-between"
             >
-              <Package fontSize="inherit" size={24} />
-            </Avatar>
-            <Box display="flex" flexDirection="column" alignItems="flex-start">
-              <Typography variant="h5" noWrap textOverflow="ellipsis">
-                {project.displayName}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {project.description ? project.description : "No description"}
+              <Typography
+                variant="body2"
+                color="textSecondary"
+                sx={{
+                  mt: 4,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "flex-start",
+                }}
+              >
+                <TimerOutlined size={16} opacity={0.5} />
+                &nbsp;
+                {dayjs(project.createdAt).fromNow()}
               </Typography>
             </Box>
-          </Box>
-          <Box
-            display="flex"
-            alignItems="center"
-            justifyContent="space-between"
-          >
-            <Typography
-              variant="body2"
-              color="textSecondary"
-              sx={{
-                mt: 4,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "flex-start",
-              }}
-            >
-              <TimerOutlined size={16} opacity={0.5} />
-              &nbsp;
-              {dayjs(project.createdAt).fromNow()}
-            </Typography>
-          </Box>
-        </CardContent>
-      </Card>
-    </ButtonBase>
+          </CardContent>
+        </Card>
+      </ButtonBase>
+    </FadeIn>
   );
 }
 
