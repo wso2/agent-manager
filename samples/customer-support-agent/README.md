@@ -31,6 +31,7 @@ Before deploying this agent, ensure you have:
 
 1. Navigate to the **Default** project
 2. Click **"Add Agent"**
+3. Select **Platform-Hosted Agent** Card
 
 ### Step 2: Configure Agent Details
 
@@ -64,52 +65,30 @@ DATABASE_URL=<your-postgresql-connection-string>
 ### Step 5: Deploy the Agent
 
 1. Review all configuration details
-2. Click **"Deploy Agent"**
+2. Click **"Deploy"**
 3. Wait for the build to complete (typically 2-5 minutes)
 
 ## Testing Your Agent
 
-### Step 1: Access Development Environment
+### Step 1: Navigate to Chat Interface
 
-1. Navigate to your deployed agent
-2. Click on the **"Development"** environment tab
-3. Go to the **"Try Out"** section
+Click on the **"Try It"** section on the left navigation.
 
 ### Step 2: Test Sample Interactions
 
-Try these sample questions:
+Try these sample questions in the chat interface:
 
 **Flight Inquiries:**
-
-```json
-{
-  "thread_id": 1,
-  "question": "What flights do I have booked?",
-  "passenger_id": "3442 587242"
-}
+```text
+What flights do I have booked?
 ```
 
 **Hotel Search:**
-
-```json
-{
-  "thread_id": 2,
-  "question": "Find me a hotel in Geneva for next week",
-  "passenger_id": "3442 587242"
-}
-```
-
-**General Travel Help:**
-
-```json
-{
-  "thread_id": 3,
-  "question": "I need to cancel my flight, can you help?",
-  "passenger_id": "3442 587242"
-}
+```text
+Find me a hotel in Geneva for next week
 ```
 
 ### Step 3: Observe Traces
 
-1. Click on the **"Observe"** tab
+1. Click on the **"Observability"** tab on left navigation and select **Traces**
 2. View traces
