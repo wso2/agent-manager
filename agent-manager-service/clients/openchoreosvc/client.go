@@ -70,7 +70,7 @@ type OpenChoreoSvcClient interface {
 	GetAgentBuild(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error)
 	GetAgentDeployments(ctx context.Context, orgName string, pipelineName string, projName string, componentName string) ([]*models.DeploymentResponse, error)
 	GetAgentEndpoints(ctx context.Context, orgName string, projName string, agentName string, environment string) (map[string]models.EndpointsResponse, error)
-	GetOrgEnvironments(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error)
+	ListOrgEnvironments(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error)
 	GetEnvironment(ctx context.Context, orgName string, environmentName string) (*models.EnvironmentResponse, error)
 	GetDeploymentPipeline(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error)
 	GetAgentConfigurations(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error)
@@ -81,7 +81,7 @@ type OpenChoreoSvcClient interface {
 	CreateObservabilityEnabledServiceClassForPython(ctx context.Context, orgName string, serviceClassName string) error
 	CreateEnvironments(ctx context.Context, orgName string, environmentName string, envDisplayName string, dataplaneName string, isProduction bool, dnsPrefix string) error
 	CreateDeploymentPipeline(ctx context.Context, orgName string, pipelineName string, promotionPaths []models.PromotionPath) error
-	CreateProject(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string) error
+	CreateProject(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string, projectDescription string) error
 	CleanupOrganizationResources(ctx context.Context, orgName string) error
 	ListOrganizations(ctx context.Context) ([]*models.OrganizationResponse, error)
 	GetOrganization(ctx context.Context, orgName string) (*models.OrganizationResponse, error)
@@ -632,7 +632,7 @@ func (k *openChoreoSvcClient) GetAgentDeployments(ctx context.Context, orgName s
 		return nil, fmt.Errorf("failed to get deployment pipeline for project %s: %w", pipelineName, err)
 	}
 
-	environments, err := k.GetOrgEnvironments(ctx, orgName)
+	environments, err := k.ListOrgEnvironments(ctx, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get environments for organization %s: %w", orgName, err)
 	}
@@ -737,7 +737,7 @@ func (k *openChoreoSvcClient) GetAgentEndpoints(ctx context.Context, orgName str
 	return endpointDetails, nil
 }
 
-func (k *openChoreoSvcClient) GetOrgEnvironments(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error) {
+func (k *openChoreoSvcClient) ListOrgEnvironments(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error) {
 	environmentList := &v1alpha1.EnvironmentList{}
 	err := k.retryK8sOperation(ctx, "ListEnvironments", func() error {
 		return k.client.List(ctx, environmentList, client.InNamespace(orgName))
@@ -1295,13 +1295,14 @@ func (k *openChoreoSvcClient) CreateDeploymentPipeline(ctx context.Context, orgN
 	})
 }
 
-func (k *openChoreoSvcClient) CreateProject(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string) error {
+func (k *openChoreoSvcClient) CreateProject(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string, projectDescription string) error {
 	project := &v1alpha1.Project{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      projectName,
 			Namespace: orgName,
 			Annotations: map[string]string{
 				string(AnnotationKeyDisplayName): projectDisplayName,
+				string(AnnotationKeyDescription): projectDescription,
 			},
 		},
 		Spec: v1alpha1.ProjectSpec{

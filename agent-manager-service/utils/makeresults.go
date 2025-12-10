@@ -202,24 +202,74 @@ func ConvertToAgentEndpointResponse(endpointDetails map[string]models.EndpointsR
 	return result
 }
 
-func ConvertToEnvironmentResponse(environments []*models.EnvironmentResponse) []spec.Environment {
+func ConvertToEnvironmentListResponse(environments []*models.EnvironmentResponse) []spec.Environment {
 	if len(environments) == 0 {
 		return []spec.Environment{}
 	}
 
 	responses := make([]spec.Environment, len(environments))
 	for i, env := range environments {
-		responses[i] = spec.Environment{
-			Name:         env.Name,
-			Namespace:    env.Namespace,
-			IsProduction: env.IsProduction,
-			CreatedAt:    env.CreatedAt,
-			DisplayName:  &env.DisplayName,
-			DnsPrefix:    &env.DNSPrefix,
-		}
+		responses[i] = ConvertToEnvironmentResponse(env)
 	}
 
 	return responses
+}
+
+func ConvertToEnvironmentResponse(env *models.EnvironmentResponse) spec.Environment {
+	if env == nil {
+		return spec.Environment{}
+	}
+
+	return spec.Environment{
+		Name:         env.Name,
+		Namespace:    env.Namespace,
+		IsProduction: env.IsProduction,
+		CreatedAt:    env.CreatedAt,
+		DisplayName:  &env.DisplayName,
+		DnsPrefix:    &env.DNSPrefix,
+	}
+}
+
+func ConvertToDeploymentPipelinesListResponse(pipelines []*models.DeploymentPipelineResponse) []spec.DeploymentPipelineResponse {
+	if len(pipelines) == 0 {
+		return []spec.DeploymentPipelineResponse{}
+	}
+
+	responses := make([]spec.DeploymentPipelineResponse, len(pipelines))
+	for i, pipeline := range pipelines {
+		responses[i] = ConvertToDeploymentPipelineResponse(pipeline)
+	}
+
+	return responses
+}
+
+func ConvertToDeploymentPipelineResponse(pipeline *models.DeploymentPipelineResponse) spec.DeploymentPipelineResponse {
+	if pipeline == nil {
+		return spec.DeploymentPipelineResponse{}
+	}
+
+	promotionPaths := make([]spec.PromotionPath, len(pipeline.PromotionPaths))
+	for i, path := range pipeline.PromotionPaths {
+		targetRefs := make([]spec.TargetEnvironmentRef, len(path.TargetEnvironmentRefs))
+		for j, target := range path.TargetEnvironmentRefs {
+			targetRefs[j] = spec.TargetEnvironmentRef{
+				Name: target.Name,
+			}
+		}
+		promotionPaths[i] = spec.PromotionPath{
+			SourceEnvironmentRef:  path.SourceEnvironmentRef,
+			TargetEnvironmentRefs: targetRefs,
+		}
+	}
+
+	return spec.DeploymentPipelineResponse{
+		Name:           pipeline.Name,
+		DisplayName:    pipeline.DisplayName,
+		Description:    pipeline.Description,
+		OrgName:        pipeline.OrgName,
+		CreatedAt:      pipeline.CreatedAt,
+		PromotionPaths: promotionPaths,
+	}
 }
 
 func ConvertToOrganizationResponse(org *models.OrganizationResponse) spec.OrganizationResponse {

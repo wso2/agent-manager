@@ -40,7 +40,7 @@ func NewOrganizationRepository() OrganizationRepository {
 
 func (r *organizationRepository) GetOrganizationsByUserIdpID(ctx context.Context, userIdpID uuid.UUID) ([]models.Organization, error) {
 	var orgs []models.Organization
-	if err := db.DB(ctx).Where("user_idp_id = ?", userIdpID).Find(&orgs).Error; err != nil {
+	if err := db.DB(ctx).Where("user_idp_id = ?", userIdpID).Order("created_at DESC").Find(&orgs).Error; err != nil {
 		return nil, fmt.Errorf("organizationRepository.GetOrganizationsByUserIdpID: %w", err)
 	}
 	return orgs, nil

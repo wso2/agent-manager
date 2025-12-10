@@ -63,15 +63,15 @@ type EnvVars struct {
 
 // Build represents a build instance
 type BuildResponse struct {
-	UUID        string    `json:"uuid"`
-	Name        string    `json:"name"`
-	AgentName   string    `json:"agentName"`
-	ProjectName string    `json:"projectName"`
-	CommitID    string    `json:"commitId"`
-	Status      string    `json:"status"`
-	StartedAt   time.Time `json:"startedAt"`
-	Image       string    `json:"image,omitempty"`
-	Branch      string    `json:"branch,omitempty"`
+	UUID        string     `json:"uuid"`
+	Name        string     `json:"name"`
+	AgentName   string     `json:"agentName"`
+	ProjectName string     `json:"projectName"`
+	CommitID    string     `json:"commitId"`
+	Status      string     `json:"status"`
+	StartedAt   time.Time  `json:"startedAt"`
+	Image       string     `json:"image,omitempty"`
+	Branch      string     `json:"branch,omitempty"`
 	EndedAt     *time.Time `json:"endedAt,omitempty"`
 }
 

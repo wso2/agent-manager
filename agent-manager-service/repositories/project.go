@@ -42,7 +42,7 @@ func NewProjectRepository() ProjectRepository {
 
 func (r *projectRepository) ListProjects(ctx context.Context, orgId uuid.UUID) ([]models.Project, error) {
 	var projects []models.Project
-	if err := db.DB(ctx).Where("org_id = ?", orgId).Find(&projects).Error; err != nil {
+	if err := db.DB(ctx).Where("org_id = ?", orgId).Order("created_at DESC").Find(&projects).Error; err != nil {
 		return nil, fmt.Errorf("projectRepository.ListProjects: %w", err)
 	}
 

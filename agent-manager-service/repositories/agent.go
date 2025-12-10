@@ -44,7 +44,7 @@ func NewAgentRepository() AgentRepository {
 
 func (r *agentRepository) ListAgents(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID) ([]*models.Agent, error) {
 	var agents []*models.Agent
-	if err := db.DB(ctx).Where("org_id = ? AND project_id = ?", orgId, projectId).Find(&agents).Error; err != nil {
+	if err := db.DB(ctx).Where("org_id = ? AND project_id = ?", orgId, projectId).Order("created_at DESC").Find(&agents).Error; err != nil {
 		return nil, fmt.Errorf("agentRepository.ListAgents: %w", err)
 	}
 

@@ -136,6 +136,15 @@ const (
 	PathParamBuildName = "buildName"
 )
 
+// Pagination constants
+const (
+	DefaultLimit  = 10
+	MinLimit      = 1
+	MaxLimit      = 50
+	DefaultOffset = 0
+	MinOffset     = 0
+)
+
 // Environment variable names for otel and tracing configuration
 const (
 	EnvPythonPath                   = "PYTHONPATH"

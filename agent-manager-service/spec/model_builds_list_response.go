@@ -20,7 +20,7 @@ var _ MappedNullable = &BuildsListResponse{}
 // BuildsListResponse struct for BuildsListResponse
 type BuildsListResponse struct {
 	Builds []BuildResponse `json:"builds"`
-	// Total number of agents matching the query
+	// Total number of builds matching the query
 	Total  int32 `json:"total"`
 	Limit  int32 `json:"limit"`
 	Offset int32 `json:"offset"`

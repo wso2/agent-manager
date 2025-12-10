@@ -26,13 +26,13 @@ import (
 func registerInfraRoutes(mux *http.ServeMux, ctrl controllers.InfraResourceController) {
 	// All routes now use HandleFuncWithValidation which automatically
 	// extracts path parameters from the pattern and validates them
-	middleware.HandleFuncWithValidation(mux, "POST /orgs", ctrl.CreateOrganization)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs", ctrl.ListOrganizations)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}", ctrl.GetOrganization)
+	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/deployment-pipelines", ctrl.ListOrgDeploymentPipelines)
+	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/environments", ctrl.ListOrgEnvironments)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects", ctrl.ListProjects)
 	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/projects", ctrl.CreateProject)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}", ctrl.GetProject)
-	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/environments", ctrl.GetOrgEnvironments)
-	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/deployment-pipelines", ctrl.GetProjectDeploymentPipeline)
+	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/deployment-pipeline", ctrl.GetProjectDeploymentPipeline)
 	middleware.HandleFuncWithValidation(mux, "DELETE /orgs/{orgName}/projects/{projName}", ctrl.DeleteProject)
 }

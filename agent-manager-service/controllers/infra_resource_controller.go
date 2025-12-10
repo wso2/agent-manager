@@ -21,7 +21,6 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
@@ -31,15 +30,15 @@ import (
 )
 
 type InfraResourceController interface {
-	GetOrgEnvironments(w http.ResponseWriter, r *http.Request)
+	ListOrgEnvironments(w http.ResponseWriter, r *http.Request)
 	GetProjectDeploymentPipeline(w http.ResponseWriter, r *http.Request)
-	CreateOrganization(w http.ResponseWriter, r *http.Request)
 	ListOrganizations(w http.ResponseWriter, r *http.Request)
 	GetOrganization(w http.ResponseWriter, r *http.Request)
 	ListProjects(w http.ResponseWriter, r *http.Request)
 	GetProject(w http.ResponseWriter, r *http.Request)
 	CreateProject(w http.ResponseWriter, r *http.Request)
 	DeleteProject(w http.ResponseWriter, r *http.Request)
+	ListOrgDeploymentPipelines(w http.ResponseWriter, r *http.Request)
 }
 
 type infraResourceController struct {
@@ -64,23 +63,22 @@ func (c *infraResourceController) ListOrganizations(w http.ResponseWriter, r *ht
 	// Parse query parameters
 	limitStr := r.URL.Query().Get("limit")
 	if limitStr == "" {
-		limitStr = "10"
+		limitStr = strconv.Itoa(utils.DefaultLimit)
 	}
 	offsetStr := r.URL.Query().Get("offset")
 	if offsetStr == "" {
-		offsetStr = "0"
+		offsetStr = strconv.Itoa(utils.DefaultOffset)
 	}
-
 	// Parse and validate pagination parameters
 	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 || limit > 50 {
+	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
 		log.Error("ListOrganizations: invalid limit parameter", "limit", limitStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and 50")
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < 0 {
+	if err != nil || offset < utils.MinOffset {
 		log.Error("ListOrganizations: invalid offset parameter", "offset", offsetStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter: must be 0 or greater")
 		return
@@ -139,23 +137,23 @@ func (c *infraResourceController) ListProjects(w http.ResponseWriter, r *http.Re
 	// Parse query parameters
 	limitStr := r.URL.Query().Get("limit")
 	if limitStr == "" {
-		limitStr = "10"
+		limitStr = strconv.Itoa(utils.DefaultLimit)
 	}
 	offsetStr := r.URL.Query().Get("offset")
 	if offsetStr == "" {
-		offsetStr = "0"
+		offsetStr = strconv.Itoa(utils.DefaultOffset)
 	}
 
 	// Parse and validate pagination parameters
 	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 || limit > 50 {
+	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
 		log.Error("ListProjects: invalid limit parameter", "limit", limitStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and 50")
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < 0 {
+	if err != nil || offset < utils.MinOffset {
 		log.Error("ListProjects: invalid offset parameter", "offset", offsetStr)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter: must be 0 or greater")
 		return
@@ -222,7 +220,7 @@ func (c *infraResourceController) CreateProject(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	err := c.infraResourceManager.CreateProject(ctx, userIdpId, orgName, payload)
+	project, err := c.infraResourceManager.CreateProject(ctx, userIdpId, orgName, payload)
 	if err != nil {
 		log.Error("CreateProject: failed to create project", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
@@ -237,12 +235,12 @@ func (c *infraResourceController) CreateProject(w http.ResponseWriter, r *http.R
 		return
 	}
 	projectResponse := spec.ProjectResponse{
-		Name:        payload.Name,
-		DisplayName: payload.DisplayName,
-		Description: utils.StrPointerAsStr(payload.Description, ""),
-		DeploymentPipeline: payload.DeploymentPipeline,
-		OrgName:     orgName,
-		CreatedAt:   time.Now(),
+		Name:               project.Name,
+		DisplayName:        project.DisplayName,
+		Description:        project.Description,
+		DeploymentPipeline: project.DeploymentPipeline,
+		OrgName:            project.OrgName,
+		CreatedAt:          project.CreatedAt,
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusAccepted, projectResponse)
@@ -272,6 +270,32 @@ func (c *infraResourceController) DeleteProject(w http.ResponseWriter, r *http.R
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
+}
+
+func (c *infraResourceController) ListOrgDeploymentPipelines(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	// Extract path parameters
+	orgName := r.PathValue(utils.PathParamOrgName)
+
+	// Extract user info from JWT token
+	tokenClaims := jwtassertion.GetTokenClaims(ctx)
+	userIdpId := tokenClaims.Sub
+
+	deploymentPipelines, err := c.infraResourceManager.ListOrgDeploymentPipelines(ctx, userIdpId, orgName)
+	if err != nil {
+		log.Error("GetDeploymentPipelines: failed to get deployment pipelines", "error", err)
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+			return
+		}
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get deployment pipelines")
+		return
+	}
+
+	deploymentPipelinesResponse := utils.ConvertToDeploymentPipelinesListResponse(deploymentPipelines)
+	utils.WriteSuccessResponse(w, http.StatusOK, deploymentPipelinesResponse)
 }
 
 func (c *infraResourceController) GetProject(w http.ResponseWriter, r *http.Request) {
@@ -306,50 +330,7 @@ func (c *infraResourceController) GetProject(w http.ResponseWriter, r *http.Requ
 	utils.WriteSuccessResponse(w, http.StatusOK, projectResponse)
 }
 
-func (c *infraResourceController) CreateOrganization(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract user info from JWT token
-	tokenClaims := jwtassertion.GetTokenClaims(ctx)
-	userIdpId := tokenClaims.Sub
-
-	// Parse and validate request body
-	var payload spec.CreateOrganizationRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("CreateOrganization: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	if err := utils.ValidateResourceName(payload.Name, "organization"); err != nil {
-		log.Error("CreateOrganization: invalid org name", "orgName", payload.Name, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid org name")
-		return
-	}
-
-	orgName, err := c.infraResourceManager.CreateOrganization(ctx, userIdpId, payload)
-	if err != nil {
-		log.Error("CreateOrganization: failed to create organization", "error", err)
-		if errors.Is(err, utils.ErrOrganizationAlreadyExists) {
-			utils.WriteErrorResponse(w, http.StatusConflict, "Organization already exists")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create organization")
-		return
-	}
-	orgResponse := spec.OrganizationResponse{
-		Name:        orgName,
-		DisplayName: orgName,
-		Description: "",
-		Namespace:   orgName,
-		CreatedAt:   time.Now(),
-	}
-
-	utils.WriteSuccessResponse(w, http.StatusAccepted, orgResponse)
-}
-
-func (c *infraResourceController) GetOrgEnvironments(w http.ResponseWriter, r *http.Request) {
+func (c *infraResourceController) ListOrgEnvironments(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
@@ -360,7 +341,7 @@ func (c *infraResourceController) GetOrgEnvironments(w http.ResponseWriter, r *h
 	tokenClaims := jwtassertion.GetTokenClaims(ctx)
 	userIdpId := tokenClaims.Sub
 
-	environments, err := c.infraResourceManager.GetOrgEnvironments(ctx, userIdpId, orgName)
+	environments, err := c.infraResourceManager.ListOrgEnvironments(ctx, userIdpId, orgName)
 	if err != nil {
 		log.Error("GetOrgEnvironments: failed to get environments", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
@@ -370,8 +351,8 @@ func (c *infraResourceController) GetOrgEnvironments(w http.ResponseWriter, r *h
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get environments")
 		return
 	}
-	environmentsResponse := utils.ConvertToEnvironmentResponse(environments)
-	utils.WriteSuccessResponse(w, http.StatusOK, environmentsResponse)
+	environmentsListResponse := utils.ConvertToEnvironmentListResponse(environments)
+	utils.WriteSuccessResponse(w, http.StatusOK, environmentsListResponse)
 }
 
 func (c *infraResourceController) GetProjectDeploymentPipeline(w http.ResponseWriter, r *http.Request) {
@@ -401,28 +382,7 @@ func (c *infraResourceController) GetProjectDeploymentPipeline(w http.ResponseWr
 		return
 	}
 
-	promotionPaths := make([]spec.PromotionPath, len(deploymentPipeline.PromotionPaths))
-	for i, path := range deploymentPipeline.PromotionPaths {
-		targetRefs := make([]spec.TargetEnvironmentRef, len(path.TargetEnvironmentRefs))
-		for j, target := range path.TargetEnvironmentRefs {
-			targetRefs[j] = spec.TargetEnvironmentRef{
-				Name: target.Name,
-			}
-		}
-		promotionPaths[i] = spec.PromotionPath{
-			SourceEnvironmentRef:  path.SourceEnvironmentRef,
-			TargetEnvironmentRefs: targetRefs,
-		}
-	}
-
-	deploymentPipelineResponse := &spec.DeploymentPipelineResponse{
-		Name:           deploymentPipeline.Name,
-		DisplayName:    deploymentPipeline.DisplayName,
-		PromotionPaths: promotionPaths,
-		Description:    deploymentPipeline.Description,
-		OrgName:        deploymentPipeline.OrgName,
-		CreatedAt:      deploymentPipeline.CreatedAt,
-	}
+	deploymentPipelineResponse := utils.ConvertToDeploymentPipelineResponse(deploymentPipeline)
 
 	utils.WriteSuccessResponse(w, http.StatusOK, deploymentPipelineResponse)
 }
