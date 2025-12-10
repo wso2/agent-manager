@@ -105,6 +105,59 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/deployment-pipelines:
+    get:
+      summary: List all deployment pipelines in an organization
+      operationId: listDeploymentPipelines
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of results to return
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+        - name: offset
+          in: query
+          description: Number of results to skip
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        "200":
+          description: List of deployment pipelines
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentPipelineListResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects:
     post:
       summary: Create a new project
@@ -226,6 +279,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProjectResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete a project
+      operationId: deleteProject
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Project deleted successfully
         "404":
           description: Project not found
           content:
@@ -1463,6 +1545,26 @@ components:
         - orgName
         - createdAt
         - promotionPaths
+
+    DeploymentPipelineListResponse:
+      type: object
+      properties:
+        deploymentPipelines:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeploymentPipelineResponse"
+        total:
+          type: integer
+          description: Total number of deployment pipelines matching the query
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required:
+        - deploymentPipelines
+        - total
+        - limit
+        - offset
 
     PromotionPath:
       type: object
