@@ -349,10 +349,10 @@ func (s *infraResourceManager) GetProject(ctx context.Context, userIdpId uuid.UU
 	if err != nil {
 		if db.IsRecordNotFoundError(err) {
 			s.logger.Debug("Project not found in repository", "orgId", org.ID, "projectName", projectName)
-		} else {
-			s.logger.Error("Failed to get project from repository", "orgId", org.ID, "projectName", projectName, "error", err)
+			return nil, utils.ErrProjectNotFound
 		}
-		return nil, fmt.Errorf("failed to find project %s: %w", projectName, err)
+		s.logger.Error("Failed to get project from repository", "orgId", org.ID, "projectName", projectName, "error", err)
+		return nil, fmt.Errorf("failed to find project %s in organization %s: %w", projectName, orgName, err)
 	}
 	s.logger.Debug("Project found in repository, fetching from OpenChoreo", "projectName", projectName, "projectId", project.ID)
 

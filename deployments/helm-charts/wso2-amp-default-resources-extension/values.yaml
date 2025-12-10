@@ -20,7 +20,7 @@ environment:
   # Description for the environment
   description: "Default environment for WSO2 AI Agent Management Platform"
   # Is this environment critical/production?
-  isCritical: true
+  isCritical: false
   # DNS Prefix for the gateway
   dnsPrefix: "default"
 
