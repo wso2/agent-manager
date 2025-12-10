@@ -114,6 +114,19 @@ jobs:
           git push origin "$TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "✅ Created and pushed tag: $TAG"
+
+          # Extract major version and create/update major version tag
+          MAJOR_VERSION=$(echo "${{ inputs.target-release }}" | cut -d. -f1)
+          MAJOR_TAG="amp/v${MAJOR_VERSION}"
+          echo "Creating/updating major version tag: $MAJOR_TAG"
+          if git rev-parse "$MAJOR_TAG" >/dev/null 2>&1; then
+            echo "Major tag $MAJOR_TAG already exists, updating..."
+            git tag -d "$MAJOR_TAG" || true
+            git push origin ":refs/tags/$MAJOR_TAG" || true
+          fi
+          git tag -a "$MAJOR_TAG" -m "Latest release for major version $MAJOR_VERSION"
+          git push origin "$MAJOR_TAG"
+          echo "✅ Created/updated major version tag: $MAJOR_TAG"
         shell: bash
 
   load-config:

@@ -1,5 +1,8 @@
 # WSO2 AI Agent Management Platform
 
+[![Platform Release](https://img.shields.io/github/v/release/wso2/ai-agent-management-platform?filter=amp/*&label=platform&color=orange)](https://github.com/wso2/ai-agent-management-platform/releases?q=amp)
+[![Python Instrumentation](https://img.shields.io/github/v/release/wso2/ai-agent-management-platform?filter=amp-instrumentation/*&label=python-instrumentation&color=blue)](https://github.com/wso2/ai-agent-management-platform/releases?q=amp-instrumentation)
+
 An open control plane designed for enterprises to deploy, manage, and govern AI agents at scale.
 
 ## Overview
@@ -39,7 +42,7 @@ Deploy WSO2 AI Agent Management Platform on Kubernetes using our Helm charts:
 
 ## Getting Started
 
-For installation instructions and a step-by-step guide, see the [Quick Start Guide](docs/quick-start.md).
+For installation instructions and a step-by-step guide, see the [Quick Start Guide](https://github.com/wso2/ai-agent-management-platform/blob/amp/v0/docs/quick-start.md).
 
 ## Contributing
 

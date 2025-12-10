@@ -1,0 +1,9 @@
+# CodeRabbit configuration
+# https://docs.coderabbit.ai/configuration/
+
+reviews:
+  auto_review:
+    # Enable reviews for PRs targeting these base branches
+    base_branches:
+      - main
+      - oc-0.7-migration
