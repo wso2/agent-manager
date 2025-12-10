@@ -7,3 +7,4 @@ reviews:
     base_branches:
       - main
       - oc-0.7-migration
+      - "feature/*"
