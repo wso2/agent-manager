@@ -42,7 +42,7 @@ Deploy WSO2 AI Agent Management Platform on Kubernetes using our Helm charts:
 
 ## Getting Started
 
-For installation instructions and a step-by-step guide, see the [Quick Start Guide](docs/quick-start.md).
+For installation instructions and a step-by-step guide, see the [Quick Start Guide](https://github.com/wso2/ai-agent-management-platform/blob/amp/v0/docs/quick-start.md).
 
 ## Contributing
 
