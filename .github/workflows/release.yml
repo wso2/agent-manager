@@ -75,8 +75,7 @@ jobs:
       - name: Update docs versions
         run: |
           bash .github/scripts/update-docs-versions.sh \
-            "${{ inputs.target-release }}" \
-            "${{ env.REGISTRY_ORG }}"
+            "${{ inputs.target-release }}"
         shell: bash
 
       - name: Update install-helpers.sh
