@@ -178,7 +178,7 @@ func (s *infraResourceManager) CreateProject(ctx context.Context, userIdpId uuid
 		OrgID:             org.ID,
 		Name:              payload.Name,
 		DisplayName:       payload.DisplayName,
-		Description:	   utils.StrPointerAsStr(payload.Description, ""),
+		Description:       utils.StrPointerAsStr(payload.Description, ""),
 		OpenChoreoProject: payload.Name,
 	}
 
@@ -212,7 +212,7 @@ func (s *infraResourceManager) CreateProject(ctx context.Context, userIdpId uuid
 	s.logger.Debug("Project created in OpenChoreo successfully", "orgName", orgName, "projectName", payload.Name)
 
 	s.logger.Info("Project created successfully", "orgName", orgName, "projectName", payload.Name, "projectId", project.ID)
-	
+
 	return &models.ProjectResponse{
 		Name:        project.Name,
 		OrgName:     orgName,
