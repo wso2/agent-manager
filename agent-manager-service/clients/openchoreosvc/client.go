@@ -993,6 +993,11 @@ func (k *openChoreoSvcClient) GetDeploymentPipelinesForOrganization(ctx context.
 		return nil, fmt.Errorf("failed to list deployment pipelines: %w", err)
 	}
 
+	// Sort by creation timestamp to ensure consistent ordering for pagination
+	sort.Slice(deploymentPipelineList.Items, func(i, j int) bool {
+		return deploymentPipelineList.Items[i].CreationTimestamp.After(deploymentPipelineList.Items[j].CreationTimestamp.Time)
+	})
+
 	var deploymentPipelines []*models.DeploymentPipelineResponse
 	for _, dp := range deploymentPipelineList.Items {
 		dpResponse := &models.DeploymentPipelineResponse{

@@ -230,17 +230,18 @@ func ConvertToEnvironmentResponse(env *models.EnvironmentResponse) spec.Environm
 	}
 }
 
-func ConvertToDeploymentPipelinesListResponse(pipelines []*models.DeploymentPipelineResponse) []spec.DeploymentPipelineResponse {
-	if len(pipelines) == 0 {
-		return []spec.DeploymentPipelineResponse{}
-	}
-
+func ConvertToDeploymentPipelinesListResponse(pipelines []*models.DeploymentPipelineResponse, total int32, limit int32, offset int32) spec.DeploymentPipelineListResponse {
 	responses := make([]spec.DeploymentPipelineResponse, len(pipelines))
 	for i, pipeline := range pipelines {
 		responses[i] = ConvertToDeploymentPipelineResponse(pipeline)
 	}
 
-	return responses
+	return spec.DeploymentPipelineListResponse{
+		DeploymentPipelines: responses,
+		Total:               total,
+		Limit:               limit,
+		Offset:              offset,
+	}
 }
 
 func ConvertToDeploymentPipelineResponse(pipeline *models.DeploymentPipelineResponse) spec.DeploymentPipelineResponse {

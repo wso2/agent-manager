@@ -283,7 +283,33 @@ func (c *infraResourceController) ListOrgDeploymentPipelines(w http.ResponseWrit
 	tokenClaims := jwtassertion.GetTokenClaims(ctx)
 	userIdpId := tokenClaims.Sub
 
-	deploymentPipelines, err := c.infraResourceManager.ListOrgDeploymentPipelines(ctx, userIdpId, orgName)
+	// Parse query parameters
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr == "" {
+		limitStr = strconv.Itoa(utils.DefaultLimit)
+	}
+	offsetStr := r.URL.Query().Get("offset")
+	if offsetStr == "" {
+		offsetStr = strconv.Itoa(utils.DefaultOffset)
+	}
+
+	// Parse and validate pagination parameters
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
+		log.Error("ListProjects: invalid limit parameter", "limit", limitStr)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and 50")
+		return
+	}
+
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil || offset < utils.MinOffset {
+		log.Error("ListProjects: invalid offset parameter", "offset", offsetStr)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter: must be 0 or greater")
+		return
+	}
+
+
+	deploymentPipelines, total, err := c.infraResourceManager.ListOrgDeploymentPipelines(ctx, userIdpId, orgName, limit, offset)
 	if err != nil {
 		log.Error("GetDeploymentPipelines: failed to get deployment pipelines", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
@@ -294,7 +320,7 @@ func (c *infraResourceController) ListOrgDeploymentPipelines(w http.ResponseWrit
 		return
 	}
 
-	deploymentPipelinesResponse := utils.ConvertToDeploymentPipelinesListResponse(deploymentPipelines)
+	deploymentPipelinesResponse := utils.ConvertToDeploymentPipelinesListResponse(deploymentPipelines,int32(total),int32(limit),int32(offset))
 	utils.WriteSuccessResponse(w, http.StatusOK, deploymentPipelinesResponse)
 }
 

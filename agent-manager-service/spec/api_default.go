@@ -2645,9 +2645,23 @@ type ApiListDeploymentPipelinesRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
 	orgName    string
+	limit      *int32
+	offset     *int32
 }
 
-func (r ApiListDeploymentPipelinesRequest) Execute() ([]DeploymentPipelineResponse, *http.Response, error) {
+// Maximum number of results to return
+func (r ApiListDeploymentPipelinesRequest) Limit(limit int32) ApiListDeploymentPipelinesRequest {
+	r.limit = &limit
+	return r
+}
+
+// Number of results to skip
+func (r ApiListDeploymentPipelinesRequest) Offset(offset int32) ApiListDeploymentPipelinesRequest {
+	r.offset = &offset
+	return r
+}
+
+func (r ApiListDeploymentPipelinesRequest) Execute() (*DeploymentPipelineListResponse, *http.Response, error) {
 	return r.ApiService.ListDeploymentPipelinesExecute(r)
 }
 
@@ -2668,13 +2682,13 @@ func (a *DefaultAPIService) ListDeploymentPipelines(ctx context.Context, orgName
 
 // Execute executes the request
 //
-//	@return []DeploymentPipelineResponse
-func (a *DefaultAPIService) ListDeploymentPipelinesExecute(r ApiListDeploymentPipelinesRequest) ([]DeploymentPipelineResponse, *http.Response, error) {
+//	@return DeploymentPipelineListResponse
+func (a *DefaultAPIService) ListDeploymentPipelinesExecute(r ApiListDeploymentPipelinesRequest) (*DeploymentPipelineListResponse, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue []DeploymentPipelineResponse
+		localVarReturnValue *DeploymentPipelineListResponse
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ListDeploymentPipelines")
@@ -2689,6 +2703,12 @@ func (a *DefaultAPIService) ListDeploymentPipelinesExecute(r ApiListDeploymentPi
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
 
+	if r.limit != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")
+	}
+	if r.offset != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "offset", r.offset, "")
+	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 

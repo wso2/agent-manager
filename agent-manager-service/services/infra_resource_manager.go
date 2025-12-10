@@ -41,7 +41,7 @@ type InfraResourceManager interface {
 	GetProject(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string) (*models.ProjectResponse, error)
 	CreateProject(ctx context.Context, userIdpId uuid.UUID, orgName string, payload spec.CreateProjectRequest) (*models.ProjectResponse, error)
 	DeleteProject(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string) error
-	ListOrgDeploymentPipelines(ctx context.Context, userIdpId uuid.UUID, orgName string) ([]*models.DeploymentPipelineResponse, error)
+	ListOrgDeploymentPipelines(ctx context.Context, userIdpId uuid.UUID, orgName string, limit int, offset int) ([]*models.DeploymentPipelineResponse, int, error)
 }
 
 type infraResourceManager struct {
@@ -366,7 +366,7 @@ func (s *infraResourceManager) GetProject(ctx context.Context, userIdpId uuid.UU
 	return openChoreoProject, nil
 }
 
-func (s *infraResourceManager) ListOrgDeploymentPipelines(ctx context.Context, userIdpId uuid.UUID, orgName string) ([]*models.DeploymentPipelineResponse, error) {
+func (s *infraResourceManager) ListOrgDeploymentPipelines(ctx context.Context, userIdpId uuid.UUID, orgName string, limit int, offset int) ([]*models.DeploymentPipelineResponse, int, error) {
 	s.logger.Debug("ListOrgDeploymentPipelines called", "userIdpId", userIdpId, "orgName", orgName)
 
 	// Validate organization exists
@@ -374,21 +374,33 @@ func (s *infraResourceManager) ListOrgDeploymentPipelines(ctx context.Context, u
 	if err != nil {
 		if db.IsRecordNotFoundError(err) {
 			s.logger.Debug("Organization not found", "userIdpId", userIdpId, "orgName", orgName)
-			return nil, utils.ErrOrganizationNotFound
+			return nil, 0,utils.ErrOrganizationNotFound
 		}
 		s.logger.Error("Failed to get organization from repository", "userIdpId", userIdpId, "orgName", orgName, "error", err)
-		return nil, fmt.Errorf("failed to find organization %s: %w", orgName, err)
+		return nil, 0, fmt.Errorf("failed to find organization %s: %w", orgName, err)
 	}
 
 	s.logger.Debug("Fetching deployment pipelines from OpenChoreo", "orgName", orgName)
 	deploymentPipelines, err := s.OpenChoreoSvcClient.GetDeploymentPipelinesForOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to get deployment pipelines from OpenChoreo", "orgName", orgName, "error", err)
-		return nil, fmt.Errorf("failed to get deployment pipelines for organization %s: %w", orgName, err)
+		return nil, 0, fmt.Errorf("failed to get deployment pipelines for organization %s: %w", orgName, err)
 	}
-
+	
 	s.logger.Info("Fetched deployment pipelines successfully", "orgName", orgName, "count", len(deploymentPipelines))
-	return deploymentPipelines, nil
+	total := len(deploymentPipelines)
+	// Apply pagination
+	start := offset
+	if start > len(deploymentPipelines) {
+		start = len(deploymentPipelines)
+	}
+	end := offset + limit
+	if end > len(deploymentPipelines) {
+		end = len(deploymentPipelines)
+	}
+	paginatedDeploymentPipelines := deploymentPipelines[start:end]
+	
+	return paginatedDeploymentPipelines, total, nil
 }
 
 func (s *infraResourceManager) ListOrgEnvironments(ctx context.Context, userIdpId uuid.UUID, orgName string) ([]*models.EnvironmentResponse, error) {
