@@ -17,26 +17,26 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { 
-  Table, 
-  TableContainer, 
-  Paper, 
-  Box, 
-  Typography, 
-  TablePagination, 
-  Chip, 
-  CircularProgress 
+import {
+  Table,
+  TableContainer,
+  Paper,
+  Box,
+  TablePagination,
+  Chip,
+  CircularProgress,
 } from '@wso2/oxygen-ui';
 import { TableHeader } from './subcomponents/TableHeader';
 import { TableBody } from './subcomponents/TableBody';
 import { LoadingState } from './subcomponents/LoadingState';
-import { EmptyState } from './subcomponents/EmptyState';
 import { ActionItem } from './subcomponents/ActionMenu';
-import { 
-  CheckCircle, 
-  Circle as CircleOutlined, 
-  XCircle as ErrorOutline 
+import {
+  BoxIcon,
+  CheckCircle,
+  Circle as CircleOutlined,
+  XCircle as ErrorOutline,
 } from '@wso2/oxygen-ui-icons-react';
+import { NoDataFound } from '../NoDataFound';
 
 export interface TableColumn<T = any> {
   id: keyof T | string;
@@ -116,29 +116,41 @@ export const DataListingTable = <T extends Record<string, any>>({
   onRowFocusIn,
   onRowFocusOut,
   onRowClick,
+  emptyStateTitle = 'No data found',
+  emptyStateDescription = 'No data found',
 }: DataListingTableProps<T>) => {
   // Determine initial sort values from initialState or fallback to defaultSort props
   const getInitialSortBy = () => {
-    if (initialState?.sorting?.sortModel && initialState.sorting.sortModel.length > 0) {
+    if (
+      initialState?.sorting?.sortModel &&
+      initialState.sorting.sortModel.length > 0
+    ) {
       return initialState.sorting.sortModel[0].field;
     }
     return defaultSortBy || '';
   };
 
   const getInitialSortDirection = (): SortDirection => {
-    if (initialState?.sorting?.sortModel && initialState.sorting.sortModel.length > 0) {
+    if (
+      initialState?.sorting?.sortModel &&
+      initialState.sorting.sortModel.length > 0
+    ) {
       return initialState.sorting.sortModel[0].sort;
     }
     return defaultSortDirection;
   };
 
   const [sortBy, setSortBy] = useState<keyof T | string>(getInitialSortBy());
-  const [sortDirection, setSortDirection] = useState<SortDirection>(getInitialSortDirection());
+  const [sortDirection, setSortDirection] = useState<SortDirection>(
+    getInitialSortDirection()
+  );
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(pageSize);
 
   const getNestedValue = (obj: any, path: string | number | symbol) => {
-    return String(path).split('.').reduce((current, key) => current?.[key], obj);
+    return String(path)
+      .split('.')
+      .reduce((current, key) => current?.[key], obj);
   };
 
   const handleSort = (columnId: keyof T | string) => {
@@ -157,7 +169,9 @@ export const DataListingTable = <T extends Record<string, any>>({
     }
   };
 
-  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChangeRowsPerPage = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const newRowsPerPage = parseInt(event.target.value, 10);
     setRowsPerPage(newRowsPerPage);
     setPage(0);
@@ -196,17 +210,18 @@ export const DataListingTable = <T extends Record<string, any>>({
 
   if (data.length === 0) {
     return (
-      <EmptyState
-
+      <NoDataFound
+        message={emptyStateTitle}
+        subtitle={emptyStateDescription}
+        iconElement={BoxIcon}
       />
     );
   }
 
   return (
-    <Paper 
-      sx={{ 
+    <Paper
+      sx={{
         width: '100%',
-        boxShadow: 'none',
       }}
     >
       <TableContainer>
@@ -261,37 +276,12 @@ const getStatusIcon = (status: StatusConfig) => {
 // Generic helper functions for common use cases
 export const renderStatusChip = (status: StatusConfig, theme?: any) => (
   <Box display="flex" alignItems="center" gap={theme?.spacing(1) || 1}>
-    <Chip variant="outlined"
+    <Chip
+      variant="outlined"
       icon={getStatusIcon(status)}
       label={status.label}
       color={status.color}
       size="small"
     />
-  </Box>
-);
-
-export const renderMetrics = (metrics: MetricsData, theme?: any) => (
-  <Box>
-    <Box display="flex" alignItems="center" gap={theme?.spacing(1) || 1} marginBottom={theme?.spacing(0.5) || 0.5}>
-      <Box
-        width={6}
-        height={6}
-        borderRadius="50%"
-        bgcolor={
-          metrics.metricsColor === 'success' ? (theme?.palette.success.main) :
-            metrics.metricsColor === 'warning' ? (theme?.palette.warning.main) :
-              (theme?.palette.error.main)
-        }
-      />
-      <Typography
-        variant="body2"
-        sx={{
-          color: theme?.palette.text.secondary,
-          fontSize: theme?.typography.body2.fontSize,
-        }}
-      >
-        {metrics.metricsValue}
-      </Typography>
-    </Box>
   </Box>
 );

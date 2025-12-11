@@ -30,18 +30,21 @@ import {
   Skeleton,
   Chip,
   alpha,
+  IconButton,
+  CircularProgress,
 } from "@wso2/oxygen-ui";
 import {
   Clock as AccessTimeRounded,
   Plus as Add,
   Trash2 as DeleteOutlineOutlined,
+  RefreshCcw,
   Search as SearchRounded,
+  User,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   PageLayout,
   DataListingTable,
   TableColumn,
-  BackgoundLoader,
   NoDataFound,
   FadeIn,
   InitialState,
@@ -73,9 +76,9 @@ export function ListPageSkeleton() {
         justifyContent="space-between"
         gap={2}
       >
-        <Box display="flex" flexDirection="column" gap={2}>
-          <Skeleton variant="rounded" width={100} height={40} />
-          <Skeleton variant="rounded" width={400} height={20} />
+        <Box display="flex" gap={2}>
+          <Skeleton variant="rounded" width={100} height={100} />
+          <Skeleton variant="rounded" width={400} height={100} />
         </Box>
         <Skeleton variant="rounded" height={40} width={150} />
       </Box>
@@ -108,7 +111,7 @@ export const AgentsList: React.FC = () => {
     projectId: string;
   }>();
   const navigate = useNavigate();
-  const { data, isLoading, error, isRefetching } = useListAgents({
+  const { data, isLoading, error, isRefetching, refetch: refetchAgents} = useListAgents({
     orgName: orgId ?? "default",
     projName: projectId ?? "default",
   });
@@ -252,7 +255,7 @@ export const AgentsList: React.FC = () => {
           sortable: true,
           width: "30%",
           render: (value) => (
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" noWrap textOverflow="ellipsis" overflow="hidden">
               {(value as string).substring(0, 40) +
                 ((value as string).length > 40 ? "..." : "")}
             </Typography>
@@ -332,15 +335,30 @@ export const AgentsList: React.FC = () => {
         project?.description ??
         "Manage and monitor all your AI agents across environments"
       }
+      titleTail={
+        <Box
+          display="flex"
+          alignItems="center"
+          minWidth={32}
+          justifyContent="center"
+        >
+          {isRefetching ? (
+            <CircularProgress size={18} color="primary" />
+          ) : (
+            <IconButton size="small" color="primary" onClick={()=>refetchAgents()}>
+              <RefreshCcw size={18} />
+            </IconButton>
+          )}
+        </Box>
+      }
     >
-      {isRefetching && <BackgoundLoader />}
-      <Box display="flex" justifyContent="space-between" gap={2} minHeight="calc(100vh - 250px)">
+    <Box display="flex" justifyContent="space-between" gap={4} minHeight="calc(100vh - 250px)">
         <Box
           sx={{
             display: "flex",
             flexGrow: 1,
             flexDirection: "column",
-            gap: 2,
+            gap: 4,
           }}
         >
           <Box display="flex" justifyContent="flex-end" gap={1}>
@@ -397,21 +415,18 @@ export const AgentsList: React.FC = () => {
                 onRowFocusIn={handleRowMouseEnter}
                 onRowFocusOut={handleRowMouseLeave}
                 onRowClick={(row) => navigate(row?.href)}
+                emptyStateTitle="No agents found"
+                emptyStateDescription="Looks like there are no agents matching your search."
               />
             </Box>
           )}
 
           {!isLoading && !data?.agents?.length && (
-            <Box
-              sx={{
-                boxShadow: theme.shadows[1],
-                backgroundColor: theme.palette.background.paper,
-                borderRadius: theme.shape.borderRadius,
-                p: 2.5, // 20px equivalent
-              }}
-            >
+   
               <NoDataFound
                 message="No agents found"
+                iconElement={User}
+                subtitle="Create a new agent to get started"
                 action={
                   <Button
                     variant="contained"
@@ -431,7 +446,6 @@ export const AgentsList: React.FC = () => {
                   </Button>
                 }
               />
-            </Box>
           )}
         </Box>
         <Box>

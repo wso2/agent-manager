@@ -16,11 +16,7 @@
  * under the License.
  */
 
-import {
-  BackgoundLoader,
-  NoDataFound,
-  PageLayout,
-} from "@agent-management-platform/views";
+import { NoDataFound, PageLayout } from "@agent-management-platform/views";
 import { useListProjects } from "@agent-management-platform/api-client";
 import { generatePath, Link, useParams } from "react-router-dom";
 import {
@@ -30,9 +26,13 @@ import {
 import {
   Avatar,
   Box,
+  Button,
   ButtonBase,
   Card,
   CardContent,
+  CircularProgress,
+  IconButton,
+  Skeleton,
   TextField,
   Typography,
   useTheme,
@@ -41,13 +41,21 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import {
   Package,
-  User as PersonOutline,
+  Plus,
+  RefreshCcw,
   Search as SearchRounded,
   Clock as TimerOutlined,
 } from "@wso2/oxygen-ui-icons-react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 dayjs.extend(relativeTime);
+
+const projectGridTemplate = {
+  xs: "repeat(1, minmax(0, 1fr))",
+  sm: "repeat(2, minmax(0, 1fr))",
+  md: "repeat(3, minmax(0, 1fr))",
+  lg: "repeat(4, minmax(0, 1fr))",
+};
 
 function ProjectCard(props: { project: ProjectResponse }) {
   const { project } = props;
@@ -60,69 +68,115 @@ function ProjectCard(props: { project: ProjectResponse }) {
         orgId: orgId,
         projectId: project.name,
       })}
+      sx={{
+        display: "block",
+        width: "100%",
+        textAlign: "left",
+        height: "fit-content",
+      }}
     >
       <Card
         sx={{
-          minWidth: 320,
+          width: "100%",
+          height: "100%",
           transition: theme.transitions.create(["all"], {
             duration: theme.transitions.duration.short,
           }),
+          p: 1,
+          pb: 0,
+          pt: 4,
           "&.MuiCard-root": {
             backgroundColor: "background.paper",
           },
           "&:hover": {
             borderColor: "primary.main",
-            backgroundColor: "background.default",
+            backgroundColor: "background.main",
             transform: "translateY(-2px)",
           },
         }}
       >
         <CardContent>
-          <Box display="flex" alignItems="center" gap={1.5}>
+          <Box display="flex" alignItems="center" gap={2}>
             <Avatar
               sx={{
-                height: 64,
-                width: 64,
+                height: 40,
+                width: 40,
                 "&.MuiAvatar-root": {
                   transition: theme.transitions.create(["all"], {
                     duration: theme.transitions.duration.short,
                   }),
-                  bgcolor: "secondary.main",
+                  bgcolor: "primary.light",
+                  color: "background.paper",
                 },
               }}
             >
               <Package fontSize="inherit" size={24} />
             </Avatar>
             <Box display="flex" flexDirection="column" alignItems="flex-start">
-              <Typography variant="h5">{project.displayName}</Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="h5" noWrap textOverflow="ellipsis">
+                {project.displayName}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
                 {project.description ? project.description : "No description"}
               </Typography>
             </Box>
           </Box>
-          <Typography
-            variant="body2"
-            color="textPrimary"
-            sx={{
-              mt: 2,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "flex-start",
-            }}
+          <Box
+            display="flex"
+            alignItems="center"
+            justifyContent="space-between"
           >
-            <TimerOutlined size={16} />
-            &nbsp;
-            {dayjs(project.createdAt).fromNow()}
-          </Typography>
+            <Typography
+              variant="body2"
+              color="textSecondary"
+              sx={{
+                mt: 4,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-start",
+              }}
+            >
+              <TimerOutlined size={16} opacity={0.5} />
+              &nbsp;
+              {dayjs(project.createdAt).fromNow()}
+            </Typography>
+          </Box>
         </CardContent>
       </Card>
     </ButtonBase>
   );
 }
 
+function SkelitonPageLayout() {
+  return (
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: projectGridTemplate,
+        gap: 2,
+        width: "100%",
+      }}
+    >
+      {Array.from({ length: 4 }).map((_, index) => (
+        <Skeleton
+          key={index}
+          variant="rounded"
+          height={160}
+          sx={{ width: "100%" }}
+        />
+      ))}
+    </Box>
+  );
+}
+
 export function ProjectList() {
   const { orgId } = useParams();
-  const { data: projects, isRefetching } = useListProjects({
+  const {
+    data: projects,
+    isRefetching,
+    refetch: refetchProjects,
+    isPending: isLoadingProjects,
+  } = useListProjects({
     orgName: orgId ?? "default",
   });
   const [search, setSearch] = useState("");
@@ -135,45 +189,87 @@ export function ProjectList() {
     [projects, search]
   );
 
+  const handleRefresh = useCallback(() => {
+    refetchProjects();
+  }, [refetchProjects]);
+
   return (
-    <PageLayout title="Projects" description="List of projects">
-      {isRefetching && <BackgoundLoader />}
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <TextField
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          slotProps={{ input: { endAdornment: <SearchRounded size={16} /> } }}
-          fullWidth
-          variant="outlined"
-          placeholder="Search Projects"
-          disabled={!projects?.projects?.length}
-        />
+    <PageLayout
+      title="Projects"
+      description="List of projects"
+      titleTail={
+        <Box
+          display="flex"
+          alignItems="center"
+          minWidth={32}
+          justifyContent="center"
+        >
+          {isRefetching ? (
+            <CircularProgress size={18} color="primary" />
+          ) : (
+            <IconButton size="small" color="primary" onClick={handleRefresh}>
+              <RefreshCcw size={18} />
+            </IconButton>
+          )}
+        </Box>
+      }
+    >
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <Box display="flex" gap={2}>
+          <Box flexGrow={1}>
+            <TextField
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              slotProps={{
+                input: { endAdornment: <SearchRounded size={16} /> },
+              }}
+              fullWidth
+              variant="outlined"
+              placeholder="Search Projects"
+              disabled={!projects?.projects?.length}
+            />
+          </Box>
+          <Button
+            variant="contained"
+            color="primary"
+            size="small"
+            startIcon={<Plus size={16} />}
+            component={Link}
+            to={generatePath(
+              absoluteRouteMap.children.org.children.newProject.path,
+              {
+                orgId: orgId,
+              }
+            )}
+          >
+            Add Project
+          </Button>
+        </Box>
+        {filteredProjects?.length === 0 && !isLoadingProjects && (
+          <NoDataFound
+            message="No Projects Found"
+            subtitle={
+              search
+                ? "Looks like there are no projects matching your search."
+                : "Create a New Project to Get Started"
+            }
+            iconElement={Package}
+          />
+        )}
         <Box
           sx={{
-            display: "inline-flex",
-            flexWrap: "wrap",
+            display: "grid",
+            gridTemplateColumns: projectGridTemplate,
             gap: 2,
             width: "100%",
-            justifyContent: "start",
-            alignItems: "start",
-            overflow: "visible",
-            minHeight: "calc(100vh - 250px)",
           }}
         >
           {filteredProjects?.map((project) => (
             <ProjectCard key={project.createdAt} project={project} />
           ))}
-          {filteredProjects?.length === 0 && (
-            <Box display="flex" width="100%" justifyContent="center" alignItems="center" pt={10} height="100%">
-            <NoDataFound
-              message="No projects found"
-              subtitle="Create a new project to get started"
-              icon={<PersonOutline fontSize="inherit" />}
-            />
-            </Box>
-          )}
         </Box>
       </Box>
+      {isLoadingProjects && <SkelitonPageLayout />}
     </PageLayout>
   );
 }

@@ -361,10 +361,6 @@
       "projectFolder": "workspaces/libs/views"
     },
     {
-      "packageName": "@agent-management-platform/agents-list-page",
-      "projectFolder": "workspaces/pages/agent-list"
-    },
-    {
       "packageName": "@agent-management-platform/add-new-agent",
       "projectFolder": "workspaces/pages/add-new-agent"
     },

@@ -55,7 +55,7 @@ export function PageLayout({
       display="flex"
       flexDirection="column"
       overflow="auto"
-      py={disablePadding ? 0 : 1.5}
+      py={disablePadding ? 0 : 3}
       px={disablePadding ? 0 : 3}
       gap={2}
     >
@@ -129,7 +129,7 @@ export function PageLayout({
         <Box>{actions && <Box>{actions}</Box>}</Box>
       </Box>
       <Box flexGrow={1} display="flex" flexDirection="column">
-        <Box gap={2}>{children}</Box>
+        <Box gap={4} pt={1}>{children}</Box>
       </Box>
     </Box>
   );
