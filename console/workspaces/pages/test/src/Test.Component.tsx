@@ -16,14 +16,118 @@
  * under the License.
  */
 
-import React from 'react';
-import { AgentTest } from './AgentTest/AgentTest';
-import { FadeIn } from '@agent-management-platform/views';
+import React from "react";
+import { AgentTest } from "./AgentTest/AgentTest";
+import { FadeIn, PageLayout } from "@agent-management-platform/views";
+import {
+  Box,
+  Tab,
+  Tabs,
+  Typography,
+} from "@wso2/oxygen-ui";
+import { ChevronsLeftRight, MessageCircle } from "@wso2/oxygen-ui-icons-react";
+import {
+  generatePath,
+  Link,
+  Navigate,
+  Route,
+  Routes,
+  useMatch,
+  useParams,
+} from "react-router-dom";
+import {
+  absoluteRouteMap,
+  relativeRouteMap,
+} from "@agent-management-platform/types";
 
 export const TestComponent: React.FC = () => {
+  const { orgId, projectId, agentId, envId } = useParams<{
+    orgId: string;
+    projectId: string;
+    agentId: string;
+    envId: string;
+  }>();
+
+  const isChatView = useMatch(
+    absoluteRouteMap.children.org.children.projects.children.agents.children
+      .environment.children.tryOut.children.chat.path
+  );
+
   return (
     <FadeIn>
-        <AgentTest />
+      <PageLayout
+        title={"Try your agent"}
+        disableIcon
+        actions={
+          <Tabs value={isChatView ? 0 : 1}>
+            <Tab
+              component={Link}
+              to={generatePath(
+                absoluteRouteMap.children.org.children.projects.children.agents
+                  .children.environment.children.tryOut.children.chat.path,
+                { orgId, projectId, agentId, envId }
+              )}
+              label={
+                <Box display="flex" alignItems="center" gap={1}>
+                  <MessageCircle size={16} />
+                  <Typography variant="body2">Chat View</Typography>
+                </Box>
+              }
+            />
+            <Tab
+              component={Link}
+              to={generatePath(
+                absoluteRouteMap.children.org.children.projects.children.agents
+                  .children.environment.children.tryOut.children.api.path,
+                { orgId, projectId, agentId, envId }
+              )}
+              label={
+                <Box display="flex" alignItems="center" gap={1}>
+                  <ChevronsLeftRight size={16} />
+                  <Typography variant="body2">Swagger View</Typography>
+                </Box>
+              }
+            />
+          </Tabs>
+        }
+      >
+        <Routes>
+          <Route
+            path={
+              relativeRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.tryOut.wildPath
+            }
+          >
+            <Route
+              path={
+                relativeRouteMap.children.org.children.projects.children.agents
+                  .children.environment.children.tryOut.children.chat.path
+              }
+              element={<AgentTest />}
+            />
+            <Route
+              path={
+                relativeRouteMap.children.org.children.projects.children.agents
+                  .children.environment.children.tryOut.children.api.path
+              }
+              element={<Box>API</Box>}
+            />
+          </Route>
+          <Route
+            path="*"
+            element={
+              <Navigate
+                to={generatePath(
+                  absoluteRouteMap.children.org.children.projects.children
+                    .agents.children.environment.children.tryOut.children.chat
+                    .path,
+                  { orgId, projectId, agentId, envId }
+                )}
+              />
+            }
+          />
+        </Routes>
+      </PageLayout>
     </FadeIn>
   );
 };

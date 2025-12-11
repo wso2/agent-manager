@@ -32,6 +32,7 @@ interface NoDataFoundProps {
     Omit<LucideProps, 'ref'> & React.RefAttributes<SVGSVGElement>
   >;
   subtitle?: string;
+  disableBackground?: boolean;
 }
 
 export function NoDataFound({
@@ -40,9 +41,25 @@ export function NoDataFound({
   icon,
   iconElement,
   subtitle,
+  disableBackground = false,
 }: NoDataFoundProps) {
-  return (
-    <FadeIn>
+  const WrapperComponent = (props: { children: ReactNode }) =>
+    disableBackground ? (
+      <Box
+        sx={{
+          display: 'flex',
+          height: '100%',
+          width: '100%',
+          justifyContent: 'center',
+          alignItems: 'center',
+          flexDirection: 'column',
+          gap: 1,
+          p: 4,
+        }}
+      >
+        {props.children}
+      </Box>
+    ) : (
       <Paper
         variant="outlined"
         elevation={0}
@@ -60,6 +77,12 @@ export function NoDataFound({
           },
         }}
       >
+        {props.children}
+      </Paper>
+    );
+  return (
+    <FadeIn>
+      <WrapperComponent>
         <Box color="secondary.dark">
           <Typography variant="body2" color="textSecondary">
             {iconElement
@@ -74,7 +97,7 @@ export function NoDataFound({
           </Typography>
         )}
         {action && <Box sx={{ mt: 2 }}>{action}</Box>}
-      </Paper>
+      </WrapperComponent>
     </FadeIn>
   );
 }

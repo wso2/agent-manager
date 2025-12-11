@@ -17,8 +17,6 @@
  */
 
 import { TestComponent } from './Test.Component';
-import { TestProject } from './Test.Project';
-import { TestOrganization } from './Test.Organization';
 import { FlaskConical as ScienceOutlined } from '@wso2/oxygen-ui-icons-react';
 
 export const metaData = {
@@ -29,15 +27,11 @@ export const metaData = {
   component: TestComponent,
   levels: {
     component: TestComponent,
-    project: TestProject,
-    organization: TestOrganization,
   },
 };
 
 export { 
-  TestComponent,
-  TestProject,
-  TestOrganization,
+  TestComponent
 };
 
 export default TestComponent;

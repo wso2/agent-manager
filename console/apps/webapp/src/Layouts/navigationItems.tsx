@@ -157,7 +157,7 @@ export function useNavigationItems(): Array<
         icon: <testMetadata.icon  />,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents
-            .children.environment.children.tryOut.path,
+            .children.environment.children.tryOut.wildPath,
           pathname
         ),
         href: generatePath(

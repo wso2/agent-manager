@@ -22,6 +22,7 @@ import {
   Box,
   Button,
   Container,
+  Stack,
   Typography,
 } from '@wso2/oxygen-ui';
 import { ReactNode } from 'react';
@@ -128,9 +129,9 @@ export function PageLayout({
         </Box>
         <Box>{actions && <Box>{actions}</Box>}</Box>
       </Box>
-      <Box flexGrow={1} display="flex" flexDirection="column">
-        <Box gap={4} pt={2}>{children}</Box>
-      </Box>
+      <Stack pt={2}>
+        {children}
+      </Stack>
     </Box>
   );
 }

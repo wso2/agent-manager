@@ -288,18 +288,21 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
         >
           {currentDiployment.status === TabStatus.INACTIVE && (
             <NoDataFound
+              disableBackground
               message="Not Deployed"
               icon={<RocketLaunchOutlined size={32} />}
             />
           )}
           {currentDiployment.status === TabStatus.DEPLOYING && (
             <NoDataFound
+              disableBackground
               message="Deploying..."
               icon={<CircularProgress size={32} />}
             />
           )}
           {currentDiployment.status === TabStatus.ERROR && (
             <NoDataFound
+              disableBackground
               message="Deployment Failed"
               icon={
                 <ErrorOutlineRounded

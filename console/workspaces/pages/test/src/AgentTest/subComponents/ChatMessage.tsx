@@ -56,7 +56,7 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
             "& .MuiCardContent-root": {
               minWidth: 300,
               backgroundColor:
-                role === "user" ? "secondary.dark" : "background.paper",
+                role === "user" ? "primary.main" : "background.paper",
             },
           }}
         >

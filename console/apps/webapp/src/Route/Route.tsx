@@ -119,13 +119,9 @@ export function RootRouter() {
                   <Route
                     path={
                       relativeRouteMap.children.org.children.projects.children
-                        .agents.children.environment.children.tryOut.path
+                        .agents.children.environment.children.tryOut.path + "/*"
                     }
-                    element={
-                      <PageLayout title={"Try your agent"} disableIcon>
-                        <testMetadata.levels.component />
-                      </PageLayout>
-                    }
+                    element={<testMetadata.levels.component />}
                   />
                   <Route
                     path={
