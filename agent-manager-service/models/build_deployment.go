@@ -51,8 +51,6 @@ type EndpointSchema struct {
 // Endpoint represents endpoint configuration
 type Endpoint struct {
 	URL        string `json:"url"`
-	Name       string `json:"name,omitempty"`
-	Visibility string `json:"visibility,omitempty"`
 }
 
 // EnvVars represents environment variables

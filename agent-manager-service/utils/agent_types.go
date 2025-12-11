@@ -1,3 +1,4 @@
+//
 // Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
@@ -13,31 +14,26 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
+//
 
-package dbmigrations
+package utils
 
-import (
-	"gorm.io/gorm"
+type AgentProvisioningType string
+
+const (
+	InternalAgent AgentProvisioningType = "internal"
+	ExternalAgent AgentProvisioningType = "external"
 )
 
-// create table internal_agents
-var migration007 = migration{
-	ID: 7,
-	Migrate: func(db *gorm.DB) error {
-		createTable := `CREATE TABLE internal_agents
-(
-   id            UUID PRIMARY KEY,
-   agent_subtype VARCHAR(100) NOT NULL,
-   language      VARCHAR(100) NOT NULL,
-   workload_spec    JSONB,
-   CONSTRAINT fk_internal_agents_id FOREIGN KEY (id) REFERENCES agents(id) ON DELETE CASCADE
-)`
+type AgentType string
 
-		return db.Transaction(func(tx *gorm.DB) error {
-			if err := runSQL(tx, createTable); err != nil {
-				return err
-			}
-			return nil
-		})
-	},
-}
+const (
+	AgentTypeAPI AgentType = "agent-api"
+)
+
+type AgentSubType string
+
+const (
+	AgentSubTypeChatAPI   AgentSubType = "chat-api"
+	AgentSubTypeCustomAPI AgentSubType = "custom-api"
+)

@@ -44,7 +44,11 @@ func NewAgentRepository() AgentRepository {
 
 func (r *agentRepository) ListAgents(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID) ([]*models.Agent, error) {
 	var agents []*models.Agent
-	if err := db.DB(ctx).Where("org_id = ? AND project_id = ?", orgId, projectId).Order("created_at DESC").Find(&agents).Error; err != nil {
+	if err := db.DB(ctx).
+		Preload("AgentDetails").
+		Where("org_id = ? AND project_id = ?", orgId, projectId).
+		Order("created_at DESC").
+		Find(&agents).Error; err != nil {
 		return nil, fmt.Errorf("agentRepository.ListAgents: %w", err)
 	}
 
@@ -53,7 +57,10 @@ func (r *agentRepository) ListAgents(ctx context.Context, orgId uuid.UUID, proje
 
 func (r *agentRepository) GetAgentByName(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string) (*models.Agent, error) {
 	var agent models.Agent
-	if err := db.DB(ctx).Where("org_id = ? AND project_id = ? AND name = ?", orgId, projectId, agentName).First(&agent).Error; err != nil {
+	if err := db.DB(ctx).
+		Preload("AgentDetails").
+		Where("org_id = ? AND project_id = ? AND name = ?", orgId, projectId, agentName).
+		First(&agent).Error; err != nil {
 		return nil, fmt.Errorf("agentRepository.GetAgentByName: %w", err)
 	}
 	return &agent, nil

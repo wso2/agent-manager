@@ -158,6 +158,48 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/agent-types:
+    get:
+      summary: List all agent types in an organization
+      operationId: listAgentTypes
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: provisioningType
+          in: query
+          description: Filter by agent provisioning type (e.g., internal, external)
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of agent types
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentTypeListResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects:
     post:
       summary: Create a new project
@@ -1036,24 +1078,40 @@ components:
         repository:
           $ref: "#/components/schemas/RepositoryConfig"
 
+    AgentType:
+      type: object
+      required:
+        - type
+        - subType
+      properties:
+        type:
+          type: string
+          description: Type of the agent
+        subType:
+          type: string
+          description: Sub-type of the agent
+
     CreateAgentRequest:
       type: object
       required:
         - name
         - displayName
         - provisioning
+        - agentType
       properties:
-        provisioning:
-          $ref: "#/components/schemas/Provisioning"
         name:
           type: string
           description: Unique name of the agent
         displayName:
           type: string
           description: Display name of the agent
+        provisioning:
+          $ref: "#/components/schemas/Provisioning"
         description:
           type: string
           description: Description of the agent
+        agentType:
+          $ref: "#/components/schemas/AgentType"
         runtimeConfigs:
           $ref: "#/components/schemas/RuntimeConfiguration"
         inputInterface:
@@ -1077,6 +1135,10 @@ components:
           description: Current status of the agent
         provisioning:
           $ref: "#/components/schemas/Provisioning"
+        agentType:
+          $ref: "#/components/schemas/AgentType"
+        runtimeConfigs:
+          $ref: "#/components/schemas/RuntimeConfiguration"
       required:
         - name
         - displayName
@@ -1084,6 +1146,8 @@ components:
         - projectName
         - description
         - provisioning
+        - agentType
+        - runtimeConfigs
     ResourceNameRequest:
       type: object
       properties:
@@ -1325,17 +1389,6 @@ components:
       type: object
       description: Endpoint configurations
       required:
-        - type
-      properties:
-        type:
-          type: string
-          description: Type of input interface (e.g., default, custom)
-          enum: [DEFAULT, CUSTOM]
-        customOpenAPISpec:
-          $ref: "#/components/schemas/EndpointSpec"
-    EndpointSpec:
-      type: object
-      required:
         - port
         - schema
         - basePath
@@ -1346,7 +1399,13 @@ components:
           minimum: 1
           maximum: 65535
         schema:
-          $ref: "#/components/schemas/EndpointSchema"
+          type: object
+          properties:
+            path:
+              type: string
+              description: Path to OpenAPI schema file
+          required:
+            - path
         basePath:
           type: string
           description: Base path for the endpoint
@@ -1771,3 +1830,48 @@ components:
           additionalProperties: true
       required:
         - message
+
+    AgentTypeSubtype:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the agent subtype
+        displayName:
+          type: string
+          description: Display name of the agent subtype
+        description:
+          type: string
+          description: Description of the agent subtype
+      required:
+        - name
+        - displayName
+        - description
+
+    AgentTypeResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the agent type
+        displayName:
+          type: string
+          description: Display name of the agent type
+        description:
+          type: string
+          description: Description of the agent type
+        subtypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentTypeSubtype"
+          description: List of subtypes for this agent type
+      required:
+        - name
+        - displayName
+        - description
+        - subtypes
+
+    AgentTypeListResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/AgentTypeResponse"

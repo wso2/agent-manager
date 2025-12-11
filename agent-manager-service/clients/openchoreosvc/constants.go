@@ -22,7 +22,7 @@ const (
 	LabelKeyOrganizationName LabelKeys = "openchoreo.dev/organization"
 	LabelKeyProjectName      LabelKeys = "openchoreo.dev/project"
 	LabelKeyComponentName    LabelKeys = "openchoreo.dev/component"
-	LabelKeyComponentType    LabelKeys = "agent-manager/component-type"
+	LabelKeyEnvironmentName LabelKeys = "openchoreo.dev/environment"
 )
 
 type AnnotationKeys string
@@ -46,29 +46,27 @@ const (
 	LanguageVersionKey string = "language-version-key"
 )
 
-// Build condition types
-type BuildConditionType string
 
+
+type WorkflowConditionType string
 const (
-	ConditionBuildInitiated  BuildConditionType = "BuildInitiated"
-	ConditionBuildTriggered  BuildConditionType = "BuildTriggered"
-	ConditionBuildCompleted  BuildConditionType = "BuildCompleted"
-	ConditionWorkloadUpdated BuildConditionType = "WorkloadUpdated"
+	ConditionWorkloadUpdated WorkflowConditionType = "WorkloadUpdated"
+	ConditionWorkflowFailed WorkflowConditionType = "WorkflowFailed"
+	ConditionWorkflowSucceeded WorkflowConditionType ="WorkflowSucceeded"
+	ConditionWorkflowRunning WorkflowConditionType = "WorkflowRunning"
+)
+type BuildStatus string
+const (
+	statusCompleted = "BuildCompleted"
+	statusPending = "BuildPending"
+	statusFailed = "BuildFailed"
+	statusSucceeded = "WorkloadUpdated"
+	statusRunning = "BuildRunning"
+	statusInitiated = "BuildInitiated"
 )
 
-const (
-	statusUnknown   = "Unknown"
-	statusCompleted = "Completed"
-)
 
-// ServiceBinding condition types
-const (
-	ConditionActive         = "Active"
-	ConditionFailed         = "Failed"
-	ConditionInProgress     = "InProgress"
-	ConditionNotYetDeployed = "NotYetDeployed"
-	ConditionSuspended      = "Suspended"
-)
+
 
 // Deployment status values
 const (
@@ -77,6 +75,7 @@ const (
 	DeploymentStatusSuspended   = "suspended"
 	DeploymentStatusInProgress  = "in-progress"
 	DeploymentStatusActive      = "active"
+	DeploymentStatusNotReady    = "not-ready"
 )
 
 const (
@@ -90,20 +89,13 @@ const (
 	DevEnvironmentDisplayName            = "Development"
 	DefaultDisplayName                   = "Default"
 	DefaultName                          = "default"
-	DefaultAPIClassNameWithCORS          = "default-with-cors"
-	ObservabilityEnabledServiceClassName = "default-otel-supported"
-	DefaultServiceClassName              = "default"
 )
 
 // Resource constants
 const (
 	DefaultCPURequest    = "100m"
-	DefaultMemoryRequest = "64Mi"
-	DefaultCPULimit      = "400m"
-	DefaultMemoryLimit   = "256Mi"
-)
-
-const (
-	BuildPlaneKind = "BuildPlane"
-	DataPlaneKind  = "DataPlane"
+	DefaultMemoryRequest = "256Mi"
+	DefaultCPULimit      = "500m"
+	DefaultMemoryLimit   = "512Mi"
+	DefaultReplicaCount = 1
 )

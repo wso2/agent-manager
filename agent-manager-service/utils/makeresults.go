@@ -37,6 +37,13 @@ func ConvertToAgentListResponse(components []*models.AgentResponse) []spec.Agent
 			Provisioning: spec.Provisioning{
 				Type: component.Provisioning.Type,
 			},
+			AgentType: spec.AgentType{
+				Type:    component.AgentType.Type,
+				SubType: component.AgentType.SubType,
+			},
+			RuntimeConfigs: spec.RuntimeConfiguration{
+				Language: component.Language,
+			},
 		}
 	}
 	return responses
@@ -65,6 +72,13 @@ func ConvertToAgentResponse(component *models.AgentResponse) spec.AgentResponse 
 		CreatedAt:    component.CreatedAt,
 		Status:       &component.Status,
 		Provisioning: provisioning,
+		AgentType: spec.AgentType{
+			Type: component.AgentType.Type,
+			SubType: component.AgentType.SubType,
+		},
+		RuntimeConfigs: spec.RuntimeConfiguration{
+			Language: component.Language,
+		},
 	}
 }
 
@@ -140,9 +154,7 @@ func ConvertToDeploymentDetailsResponse(deploymentDetails []*models.DeploymentRe
 		endpoints := make([]spec.DeploymentEndpoint, len(deployment.Endpoints))
 		for i, endpoint := range deployment.Endpoints {
 			endpoints[i] = spec.DeploymentEndpoint{
-				Name:       endpoint.Name,
 				Url:        endpoint.URL,
-				Visibility: endpoint.Visibility,
 			}
 		}
 
@@ -191,11 +203,9 @@ func ConvertToAgentEndpointResponse(endpointDetails map[string]models.EndpointsR
 	for endpointName, details := range endpointDetails {
 		result[endpointName] = spec.EndpointConfiguration{
 			Url:          details.URL,
-			EndpointName: details.Name,
 			Schema: spec.EndpointSchema{
 				Content: details.Schema.Content,
 			},
-			Visibility: details.Visibility,
 		}
 	}
 

@@ -32,6 +32,15 @@ type AgentResponse struct {
 	CreatedAt    time.Time    `json:"createdAt"`
 	Status       string       `json:"status,omitempty"`
 	Provisioning Provisioning `json:"provisioning,omitempty"`
+	AgentType    AgentType    `json:"agentType,omitempty"`
+	Language     string       `json:"language,omitempty"`
+}
+
+type AgentType struct {
+	// Type of the agent
+	Type string `json:"type"`
+	// Sub-type of the agent
+	SubType string `json:"subType"`
 }
 
 type Provisioning struct {
@@ -47,20 +56,23 @@ type Repository struct {
 
 // DB Model
 type Agent struct {
-	ID          uuid.UUID      `gorm:"column:id;primaryKey"`
-	AgentType   string         `gorm:"column:agent_type"`
-	Name        string         `gorm:"column:name"`
-	DisplayName string         `gorm:"column:display_name"`
-	Description string         `gorm:"column:description"`
-	ProjectId   uuid.UUID      `gorm:"column:project_id"`
-	OrgID       uuid.UUID      `gorm:"column:org_id"`
-	CreatedAt   time.Time      `gorm:"column:created_at"`
-	UpdatedAt   time.Time      `gorm:"column:updated_at"`
-	DeletedAt   gorm.DeletedAt `gorm:"column:deleted_at"`
+	ID               uuid.UUID      `gorm:"column:id;primaryKey"`
+	ProvisioningType string         `gorm:"column:provisioning_type"`
+	Name             string         `gorm:"column:name"`
+	DisplayName      string         `gorm:"column:display_name"`
+	Description      string         `gorm:"column:description"`
+	ProjectId        uuid.UUID      `gorm:"column:project_id"`
+	OrgID            uuid.UUID      `gorm:"column:org_id"`
+	CreatedAt        time.Time      `gorm:"column:created_at"`
+	UpdatedAt        time.Time      `gorm:"column:updated_at"`
+	DeletedAt        gorm.DeletedAt `gorm:"column:deleted_at"`
+	AgentDetails     *InternalAgent
 }
 
 type InternalAgent struct {
-	ID           uuid.UUID `gorm:"column:id;primaryKey"`
-	AgentSubType string    `gorm:"column:agent_subtype"`
-	Language     string    `gorm:"column:language"`
+	ID           uuid.UUID              `gorm:"column:id;primaryKey"`
+	AgentType    string                 `gorm:"column:agent_type"`
+	AgentSubType string                 `gorm:"column:agent_subtype"`
+	Language     string                 `gorm:"column:language"`
+	WorkloadSpec map[string]interface{} `gorm:"column:workload_spec;type:jsonb;serializer:json"`
 }

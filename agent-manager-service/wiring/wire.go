@@ -42,6 +42,7 @@ var repositoryProviderSet = wire.NewSet(
 	repositories.NewAgentRepository,
 	repositories.NewProjectRepository,
 	repositories.NewInternalAgentRepository,
+	repositories.NewAgentTypeRepository
 )
 
 var clientProviderSet = wire.NewSet(

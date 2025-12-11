@@ -308,7 +308,6 @@ func (c *infraResourceController) ListOrgDeploymentPipelines(w http.ResponseWrit
 		return
 	}
 
-
 	deploymentPipelines, total, err := c.infraResourceManager.ListOrgDeploymentPipelines(ctx, userIdpId, orgName, limit, offset)
 	if err != nil {
 		log.Error("GetDeploymentPipelines: failed to get deployment pipelines", "error", err)
@@ -320,7 +319,7 @@ func (c *infraResourceController) ListOrgDeploymentPipelines(w http.ResponseWrit
 		return
 	}
 
-	deploymentPipelinesResponse := utils.ConvertToDeploymentPipelinesListResponse(deploymentPipelines,int32(total),int32(limit),int32(offset))
+	deploymentPipelinesResponse := utils.ConvertToDeploymentPipelinesListResponse(deploymentPipelines, int32(total), int32(limit), int32(offset))
 	utils.WriteSuccessResponse(w, http.StatusOK, deploymentPipelinesResponse)
 }
 

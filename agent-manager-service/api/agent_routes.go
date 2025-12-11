@@ -26,9 +26,11 @@ import (
 func registerAgentRoutes(mux *http.ServeMux, ctrl controllers.AgentController) {
 	// All routes now use HandleFuncWithValidation which automatically
 	// extracts path parameters from the pattern and validates them
+
+	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/projects/{projName}/agents", ctrl.CreateAgent)
+
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/agents", ctrl.ListAgents)
 	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/utils/generate-name", ctrl.GenerateName)
-	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/projects/{projName}/agents", ctrl.CreateAgent)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/agents/{agentName}", ctrl.GetAgent)
 	middleware.HandleFuncWithValidation(mux, "DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}", ctrl.DeleteAgent)
 	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds", ctrl.BuildAgent)

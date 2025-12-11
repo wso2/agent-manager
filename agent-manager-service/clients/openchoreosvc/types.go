@@ -18,6 +18,19 @@ package openchoreosvc
 
 import "time"
 
+type ComponentType string
+
+const (
+	ComponentTypeAgentAPI ComponentType = "deployment/agent-api"
+)
+
+type ComponentWorkflow string
+
+const (
+	ComponentWorkflowGCB       ComponentWorkflow = "google-cloud-buildpacks"
+	ComponentWorkflowBallerina ComponentWorkflow = "ballerina-buildpack"
+)
+
 type AgentComponent struct {
 	Name             string     `json:"name"`
 	DisplayName      string     `json:"displayName,omitempty"`
@@ -26,7 +39,6 @@ type AgentComponent struct {
 	CreatedAt        time.Time  `json:"createdAt"`
 	Status           string     `json:"status,omitempty"`
 	Repository       Repository `json:"buildConfig,omitempty"`
-	BuildTemplateRef string     `json:"buildTemplateRef,omitempty"`
 }
 
 type Repository struct {

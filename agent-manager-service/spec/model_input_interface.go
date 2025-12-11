@@ -19,18 +19,22 @@ var _ MappedNullable = &InputInterface{}
 
 // InputInterface Endpoint configurations
 type InputInterface struct {
-	// Type of input interface (e.g., default, custom)
-	Type              string        `json:"type"`
-	CustomOpenAPISpec *EndpointSpec `json:"customOpenAPISpec,omitempty"`
+	// Port number
+	Port   int32                `json:"port"`
+	Schema InputInterfaceSchema `json:"schema"`
+	// Base path for the endpoint
+	BasePath string `json:"basePath"`
 }
 
 // NewInputInterface instantiates a new InputInterface object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewInputInterface(type_ string) *InputInterface {
+func NewInputInterface(port int32, schema InputInterfaceSchema, basePath string) *InputInterface {
 	this := InputInterface{}
-	this.Type = type_
+	this.Port = port
+	this.Schema = schema
+	this.BasePath = basePath
 	return &this
 }
 
@@ -42,60 +46,76 @@ func NewInputInterfaceWithDefaults() *InputInterface {
 	return &this
 }
 
-// GetType returns the Type field value
-func (o *InputInterface) GetType() string {
+// GetPort returns the Port field value
+func (o *InputInterface) GetPort() int32 {
+	if o == nil {
+		var ret int32
+		return ret
+	}
+
+	return o.Port
+}
+
+// GetPortOk returns a tuple with the Port field value
+// and a boolean to check if the value has been set.
+func (o *InputInterface) GetPortOk() (*int32, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Port, true
+}
+
+// SetPort sets field value
+func (o *InputInterface) SetPort(v int32) {
+	o.Port = v
+}
+
+// GetSchema returns the Schema field value
+func (o *InputInterface) GetSchema() InputInterfaceSchema {
+	if o == nil {
+		var ret InputInterfaceSchema
+		return ret
+	}
+
+	return o.Schema
+}
+
+// GetSchemaOk returns a tuple with the Schema field value
+// and a boolean to check if the value has been set.
+func (o *InputInterface) GetSchemaOk() (*InputInterfaceSchema, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Schema, true
+}
+
+// SetSchema sets field value
+func (o *InputInterface) SetSchema(v InputInterfaceSchema) {
+	o.Schema = v
+}
+
+// GetBasePath returns the BasePath field value
+func (o *InputInterface) GetBasePath() string {
 	if o == nil {
 		var ret string
 		return ret
 	}
 
-	return o.Type
+	return o.BasePath
 }
 
-// GetTypeOk returns a tuple with the Type field value
+// GetBasePathOk returns a tuple with the BasePath field value
 // and a boolean to check if the value has been set.
-func (o *InputInterface) GetTypeOk() (*string, bool) {
+func (o *InputInterface) GetBasePathOk() (*string, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.Type, true
+	return &o.BasePath, true
 }
 
-// SetType sets field value
-func (o *InputInterface) SetType(v string) {
-	o.Type = v
-}
-
-// GetCustomOpenAPISpec returns the CustomOpenAPISpec field value if set, zero value otherwise.
-func (o *InputInterface) GetCustomOpenAPISpec() EndpointSpec {
-	if o == nil || IsNil(o.CustomOpenAPISpec) {
-		var ret EndpointSpec
-		return ret
-	}
-	return *o.CustomOpenAPISpec
-}
-
-// GetCustomOpenAPISpecOk returns a tuple with the CustomOpenAPISpec field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *InputInterface) GetCustomOpenAPISpecOk() (*EndpointSpec, bool) {
-	if o == nil || IsNil(o.CustomOpenAPISpec) {
-		return nil, false
-	}
-	return o.CustomOpenAPISpec, true
-}
-
-// HasCustomOpenAPISpec returns a boolean if a field has been set.
-func (o *InputInterface) HasCustomOpenAPISpec() bool {
-	if o != nil && !IsNil(o.CustomOpenAPISpec) {
-		return true
-	}
-
-	return false
-}
-
-// SetCustomOpenAPISpec gets a reference to the given EndpointSpec and assigns it to the CustomOpenAPISpec field.
-func (o *InputInterface) SetCustomOpenAPISpec(v EndpointSpec) {
-	o.CustomOpenAPISpec = &v
+// SetBasePath sets field value
+func (o *InputInterface) SetBasePath(v string) {
+	o.BasePath = v
 }
 
 func (o InputInterface) MarshalJSON() ([]byte, error) {
@@ -108,10 +128,9 @@ func (o InputInterface) MarshalJSON() ([]byte, error) {
 
 func (o InputInterface) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["type"] = o.Type
-	if !IsNil(o.CustomOpenAPISpec) {
-		toSerialize["customOpenAPISpec"] = o.CustomOpenAPISpec
-	}
+	toSerialize["port"] = o.Port
+	toSerialize["schema"] = o.Schema
+	toSerialize["basePath"] = o.BasePath
 	return toSerialize, nil
 }
 

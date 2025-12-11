@@ -52,8 +52,5 @@ func (b *buildCIManagerService) HandleBuildCallback(ctx context.Context, agentNa
 		b.logger.Error("Failed to get component", "component", agentName, "project", projectName, "organization", orgName, "error", err)
 		return
 	}
-	if err := b.OpenChoreoSvcClient.DeployBuiltImage(ctx, orgName, projectName, component.Name, imageId); err != nil {
-		b.logger.Error("Failed to deploy agent component", "component", component.Name, "error", err)
-		return
-	}
+	// handle callback by deploying the built image
 }

@@ -4,10 +4,8 @@ metadata:
   name: {{ .Values.deploymentPipeline.name }}
   namespace: default
   annotations:
-    openchoreo.dev/display-name:
-      {{ .Values.deploymentPipeline.displayName }}
-    openchoreo.dev/description:
-      {{ .Values.deploymentPipeline.description }}
+    openchoreo.dev/display-name: {{ .Values.deploymentPipeline.displayName }}
+    openchoreo.dev/description: {{ .Values.deploymentPipeline.description }}
   labels:
     openchoreo.dev/organization: {{ .Values.organization.name }}
     openchoreo.dev/name: {{ .Values.deploymentPipeline.name }}

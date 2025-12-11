@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 
@@ -40,32 +41,69 @@ func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
 		return fmt.Errorf("invalid agent provisioning: %w", err)
 	}
 
+	// Additional validations for internal agents
 	if payload.Provisioning.Type == string(InternalAgent) {
-		// Validate repository details for internal agents
-		if err := validateRepoDetails(payload.Provisioning.Repository); err != nil {
-			return fmt.Errorf("invalid repository details: %w", err)
-		}
-		// Validate input interface
-		if payload.InputInterface == nil {
-			return fmt.Errorf("inputInterface is required for internal agents")
-		}
-		if err := validateInputInterface(*payload.InputInterface); err != nil {
-			return fmt.Errorf("invalid inputInterface: %w", err)
-		}
-		if payload.RuntimeConfigs == nil {
-			return fmt.Errorf("runtimeConfigs is required for internal agents")
-		}
-		if err := validateLanguage(payload.RuntimeConfigs.Language, payload.RuntimeConfigs.LanguageVersion); err != nil {
-			return fmt.Errorf("invalid language: %w", err)
+		if err := validateInternalAgent(payload); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
+// validateInternalAgent performs validations specific to internal agents
+func validateInternalAgent(payload spec.CreateAgentRequest) error {
+	// Validate agent type and subtype
+	if err := validateAgentType(payload.AgentType); err != nil {
+		return fmt.Errorf("invalid agent type or subtype: %w", err)
+	}
+
+	// Only perform API-specific validations for API agent types
+	if payload.AgentType.Type != string(AgentTypeAPI) {
+		return nil
+	}
+
+	// Validate custom API input interface
+	if payload.AgentType.SubType == string(AgentSubTypeCustomAPI) {
+		if err := validateInputInterface(payload.InputInterface); err != nil {
+			return fmt.Errorf("invalid inputInterface: %w", err)
+		}
+	}
+
+	// Validate runtime configurations
+	if payload.RuntimeConfigs == nil {
+		return fmt.Errorf("runtimeConfigs is required for internal agents")
+	}
+
+	if err := validateLanguage(payload.RuntimeConfigs.Language, payload.RuntimeConfigs.LanguageVersion); err != nil {
+		return fmt.Errorf("invalid language: %w", err)
+	}
+
+	return nil
+}
+
+func validateAgentType(agentType spec.AgentType) error {
+	if agentType.Type != string(AgentTypeAPI) {
+		return fmt.Errorf("unsupported agent type: %s", agentType)
+	}
+	// Validate subtype for API agent type
+	if agentType.Type == string(AgentTypeAPI) {
+		if agentType.SubType != string(AgentSubTypeChatAPI) && agentType.SubType != string(AgentSubTypeCustomAPI) {
+			return fmt.Errorf("unsupported agent subtype for type %s: %s", agentType.Type, agentType.SubType)
+		}
+	}
+	return nil
+}
+
 func validateAgentProvisioning(provisioning spec.Provisioning) error {
 	if provisioning.Type != string(InternalAgent) && provisioning.Type != string(ExternalAgent) {
 		return fmt.Errorf("provisioning type must be either 'internal' or 'external'")
+	}
+	if provisioning.Type == string(InternalAgent) {
+		// Validate repository details for internal agents
+		if err := validateRepoDetails(provisioning.Repository); err != nil {
+			return fmt.Errorf("invalid repository details: %w", err)
+		}
 	}
 	return nil
 }
@@ -128,24 +166,20 @@ func validateRepoDetails(repo *spec.RepositoryConfig) error {
 }
 
 // ValidateInputInterface validates the inputInterface field in CreateAgentRequest
-func validateInputInterface(inputInterface spec.InputInterface) error {
-	if inputInterface.Type == "" {
-		return fmt.Errorf("inputInterface.type is required")
+func validateInputInterface(inputInterface *spec.InputInterface) error {
+	if inputInterface == nil {
+		return fmt.Errorf("inputInterface is required for internal agents")
 	}
-	if inputInterface.Type != string(EndpointTypeDefault) && inputInterface.Type != string(EndpointTypeCustom) {
-		return fmt.Errorf("inputInterface.type must be '%s' or '%s'", EndpointTypeDefault, EndpointTypeCustom)
+	if inputInterface.Schema.Path == "" {
+		return fmt.Errorf("inputInterface.schema.path is required")
 	}
-	if inputInterface.Type == string(EndpointTypeCustom) {
-		if inputInterface.CustomOpenAPISpec == nil {
-			return fmt.Errorf("inputInterface.customOpenAPISpec is required when type is '%s'", EndpointTypeCustom)
-		}
-		if inputInterface.CustomOpenAPISpec.Port <= 0 || inputInterface.CustomOpenAPISpec.Port > 65535 {
-			return fmt.Errorf("customOpenAPISpec.port must be a valid port number (1-65535)")
-		}
-		if inputInterface.CustomOpenAPISpec.BasePath == "" {
-			return fmt.Errorf("customOpenAPISpec.basePath is required")
-		}
+	if inputInterface.Port <= 0 || inputInterface.Port > 65535 {
+		return fmt.Errorf("customOpenAPISpec.port must be a valid port number (1-65535)")
 	}
+	if inputInterface.BasePath == "" {
+		return fmt.Errorf("customOpenAPISpec.basePath is required")
+	}
+
 	return nil
 }
 
@@ -327,16 +361,27 @@ func GenerateUniqueNameWithSuffix(baseName string, checker NameChecker) (string,
 }
 
 // GetSystemEnvVars returns system environment variables for the specified language
-func GetSystemEnvVars(language string, componentName string, environmentName string) map[string]string {
+func GetSystemEnvVars(language string, componentName string) map[string]string {
 	envVars := make(map[string]string)
 
 	// Add system environment variables for Python
 	if language == string(LanguagePython) {
-		envVars[EnvAMPComponentID] = componentName
 		envVars[EnvAMPAppName] = componentName
-		envVars[EnvAMPAppVersion] = "1.0.0"
-		envVars[EnvAMPEnv] = environmentName
 	}
 
 	return envVars
+}
+
+// ReadChatAPISchema reads the OpenAPI schema for chat API from the docs directory
+func ReadChatAPISchema() (string, error) {
+	// Get the schema file path relative to the project root
+	schemaPath := "docs/api_v1_openapi.yaml"
+
+	// Read the file content
+	content, err := os.ReadFile(schemaPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read chat API schema: %w", err)
+	}
+
+	return string(content), nil
 }

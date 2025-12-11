@@ -19,13 +19,14 @@ var _ MappedNullable = &CreateAgentRequest{}
 
 // CreateAgentRequest struct for CreateAgentRequest
 type CreateAgentRequest struct {
-	Provisioning Provisioning `json:"provisioning"`
 	// Unique name of the agent
 	Name string `json:"name"`
 	// Display name of the agent
-	DisplayName string `json:"displayName"`
+	DisplayName  string       `json:"displayName"`
+	Provisioning Provisioning `json:"provisioning"`
 	// Description of the agent
 	Description    *string               `json:"description,omitempty"`
+	AgentType      AgentType             `json:"agentType"`
 	RuntimeConfigs *RuntimeConfiguration `json:"runtimeConfigs,omitempty"`
 	InputInterface *InputInterface       `json:"inputInterface,omitempty"`
 }
@@ -34,11 +35,12 @@ type CreateAgentRequest struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewCreateAgentRequest(provisioning Provisioning, name string, displayName string) *CreateAgentRequest {
+func NewCreateAgentRequest(name string, displayName string, provisioning Provisioning, agentType AgentType) *CreateAgentRequest {
 	this := CreateAgentRequest{}
-	this.Provisioning = provisioning
 	this.Name = name
 	this.DisplayName = displayName
+	this.Provisioning = provisioning
+	this.AgentType = agentType
 	return &this
 }
 
@@ -48,30 +50,6 @@ func NewCreateAgentRequest(provisioning Provisioning, name string, displayName s
 func NewCreateAgentRequestWithDefaults() *CreateAgentRequest {
 	this := CreateAgentRequest{}
 	return &this
-}
-
-// GetProvisioning returns the Provisioning field value
-func (o *CreateAgentRequest) GetProvisioning() Provisioning {
-	if o == nil {
-		var ret Provisioning
-		return ret
-	}
-
-	return o.Provisioning
-}
-
-// GetProvisioningOk returns a tuple with the Provisioning field value
-// and a boolean to check if the value has been set.
-func (o *CreateAgentRequest) GetProvisioningOk() (*Provisioning, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.Provisioning, true
-}
-
-// SetProvisioning sets field value
-func (o *CreateAgentRequest) SetProvisioning(v Provisioning) {
-	o.Provisioning = v
 }
 
 // GetName returns the Name field value
@@ -122,6 +100,30 @@ func (o *CreateAgentRequest) SetDisplayName(v string) {
 	o.DisplayName = v
 }
 
+// GetProvisioning returns the Provisioning field value
+func (o *CreateAgentRequest) GetProvisioning() Provisioning {
+	if o == nil {
+		var ret Provisioning
+		return ret
+	}
+
+	return o.Provisioning
+}
+
+// GetProvisioningOk returns a tuple with the Provisioning field value
+// and a boolean to check if the value has been set.
+func (o *CreateAgentRequest) GetProvisioningOk() (*Provisioning, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Provisioning, true
+}
+
+// SetProvisioning sets field value
+func (o *CreateAgentRequest) SetProvisioning(v Provisioning) {
+	o.Provisioning = v
+}
+
 // GetDescription returns the Description field value if set, zero value otherwise.
 func (o *CreateAgentRequest) GetDescription() string {
 	if o == nil || IsNil(o.Description) {
@@ -152,6 +154,30 @@ func (o *CreateAgentRequest) HasDescription() bool {
 // SetDescription gets a reference to the given string and assigns it to the Description field.
 func (o *CreateAgentRequest) SetDescription(v string) {
 	o.Description = &v
+}
+
+// GetAgentType returns the AgentType field value
+func (o *CreateAgentRequest) GetAgentType() AgentType {
+	if o == nil {
+		var ret AgentType
+		return ret
+	}
+
+	return o.AgentType
+}
+
+// GetAgentTypeOk returns a tuple with the AgentType field value
+// and a boolean to check if the value has been set.
+func (o *CreateAgentRequest) GetAgentTypeOk() (*AgentType, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.AgentType, true
+}
+
+// SetAgentType sets field value
+func (o *CreateAgentRequest) SetAgentType(v AgentType) {
+	o.AgentType = v
 }
 
 // GetRuntimeConfigs returns the RuntimeConfigs field value if set, zero value otherwise.
@@ -228,12 +254,13 @@ func (o CreateAgentRequest) MarshalJSON() ([]byte, error) {
 
 func (o CreateAgentRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["provisioning"] = o.Provisioning
 	toSerialize["name"] = o.Name
 	toSerialize["displayName"] = o.DisplayName
+	toSerialize["provisioning"] = o.Provisioning
 	if !IsNil(o.Description) {
 		toSerialize["description"] = o.Description
 	}
+	toSerialize["agentType"] = o.AgentType
 	if !IsNil(o.RuntimeConfigs) {
 		toSerialize["runtimeConfigs"] = o.RuntimeConfigs
 	}

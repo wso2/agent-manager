@@ -21,17 +21,14 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"regexp"
 	"sort"
 	"time"
 
 	"github.com/openchoreo/openchoreo/api/v1alpha1"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -56,39 +53,27 @@ type KubernetesConfigData struct {
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg clientmocks -out ../clientmocks/openchoreo_client_fake.go . OpenChoreoSvcClient:OpenChoreoSvcClientMock
 
 type OpenChoreoSvcClient interface {
-	GetProject(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error)
-	IsAgentComponentExists(ctx context.Context, orgName string, projName string, agentName string) (bool, error)
 	CreateAgentComponent(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error
-	DeleteAgentComponent(ctx context.Context, orgName string, projName string, agentName string) error
-	GetAgentComponent(ctx context.Context, orgName string, projName string, agentName string) (*AgentComponent, error)
-	ListAgentComponents(ctx context.Context, orgName string, projName string) ([]*AgentComponent, error)
 	TriggerBuild(ctx context.Context, orgName string, projName string, agentName string, commitId string) (*models.BuildResponse, error)
-	DeployBuiltImage(ctx context.Context, orgName string, projName string, componentName string, imageId string) error
 	SetupDeployment(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest, envVars []spec.EnvironmentVariable) error
-	DeployAgentComponent(ctx context.Context, orgName string, projName string, componentName string, language string, req *spec.DeployAgentRequest) error
-	ListAgentBuilds(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error)
-	GetAgentBuild(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error)
-	GetAgentDeployments(ctx context.Context, orgName string, pipelineName string, projName string, componentName string) ([]*models.DeploymentResponse, error)
-	GetAgentEndpoints(ctx context.Context, orgName string, projName string, agentName string, environment string) (map[string]models.EndpointsResponse, error)
+	GetProject(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error)
 	ListOrgEnvironments(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error)
-	GetEnvironment(ctx context.Context, orgName string, environmentName string) (*models.EnvironmentResponse, error)
-	GetDeploymentPipeline(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error)
-	GetAgentConfigurations(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error)
-	CreateOrganization(ctx context.Context, namespaceName string, orgName string, orgDisplayName string) error
-	CreateNamespaceForOrganization(ctx context.Context, orgName string) error
-	CreateBuildPlaneForOrganization(ctx context.Context, orgName string, buildPlaneName string) error
-	CreateDataPlaneForOrganization(ctx context.Context, orgName string, dataPlaneName string) error
-	CreateObservabilityEnabledServiceClassForPython(ctx context.Context, orgName string, serviceClassName string) error
-	CreateEnvironments(ctx context.Context, orgName string, environmentName string, envDisplayName string, dataplaneName string, isProduction bool, dnsPrefix string) error
-	CreateDeploymentPipeline(ctx context.Context, orgName string, pipelineName string, promotionPaths []models.PromotionPath) error
-	CreateProject(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string, projectDescription string) error
-	CleanupOrganizationResources(ctx context.Context, orgName string) error
-	ListOrganizations(ctx context.Context) ([]*models.OrganizationResponse, error)
-	GetOrganization(ctx context.Context, orgName string) (*models.OrganizationResponse, error)
 	ListProjects(ctx context.Context, orgName string) ([]*models.ProjectResponse, error)
-	CreateAPIClassDefaultWithCORS(ctx context.Context, orgName string, apiClassName string) error
+	GetOrganization(ctx context.Context, orgName string) (*models.OrganizationResponse, error)
 	GetDeploymentPipelinesForOrganization(ctx context.Context, orgName string) ([]*models.DeploymentPipelineResponse, error)
 	DeleteProject(ctx context.Context, orgName string, projectName string) error
+	GetDeploymentPipeline(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error)
+	CreateProject(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string, projectDescription string) error
+	GetAgentComponent(ctx context.Context, orgName string, projName string, agentName string) (*AgentComponent, error)
+	DeleteAgentComponent(ctx context.Context, orgName string, projName string, agentName string) error
+	DeployAgentComponent(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error
+	ListComponentWorkflows(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error)
+	GetAgentBuild(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error)
+	GetAgentDeployments(ctx context.Context, orgName string, pipelineName string, projName string, componentName string) ([]*models.DeploymentResponse, error)
+	GetEnvironment(ctx context.Context, orgName string, environmentName string) (*models.EnvironmentResponse, error)
+	IsAgentComponentExists(ctx context.Context, orgName string, projName string, agentName string) (bool, error)
+	GetAgentEndpoints(ctx context.Context, orgName string, projName string, agentName string, environment string) (map[string]models.EndpointsResponse, error)
+	GetAgentConfigurations(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error)
 }
 
 type openChoreoSvcClient struct {
@@ -202,33 +187,6 @@ func getRawKubernetesConfigData() (*KubernetesConfigData, error) {
 	}, nil
 }
 
-func (k *openChoreoSvcClient) ListAgentComponents(ctx context.Context, orgName string, projName string) ([]*AgentComponent, error) {
-	var componentList v1alpha1.ComponentList
-	listOpts := []client.ListOption{
-		client.InNamespace(orgName),
-	}
-
-	err := k.retryK8sOperation(ctx, "ListComponents", func() error {
-		return k.client.List(ctx, &componentList, listOpts...)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list components in namespace %s: %w", orgName, err)
-	}
-
-	components := make([]*AgentComponent, 0, len(componentList.Items))
-	for _, item := range componentList.Items {
-		// Only include agent components
-		if item.Labels[string(LabelKeyComponentType)] != AgentComponentType {
-			continue
-		}
-		// Only include components that belong to the specified project
-		if item.Spec.Owner.ProjectName == projName {
-			components = append(components, toComponentResponse(&item))
-		}
-	}
-	return components, nil
-}
-
 func (k *openChoreoSvcClient) GetProject(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
 	project := &v1alpha1.Project{}
 	key := client.ObjectKey{
@@ -336,21 +294,21 @@ func (k *openChoreoSvcClient) DeleteAgentComponent(ctx context.Context, orgName 
 	}
 
 	// Delete associated builds
-	buildList := &v1alpha1.BuildList{}
+	workflowRuns := &v1alpha1.ComponentWorkflowRunList{}
 	err = k.retryK8sOperation(ctx, "ListBuilds", func() error {
-		return k.client.List(ctx, buildList, client.InNamespace(orgName))
+		return k.client.List(ctx, workflowRuns, client.InNamespace(orgName))
 	})
 	if err != nil {
-		return fmt.Errorf("failed to list builds for cleanup: %w", err)
+		return fmt.Errorf("failed to list cwfList for cleanup: %w", err)
 	}
 
-	for _, build := range buildList.Items {
-		if build.Spec.Owner.ProjectName == projName && build.Spec.Owner.ComponentName == agentName {
+	for _, wf := range workflowRuns.Items {
+		if wf.Spec.Owner.ProjectName == projName && wf.Spec.Owner.ComponentName == agentName {
 			err = k.retryK8sOperation(ctx, "DeleteBuild", func() error {
-				return k.client.Delete(ctx, &build)
+				return k.client.Delete(ctx, &wf)
 			})
 			if err != nil && client.IgnoreNotFound(err) != nil {
-				return fmt.Errorf("failed to delete build %s: %w", build.Name, err)
+				return fmt.Errorf("failed to delete build %s: %w", wf.Name, err)
 			}
 		}
 	}
@@ -375,22 +333,41 @@ func (k *openChoreoSvcClient) DeleteAgentComponent(ctx context.Context, orgName 
 		}
 	}
 
-	// Delete associated services
-	serviceList := &v1alpha1.ServiceList{}
-	err = k.retryK8sOperation(ctx, "ListServices", func() error {
-		return k.client.List(ctx, serviceList, client.InNamespace(orgName))
+	// Delete associated component release
+	componentReleases := &v1alpha1.ComponentReleaseList{}
+	err = k.retryK8sOperation(ctx, "ListComponentReleases", func() error {
+		return k.client.List(ctx, componentReleases, client.InNamespace(orgName))
 	})
 	if err != nil {
-		return fmt.Errorf("failed to list services for cleanup: %w", err)
+		return fmt.Errorf("failed to list component releases for cleanup: %w", err)
 	}
 
-	for _, service := range serviceList.Items {
-		if service.Spec.Owner.ProjectName == projName && service.Spec.Owner.ComponentName == agentName {
-			err = k.retryK8sOperation(ctx, "DeleteService", func() error {
-				return k.client.Delete(ctx, &service)
+	for _, release := range componentReleases.Items {
+		if release.Spec.Owner.ProjectName == projName && release.Spec.Owner.ComponentName == agentName {
+			err = k.retryK8sOperation(ctx, "DeleteComponentRelease", func() error {
+				return k.client.Delete(ctx, &release)
 			})
 			if err != nil && client.IgnoreNotFound(err) != nil {
-				return fmt.Errorf("failed to delete service %s: %w", service.Name, err)
+				return fmt.Errorf("failed to delete component release %s: %w", release.Name, err)
+			}
+		}
+	}
+	// Delete associated component release bindings
+	componentReleaseBindings := &v1alpha1.ReleaseBindingList{}
+	err = k.retryK8sOperation(ctx, "ListComponentReleaseBindings", func() error {
+		return k.client.List(ctx, componentReleaseBindings, client.InNamespace(orgName))
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list component release bindings for cleanup: %w", err)
+	}
+
+	for _, binding := range componentReleaseBindings.Items {
+		if binding.Spec.Owner.ProjectName == projName && binding.Spec.Owner.ComponentName == agentName {
+			err = k.retryK8sOperation(ctx, "DeleteComponentReleaseBinding", func() error {
+				return k.client.Delete(ctx, &binding)
+			})
+			if err != nil && client.IgnoreNotFound(err) != nil {
+				return fmt.Errorf("failed to delete component release binding %s: %w", binding.Name, err)
 			}
 		}
 	}
@@ -426,80 +403,76 @@ func (k *openChoreoSvcClient) TriggerBuild(ctx context.Context, orgName string, 
 		return nil, fmt.Errorf("component does not belong to the specified project")
 	}
 
-	buildCR := createBuildCR(orgName, projName, agentName, commitId, component)
-	err = k.retryK8sOperation(ctx, "CreateBuild", func() error {
-		return k.client.Create(ctx, buildCR)
+	// Check if component has workflow configuration
+	if component.Spec.Workflow == nil {
+		return nil, fmt.Errorf("component %s does not have a workflow configured", component.Name)
+	}
+
+	// Extract system parameters from the component's workflow configuration
+	var systemParams v1alpha1.SystemParametersValues
+	if component.Spec.Workflow.SystemParameters.Repository.URL == "" {
+		return nil, fmt.Errorf("component %s workflow does not have repository URL configured", component.Name)
+	}
+
+	// Copy system parameters and update the commit
+	systemParams = component.Spec.Workflow.SystemParameters
+	if commitId != "" {
+		// Git commit SHA validation: 7-40 hexadecimal characters
+		commitPattern := regexp.MustCompile(`^[0-9a-fA-F]{7,40}$`)
+		if !commitPattern.MatchString(commitId) {
+			return nil, fmt.Errorf("Invalid commit SHA format: %s", commitId)
+		}
+	}
+	systemParams.Repository.Revision.Commit = commitId
+
+	componentWorkflowRunCR := createComponentWorkflowRunCR(orgName, projName, agentName, systemParams, component)
+	err = k.retryK8sOperation(ctx, "TriggerComponentWorkflowRunCR", func() error {
+		return k.client.Create(ctx, componentWorkflowRunCR)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to trigger build: %w", err)
 	}
 	return &models.BuildResponse{
-		UUID:        string(buildCR.UID),
-		Name:        buildCR.Name,
+		UUID:        string(componentWorkflowRunCR.UID),
+		Name:        componentWorkflowRunCR.Name,
 		AgentName:   agentName,
 		ProjectName: projName,
 		CommitID:    commitId,
-		Status:      string(ConditionBuildInitiated),
+		Status:      string(statusInitiated),
 		StartedAt:   time.Now(),
-		Branch:      buildCR.Spec.Repository.Revision.Branch,
+		Branch:      systemParams.Repository.Revision.Branch,
 	}, nil
 }
 
-func (k *openChoreoSvcClient) DeployAgentComponent(ctx context.Context, orgName string, projName string, componentName string, language string, req *spec.DeployAgentRequest) error {
-	workloadList, err := k.getWorkloads(ctx, orgName)
+func (k *openChoreoSvcClient) DeployAgentComponent(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error {
+	exists, err := k.IsAgentComponentExists(ctx,orgName,projName,componentName)
 	if err != nil {
-		return fmt.Errorf("failed to get workloads: %w", err)
+		return fmt.Errorf("failed to check agent component existence: %w", err)
 	}
-	var existingWorkload *v1alpha1.Workload
-	for i := range workloadList {
-		workload := &workloadList[i]
-		if workload.Spec.Owner.ComponentName == componentName {
-			existingWorkload = workload
-			break
-		}
+	if !exists {
+		return fmt.Errorf("agent component %s does not exist in open choreo %s", componentName, projName)
 	}
-	if existingWorkload == nil {
-		return fmt.Errorf("workload not found for component %s", componentName)
+	componentWorkload, err := k.getComponentWorkload(ctx, orgName, projName, componentName)
+	if err != nil {
+		return fmt.Errorf("failed to get component workload: %w", err)
 	}
-	updateWorkloadSpec(existingWorkload, req)
+	updateWorkloadSpec(componentWorkload, req)
 	err = k.retryK8sOperation(ctx, "UpdateWorkload", func() error {
-		return k.client.Update(ctx, existingWorkload)
+		return k.client.Update(ctx, componentWorkload)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update workload: %w", err)
 	}
-
-	// If the initial deployment failed we need to update the service resource to link the workload
-	err = k.updateServiceResource(ctx, orgName, projName, componentName, existingWorkload.Name)
-	if err != nil {
-		return fmt.Errorf("failed to update service resource: %w", err)
-	}
+	// When a Workload is updated and autoDeploy is enabled, it will automatically deploy to the first environment.
 	return nil
 }
 
 func (k *openChoreoSvcClient) SetupDeployment(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest, envVars []spec.EnvironmentVariable) error {
-	endpointDetails, err := createEndpointDetails(req.Name, *req.InputInterface)
-	if err != nil {
-		return fmt.Errorf("failed to create endpoint details: %w", err)
-	}
-	// workload is created with a placeholder image, which will be updated during deployment
-	_, err = k.createWorkload(ctx, orgName, projName, req.Name, envVars, endpointDetails, "image-id")
-	if err != nil {
-		return fmt.Errorf("failed to create workload: %w", err)
-	}
-	// Create service resource for the component without linking the workload
-	basePath := "/"
-	if req.InputInterface.Type == EndpointTypeCustom && req.InputInterface.CustomOpenAPISpec != nil {
-		basePath = req.InputInterface.CustomOpenAPISpec.BasePath
-	}
-	err = k.createServiceResource(ctx, orgName, projName, req.Name, endpointDetails, basePath, req.RuntimeConfigs.Language)
-	if err != nil {
-		return fmt.Errorf("failed to create service resource: %w", err)
-	}
+	
 	return nil
 }
 
-func (k *openChoreoSvcClient) getWorkloads(ctx context.Context, orgName string) ([]v1alpha1.Workload, error) {
+func (k *openChoreoSvcClient) getComponentWorkload(ctx context.Context, orgName string, projectName string, componentName string) (*v1alpha1.Workload, error) {
 	workloadList := &v1alpha1.WorkloadList{}
 	err := k.retryK8sOperation(ctx, "ListWorkloads", func() error {
 		return k.client.List(ctx, workloadList, client.InNamespace(orgName))
@@ -507,85 +480,57 @@ func (k *openChoreoSvcClient) getWorkloads(ctx context.Context, orgName string) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workloads: %w", err)
 	}
-	return workloadList.Items, nil
-}
-
-// DeployBuiltImage updates the workload with the built image and updates the service binding, this used during build callbacks
-func (k *openChoreoSvcClient) DeployBuiltImage(ctx context.Context, orgName string, projName string, componentName string, imageId string) error {
-	workloadList, err := k.getWorkloads(ctx, orgName)
-	if err != nil {
-		return fmt.Errorf("failed to get workloads: %w", err)
-	}
-	var existingWorkload *v1alpha1.Workload
-	for i := range workloadList {
-		workload := &workloadList[i]
+	var componentWorkload *v1alpha1.Workload
+	for i := range workloadList.Items {
+		workload := &workloadList.Items[i]
 		if workload.Spec.Owner.ComponentName == componentName {
-			existingWorkload = workload
+			componentWorkload = workload
 			break
 		}
 	}
-
-	if existingWorkload == nil {
-		return fmt.Errorf("workload not found for component %s", componentName)
+	if componentWorkload == nil {
+		return nil, fmt.Errorf("workload not found for component %s", componentName)
 	}
-	// Update the image in the existing workload
-	mainContainer := existingWorkload.Spec.Containers["main"]
-	mainContainer.Image = imageId
-	existingWorkload.Spec.Containers["main"] = mainContainer
-
-	err = k.retryK8sOperation(ctx, "UpdateWorkload", func() error {
-		return k.client.Update(ctx, existingWorkload)
-	})
-	if err != nil {
-		return fmt.Errorf("failed to update workload: %w", err)
-	}
-
-	// Update the workload reference in the service resource
-	err = k.updateServiceResource(ctx, orgName, projName, componentName, existingWorkload.Name)
-	if err != nil {
-		return fmt.Errorf("failed to update service resource: %w", err)
-	}
-	// once the service and workload resources are linked, oc will create the service binding automatically for the first environment and deploy the workload
-	return nil
+	return componentWorkload, nil
 }
 
-func (k *openChoreoSvcClient) ListAgentBuilds(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error) {
-	builds := &v1alpha1.BuildList{}
+func (k *openChoreoSvcClient) ListComponentWorkflows(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error) {
+	workflowRuns := &v1alpha1.ComponentWorkflowRunList{}
 	err := k.retryK8sOperation(ctx, "ListBuilds", func() error {
-		return k.client.List(ctx, builds, client.InNamespace(orgName))
+		return k.client.List(ctx, workflowRuns, client.InNamespace(orgName))
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list builds: %w", err)
 	}
 
-	buildResponses := make([]*models.BuildResponse, 0, len(builds.Items))
-	for _, build := range builds.Items {
+	buildResponses := make([]*models.BuildResponse, 0, len(workflowRuns.Items))
+	for _, workflowRun := range workflowRuns.Items {
 		// Only include agent components
-		if build.Spec.Owner.ProjectName != projName || build.Spec.Owner.ComponentName != componentName {
+		if workflowRun.Spec.Owner.ProjectName != projName || workflowRun.Spec.Owner.ComponentName != componentName {
 			continue
 		}
 
 		// Set end time if build is completed
 		var endedAtTime time.Time
-		endTime := findBuildEndTime(build.Status.Conditions)
+		endTime := findBuildEndTime(workflowRun.Status.Conditions)
 		if endTime != nil {
 			endedAtTime = endTime.Time
 		}
 
-		commit := build.Spec.Repository.Revision.Commit
+		commit := workflowRun.Spec.Workflow.SystemParameters.Repository.Revision.Commit
 		if commit == "" {
 			commit = "latest"
 		}
 		buildResponses = append(buildResponses, &models.BuildResponse{
-			Name:        build.Name,
-			UUID:        string(build.UID),
+			Name:        workflowRun.Name,
+			UUID:        string(workflowRun.UID),
 			AgentName:   componentName,
 			ProjectName: projName,
 			CommitID:    commit,
-			Status:      GetLatestBuildStatus(build.Status.Conditions),
-			StartedAt:   build.CreationTimestamp.Time,
-			Image:       build.Status.ImageStatus.Image,
-			Branch:      build.Spec.Repository.Revision.Branch,
+			Status:      getComponentWorkflowStatus(workflowRun.Status.Conditions),
+			StartedAt:   workflowRun.CreationTimestamp.Time,
+			Image:       workflowRun.Status.ImageStatus.Image,
+			Branch:      workflowRun.Spec.Workflow.SystemParameters.Repository.Revision.Branch,
 			EndedAt:     &endedAtTime,
 		})
 	}
@@ -599,13 +544,21 @@ func (k *openChoreoSvcClient) ListAgentBuilds(ctx context.Context, orgName strin
 }
 
 func (k *openChoreoSvcClient) GetAgentBuild(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
-	build := &v1alpha1.Build{}
+	exists, err := k.IsAgentComponentExists(ctx,orgName,projName,componentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check agent component existence: %w", err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("agent component %s does not exist in open choreo %s", componentName, projName)
+	}
+
+	componentWorkflow := &v1alpha1.ComponentWorkflowRun{}
 	key := client.ObjectKey{
 		Name:      buildName,
 		Namespace: orgName,
 	}
-	err := k.retryK8sOperation(ctx, "GetBuild", func() error {
-		return k.client.Get(ctx, key, build)
+	err = k.retryK8sOperation(ctx, "GetBuild", func() error {
+		return k.client.Get(ctx, key, componentWorkflow)
 	})
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -615,11 +568,11 @@ func (k *openChoreoSvcClient) GetAgentBuild(ctx context.Context, orgName string,
 	}
 
 	// Verify that the build belongs to the specified project and component
-	if build.Spec.Owner.ProjectName != projName || build.Spec.Owner.ComponentName != componentName {
+	if componentWorkflow.Spec.Owner.ProjectName != projName || componentWorkflow.Spec.Owner.ComponentName != componentName {
 		return nil, fmt.Errorf("build does not belong to the specified project or component")
 	}
 
-	buildDetails, err := toBuildDetailsResponse(build)
+	buildDetails, err := toBuildDetailsResponse(componentWorkflow)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert build to build details: %w", err)
 	}
@@ -627,6 +580,15 @@ func (k *openChoreoSvcClient) GetAgentBuild(ctx context.Context, orgName string,
 }
 
 func (k *openChoreoSvcClient) GetAgentDeployments(ctx context.Context, orgName string, pipelineName string, projectName string, componentName string) ([]*models.DeploymentResponse, error) {
+	
+	exists, err := k.IsAgentComponentExists(ctx,orgName,projectName,componentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check agent component existence: %w", err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("agent component %s does not exist in open choreo %s", componentName, projectName)
+	}
+	
 	pipeline, err := k.GetDeploymentPipeline(ctx, orgName, pipelineName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get deployment pipeline for project %s: %w", pipelineName, err)
@@ -637,26 +599,52 @@ func (k *openChoreoSvcClient) GetAgentDeployments(ctx context.Context, orgName s
 		return nil, fmt.Errorf("failed to get environments for organization %s: %w", orgName, err)
 	}
 
-	serviceBindings := &v1alpha1.ServiceBindingList{}
-	err = k.retryK8sOperation(ctx, "ListServiceBindings", func() error {
-		return k.client.List(ctx, serviceBindings, client.InNamespace(orgName))
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list service bindings: %w", err)
-	}
-
-	// Create a map of service bindings by environment for quick lookup
-	serviceBindingMap := make(map[string]*v1alpha1.ServiceBinding)
-	for i := range serviceBindings.Items {
-		sb := &serviceBindings.Items[i]
-		if sb.Spec.Owner.ProjectName == projectName && sb.Spec.Owner.ComponentName == componentName {
-			serviceBindingMap[sb.Spec.Environment] = sb
-		}
-	}
-
 	// Create environment order based on the deployment pipeline
 	environmentOrder := buildEnvironmentOrder(pipeline.PromotionPaths)
 	log.Printf("Environment order: %v", environmentOrder)
+
+	
+	releaseBindingList := &v1alpha1.ReleaseBindingList{}
+	err = k.retryK8sOperation(ctx, "ListReleaseBindings", func() error {
+		return k.client.List(ctx, releaseBindingList, client.InNamespace(orgName))
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list release bindings: %w", err)
+	}
+
+	releaseList := &v1alpha1.ReleaseList{}
+	listOpts := []client.ListOption{
+		client.InNamespace(orgName),
+		client.MatchingLabels{
+			string(LabelKeyOrganizationName): orgName,
+			string(LabelKeyProjectName):      projectName,
+			string(LabelKeyComponentName):    componentName,
+		},
+	}
+	err = k.retryK8sOperation(ctx, "ListRelease", func() error {
+		return k.client.List(ctx, releaseList, listOpts...)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list release: %w", err)
+	}
+	
+	// Create a map of release bindings by environment for quick lookup
+	releaseBindingMap := make(map[string]*v1alpha1.ReleaseBinding)
+	for i := range releaseBindingList.Items {
+		releaseBinding := &releaseBindingList.Items[i]
+		if releaseBinding.Spec.Owner.ProjectName == projectName && releaseBinding.Spec.Owner.ComponentName == componentName {
+			releaseEnv := releaseBinding.Labels[string(LabelKeyEnvironmentName)]
+			releaseBindingMap[releaseEnv] = releaseBinding
+		}
+	}
+
+	// Create a map of releases by environment for quick lookup
+	releaseMap := make(map[string]*v1alpha1.Release)
+	for i := range releaseList.Items {
+		release := &releaseList.Items[i]
+		releaseEnv := release.Labels[string(LabelKeyEnvironmentName)]
+		releaseMap[releaseEnv] = release
+	}
 
 	// Create environment map for quick lookup
 	environmentMap := make(map[string]*models.EnvironmentResponse)
@@ -667,16 +655,20 @@ func (k *openChoreoSvcClient) GetAgentDeployments(ctx context.Context, orgName s
 	// Construct deployment details in the order defined by the pipeline
 	var deploymentDetails []*models.DeploymentResponse
 	for _, envName := range environmentOrder {
-		if sb, exists := serviceBindingMap[envName]; exists {
-			deploymentDetails = append(deploymentDetails, toDeploymentDetailsResponse(sb, environmentMap, pipeline.PromotionPaths))
+		// Find promotion target environment for this environment
+		promotionTargetEnv := findPromotionTargetEnvironment(envName, pipeline.PromotionPaths, environmentMap)
+		if releaseBinding, exists := releaseBindingMap[envName]; exists {
+			// Ensure corresponding release exists
+			if _, releaseExists := releaseMap[envName]; !releaseExists {
+				return nil, fmt.Errorf("release not found for environment %s", envName)
+			}
+			deploymentDetails = append(deploymentDetails, toDeploymentDetailsResponse(releaseBinding, releaseMap[envName], environmentMap, promotionTargetEnv))
 		} else {
 			var displayName string
 			if env, envExists := environmentMap[envName]; envExists {
 				displayName = env.DisplayName
 			}
-
-			// Find promotion target environment for this environment
-			promotionTargetEnv := findPromotionTargetEnvironment(envName, pipeline.PromotionPaths, environmentMap)
+			
 			deploymentDetails = append(deploymentDetails, &models.DeploymentResponse{
 				Environment:                envName,
 				EnvironmentDisplayName:     displayName,
@@ -689,6 +681,7 @@ func (k *openChoreoSvcClient) GetAgentDeployments(ctx context.Context, orgName s
 	return deploymentDetails, nil
 }
 
+
 func (k *openChoreoSvcClient) GetAgentEndpoints(ctx context.Context, orgName string, projName string, agentName string, environment string) (map[string]models.EndpointsResponse, error) {
 	serviceBindings := &v1alpha1.ServiceBindingList{}
 	err := k.retryK8sOperation(ctx, "ListServiceBindings", func() error {
@@ -699,41 +692,7 @@ func (k *openChoreoSvcClient) GetAgentEndpoints(ctx context.Context, orgName str
 	}
 
 	endpointDetails := make(map[string]models.EndpointsResponse)
-	for _, sb := range serviceBindings.Items {
-		if sb.Spec.Owner.ProjectName == projName && sb.Spec.Owner.ComponentName == agentName && sb.Spec.Environment == environment {
-			// Check if Status.Endpoints exists and is not nil
-			if len(sb.Status.Endpoints) > 0 {
-				for _, statusEndpoint := range sb.Status.Endpoints {
-					// Get the corresponding spec endpoint for schema info
-					var schemaContent string
-					if sb.Spec.WorkloadSpec.Endpoints != nil {
-						if specEndpoint, exists := sb.Spec.WorkloadSpec.Endpoints[statusEndpoint.Name]; exists {
-							schemaContent = specEndpoint.Schema.Content
-						}
-					}
-
-					// Get URL from Public endpoint
-					var endpointURL string
-					var epVisibility string
-					if statusEndpoint.Public != nil {
-						endpointURL = statusEndpoint.Public.URI
-						epVisibility = "Public"
-					}
-
-					endpointDetails[statusEndpoint.Name] = models.EndpointsResponse{
-						Endpoint: models.Endpoint{
-							Name:       statusEndpoint.Name,
-							URL:        endpointURL,
-							Visibility: epVisibility,
-						},
-						Schema: models.EndpointSchema{
-							Content: schemaContent,
-						},
-					}
-				}
-			}
-		}
-	}
+	
 	return endpointDetails, nil
 }
 
@@ -861,129 +820,6 @@ func (k *openChoreoSvcClient) GetAgentConfigurations(ctx context.Context, orgNam
 	return envVars, nil
 }
 
-func (k *openChoreoSvcClient) createWorkload(ctx context.Context, orgName string, projName string, componentName string, envVars []spec.EnvironmentVariable, endpointDetails map[string]spec.EndpointSpec, imageId string) (*string, error) {
-	workloadCR := createWorkloadCR(orgName, projName, componentName, envVars, endpointDetails, imageId)
-	err := k.retryK8sOperation(ctx, "CreateWorkload", func() error {
-		return k.client.Create(ctx, workloadCR)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create workload: %w", err)
-	}
-	return &workloadCR.Name, nil
-}
-
-func (k *openChoreoSvcClient) createServiceResource(ctx context.Context, orgName string, projName string, componentName string, endpointDetails map[string]spec.EndpointSpec, basePath string, language string) error {
-	// Check if service already exists
-	serviceList := &v1alpha1.ServiceList{}
-	err := k.retryK8sOperation(ctx, "ListServices", func() error {
-		return k.client.List(ctx, serviceList, client.InNamespace(orgName))
-	})
-	if err != nil {
-		return fmt.Errorf("failed to list services: %w", err)
-	}
-
-	// Check if service already exists for this component
-	for _, service := range serviceList.Items {
-		if service.Spec.Owner.ComponentName == componentName && service.Spec.Owner.ProjectName == projName {
-			return fmt.Errorf("service already exists for component %s", componentName)
-		}
-	}
-
-	workloadName := ""
-	apis := make(map[string]*v1alpha1.ServiceAPI)
-	for epName, epSpec := range endpointDetails {
-		api := &v1alpha1.ServiceAPI{
-			EndpointTemplateSpec: v1alpha1.EndpointTemplateSpec{
-				ClassName: DefaultAPIClassNameWithCORS,
-				Type:      v1alpha1.EndpointTypeREST,
-				RESTEndpoint: &v1alpha1.RESTEndpoint{
-					ExposeLevels: []v1alpha1.RESTOperationExposeLevel{
-						v1alpha1.ExposeLevelPublic,
-					},
-					Backend: v1alpha1.HTTPBackend{
-						Port:     epSpec.Port,
-						BasePath: basePath,
-					},
-				},
-			},
-		}
-		apis[epName] = api
-	}
-
-	// Create new service
-	serviceClassName := DefaultServiceClassName
-	if language == string(utils.LanguagePython) {
-		serviceClassName = ObservabilityEnabledServiceClassName
-	}
-	serviceCR := createServiceCR(orgName, projName, componentName, workloadName, serviceClassName, apis)
-	err = k.retryK8sOperation(ctx, "CreateService", func() error {
-		return k.client.Create(ctx, serviceCR)
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create service: %w", err)
-	}
-	return nil
-}
-
-func (k *openChoreoSvcClient) updateServiceResource(ctx context.Context, orgName string, projName string, componentName string, workloadName string) error {
-	// Check if service already exists
-	serviceList := &v1alpha1.ServiceList{}
-	err := k.retryK8sOperation(ctx, "ListServices", func() error {
-		return k.client.List(ctx, serviceList, client.InNamespace(orgName))
-	})
-	if err != nil {
-		return fmt.Errorf("failed to list services: %w", err)
-	}
-
-	// Check if service already exists for this component
-	for _, service := range serviceList.Items {
-		if service.Spec.Owner.ComponentName != componentName || service.Spec.Owner.ProjectName != projName {
-			continue
-		}
-
-		if service.Spec.WorkloadName == workloadName {
-			// Service already exists with the correct workload, no need to update
-			return nil
-		}
-
-		service.Spec.WorkloadName = workloadName
-		err = k.retryK8sOperation(ctx, "UpdateService", func() error {
-			return k.client.Update(ctx, &service)
-		})
-		if err != nil {
-			return fmt.Errorf("failed to update service: %w", err)
-		}
-		return nil
-	}
-	return fmt.Errorf("service not found for component %s", componentName)
-}
-
-func (k *openChoreoSvcClient) CreateNamespaceForOrganization(ctx context.Context, orgName string) error {
-	namespace := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: orgName,
-		},
-	}
-	return k.retryK8sOperation(ctx, "CreateNamespaceForOrganization", func() error {
-		return k.client.Create(ctx, namespace)
-	})
-}
-
-func (k *openChoreoSvcClient) CreateOrganization(ctx context.Context, namespaceName string, orgName string, orgDisplayName string) error {
-	org := &v1alpha1.Organization{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      orgName,
-			Namespace: namespaceName,
-			Annotations: map[string]string{
-				string(AnnotationKeyDisplayName): orgDisplayName,
-			},
-		},
-	}
-	return k.retryK8sOperation(ctx, "CreateOrganization", func() error {
-		return k.client.Create(ctx, org)
-	})
-}
-
 func (k *openChoreoSvcClient) GetDeploymentPipelinesForOrganization(ctx context.Context, orgName string) ([]*models.DeploymentPipelineResponse, error) {
 	deploymentPipelineList := &v1alpha1.DeploymentPipelineList{}
 	err := k.retryK8sOperation(ctx, "ListDeploymentPipelines", func() error {
@@ -1006,298 +842,6 @@ func (k *openChoreoSvcClient) GetDeploymentPipelinesForOrganization(ctx context.
 		deploymentPipelines = append(deploymentPipelines, dpResponse)
 	}
 	return deploymentPipelines, nil
-}
-
-func (k *openChoreoSvcClient) CreateBuildPlaneForOrganization(ctx context.Context, orgName string, buildPlaneName string) error {
-	// Get cluster name and certificate data from kubeconfig (base64-encoded)
-	k8sConfig, err := getRawKubernetesConfigData()
-	if err != nil {
-		return fmt.Errorf("failed to get raw certificate data: %w", err)
-	}
-
-	buildPlaneManifest := map[string]interface{}{
-		"apiVersion": "openchoreo.dev/v1alpha1",
-		"kind":       BuildPlaneKind,
-		"metadata": map[string]interface{}{
-			"name":      buildPlaneName,
-			"namespace": orgName,
-			"annotations": map[string]string{
-				string(AnnotationKeyDescription): fmt.Sprintf("BuildPlane %s was created for organization %s", buildPlaneName, orgName),
-				string(AnnotationKeyDisplayName): fmt.Sprintf("BuildPlane %s", buildPlaneName),
-			},
-		},
-		"spec": map[string]interface{}{
-			"kubernetesCluster": map[string]interface{}{
-				"name": k8sConfig.ClusterName,
-				"credentials": map[string]interface{}{
-					"apiServerURL": "https://openchoreo-control-plane:6443",
-					"caCert":       k8sConfig.CACert,
-					"clientCert":   k8sConfig.ClientCert,
-					"clientKey":    k8sConfig.ClientKey,
-				},
-			},
-			"observer": map[string]interface{}{
-				"url": "http://observer.openchoreo-observability-plane:8080",
-				"authentication": map[string]interface{}{
-					"basicAuth": map[string]interface{}{
-						"username": config.GetConfig().Observer.Username,
-						"password": config.GetConfig().Observer.Password,
-					},
-				},
-			},
-		},
-	}
-
-	buildPlaneUnstructured := &unstructured.Unstructured{
-		Object: buildPlaneManifest,
-	}
-	buildPlaneUnstructured.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "openchoreo.dev",
-		Version: "v1alpha1",
-		Kind:    "BuildPlane",
-	})
-
-	return k.retryK8sOperation(ctx, "CreateBuildPlane", func() error {
-		return k.client.Create(ctx, buildPlaneUnstructured)
-	})
-}
-
-func (k *openChoreoSvcClient) CreateDataPlaneForOrganization(ctx context.Context, orgName string, dataPlaneName string) error {
-	// Get cluster name and certificate data from kubeconfig (base64-encoded)
-	k8sConfig, err := getRawKubernetesConfigData()
-	if err != nil {
-		return fmt.Errorf("failed to get raw certificate data: %w", err)
-	}
-
-	dataPlaneManifest := map[string]interface{}{
-		"apiVersion": "openchoreo.dev/v1alpha1",
-		"kind":       DataPlaneKind,
-		"metadata": map[string]interface{}{
-			"name":      dataPlaneName,
-			"namespace": orgName,
-			"annotations": map[string]string{
-				string(AnnotationKeyDescription): fmt.Sprintf("DataPlane %s was created for organization %s", dataPlaneName, orgName),
-				string(AnnotationKeyDisplayName): fmt.Sprintf("DataPlane %s", dataPlaneName),
-			},
-		},
-		"spec": map[string]interface{}{
-			"kubernetesCluster": map[string]interface{}{
-				"name": k8sConfig.ClusterName,
-				"credentials": map[string]interface{}{
-					"apiServerURL": "https://openchoreo-control-plane:6443",
-					"caCert":       k8sConfig.CACert,
-					"clientCert":   k8sConfig.ClientCert,
-					"clientKey":    k8sConfig.ClientKey,
-				},
-			},
-			"registry": map[string]interface{}{
-				"prefix":    "registry.openchoreo-data-plane:5000",
-				"secretRef": "registry-credentials",
-			},
-			"gateway": map[string]interface{}{
-				"organizationVirtualHost": "openchoreoapis.internal",
-				"publicVirtualHost":       "openchoreoapis.localhost",
-			},
-			"observer": map[string]interface{}{
-				"url": "http://observer.openchoreo-observability-plane:8080",
-				"authentication": map[string]interface{}{
-					"basicAuth": map[string]interface{}{
-						"username": config.GetConfig().Observer.Username,
-						"password": config.GetConfig().Observer.Password,
-					},
-				},
-			},
-		},
-	}
-
-	dataPlaneUnstructured := &unstructured.Unstructured{
-		Object: dataPlaneManifest,
-	}
-	dataPlaneUnstructured.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "openchoreo.dev",
-		Version: "v1alpha1",
-		Kind:    "DataPlane",
-	})
-
-	return k.retryK8sOperation(ctx, "CreateDataPlane", func() error {
-		return k.client.Create(ctx, dataPlaneUnstructured)
-	})
-}
-
-// Init container setups OpenTelemetry instrumentation SDK in a shared volume is specific to Python services
-func (k *openChoreoSvcClient) CreateObservabilityEnabledServiceClassForPython(ctx context.Context, orgName string, serviceClassName string) error {
-	serviceClass := &v1alpha1.ServiceClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      serviceClassName,
-			Namespace: orgName,
-		},
-		Spec: v1alpha1.ServiceClassSpec{
-			DeploymentTemplate: appsv1.DeploymentSpec{
-				Template: corev1.PodTemplateSpec{
-					Spec: corev1.PodSpec{
-						Volumes: []corev1.Volume{
-							{
-								Name: config.GetConfig().OTEL.SDKVolumeName,
-								VolumeSource: corev1.VolumeSource{
-									EmptyDir: &corev1.EmptyDirVolumeSource{},
-								},
-							},
-						},
-						Containers: []corev1.Container{
-							{
-								Name: MainContainerName,
-								VolumeMounts: []corev1.VolumeMount{
-									{
-										Name:      config.GetConfig().OTEL.SDKVolumeName,
-										MountPath: config.GetConfig().OTEL.SDKMountPath,
-									},
-								},
-								Resources: corev1.ResourceRequirements{
-									Requests: corev1.ResourceList{
-										corev1.ResourceCPU:    resource.MustParse(DefaultCPURequest),
-										corev1.ResourceMemory: resource.MustParse(DefaultMemoryRequest),
-									},
-									Limits: corev1.ResourceList{
-										corev1.ResourceCPU:    resource.MustParse(DefaultCPULimit),
-										corev1.ResourceMemory: resource.MustParse(DefaultMemoryLimit),
-									},
-								},
-								Env: []corev1.EnvVar{
-									{
-										Name:  utils.EnvPythonPath,
-										Value: config.GetConfig().OTEL.SDKMountPath,
-									},
-									{
-										Name:  utils.EnvAMPTraceloopTraceContent,
-										Value: utils.BoolAsString(config.GetConfig().OTEL.TraceContent),
-									},
-									{
-										Name:  utils.EnvAMPOTELExporterOTLPInsecure,
-										Value: utils.BoolAsString(config.GetConfig().OTEL.ExporterInsecure),
-									},
-									{
-										Name:  utils.EnvAMPTraceloopMetricsEnabled,
-										Value: utils.BoolAsString(config.GetConfig().OTEL.MetricsEnabled),
-									},
-									{
-										Name:  utils.EnvAMPTraceloopTelemetryEnabled,
-										Value: utils.BoolAsString(config.GetConfig().OTEL.TelemetryEnabled),
-									},
-									{
-										Name:  utils.EnvAMPOTELExporterOTLPEndpoint,
-										Value: config.GetConfig().OTEL.ExporterEndpoint,
-									},
-								},
-							},
-						},
-						// Add init container to the PodSpec
-						InitContainers: []corev1.Container{
-							{
-								Name:            "setup-instrumentation",
-								Image:           config.GetConfig().OTEL.InstrumentationImage,
-								ImagePullPolicy: corev1.PullIfNotPresent,
-								Env: []corev1.EnvVar{
-									{
-										Name:  utils.EnvInstrumentationProvider,
-										Value: config.GetConfig().OTEL.InstrumentationProvider,
-									},
-								},
-								VolumeMounts: []corev1.VolumeMount{
-									{
-										Name:      config.GetConfig().OTEL.SDKVolumeName,
-										MountPath: config.GetConfig().OTEL.SDKMountPath,
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	return k.retryK8sOperation(ctx, "CreateServiceClass", func() error {
-		return k.client.Create(ctx, serviceClass)
-	})
-}
-
-func (k *openChoreoSvcClient) CreateAPIClassDefaultWithCORS(ctx context.Context, orgName string, apiClassName string) error {
-	maxAge := int64(86400)
-	apiClass := &v1alpha1.APIClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      apiClassName,
-			Namespace: orgName,
-		},
-		Spec: v1alpha1.APIClassSpec{
-			RESTPolicy: &v1alpha1.RESTAPIPolicy{
-				Defaults: &v1alpha1.RESTPolicy{
-					CORS: &v1alpha1.CORSPolicy{
-						AllowOrigins: []string{config.GetConfig().CORSAllowedOrigin},
-						AllowMethods: []string{"GET", "POST", "PUT", "DELETE"},
-						AllowHeaders: []string{"Content-Type", "Authorization"},
-						MaxAge:       &maxAge,
-					},
-				},
-			},
-		},
-	}
-	return k.retryK8sOperation(ctx, "CreateAPIClass", func() error {
-		return k.client.Create(ctx, apiClass)
-	})
-}
-
-func (k *openChoreoSvcClient) CreateEnvironments(ctx context.Context, orgName string, environmentName string, envDisplayName string, dataplaneName string, isProduction bool, dnsPrefix string) error {
-	environment := &v1alpha1.Environment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      environmentName,
-			Namespace: orgName,
-			Annotations: map[string]string{
-				string(AnnotationKeyDisplayName): envDisplayName,
-			},
-		},
-		Spec: v1alpha1.EnvironmentSpec{
-			DataPlaneRef: dataplaneName,
-			IsProduction: isProduction,
-			Gateway: v1alpha1.GatewayConfig{
-				DNSPrefix: dnsPrefix,
-			},
-		},
-	}
-	return k.retryK8sOperation(ctx, "CreateEnvironment", func() error {
-		return k.client.Create(ctx, environment)
-	})
-}
-
-func (k *openChoreoSvcClient) CreateDeploymentPipeline(ctx context.Context, orgName string, pipelineName string, promotionPaths []models.PromotionPath) error {
-	v1alpha1PromotionPaths := make([]v1alpha1.PromotionPath, 0, len(promotionPaths))
-	for _, path := range promotionPaths {
-		targetRefs := make([]v1alpha1.TargetEnvironmentRef, 0, len(path.TargetEnvironmentRefs))
-		for _, target := range path.TargetEnvironmentRefs {
-			targetRefs = append(targetRefs, v1alpha1.TargetEnvironmentRef{
-				Name:             target.Name,
-				RequiresApproval: target.RequiresApproval,
-			})
-		}
-		v1alpha1PromotionPaths = append(v1alpha1PromotionPaths, v1alpha1.PromotionPath{
-			SourceEnvironmentRef:  path.SourceEnvironmentRef,
-			TargetEnvironmentRefs: targetRefs,
-		})
-	}
-
-	deploymentPipeline := &v1alpha1.DeploymentPipeline{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      pipelineName,
-			Namespace: orgName,
-			Annotations: map[string]string{
-				string(AnnotationKeyDisplayName): pipelineName,
-			},
-		},
-		Spec: v1alpha1.DeploymentPipelineSpec{
-			PromotionPaths: v1alpha1PromotionPaths,
-		},
-	}
-	return k.retryK8sOperation(ctx, "CreateDeploymentPipeline", func() error {
-		return k.client.Create(ctx, deploymentPipeline)
-	})
 }
 
 func (k *openChoreoSvcClient) CreateProject(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string, projectDescription string) error {
@@ -1501,56 +1045,6 @@ func (k *openChoreoSvcClient) deleteNamespace(ctx context.Context, orgName strin
 	}
 
 	return errors
-}
-
-func (k *openChoreoSvcClient) CleanupOrganizationResources(ctx context.Context, orgName string) error {
-	// List to track cleanup errors for logging
-	var cleanupErrors []string
-
-	// Delete resources in order
-	cleanupErrors = append(cleanupErrors, k.deleteProjects(ctx, orgName)...)
-	cleanupErrors = append(cleanupErrors, k.deleteDeploymentPipelines(ctx, orgName)...)
-	cleanupErrors = append(cleanupErrors, k.deleteEnvironments(ctx, orgName)...)
-	cleanupErrors = append(cleanupErrors, k.deleteServiceClasses(ctx, orgName)...)
-	cleanupErrors = append(cleanupErrors, k.deleteDataPlanes(ctx, orgName)...)
-	cleanupErrors = append(cleanupErrors, k.deleteBuildPlanes(ctx, orgName)...)
-	cleanupErrors = append(cleanupErrors, k.deleteOrganizations(ctx, orgName)...)
-	cleanupErrors = append(cleanupErrors, k.deleteNamespace(ctx, orgName)...)
-
-	// Log cleanup errors but don't fail the cleanup operation
-	if len(cleanupErrors) > 0 {
-		log.Printf("Cleanup completed with errors: %v", cleanupErrors)
-	}
-
-	return nil
-}
-
-func (k *openChoreoSvcClient) ListOrganizations(ctx context.Context) ([]*models.OrganizationResponse, error) {
-	orgList := &v1alpha1.OrganizationList{}
-	err := k.retryK8sOperation(ctx, "ListOrganizations", func() error {
-		return k.client.List(ctx, orgList)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list organizations: %w", err)
-	}
-
-	var organizations []*models.OrganizationResponse
-
-	// Sort by creation timestamp to ensure consistent ordering for pagination
-	sort.Slice(orgList.Items, func(i, j int) bool {
-		return orgList.Items[i].CreationTimestamp.After(orgList.Items[j].CreationTimestamp.Time)
-	})
-
-	for _, org := range orgList.Items {
-		organizations = append(organizations, &models.OrganizationResponse{
-			Name:        org.Name,
-			Namespace:   org.Name,
-			CreatedAt:   org.CreationTimestamp.Time,
-			DisplayName: org.Annotations[string(AnnotationKeyDisplayName)],
-			Description: org.Annotations[string(AnnotationKeyDescription)],
-		})
-	}
-	return organizations, nil
 }
 
 func (k *openChoreoSvcClient) GetOrganization(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {

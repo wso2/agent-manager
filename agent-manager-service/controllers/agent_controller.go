@@ -204,6 +204,7 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		Description:  utils.StrPointerAsStr(payload.Description, ""),
 		ProjectName:  projName,
 		Provisioning: payload.Provisioning,
+		AgentType:    payload.AgentType,
 		CreatedAt:    time.Now(),
 	}
 
@@ -345,7 +346,7 @@ func (c *agentController) DeployAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := c.agentService.DeployAgent(ctx, userIdpId, orgName, projName, agentName, &payload)
+	deployedEnv, err := c.agentService.DeployAgent(ctx, userIdpId, orgName, projName, agentName, &payload)
 	if err != nil {
 		log.Error("DeployAgent: failed to deploy agent", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
@@ -368,7 +369,7 @@ func (c *agentController) DeployAgent(w http.ResponseWriter, r *http.Request) {
 		AgentName:   agentName,
 		ProjectName: projName,
 		ImageId:     payload.ImageId,
-		Environment: "Development",
+		Environment: deployedEnv,
 	}
 	utils.WriteSuccessResponse(w, http.StatusAccepted, response)
 }

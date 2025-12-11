@@ -374,7 +374,7 @@ func (s *infraResourceManager) ListOrgDeploymentPipelines(ctx context.Context, u
 	if err != nil {
 		if db.IsRecordNotFoundError(err) {
 			s.logger.Debug("Organization not found", "userIdpId", userIdpId, "orgName", orgName)
-			return nil, 0,utils.ErrOrganizationNotFound
+			return nil, 0, utils.ErrOrganizationNotFound
 		}
 		s.logger.Error("Failed to get organization from repository", "userIdpId", userIdpId, "orgName", orgName, "error", err)
 		return nil, 0, fmt.Errorf("failed to find organization %s: %w", orgName, err)
@@ -386,7 +386,7 @@ func (s *infraResourceManager) ListOrgDeploymentPipelines(ctx context.Context, u
 		s.logger.Error("Failed to get deployment pipelines from OpenChoreo", "orgName", orgName, "error", err)
 		return nil, 0, fmt.Errorf("failed to get deployment pipelines for organization %s: %w", orgName, err)
 	}
-	
+
 	s.logger.Info("Fetched deployment pipelines successfully", "orgName", orgName, "count", len(deploymentPipelines))
 	total := len(deploymentPipelines)
 	// Apply pagination
@@ -399,7 +399,7 @@ func (s *infraResourceManager) ListOrgDeploymentPipelines(ctx context.Context, u
 		end = len(deploymentPipelines)
 	}
 	paginatedDeploymentPipelines := deploymentPipelines[start:end]
-	
+
 	return paginatedDeploymentPipelines, total, nil
 }
 

@@ -16,7 +16,7 @@ environment:
   # Name of the default environment
   name: default
   # Display name for the environment
-  displayName: "Default Environment"
+  displayName: "Default"
   # Description for the environment
   description: "Default environment for WSO2 AI Agent Management Platform"
   # Is this environment critical/production?
