@@ -41,7 +41,7 @@ export const ExternalAgentOverview = () => {
 
   return (
     <>
-      <Box display="flex" flexDirection="column" pb={4} gap={1}>
+      <Box display="flex" flexDirection="column" pb={4} gap={4}>
         <Box
           sx={{
             maxWidth: "fit-content",
@@ -53,7 +53,7 @@ export const ExternalAgentOverview = () => {
         >
           <Box display="flex" flexDirection="row" gap={1} alignItems="center">
             <Typography variant="body2">Created</Typography>
-            <AccessTime size={16} />
+            <AccessTime size={14} />
             <Typography variant="body2">
               {dayjs(agent?.createdAt).fromNow()}
             </Typography>

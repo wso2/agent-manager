@@ -115,7 +115,6 @@ export function RootRouter() {
                     relativeRouteMap.children.org.children.projects.children
                       .agents.children.environment.path
                   }
-                  // element={<EnvSubNavBar />}
                 >
                   <Route
                     path={
@@ -123,7 +122,7 @@ export function RootRouter() {
                         .agents.children.environment.children.tryOut.path
                     }
                     element={
-                      <PageLayout title={"Test your agent"} disableIcon>
+                      <PageLayout title={"Try your agent"} disableIcon>
                         <testMetadata.levels.component />
                       </PageLayout>
                     }

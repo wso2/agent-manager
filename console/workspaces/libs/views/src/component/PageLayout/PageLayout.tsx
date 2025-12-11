@@ -83,7 +83,7 @@ export function PageLayout({
         <Box display="flex" alignItems="center" gap={2}>
           <Box display="flex" flexDirection="column" gap={2}>
             <FadeIn>
-              <Box display="flex" alignItems="start" justifyContent="start" gap={2}>
+              <Box display="flex" alignItems="center" justifyContent="start" gap={2}>
                 {!disableIcon && (
                   <Avatar
                     variant="rounded"

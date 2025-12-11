@@ -44,7 +44,7 @@ export const InstrumentationDrawer = ({
     <DrawerWrapper open={open} onClose={onClose}>
       <DrawerHeader
         icon={<Settings size={24} />}
-        title="Configure Instrumentation"
+        title="Setup Agent"
         onClose={onClose}
       />
       <DrawerContent>

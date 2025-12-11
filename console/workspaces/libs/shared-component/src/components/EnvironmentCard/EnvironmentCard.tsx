@@ -16,7 +16,10 @@
  * under the License.
  */
 
-import { useListAgentDeployments } from "@agent-management-platform/api-client";
+import {
+  useGetAgent,
+  useListAgentDeployments,
+} from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
   Environment,
@@ -42,6 +45,7 @@ import {
   Rocket as RocketLaunchOutlined,
   FlaskConical as TryOutlined,
   Workflow,
+  Link as LinkOutlined,
 } from "@wso2/oxygen-ui-icons-react";
 import { NoDataFound, TextInput } from "@agent-management-platform/views";
 import dayjs from "dayjs";
@@ -114,6 +118,11 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
         enabled: !!orgId && !!projectId && !!agentId && !external,
       }
     );
+  const { data: agent } = useGetAgent({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
   const currentDiployment = deployments?.[environment?.name ?? "default"];
   const theme = useTheme();
   if (isDeploymentsLoading) {
@@ -137,7 +146,27 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
             justifyContent="space-between"
             alignItems="center"
           >
-            <Typography variant="h6">Default Environment</Typography>
+            <Box display="flex" flexDirection="row" gap={1} alignItems="center">
+              <Typography variant="h6">Default Environment</Typography>
+              <Chip
+                icon={
+                  <LinkOutlined size={16} color={theme.palette.success.main} />
+                }
+                variant="outlined"
+                size="small"
+                label="Registered"
+                color="success"
+              />
+              <Box
+                display="flex"
+                flexDirection="row"
+                gap={1}
+                alignItems="center"
+              >
+                <Clock size={16} color={theme.palette.text.secondary} />
+                {dayjs(agent?.createdAt).fromNow()}
+              </Box>
+            </Box>
             <Box display="flex" flexDirection="row" gap={1} alignItems="center">
               {actions}
               <Button
@@ -183,7 +212,9 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
           alignItems="center"
         >
           <Box display="flex" flexDirection="row" gap={1} alignItems="center">
-            <Typography variant="h6">{environment?.displayName}</Typography>
+            <Typography variant="h6">
+              {environment?.displayName} Environment
+            </Typography>
             <EnvStatus status={currentDiployment?.status as TabStatus} />
             {currentDiployment?.status === TabStatus.ACTIVE && (
               <Box
@@ -218,7 +249,7 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
                   color="primary"
                   size="small"
                 >
-                  Try Out
+                  Try It
                 </Button>
                 <Button
                   startIcon={<Workflow size={16} />}
@@ -258,7 +289,7 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
           {currentDiployment.status === TabStatus.INACTIVE && (
             <NoDataFound
               message="Not Deployed"
-              icon={<RocketLaunchOutlined size={32}  />}
+              icon={<RocketLaunchOutlined size={32} />}
             />
           )}
           {currentDiployment.status === TabStatus.DEPLOYING && (
@@ -270,7 +301,12 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
           {currentDiployment.status === TabStatus.ERROR && (
             <NoDataFound
               message="Deployment Failed"
-              icon={<ErrorOutlineRounded color={theme.palette.error.main} size={32}  />}
+              icon={
+                <ErrorOutlineRounded
+                  color={theme.palette.error.main}
+                  size={32}
+                />
+              }
             />
           )}
           {currentDiployment.status === TabStatus.ACTIVE && (
@@ -282,19 +318,19 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
               gap={4}
               alignItems="flex-start"
             >
-                {currentDiployment?.endpoints.map((endpoint) => (
-                  <TextInput
-                    slotProps={{
-                      input: {
-                        readOnly: true,
-                      },
-                    }}
-                    key={endpoint.url}
-                    label="URL"
-                    value={endpoint.url}
-                    fullWidth
-                  />
-                ))}
+              {currentDiployment?.endpoints.map((endpoint) => (
+                <TextInput
+                  slotProps={{
+                    input: {
+                      readOnly: true,
+                    },
+                  }}
+                  key={endpoint.url}
+                  label="URL"
+                  value={endpoint.url}
+                  fullWidth
+                />
+              ))}
             </Box>
           )}
         </Box>

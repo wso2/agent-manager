@@ -55,15 +55,17 @@ export function NoDataFound({
           flexDirection: 'column',
           gap: 1,
           p: 4,
-          "&.MuiPaper-root": {
+          '&.MuiPaper-root': {
             backgroundColor: 'background.default',
           },
         }}
       >
         <Box color="secondary.dark">
-          {iconElement
-            ? createElement(iconElement, { size: 100 })
-            : (icon ?? <SearchOffOutlined size={100} />)}
+          <Typography variant="body2" color="textSecondary">
+            {iconElement
+              ? createElement(iconElement, { size: 100 })
+              : (icon ?? <SearchOffOutlined size={100} />)}
+          </Typography>
         </Box>
         <Typography variant="h6">{message}</Typography>
         {subtitle && (
