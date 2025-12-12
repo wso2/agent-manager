@@ -683,15 +683,63 @@ func (k *openChoreoSvcClient) GetAgentDeployments(ctx context.Context, orgName s
 
 
 func (k *openChoreoSvcClient) GetAgentEndpoints(ctx context.Context, orgName string, projName string, agentName string, environment string) (map[string]models.EndpointsResponse, error) {
-	serviceBindings := &v1alpha1.ServiceBindingList{}
-	err := k.retryK8sOperation(ctx, "ListServiceBindings", func() error {
-		return k.client.List(ctx, serviceBindings, client.InNamespace(orgName))
-	})
+	exists, err := k.IsAgentComponentExists(ctx,orgName,projName,agentName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list service bindings: %w", err)
+		return nil, fmt.Errorf("failed to check agent component existence: %w", err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("agent component %s does not exist in open choreo %s", agentName, projName)
+	}
+	componentWorkload, err := k.getComponentWorkload(ctx, orgName, projName, agentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get component workload: %w", err)
 	}
 
+	releaseList := &v1alpha1.ReleaseList{}
+	listOpts := []client.ListOption{
+		client.InNamespace(orgName),
+		client.MatchingLabels{
+			string(LabelKeyOrganizationName): orgName,
+			string(LabelKeyProjectName):      projName,
+			string(LabelKeyComponentName):    agentName,
+			string(LabelKeyEnvironmentName):  environment,
+		},
+	}
+	err = k.retryK8sOperation(ctx, "ListRelease", func() error {
+		return k.client.List(ctx, releaseList, listOpts...)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list release: %w", err)
+	}
+	if len(releaseList.Items) == 0 {
+		return nil, fmt.Errorf("no release found")
+	}
+
+	// Get the first matching Release (there should only be one per component/environment)
+	release := &releaseList.Items[0]
+	endpointURLs := extractEndpointURLFromEnvRelease(release)
+
+	// Extract endpoint details from workload spec
 	endpointDetails := make(map[string]models.EndpointsResponse)
+	
+	// Iterate through workload endpoints and match with URLs from release
+	for endpointName, endpoint := range componentWorkload.Spec.Endpoints {
+		endpointResp := models.EndpointsResponse{}
+		endpointResp.Name = endpointName
+
+		// Assuming the first URL corresponds to this endpoint
+		endpointResp.URL = endpointURLs[0].URL
+		endpointResp.Visibility = endpointURLs[0].Visibility
+
+		// Get schema content from workload endpoint
+		if endpoint.Schema != nil {
+			endpointResp.Schema = models.EndpointSchema{
+				Content: endpoint.Schema.Content,
+			}
+		}
+	
+		endpointDetails[endpointName] = endpointResp
+	}
 	
 	return endpointDetails, nil
 }
@@ -785,38 +833,75 @@ func (k *openChoreoSvcClient) GetDeploymentPipeline(ctx context.Context, orgName
 }
 
 func (k *openChoreoSvcClient) GetAgentConfigurations(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error) {
-	serviceBindings := &v1alpha1.ServiceBindingList{}
-	err := k.retryK8sOperation(ctx, "ListServiceBindings", func() error {
-		return k.client.List(ctx, serviceBindings, client.InNamespace(orgName))
+	// Check if agent component exists
+	exists, err := k.IsAgentComponentExists(ctx, orgName, projectName, agentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check agent component existence: %w", err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("agent component %s does not exist in open choreo %s", agentName, projectName)
+	}
+
+	// Get the workload to extract base environment variables
+	componentWorkload, err := k.getComponentWorkload(ctx, orgName, projectName, agentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get component workload: %w", err)
+	}
+
+	// Create a map to store environment variables (for easy merging)
+	envVarMap := make(map[string]string)
+
+	// Extract base environment variables from workload
+	if componentWorkload.Spec.Containers != nil {
+		if mainContainer, exists := componentWorkload.Spec.Containers["main"]; exists {
+			for _, envVar := range mainContainer.Env {
+				envVarMap[envVar.Key] = envVar.Value
+			}
+		}
+	}
+
+	// Get the ReleaseBinding for the specified environment
+	releaseBindingList := &v1alpha1.ReleaseBindingList{}
+	listOpts := []client.ListOption{
+		client.InNamespace(orgName),
+		client.MatchingLabels{
+			string(LabelKeyOrganizationName): orgName,
+			string(LabelKeyProjectName):      projectName,
+			string(LabelKeyComponentName):    agentName,
+			string(LabelKeyEnvironmentName):  environment,
+		},
+	}
+	err = k.retryK8sOperation(ctx, "ListReleaseBindings", func() error {
+		return k.client.List(ctx, releaseBindingList, listOpts...)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list service bindings: %w", err)
+		return nil, fmt.Errorf("failed to list release bindings: %w", err)
 	}
 
+	// If a ReleaseBinding exists for this environment, merge its workload overrides
+	if len(releaseBindingList.Items) > 0 {
+		releaseBinding := &releaseBindingList.Items[0]
+		
+		// Override with environment-specific variables from ReleaseBinding
+		if releaseBinding.Spec.WorkloadOverrides.Containers != nil {
+			if mainContainer, exists := releaseBinding.Spec.WorkloadOverrides.Containers["main"]; exists {
+				for _, envVar := range mainContainer.Env {
+					// Override or add environment variables
+					envVarMap[envVar.Key] = envVar.Value
+				}
+			}
+		}
+	}
+
+	// Convert map back to slice
 	var envVars []models.EnvVars
-	for _, sb := range serviceBindings.Items {
-		if sb.Spec.Owner.ProjectName != projectName || sb.Spec.Owner.ComponentName != agentName || sb.Spec.Environment != environment {
-			continue
-		}
-
-		// Access the main container's environment variables
-		if sb.Spec.WorkloadSpec.Containers == nil {
-			break
-		}
-
-		mainContainer, exists := sb.Spec.WorkloadSpec.Containers["main"]
-		if !exists {
-			break
-		}
-
-		for _, envVar := range mainContainer.Env {
-			envVars = append(envVars, models.EnvVars{
-				Key:   envVar.Key,
-				Value: envVar.Value,
-			})
-		}
-		break
+	for key, value := range envVarMap {
+		envVars = append(envVars, models.EnvVars{
+			Key:   key,
+			Value: value,
+		})
 	}
+
 	return envVars, nil
 }
 

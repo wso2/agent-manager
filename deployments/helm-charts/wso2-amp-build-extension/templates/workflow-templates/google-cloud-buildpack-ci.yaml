@@ -28,8 +28,8 @@ spec:
               parameters:
                 - name: git-revision
                   value: '{{ "{{" }}steps.clone-step.outputs.parameters.git-revision{{ "}}" }}'
-        - - name: build-callback-step
-            template: build-callback-step
+        - - name: workload-create-step
+            template: workload-create-step
             arguments:
               parameters:
                 - name: image
@@ -234,10 +234,15 @@ spec:
         volumeMounts:
           - mountPath: /mnt/vol
             name: workspace
-    - name: build-callback-step
+    - name: workload-create-step
       inputs:
         parameters:
           - name: image
+      outputs:
+        parameters:
+          - name: workload-cr
+            valueFrom:
+              path: /mnt/vol/workload-cr.yaml
       container:
         image: ghcr.io/openchoreo/podman-runner:v1.0
         command: [ sh, -c ]
@@ -251,17 +256,23 @@ spec:
             IMAGE={{ "{{" }}inputs.parameters.image{{ "}}" }}
             PROJECT_NAME={{ "{{" }}workflow.parameters.project-name{{ "}}" }}
             COMPONENT_NAME={{ "{{" }}workflow.parameters.component-name{{ "}}" }}
-            ORG_NAME=$(echo {{ "{{" }}workflow.namespace{{ "}}" }} | sed 's/^openchoreo-ci-//')
+            ORG_ID={{ "{{" }}workflow.parameters.org-id{{ "}}" }}
+            SCHEMA_FILE_PATH={{ "{{" }}workflow.parameters.schema-file-path{{ "}}" }}
             
+            
+            WORKDIR=/mnt/vol/source
+            APP_PATH="{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
+            SOURCE_PATH="$WORKDIR/$APP_PATH"
+           
+
             #####################################################################
             # 2. Prepare callback payload
             #####################################################################
             CALLBACK_PAYLOAD=$(cat <<EOF
             {
-              "imageId": "$IMAGE",
               "agentName": "$COMPONENT_NAME",
               "projectName": "$PROJECT_NAME",
-              "orgName": "$ORG_NAME"
+              "orgId": "$ORG_ID"
             }
             EOF
             )
@@ -278,7 +289,8 @@ spec:
             echo "$CALLBACK_PAYLOAD"
             echo "Endpoint: $CALLBACK_ENDPOINT"
             
-            curl -X POST \
+            # 1. Call API to get workload CR template
+            WORKLOAD_CR=$(curl -X POST \
               -H "Content-Type: application/json" \
               -H "$AUTH_HEADER: $API_KEY" \
               -d "$CALLBACK_PAYLOAD" \
@@ -286,14 +298,22 @@ spec:
               --max-time 30 \
               --retry 3 \
               --retry-delay 5 \
-              --fail-with-body
-            
-            if [ $? -eq 0 ]; then
-              echo "Build callback API call successful"
-            else
-              echo "Build callback API call failed"
-              exit 1
+              --fail-with-body)
+
+            # 2. Replace IMAGE placeholder
+            WORKLOAD_CR=$(echo "$WORKLOAD_CR" | sed "s|IMAGE_TAG_PLACEHOLDER|$IMAGE|g")
+
+            # 3. Replace OpenAPI spec content if provided
+            if [ -n "$SCHEMA_FILE_PATH" ] && [ -f "$SOURCE_PATH/$SCHEMA_FILE_PATH" ]; then
+              SPEC_CONTENT=$(cat "$SOURCE_PATH/$SCHEMA_FILE_PATH" | sed 's/\\/\\\\/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+              WORKLOAD_CR=$(echo "$WORKLOAD_CR" | sed "s|SCHEMA_CONTENT|$SPEC_CONTENT|g")
             fi
+
+            echo "Final Workload CR:"
+            echo "$WORKLOAD_CR"
+
+            # 4. Save final CR
+            echo "$WORKLOAD_CR" > /mnt/vol/workload-cr.yaml
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:

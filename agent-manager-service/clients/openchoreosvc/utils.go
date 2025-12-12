@@ -108,6 +108,12 @@ func createComponentCR(orgName, projectName string, req *spec.CreateAgentRequest
 				"memory": DefaultMemoryLimit,
 			},
 		},
+		"buildpackConfigs": map[string]interface{}{
+			"googleEntryPoint":   req.RuntimeConfigs.RunCommand,
+			"languageVersion":    req.RuntimeConfigs.LanguageVersion,
+			"languageVersionKey": getLanguageVersionEnvVariable(req.RuntimeConfigs.Language),
+		},
+		"schemaFilePath": req.InputInterface.Schema.Path,
 	}
 	parametersJSON, _ := json.Marshal(parameters)
 
@@ -263,39 +269,6 @@ func getComponentWorkflowStatus(buildConditions []metav1.Condition) string {
 	}
 
 	return statusPending
-}
-
-// createEndpointDetails creates endpoint specifications based on the input interface type
-func createEndpointDetails(agentName string, agentType spec.AgentType, inputInterface spec.InputInterface) (map[string]spec.InputInterface, error) {
-	endpointDetails := make(map[string]spec.InputInterface)
-
-	if agentType.SubType == string(utils.AgentSubTypeCustomAPI) {
-		// Assume a single endpoint
-		endpointName := fmt.Sprintf("%s-endpoint", agentName)
-		endpointDetails[endpointName] = spec.InputInterface{
-			Port:   inputInterface.Port,
-			Schema: inputInterface.Schema,
-		}
-		return endpointDetails, nil
-	}
-
-	if agentType.SubType == string(utils.AgentSubTypeChatAPI) {
-		// Create a default endpoint with POST /chat
-		endpointName := fmt.Sprintf("%s-endpoint", agentName)
-		defaultOpenAPISchema, err := getDefaultOpenAPISchema()
-		if err != nil {
-			return nil, err
-		}
-		endpointDetails[endpointName] = spec.InputInterface{
-			Port: int32(config.GetConfig().DefaultHTTPPort),
-			Schema: spec.InputInterfaceSchema{
-				Path: utils.StrPointerAsStr(defaultOpenAPISchema, ""),
-			},
-		}
-		return endpointDetails, nil
-	}
-
-	return nil, fmt.Errorf("unsupported InputInterface.Type: %q", inputInterface.Type)
 }
 
 func toBuildDetailsResponse(componentWorkflow *v1alpha1.ComponentWorkflowRun) (*models.BuildDetailsResponse, error) {
@@ -455,6 +428,7 @@ func extractEndpointURLFromEnvRelease(envRelease *v1alpha1.Release) []models.End
 				// Get path from rules
 				if rules, ok := spec["rules"].([]interface{}); ok && len(rules) > 0 {
 					if rule, ok := rules[0].(map[string]interface{}); ok {
+						// Get path from matches
 						if matches, ok := rule["matches"].([]interface{}); ok && len(matches) > 0 {
 							if match, ok := matches[0].(map[string]interface{}); ok {
 								if path, ok := match["path"].(map[string]interface{}); ok {
@@ -475,6 +449,7 @@ func extractEndpointURLFromEnvRelease(envRelease *v1alpha1.Release) []models.End
 
 				endpoints = append(endpoints, models.Endpoint{
 					URL: url,
+					Visibility: "Public",
 				})
 			}
 		}

@@ -30,6 +30,7 @@ type OrganizationRepository interface {
 	GetOrganizationsByUserIdpID(ctx context.Context, userIdpID uuid.UUID) ([]models.Organization, error)
 	CreateOrganization(ctx context.Context, organization *models.Organization) error
 	GetOrganizationByOrgName(ctx context.Context, userIdpID uuid.UUID, orgName string) (*models.Organization, error)
+	GetOrganizationById(ctx context.Context, orgId uuid.UUID) (*models.Organization, error)
 }
 
 type organizationRepository struct{}
@@ -57,6 +58,14 @@ func (r *organizationRepository) GetOrganizationByOrgName(ctx context.Context, u
 	var org models.Organization
 	if err := db.DB(ctx).Where("user_idp_id = ? AND org_name = ?", userIdpID, orgName).First(&org).Error; err != nil {
 		return nil, fmt.Errorf("organizationRepository.GetOrganizationByOrgName: %w", err)
+	}
+	return &org, nil
+}
+
+func (r *organizationRepository) GetOrganizationById(ctx context.Context, orgId uuid.UUID) (*models.Organization, error) {
+	var org models.Organization
+	if err := db.DB(ctx).Where("id = ?", orgId).First(&org).Error; err != nil {
+		return nil, fmt.Errorf("organizationRepository.GetOrganizationById: %w", err)
 	}
 	return &org, nil
 }

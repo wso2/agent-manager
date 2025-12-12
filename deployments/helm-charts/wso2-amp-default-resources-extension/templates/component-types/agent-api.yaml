@@ -28,6 +28,7 @@ spec:
       port: "integer | default=80"
       exposed: "boolean | default=false"
       containerName: "string | default=main"
+      basePath: "string | default=/"
 
     envOverrides:
       resources: "ResourceRequirements | default={}"
@@ -149,7 +150,7 @@ spec:
             - matches:
                 - path:
                     type: PathPrefix
-                    value: /${metadata.componentName}
+                    value: /${metadata.componentName}${parameters.basePath}
               filters:
                 - type: URLRewrite
                   urlRewrite:

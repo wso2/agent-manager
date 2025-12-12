@@ -983,7 +983,7 @@ func buildWorkloadSpec(req *spec.CreateAgentRequest) map[string]interface{} {
 		workloadSpec["endpoints"] = endpoints
 	}
 
-	// Handle Custom API (external) - use schema path from request
+	// Handle Custom API - use schema path from request
 	if req.AgentType.Type == string(utils.InternalAgent) && req.AgentType.SubType == string(utils.AgentSubTypeCustomAPI) {
 		endpoints := []map[string]interface{}{
 			{

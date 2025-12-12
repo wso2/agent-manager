@@ -20,15 +20,15 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 )
 
 type BuildCallbackPayload struct {
-	ImageID     string `json:"imageId"`
 	AgentName   string `json:"agentName"`
 	ProjectName string `json:"projectName"`
-	OrgName     string `json:"orgName"`
+	OrgId       uuid.UUID `json:"orgId"`
 }
 
 type BuildCIController interface {
@@ -64,6 +64,11 @@ func (b *buildCIController) HandleBuildCallback(w http.ResponseWriter, r *http.R
 
 	log.Info("Build callback received", "payload", payload)
 
-	b.buildCIManagerService.HandleBuildCallback(ctx, payload.AgentName, payload.ProjectName, payload.OrgName, payload.ImageID)
-	writeJSONResponse(w, http.StatusAccepted, map[string]string{"status": "accepted"})
+	workloadCR, err := b.buildCIManagerService.HandleBuildCallback(ctx, payload.OrgId, payload.ProjectName, payload.AgentName)
+	if err != nil {
+		log.Error("HandleBuildCallback: failed to process callback", "error", err)
+		writeJSONResponse(w, http.StatusInternalServerError, map[string]string{"error": "Failed to process build callback"})
+		return
+	}
+	writeJSONResponse(w, http.StatusOK, workloadCR)
 }
