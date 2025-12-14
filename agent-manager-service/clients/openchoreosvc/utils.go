@@ -198,26 +198,6 @@ func createComponentWorkflowRunCR(orgName, projName, componentName string, syste
 	}
 }
 
-func createServiceCR(orgName, projName, componentName string, workloadName string, serviceClassName string, apis map[string]*v1alpha1.ServiceAPI) *v1alpha1.Service {
-	serviceName := componentName + "-service"
-
-	return &v1alpha1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      serviceName,
-			Namespace: orgName,
-		},
-		Spec: v1alpha1.ServiceSpec{
-			Owner: v1alpha1.ServiceOwner{
-				ProjectName:   projName,
-				ComponentName: componentName,
-			},
-			WorkloadName: workloadName,
-			ClassName:    serviceClassName,
-			APIs:         apis,
-		},
-	}
-}
-
 func toComponentResponse(component *v1alpha1.Component) *AgentComponent {
 	return &AgentComponent{
 		Name:        component.Name,
