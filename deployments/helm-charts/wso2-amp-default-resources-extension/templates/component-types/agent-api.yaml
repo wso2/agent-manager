@@ -156,7 +156,7 @@ spec:
                   urlRewrite:
                     path:
                       type: ReplacePrefixMatch
-                      replacePrefixMatch: /${parameters.basePath}
+                      replacePrefixMatch: ${parameters.basePath}
               backendRefs:
                 - name: ${metadata.componentName}
                   port: 80
