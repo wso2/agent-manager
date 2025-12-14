@@ -1,0 +1,78 @@
+apiVersion: openchoreo.dev/v1alpha1
+kind: Trait
+metadata:
+  name: python-otel-instrumentation-trait
+  namespace: default
+  annotations:
+    openchoreo.dev/description: "Trait to add an init container for setting up OpenTelemetry instrumentation in Python applications"
+spec:
+  # Schema definition for trait parameters
+  schema:
+    parameters:
+      instrumentationImage: "string | description='Container image for the OpenTelemetry instrumentation setup'"
+      sdkVolumeName: "string | default=otel-tracing-sdk-volume description='Name of the volume for SDK files'"
+      sdkMountPath: "string | default=/otel-tracing-sdk description='Mount path for SDK in containers'"
+      agentName: "string | description='Name of the agent for tracing identification'"
+      otelEndpoint: "string | description='OpenTelemetry collector endpoint URL'"
+      isTraceContentEnabled: 'string | default="true" description=''Flag to enable or disable tracing of content'''
+      agentApiKey: "string | default='' description='API key for authenticating with the agent service'"
+
+  # Patches to modify the Deployment resource
+  patches:
+    - target:
+        kind: Deployment
+        group: apps
+        version: v1
+      operations:
+        # 1. Add init container to spec.template.spec.initContainers
+        - op: add
+          path: /spec/template/spec/initContainers/-
+          value:
+            name: setup-instrumentation
+            image: ${parameters.instrumentationImage}
+            imagePullPolicy: IfNotPresent
+            volumeMounts:
+              - name: ${parameters.sdkVolumeName}
+                mountPath: ${parameters.sdkMountPath}
+
+        # 2. Add emptyDir volume for sharing SDK files
+        - op: add
+          path: /spec/template/spec/volumes/-
+          value:
+            name: ${parameters.sdkVolumeName}
+            emptyDir: {}
+
+        # 3. Add volume mount to main container
+        - op: add
+          path: /spec/template/spec/containers/0/volumeMounts/-
+          value:
+            name: ${parameters.sdkVolumeName}
+            mountPath: ${parameters.sdkMountPath}
+            readOnly: true
+
+        # 4. Set PYTHONPATH environment variable in main container
+        - op: add
+          path: /spec/template/spec/containers/0/env/-
+          value:
+            name: AMP_AGENT_NAME
+            value: ${parameters.agentName}
+        - op: add
+          path: /spec/template/spec/containers/0/env/-
+          value:
+            name: AMP_OTEL_ENDPOINT
+            value: ${parameters.otelEndpoint}
+        - op: add
+          path: /spec/template/spec/containers/0/env/-
+          value:
+            name: AMP_TRACE_CONTENT
+            value: "${parameters.isTraceContentEnabled}"
+        - op: add
+          path: /spec/template/spec/containers/0/env/-
+          value:
+            name: AMP_AGENT_API_KEY
+            value: ${parameters.agentApiKey}
+        - op: add
+          path: /spec/template/spec/containers/0/env/-
+          value:
+            name: PYTHONPATH
+            value: "${parameters.sdkMountPath}"

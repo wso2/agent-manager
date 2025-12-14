@@ -28,7 +28,6 @@ func registerAgentRoutes(mux *http.ServeMux, ctrl controllers.AgentController) {
 	// extracts path parameters from the pattern and validates them
 
 	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/projects/{projName}/agents", ctrl.CreateAgent)
-
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/agents", ctrl.ListAgents)
 	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/utils/generate-name", ctrl.GenerateName)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/agents/{agentName}", ctrl.GetAgent)

@@ -56,17 +56,3 @@ const (
 	MinOffset     = 0
 )
 
-// Environment variable names for otel and tracing configuration
-const (
-	EnvPythonPath                   = "PYTHONPATH"
-	EnvAMPTraceloopTraceContent     = "AMP_TRACELOOP_TRACE_CONTENT"
-	EnvAMPOTELExporterOTLPInsecure  = "AMP_OTEL_EXPORTER_OTLP_INSECURE"
-	EnvAMPTraceloopMetricsEnabled   = "AMP_TRACELOOP_METRICS_ENABLED"
-	EnvAMPTraceloopTelemetryEnabled = "AMP_TRACELOOP_TELEMETRY_ENABLED"
-	EnvAMPOTELExporterOTLPEndpoint  = "AMP_OTEL_EXPORTER_OTLP_ENDPOINT"
-	EnvInstrumentationProvider      = "INSTRUMENTATION_PROVIDER"
-	EnvAMPComponentID               = "AMP_COMPONENT_ID"
-	EnvAMPAppName                   = "AMP_APP_NAME"
-	EnvAMPAppVersion                = "AMP_APP_VERSION"
-	EnvAMPEnv                       = "AMP_ENV"
-)

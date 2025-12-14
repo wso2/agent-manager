@@ -24,6 +24,11 @@ const (
 	ComponentTypeAgentAPI ComponentType = "deployment/agent-api"
 )
 
+type TraitType string
+const (
+	TraitTypeOTELInstrumentation TraitType = "python-otel-instrumentation-trait"
+)
+
 type ComponentWorkflow string
 
 const (

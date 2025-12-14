@@ -365,18 +365,6 @@ func GenerateUniqueNameWithSuffix(baseName string, checker NameChecker) (string,
 	return "", fmt.Errorf("failed to generate unique name after %d attempts", MaxNameGenerationAttempts)
 }
 
-// GetSystemEnvVars returns system environment variables for the specified language
-func GetSystemEnvVars(language string, componentName string) map[string]string {
-	envVars := make(map[string]string)
-
-	// Add system environment variables for Python
-	if language == string(LanguagePython) {
-		envVars[EnvAMPAppName] = componentName
-	}
-
-	return envVars
-}
-
 // ReadChatAPISchema reads the OpenAPI schema for chat API from the docs directory
 func ReadChatAPISchema() (string, error) {
 	// Get the schema file path relative to the project root

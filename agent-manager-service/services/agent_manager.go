@@ -519,17 +519,10 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, userIdpId uuid.UU
 		return "", fmt.Errorf("deploy operation is not supported for agent type: '%s'", agent.ProvisioningType)
 	}
 
-	// Build complete environment variables (system + user)
-	language := ""
-	if agent.AgentDetails != nil {
-		language = agent.AgentDetails.Language
-	}
-	finalEnvVars := buildEnvironmentVariables(language, agentName, req.Env)
-
 	// Create a new request with the combined environment variables
 	deployReq := &spec.DeployAgentRequest{
 		ImageId: req.ImageId,
-		Env:     finalEnvVars,
+		Env:     req.Env,
 	}
 
 	// Deploy agent component in Open Choreo
@@ -578,25 +571,6 @@ func findLowestEnvironment(promotionPaths []models.PromotionPath) string {
 		}
 	}
 	return ""
-}
-
-// buildEnvironmentVariables constructs environment variables for deployment
-func buildEnvironmentVariables(language, componentName string, userEnvVars []spec.EnvironmentVariable) []spec.EnvironmentVariable {
-	var allEnvVars []spec.EnvironmentVariable
-
-	// Add system environment variables first
-	systemEnvVars := utils.GetSystemEnvVars(language, componentName)
-	for key, value := range systemEnvVars {
-		allEnvVars = append(allEnvVars, spec.EnvironmentVariable{
-			Key:   key,
-			Value: value,
-		})
-	}
-
-	// Add user-provided environment variables
-	allEnvVars = append(allEnvVars, userEnvVars...)
-
-	return allEnvVars
 }
 
 func (s *agentManagerService) GetBuildLogs(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, buildName string) (*models.BuildLogsResponse, error) {
@@ -868,9 +842,8 @@ func (s *agentManagerService) GetAgentConfigurations(ctx context.Context, userId
 		return nil, fmt.Errorf("failed to get configurations for agent %s: %w", agentName, err)
 	}
 
-	filteredConfigs := filterSystemEnvVars(configurations)
 	s.logger.Info("Fetched configurations successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName)
-	return filteredConfigs, nil
+	return configurations, nil
 }
 
 func (s *agentManagerService) convertToAgentListItem(agent *models.Agent, projName string) *models.AgentResponse {
@@ -932,47 +905,12 @@ func (s *agentManagerService) convertManagedAgentToAgentResponse(ocAgentComponen
 	}
 }
 
-func filterSystemEnvVars(configurations []models.EnvVars) []models.EnvVars {
-	// remove system injected environment variables
-	var filteredConfigs []models.EnvVars
-
-	// Define system environment variables to filter out (OTEL and tracing configuration)
-	systemEnvVars := map[string]bool{
-		utils.EnvPythonPath:                   true,
-		utils.EnvAMPTraceloopTraceContent:     true,
-		utils.EnvAMPOTELExporterOTLPInsecure:  true,
-		utils.EnvAMPTraceloopMetricsEnabled:   true,
-		utils.EnvAMPTraceloopTelemetryEnabled: true,
-		utils.EnvAMPOTELExporterOTLPEndpoint:  true,
-		utils.EnvAMPComponentID:               true,
-		utils.EnvAMPAppName:                   true,
-		utils.EnvAMPAppVersion:                true,
-		utils.EnvAMPEnv:                       true,
-	}
-
-	// Filter out system environment variables
-	for _, config := range configurations {
-		if !systemEnvVars[config.Key] {
-			filteredConfigs = append(filteredConfigs, config)
-		}
-	}
-	return filteredConfigs
-}
 
 // buildWorkloadSpec constructs the workload specification from the create agent request
 func buildWorkloadSpec(req *spec.CreateAgentRequest) map[string]interface{} {
 	workloadSpec := make(map[string]interface{})
 
-	// Build complete environment variables (system + user)
-	EnvVarsList := buildEnvironmentVariables(req.RuntimeConfigs.Language, req.Name, req.RuntimeConfigs.Env)
-	envVars := make([]map[string]string, 0, len(EnvVarsList))
-	for _, env := range EnvVarsList {
-		envVars = append(envVars, map[string]string{
-			"key":   env.Key,
-			"value": env.Value,
-		})
-	}
-	workloadSpec["envVars"] = envVars
+	workloadSpec["envVars"] = req.RuntimeConfigs.Env
 
 	if req.AgentType.Type == string(utils.AgentTypeAPI) && req.AgentType.SubType == string(utils.AgentSubTypeChatAPI) {
 		// Read OpenAPI schema from file

@@ -19,6 +19,7 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -102,25 +103,25 @@ func (c *agentController) ListAgents(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters
 	limitStr := r.URL.Query().Get("limit")
 	if limitStr == "" {
-		limitStr = "10"
+		limitStr = strconv.Itoa(utils.DefaultLimit)
 	}
 	offsetStr := r.URL.Query().Get("offset")
 	if offsetStr == "" {
-		offsetStr = "0"
+		offsetStr = strconv.Itoa(utils.DefaultOffset)
 	}
 
 	// Parse and validate pagination parameters
 	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 || limit > 50 {
+	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
 		log.Error("ListAgents: invalid limit parameter", "limit", limitStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and 50")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < 0 {
+	if err != nil || offset < utils.MinOffset {
 		log.Error("ListAgents: invalid offset parameter", "offset", offsetStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter: must be 0 or greater")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
 		return
 	}
 
@@ -387,25 +388,25 @@ func (c *agentController) ListAgentBuilds(w http.ResponseWriter, r *http.Request
 	// Parse query parameters
 	limitStr := r.URL.Query().Get("limit")
 	if limitStr == "" {
-		limitStr = "10"
+		limitStr = strconv.Itoa(utils.DefaultLimit)
 	}
 	offsetStr := r.URL.Query().Get("offset")
 	if offsetStr == "" {
-		offsetStr = "0"
+		offsetStr = strconv.Itoa(utils.DefaultOffset)
 	}
 
 	// Parse and validate pagination parameters
 	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 || limit > 50 {
+	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
 		log.Error("ListAgentBuilds: invalid limit parameter", "limit", limitStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and 50")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < 0 {
+	if err != nil || offset < utils.MinOffset {
 		log.Error("ListAgentBuilds: invalid offset parameter", "offset", offsetStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter: must be 0 or greater")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
 		return
 	}
 

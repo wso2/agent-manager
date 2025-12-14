@@ -55,17 +55,13 @@ type Config struct {
 type OTELConfig struct {
 	// Instrumentation configuration
 	InstrumentationImage    string
-	InstrumentationProvider string
 	SDKVolumeName           string
 	SDKMountPath            string
 
 	// Tracing configuration
-	TraceContent     bool
-	MetricsEnabled   bool
-	TelemetryEnabled bool
+	IsTraceContentEnabled     bool
 
 	// OTLP Exporter configuration
-	ExporterInsecure bool
 	ExporterEndpoint string
 }
 type ObserverConfig struct {

@@ -19,6 +19,7 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -74,14 +75,14 @@ func (c *infraResourceController) ListOrganizations(w http.ResponseWriter, r *ht
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
 		log.Error("ListOrganizations: invalid limit parameter", "limit", limitStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and 50")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < utils.MinOffset {
 		log.Error("ListOrganizations: invalid offset parameter", "offset", offsetStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter: must be 0 or greater")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
 		return
 	}
 
@@ -149,14 +150,14 @@ func (c *infraResourceController) ListProjects(w http.ResponseWriter, r *http.Re
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
 		log.Error("ListProjects: invalid limit parameter", "limit", limitStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and 50")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < utils.MinOffset {
 		log.Error("ListProjects: invalid offset parameter", "offset", offsetStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter: must be 0 or greater")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
 		return
 	}
 
@@ -297,15 +298,15 @@ func (c *infraResourceController) ListOrgDeploymentPipelines(w http.ResponseWrit
 	// Parse and validate pagination parameters
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
-		log.Error("ListProjects: invalid limit parameter", "limit", limitStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and 50")
+		log.Error("ListOrgDeploymentPipelines: invalid limit parameter", "limit", limitStr)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < utils.MinOffset {
-		log.Error("ListProjects: invalid offset parameter", "offset", offsetStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter: must be 0 or greater")
+		log.Error("ListOrgDeploymentPipelines: invalid offset parameter", "offset", offsetStr)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
 		return
 	}
 

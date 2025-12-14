@@ -42,7 +42,7 @@ func getLanguageVersionEnvVariable(language string) string {
 	return ""
 }
 
-func getOpenChoreoComponentType(agentType string, agentSubType string) ComponentType {
+func getOpenChoreoComponentType(agentType string) ComponentType {
 	if agentType == string(utils.AgentTypeAPI) {
 		return ComponentTypeAgentAPI
 	}
@@ -101,7 +101,7 @@ func createComponentCR(orgName, projectName string, req *spec.CreateAgentRequest
 		string(AnnotationKeyDisplayName): req.DisplayName,
 		string(AnnotationKeyDescription): utils.StrPointerAsStr(req.Description, ""),
 	}
-	componentType := getOpenChoreoComponentType(req.AgentType.Type, req.AgentType.SubType)
+	componentType := getOpenChoreoComponentType(req.AgentType.Type)
 	componentWorkflow := getOpenChoreoComponentWorkflow(req.RuntimeConfigs.Language)
 	containerPort, basePath := getInputInterfaceConfig(req)
 
@@ -170,7 +170,53 @@ func createComponentCR(orgName, projectName string, req *spec.CreateAgentRequest
 		},
 	}
 
+	// Add OpenTelemetry instrumentation trait for Python agents
+	if req.AgentType.Type == string(utils.AgentTypeAPI) && req.RuntimeConfigs.Language == string(utils.LanguagePython) {
+		componentCR.Spec.Traits = []v1alpha1.ComponentTrait{
+			createOTELInstrumentationTrait(req),
+		}
+	}
+
 	return componentCR
+}
+
+func createOTELInstrumentationTrait(req *spec.CreateAgentRequest) v1alpha1.ComponentTrait {
+	traitParameters := map[string]interface{}{
+		"instrumentationImage":  getInstrumentationImage(utils.StrPointerAsStr(req.RuntimeConfigs.LanguageVersion, "")),
+		"sdkVolumeName":         config.GetConfig().OTEL.SDKVolumeName,
+		"sdkMountPath":          config.GetConfig().OTEL.SDKMountPath,
+		"agentName":             req.Name,
+		"otelEndpoint":          config.GetConfig().OTEL.ExporterEndpoint,
+		"isTraceContentEnabled": utils.BoolAsString(config.GetConfig().OTEL.IsTraceContentEnabled),
+	}
+	traitParametersJSON, _ := json.Marshal(traitParameters)
+
+	return v1alpha1.ComponentTrait{
+		Name:         string(TraitTypeOTELInstrumentation),
+		InstanceName: fmt.Sprintf("%s-%s", req.Name, string(TraitTypeOTELInstrumentation)),
+		Parameters: &runtime.RawExtension{
+			Raw: traitParametersJSON,
+		},
+	}
+}
+
+func getInstrumentationImage(languageVersion string) string {
+	// Extract major.minor version (e.g., "3.10.5" -> "3.10")
+	parts := strings.Split(languageVersion, ".")
+	if len(parts) >= 2 {
+		majorMinor := parts[0] + "." + parts[1]
+		switch majorMinor {
+		case "3.10":
+			return ""
+		case "3.11":
+			return "ghcr.io/agent-mgt-platform/otel-tracing-instrumentation:python3.11@sha256:d06e28a12e4a83edfcb8e4f6cb98faf5950266b984156f3192433cf0f903e529"
+		case "3.12":
+			return ""
+		case "3.13":
+			return ""
+		}
+	}
+	return ""
 }
 
 func createComponentWorkflowRunCR(orgName, projName, componentName string, systemParams v1alpha1.SystemParametersValues, component *v1alpha1.Component) *v1alpha1.ComponentWorkflowRun {
