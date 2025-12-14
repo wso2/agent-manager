@@ -18,7 +18,6 @@ package openchoreosvc
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"log"
 	"regexp"
@@ -123,67 +122,6 @@ func getKubernetesConfig() (*rest.Config, error) {
 		return nil, fmt.Errorf("failed to build config: %w", err)
 	}
 	return config, nil
-}
-
-// getRawKubernetesConfigData returns the cluster name and base64-encoded certificate data from kubeconfig
-func getRawKubernetesConfigData() (*KubernetesConfigData, error) {
-	if config.GetConfig().IsLocalDevEnv {
-		kubeconfigPath := config.GetConfig().KubeConfig
-
-		// Load the kubeconfig using clientcmd to get the decoded data
-		kubeconfig, err := clientcmd.LoadFromFile(kubeconfigPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load kubeconfig: %w", err)
-		}
-
-		// Get current context info
-		currentContext := kubeconfig.CurrentContext
-		context, exists := kubeconfig.Contexts[currentContext]
-		if !exists {
-			return nil, fmt.Errorf("current context not found")
-		}
-
-		// Get cluster and user
-		cluster, exists := kubeconfig.Clusters[context.Cluster]
-		if !exists {
-			return nil, fmt.Errorf("cluster not found")
-		}
-
-		user, exists := kubeconfig.AuthInfos[context.AuthInfo]
-		if !exists {
-			return nil, fmt.Errorf("user not found")
-		}
-
-		// Convert raw certificate data back to base64 strings
-		caCert := base64.StdEncoding.EncodeToString(cluster.CertificateAuthorityData)
-		clientCert := base64.StdEncoding.EncodeToString(user.ClientCertificateData)
-		clientKey := base64.StdEncoding.EncodeToString(user.ClientKeyData)
-
-		return &KubernetesConfigData{
-			ClusterName: context.Cluster,
-			CACert:      caCert,
-			ClientCert:  clientCert,
-			ClientKey:   clientKey,
-		}, nil
-	}
-
-	// Use in-cluster config
-	restConfig, err := rest.InClusterConfig()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get in-cluster config: %w", err)
-	}
-
-	// Extract certificate data from in-cluster config
-	caCert := base64.StdEncoding.EncodeToString(restConfig.CAData)
-	clientCert := base64.StdEncoding.EncodeToString(restConfig.CertData)
-	clientKey := base64.StdEncoding.EncodeToString(restConfig.KeyData)
-
-	return &KubernetesConfigData{
-		ClusterName: "in-cluster",
-		CACert:      caCert,
-		ClientCert:  clientCert,
-		ClientKey:   clientKey,
-	}, nil
 }
 
 func (k *openChoreoSvcClient) GetProject(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
