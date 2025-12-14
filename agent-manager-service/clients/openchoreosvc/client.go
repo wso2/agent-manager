@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/openchoreo/openchoreo/api/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -55,7 +54,6 @@ type KubernetesConfigData struct {
 type OpenChoreoSvcClient interface {
 	CreateAgentComponent(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error
 	TriggerBuild(ctx context.Context, orgName string, projName string, agentName string, commitId string) (*models.BuildResponse, error)
-	SetupDeployment(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest, envVars []spec.EnvironmentVariable) error
 	GetProject(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error)
 	ListOrgEnvironments(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error)
 	ListProjects(ctx context.Context, orgName string) ([]*models.ProjectResponse, error)
@@ -68,12 +66,13 @@ type OpenChoreoSvcClient interface {
 	DeleteAgentComponent(ctx context.Context, orgName string, projName string, agentName string) error
 	DeployAgentComponent(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error
 	ListComponentWorkflows(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error)
-	GetAgentBuild(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error)
+	GetComponentWorkflow(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error)
 	GetAgentDeployments(ctx context.Context, orgName string, pipelineName string, projName string, componentName string) ([]*models.DeploymentResponse, error)
 	GetEnvironment(ctx context.Context, orgName string, environmentName string) (*models.EnvironmentResponse, error)
 	IsAgentComponentExists(ctx context.Context, orgName string, projName string, agentName string) (bool, error)
 	GetAgentEndpoints(ctx context.Context, orgName string, projName string, agentName string, environment string) (map[string]models.EndpointsResponse, error)
 	GetAgentConfigurations(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error)
+	GetDataplanesForOrganization(ctx context.Context, orgName string) ([]*models.DataPlaneResponse, error)
 }
 
 type openChoreoSvcClient struct {
@@ -420,7 +419,7 @@ func (k *openChoreoSvcClient) TriggerBuild(ctx context.Context, orgName string, 
 		// Git commit SHA validation: 7-40 hexadecimal characters
 		commitPattern := regexp.MustCompile(`^[0-9a-fA-F]{7,40}$`)
 		if !commitPattern.MatchString(commitId) {
-			return nil, fmt.Errorf("Invalid commit SHA format: %s", commitId)
+			return nil, fmt.Errorf("invalid commit SHA format: %s", commitId)
 		}
 	}
 	systemParams.Repository.Revision.Commit = commitId
@@ -438,14 +437,14 @@ func (k *openChoreoSvcClient) TriggerBuild(ctx context.Context, orgName string, 
 		AgentName:   agentName,
 		ProjectName: projName,
 		CommitID:    commitId,
-		Status:      string(statusInitiated),
+		Status:      string(BuildStatusInitiated),
 		StartedAt:   time.Now(),
 		Branch:      systemParams.Repository.Revision.Branch,
 	}, nil
 }
 
 func (k *openChoreoSvcClient) DeployAgentComponent(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error {
-	exists, err := k.IsAgentComponentExists(ctx,orgName,projName,componentName)
+	exists, err := k.IsAgentComponentExists(ctx, orgName, projName, componentName)
 	if err != nil {
 		return fmt.Errorf("failed to check agent component existence: %w", err)
 	}
@@ -464,11 +463,6 @@ func (k *openChoreoSvcClient) DeployAgentComponent(ctx context.Context, orgName 
 		return fmt.Errorf("failed to update workload: %w", err)
 	}
 	// When a Workload is updated and autoDeploy is enabled, it will automatically deploy to the first environment.
-	return nil
-}
-
-func (k *openChoreoSvcClient) SetupDeployment(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest, envVars []spec.EnvironmentVariable) error {
-	
 	return nil
 }
 
@@ -527,7 +521,7 @@ func (k *openChoreoSvcClient) ListComponentWorkflows(ctx context.Context, orgNam
 			AgentName:   componentName,
 			ProjectName: projName,
 			CommitID:    commit,
-			Status:      getComponentWorkflowStatus(workflowRun.Status.Conditions),
+			Status:      string(determineBuildStatus(workflowRun.Status.Conditions)),
 			StartedAt:   workflowRun.CreationTimestamp.Time,
 			Image:       workflowRun.Status.ImageStatus.Image,
 			Branch:      workflowRun.Spec.Workflow.SystemParameters.Repository.Revision.Branch,
@@ -543,8 +537,8 @@ func (k *openChoreoSvcClient) ListComponentWorkflows(ctx context.Context, orgNam
 	return buildResponses, nil
 }
 
-func (k *openChoreoSvcClient) GetAgentBuild(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
-	exists, err := k.IsAgentComponentExists(ctx,orgName,projName,componentName)
+func (k *openChoreoSvcClient) GetComponentWorkflow(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
+	exists, err := k.IsAgentComponentExists(ctx, orgName, projName, componentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check agent component existence: %w", err)
 	}
@@ -580,15 +574,14 @@ func (k *openChoreoSvcClient) GetAgentBuild(ctx context.Context, orgName string,
 }
 
 func (k *openChoreoSvcClient) GetAgentDeployments(ctx context.Context, orgName string, pipelineName string, projectName string, componentName string) ([]*models.DeploymentResponse, error) {
-	
-	exists, err := k.IsAgentComponentExists(ctx,orgName,projectName,componentName)
+	exists, err := k.IsAgentComponentExists(ctx, orgName, projectName, componentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check agent component existence: %w", err)
 	}
 	if !exists {
 		return nil, fmt.Errorf("agent component %s does not exist in open choreo %s", componentName, projectName)
 	}
-	
+
 	pipeline, err := k.GetDeploymentPipeline(ctx, orgName, pipelineName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get deployment pipeline for project %s: %w", pipelineName, err)
@@ -603,8 +596,8 @@ func (k *openChoreoSvcClient) GetAgentDeployments(ctx context.Context, orgName s
 	environmentOrder := buildEnvironmentOrder(pipeline.PromotionPaths)
 	log.Printf("Environment order: %v", environmentOrder)
 
-	
 	releaseBindingList := &v1alpha1.ReleaseBindingList{}
+
 	err = k.retryK8sOperation(ctx, "ListReleaseBindings", func() error {
 		return k.client.List(ctx, releaseBindingList, client.InNamespace(orgName))
 	})
@@ -627,13 +620,13 @@ func (k *openChoreoSvcClient) GetAgentDeployments(ctx context.Context, orgName s
 	if err != nil {
 		return nil, fmt.Errorf("failed to list release: %w", err)
 	}
-	
+
 	// Create a map of release bindings by environment for quick lookup
 	releaseBindingMap := make(map[string]*v1alpha1.ReleaseBinding)
 	for i := range releaseBindingList.Items {
 		releaseBinding := &releaseBindingList.Items[i]
 		if releaseBinding.Spec.Owner.ProjectName == projectName && releaseBinding.Spec.Owner.ComponentName == componentName {
-			releaseEnv := releaseBinding.Labels[string(LabelKeyEnvironmentName)]
+			releaseEnv := releaseBinding.Spec.Environment
 			releaseBindingMap[releaseEnv] = releaseBinding
 		}
 	}
@@ -668,22 +661,20 @@ func (k *openChoreoSvcClient) GetAgentDeployments(ctx context.Context, orgName s
 			if env, envExists := environmentMap[envName]; envExists {
 				displayName = env.DisplayName
 			}
-			
+
 			deploymentDetails = append(deploymentDetails, &models.DeploymentResponse{
-				Environment:                envName,
-				EnvironmentDisplayName:     displayName,
-				PromotionTargetEnvironment: promotionTargetEnv,
-				Status:                     DeploymentStatusNotDeployed,
-				Endpoints:                  []models.Endpoint{},
+				Environment:            envName,
+				EnvironmentDisplayName: displayName,
+				Status:                 DeploymentStatusNotDeployed,
+				Endpoints:              []models.Endpoint{},
 			})
 		}
 	}
 	return deploymentDetails, nil
 }
 
-
 func (k *openChoreoSvcClient) GetAgentEndpoints(ctx context.Context, orgName string, projName string, agentName string, environment string) (map[string]models.EndpointsResponse, error) {
-	exists, err := k.IsAgentComponentExists(ctx,orgName,projName,agentName)
+	exists, err := k.IsAgentComponentExists(ctx, orgName, projName, agentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check agent component existence: %w", err)
 	}
@@ -721,7 +712,7 @@ func (k *openChoreoSvcClient) GetAgentEndpoints(ctx context.Context, orgName str
 
 	// Extract endpoint details from workload spec
 	endpointDetails := make(map[string]models.EndpointsResponse)
-	
+
 	// Iterate through workload endpoints and match with URLs from release
 	for endpointName, endpoint := range componentWorkload.Spec.Endpoints {
 		endpointResp := models.EndpointsResponse{}
@@ -737,10 +728,10 @@ func (k *openChoreoSvcClient) GetAgentEndpoints(ctx context.Context, orgName str
 				Content: endpoint.Schema.Content,
 			}
 		}
-	
+
 		endpointDetails[endpointName] = endpointResp
 	}
-	
+
 	return endpointDetails, nil
 }
 
@@ -757,7 +748,7 @@ func (k *openChoreoSvcClient) ListOrgEnvironments(ctx context.Context, orgName s
 	for _, env := range environmentList.Items {
 		environments = append(environments, &models.EnvironmentResponse{
 			Name:         env.Name,
-			Namespace:    env.Namespace,
+			DataplaneRef: env.Spec.DataPlaneRef,
 			CreatedAt:    env.CreationTimestamp.Time,
 			IsProduction: env.Spec.IsProduction,
 			DNSPrefix:    env.Spec.Gateway.DNSPrefix,
@@ -785,7 +776,7 @@ func (k *openChoreoSvcClient) GetEnvironment(ctx context.Context, orgName string
 
 	envModel := &models.EnvironmentResponse{
 		Name:         environment.Name,
-		Namespace:    environment.Namespace,
+		DataplaneRef: environment.Spec.DataPlaneRef,
 		CreatedAt:    environment.CreationTimestamp.Time,
 		IsProduction: environment.Spec.IsProduction,
 		DNSPrefix:    environment.Spec.Gateway.DNSPrefix,
@@ -807,19 +798,7 @@ func (k *openChoreoSvcClient) GetDeploymentPipeline(ctx context.Context, orgName
 		return nil, fmt.Errorf("failed to get deployment pipeline: %w", err)
 	}
 
-	promotionPaths := make([]models.PromotionPath, 0, len(deploymentPipeline.Spec.PromotionPaths))
-	for _, path := range deploymentPipeline.Spec.PromotionPaths {
-		targetRefs := make([]models.TargetEnvironmentRef, 0, len(path.TargetEnvironmentRefs))
-		for _, target := range path.TargetEnvironmentRefs {
-			targetRefs = append(targetRefs, models.TargetEnvironmentRef{
-				Name: target.Name,
-			})
-		}
-		promotionPaths = append(promotionPaths, models.PromotionPath{
-			SourceEnvironmentRef:  path.SourceEnvironmentRef,
-			TargetEnvironmentRefs: targetRefs,
-		})
-	}
+	promotionPaths := buildPromotionPaths(deploymentPipeline.Spec.PromotionPaths)
 
 	dpResponse := &models.DeploymentPipelineResponse{
 		Name:           deploymentPipeline.Name,
@@ -881,7 +860,7 @@ func (k *openChoreoSvcClient) GetAgentConfigurations(ctx context.Context, orgNam
 	// If a ReleaseBinding exists for this environment, merge its workload overrides
 	if len(releaseBindingList.Items) > 0 {
 		releaseBinding := &releaseBindingList.Items[0]
-		
+
 		// Override with environment-specific variables from ReleaseBinding
 		if releaseBinding.Spec.WorkloadOverrides.Containers != nil {
 			if mainContainer, exists := releaseBinding.Spec.WorkloadOverrides.Containers["main"]; exists {
@@ -920,9 +899,14 @@ func (k *openChoreoSvcClient) GetDeploymentPipelinesForOrganization(ctx context.
 	})
 
 	var deploymentPipelines []*models.DeploymentPipelineResponse
-	for _, dp := range deploymentPipelineList.Items {
+	for _, deploymentPipeline := range deploymentPipelineList.Items {
 		dpResponse := &models.DeploymentPipelineResponse{
-			Name: dp.Name,
+			Name:           deploymentPipeline.Name,
+			DisplayName:    deploymentPipeline.Annotations[string(AnnotationKeyDisplayName)],
+			Description:    deploymentPipeline.Annotations[string(AnnotationKeyDescription)],
+			OrgName:        orgName,
+			CreatedAt:      deploymentPipeline.CreationTimestamp.Time,
+			PromotionPaths: buildPromotionPaths(deploymentPipeline.Spec.PromotionPaths),
 		}
 		deploymentPipelines = append(deploymentPipelines, dpResponse)
 	}
@@ -946,190 +930,6 @@ func (k *openChoreoSvcClient) CreateProject(ctx context.Context, orgName string,
 	return k.retryK8sOperation(ctx, "CreateProject", func() error {
 		return k.client.Create(ctx, project)
 	})
-}
-
-// deleteProjects deletes all projects in the specified namespace
-func (k *openChoreoSvcClient) deleteProjects(ctx context.Context, orgName string) []string {
-	var errors []string
-
-	projectList := &v1alpha1.ProjectList{}
-	if err := k.retryK8sOperation(ctx, "ListProjects", func() error {
-		return k.client.List(ctx, projectList, client.InNamespace(orgName))
-	}); err != nil {
-		errors = append(errors, fmt.Sprintf("failed to list projects: %v", err))
-		return errors
-	}
-
-	for _, project := range projectList.Items {
-		if err := k.retryK8sOperation(ctx, "DeleteProject", func() error {
-			return k.client.Delete(ctx, &project)
-		}); err != nil {
-			errors = append(errors, fmt.Sprintf("failed to delete project %s: %v", project.Name, err))
-		}
-	}
-
-	return errors
-}
-
-// deleteDeploymentPipelines deletes all deployment pipelines in the specified namespace
-func (k *openChoreoSvcClient) deleteDeploymentPipelines(ctx context.Context, orgName string) []string {
-	var errors []string
-
-	pipelineList := &v1alpha1.DeploymentPipelineList{}
-	if err := k.retryK8sOperation(ctx, "ListDeploymentPipelines", func() error {
-		return k.client.List(ctx, pipelineList, client.InNamespace(orgName))
-	}); err != nil {
-		errors = append(errors, fmt.Sprintf("failed to list deployment pipelines: %v", err))
-		return errors
-	}
-
-	for _, pipeline := range pipelineList.Items {
-		if err := k.retryK8sOperation(ctx, "DeleteDeploymentPipeline", func() error {
-			return k.client.Delete(ctx, &pipeline)
-		}); err != nil {
-			errors = append(errors, fmt.Sprintf("failed to delete deployment pipeline %s: %v", pipeline.Name, err))
-		}
-	}
-
-	return errors
-}
-
-// deleteEnvironments deletes all environments in the specified namespace
-func (k *openChoreoSvcClient) deleteEnvironments(ctx context.Context, orgName string) []string {
-	var errors []string
-
-	environmentList := &v1alpha1.EnvironmentList{}
-	if err := k.retryK8sOperation(ctx, "ListEnvironments", func() error {
-		return k.client.List(ctx, environmentList, client.InNamespace(orgName))
-	}); err != nil {
-		errors = append(errors, fmt.Sprintf("failed to list environments: %v", err))
-		return errors
-	}
-
-	for _, environment := range environmentList.Items {
-		if err := k.retryK8sOperation(ctx, "DeleteEnvironment", func() error {
-			return k.client.Delete(ctx, &environment)
-		}); err != nil {
-			errors = append(errors, fmt.Sprintf("failed to delete environment %s: %v", environment.Name, err))
-		}
-	}
-
-	return errors
-}
-
-// deleteServiceClasses deletes all service classes in the specified namespace
-func (k *openChoreoSvcClient) deleteServiceClasses(ctx context.Context, orgName string) []string {
-	var errors []string
-
-	serviceClassList := &v1alpha1.ServiceClassList{}
-	if err := k.retryK8sOperation(ctx, "ListServiceClasses", func() error {
-		return k.client.List(ctx, serviceClassList, client.InNamespace(orgName))
-	}); err != nil {
-		errors = append(errors, fmt.Sprintf("failed to list service classes: %v", err))
-		return errors
-	}
-
-	for _, serviceClass := range serviceClassList.Items {
-		if err := k.retryK8sOperation(ctx, "DeleteServiceClass", func() error {
-			return k.client.Delete(ctx, &serviceClass)
-		}); err != nil {
-			errors = append(errors, fmt.Sprintf("failed to delete service class %s: %v", serviceClass.Name, err))
-		}
-	}
-
-	return errors
-}
-
-// deleteDataPlanes deletes all data planes in the specified namespace
-func (k *openChoreoSvcClient) deleteDataPlanes(ctx context.Context, orgName string) []string {
-	var errors []string
-
-	dataPlaneList := &v1alpha1.DataPlaneList{}
-	if err := k.retryK8sOperation(ctx, "ListDataPlanes", func() error {
-		return k.client.List(ctx, dataPlaneList, client.InNamespace(orgName))
-	}); err != nil {
-		errors = append(errors, fmt.Sprintf("failed to list data planes: %v", err))
-		return errors
-	}
-
-	for _, dataPlane := range dataPlaneList.Items {
-		if err := k.retryK8sOperation(ctx, "DeleteDataPlane", func() error {
-			return k.client.Delete(ctx, &dataPlane)
-		}); err != nil {
-			errors = append(errors, fmt.Sprintf("failed to delete data plane %s: %v", dataPlane.Name, err))
-		}
-	}
-
-	return errors
-}
-
-// deleteBuildPlanes deletes all build planes in the specified namespace
-func (k *openChoreoSvcClient) deleteBuildPlanes(ctx context.Context, orgName string) []string {
-	var errors []string
-
-	buildPlaneList := &v1alpha1.BuildPlaneList{}
-	if err := k.retryK8sOperation(ctx, "ListBuildPlanes", func() error {
-		return k.client.List(ctx, buildPlaneList, client.InNamespace(orgName))
-	}); err != nil {
-		errors = append(errors, fmt.Sprintf("failed to list build planes: %v", err))
-		return errors
-	}
-
-	for _, buildPlane := range buildPlaneList.Items {
-		if err := k.retryK8sOperation(ctx, "DeleteBuildPlane", func() error {
-			return k.client.Delete(ctx, &buildPlane)
-		}); err != nil {
-			errors = append(errors, fmt.Sprintf("failed to delete build plane %s: %v", buildPlane.Name, err))
-		}
-	}
-
-	return errors
-}
-
-// deleteOrganizations deletes the organization with the specified name
-func (k *openChoreoSvcClient) deleteOrganizations(ctx context.Context, orgName string) []string {
-	var errors []string
-
-	organizationList := &v1alpha1.OrganizationList{}
-	if err := k.retryK8sOperation(ctx, "ListOrganizations", func() error {
-		return k.client.List(ctx, organizationList, client.InNamespace(orgName))
-	}); err != nil {
-		errors = append(errors, fmt.Sprintf("failed to list organizations: %v", err))
-		return errors
-	}
-
-	for _, org := range organizationList.Items {
-		if org.Name == orgName {
-			if err := k.retryK8sOperation(ctx, "DeleteOrganization", func() error {
-				return k.client.Delete(ctx, &org)
-			}); err != nil {
-				errors = append(errors, fmt.Sprintf("failed to delete organization %s: %v", org.Name, err))
-			}
-		}
-	}
-
-	return errors
-}
-
-// deleteNamespace deletes the specified namespace
-func (k *openChoreoSvcClient) deleteNamespace(ctx context.Context, orgName string) []string {
-	var errors []string
-
-	namespace := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: orgName,
-		},
-	}
-	if err := k.retryK8sOperation(ctx, "DeleteNamespace", func() error {
-		return k.client.Delete(ctx, namespace)
-	}); err != nil {
-		// Ignore not found errors for namespace
-		if client.IgnoreNotFound(err) != nil {
-			errors = append(errors, fmt.Sprintf("failed to delete namespace %s: %v", orgName, err))
-		}
-	}
-
-	return errors
 }
 
 func (k *openChoreoSvcClient) GetOrganization(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
@@ -1209,6 +1009,28 @@ func (k *openChoreoSvcClient) ListProjects(ctx context.Context, orgName string) 
 		})
 	}
 	return projects, nil
+}
+
+func (k *openChoreoSvcClient) GetDataplanesForOrganization(ctx context.Context, orgName string) ([]*models.DataPlaneResponse, error) {
+	dataplaneList := &v1alpha1.DataPlaneList{}
+	err := k.retryK8sOperation(ctx, "ListDataplanes", func() error {
+		return k.client.List(ctx, dataplaneList, client.InNamespace(orgName))
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list dataplanes: %w", err)
+	}
+
+	var dataplanes []*models.DataPlaneResponse
+	for _, dp := range dataplaneList.Items {
+		dataplanes = append(dataplanes, &models.DataPlaneResponse{
+			Name:        dp.Name,
+			OrgName:     orgName,
+			CreatedAt:   dp.CreationTimestamp.Time,
+			DisplayName: dp.Annotations[string(AnnotationKeyDisplayName)],
+			Description: dp.Annotations[string(AnnotationKeyDescription)],
+		})
+	}
+	return dataplanes, nil
 }
 
 // findPromotionTargetEnvironment finds the promotion target environment for a given source environment

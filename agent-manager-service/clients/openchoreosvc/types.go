@@ -32,13 +32,13 @@ const (
 )
 
 type AgentComponent struct {
-	Name             string     `json:"name"`
-	DisplayName      string     `json:"displayName,omitempty"`
-	Description      string     `json:"description,omitempty"`
-	ProjectName      string     `json:"projectName"`
-	CreatedAt        time.Time  `json:"createdAt"`
-	Status           string     `json:"status,omitempty"`
-	Repository       Repository `json:"buildConfig,omitempty"`
+	Name        string     `json:"name"`
+	DisplayName string     `json:"displayName,omitempty"`
+	Description string     `json:"description,omitempty"`
+	ProjectName string     `json:"projectName"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	Status      string     `json:"status,omitempty"`
+	Repository  Repository `json:"buildConfig,omitempty"`
 }
 
 type Repository struct {

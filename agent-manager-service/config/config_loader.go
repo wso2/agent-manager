@@ -86,7 +86,10 @@ func loadEnvs() {
 	config.DbOperationTimeoutSeconds = int(r.readOptionalInt64("DB_OPERATION_TIMEOUT_SECONDS", 10))
 	config.HealthCheckTimeoutSeconds = int(r.readOptionalInt64("HEALTH_CHECK_TIMEOUT_SECONDS", 5))
 
-	config.DefaultHTTPPort = int(r.readOptionalInt64("DEFAULT_HTTP_PORT", 8000))
+	config.DefaultChatAPI = DefaultChatAPIConfig{
+		DefaultHTTPPort: int32(r.readOptionalInt64("DEFAULT_CHAT_API_HTTP_PORT", 8000)),
+		DefaultBasePath: r.readOptionalString("DEFAULT_CHAT_API_BASE_PATH", "/"),
+	}
 
 	config.APIKeyHeader = r.readOptionalString("API_KEY_HEADER", "X-API-KEY")
 	config.APIKeyValue = r.readRequiredString("API_KEY_VALUE")

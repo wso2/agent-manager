@@ -27,6 +27,7 @@ var migration007 = migration{
 		createTable := `CREATE TABLE internal_agents
 (
    id            UUID PRIMARY KEY,
+   agent_type   VARCHAR(100) NOT NULL,
    agent_subtype VARCHAR(100) NOT NULL,
    language      VARCHAR(100) NOT NULL,
    workload_spec    JSONB,

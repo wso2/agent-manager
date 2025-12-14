@@ -27,8 +27,7 @@ type DeploymentDetailsResponse struct {
 	// Timestamp of last deployment
 	LastDeployed time.Time `json:"lastDeployed"`
 	// List of deployment endpoints
-	Endpoints         []DeploymentEndpoint `json:"endpoints"`
-	SourceEnvironment EnvironmentObject    `json:"sourceEnvironment"`
+	Endpoints []DeploymentEndpoint `json:"endpoints"`
 	// Environment display name
 	EnvironmentDisplayName     *string                                              `json:"environmentDisplayName,omitempty"`
 	PromotionTargetEnvironment *DeploymentDetailsResponsePromotionTargetEnvironment `json:"promotionTargetEnvironment,omitempty"`
@@ -38,13 +37,12 @@ type DeploymentDetailsResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewDeploymentDetailsResponse(imageId string, status string, lastDeployed time.Time, endpoints []DeploymentEndpoint, sourceEnvironment EnvironmentObject) *DeploymentDetailsResponse {
+func NewDeploymentDetailsResponse(imageId string, status string, lastDeployed time.Time, endpoints []DeploymentEndpoint) *DeploymentDetailsResponse {
 	this := DeploymentDetailsResponse{}
 	this.ImageId = imageId
 	this.Status = status
 	this.LastDeployed = lastDeployed
 	this.Endpoints = endpoints
-	this.SourceEnvironment = sourceEnvironment
 	return &this
 }
 
@@ -152,30 +150,6 @@ func (o *DeploymentDetailsResponse) SetEndpoints(v []DeploymentEndpoint) {
 	o.Endpoints = v
 }
 
-// GetSourceEnvironment returns the SourceEnvironment field value
-func (o *DeploymentDetailsResponse) GetSourceEnvironment() EnvironmentObject {
-	if o == nil {
-		var ret EnvironmentObject
-		return ret
-	}
-
-	return o.SourceEnvironment
-}
-
-// GetSourceEnvironmentOk returns a tuple with the SourceEnvironment field value
-// and a boolean to check if the value has been set.
-func (o *DeploymentDetailsResponse) GetSourceEnvironmentOk() (*EnvironmentObject, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.SourceEnvironment, true
-}
-
-// SetSourceEnvironment sets field value
-func (o *DeploymentDetailsResponse) SetSourceEnvironment(v EnvironmentObject) {
-	o.SourceEnvironment = v
-}
-
 // GetEnvironmentDisplayName returns the EnvironmentDisplayName field value if set, zero value otherwise.
 func (o *DeploymentDetailsResponse) GetEnvironmentDisplayName() string {
 	if o == nil || IsNil(o.EnvironmentDisplayName) {
@@ -254,7 +228,6 @@ func (o DeploymentDetailsResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["status"] = o.Status
 	toSerialize["lastDeployed"] = o.LastDeployed
 	toSerialize["endpoints"] = o.Endpoints
-	toSerialize["sourceEnvironment"] = o.SourceEnvironment
 	if !IsNil(o.EnvironmentDisplayName) {
 		toSerialize["environmentDisplayName"] = o.EnvironmentDisplayName
 	}

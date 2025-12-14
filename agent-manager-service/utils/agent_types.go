@@ -28,7 +28,7 @@ const (
 type AgentType string
 
 const (
-	AgentTypeAPI AgentType = "agent-api"
+	AgentTypeAPI AgentType = "api"
 )
 
 type AgentSubType string
@@ -36,4 +36,10 @@ type AgentSubType string
 const (
 	AgentSubTypeChatAPI   AgentSubType = "chat-api"
 	AgentSubTypeCustomAPI AgentSubType = "custom-api"
+)
+
+type InputInterfaceType string
+
+const (
+	InputInterfaceTypeHTTP InputInterfaceType = "HTTP"
 )

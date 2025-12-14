@@ -27,19 +27,20 @@ type BuildStep struct {
 	// Human-readable message about the step
 	Message string `json:"message"`
 	// Timestamp when the step occurred
-	At time.Time `json:"at"`
+	StartedAt *time.Time `json:"startedAt,omitempty"`
+	// Timestamp when the step finished
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 }
 
 // NewBuildStep instantiates a new BuildStep object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewBuildStep(type_ string, status string, message string, at time.Time) *BuildStep {
+func NewBuildStep(type_ string, status string, message string) *BuildStep {
 	this := BuildStep{}
 	this.Type = type_
 	this.Status = status
 	this.Message = message
-	this.At = at
 	return &this
 }
 
@@ -123,28 +124,68 @@ func (o *BuildStep) SetMessage(v string) {
 	o.Message = v
 }
 
-// GetAt returns the At field value
-func (o *BuildStep) GetAt() time.Time {
-	if o == nil {
+// GetStartedAt returns the StartedAt field value if set, zero value otherwise.
+func (o *BuildStep) GetStartedAt() time.Time {
+	if o == nil || IsNil(o.StartedAt) {
 		var ret time.Time
 		return ret
 	}
-
-	return o.At
+	return *o.StartedAt
 }
 
-// GetAtOk returns a tuple with the At field value
+// GetStartedAtOk returns a tuple with the StartedAt field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *BuildStep) GetAtOk() (*time.Time, bool) {
-	if o == nil {
+func (o *BuildStep) GetStartedAtOk() (*time.Time, bool) {
+	if o == nil || IsNil(o.StartedAt) {
 		return nil, false
 	}
-	return &o.At, true
+	return o.StartedAt, true
 }
 
-// SetAt sets field value
-func (o *BuildStep) SetAt(v time.Time) {
-	o.At = v
+// HasStartedAt returns a boolean if a field has been set.
+func (o *BuildStep) HasStartedAt() bool {
+	if o != nil && !IsNil(o.StartedAt) {
+		return true
+	}
+
+	return false
+}
+
+// SetStartedAt gets a reference to the given time.Time and assigns it to the StartedAt field.
+func (o *BuildStep) SetStartedAt(v time.Time) {
+	o.StartedAt = &v
+}
+
+// GetFinishedAt returns the FinishedAt field value if set, zero value otherwise.
+func (o *BuildStep) GetFinishedAt() time.Time {
+	if o == nil || IsNil(o.FinishedAt) {
+		var ret time.Time
+		return ret
+	}
+	return *o.FinishedAt
+}
+
+// GetFinishedAtOk returns a tuple with the FinishedAt field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *BuildStep) GetFinishedAtOk() (*time.Time, bool) {
+	if o == nil || IsNil(o.FinishedAt) {
+		return nil, false
+	}
+	return o.FinishedAt, true
+}
+
+// HasFinishedAt returns a boolean if a field has been set.
+func (o *BuildStep) HasFinishedAt() bool {
+	if o != nil && !IsNil(o.FinishedAt) {
+		return true
+	}
+
+	return false
+}
+
+// SetFinishedAt gets a reference to the given time.Time and assigns it to the FinishedAt field.
+func (o *BuildStep) SetFinishedAt(v time.Time) {
+	o.FinishedAt = &v
 }
 
 func (o BuildStep) MarshalJSON() ([]byte, error) {
@@ -160,7 +201,12 @@ func (o BuildStep) ToMap() (map[string]interface{}, error) {
 	toSerialize["type"] = o.Type
 	toSerialize["status"] = o.Status
 	toSerialize["message"] = o.Message
-	toSerialize["at"] = o.At
+	if !IsNil(o.StartedAt) {
+		toSerialize["startedAt"] = o.StartedAt
+	}
+	if !IsNil(o.FinishedAt) {
+		toSerialize["finishedAt"] = o.FinishedAt
+	}
 	return toSerialize, nil
 }
 

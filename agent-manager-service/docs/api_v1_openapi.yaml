@@ -998,6 +998,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /orgs/{orgName}/data-planes:
+    get:
+      summary: List all data planes in an organization
+      description: Retrieves all data planes available in the specified organization
+      operationId: listDataPlanes
+      parameters:
+        - name: orgName
+          in: path
+          description: Organization name
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of data planes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataPlaneListResponse"
+        "404":
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /orgs/{orgName}/projects/{projName}/deployment-pipeline:
     get:
       summary: Get deployment pipeline for a project
@@ -1097,7 +1128,6 @@ components:
         - name
         - displayName
         - provisioning
-        - agentType
       properties:
         name:
           type: string
@@ -1146,8 +1176,6 @@ components:
         - projectName
         - description
         - provisioning
-        - agentType
-        - runtimeConfigs
     ResourceNameRequest:
       type: object
       properties:
@@ -1314,15 +1342,18 @@ components:
         message:
           type: string
           description: Human-readable message about the step
-        at:
+        startedAt:
           type: string
           format: date-time
           description: Timestamp when the step occurred
+        finishedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the step finished
       required:
         - type
         - status
         - message
-        - at
 
     BuildDetailsResponse:
       allOf:
@@ -1389,10 +1420,14 @@ components:
       type: object
       description: Endpoint configurations
       required:
+        - type
         - port
         - schema
         - basePath
       properties:
+        type:
+          type: string
+          description: Type of the endpoint (e.g., HTTP)
         port:
           type: integer
           description: Port number
@@ -1470,8 +1505,6 @@ components:
           description: List of deployment endpoints
           items:
             $ref: "#/components/schemas/DeploymentEndpoint"
-        sourceEnvironment:
-          $ref: "#/components/schemas/EnvironmentObject"
         environmentDisplayName:
           type: string
           description: Environment display name
@@ -1493,7 +1526,6 @@ components:
         - status
         - lastDeployed
         - endpoints
-        - sourceEnvironment
     DeploymentListResponse:
       type: object
       additionalProperties:
@@ -1545,7 +1577,7 @@ components:
         name:
           type: string
           description: Name of the environment
-        namespace:
+        dataplaneRef:
           type: string
           description: Kubernetes namespace for the environment
         displayName:
@@ -1563,7 +1595,7 @@ components:
           description: Timestamp when the environment was created
       required:
         - name
-        - namespace
+        - dataplaneRef
         - isProduction
         - createdAt
 
@@ -1572,6 +1604,38 @@ components:
       items:
         $ref: "#/components/schemas/Environment"
       description: List of environments
+
+    DataPlane:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the data plane
+        displayName:
+          type: string
+          description: Human-readable display name
+        description:
+          type: string
+          description: Description of the data plane
+        orgName:
+          type: string
+          description: Organization name
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the data plane was created
+      required:
+        - name
+        - displayName
+        - description
+        - orgName
+        - createdAt
+
+    DataPlaneListResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/DataPlane"
+      description: List of data planes
 
     DeploymentPipelineResponse:
       type: object

@@ -77,10 +77,11 @@ type BuildResponse struct {
 
 // BuildStep represents a step in the build process
 type BuildStep struct {
-	Type    string    `json:"type"`
-	Status  string    `json:"status"`
-	Message string    `json:"message"`
-	At      time.Time `json:"at"`
+	Type       string     `json:"type"`
+	Status     string     `json:"status"`
+	Message    string     `json:"message"`
+	StartedAt  *time.Time `json:"startedAt,omitempty"`
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 }
 
 // BuildDetails represents detailed build information

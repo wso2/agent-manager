@@ -58,14 +58,14 @@ func validateInternalAgent(payload spec.CreateAgentRequest) error {
 		return fmt.Errorf("invalid agent type or subtype: %w", err)
 	}
 
-	// Only perform API-specific validations for API agent types
+	// Only perform API-specific validations for API agent types, this would be extended for other types later
 	if payload.AgentType.Type != string(AgentTypeAPI) {
 		return nil
 	}
 
-	// Validate custom API input interface
-	if payload.AgentType.SubType == string(AgentSubTypeCustomAPI) {
-		if err := validateInputInterface(payload.InputInterface); err != nil {
+	// Validate API input interface for custom API subtype
+	if payload.AgentType.Type == string(AgentTypeAPI) {
+		if err := validateInputInterface(payload.AgentType, payload.InputInterface); err != nil {
 			return fmt.Errorf("invalid inputInterface: %w", err)
 		}
 	}
@@ -82,7 +82,7 @@ func validateInternalAgent(payload spec.CreateAgentRequest) error {
 	return nil
 }
 
-func validateAgentType(agentType spec.AgentType) error {
+func validateAgentType(agentType *spec.AgentType) error {
 	if agentType.Type != string(AgentTypeAPI) {
 		return fmt.Errorf("unsupported agent type: %s", agentType)
 	}
@@ -166,18 +166,23 @@ func validateRepoDetails(repo *spec.RepositoryConfig) error {
 }
 
 // ValidateInputInterface validates the inputInterface field in CreateAgentRequest
-func validateInputInterface(inputInterface *spec.InputInterface) error {
+func validateInputInterface(agentType *spec.AgentType, inputInterface *spec.InputInterface) error {
 	if inputInterface == nil {
 		return fmt.Errorf("inputInterface is required for internal agents")
 	}
-	if inputInterface.Schema.Path == "" {
-		return fmt.Errorf("inputInterface.schema.path is required")
+	if inputInterface.Type != string(InputInterfaceTypeHTTP) {
+		return fmt.Errorf("unsupported inputInterface type: %s", inputInterface.Type)
 	}
-	if inputInterface.Port <= 0 || inputInterface.Port > 65535 {
-		return fmt.Errorf("customOpenAPISpec.port must be a valid port number (1-65535)")
-	}
-	if inputInterface.BasePath == "" {
-		return fmt.Errorf("customOpenAPISpec.basePath is required")
+	if agentType.SubType == string(AgentSubTypeCustomAPI) {
+		if inputInterface.Schema.Path == "" {
+			return fmt.Errorf("inputInterface.schema.path is required")
+		}
+		if inputInterface.Port <= 0 || inputInterface.Port > 65535 {
+			return fmt.Errorf("customOpenAPISpec.port must be a valid port number (1-65535)")
+		}
+		if inputInterface.BasePath == "" {
+			return fmt.Errorf("customOpenAPISpec.basePath is required")
+		}
 	}
 
 	return nil
@@ -375,7 +380,7 @@ func GetSystemEnvVars(language string, componentName string) map[string]string {
 // ReadChatAPISchema reads the OpenAPI schema for chat API from the docs directory
 func ReadChatAPISchema() (string, error) {
 	// Get the schema file path relative to the project root
-	schemaPath := "docs/api_v1_openapi.yaml"
+	schemaPath := "clients/openchoreosvc/default-openapi-schema.yaml"
 
 	// Read the file content
 	content, err := os.ReadFile(schemaPath)

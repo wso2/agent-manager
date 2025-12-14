@@ -22,7 +22,7 @@ const (
 	LabelKeyOrganizationName LabelKeys = "openchoreo.dev/organization"
 	LabelKeyProjectName      LabelKeys = "openchoreo.dev/project"
 	LabelKeyComponentName    LabelKeys = "openchoreo.dev/component"
-	LabelKeyEnvironmentName LabelKeys = "openchoreo.dev/environment"
+	LabelKeyEnvironmentName  LabelKeys = "openchoreo.dev/environment"
 )
 
 type AnnotationKeys string
@@ -32,13 +32,6 @@ const (
 	AnnotationKeyDescription AnnotationKeys = "openchoreo.dev/description"
 )
 
-type BuildTemplateNames string
-
-const (
-	GoogleBuildpackBuildTemplate    BuildTemplateNames = "buildpack-ci"
-	BallerinaBuildpackBuildTemplate BuildTemplateNames = "ballerina-buildpack-ci"
-)
-
 const (
 	AgentComponentType string = "agent-component"
 	GoogleEntryPoint   string = "google-entry-point"
@@ -46,27 +39,36 @@ const (
 	LanguageVersionKey string = "language-version-key"
 )
 
-
-
 type WorkflowConditionType string
+
 const (
-	ConditionWorkloadUpdated WorkflowConditionType = "WorkloadUpdated"
-	ConditionWorkflowFailed WorkflowConditionType = "WorkflowFailed"
-	ConditionWorkflowSucceeded WorkflowConditionType ="WorkflowSucceeded"
-	ConditionWorkflowRunning WorkflowConditionType = "WorkflowRunning"
+	ConditionWorkloadUpdated   WorkflowConditionType = "WorkloadUpdated"
+	ConditionWorkflowFailed    WorkflowConditionType = "WorkflowFailed"
+	ConditionWorkflowSucceeded WorkflowConditionType = "WorkflowSucceeded"
+	ConditionWorkflowRunning   WorkflowConditionType = "WorkflowRunning"
+	ConditionWorkflowPending   WorkflowConditionType = "WorkflowPending"
+	ConditionWorkflowCompleted WorkflowConditionType = "WorkflowCompleted"
 )
+
 type BuildStatus string
+
 const (
-	statusCompleted = "BuildCompleted"
-	statusPending = "BuildPending"
-	statusFailed = "BuildFailed"
-	statusSucceeded = "WorkloadUpdated"
-	statusRunning = "BuildRunning"
-	statusInitiated = "BuildInitiated"
+	BuildStatusInitiated BuildStatus = "BuildInitiated"
+	BuildStatusTriggered BuildStatus = "BuildTriggered"
+	BuildStatusRunning   BuildStatus = "BuildRunning"
+	BuildStatusSucceeded BuildStatus = "BuildSucceeded"
+	BuildStatusFailed    BuildStatus = "BuildFailed"
+	BuildStatusCompleted BuildStatus = "WorkloadUpdated" // workload created
 )
 
+type BuildStepStatus string
 
-
+const (
+	BuildStepStatusPending   BuildStepStatus = "Pending"
+	BuildStepStatusRunning   BuildStepStatus = "Running"
+	BuildStepStatusSucceeded BuildStepStatus = "Succeeded"
+	BuildStepStatusFailed    BuildStepStatus = "Failed"
+)
 
 // Deployment status values
 const (
@@ -84,11 +86,11 @@ const (
 )
 
 const (
-	MainContainerName                    = "main"
-	DevEnvironmentName                   = "development"
-	DevEnvironmentDisplayName            = "Development"
-	DefaultDisplayName                   = "Default"
-	DefaultName                          = "default"
+	MainContainerName         = "main"
+	DevEnvironmentName        = "development"
+	DevEnvironmentDisplayName = "Development"
+	DefaultDisplayName        = "Default"
+	DefaultName               = "default"
 )
 
 // Resource constants
@@ -97,5 +99,5 @@ const (
 	DefaultMemoryRequest = "256Mi"
 	DefaultCPULimit      = "500m"
 	DefaultMemoryLimit   = "512Mi"
-	DefaultReplicaCount = 1
+	DefaultReplicaCount  = 1
 )

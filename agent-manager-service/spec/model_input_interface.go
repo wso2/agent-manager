@@ -19,6 +19,8 @@ var _ MappedNullable = &InputInterface{}
 
 // InputInterface Endpoint configurations
 type InputInterface struct {
+	// Type of the endpoint (e.g., HTTP)
+	Type string `json:"type"`
 	// Port number
 	Port   int32                `json:"port"`
 	Schema InputInterfaceSchema `json:"schema"`
@@ -30,8 +32,9 @@ type InputInterface struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewInputInterface(port int32, schema InputInterfaceSchema, basePath string) *InputInterface {
+func NewInputInterface(type_ string, port int32, schema InputInterfaceSchema, basePath string) *InputInterface {
 	this := InputInterface{}
+	this.Type = type_
 	this.Port = port
 	this.Schema = schema
 	this.BasePath = basePath
@@ -44,6 +47,30 @@ func NewInputInterface(port int32, schema InputInterfaceSchema, basePath string)
 func NewInputInterfaceWithDefaults() *InputInterface {
 	this := InputInterface{}
 	return &this
+}
+
+// GetType returns the Type field value
+func (o *InputInterface) GetType() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Type
+}
+
+// GetTypeOk returns a tuple with the Type field value
+// and a boolean to check if the value has been set.
+func (o *InputInterface) GetTypeOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Type, true
+}
+
+// SetType sets field value
+func (o *InputInterface) SetType(v string) {
+	o.Type = v
 }
 
 // GetPort returns the Port field value
@@ -128,6 +155,7 @@ func (o InputInterface) MarshalJSON() ([]byte, error) {
 
 func (o InputInterface) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
+	toSerialize["type"] = o.Type
 	toSerialize["port"] = o.Port
 	toSerialize["schema"] = o.Schema
 	toSerialize["basePath"] = o.BasePath

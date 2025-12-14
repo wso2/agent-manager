@@ -33,7 +33,6 @@ type Config struct {
 	// Database operation timeout configuration
 	DbOperationTimeoutSeconds int
 	HealthCheckTimeoutSeconds int
-	DefaultHTTPPort           int
 
 	APIKeyHeader string
 	APIKeyValue  string
@@ -47,6 +46,9 @@ type Config struct {
 	Observer ObserverConfig
 
 	IsLocalDevEnv bool
+
+	// Default Chat API configuration
+	DefaultChatAPI DefaultChatAPIConfig
 }
 
 // OTELConfig holds all OpenTelemetry related configuration
@@ -92,4 +94,9 @@ type DbConfigs struct {
 	MaxOpenCount       *int64 // <= 0 means unlimited
 	MaxLifetimeSeconds *int64 // maximum amount of time a connection may be reused
 	MaxIdleTimeSeconds *int64
+}
+
+type DefaultChatAPIConfig struct {
+	DefaultHTTPPort int32
+	DefaultBasePath string
 }

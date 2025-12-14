@@ -66,7 +66,7 @@ type Agent struct {
 	CreatedAt        time.Time      `gorm:"column:created_at"`
 	UpdatedAt        time.Time      `gorm:"column:updated_at"`
 	DeletedAt        gorm.DeletedAt `gorm:"column:deleted_at"`
-	AgentDetails     *InternalAgent
+	AgentDetails     *InternalAgent `gorm:"foreignKey:ID;references:ID"`
 }
 
 type InternalAgent struct {

@@ -39,6 +39,7 @@ type InfraResourceController interface {
 	CreateProject(w http.ResponseWriter, r *http.Request)
 	DeleteProject(w http.ResponseWriter, r *http.Request)
 	ListOrgDeploymentPipelines(w http.ResponseWriter, r *http.Request)
+	GetDataplanes(w http.ResponseWriter, r *http.Request)
 }
 
 type infraResourceController struct {
@@ -410,4 +411,29 @@ func (c *infraResourceController) GetProjectDeploymentPipeline(w http.ResponseWr
 	deploymentPipelineResponse := utils.ConvertToDeploymentPipelineResponse(deploymentPipeline)
 
 	utils.WriteSuccessResponse(w, http.StatusOK, deploymentPipelineResponse)
+}
+
+func (c *infraResourceController) GetDataplanes(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	// Extract path parameters
+	orgName := r.PathValue(utils.PathParamOrgName)
+
+	// Extract user info from JWT token
+	tokenClaims := jwtassertion.GetTokenClaims(ctx)
+	userIdpId := tokenClaims.Sub
+
+	dataplanes, err := c.infraResourceManager.GetDataplanes(ctx, userIdpId, orgName)
+	if err != nil {
+		log.Error("GetDataplanes: failed to get dataplanes", "error", err)
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+			return
+		}
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get dataplanes")
+		return
+	}
+	dataplaneListResponse := utils.ConvertToDataPlaneListResponse(dataplanes)
+	utils.WriteSuccessResponse(w, http.StatusOK, dataplaneListResponse)
 }

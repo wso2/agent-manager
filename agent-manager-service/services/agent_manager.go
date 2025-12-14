@@ -40,7 +40,7 @@ type AgentManagerService interface {
 	CreateAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, req *spec.CreateAgentRequest) error
 	BuildAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, commitId string) (*models.BuildResponse, error)
 	DeleteAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string) error
-	DeployAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, req *spec.DeployAgentRequest) (string,error)
+	DeployAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, req *spec.DeployAgentRequest) (string, error)
 	GetAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string) (*models.AgentResponse, error)
 	ListAgentBuilds(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, limit int32, offset int32) ([]*models.BuildResponse, int32, error)
 	GetBuild(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, buildName string) (*models.BuildDetailsResponse, error)
@@ -106,17 +106,17 @@ func (s *agentManagerService) GetAgent(ctx context.Context, userIdpId uuid.UUID,
 		return nil, fmt.Errorf("failed to fetch agent: %w", err)
 	}
 	// If the agent is external, return the agent record directly
-	if agent.AgentDetails.AgentType == string(utils.ExternalAgent) {
+	if agent.ProvisioningType == string(utils.ExternalAgent) {
 		s.logger.Info("Fetched external agent successfully", "agentName", agent.Name, "orgName", orgName, "projectName", projectName)
 		return s.convertExternalAgentToAgentResponse(agent, project.Name), nil
 	}
 	// If the agent is managed by Open Choreo, fetch the agent component from OpenChoreo
-	agentComponent, err := s.OpenChoreoSvcClient.GetAgentComponent(ctx, orgName, projectName, agentName)
+	ocAgentComponent, err := s.OpenChoreoSvcClient.GetAgentComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch agent from oc: %w", err)
 	}
-	s.logger.Info("Fetched agent successfully", "agentName", agentComponent.Name, "orgName", orgName, "projectName", projectName)
-	return s.convertManagedAgentToAgentResponse(agentComponent), nil
+	s.logger.Info("Fetched agent successfully", "agentName", ocAgentComponent.Name, "orgName", orgName, "projectName", projectName)
+	return s.convertManagedAgentToAgentResponse(ocAgentComponent, agent), nil
 }
 
 func (s *agentManagerService) ListAgents(ctx context.Context, userIdpId uuid.UUID, orgName string, projName string, limit int32, offset int32) ([]*models.AgentResponse, int32, error) {
@@ -414,7 +414,7 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, userIdpId uuid.UU
 	if err != nil {
 		return err
 	}
-	if agent.AgentDetails.AgentType == string(utils.InternalAgent) {
+	if agent.ProvisioningType == string(utils.InternalAgent) {
 		// Remove open Choreo managed resources
 		err = s.deleteManagedAgent(ctx, orgName, projectName, agentName)
 		if err != nil {
@@ -473,8 +473,8 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, userIdpId uuid.UUI
 		}
 		return nil, fmt.Errorf("failed to fetch agent: %w", err)
 	}
-	if agent.AgentDetails.AgentType != string(utils.InternalAgent) {
-		return nil, fmt.Errorf("build operation is not supported for agent type: '%s'", agent.AgentDetails.AgentType)
+	if agent.ProvisioningType != string(utils.InternalAgent) {
+		return nil, fmt.Errorf("build operation is not supported for agent type: '%s'", agent.ProvisioningType)
 	}
 	// Trigger build in Open Choreo
 	build, err := s.OpenChoreoSvcClient.TriggerBuild(ctx, orgName, projectName, agentName, commitId)
@@ -493,7 +493,7 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, userIdpId uuid.UUI
 }
 
 // DeployAgent deploys an agent.
-func (s *agentManagerService) DeployAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, req *spec.DeployAgentRequest) (string,error) {
+func (s *agentManagerService) DeployAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, req *spec.DeployAgentRequest) (string, error) {
 	org, err := s.OrganizationRepository.GetOrganizationByOrgName(ctx, userIdpId, orgName)
 	if err != nil {
 		if db.IsRecordNotFoundError(err) {
@@ -515,12 +515,16 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, userIdpId uuid.UU
 		}
 		return "", fmt.Errorf("failed to fetch agent: %w", err)
 	}
-	if agent.AgentDetails.AgentType != string(utils.InternalAgent) {
-		return "", fmt.Errorf("deploy operation is not supported for agent type: '%s'", agent.AgentDetails.AgentType)
+	if agent.ProvisioningType != string(utils.InternalAgent) {
+		return "", fmt.Errorf("deploy operation is not supported for agent type: '%s'", agent.ProvisioningType)
 	}
-	
+
 	// Build complete environment variables (system + user)
-	finalEnvVars := buildEnvironmentVariables(agent.AgentDetails.Language, agentName, req.Env)
+	language := ""
+	if agent.AgentDetails != nil {
+		language = agent.AgentDetails.Language
+	}
+	finalEnvVars := buildEnvironmentVariables(language, agentName, req.Env)
 
 	// Create a new request with the combined environment variables
 	deployReq := &spec.DeployAgentRequest{
@@ -543,7 +547,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, userIdpId uuid.UU
 	}
 	pipeline, err := s.OpenChoreoSvcClient.GetDeploymentPipeline(ctx, orgName, pipelineName)
 	if err != nil {
-		return "",fmt.Errorf("failed to fetch deployment pipeline: %w", err)
+		return "", fmt.Errorf("failed to fetch deployment pipeline: %w", err)
 	}
 	err = s.AgentRepository.UpdateAgentTimestamp(ctx, org.ID, project.ID, agentName)
 	if err != nil {
@@ -553,7 +557,6 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, userIdpId uuid.UU
 	s.logger.Info("Agent deployed successfully to "+lowestEnv, "agentName", agentName, "orgName", orgName, "projectName", projectName)
 	return lowestEnv, nil
 }
-
 
 func findLowestEnvironment(promotionPaths []models.PromotionPath) string {
 	if len(promotionPaths) == 0 {
@@ -578,7 +581,7 @@ func findLowestEnvironment(promotionPaths []models.PromotionPath) string {
 }
 
 // buildEnvironmentVariables constructs environment variables for deployment
-func  buildEnvironmentVariables(language, componentName string, userEnvVars []spec.EnvironmentVariable) []spec.EnvironmentVariable {
+func buildEnvironmentVariables(language, componentName string, userEnvVars []spec.EnvironmentVariable) []spec.EnvironmentVariable {
 	var allEnvVars []spec.EnvironmentVariable
 
 	// Add system environment variables first
@@ -622,7 +625,7 @@ func (s *agentManagerService) GetBuildLogs(ctx context.Context, userIdpId uuid.U
 	}
 
 	// Check if build exists
-	build, err := s.OpenChoreoSvcClient.GetAgentBuild(ctx, orgName, projectName, agentName, buildName)
+	build, err := s.OpenChoreoSvcClient.GetComponentWorkflow(ctx, orgName, projectName, agentName, buildName)
 	if err != nil {
 		if errors.Is(err, utils.ErrBuildNotFound) {
 			return nil, utils.ErrBuildNotFound
@@ -631,7 +634,7 @@ func (s *agentManagerService) GetBuildLogs(ctx context.Context, userIdpId uuid.U
 	}
 
 	// Fetch the build logs from Observability service
-	buildLogs, err := s.ObservabilitySvcClient.GetBuildLogs(ctx, orgName, projectName, agentName, build.Name, build.UUID)
+	buildLogs, err := s.ObservabilitySvcClient.GetBuildLogs(ctx, build.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch build logs: %w", err)
 	}
@@ -731,11 +734,11 @@ func (s *agentManagerService) GetBuild(ctx context.Context, userIdpId uuid.UUID,
 		}
 		return nil, fmt.Errorf("failed to fetch agent: %w", err)
 	}
-	if agent.AgentDetails.AgentType != string(utils.InternalAgent) {
-		return nil, fmt.Errorf("build operation is not supported for agent type: '%s'", agent.AgentDetails.AgentType)
+	if agent.ProvisioningType != string(utils.InternalAgent) {
+		return nil, fmt.Errorf("build operation is not supported for agent type: '%s'", agent.ProvisioningType)
 	}
 	// Fetch the build from Open Choreo
-	build, err := s.OpenChoreoSvcClient.GetAgentBuild(ctx, orgName, projectName, agentName, buildName)
+	build, err := s.OpenChoreoSvcClient.GetComponentWorkflow(ctx, orgName, projectName, agentName, buildName)
 	if err != nil {
 		if errors.Is(err, utils.ErrBuildNotFound) {
 			return nil, utils.ErrBuildNotFound
@@ -770,8 +773,8 @@ func (s *agentManagerService) GetAgentDeployments(ctx context.Context, userIdpId
 		}
 		return nil, fmt.Errorf("failed to fetch agent: %w", err)
 	}
-	if agent.AgentDetails.AgentType != string(utils.InternalAgent) {
-		return nil, fmt.Errorf("deployment operation is not supported for agent type: '%s'", agent.AgentDetails.AgentType)
+	if agent.ProvisioningType != string(utils.InternalAgent) {
+		return nil, fmt.Errorf("deployment operation is not supported for agent type: '%s'", agent.ProvisioningType)
 	}
 	// Fetch OC project details
 	openChoreoProject, err := s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
@@ -811,8 +814,8 @@ func (s *agentManagerService) GetAgentEndpoints(ctx context.Context, userIdpId u
 		}
 		return nil, fmt.Errorf("failed to fetch agent: %w", err)
 	}
-	if agent.AgentDetails.AgentType != string(utils.InternalAgent) {
-		return nil, fmt.Errorf("endpoints are not supported for agent type: '%s'", agent.AgentDetails.AgentType)
+	if agent.ProvisioningType != string(utils.InternalAgent) {
+		return nil, fmt.Errorf("endpoints are not supported for agent type: '%s'", agent.ProvisioningType)
 	}
 	// Check if environment exists
 	_, err = s.OpenChoreoSvcClient.GetEnvironment(ctx, orgName, environmentName)
@@ -851,8 +854,8 @@ func (s *agentManagerService) GetAgentConfigurations(ctx context.Context, userId
 		}
 		return nil, fmt.Errorf("failed to fetch agent: %w", err)
 	}
-	if agent.AgentDetails.AgentType != string(utils.InternalAgent) {
-		return nil, fmt.Errorf("configuration operation is not supported for agent type: '%s'", agent.AgentDetails.AgentType)
+	if agent.ProvisioningType != string(utils.InternalAgent) {
+		return nil, fmt.Errorf("configuration operation is not supported for agent type: '%s'", agent.ProvisioningType)
 	}
 	// Check if environment exists
 	_, err = s.OpenChoreoSvcClient.GetEnvironment(ctx, orgName, environment)
@@ -871,7 +874,7 @@ func (s *agentManagerService) GetAgentConfigurations(ctx context.Context, userId
 }
 
 func (s *agentManagerService) convertToAgentListItem(agent *models.Agent, projName string) *models.AgentResponse {
-	return &models.AgentResponse{
+	response := &models.AgentResponse{
 		Name:        agent.Name,
 		DisplayName: agent.DisplayName,
 		Description: agent.Description,
@@ -879,13 +882,16 @@ func (s *agentManagerService) convertToAgentListItem(agent *models.Agent, projNa
 		Provisioning: models.Provisioning{
 			Type: agent.ProvisioningType,
 		},
-		AgentType: models.AgentType{
-			Type:    agent.AgentDetails.AgentType,
-			SubType: agent.AgentDetails.AgentSubType,
-		},
-		Language:  agent.AgentDetails.Language,
 		CreatedAt: agent.CreatedAt,
 	}
+	if agent.AgentDetails != nil {
+		response.AgentType = models.AgentType{
+			Type:    agent.AgentDetails.AgentType,
+			SubType: agent.AgentDetails.AgentSubType,
+		}
+		response.Language = agent.AgentDetails.Language
+	}
+	return response
 }
 
 // convertToExternalAgentResponse converts a database Agent model to AgentResponse for external agents
@@ -903,21 +909,26 @@ func (s *agentManagerService) convertExternalAgentToAgentResponse(agent *models.
 }
 
 // convertToManagedAgentResponse converts an OpenChoreo AgentComponent to AgentResponse for managed agents
-func (s *agentManagerService) convertManagedAgentToAgentResponse(component *clients.AgentComponent) *models.AgentResponse {
+func (s *agentManagerService) convertManagedAgentToAgentResponse(ocAgentComponent *clients.AgentComponent, agent *models.Agent) *models.AgentResponse {
 	return &models.AgentResponse{
-		Name:        component.Name,
-		DisplayName: component.DisplayName,
-		Description: component.Description,
-		ProjectName: component.ProjectName,
+		Name:        ocAgentComponent.Name,
+		DisplayName: ocAgentComponent.DisplayName,
+		Description: ocAgentComponent.Description,
+		ProjectName: ocAgentComponent.ProjectName,
 		Provisioning: models.Provisioning{
 			Type: string(utils.InternalAgent),
 			Repository: models.Repository{
-				Url:     component.Repository.RepoURL,
-				Branch:  component.Repository.Branch,
-				AppPath: component.Repository.AppPath,
+				Url:     ocAgentComponent.Repository.RepoURL,
+				Branch:  ocAgentComponent.Repository.Branch,
+				AppPath: ocAgentComponent.Repository.AppPath,
 			},
 		},
-		CreatedAt: component.CreatedAt,
+		AgentType: models.AgentType{
+			Type:    agent.AgentDetails.AgentType,
+			SubType: agent.AgentDetails.AgentSubType,
+		},
+		Language:  agent.AgentDetails.Language,
+		CreatedAt: ocAgentComponent.CreatedAt,
 	}
 }
 
@@ -962,9 +973,8 @@ func buildWorkloadSpec(req *spec.CreateAgentRequest) map[string]interface{} {
 		})
 	}
 	workloadSpec["envVars"] = envVars
-	
 
-	if req.AgentType.Type == string(utils.InternalAgent) && req.AgentType.SubType == string(utils.AgentSubTypeChatAPI) {
+	if req.AgentType.Type == string(utils.AgentTypeAPI) && req.AgentType.SubType == string(utils.AgentSubTypeChatAPI) {
 		// Read OpenAPI schema from file
 		schemaContent, err := utils.ReadChatAPISchema()
 		if err != nil {
@@ -975,8 +985,8 @@ func buildWorkloadSpec(req *spec.CreateAgentRequest) map[string]interface{} {
 		endpoints := []map[string]interface{}{
 			{
 				"name":          fmt.Sprintf("%s-endpoint", req.Name),
-				"port":          config.GetConfig().DefaultHTTPPort,
-				"basePath":      "/",
+				"port":          config.GetConfig().DefaultChatAPI.DefaultHTTPPort,
+				"type":          string(utils.InputInterfaceTypeHTTP),
 				"schemaContent": schemaContent,
 			},
 		}
@@ -984,12 +994,12 @@ func buildWorkloadSpec(req *spec.CreateAgentRequest) map[string]interface{} {
 	}
 
 	// Handle Custom API - use schema path from request
-	if req.AgentType.Type == string(utils.InternalAgent) && req.AgentType.SubType == string(utils.AgentSubTypeCustomAPI) {
+	if req.AgentType.Type == string(utils.AgentTypeAPI) && req.AgentType.SubType == string(utils.AgentSubTypeCustomAPI) {
 		endpoints := []map[string]interface{}{
 			{
 				"name":       fmt.Sprintf("%s-endpoint", req.Name),
 				"port":       req.InputInterface.Port,
-				"basePath":   req.InputInterface.BasePath,
+				"type":       string(req.InputInterface.Type),
 				"schemaPath": req.InputInterface.Schema.Path,
 			},
 		}

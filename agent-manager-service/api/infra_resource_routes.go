@@ -28,6 +28,7 @@ func registerInfraRoutes(mux *http.ServeMux, ctrl controllers.InfraResourceContr
 	// extracts path parameters from the pattern and validates them
 	middleware.HandleFuncWithValidation(mux, "GET /orgs", ctrl.ListOrganizations)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}", ctrl.GetOrganization)
+	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/data-planes", ctrl.GetDataplanes)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/deployment-pipelines", ctrl.ListOrgDeploymentPipelines)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/environments", ctrl.ListOrgEnvironments)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects", ctrl.ListProjects)

@@ -199,13 +199,14 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response := &spec.AgentResponse{
-		Name:         payload.Name,
-		DisplayName:  payload.DisplayName,
-		Description:  utils.StrPointerAsStr(payload.Description, ""),
-		ProjectName:  projName,
-		Provisioning: payload.Provisioning,
-		AgentType:    payload.AgentType,
-		CreatedAt:    time.Now(),
+		Name:           payload.Name,
+		DisplayName:    payload.DisplayName,
+		Description:    utils.StrPointerAsStr(payload.Description, ""),
+		ProjectName:    projName,
+		Provisioning:   payload.Provisioning,
+		AgentType:      payload.AgentType,
+		RuntimeConfigs: payload.RuntimeConfigs,
+		CreatedAt:      time.Now(),
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusAccepted, response)

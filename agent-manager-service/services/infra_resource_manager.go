@@ -42,6 +42,7 @@ type InfraResourceManager interface {
 	CreateProject(ctx context.Context, userIdpId uuid.UUID, orgName string, payload spec.CreateProjectRequest) (*models.ProjectResponse, error)
 	DeleteProject(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string) error
 	ListOrgDeploymentPipelines(ctx context.Context, userIdpId uuid.UUID, orgName string, limit int, offset int) ([]*models.DeploymentPipelineResponse, int, error)
+	GetDataplanes(ctx context.Context, userIdpId uuid.UUID, orgName string) ([]*models.DataPlaneResponse, error)
 }
 
 type infraResourceManager struct {
@@ -214,11 +215,12 @@ func (s *infraResourceManager) CreateProject(ctx context.Context, userIdpId uuid
 	s.logger.Info("Project created successfully", "orgName", orgName, "projectName", payload.Name, "projectId", project.ID)
 
 	return &models.ProjectResponse{
-		Name:        project.Name,
-		OrgName:     orgName,
-		DisplayName: project.DisplayName,
-		Description: project.Description,
-		CreatedAt:   project.CreatedAt,
+		Name:               project.Name,
+		OrgName:            orgName,
+		DisplayName:        project.DisplayName,
+		Description:        project.Description,
+		CreatedAt:          project.CreatedAt,
+		DeploymentPipeline: payload.DeploymentPipeline,
 	}, nil
 }
 
@@ -470,4 +472,29 @@ func (s *infraResourceManager) GetProjectDeploymentPipeline(ctx context.Context,
 	s.logger.Info("Fetched deployment pipeline successfully", "orgName", orgName, "projectName", projectName, "pipelineName", pipelineName)
 
 	return deploymentPipeline, nil
+}
+
+func (s *infraResourceManager) GetDataplanes(ctx context.Context, userIdpId uuid.UUID, orgName string) ([]*models.DataPlaneResponse, error) {
+	s.logger.Debug("GetDataplanes called", "userIdpId", userIdpId, "orgName", orgName)
+
+	// Validate organization exists
+	_, err := s.OrganizationRepository.GetOrganizationByOrgName(ctx, userIdpId, orgName)
+	if err != nil {
+		if db.IsRecordNotFoundError(err) {
+			s.logger.Debug("Organization not found", "userIdpId", userIdpId, "orgName", orgName)
+			return nil, utils.ErrOrganizationNotFound
+		}
+		s.logger.Error("Failed to get organization from repository", "userIdpId", userIdpId, "orgName", orgName, "error", err)
+		return nil, fmt.Errorf("failed to find organization %s: %w", orgName, err)
+	}
+
+	s.logger.Debug("Fetching dataplanes from OpenChoreo", "orgName", orgName)
+	dataplanes, err := s.OpenChoreoSvcClient.GetDataplanesForOrganization(ctx, orgName)
+	if err != nil {
+		s.logger.Error("Failed to get dataplanes from OpenChoreo", "orgName", orgName, "error", err)
+		return nil, fmt.Errorf("failed to get dataplanes for organization %s: %w", orgName, err)
+	}
+
+	s.logger.Info("Fetched dataplanes successfully", "orgName", orgName, "count", len(dataplanes))
+	return dataplanes, nil
 }

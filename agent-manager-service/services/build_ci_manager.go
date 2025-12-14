@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/google/uuid"
 	"github.com/openchoreo/openchoreo/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
@@ -32,7 +31,7 @@ import (
 )
 
 type BuildCIManagerService interface {
-	HandleBuildCallback(ctx context.Context, orgId uuid.UUID, projectName string, agentName string) (string, error)
+	HandleBuildCallback(ctx context.Context, orgName string, projectName string, agentName string) (string, error)
 }
 
 type buildCIManagerService struct {
@@ -59,22 +58,22 @@ func NewBuildCIManager(
 	}
 }
 
-func (b *buildCIManagerService) HandleBuildCallback(ctx context.Context, orgId uuid.UUID, projectName string, agentName string) (string, error) {
+func (b *buildCIManagerService) HandleBuildCallback(ctx context.Context, orgName string, projectName string, agentName string) (string, error) {
 	// Get organization
-	org, err := b.OrganizationRepo.GetOrganizationById(ctx, orgId)
+	org, err := b.OrganizationRepo.GetOrganizationByOcName(ctx, orgName)
 	if err != nil {
 		if db.IsRecordNotFoundError(err) {
-			b.logger.Error("Organization not found", "organization", orgId)
-			return "", fmt.Errorf("organization not found: %s", orgId)
+			b.logger.Error("Organization not found", "organization", orgName)
+			return "", fmt.Errorf("organization not found: %s", orgName)
 		}
-		return "", fmt.Errorf("failed to find organization %s: %w", orgId, err)
+		return "", fmt.Errorf("failed to find organization %s: %w", orgName, err)
 	}
 
 	// Get project
 	project, err := b.ProjectRepo.GetProjectByName(ctx, org.ID, projectName)
 	if err != nil {
 		if db.IsRecordNotFoundError(err) {
-			b.logger.Error("Project not found", "project", projectName, "organization", orgId)
+			b.logger.Error("Project not found", "project", projectName, "organization", orgName)
 			return "", fmt.Errorf("project not found: %s", projectName)
 		}
 		return "", fmt.Errorf("failed to find project %s: %w", projectName, err)
@@ -84,14 +83,14 @@ func (b *buildCIManagerService) HandleBuildCallback(ctx context.Context, orgId u
 	agent, err := b.AgentRepo.GetAgentByName(ctx, org.ID, project.ID, agentName)
 	if err != nil {
 		if db.IsRecordNotFoundError(err) {
-			b.logger.Error("Agent not found", "agentName", agentName, "project", projectName, "organization", orgId)
+			b.logger.Error("Agent not found", "agentName", agentName, "project", projectName, "organization", orgName)
 			return "", fmt.Errorf("agent not found: %s", agentName)
 		}
 		return "", fmt.Errorf("failed to fetch agent: %w", err)
 	}
 
 	// Build Workload CR template with placeholders
-	workloadCR := buildWorkloadCRTemplate(agent.AgentDetails.WorkloadSpec,org.OpenChoreoOrgName, projectName, agentName)
+	workloadCR := buildWorkloadCRTemplate(agent.AgentDetails.WorkloadSpec, org.OpenChoreoOrgName, projectName, agentName)
 
 	b.logger.Info("Successfully generated workload CR template",
 		"agentName", agentName,
@@ -100,7 +99,6 @@ func (b *buildCIManagerService) HandleBuildCallback(ctx context.Context, orgId u
 
 	return workloadCR, nil
 }
-
 
 // buildWorkloadCRTemplate constructs a Workload CR object with placeholders and converts to YAML string
 // IMAGE_TAG - placeholder for the actual container image
@@ -113,7 +111,7 @@ func buildWorkloadCRTemplate(workloadSpec map[string]interface{}, orgName, proje
 			Kind:       "Workload",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-workload",componentName),
+			Name:      fmt.Sprintf("%s-workload", componentName),
 			Namespace: orgName,
 		},
 		Spec: v1alpha1.WorkloadSpec{
@@ -147,12 +145,16 @@ func buildWorkloadCRTemplate(workloadSpec map[string]interface{}, orgName, proje
 func buildEnvVars(workloadSpec map[string]interface{}) []v1alpha1.EnvVar {
 	var envVars []v1alpha1.EnvVar
 
-	if envVarsList, ok := workloadSpec["envVars"].([]map[string]string); ok {
-		for _, envVar := range envVarsList {
-			envVars = append(envVars, v1alpha1.EnvVar{
-				Key:   envVar["key"],
-				Value: envVar["value"],
-			})
+	if envVarsList, ok := workloadSpec["envVars"].([]interface{}); ok {
+		for _, envVarItem := range envVarsList {
+			if envVar, ok := envVarItem.(map[string]interface{}); ok {
+				key, _ := envVar["key"].(string)
+				value, _ := envVar["value"].(string)
+				envVars = append(envVars, v1alpha1.EnvVar{
+					Key:   key,
+					Value: value,
+				})
+			}
 		}
 	}
 
@@ -163,33 +165,42 @@ func buildEnvVars(workloadSpec map[string]interface{}) []v1alpha1.EnvVar {
 func buildEndpoints(workloadSpec map[string]interface{}, componentName string) map[string]v1alpha1.WorkloadEndpoint {
 	endpoints := make(map[string]v1alpha1.WorkloadEndpoint)
 
-	if endpointsList, ok := workloadSpec["endpoints"].([]map[string]interface{}); ok {
-		for _, endpoint := range endpointsList {
-			endpointName, _ := endpoint["name"].(string)
-			port, _ := endpoint["port"].(int)
-			workloadEndpoint := v1alpha1.WorkloadEndpoint{
-				Type: v1alpha1.EndpointTypeHTTP,
-				Port: int32(port),
-			}
+	if endpointsList, ok := workloadSpec["endpoints"].([]interface{}); ok {
+		for _, endpointItem := range endpointsList {
+			if endpoint, ok := endpointItem.(map[string]interface{}); ok {
+				endpointName, _ := endpoint["name"].(string)
+				endpointType, _ := endpoint["type"].(string)
 
-			// Check if schema content or schema path is provided
-			schemaContent, hasSchemaContent := endpoint["schemaContent"].(string)
-			schemaPath, hasSchemaPath := endpoint["schemaPath"].(string)
-
-			// If schema content exists or schema path exists, use placeholder
-			if (hasSchemaContent && schemaContent != "") {
-				workloadEndpoint.Schema = &v1alpha1.Schema{
-					Type:    string(v1alpha1.EndpointTypeREST),
-					Content: schemaContent,
+				// Handle port - JSON unmarshaling converts numbers to float64
+				var port int32
+				if portFloat, ok := endpoint["port"].(float64); ok {
+					port = int32(portFloat)
 				}
-			}else if (hasSchemaContent && schemaContent != "") || (hasSchemaPath && schemaPath != "") {
-				workloadEndpoint.Schema = &v1alpha1.Schema{
-					Type:    string(v1alpha1.EndpointTypeREST),
-					Content: "SCHEMA_CONTENT", // Placeholder for actual schema
-				}
-			}
 
-			endpoints[endpointName] = workloadEndpoint
+				workloadEndpoint := v1alpha1.WorkloadEndpoint{
+					Type: v1alpha1.EndpointType(endpointType),
+					Port: port,
+				}
+
+				// Check if schema content or schema path is provided
+				schemaContent, hasSchemaContent := endpoint["schemaContent"].(string)
+				schemaPath, hasSchemaPath := endpoint["schemaPath"].(string)
+
+				// If schema content exists or schema path exists, use placeholder
+				if hasSchemaContent && schemaContent != "" {
+					workloadEndpoint.Schema = &v1alpha1.Schema{
+						Type:    string(v1alpha1.EndpointTypeREST),
+						Content: schemaContent,
+					}
+				} else if hasSchemaPath && schemaPath != "" {
+					workloadEndpoint.Schema = &v1alpha1.Schema{
+						Type:    string(v1alpha1.EndpointTypeREST),
+						Content: "SCHEMA_CONTENT", // Placeholder for actual schema
+					}
+				}
+
+				endpoints[endpointName] = workloadEndpoint
+			}
 		}
 	}
 

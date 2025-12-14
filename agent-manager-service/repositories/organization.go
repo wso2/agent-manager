@@ -31,6 +31,8 @@ type OrganizationRepository interface {
 	CreateOrganization(ctx context.Context, organization *models.Organization) error
 	GetOrganizationByOrgName(ctx context.Context, userIdpID uuid.UUID, orgName string) (*models.Organization, error)
 	GetOrganizationById(ctx context.Context, orgId uuid.UUID) (*models.Organization, error)
+	// This is used only for internal build callback handling
+	GetOrganizationByOcName(ctx context.Context, orgName string) (*models.Organization, error)
 }
 
 type organizationRepository struct{}
@@ -66,6 +68,14 @@ func (r *organizationRepository) GetOrganizationById(ctx context.Context, orgId 
 	var org models.Organization
 	if err := db.DB(ctx).Where("id = ?", orgId).First(&org).Error; err != nil {
 		return nil, fmt.Errorf("organizationRepository.GetOrganizationById: %w", err)
+	}
+	return &org, nil
+}
+
+func (r *organizationRepository) GetOrganizationByOcName(ctx context.Context, orgName string) (*models.Organization, error) {
+	var org models.Organization
+	if err := db.DB(ctx).Where("open_choreo_org_name = ?", orgName).First(&org).Error; err != nil {
+		return nil, fmt.Errorf("organizationRepository.GetOrganizationByOcName: %w", err)
 	}
 	return &org, nil
 }
