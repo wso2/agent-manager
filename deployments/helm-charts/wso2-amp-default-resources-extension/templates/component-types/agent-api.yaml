@@ -150,13 +150,13 @@ spec:
             - matches:
                 - path:
                     type: PathPrefix
-                    value: /${metadata.componentName}${parameters.basePath}
+                    value: /${metadata.componentName}
               filters:
                 - type: URLRewrite
                   urlRewrite:
                     path:
                       type: ReplacePrefixMatch
-                      replacePrefixMatch: /
+                      replacePrefixMatch: /${parameters.basePath}
               backendRefs:
                 - name: ${metadata.componentName}
                   port: 80
