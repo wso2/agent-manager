@@ -83,12 +83,21 @@ export async function generateResourceName(
 ): Promise<ResourceNameResponse> {
   const { orgName } = params;
   const token = getToken ? await getToken() : undefined;
+  try {
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/generate-name`,
+    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/utils/generate-name`,
     body,
-    { token },
-  );
-  if (!res.ok) throw await res.json();
-  return res.json();
+      { token },
+    );
+    if (!res.ok) throw await res.json();
+    return res.json();
+  } catch (error) {
+    console.error(error);
+    return {
+      name: "error-" + Math.random().toString(36).substring(2, 4),
+      displayName: body.displayName,
+      resourceType: body.resourceType,
+    };
+  }
 }
 

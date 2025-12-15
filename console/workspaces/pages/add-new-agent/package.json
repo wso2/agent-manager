@@ -52,7 +52,8 @@
     "dayjs": "1.11.18",
     "yup": "1.4.0",
     "react-hook-form": "7.53.0",
-    "@hookform/resolvers": "3.9.0"
+    "@hookform/resolvers": "3.9.0",
+    "lodash": "4.17.21"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "8.6.13",
@@ -68,6 +69,7 @@
     "@types/node": "24.6.0",
     "@types/react": "19.1.16",
     "@types/react-dom": "19.1.9",
+    "@types/lodash": "4.17.13",
     "@typescript-eslint/eslint-plugin": "8.33.1",
     "@typescript-eslint/parser": "8.33.1",
     "eslint": "9.36.0",
@@ -99,7 +101,6 @@
   },
   "peerDependencies": {
     "react": "19.1.1",
-    "lodash": "4.17.21",
     "@babel/runtime-corejs3": "7.11.2"
   }
 }
