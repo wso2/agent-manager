@@ -137,7 +137,7 @@ if [ "$INSTALL_BUILD_PLANE" = "true" ]; then
     if helm status custom-build-ci-workflows -n openchoreo-build-plane &>/dev/null; then
         echo "⏭️  Custom Build CI Workflows already installed, skipping..."
     else
-        helm install custom-build-ci-workflows $PROJECT_ROOT/deployments/helm-charts/build-ci --namespace openchoreo-build-plane
+        helm install custom-build-ci-workflows $PROJECT_ROOT/deployments/helm-charts/wso2-amp-build-extension --namespace openchoreo-build-plane
         echo "✅ Custom Build CI Workflows installed successfully"
     fi
     echo ""
@@ -170,7 +170,7 @@ if [ "$INSTALL_OBSERVABILITY" = "true" ]; then
         make -C $PROJECT_ROOT/traces-observer-service docker-load-kind
         sleep 10        
         echo "   Installing Dataprepper & Traces Observer Service to the Observability Plane for tracing ingestion..."
-        helm install observability-dataprepper $PROJECT_ROOT/deployments/helm-charts/observability-dataprepper \
+        helm install observability-dataprepper $PROJECT_ROOT/deployments/helm-charts/wso2-amp-observability-extension \
           --create-namespace \
           --namespace openchoreo-observability-plane \
           --timeout=10m
