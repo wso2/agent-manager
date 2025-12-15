@@ -58,12 +58,7 @@ func validateInternalAgent(payload spec.CreateAgentRequest) error {
 		return fmt.Errorf("invalid agent type or subtype: %w", err)
 	}
 
-	// Only perform API-specific validations for API agent types, this would be extended for other types later
-	if payload.AgentType.Type != string(AgentTypeAPI) {
-		return nil
-	}
-
-	// Validate API input interface for custom API subtype
+	// Validate API input interface for API agents
 	if payload.AgentType.Type == string(AgentTypeAPI) {
 		if err := validateInputInterface(payload.AgentType, payload.InputInterface); err != nil {
 			return fmt.Errorf("invalid inputInterface: %w", err)
@@ -75,6 +70,10 @@ func validateInternalAgent(payload spec.CreateAgentRequest) error {
 		return fmt.Errorf("runtimeConfigs is required for internal agents")
 	}
 
+	if *payload.RuntimeConfigs.RunCommand == "" {
+		return fmt.Errorf("runtimeConfigs.runCommand cannot be empty")
+	}
+
 	if err := validateLanguage(payload.RuntimeConfigs.Language, payload.RuntimeConfigs.LanguageVersion); err != nil {
 		return fmt.Errorf("invalid language: %w", err)
 	}
@@ -83,15 +82,17 @@ func validateInternalAgent(payload spec.CreateAgentRequest) error {
 }
 
 func validateAgentType(agentType *spec.AgentType) error {
+	if agentType == nil {
+		return fmt.Errorf("agentType is required for internal agents")
+	}
 	if agentType.Type != string(AgentTypeAPI) {
-		return fmt.Errorf("unsupported agent type: %s", agentType)
+		return fmt.Errorf("unsupported agent type: %s", agentType.Type)
 	}
 	// Validate subtype for API agent type
-	if agentType.Type == string(AgentTypeAPI) {
-		if agentType.SubType != string(AgentSubTypeChatAPI) && agentType.SubType != string(AgentSubTypeCustomAPI) {
-			return fmt.Errorf("unsupported agent subtype for type %s: %s", agentType.Type, agentType.SubType)
-		}
+	if agentType.SubType != string(AgentSubTypeChatAPI) && agentType.SubType != string(AgentSubTypeCustomAPI) {
+		return fmt.Errorf("unsupported agent subtype for type %s: %s", agentType.Type, agentType.SubType)
 	}
+
 	return nil
 }
 
@@ -178,10 +179,10 @@ func validateInputInterface(agentType *spec.AgentType, inputInterface *spec.Inpu
 			return fmt.Errorf("inputInterface.schema.path is required")
 		}
 		if inputInterface.Port <= 0 || inputInterface.Port > 65535 {
-			return fmt.Errorf("customOpenAPISpec.port must be a valid port number (1-65535)")
+			return fmt.Errorf("inputInterface.port must be a valid port number (1-65535)")
 		}
 		if inputInterface.BasePath == "" {
-			return fmt.Errorf("customOpenAPISpec.basePath is required")
+			return fmt.Errorf("inputInterface.basePath is required")
 		}
 	}
 

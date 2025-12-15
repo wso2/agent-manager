@@ -25,6 +25,7 @@ const (
 )
 
 type TraitType string
+
 const (
 	TraitTypeOTELInstrumentation TraitType = "python-otel-instrumentation-trait"
 )

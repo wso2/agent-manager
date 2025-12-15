@@ -97,12 +97,12 @@ func loadEnvs() {
 	// OpenTelemetry configuration
 	config.OTEL = OTELConfig{
 		// Instrumentation configuration
-		InstrumentationImage:    r.readOptionalString("OTEL_INSTRUMENTATION_IMAGE", "ghcr.io/agent-mgt-platform/otel-tracing-instrumentation:python3.11@sha256:d06e28a12e4a83edfcb8e4f6cb98faf5950266b984156f3192433cf0f903e529"),
-		SDKVolumeName:           r.readOptionalString("OTEL_SDK_VOLUME_NAME", "otel-tracing-sdk-volume"),
-		SDKMountPath:            r.readOptionalString("OTEL_SDK_MOUNT_PATH", "/otel-tracing-sdk"),
+		InstrumentationImage: r.readOptionalString("OTEL_INSTRUMENTATION_IMAGE", "ghcr.io/agent-mgt-platform/otel-tracing-instrumentation:python3.11@sha256:d06e28a12e4a83edfcb8e4f6cb98faf5950266b984156f3192433cf0f903e529"),
+		SDKVolumeName:        r.readOptionalString("OTEL_SDK_VOLUME_NAME", "otel-tracing-sdk-volume"),
+		SDKMountPath:         r.readOptionalString("OTEL_SDK_MOUNT_PATH", "/otel-tracing-sdk"),
 
 		// Tracing configuration
-		IsTraceContentEnabled:     r.readOptionalBool("OTEL_TRACELOOP_TRACE_CONTENT", true),
+		IsTraceContentEnabled: r.readOptionalBool("OTEL_TRACELOOP_TRACE_CONTENT", true),
 
 		// OTLP Exporter configuration
 		ExporterEndpoint: r.readOptionalString("OTEL_EXPORTER_OTLP_ENDPOINT", "http://data-prepper.openchoreo-observability-plane.svc.cluster.local:21893"),
@@ -115,6 +115,7 @@ func loadEnvs() {
 		Password: r.readOptionalString("OBSERVER_PASSWORD", "dummy"),
 	}
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
+	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 9080))
 
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)

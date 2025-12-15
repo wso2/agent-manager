@@ -158,48 +158,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/agent-types:
-    get:
-      summary: List all agent types in an organization
-      operationId: listAgentTypes
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: provisioningType
-          in: query
-          description: Filter by agent provisioning type (e.g., internal, external)
-          required: false
-          schema:
-            type: string
-      responses:
-        "200":
-          description: List of agent types
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AgentTypeListResponse"
-        "400":
-          description: Invalid request parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Organization not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
   /orgs/{orgName}/projects:
     post:
       summary: Create a new project
@@ -1934,8 +1892,3 @@ components:
         - displayName
         - description
         - subtypes
-
-    AgentTypeListResponse:
-      type: array
-      items:
-        $ref: "#/components/schemas/AgentTypeResponse"

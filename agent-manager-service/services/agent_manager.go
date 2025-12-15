@@ -905,7 +905,6 @@ func (s *agentManagerService) convertManagedAgentToAgentResponse(ocAgentComponen
 	}
 }
 
-
 // buildWorkloadSpec constructs the workload specification from the create agent request
 func buildWorkloadSpec(req *spec.CreateAgentRequest) map[string]interface{} {
 	workloadSpec := make(map[string]interface{})

@@ -55,4 +55,3 @@ const (
 	DefaultOffset = 0
 	MinOffset     = 0
 )
-

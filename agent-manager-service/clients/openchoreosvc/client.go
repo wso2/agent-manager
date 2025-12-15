@@ -196,8 +196,11 @@ func (k *openChoreoSvcClient) GetAgentComponent(ctx context.Context, orgName str
 }
 
 func (k *openChoreoSvcClient) CreateAgentComponent(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error {
-	componentCR := createComponentCR(orgName, projName, req)
-	err := k.retryK8sOperation(ctx, "CreateComponent", func() error {
+	componentCR, err := createComponentCR(orgName, projName, req)
+	if err != nil {
+		return fmt.Errorf("failed to create component CR: %w", err)
+	}
+	err = k.retryK8sOperation(ctx, "CreateComponent", func() error {
 		return k.client.Create(ctx, componentCR)
 	})
 	if err != nil {
@@ -647,6 +650,9 @@ func (k *openChoreoSvcClient) GetAgentEndpoints(ctx context.Context, orgName str
 	// Get the first matching Release (there should only be one per component/environment)
 	release := &releaseList.Items[0]
 	endpointURLs := extractEndpointURLFromEnvRelease(release)
+	if len(endpointURLs) == 0 {
+		return nil, fmt.Errorf("no endpoint URLs found in release")
+	}
 
 	// Extract endpoint details from workload spec
 	endpointDetails := make(map[string]models.EndpointsResponse)
@@ -656,7 +662,7 @@ func (k *openChoreoSvcClient) GetAgentEndpoints(ctx context.Context, orgName str
 		endpointResp := models.EndpointsResponse{}
 		endpointResp.Name = endpointName
 
-		// Assuming the first URL corresponds to this endpoint
+		// Assuming the first URL corresponds to this endpoint since we have a single endpoint
 		endpointResp.URL = endpointURLs[0].URL
 		endpointResp.Visibility = endpointURLs[0].Visibility
 

@@ -46,6 +46,7 @@ func getOpenChoreoComponentType(agentType string) ComponentType {
 	if agentType == string(utils.AgentTypeAPI) {
 		return ComponentTypeAgentAPI
 	}
+	// agent type is already validated in controller layer
 	return ""
 }
 
@@ -60,6 +61,7 @@ func getOpenChoreoComponentWorkflow(language string) ComponentWorkflow {
 			}
 		}
 	}
+	// language is already validated in controller layer
 	return ""
 }
 
@@ -96,7 +98,7 @@ func getComponentWorkflowParametersForBallerinaBuildPack(req *spec.CreateAgentRe
 	}
 }
 
-func createComponentCR(orgName, projectName string, req *spec.CreateAgentRequest) *v1alpha1.Component {
+func createComponentCR(orgName, projectName string, req *spec.CreateAgentRequest) (*v1alpha1.Component, error) {
 	annotations := map[string]string{
 		string(AnnotationKeyDisplayName): req.DisplayName,
 		string(AnnotationKeyDescription): utils.StrPointerAsStr(req.Description, ""),
@@ -130,8 +132,14 @@ func createComponentCR(orgName, projectName string, req *spec.CreateAgentRequest
 		componentWorkflowParameters = getComponentWorkflowParametersForBallerinaBuildPack(req)
 	}
 
-	parametersJSON, _ := json.Marshal(parameters)
-	componentWorkflowParametersJSON, _ := json.Marshal(componentWorkflowParameters)
+	parametersJSON, err := json.Marshal(parameters)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling component parameters: %w", err)
+	}
+	componentWorkflowParametersJSON, err := json.Marshal(componentWorkflowParameters)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling component workflow parameters: %w", err)
+	}
 
 	componentCR := &v1alpha1.Component{
 		TypeMeta: metav1.TypeMeta{
@@ -172,15 +180,19 @@ func createComponentCR(orgName, projectName string, req *spec.CreateAgentRequest
 
 	// Add OpenTelemetry instrumentation trait for Python agents
 	if req.AgentType.Type == string(utils.AgentTypeAPI) && req.RuntimeConfigs.Language == string(utils.LanguagePython) {
+		trait, err := createOTELInstrumentationTrait(req)
+		if err != nil {
+			return nil, fmt.Errorf("error creating OTEL instrumentation trait: %w", err)
+		}
 		componentCR.Spec.Traits = []v1alpha1.ComponentTrait{
-			createOTELInstrumentationTrait(req),
+			*trait,
 		}
 	}
 
-	return componentCR
+	return componentCR, nil
 }
 
-func createOTELInstrumentationTrait(req *spec.CreateAgentRequest) v1alpha1.ComponentTrait {
+func createOTELInstrumentationTrait(req *spec.CreateAgentRequest) (*v1alpha1.ComponentTrait, error) {
 	traitParameters := map[string]interface{}{
 		"instrumentationImage":  getInstrumentationImage(utils.StrPointerAsStr(req.RuntimeConfigs.LanguageVersion, "")),
 		"sdkVolumeName":         config.GetConfig().OTEL.SDKVolumeName,
@@ -189,15 +201,18 @@ func createOTELInstrumentationTrait(req *spec.CreateAgentRequest) v1alpha1.Compo
 		"otelEndpoint":          config.GetConfig().OTEL.ExporterEndpoint,
 		"isTraceContentEnabled": utils.BoolAsString(config.GetConfig().OTEL.IsTraceContentEnabled),
 	}
-	traitParametersJSON, _ := json.Marshal(traitParameters)
+	traitParametersJSON, err := json.Marshal(traitParameters)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling OTEL instrumentation trait parameters: %w", err)
+	}
 
-	return v1alpha1.ComponentTrait{
+	return &v1alpha1.ComponentTrait{
 		Name:         string(TraitTypeOTELInstrumentation),
 		InstanceName: fmt.Sprintf("%s-%s", req.Name, string(TraitTypeOTELInstrumentation)),
 		Parameters: &runtime.RawExtension{
 			Raw: traitParametersJSON,
 		},
-	}
+	}, nil
 }
 
 func getInstrumentationImage(languageVersion string) string {
@@ -206,14 +221,8 @@ func getInstrumentationImage(languageVersion string) string {
 	if len(parts) >= 2 {
 		majorMinor := parts[0] + "." + parts[1]
 		switch majorMinor {
-		case "3.10":
-			return ""
 		case "3.11":
 			return "ghcr.io/agent-mgt-platform/otel-tracing-instrumentation:python3.11@sha256:d06e28a12e4a83edfcb8e4f6cb98faf5950266b984156f3192433cf0f903e529"
-		case "3.12":
-			return ""
-		case "3.13":
-			return ""
 		}
 	}
 	return ""
@@ -511,9 +520,10 @@ func extractEndpointURLFromEnvRelease(envRelease *v1alpha1.Release) []models.End
 
 			// Construct the invoke URL if hostname is available
 			if hostname != "" {
-				url := fmt.Sprintf("http://%s:9080", hostname)
+				port := config.GetConfig().DefaultGatewayPort
+				url := fmt.Sprintf("http://%s:%d", hostname, port)
 				if pathValue != "" {
-					url = fmt.Sprintf("http://%s:9080%s", hostname, pathValue)
+					url = fmt.Sprintf("http://%s:%d%s", hostname, port, pathValue)
 				}
 
 				endpoints = append(endpoints, models.Endpoint{

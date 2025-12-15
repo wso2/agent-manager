@@ -48,18 +48,19 @@ type Config struct {
 	IsLocalDevEnv bool
 
 	// Default Chat API configuration
-	DefaultChatAPI DefaultChatAPIConfig
+	DefaultChatAPI     DefaultChatAPIConfig
+	DefaultGatewayPort int
 }
 
 // OTELConfig holds all OpenTelemetry related configuration
 type OTELConfig struct {
 	// Instrumentation configuration
-	InstrumentationImage    string
-	SDKVolumeName           string
-	SDKMountPath            string
+	InstrumentationImage string
+	SDKVolumeName        string
+	SDKMountPath         string
 
 	// Tracing configuration
-	IsTraceContentEnabled     bool
+	IsTraceContentEnabled bool
 
 	// OTLP Exporter configuration
 	ExporterEndpoint string

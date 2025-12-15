@@ -19,12 +19,13 @@ package utils
 import "errors"
 
 var (
-	ErrProjectNotFound           = errors.New("project not found")
-	ErrAgentAlreadyExists        = errors.New("agent already exists")
-	ErrAgentNotFound             = errors.New("agent not found")
-	ErrOrganizationNotFound      = errors.New("organization not found")
-	ErrBuildNotFound             = errors.New("build not found")
-	ErrEnvironmentNotFound       = errors.New("environment not found")
-	ErrOrganizationAlreadyExists = errors.New("organization already exists")
-	ErrProjectAlreadyExists      = errors.New("project already exists")
+	ErrProjectNotFound            = errors.New("project not found")
+	ErrAgentAlreadyExists         = errors.New("agent already exists")
+	ErrAgentNotFound              = errors.New("agent not found")
+	ErrOrganizationNotFound       = errors.New("organization not found")
+	ErrBuildNotFound              = errors.New("build not found")
+	ErrEnvironmentNotFound        = errors.New("environment not found")
+	ErrOrganizationAlreadyExists  = errors.New("organization already exists")
+	ErrProjectAlreadyExists       = errors.New("project already exists")
+	ErrDeploymentPipelineNotFound = errors.New("deployment pipeline not found")
 )

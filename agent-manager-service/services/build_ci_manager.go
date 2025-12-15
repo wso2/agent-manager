@@ -88,7 +88,9 @@ func (b *buildCIManagerService) HandleBuildCallback(ctx context.Context, orgName
 		}
 		return "", fmt.Errorf("failed to fetch agent: %w", err)
 	}
-
+	if agent.AgentDetails == nil || agent.AgentDetails.WorkloadSpec == nil {
+		return "", fmt.Errorf("agent workload specification is missing for agent: %s", agentName)
+	}
 	// Build Workload CR template with placeholders
 	workloadCR := buildWorkloadCRTemplate(agent.AgentDetails.WorkloadSpec, org.OpenChoreoOrgName, projectName, agentName)
 

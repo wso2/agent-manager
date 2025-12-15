@@ -42,7 +42,7 @@ spec:
             name: ${parameters.sdkVolumeName}
             emptyDir: {}
 
-        # 3. Add volume mount to main container
+        # 3. Add volume mount to main container: main application container is at index 0
         - op: add
           path: /spec/template/spec/containers/0/volumeMounts/-
           value:
@@ -55,12 +55,12 @@ spec:
           path: /spec/template/spec/containers/0/env/-
           value:
             name: AMP_AGENT_NAME
-            value: ${parameters.agentName}
+            value: "${parameters.agentName}"
         - op: add
           path: /spec/template/spec/containers/0/env/-
           value:
             name: AMP_OTEL_ENDPOINT
-            value: ${parameters.otelEndpoint}
+            value: "${parameters.otelEndpoint}"
         - op: add
           path: /spec/template/spec/containers/0/env/-
           value:
@@ -70,7 +70,7 @@ spec:
           path: /spec/template/spec/containers/0/env/-
           value:
             name: AMP_AGENT_API_KEY
-            value: ${parameters.agentApiKey}
+            value: "${parameters.agentApiKey}"
         - op: add
           path: /spec/template/spec/containers/0/env/-
           value:

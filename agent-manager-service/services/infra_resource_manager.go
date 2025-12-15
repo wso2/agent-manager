@@ -171,7 +171,7 @@ func (s *infraResourceManager) CreateProject(ctx context.Context, userIdpId uuid
 	}
 	if !pipelineExists {
 		s.logger.Warn("Deployment pipeline not found", "orgName", orgName, "requestedPipeline", payload.DeploymentPipeline)
-		return nil, fmt.Errorf("deployment pipeline %s does not exist in organization %s", payload.DeploymentPipeline, orgName)
+		return nil, utils.ErrDeploymentPipelineNotFound
 	}
 
 	project := &models.Project{

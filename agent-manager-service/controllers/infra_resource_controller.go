@@ -233,6 +233,10 @@ func (c *infraResourceController) CreateProject(w http.ResponseWriter, r *http.R
 			utils.WriteErrorResponse(w, http.StatusConflict, "Project already exists")
 			return
 		}
+		if errors.Is(err, utils.ErrDeploymentPipelineNotFound) {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "Deployment pipeline not found")
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create project")
 		return
 	}
@@ -312,7 +316,7 @@ func (c *infraResourceController) ListOrgDeploymentPipelines(w http.ResponseWrit
 
 	deploymentPipelines, total, err := c.infraResourceManager.ListOrgDeploymentPipelines(ctx, userIdpId, orgName, limit, offset)
 	if err != nil {
-		log.Error("GetDeploymentPipelines: failed to get deployment pipelines", "error", err)
+		log.Error("ListOrgDeploymentPipelines: failed to get deployment pipelines", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
 			return
@@ -370,7 +374,7 @@ func (c *infraResourceController) ListOrgEnvironments(w http.ResponseWriter, r *
 
 	environments, err := c.infraResourceManager.ListOrgEnvironments(ctx, userIdpId, orgName)
 	if err != nil {
-		log.Error("GetOrgEnvironments: failed to get environments", "error", err)
+		log.Error("ListOrgEnvironments: failed to get environments", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
 			return
