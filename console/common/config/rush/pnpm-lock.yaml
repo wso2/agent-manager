@@ -751,6 +751,9 @@ importers:
       dayjs:
         specifier: 1.11.18
         version: 1.11.18
+      lodash:
+        specifier: 4.17.21
+        version: 4.17.21
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
@@ -803,6 +806,9 @@ importers:
       '@types/jest':
         specifier: 29.5.14
         version: 29.5.14
+      '@types/lodash':
+        specifier: 4.17.13
+        version: 4.17.13
       '@types/node':
         specifier: 24.6.0
         version: 24.6.0
@@ -926,6 +932,9 @@ importers:
       dayjs:
         specifier: 1.11.18
         version: 1.11.18
+      lodash:
+        specifier: 4.17.21
+        version: 4.17.21
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
@@ -978,6 +987,9 @@ importers:
       '@types/jest':
         specifier: 29.5.14
         version: 29.5.14
+      '@types/lodash':
+        specifier: 4.17.13
+        version: 4.17.13
       '@types/node':
         specifier: 24.6.0
         version: 24.6.0
@@ -3618,6 +3630,9 @@ packages:
 
   '@types/json5@0.0.29':
     resolution: {integrity: sha512-dRLjCWHYg4oaA77cxO64oO+7JwCwnIzkZPdrrC71jQmQtlhM556pwKo5bUzqvZndkVbeFLIIi+9TC40JNF5hNQ==}
+
+  '@types/lodash@4.17.13':
+    resolution: {integrity: sha512-lfx+dftrEZcdBPczf9d0Qv0x+j/rfNCMuC6OcfXmO8gkfeNAY88PgKUbvG56whcN23gc27yenwF6oJZXGFpYxg==}
 
   '@types/lodash@4.17.17':
     resolution: {integrity: sha512-RRVJ+J3J+WmyOTqnz3PiBLA501eKwXl2noseKOrNo/6+XEHjTAxO4xHvxQB6QuNm+s4WRbn6rSiap8+EA+ykFQ==}
@@ -10249,6 +10264,8 @@ snapshots:
   '@types/json-schema@7.0.15': {}
 
   '@types/json5@0.0.29': {}
+
+  '@types/lodash@4.17.13': {}
 
   '@types/lodash@4.17.17': {}
 
