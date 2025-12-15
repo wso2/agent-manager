@@ -232,7 +232,7 @@ func createComponentWorkflowRunCR(orgName, projName, componentName string, syste
 	// Generate a unique workflow run name with short UUID
 	uuid := uuid.New().String()
 	workflowUuid := strings.ReplaceAll(uuid[:8], "-", "")
-	workflowRunName := fmt.Sprintf("%s-workflow-%s", component.Name, workflowUuid)
+	workflowRunName := fmt.Sprintf("%s-build-%s", component.Name, workflowUuid)
 
 	return &v1alpha1.ComponentWorkflowRun{
 		ObjectMeta: metav1.ObjectMeta{

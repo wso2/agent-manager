@@ -43,6 +43,7 @@ services:
       # Optional: External Service URLs (add when needed)
       # - OPENCHOREO_API_URL=http://host.docker.internal:8000
       # - OPENSEARCH_URL=http://host.docker.internal:9200
+      - OBSERVER_URL=http://host.docker.internal:8085
     volumes:
       # Mount source code for hot-reloading
       - ../agent-manager-service:/app
@@ -57,7 +58,7 @@ services:
         condition: service_healthy
     networks:
       - agent-manager
-      - kind # Connect to Kind cluster network for hostname resolution
+      - k3d-openchoreo-local-v0.7 # Connect to k3d cluster network for hostname resolution
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -96,5 +97,5 @@ volumes:
 networks:
   agent-manager:
     driver: bridge
-  kind:
+  k3d-openchoreo-local-v0.7:
     external: true

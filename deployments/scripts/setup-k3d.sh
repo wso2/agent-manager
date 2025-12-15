@@ -20,13 +20,33 @@ if ! command -v kubectl &> /dev/null; then
 fi
 
 # Check if cluster already exists
-if k3d cluster list 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
+if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
     echo "✅ k3d cluster '${CLUSTER_NAME}' already exists"
+    
+    # Verify cluster is running
+    if kubectl cluster-info --context ${CLUSTER_CONTEXT} &>/dev/null; then
+        echo "✅ Cluster is running and accessible"
+    else
+        echo "⚠️  Cluster exists but is not accessible. Starting cluster..."
+        k3d cluster start ${CLUSTER_NAME}
+        
+        # Wait for cluster to be ready
+        echo "⏳ Waiting for cluster to be ready..."
+        for i in {1..30}; do
+            if kubectl cluster-info --context ${CLUSTER_CONTEXT} &>/dev/null; then
+                echo "✅ Cluster is now ready"
+                break
+            fi
+            sleep 2
+        done
+    fi
+    
     echo ""
     echo "Cluster info:"
     kubectl cluster-info --context ${CLUSTER_CONTEXT}
     echo ""
-    echo "⚠️  To recreate the cluster, delete it first:"
+    echo "✅ Using existing cluster"
+    echo "⚠️  If you want to recreate the cluster, delete it first:"
     echo "   k3d cluster delete ${CLUSTER_NAME}"
     exit 0
 fi

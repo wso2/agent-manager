@@ -44,7 +44,8 @@ else
     --namespace openchoreo-control-plane \
     --create-namespace \
     --values https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.7/install/k3d/single-cluster/values-cp.yaml \
-    --set global.defaultResources.enabled=false
+    --set global.defaultResources.enabled=false \
+    --set security.oidc.authorizationUrl=http://thunder.openchoreo.localhost:8089/oauth2/authorize
 fi
 
 echo "⏳ Waiting for Control Plane pods to be ready (timeout: 10 minutes)..."
