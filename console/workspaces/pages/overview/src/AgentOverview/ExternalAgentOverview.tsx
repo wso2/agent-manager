@@ -55,7 +55,7 @@ export const ExternalAgentOverview = () => {
             <Typography variant="body2">Created</Typography>
             <AccessTime size={14} />
             <Typography variant="body2">
-              {dayjs(agent?.createdAt).fromNow()}
+              {agent?.createdAt ? dayjs(agent.createdAt).fromNow() : '—'}
             </Typography>
           </Box>
         </Box>

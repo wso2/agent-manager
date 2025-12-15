@@ -17,7 +17,7 @@
  */
 
 import { Box, Button} from "@wso2/oxygen-ui";
-import { Rocket as RocketOutlined, Link } from "@wso2/oxygen-ui-icons-react";
+import { Link, PackagePlus } from "@wso2/oxygen-ui-icons-react";
 
 interface CreateButtonsProps {
     isValid: boolean;
@@ -43,7 +43,7 @@ export const CreateButtons = (
                     size='medium'
                     startIcon={isConnectMode ? 
                     <Link size={16} /> : 
-                    <RocketOutlined size={16} />}
+                    <PackagePlus size={16} />}
                     onClick={onSubmit}
                     disabled={isPending}
                 >

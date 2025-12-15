@@ -35,7 +35,7 @@
   "keywords": ["ai", "agents", "page", "react"],
   "author": "",
   "license": "Apache-2.0",
-  "description": "A page component for Add New Agent",
+  "description": "A page component for Add New Project",
   "dependencies": {
     "clsx": "2.1.1",
     "react-dom": "19.1.1",

@@ -16,15 +16,12 @@
  * under the License.
  */
 
-export * from './AgentInvokeTest';
 export * from './BuildLogs';
 export * from './BuildPanel';
 export * from './BuildSteps';
 export * from './CodeBlock';
 export * from './DeploymentConfig';
 export * from './EnvironmentVariable';
-export * from './LinkTab';
 export * from './AgentLayout';
-export * from './EnvSubNavBar';
 export * from './EnvironmentCard';
 export * from './Traces';

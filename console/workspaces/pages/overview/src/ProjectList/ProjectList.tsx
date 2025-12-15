@@ -271,7 +271,7 @@ export function ProjectList() {
           }}
         >
           {filteredProjects?.map((project) => (
-            <ProjectCard key={project.createdAt} project={project} />
+            <ProjectCard key={project.name} project={project} />
           ))}
         </Box>
       </Box>

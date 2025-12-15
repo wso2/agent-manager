@@ -36,7 +36,6 @@ import {
   Typography,
   useTheme,
 } from "@wso2/oxygen-ui";
-import { TabStatus } from "../LinkTab";
 import {
   CheckCircle as CheckCircleRounded,
   Circle as CircleOutlined,
@@ -51,6 +50,13 @@ import { NoDataFound, TextInput } from "@agent-management-platform/views";
 import dayjs from "dayjs";
 import { generatePath, Link } from "react-router-dom";
 
+export enum DeploymentStatus {
+  ACTIVE = "active",
+  INACTIVE = "not-deployed",
+  DEPLOYING = "in-progress",
+  ERROR = "error",
+}
+
 export interface EnvironmentCardProps {
   environment?: Environment;
   orgId: string;
@@ -60,12 +66,12 @@ export interface EnvironmentCardProps {
   actions?: React.ReactNode;
 }
 
-export const EnvStatus = ({ status }: { status?: TabStatus }) => {
+export const EnvStatus = ({ status }: { status?: DeploymentStatus }) => {
   const theme = useTheme();
   if (!status) {
     return null;
   }
-  if (status === TabStatus.ACTIVE) {
+  if (status === DeploymentStatus.ACTIVE) {
     return (
       <Chip
         icon={
@@ -78,7 +84,7 @@ export const EnvStatus = ({ status }: { status?: TabStatus }) => {
       />
     );
   }
-  if (status === TabStatus.INACTIVE) {
+  if (status === DeploymentStatus.INACTIVE) {
     return (
       <Chip
         icon={<CircleOutlined size={16} color={theme.palette.text.disabled} />}
@@ -89,7 +95,7 @@ export const EnvStatus = ({ status }: { status?: TabStatus }) => {
       />
     );
   }
-  if (status === TabStatus.DEPLOYING) {
+  if (status === DeploymentStatus.DEPLOYING) {
     return (
       <Chip
         icon={<CircularProgress size={16} color="warning" />}
@@ -100,7 +106,7 @@ export const EnvStatus = ({ status }: { status?: TabStatus }) => {
       />
     );
   }
-  if (status === TabStatus.ERROR) {
+  if (status === DeploymentStatus.ERROR) {
     return <Chip variant="outlined" size="small" label="Error" color="error" />;
   }
 };
@@ -164,7 +170,7 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
                 alignItems="center"
               >
                 <Clock size={16} color={theme.palette.text.secondary} />
-                {dayjs(agent?.createdAt).fromNow()}
+                {agent?.createdAt ? dayjs(agent.createdAt).fromNow() : '—'}
               </Box>
             </Box>
             <Box display="flex" flexDirection="row" gap={1} alignItems="center">
@@ -215,8 +221,8 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
             <Typography variant="h6">
               {environment?.displayName} Environment
             </Typography>
-            <EnvStatus status={currentDiployment?.status as TabStatus} />
-            {currentDiployment?.status === TabStatus.ACTIVE && (
+            <EnvStatus status={currentDiployment?.status as DeploymentStatus} />
+            {currentDiployment?.status === DeploymentStatus.ACTIVE && (
               <Box
                 display="flex"
                 flexDirection="row"
@@ -229,7 +235,7 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
             )}
           </Box>
           <Box display="flex" flexDirection="row" gap={1} alignItems="center">
-            {currentDiployment?.status === TabStatus.ACTIVE && (
+            {currentDiployment?.status === DeploymentStatus.ACTIVE && (
               <>
                 <Button
                   startIcon={<TryOutlined size={16} />}
@@ -286,21 +292,21 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
           pt={2}
           alignItems="center"
         >
-          {currentDiployment.status === TabStatus.INACTIVE && (
+          {currentDiployment.status === DeploymentStatus.INACTIVE && (
             <NoDataFound
               disableBackground
               message="Not Deployed"
               icon={<RocketLaunchOutlined size={32} />}
             />
           )}
-          {currentDiployment.status === TabStatus.DEPLOYING && (
+          {currentDiployment.status === DeploymentStatus.DEPLOYING && (
             <NoDataFound
               disableBackground
               message="Deploying..."
               icon={<CircularProgress size={32} />}
             />
           )}
-          {currentDiployment.status === TabStatus.ERROR && (
+          {currentDiployment.status === DeploymentStatus.ERROR && (
             <NoDataFound
               disableBackground
               message="Deployment Failed"
@@ -312,7 +318,7 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
               }
             />
           )}
-          {currentDiployment.status === TabStatus.ACTIVE && (
+          {currentDiployment.status === DeploymentStatus.ACTIVE && (
             <Box
               display="flex"
               flexGrow={1}

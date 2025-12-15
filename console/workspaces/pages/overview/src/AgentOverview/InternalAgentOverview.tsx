@@ -96,7 +96,7 @@ export const InternalAgentOverview = () => {
           <Typography variant="body2">Created</Typography>
           <AccessTime size={14} />
           <Typography variant="body2">
-            {dayjs(agent?.createdAt).fromNow()}
+            {agent?.createdAt ? dayjs(agent.createdAt).fromNow() : '—'}
           </Typography>
         </Box>
         <Box display="flex" flexDirection="row" gap={1} alignItems="center">

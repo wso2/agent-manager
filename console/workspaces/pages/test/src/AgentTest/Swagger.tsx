@@ -1,5 +1,5 @@
 import { useGetAgentEndpoints } from "@agent-management-platform/api-client";
-import { Alert, Box, Skeleton } from "@mui/material";
+import { Alert, Box, Skeleton } from "@wso2/oxygen-ui";
 import { useParams } from "react-router-dom";
 import { useMemo } from "react";
 import SwaggerUI from "swagger-ui-react";
