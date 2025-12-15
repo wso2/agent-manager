@@ -45,4 +45,5 @@ export type ListProjectsPathParams = { orgName: string };
 export type CreateProjectPathParams = { orgName: string };
 export type GetProjectPathParams = { orgName: string; projName: string };
 export type ListProjectsQuery = ListQuery;
+export type DeleteProjectPathParams = { orgName: string; projName: string };
 

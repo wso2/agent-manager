@@ -25,3 +25,4 @@ export * from './EnvironmentVariable';
 export * from './AgentLayout';
 export * from './EnvironmentCard';
 export * from './Traces';
+export * from './ConfirmationDialog';

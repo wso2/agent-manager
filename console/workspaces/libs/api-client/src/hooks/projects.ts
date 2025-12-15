@@ -17,7 +17,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createProject, getProject, listProjects } from "../apis";
+import { createProject, deleteProject, getProject, listProjects } from "../apis";
 import {
   ProjectListResponse,
   ProjectResponse,
@@ -26,6 +26,7 @@ import {
   ListProjectsQuery,
   CreateProjectPathParams,
   CreateProjectRequest,
+  DeleteProjectPathParams,
 } from "@agent-management-platform/types";
 import { useAuthHooks } from "@agent-management-platform/auth";
 
@@ -65,3 +66,13 @@ export function useCreateProject(params: CreateProjectPathParams) {
   });
 }
 
+export function useDeleteProject() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useMutation<void, unknown, DeleteProjectPathParams>({
+    mutationFn: (params) => deleteProject(params, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
+  });
+}

@@ -21,7 +21,10 @@ import {
   NoDataFound,
   PageLayout,
 } from "@agent-management-platform/views";
-import { useListProjects } from "@agent-management-platform/api-client";
+import {
+  useDeleteProject,
+  useListProjects,
+} from "@agent-management-platform/api-client";
 import { generatePath, Link, useParams } from "react-router-dom";
 import {
   absoluteRouteMap,
@@ -49,8 +52,10 @@ import {
   RefreshCcw,
   Search as SearchRounded,
   Clock as TimerOutlined,
+  Trash2,
 } from "@wso2/oxygen-ui-icons-react";
 import { useCallback, useMemo, useState } from "react";
+import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 
 dayjs.extend(relativeTime);
 
@@ -61,8 +66,11 @@ const projectGridTemplate = {
   xl: "repeat(4, minmax(0, 1fr))",
 };
 
-function ProjectCard(props: { project: ProjectResponse }) {
-  const { project } = props;
+function ProjectCard(props: {
+  project: ProjectResponse;
+  handleDeleteProject: (project: ProjectResponse) => void;
+}) {
+  const { project, handleDeleteProject } = props;
   const theme = useTheme();
   const { orgId } = useParams();
   return (
@@ -86,10 +94,19 @@ function ProjectCard(props: { project: ProjectResponse }) {
             p: 1,
             pb: 0,
             pt: 4,
+            "& .delete-project-button": {
+              opacity: 0,
+              transition: theme.transitions.create(["all"], {
+                duration: theme.transitions.duration.short,
+              }),
+            },
             "&.MuiCard-root": {
               backgroundColor: "background.paper",
             },
             "&:hover": {
+              "& .delete-project-button": {
+                opacity: 1,
+              },
               borderColor: "primary.main",
               backgroundColor: "background.main",
               transform: "translateY(-2px)",
@@ -130,12 +147,13 @@ function ProjectCard(props: { project: ProjectResponse }) {
               display="flex"
               alignItems="center"
               justifyContent="space-between"
+              mt={4}
             >
               <Typography
                 variant="body2"
                 color="textSecondary"
                 sx={{
-                  mt: 4,
+   
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "flex-start",
@@ -145,6 +163,18 @@ function ProjectCard(props: { project: ProjectResponse }) {
                 &nbsp;
                 {dayjs(project.createdAt).fromNow()}
               </Typography>
+              <IconButton
+                size="small"
+                color="error"
+                className="delete-project-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  handleDeleteProject(project);
+                }}
+              >
+                <Trash2 size={16} />
+              </IconButton>
             </Box>
           </CardContent>
         </Card>
@@ -185,6 +215,29 @@ export function ProjectList() {
   } = useListProjects({
     orgName: orgId ?? "default",
   });
+  const { addConfirmation } = useConfirmationDialog();
+  const { mutate: deleteProject, isPending: isDeletingProject } =
+    useDeleteProject();
+
+  const handleDeleteProject = useCallback(
+    (project: ProjectResponse) => {
+      addConfirmation({
+        title: "Project Delete?",
+        description: `Are you sure you want to delete the project "${project.displayName}"? This action cannot be undone.`,
+        onConfirm: () => {
+          deleteProject({
+            orgName: orgId ?? "default",
+            projName: project.name,
+          });
+        },
+        confirmButtonColor: "error",
+        confirmButtonIcon: <Trash2 size={16} />,
+        confirmButtonText: "Delete",
+      });
+    },
+    [addConfirmation, deleteProject, orgId]
+  );
+
   const [search, setSearch] = useState("");
 
   const filteredProjects = useMemo(
@@ -270,12 +323,17 @@ export function ProjectList() {
             width: "100%",
           }}
         >
-          {filteredProjects?.map((project) => (
-            <ProjectCard key={project.name} project={project} />
-          ))}
+          {!isDeletingProject &&
+            filteredProjects?.map((project) => (
+              <ProjectCard
+                key={project.name}
+                project={project}
+                handleDeleteProject={handleDeleteProject}
+              />
+            ))}
         </Box>
       </Box>
-      {isLoadingProjects && <SkeletonPageLayout />}
+      {(isLoadingProjects || isDeletingProject) && <SkeletonPageLayout />}
     </PageLayout>
   );
 }
