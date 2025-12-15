@@ -327,7 +327,7 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
               gap={4}
               alignItems="flex-start"
             >
-              {currentDiployment?.endpoints.map((endpoint) => (
+              {currentDiployment?.endpoints?.map((endpoint) => (
                 <TextInput
                   slotProps={{
                     input: {

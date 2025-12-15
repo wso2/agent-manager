@@ -85,7 +85,7 @@ export const TestComponent: React.FC = () => {
               label={
                 <Box display="flex" alignItems="center" gap={1}>
                   <ChevronsLeftRight size={16} />
-                  <Typography variant="body2">Swagger</Typography>
+                  <Typography variant="body2">API</Typography>
                 </Box>
               }
             />

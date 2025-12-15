@@ -153,7 +153,7 @@ function ProjectCard(props: { project: ProjectResponse }) {
   );
 }
 
-function SkelitonPageLayout() {
+function SkeletonPageLayout() {
   return (
     <Box
       sx={{
@@ -275,7 +275,7 @@ export function ProjectList() {
           ))}
         </Box>
       </Box>
-      {isLoadingProjects && <SkelitonPageLayout />}
+      {isLoadingProjects && <SkeletonPageLayout />}
     </PageLayout>
   );
 }

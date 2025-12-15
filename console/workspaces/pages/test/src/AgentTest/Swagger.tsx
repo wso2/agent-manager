@@ -60,10 +60,13 @@ export function Swagger() {
   );
 
 
-  if (isLoading || !data?.[endpoint]?.schema?.content) {
+  if (isLoading) {
     return <Skeleton variant="rounded" height={500} />;
   }
 
+  if (!data?.[endpoint]?.schema?.content) {
+    return <Alert severity="warning">No API schema available for this endpoint.</Alert>;
+  }
   if (error) {
     return <Alert severity="error">{error.message}</Alert>;
   }

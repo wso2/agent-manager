@@ -32,14 +32,11 @@ import {
   useGetAgent,
   useListEnvironments,
 } from "@agent-management-platform/api-client";
-import {
-  overviewMetadata,
-  buildMetadata,
-  testMetadata,
-  tracesMetadata,
-  deploymentMetadata,
-} from "../pages";
-// import { useGetAgent } from '@agent-management-platform/api-client';
+import { metaData as overviewMetadata } from "@agent-management-platform/overview";
+import { metaData as buildMetadata } from "@agent-management-platform/build";
+import { metaData as testMetadata } from "@agent-management-platform/test";
+import { metaData as tracesMetadata } from "@agent-management-platform/traces";
+import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
 
 export function useNavigationItems(): Array<
   NavigationSection | NavigationItem

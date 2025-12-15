@@ -16,18 +16,21 @@
  * under the License.
  */
 
-import { AuthProvider } from "@agent-management-platform/auth";
-import { ClientProvider } from "@agent-management-platform/api-client";
-import { OxygenUIThemeProvider } from "@wso2/oxygen-ui";
+import { type FC } from "react";
+import { CircularProgress, Box } from "@wso2/oxygen-ui";
 
-export const GlobalProviders = ({ children }: { children: React.ReactNode }) => {
+export const LoadingFallback: FC = () => {
   return (
-      <OxygenUIThemeProvider radialBackground>
-        <AuthProvider>
-          <ClientProvider>
-            {children}
-          </ClientProvider>
-        </AuthProvider>
-        </OxygenUIThemeProvider>
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        minHeight: "400px",
+      }}
+    >
+      <CircularProgress />
+    </Box>
   );
 };
+
