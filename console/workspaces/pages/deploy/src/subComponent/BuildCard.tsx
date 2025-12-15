@@ -162,7 +162,7 @@ export function BuildCard() {
       >
         <CardContent>
           <Box display="flex" flexGrow={1} pt={2} justifyContent="center" alignItems="center">
-            <NoDataFound message="No builds available" icon={<Rocket size={32} />} />
+            <NoDataFound message="No builds available" icon={<Rocket size={32} />} disableBackground />
           </Box>
         </CardContent>
       </Card>

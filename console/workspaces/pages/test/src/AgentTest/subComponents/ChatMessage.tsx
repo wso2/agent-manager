@@ -44,7 +44,7 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
       <Box
         display="flex"
         gap={1.5}
-        maxWidth="75%"
+        maxWidth={500}
         flexDirection={role === "user" ? "row-reverse" : "row"}
         alignItems="flex-start"
       >

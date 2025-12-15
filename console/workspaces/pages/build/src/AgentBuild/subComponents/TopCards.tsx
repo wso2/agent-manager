@@ -146,7 +146,7 @@ export const TopCards: React.FC = (
     return (
         <Box sx={{
             display: 'grid',
-            gap: 2,
+            gap: 4,
             gridTemplateColumns: {
                 xs: '1fr',
                 md: '1fr 1fr',

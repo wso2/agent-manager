@@ -31,7 +31,7 @@ import { useParams } from "react-router-dom";
 import { ChatMessage } from "./subComponents/ChatMessage";
 import { FadeIn } from "@agent-management-platform/views";
 
-export interface AgentTestProps {
+export interface AgentChatProps {
   defaultBody?: Record<string, unknown>;
 }
 
@@ -42,13 +42,13 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-export function AgentTest({
+export function AgentChat({
   defaultBody = {
     thread_id: Math.floor(Math.random() * 1000),
     passenger_id: "2021 652719",
     question: "Hi, How can you help me?",
   },
-}: AgentTestProps) {
+}: AgentChatProps) {
   const [endpoint, setEndpoint] = useState("");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);

@@ -101,6 +101,11 @@ export function Layout() {
               generatePath(absoluteRouteMap.children.org.path, { orgId })
             );
           },
+          onCreate: ()=>{
+            navigate(
+              generatePath(absoluteRouteMap.children.org.children.newProject.path, {orgId})
+            )
+          }
         },
         {
           label: "Agent",

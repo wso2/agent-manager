@@ -17,7 +17,7 @@
  */
 
 import React from "react";
-import { AgentTest } from "./AgentTest/AgentTest";
+import { AgentChat } from "./AgentTest/AgentChat";
 import { FadeIn, PageLayout } from "@agent-management-platform/views";
 import {
   Box,
@@ -39,6 +39,7 @@ import {
   absoluteRouteMap,
   relativeRouteMap,
 } from "@agent-management-platform/types";
+import { Swagger } from "./AgentTest/Swagger";
 
 export const TestComponent: React.FC = () => {
   const { orgId, projectId, agentId, envId } = useParams<{
@@ -70,7 +71,7 @@ export const TestComponent: React.FC = () => {
               label={
                 <Box display="flex" alignItems="center" gap={1}>
                   <MessageCircle size={16} />
-                  <Typography variant="body2">Chat View</Typography>
+                  <Typography variant="body2">Chat</Typography>
                 </Box>
               }
             />
@@ -84,7 +85,7 @@ export const TestComponent: React.FC = () => {
               label={
                 <Box display="flex" alignItems="center" gap={1}>
                   <ChevronsLeftRight size={16} />
-                  <Typography variant="body2">Swagger View</Typography>
+                  <Typography variant="body2">Swagger</Typography>
                 </Box>
               }
             />
@@ -103,14 +104,14 @@ export const TestComponent: React.FC = () => {
                 relativeRouteMap.children.org.children.projects.children.agents
                   .children.environment.children.tryOut.children.chat.path
               }
-              element={<AgentTest />}
+              element={<AgentChat />}
             />
             <Route
               path={
                 relativeRouteMap.children.org.children.projects.children.agents
                   .children.environment.children.tryOut.children.api.path
               }
-              element={<Box>API</Box>}
+              element={<Swagger/>}
             />
           </Route>
           <Route

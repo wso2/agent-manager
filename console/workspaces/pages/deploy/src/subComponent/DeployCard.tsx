@@ -77,29 +77,26 @@ export function DeployCard(props: DeployCardProps) {
     );
   }
 
-  if (!currentDeployment) {
+  if (currentDeployment?.status === "not-deployed") {
     return (
       <Card
-        variant="outlined"
-        sx={{
-          "& .MuiCardContent-root": {
-            backgroundColor: "background.paper",
-            gap: 2,
-            display: "flex",
-            width: 350,
-            height: "100%",
-            flexDirection: "column",
-          },
-        }}
-      >
-        <CardContent>
-          <NoDataFound
-            message="No deployment found"
-            subtitle="Please deploy your agent to get started"
-            icon={<Rocket size={64} />}
-          />
-        </CardContent>
-      </Card>
+      variant="outlined"
+      sx={{
+        "& .MuiCardContent-root": {
+          backgroundColor: "background.paper",
+          gap: 2,
+          display: "flex",
+          width: 350,
+        },
+        height: "fit-content",
+      }}
+    >
+      <CardContent>
+        <Box display="flex" flexGrow={1} pt={2} justifyContent="center" alignItems="center">
+          <NoDataFound message="No Deployment found" icon={<Rocket size={32} />} disableBackground />
+        </Box>
+      </CardContent>
+    </Card>
     );
   }
 
