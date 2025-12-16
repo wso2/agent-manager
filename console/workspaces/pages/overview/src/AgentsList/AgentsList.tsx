@@ -301,7 +301,7 @@ export const AgentsList: React.FC = () => {
                         onClick={(e) => {
                           e.stopPropagation(); // Prevent row click if any
                           addConfirmation({
-                            title: "Agent Delete?",
+                            title: "Delete Agent?",
                             description: `Are you sure you want to delete the agent "${row.displayName}"? This action cannot be undone.`,
                             onConfirm: () => {
                               handleDeleteAgent(row.name);
@@ -429,7 +429,7 @@ export const AgentsList: React.FC = () => {
                   generatePath(
                     absoluteRouteMap.children.org.children.projects.children
                       .newAgent.path,
-                    { orgId: orgId ?? "", projectId: "default" }
+                    { orgId: orgId ?? "", projectId: projectId ?? "" }
                   )
                 )
               }
@@ -479,7 +479,7 @@ export const AgentsList: React.FC = () => {
                       generatePath(
                         absoluteRouteMap.children.org.children.projects.children
                           .newAgent.path,
-                        { orgId: orgId ?? "", projectId: "default" }
+                        { orgId: orgId ?? "", projectId: projectId ?? "" }
                       )
                     )
                   }

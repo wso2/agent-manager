@@ -213,9 +213,9 @@ export function NavBarToolbar({
                       .join('')}
                   </Avatar>
                 )}
-                <Typography variant="caption" color="divider">
-                  <ChevronDown size={16} />
-                </Typography>
+              <Typography variant="caption" color="text.secondary">
+                <ChevronDown size={16} />
+              </Typography>
               </Box>
             </ButtonBase>
           )}

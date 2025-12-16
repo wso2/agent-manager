@@ -222,7 +222,7 @@ export function ProjectList() {
   const handleDeleteProject = useCallback(
     (project: ProjectResponse) => {
       addConfirmation({
-        title: "Project Delete?",
+        title: "Delete Project?",
         description: `Are you sure you want to delete the project "${project.displayName}"? This action cannot be undone.`,
         onConfirm: () => {
           deleteProject({
