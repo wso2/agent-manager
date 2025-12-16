@@ -18,37 +18,10 @@ import (
 //
 //		// make and configure a mocked openchoreosvc.OpenChoreoSvcClient
 //		mockedOpenChoreoSvcClient := &OpenChoreoSvcClientMock{
-//			CleanupOrganizationResourcesFunc: func(ctx context.Context, orgName string) error {
-//				panic("mock out the CleanupOrganizationResources method")
-//			},
-//			CreateAPIClassDefaultWithCORSFunc: func(ctx context.Context, orgName string, apiClassName string) error {
-//				panic("mock out the CreateAPIClassDefaultWithCORS method")
-//			},
 //			CreateAgentComponentFunc: func(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error {
 //				panic("mock out the CreateAgentComponent method")
 //			},
-//			CreateBuildPlaneForOrganizationFunc: func(ctx context.Context, orgName string, buildPlaneName string) error {
-//				panic("mock out the CreateBuildPlaneForOrganization method")
-//			},
-//			CreateDataPlaneForOrganizationFunc: func(ctx context.Context, orgName string, dataPlaneName string) error {
-//				panic("mock out the CreateDataPlaneForOrganization method")
-//			},
-//			CreateDeploymentPipelineFunc: func(ctx context.Context, orgName string, pipelineName string, promotionPaths []models.PromotionPath) error {
-//				panic("mock out the CreateDeploymentPipeline method")
-//			},
-//			CreateEnvironmentsFunc: func(ctx context.Context, orgName string, environmentName string, envDisplayName string, dataplaneName string, isProduction bool, dnsPrefix string) error {
-//				panic("mock out the CreateEnvironments method")
-//			},
-//			CreateNamespaceForOrganizationFunc: func(ctx context.Context, orgName string) error {
-//				panic("mock out the CreateNamespaceForOrganization method")
-//			},
-//			CreateObservabilityEnabledServiceClassForPythonFunc: func(ctx context.Context, orgName string, serviceClassName string) error {
-//				panic("mock out the CreateObservabilityEnabledServiceClassForPython method")
-//			},
-//			CreateOrganizationFunc: func(ctx context.Context, namespaceName string, orgName string, orgDisplayName string) error {
-//				panic("mock out the CreateOrganization method")
-//			},
-//			CreateProjectFunc: func(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string) error {
+//			CreateProjectFunc: func(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string, projectDescription string) error {
 //				panic("mock out the CreateProject method")
 //			},
 //			DeleteAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agentName string) error {
@@ -57,14 +30,8 @@ import (
 //			DeleteProjectFunc: func(ctx context.Context, orgName string, projectName string) error {
 //				panic("mock out the DeleteProject method")
 //			},
-//			DeployAgentComponentFunc: func(ctx context.Context, orgName string, projName string, componentName string, language string, req *spec.DeployAgentRequest) error {
+//			DeployAgentComponentFunc: func(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error {
 //				panic("mock out the DeployAgentComponent method")
-//			},
-//			DeployBuiltImageFunc: func(ctx context.Context, orgName string, projName string, componentName string, imageId string) error {
-//				panic("mock out the DeployBuiltImage method")
-//			},
-//			GetAgentBuildFunc: func(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
-//				panic("mock out the GetAgentBuild method")
 //			},
 //			GetAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agentName string) (*openchoreosvc.AgentComponent, error) {
 //				panic("mock out the GetAgentComponent method")
@@ -78,6 +45,12 @@ import (
 //			GetAgentEndpointsFunc: func(ctx context.Context, orgName string, projName string, agentName string, environment string) (map[string]models.EndpointsResponse, error) {
 //				panic("mock out the GetAgentEndpoints method")
 //			},
+//			GetComponentWorkflowFunc: func(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
+//				panic("mock out the GetComponentWorkflow method")
+//			},
+//			GetDataplanesForOrganizationFunc: func(ctx context.Context, orgName string) ([]*models.DataPlaneResponse, error) {
+//				panic("mock out the GetDataplanesForOrganization method")
+//			},
 //			GetDeploymentPipelineFunc: func(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error) {
 //				panic("mock out the GetDeploymentPipeline method")
 //			},
@@ -86,9 +59,6 @@ import (
 //			},
 //			GetEnvironmentFunc: func(ctx context.Context, orgName string, environmentName string) (*models.EnvironmentResponse, error) {
 //				panic("mock out the GetEnvironment method")
-//			},
-//			GetOrgEnvironmentsFunc: func(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error) {
-//				panic("mock out the GetOrgEnvironments method")
 //			},
 //			GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
 //				panic("mock out the GetOrganization method")
@@ -99,20 +69,14 @@ import (
 //			IsAgentComponentExistsFunc: func(ctx context.Context, orgName string, projName string, agentName string) (bool, error) {
 //				panic("mock out the IsAgentComponentExists method")
 //			},
-//			ListAgentBuildsFunc: func(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error) {
-//				panic("mock out the ListAgentBuilds method")
+//			ListComponentWorkflowsFunc: func(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error) {
+//				panic("mock out the ListComponentWorkflows method")
 //			},
-//			ListAgentComponentsFunc: func(ctx context.Context, orgName string, projName string) ([]*openchoreosvc.AgentComponent, error) {
-//				panic("mock out the ListAgentComponents method")
-//			},
-//			ListOrganizationsFunc: func(ctx context.Context) ([]*models.OrganizationResponse, error) {
-//				panic("mock out the ListOrganizations method")
+//			ListOrgEnvironmentsFunc: func(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error) {
+//				panic("mock out the ListOrgEnvironments method")
 //			},
 //			ListProjectsFunc: func(ctx context.Context, orgName string) ([]*models.ProjectResponse, error) {
 //				panic("mock out the ListProjects method")
-//			},
-//			SetupDeploymentFunc: func(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest, envVars []spec.EnvironmentVariable) error {
-//				panic("mock out the SetupDeployment method")
 //			},
 //			TriggerBuildFunc: func(ctx context.Context, orgName string, projName string, agentName string, commitId string) (*models.BuildResponse, error) {
 //				panic("mock out the TriggerBuild method")
@@ -124,38 +88,11 @@ import (
 //
 //	}
 type OpenChoreoSvcClientMock struct {
-	// CleanupOrganizationResourcesFunc mocks the CleanupOrganizationResources method.
-	CleanupOrganizationResourcesFunc func(ctx context.Context, orgName string) error
-
-	// CreateAPIClassDefaultWithCORSFunc mocks the CreateAPIClassDefaultWithCORS method.
-	CreateAPIClassDefaultWithCORSFunc func(ctx context.Context, orgName string, apiClassName string) error
-
 	// CreateAgentComponentFunc mocks the CreateAgentComponent method.
 	CreateAgentComponentFunc func(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error
 
-	// CreateBuildPlaneForOrganizationFunc mocks the CreateBuildPlaneForOrganization method.
-	CreateBuildPlaneForOrganizationFunc func(ctx context.Context, orgName string, buildPlaneName string) error
-
-	// CreateDataPlaneForOrganizationFunc mocks the CreateDataPlaneForOrganization method.
-	CreateDataPlaneForOrganizationFunc func(ctx context.Context, orgName string, dataPlaneName string) error
-
-	// CreateDeploymentPipelineFunc mocks the CreateDeploymentPipeline method.
-	CreateDeploymentPipelineFunc func(ctx context.Context, orgName string, pipelineName string, promotionPaths []models.PromotionPath) error
-
-	// CreateEnvironmentsFunc mocks the CreateEnvironments method.
-	CreateEnvironmentsFunc func(ctx context.Context, orgName string, environmentName string, envDisplayName string, dataplaneName string, isProduction bool, dnsPrefix string) error
-
-	// CreateNamespaceForOrganizationFunc mocks the CreateNamespaceForOrganization method.
-	CreateNamespaceForOrganizationFunc func(ctx context.Context, orgName string) error
-
-	// CreateObservabilityEnabledServiceClassForPythonFunc mocks the CreateObservabilityEnabledServiceClassForPython method.
-	CreateObservabilityEnabledServiceClassForPythonFunc func(ctx context.Context, orgName string, serviceClassName string) error
-
-	// CreateOrganizationFunc mocks the CreateOrganization method.
-	CreateOrganizationFunc func(ctx context.Context, namespaceName string, orgName string, orgDisplayName string) error
-
 	// CreateProjectFunc mocks the CreateProject method.
-	CreateProjectFunc func(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string) error
+	CreateProjectFunc func(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string, projectDescription string) error
 
 	// DeleteAgentComponentFunc mocks the DeleteAgentComponent method.
 	DeleteAgentComponentFunc func(ctx context.Context, orgName string, projName string, agentName string) error
@@ -164,13 +101,7 @@ type OpenChoreoSvcClientMock struct {
 	DeleteProjectFunc func(ctx context.Context, orgName string, projectName string) error
 
 	// DeployAgentComponentFunc mocks the DeployAgentComponent method.
-	DeployAgentComponentFunc func(ctx context.Context, orgName string, projName string, componentName string, language string, req *spec.DeployAgentRequest) error
-
-	// DeployBuiltImageFunc mocks the DeployBuiltImage method.
-	DeployBuiltImageFunc func(ctx context.Context, orgName string, projName string, componentName string, imageId string) error
-
-	// GetAgentBuildFunc mocks the GetAgentBuild method.
-	GetAgentBuildFunc func(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error)
+	DeployAgentComponentFunc func(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error
 
 	// GetAgentComponentFunc mocks the GetAgentComponent method.
 	GetAgentComponentFunc func(ctx context.Context, orgName string, projName string, agentName string) (*openchoreosvc.AgentComponent, error)
@@ -184,6 +115,12 @@ type OpenChoreoSvcClientMock struct {
 	// GetAgentEndpointsFunc mocks the GetAgentEndpoints method.
 	GetAgentEndpointsFunc func(ctx context.Context, orgName string, projName string, agentName string, environment string) (map[string]models.EndpointsResponse, error)
 
+	// GetComponentWorkflowFunc mocks the GetComponentWorkflow method.
+	GetComponentWorkflowFunc func(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error)
+
+	// GetDataplanesForOrganizationFunc mocks the GetDataplanesForOrganization method.
+	GetDataplanesForOrganizationFunc func(ctx context.Context, orgName string) ([]*models.DataPlaneResponse, error)
+
 	// GetDeploymentPipelineFunc mocks the GetDeploymentPipeline method.
 	GetDeploymentPipelineFunc func(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error)
 
@@ -192,9 +129,6 @@ type OpenChoreoSvcClientMock struct {
 
 	// GetEnvironmentFunc mocks the GetEnvironment method.
 	GetEnvironmentFunc func(ctx context.Context, orgName string, environmentName string) (*models.EnvironmentResponse, error)
-
-	// GetOrgEnvironmentsFunc mocks the GetOrgEnvironments method.
-	GetOrgEnvironmentsFunc func(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error)
 
 	// GetOrganizationFunc mocks the GetOrganization method.
 	GetOrganizationFunc func(ctx context.Context, orgName string) (*models.OrganizationResponse, error)
@@ -205,42 +139,20 @@ type OpenChoreoSvcClientMock struct {
 	// IsAgentComponentExistsFunc mocks the IsAgentComponentExists method.
 	IsAgentComponentExistsFunc func(ctx context.Context, orgName string, projName string, agentName string) (bool, error)
 
-	// ListAgentBuildsFunc mocks the ListAgentBuilds method.
-	ListAgentBuildsFunc func(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error)
+	// ListComponentWorkflowsFunc mocks the ListComponentWorkflows method.
+	ListComponentWorkflowsFunc func(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error)
 
-	// ListAgentComponentsFunc mocks the ListAgentComponents method.
-	ListAgentComponentsFunc func(ctx context.Context, orgName string, projName string) ([]*openchoreosvc.AgentComponent, error)
-
-	// ListOrganizationsFunc mocks the ListOrganizations method.
-	ListOrganizationsFunc func(ctx context.Context) ([]*models.OrganizationResponse, error)
+	// ListOrgEnvironmentsFunc mocks the ListOrgEnvironments method.
+	ListOrgEnvironmentsFunc func(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error)
 
 	// ListProjectsFunc mocks the ListProjects method.
 	ListProjectsFunc func(ctx context.Context, orgName string) ([]*models.ProjectResponse, error)
-
-	// SetupDeploymentFunc mocks the SetupDeployment method.
-	SetupDeploymentFunc func(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest, envVars []spec.EnvironmentVariable) error
 
 	// TriggerBuildFunc mocks the TriggerBuild method.
 	TriggerBuildFunc func(ctx context.Context, orgName string, projName string, agentName string, commitId string) (*models.BuildResponse, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
-		// CleanupOrganizationResources holds details about calls to the CleanupOrganizationResources method.
-		CleanupOrganizationResources []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
-		}
-		// CreateAPIClassDefaultWithCORS holds details about calls to the CreateAPIClassDefaultWithCORS method.
-		CreateAPIClassDefaultWithCORS []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
-			// ApiClassName is the apiClassName argument value.
-			ApiClassName string
-		}
 		// CreateAgentComponent holds details about calls to the CreateAgentComponent method.
 		CreateAgentComponent []struct {
 			// Ctx is the ctx argument value.
@@ -251,79 +163,6 @@ type OpenChoreoSvcClientMock struct {
 			ProjName string
 			// Req is the req argument value.
 			Req *spec.CreateAgentRequest
-		}
-		// CreateBuildPlaneForOrganization holds details about calls to the CreateBuildPlaneForOrganization method.
-		CreateBuildPlaneForOrganization []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
-			// BuildPlaneName is the buildPlaneName argument value.
-			BuildPlaneName string
-		}
-		// CreateDataPlaneForOrganization holds details about calls to the CreateDataPlaneForOrganization method.
-		CreateDataPlaneForOrganization []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
-			// DataPlaneName is the dataPlaneName argument value.
-			DataPlaneName string
-		}
-		// CreateDeploymentPipeline holds details about calls to the CreateDeploymentPipeline method.
-		CreateDeploymentPipeline []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
-			// PipelineName is the pipelineName argument value.
-			PipelineName string
-			// PromotionPaths is the promotionPaths argument value.
-			PromotionPaths []models.PromotionPath
-		}
-		// CreateEnvironments holds details about calls to the CreateEnvironments method.
-		CreateEnvironments []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
-			// EnvironmentName is the environmentName argument value.
-			EnvironmentName string
-			// EnvDisplayName is the envDisplayName argument value.
-			EnvDisplayName string
-			// DataplaneName is the dataplaneName argument value.
-			DataplaneName string
-			// IsProduction is the isProduction argument value.
-			IsProduction bool
-			// DnsPrefix is the dnsPrefix argument value.
-			DnsPrefix string
-		}
-		// CreateNamespaceForOrganization holds details about calls to the CreateNamespaceForOrganization method.
-		CreateNamespaceForOrganization []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
-		}
-		// CreateObservabilityEnabledServiceClassForPython holds details about calls to the CreateObservabilityEnabledServiceClassForPython method.
-		CreateObservabilityEnabledServiceClassForPython []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
-			// ServiceClassName is the serviceClassName argument value.
-			ServiceClassName string
-		}
-		// CreateOrganization holds details about calls to the CreateOrganization method.
-		CreateOrganization []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// NamespaceName is the namespaceName argument value.
-			NamespaceName string
-			// OrgName is the orgName argument value.
-			OrgName string
-			// OrgDisplayName is the orgDisplayName argument value.
-			OrgDisplayName string
 		}
 		// CreateProject holds details about calls to the CreateProject method.
 		CreateProject []struct {
@@ -337,6 +176,8 @@ type OpenChoreoSvcClientMock struct {
 			DeploymentPipelineRef string
 			// ProjectDisplayName is the projectDisplayName argument value.
 			ProjectDisplayName string
+			// ProjectDescription is the projectDescription argument value.
+			ProjectDescription string
 		}
 		// DeleteAgentComponent holds details about calls to the DeleteAgentComponent method.
 		DeleteAgentComponent []struct {
@@ -368,36 +209,8 @@ type OpenChoreoSvcClientMock struct {
 			ProjName string
 			// ComponentName is the componentName argument value.
 			ComponentName string
-			// Language is the language argument value.
-			Language string
 			// Req is the req argument value.
 			Req *spec.DeployAgentRequest
-		}
-		// DeployBuiltImage holds details about calls to the DeployBuiltImage method.
-		DeployBuiltImage []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
-			// ProjName is the projName argument value.
-			ProjName string
-			// ComponentName is the componentName argument value.
-			ComponentName string
-			// ImageId is the imageId argument value.
-			ImageId string
-		}
-		// GetAgentBuild holds details about calls to the GetAgentBuild method.
-		GetAgentBuild []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
-			// ProjName is the projName argument value.
-			ProjName string
-			// ComponentName is the componentName argument value.
-			ComponentName string
-			// BuildName is the buildName argument value.
-			BuildName string
 		}
 		// GetAgentComponent holds details about calls to the GetAgentComponent method.
 		GetAgentComponent []struct {
@@ -449,6 +262,26 @@ type OpenChoreoSvcClientMock struct {
 			// Environment is the environment argument value.
 			Environment string
 		}
+		// GetComponentWorkflow holds details about calls to the GetComponentWorkflow method.
+		GetComponentWorkflow []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OrgName is the orgName argument value.
+			OrgName string
+			// ProjName is the projName argument value.
+			ProjName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// BuildName is the buildName argument value.
+			BuildName string
+		}
+		// GetDataplanesForOrganization holds details about calls to the GetDataplanesForOrganization method.
+		GetDataplanesForOrganization []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OrgName is the orgName argument value.
+			OrgName string
+		}
 		// GetDeploymentPipeline holds details about calls to the GetDeploymentPipeline method.
 		GetDeploymentPipeline []struct {
 			// Ctx is the ctx argument value.
@@ -473,13 +306,6 @@ type OpenChoreoSvcClientMock struct {
 			OrgName string
 			// EnvironmentName is the environmentName argument value.
 			EnvironmentName string
-		}
-		// GetOrgEnvironments holds details about calls to the GetOrgEnvironments method.
-		GetOrgEnvironments []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
 		}
 		// GetOrganization holds details about calls to the GetOrganization method.
 		GetOrganization []struct {
@@ -508,8 +334,8 @@ type OpenChoreoSvcClientMock struct {
 			// AgentName is the agentName argument value.
 			AgentName string
 		}
-		// ListAgentBuilds holds details about calls to the ListAgentBuilds method.
-		ListAgentBuilds []struct {
+		// ListComponentWorkflows holds details about calls to the ListComponentWorkflows method.
+		ListComponentWorkflows []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// OrgName is the orgName argument value.
@@ -519,19 +345,12 @@ type OpenChoreoSvcClientMock struct {
 			// ComponentName is the componentName argument value.
 			ComponentName string
 		}
-		// ListAgentComponents holds details about calls to the ListAgentComponents method.
-		ListAgentComponents []struct {
+		// ListOrgEnvironments holds details about calls to the ListOrgEnvironments method.
+		ListOrgEnvironments []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// OrgName is the orgName argument value.
 			OrgName string
-			// ProjName is the projName argument value.
-			ProjName string
-		}
-		// ListOrganizations holds details about calls to the ListOrganizations method.
-		ListOrganizations []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
 		}
 		// ListProjects holds details about calls to the ListProjects method.
 		ListProjects []struct {
@@ -539,19 +358,6 @@ type OpenChoreoSvcClientMock struct {
 			Ctx context.Context
 			// OrgName is the orgName argument value.
 			OrgName string
-		}
-		// SetupDeployment holds details about calls to the SetupDeployment method.
-		SetupDeployment []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
-			// ProjName is the projName argument value.
-			ProjName string
-			// Req is the req argument value.
-			Req *spec.CreateAgentRequest
-			// EnvVars is the envVars argument value.
-			EnvVars []spec.EnvironmentVariable
 		}
 		// TriggerBuild holds details about calls to the TriggerBuild method.
 		TriggerBuild []struct {
@@ -567,115 +373,27 @@ type OpenChoreoSvcClientMock struct {
 			CommitId string
 		}
 	}
-	lockCleanupOrganizationResources                    sync.RWMutex
-	lockCreateAPIClassDefaultWithCORS                   sync.RWMutex
-	lockCreateAgentComponent                            sync.RWMutex
-	lockCreateBuildPlaneForOrganization                 sync.RWMutex
-	lockCreateDataPlaneForOrganization                  sync.RWMutex
-	lockCreateDeploymentPipeline                        sync.RWMutex
-	lockCreateEnvironments                              sync.RWMutex
-	lockCreateNamespaceForOrganization                  sync.RWMutex
-	lockCreateObservabilityEnabledServiceClassForPython sync.RWMutex
-	lockCreateOrganization                              sync.RWMutex
-	lockCreateProject                                   sync.RWMutex
-	lockDeleteAgentComponent                            sync.RWMutex
-	lockDeleteProject                                   sync.RWMutex
-	lockDeployAgentComponent                            sync.RWMutex
-	lockDeployBuiltImage                                sync.RWMutex
-	lockGetAgentBuild                                   sync.RWMutex
-	lockGetAgentComponent                               sync.RWMutex
-	lockGetAgentConfigurations                          sync.RWMutex
-	lockGetAgentDeployments                             sync.RWMutex
-	lockGetAgentEndpoints                               sync.RWMutex
-	lockGetDeploymentPipeline                           sync.RWMutex
-	lockGetDeploymentPipelinesForOrganization           sync.RWMutex
-	lockGetEnvironment                                  sync.RWMutex
-	lockGetOrgEnvironments                              sync.RWMutex
-	lockGetOrganization                                 sync.RWMutex
-	lockGetProject                                      sync.RWMutex
-	lockIsAgentComponentExists                          sync.RWMutex
-	lockListAgentBuilds                                 sync.RWMutex
-	lockListAgentComponents                             sync.RWMutex
-	lockListOrganizations                               sync.RWMutex
-	lockListProjects                                    sync.RWMutex
-	lockSetupDeployment                                 sync.RWMutex
-	lockTriggerBuild                                    sync.RWMutex
-}
-
-// CleanupOrganizationResources calls CleanupOrganizationResourcesFunc.
-func (mock *OpenChoreoSvcClientMock) CleanupOrganizationResources(ctx context.Context, orgName string) error {
-	if mock.CleanupOrganizationResourcesFunc == nil {
-		panic("OpenChoreoSvcClientMock.CleanupOrganizationResourcesFunc: method is nil but OpenChoreoSvcClient.CleanupOrganizationResources was just called")
-	}
-	callInfo := struct {
-		Ctx     context.Context
-		OrgName string
-	}{
-		Ctx:     ctx,
-		OrgName: orgName,
-	}
-	mock.lockCleanupOrganizationResources.Lock()
-	mock.calls.CleanupOrganizationResources = append(mock.calls.CleanupOrganizationResources, callInfo)
-	mock.lockCleanupOrganizationResources.Unlock()
-	return mock.CleanupOrganizationResourcesFunc(ctx, orgName)
-}
-
-// CleanupOrganizationResourcesCalls gets all the calls that were made to CleanupOrganizationResources.
-// Check the length with:
-//
-//	len(mockedOpenChoreoSvcClient.CleanupOrganizationResourcesCalls())
-func (mock *OpenChoreoSvcClientMock) CleanupOrganizationResourcesCalls() []struct {
-	Ctx     context.Context
-	OrgName string
-} {
-	var calls []struct {
-		Ctx     context.Context
-		OrgName string
-	}
-	mock.lockCleanupOrganizationResources.RLock()
-	calls = mock.calls.CleanupOrganizationResources
-	mock.lockCleanupOrganizationResources.RUnlock()
-	return calls
-}
-
-// CreateAPIClassDefaultWithCORS calls CreateAPIClassDefaultWithCORSFunc.
-func (mock *OpenChoreoSvcClientMock) CreateAPIClassDefaultWithCORS(ctx context.Context, orgName string, apiClassName string) error {
-	if mock.CreateAPIClassDefaultWithCORSFunc == nil {
-		panic("OpenChoreoSvcClientMock.CreateAPIClassDefaultWithCORSFunc: method is nil but OpenChoreoSvcClient.CreateAPIClassDefaultWithCORS was just called")
-	}
-	callInfo := struct {
-		Ctx          context.Context
-		OrgName      string
-		ApiClassName string
-	}{
-		Ctx:          ctx,
-		OrgName:      orgName,
-		ApiClassName: apiClassName,
-	}
-	mock.lockCreateAPIClassDefaultWithCORS.Lock()
-	mock.calls.CreateAPIClassDefaultWithCORS = append(mock.calls.CreateAPIClassDefaultWithCORS, callInfo)
-	mock.lockCreateAPIClassDefaultWithCORS.Unlock()
-	return mock.CreateAPIClassDefaultWithCORSFunc(ctx, orgName, apiClassName)
-}
-
-// CreateAPIClassDefaultWithCORSCalls gets all the calls that were made to CreateAPIClassDefaultWithCORS.
-// Check the length with:
-//
-//	len(mockedOpenChoreoSvcClient.CreateAPIClassDefaultWithCORSCalls())
-func (mock *OpenChoreoSvcClientMock) CreateAPIClassDefaultWithCORSCalls() []struct {
-	Ctx          context.Context
-	OrgName      string
-	ApiClassName string
-} {
-	var calls []struct {
-		Ctx          context.Context
-		OrgName      string
-		ApiClassName string
-	}
-	mock.lockCreateAPIClassDefaultWithCORS.RLock()
-	calls = mock.calls.CreateAPIClassDefaultWithCORS
-	mock.lockCreateAPIClassDefaultWithCORS.RUnlock()
-	return calls
+	lockCreateAgentComponent                  sync.RWMutex
+	lockCreateProject                         sync.RWMutex
+	lockDeleteAgentComponent                  sync.RWMutex
+	lockDeleteProject                         sync.RWMutex
+	lockDeployAgentComponent                  sync.RWMutex
+	lockGetAgentComponent                     sync.RWMutex
+	lockGetAgentConfigurations                sync.RWMutex
+	lockGetAgentDeployments                   sync.RWMutex
+	lockGetAgentEndpoints                     sync.RWMutex
+	lockGetComponentWorkflow                  sync.RWMutex
+	lockGetDataplanesForOrganization          sync.RWMutex
+	lockGetDeploymentPipeline                 sync.RWMutex
+	lockGetDeploymentPipelinesForOrganization sync.RWMutex
+	lockGetEnvironment                        sync.RWMutex
+	lockGetOrganization                       sync.RWMutex
+	lockGetProject                            sync.RWMutex
+	lockIsAgentComponentExists                sync.RWMutex
+	lockListComponentWorkflows                sync.RWMutex
+	lockListOrgEnvironments                   sync.RWMutex
+	lockListProjects                          sync.RWMutex
+	lockTriggerBuild                          sync.RWMutex
 }
 
 // CreateAgentComponent calls CreateAgentComponentFunc.
@@ -722,308 +440,8 @@ func (mock *OpenChoreoSvcClientMock) CreateAgentComponentCalls() []struct {
 	return calls
 }
 
-// CreateBuildPlaneForOrganization calls CreateBuildPlaneForOrganizationFunc.
-func (mock *OpenChoreoSvcClientMock) CreateBuildPlaneForOrganization(ctx context.Context, orgName string, buildPlaneName string) error {
-	if mock.CreateBuildPlaneForOrganizationFunc == nil {
-		panic("OpenChoreoSvcClientMock.CreateBuildPlaneForOrganizationFunc: method is nil but OpenChoreoSvcClient.CreateBuildPlaneForOrganization was just called")
-	}
-	callInfo := struct {
-		Ctx            context.Context
-		OrgName        string
-		BuildPlaneName string
-	}{
-		Ctx:            ctx,
-		OrgName:        orgName,
-		BuildPlaneName: buildPlaneName,
-	}
-	mock.lockCreateBuildPlaneForOrganization.Lock()
-	mock.calls.CreateBuildPlaneForOrganization = append(mock.calls.CreateBuildPlaneForOrganization, callInfo)
-	mock.lockCreateBuildPlaneForOrganization.Unlock()
-	return mock.CreateBuildPlaneForOrganizationFunc(ctx, orgName, buildPlaneName)
-}
-
-// CreateBuildPlaneForOrganizationCalls gets all the calls that were made to CreateBuildPlaneForOrganization.
-// Check the length with:
-//
-//	len(mockedOpenChoreoSvcClient.CreateBuildPlaneForOrganizationCalls())
-func (mock *OpenChoreoSvcClientMock) CreateBuildPlaneForOrganizationCalls() []struct {
-	Ctx            context.Context
-	OrgName        string
-	BuildPlaneName string
-} {
-	var calls []struct {
-		Ctx            context.Context
-		OrgName        string
-		BuildPlaneName string
-	}
-	mock.lockCreateBuildPlaneForOrganization.RLock()
-	calls = mock.calls.CreateBuildPlaneForOrganization
-	mock.lockCreateBuildPlaneForOrganization.RUnlock()
-	return calls
-}
-
-// CreateDataPlaneForOrganization calls CreateDataPlaneForOrganizationFunc.
-func (mock *OpenChoreoSvcClientMock) CreateDataPlaneForOrganization(ctx context.Context, orgName string, dataPlaneName string) error {
-	if mock.CreateDataPlaneForOrganizationFunc == nil {
-		panic("OpenChoreoSvcClientMock.CreateDataPlaneForOrganizationFunc: method is nil but OpenChoreoSvcClient.CreateDataPlaneForOrganization was just called")
-	}
-	callInfo := struct {
-		Ctx           context.Context
-		OrgName       string
-		DataPlaneName string
-	}{
-		Ctx:           ctx,
-		OrgName:       orgName,
-		DataPlaneName: dataPlaneName,
-	}
-	mock.lockCreateDataPlaneForOrganization.Lock()
-	mock.calls.CreateDataPlaneForOrganization = append(mock.calls.CreateDataPlaneForOrganization, callInfo)
-	mock.lockCreateDataPlaneForOrganization.Unlock()
-	return mock.CreateDataPlaneForOrganizationFunc(ctx, orgName, dataPlaneName)
-}
-
-// CreateDataPlaneForOrganizationCalls gets all the calls that were made to CreateDataPlaneForOrganization.
-// Check the length with:
-//
-//	len(mockedOpenChoreoSvcClient.CreateDataPlaneForOrganizationCalls())
-func (mock *OpenChoreoSvcClientMock) CreateDataPlaneForOrganizationCalls() []struct {
-	Ctx           context.Context
-	OrgName       string
-	DataPlaneName string
-} {
-	var calls []struct {
-		Ctx           context.Context
-		OrgName       string
-		DataPlaneName string
-	}
-	mock.lockCreateDataPlaneForOrganization.RLock()
-	calls = mock.calls.CreateDataPlaneForOrganization
-	mock.lockCreateDataPlaneForOrganization.RUnlock()
-	return calls
-}
-
-// CreateDeploymentPipeline calls CreateDeploymentPipelineFunc.
-func (mock *OpenChoreoSvcClientMock) CreateDeploymentPipeline(ctx context.Context, orgName string, pipelineName string, promotionPaths []models.PromotionPath) error {
-	if mock.CreateDeploymentPipelineFunc == nil {
-		panic("OpenChoreoSvcClientMock.CreateDeploymentPipelineFunc: method is nil but OpenChoreoSvcClient.CreateDeploymentPipeline was just called")
-	}
-	callInfo := struct {
-		Ctx            context.Context
-		OrgName        string
-		PipelineName   string
-		PromotionPaths []models.PromotionPath
-	}{
-		Ctx:            ctx,
-		OrgName:        orgName,
-		PipelineName:   pipelineName,
-		PromotionPaths: promotionPaths,
-	}
-	mock.lockCreateDeploymentPipeline.Lock()
-	mock.calls.CreateDeploymentPipeline = append(mock.calls.CreateDeploymentPipeline, callInfo)
-	mock.lockCreateDeploymentPipeline.Unlock()
-	return mock.CreateDeploymentPipelineFunc(ctx, orgName, pipelineName, promotionPaths)
-}
-
-// CreateDeploymentPipelineCalls gets all the calls that were made to CreateDeploymentPipeline.
-// Check the length with:
-//
-//	len(mockedOpenChoreoSvcClient.CreateDeploymentPipelineCalls())
-func (mock *OpenChoreoSvcClientMock) CreateDeploymentPipelineCalls() []struct {
-	Ctx            context.Context
-	OrgName        string
-	PipelineName   string
-	PromotionPaths []models.PromotionPath
-} {
-	var calls []struct {
-		Ctx            context.Context
-		OrgName        string
-		PipelineName   string
-		PromotionPaths []models.PromotionPath
-	}
-	mock.lockCreateDeploymentPipeline.RLock()
-	calls = mock.calls.CreateDeploymentPipeline
-	mock.lockCreateDeploymentPipeline.RUnlock()
-	return calls
-}
-
-// CreateEnvironments calls CreateEnvironmentsFunc.
-func (mock *OpenChoreoSvcClientMock) CreateEnvironments(ctx context.Context, orgName string, environmentName string, envDisplayName string, dataplaneName string, isProduction bool, dnsPrefix string) error {
-	if mock.CreateEnvironmentsFunc == nil {
-		panic("OpenChoreoSvcClientMock.CreateEnvironmentsFunc: method is nil but OpenChoreoSvcClient.CreateEnvironments was just called")
-	}
-	callInfo := struct {
-		Ctx             context.Context
-		OrgName         string
-		EnvironmentName string
-		EnvDisplayName  string
-		DataplaneName   string
-		IsProduction    bool
-		DnsPrefix       string
-	}{
-		Ctx:             ctx,
-		OrgName:         orgName,
-		EnvironmentName: environmentName,
-		EnvDisplayName:  envDisplayName,
-		DataplaneName:   dataplaneName,
-		IsProduction:    isProduction,
-		DnsPrefix:       dnsPrefix,
-	}
-	mock.lockCreateEnvironments.Lock()
-	mock.calls.CreateEnvironments = append(mock.calls.CreateEnvironments, callInfo)
-	mock.lockCreateEnvironments.Unlock()
-	return mock.CreateEnvironmentsFunc(ctx, orgName, environmentName, envDisplayName, dataplaneName, isProduction, dnsPrefix)
-}
-
-// CreateEnvironmentsCalls gets all the calls that were made to CreateEnvironments.
-// Check the length with:
-//
-//	len(mockedOpenChoreoSvcClient.CreateEnvironmentsCalls())
-func (mock *OpenChoreoSvcClientMock) CreateEnvironmentsCalls() []struct {
-	Ctx             context.Context
-	OrgName         string
-	EnvironmentName string
-	EnvDisplayName  string
-	DataplaneName   string
-	IsProduction    bool
-	DnsPrefix       string
-} {
-	var calls []struct {
-		Ctx             context.Context
-		OrgName         string
-		EnvironmentName string
-		EnvDisplayName  string
-		DataplaneName   string
-		IsProduction    bool
-		DnsPrefix       string
-	}
-	mock.lockCreateEnvironments.RLock()
-	calls = mock.calls.CreateEnvironments
-	mock.lockCreateEnvironments.RUnlock()
-	return calls
-}
-
-// CreateNamespaceForOrganization calls CreateNamespaceForOrganizationFunc.
-func (mock *OpenChoreoSvcClientMock) CreateNamespaceForOrganization(ctx context.Context, orgName string) error {
-	if mock.CreateNamespaceForOrganizationFunc == nil {
-		panic("OpenChoreoSvcClientMock.CreateNamespaceForOrganizationFunc: method is nil but OpenChoreoSvcClient.CreateNamespaceForOrganization was just called")
-	}
-	callInfo := struct {
-		Ctx     context.Context
-		OrgName string
-	}{
-		Ctx:     ctx,
-		OrgName: orgName,
-	}
-	mock.lockCreateNamespaceForOrganization.Lock()
-	mock.calls.CreateNamespaceForOrganization = append(mock.calls.CreateNamespaceForOrganization, callInfo)
-	mock.lockCreateNamespaceForOrganization.Unlock()
-	return mock.CreateNamespaceForOrganizationFunc(ctx, orgName)
-}
-
-// CreateNamespaceForOrganizationCalls gets all the calls that were made to CreateNamespaceForOrganization.
-// Check the length with:
-//
-//	len(mockedOpenChoreoSvcClient.CreateNamespaceForOrganizationCalls())
-func (mock *OpenChoreoSvcClientMock) CreateNamespaceForOrganizationCalls() []struct {
-	Ctx     context.Context
-	OrgName string
-} {
-	var calls []struct {
-		Ctx     context.Context
-		OrgName string
-	}
-	mock.lockCreateNamespaceForOrganization.RLock()
-	calls = mock.calls.CreateNamespaceForOrganization
-	mock.lockCreateNamespaceForOrganization.RUnlock()
-	return calls
-}
-
-// CreateObservabilityEnabledServiceClassForPython calls CreateObservabilityEnabledServiceClassForPythonFunc.
-func (mock *OpenChoreoSvcClientMock) CreateObservabilityEnabledServiceClassForPython(ctx context.Context, orgName string, serviceClassName string) error {
-	if mock.CreateObservabilityEnabledServiceClassForPythonFunc == nil {
-		panic("OpenChoreoSvcClientMock.CreateObservabilityEnabledServiceClassForPythonFunc: method is nil but OpenChoreoSvcClient.CreateObservabilityEnabledServiceClassForPython was just called")
-	}
-	callInfo := struct {
-		Ctx              context.Context
-		OrgName          string
-		ServiceClassName string
-	}{
-		Ctx:              ctx,
-		OrgName:          orgName,
-		ServiceClassName: serviceClassName,
-	}
-	mock.lockCreateObservabilityEnabledServiceClassForPython.Lock()
-	mock.calls.CreateObservabilityEnabledServiceClassForPython = append(mock.calls.CreateObservabilityEnabledServiceClassForPython, callInfo)
-	mock.lockCreateObservabilityEnabledServiceClassForPython.Unlock()
-	return mock.CreateObservabilityEnabledServiceClassForPythonFunc(ctx, orgName, serviceClassName)
-}
-
-// CreateObservabilityEnabledServiceClassForPythonCalls gets all the calls that were made to CreateObservabilityEnabledServiceClassForPython.
-// Check the length with:
-//
-//	len(mockedOpenChoreoSvcClient.CreateObservabilityEnabledServiceClassForPythonCalls())
-func (mock *OpenChoreoSvcClientMock) CreateObservabilityEnabledServiceClassForPythonCalls() []struct {
-	Ctx              context.Context
-	OrgName          string
-	ServiceClassName string
-} {
-	var calls []struct {
-		Ctx              context.Context
-		OrgName          string
-		ServiceClassName string
-	}
-	mock.lockCreateObservabilityEnabledServiceClassForPython.RLock()
-	calls = mock.calls.CreateObservabilityEnabledServiceClassForPython
-	mock.lockCreateObservabilityEnabledServiceClassForPython.RUnlock()
-	return calls
-}
-
-// CreateOrganization calls CreateOrganizationFunc.
-func (mock *OpenChoreoSvcClientMock) CreateOrganization(ctx context.Context, namespaceName string, orgName string, orgDisplayName string) error {
-	if mock.CreateOrganizationFunc == nil {
-		panic("OpenChoreoSvcClientMock.CreateOrganizationFunc: method is nil but OpenChoreoSvcClient.CreateOrganization was just called")
-	}
-	callInfo := struct {
-		Ctx            context.Context
-		NamespaceName  string
-		OrgName        string
-		OrgDisplayName string
-	}{
-		Ctx:            ctx,
-		NamespaceName:  namespaceName,
-		OrgName:        orgName,
-		OrgDisplayName: orgDisplayName,
-	}
-	mock.lockCreateOrganization.Lock()
-	mock.calls.CreateOrganization = append(mock.calls.CreateOrganization, callInfo)
-	mock.lockCreateOrganization.Unlock()
-	return mock.CreateOrganizationFunc(ctx, namespaceName, orgName, orgDisplayName)
-}
-
-// CreateOrganizationCalls gets all the calls that were made to CreateOrganization.
-// Check the length with:
-//
-//	len(mockedOpenChoreoSvcClient.CreateOrganizationCalls())
-func (mock *OpenChoreoSvcClientMock) CreateOrganizationCalls() []struct {
-	Ctx            context.Context
-	NamespaceName  string
-	OrgName        string
-	OrgDisplayName string
-} {
-	var calls []struct {
-		Ctx            context.Context
-		NamespaceName  string
-		OrgName        string
-		OrgDisplayName string
-	}
-	mock.lockCreateOrganization.RLock()
-	calls = mock.calls.CreateOrganization
-	mock.lockCreateOrganization.RUnlock()
-	return calls
-}
-
 // CreateProject calls CreateProjectFunc.
-func (mock *OpenChoreoSvcClientMock) CreateProject(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string) error {
+func (mock *OpenChoreoSvcClientMock) CreateProject(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string, projectDescription string) error {
 	if mock.CreateProjectFunc == nil {
 		panic("OpenChoreoSvcClientMock.CreateProjectFunc: method is nil but OpenChoreoSvcClient.CreateProject was just called")
 	}
@@ -1033,17 +451,19 @@ func (mock *OpenChoreoSvcClientMock) CreateProject(ctx context.Context, orgName 
 		ProjectName           string
 		DeploymentPipelineRef string
 		ProjectDisplayName    string
+		ProjectDescription    string
 	}{
 		Ctx:                   ctx,
 		OrgName:               orgName,
 		ProjectName:           projectName,
 		DeploymentPipelineRef: deploymentPipelineRef,
 		ProjectDisplayName:    projectDisplayName,
+		ProjectDescription:    projectDescription,
 	}
 	mock.lockCreateProject.Lock()
 	mock.calls.CreateProject = append(mock.calls.CreateProject, callInfo)
 	mock.lockCreateProject.Unlock()
-	return mock.CreateProjectFunc(ctx, orgName, projectName, deploymentPipelineRef, projectDisplayName)
+	return mock.CreateProjectFunc(ctx, orgName, projectName, deploymentPipelineRef, projectDisplayName, projectDescription)
 }
 
 // CreateProjectCalls gets all the calls that were made to CreateProject.
@@ -1056,6 +476,7 @@ func (mock *OpenChoreoSvcClientMock) CreateProjectCalls() []struct {
 	ProjectName           string
 	DeploymentPipelineRef string
 	ProjectDisplayName    string
+	ProjectDescription    string
 } {
 	var calls []struct {
 		Ctx                   context.Context
@@ -1063,6 +484,7 @@ func (mock *OpenChoreoSvcClientMock) CreateProjectCalls() []struct {
 		ProjectName           string
 		DeploymentPipelineRef string
 		ProjectDisplayName    string
+		ProjectDescription    string
 	}
 	mock.lockCreateProject.RLock()
 	calls = mock.calls.CreateProject
@@ -1155,7 +577,7 @@ func (mock *OpenChoreoSvcClientMock) DeleteProjectCalls() []struct {
 }
 
 // DeployAgentComponent calls DeployAgentComponentFunc.
-func (mock *OpenChoreoSvcClientMock) DeployAgentComponent(ctx context.Context, orgName string, projName string, componentName string, language string, req *spec.DeployAgentRequest) error {
+func (mock *OpenChoreoSvcClientMock) DeployAgentComponent(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error {
 	if mock.DeployAgentComponentFunc == nil {
 		panic("OpenChoreoSvcClientMock.DeployAgentComponentFunc: method is nil but OpenChoreoSvcClient.DeployAgentComponent was just called")
 	}
@@ -1164,20 +586,18 @@ func (mock *OpenChoreoSvcClientMock) DeployAgentComponent(ctx context.Context, o
 		OrgName       string
 		ProjName      string
 		ComponentName string
-		Language      string
 		Req           *spec.DeployAgentRequest
 	}{
 		Ctx:           ctx,
 		OrgName:       orgName,
 		ProjName:      projName,
 		ComponentName: componentName,
-		Language:      language,
 		Req:           req,
 	}
 	mock.lockDeployAgentComponent.Lock()
 	mock.calls.DeployAgentComponent = append(mock.calls.DeployAgentComponent, callInfo)
 	mock.lockDeployAgentComponent.Unlock()
-	return mock.DeployAgentComponentFunc(ctx, orgName, projName, componentName, language, req)
+	return mock.DeployAgentComponentFunc(ctx, orgName, projName, componentName, req)
 }
 
 // DeployAgentComponentCalls gets all the calls that were made to DeployAgentComponent.
@@ -1189,7 +609,6 @@ func (mock *OpenChoreoSvcClientMock) DeployAgentComponentCalls() []struct {
 	OrgName       string
 	ProjName      string
 	ComponentName string
-	Language      string
 	Req           *spec.DeployAgentRequest
 } {
 	var calls []struct {
@@ -1197,108 +616,11 @@ func (mock *OpenChoreoSvcClientMock) DeployAgentComponentCalls() []struct {
 		OrgName       string
 		ProjName      string
 		ComponentName string
-		Language      string
 		Req           *spec.DeployAgentRequest
 	}
 	mock.lockDeployAgentComponent.RLock()
 	calls = mock.calls.DeployAgentComponent
 	mock.lockDeployAgentComponent.RUnlock()
-	return calls
-}
-
-// DeployBuiltImage calls DeployBuiltImageFunc.
-func (mock *OpenChoreoSvcClientMock) DeployBuiltImage(ctx context.Context, orgName string, projName string, componentName string, imageId string) error {
-	if mock.DeployBuiltImageFunc == nil {
-		panic("OpenChoreoSvcClientMock.DeployBuiltImageFunc: method is nil but OpenChoreoSvcClient.DeployBuiltImage was just called")
-	}
-	callInfo := struct {
-		Ctx           context.Context
-		OrgName       string
-		ProjName      string
-		ComponentName string
-		ImageId       string
-	}{
-		Ctx:           ctx,
-		OrgName:       orgName,
-		ProjName:      projName,
-		ComponentName: componentName,
-		ImageId:       imageId,
-	}
-	mock.lockDeployBuiltImage.Lock()
-	mock.calls.DeployBuiltImage = append(mock.calls.DeployBuiltImage, callInfo)
-	mock.lockDeployBuiltImage.Unlock()
-	return mock.DeployBuiltImageFunc(ctx, orgName, projName, componentName, imageId)
-}
-
-// DeployBuiltImageCalls gets all the calls that were made to DeployBuiltImage.
-// Check the length with:
-//
-//	len(mockedOpenChoreoSvcClient.DeployBuiltImageCalls())
-func (mock *OpenChoreoSvcClientMock) DeployBuiltImageCalls() []struct {
-	Ctx           context.Context
-	OrgName       string
-	ProjName      string
-	ComponentName string
-	ImageId       string
-} {
-	var calls []struct {
-		Ctx           context.Context
-		OrgName       string
-		ProjName      string
-		ComponentName string
-		ImageId       string
-	}
-	mock.lockDeployBuiltImage.RLock()
-	calls = mock.calls.DeployBuiltImage
-	mock.lockDeployBuiltImage.RUnlock()
-	return calls
-}
-
-// GetAgentBuild calls GetAgentBuildFunc.
-func (mock *OpenChoreoSvcClientMock) GetAgentBuild(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
-	if mock.GetAgentBuildFunc == nil {
-		panic("OpenChoreoSvcClientMock.GetAgentBuildFunc: method is nil but OpenChoreoSvcClient.GetAgentBuild was just called")
-	}
-	callInfo := struct {
-		Ctx           context.Context
-		OrgName       string
-		ProjName      string
-		ComponentName string
-		BuildName     string
-	}{
-		Ctx:           ctx,
-		OrgName:       orgName,
-		ProjName:      projName,
-		ComponentName: componentName,
-		BuildName:     buildName,
-	}
-	mock.lockGetAgentBuild.Lock()
-	mock.calls.GetAgentBuild = append(mock.calls.GetAgentBuild, callInfo)
-	mock.lockGetAgentBuild.Unlock()
-	return mock.GetAgentBuildFunc(ctx, orgName, projName, componentName, buildName)
-}
-
-// GetAgentBuildCalls gets all the calls that were made to GetAgentBuild.
-// Check the length with:
-//
-//	len(mockedOpenChoreoSvcClient.GetAgentBuildCalls())
-func (mock *OpenChoreoSvcClientMock) GetAgentBuildCalls() []struct {
-	Ctx           context.Context
-	OrgName       string
-	ProjName      string
-	ComponentName string
-	BuildName     string
-} {
-	var calls []struct {
-		Ctx           context.Context
-		OrgName       string
-		ProjName      string
-		ComponentName string
-		BuildName     string
-	}
-	mock.lockGetAgentBuild.RLock()
-	calls = mock.calls.GetAgentBuild
-	mock.lockGetAgentBuild.RUnlock()
 	return calls
 }
 
@@ -1490,6 +812,90 @@ func (mock *OpenChoreoSvcClientMock) GetAgentEndpointsCalls() []struct {
 	return calls
 }
 
+// GetComponentWorkflow calls GetComponentWorkflowFunc.
+func (mock *OpenChoreoSvcClientMock) GetComponentWorkflow(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
+	if mock.GetComponentWorkflowFunc == nil {
+		panic("OpenChoreoSvcClientMock.GetComponentWorkflowFunc: method is nil but OpenChoreoSvcClient.GetComponentWorkflow was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OrgName       string
+		ProjName      string
+		ComponentName string
+		BuildName     string
+	}{
+		Ctx:           ctx,
+		OrgName:       orgName,
+		ProjName:      projName,
+		ComponentName: componentName,
+		BuildName:     buildName,
+	}
+	mock.lockGetComponentWorkflow.Lock()
+	mock.calls.GetComponentWorkflow = append(mock.calls.GetComponentWorkflow, callInfo)
+	mock.lockGetComponentWorkflow.Unlock()
+	return mock.GetComponentWorkflowFunc(ctx, orgName, projName, componentName, buildName)
+}
+
+// GetComponentWorkflowCalls gets all the calls that were made to GetComponentWorkflow.
+// Check the length with:
+//
+//	len(mockedOpenChoreoSvcClient.GetComponentWorkflowCalls())
+func (mock *OpenChoreoSvcClientMock) GetComponentWorkflowCalls() []struct {
+	Ctx           context.Context
+	OrgName       string
+	ProjName      string
+	ComponentName string
+	BuildName     string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OrgName       string
+		ProjName      string
+		ComponentName string
+		BuildName     string
+	}
+	mock.lockGetComponentWorkflow.RLock()
+	calls = mock.calls.GetComponentWorkflow
+	mock.lockGetComponentWorkflow.RUnlock()
+	return calls
+}
+
+// GetDataplanesForOrganization calls GetDataplanesForOrganizationFunc.
+func (mock *OpenChoreoSvcClientMock) GetDataplanesForOrganization(ctx context.Context, orgName string) ([]*models.DataPlaneResponse, error) {
+	if mock.GetDataplanesForOrganizationFunc == nil {
+		panic("OpenChoreoSvcClientMock.GetDataplanesForOrganizationFunc: method is nil but OpenChoreoSvcClient.GetDataplanesForOrganization was just called")
+	}
+	callInfo := struct {
+		Ctx     context.Context
+		OrgName string
+	}{
+		Ctx:     ctx,
+		OrgName: orgName,
+	}
+	mock.lockGetDataplanesForOrganization.Lock()
+	mock.calls.GetDataplanesForOrganization = append(mock.calls.GetDataplanesForOrganization, callInfo)
+	mock.lockGetDataplanesForOrganization.Unlock()
+	return mock.GetDataplanesForOrganizationFunc(ctx, orgName)
+}
+
+// GetDataplanesForOrganizationCalls gets all the calls that were made to GetDataplanesForOrganization.
+// Check the length with:
+//
+//	len(mockedOpenChoreoSvcClient.GetDataplanesForOrganizationCalls())
+func (mock *OpenChoreoSvcClientMock) GetDataplanesForOrganizationCalls() []struct {
+	Ctx     context.Context
+	OrgName string
+} {
+	var calls []struct {
+		Ctx     context.Context
+		OrgName string
+	}
+	mock.lockGetDataplanesForOrganization.RLock()
+	calls = mock.calls.GetDataplanesForOrganization
+	mock.lockGetDataplanesForOrganization.RUnlock()
+	return calls
+}
+
 // GetDeploymentPipeline calls GetDeploymentPipelineFunc.
 func (mock *OpenChoreoSvcClientMock) GetDeploymentPipeline(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error) {
 	if mock.GetDeploymentPipelineFunc == nil {
@@ -1603,42 +1009,6 @@ func (mock *OpenChoreoSvcClientMock) GetEnvironmentCalls() []struct {
 	mock.lockGetEnvironment.RLock()
 	calls = mock.calls.GetEnvironment
 	mock.lockGetEnvironment.RUnlock()
-	return calls
-}
-
-// GetOrgEnvironments calls GetOrgEnvironmentsFunc.
-func (mock *OpenChoreoSvcClientMock) GetOrgEnvironments(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error) {
-	if mock.GetOrgEnvironmentsFunc == nil {
-		panic("OpenChoreoSvcClientMock.GetOrgEnvironmentsFunc: method is nil but OpenChoreoSvcClient.GetOrgEnvironments was just called")
-	}
-	callInfo := struct {
-		Ctx     context.Context
-		OrgName string
-	}{
-		Ctx:     ctx,
-		OrgName: orgName,
-	}
-	mock.lockGetOrgEnvironments.Lock()
-	mock.calls.GetOrgEnvironments = append(mock.calls.GetOrgEnvironments, callInfo)
-	mock.lockGetOrgEnvironments.Unlock()
-	return mock.GetOrgEnvironmentsFunc(ctx, orgName)
-}
-
-// GetOrgEnvironmentsCalls gets all the calls that were made to GetOrgEnvironments.
-// Check the length with:
-//
-//	len(mockedOpenChoreoSvcClient.GetOrgEnvironmentsCalls())
-func (mock *OpenChoreoSvcClientMock) GetOrgEnvironmentsCalls() []struct {
-	Ctx     context.Context
-	OrgName string
-} {
-	var calls []struct {
-		Ctx     context.Context
-		OrgName string
-	}
-	mock.lockGetOrgEnvironments.RLock()
-	calls = mock.calls.GetOrgEnvironments
-	mock.lockGetOrgEnvironments.RUnlock()
 	return calls
 }
 
@@ -1762,10 +1132,10 @@ func (mock *OpenChoreoSvcClientMock) IsAgentComponentExistsCalls() []struct {
 	return calls
 }
 
-// ListAgentBuilds calls ListAgentBuildsFunc.
-func (mock *OpenChoreoSvcClientMock) ListAgentBuilds(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error) {
-	if mock.ListAgentBuildsFunc == nil {
-		panic("OpenChoreoSvcClientMock.ListAgentBuildsFunc: method is nil but OpenChoreoSvcClient.ListAgentBuilds was just called")
+// ListComponentWorkflows calls ListComponentWorkflowsFunc.
+func (mock *OpenChoreoSvcClientMock) ListComponentWorkflows(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error) {
+	if mock.ListComponentWorkflowsFunc == nil {
+		panic("OpenChoreoSvcClientMock.ListComponentWorkflowsFunc: method is nil but OpenChoreoSvcClient.ListComponentWorkflows was just called")
 	}
 	callInfo := struct {
 		Ctx           context.Context
@@ -1778,17 +1148,17 @@ func (mock *OpenChoreoSvcClientMock) ListAgentBuilds(ctx context.Context, orgNam
 		ProjName:      projName,
 		ComponentName: componentName,
 	}
-	mock.lockListAgentBuilds.Lock()
-	mock.calls.ListAgentBuilds = append(mock.calls.ListAgentBuilds, callInfo)
-	mock.lockListAgentBuilds.Unlock()
-	return mock.ListAgentBuildsFunc(ctx, orgName, projName, componentName)
+	mock.lockListComponentWorkflows.Lock()
+	mock.calls.ListComponentWorkflows = append(mock.calls.ListComponentWorkflows, callInfo)
+	mock.lockListComponentWorkflows.Unlock()
+	return mock.ListComponentWorkflowsFunc(ctx, orgName, projName, componentName)
 }
 
-// ListAgentBuildsCalls gets all the calls that were made to ListAgentBuilds.
+// ListComponentWorkflowsCalls gets all the calls that were made to ListComponentWorkflows.
 // Check the length with:
 //
-//	len(mockedOpenChoreoSvcClient.ListAgentBuildsCalls())
-func (mock *OpenChoreoSvcClientMock) ListAgentBuildsCalls() []struct {
+//	len(mockedOpenChoreoSvcClient.ListComponentWorkflowsCalls())
+func (mock *OpenChoreoSvcClientMock) ListComponentWorkflowsCalls() []struct {
 	Ctx           context.Context
 	OrgName       string
 	ProjName      string
@@ -1800,81 +1170,45 @@ func (mock *OpenChoreoSvcClientMock) ListAgentBuildsCalls() []struct {
 		ProjName      string
 		ComponentName string
 	}
-	mock.lockListAgentBuilds.RLock()
-	calls = mock.calls.ListAgentBuilds
-	mock.lockListAgentBuilds.RUnlock()
+	mock.lockListComponentWorkflows.RLock()
+	calls = mock.calls.ListComponentWorkflows
+	mock.lockListComponentWorkflows.RUnlock()
 	return calls
 }
 
-// ListAgentComponents calls ListAgentComponentsFunc.
-func (mock *OpenChoreoSvcClientMock) ListAgentComponents(ctx context.Context, orgName string, projName string) ([]*openchoreosvc.AgentComponent, error) {
-	if mock.ListAgentComponentsFunc == nil {
-		panic("OpenChoreoSvcClientMock.ListAgentComponentsFunc: method is nil but OpenChoreoSvcClient.ListAgentComponents was just called")
+// ListOrgEnvironments calls ListOrgEnvironmentsFunc.
+func (mock *OpenChoreoSvcClientMock) ListOrgEnvironments(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error) {
+	if mock.ListOrgEnvironmentsFunc == nil {
+		panic("OpenChoreoSvcClientMock.ListOrgEnvironmentsFunc: method is nil but OpenChoreoSvcClient.ListOrgEnvironments was just called")
 	}
 	callInfo := struct {
-		Ctx      context.Context
-		OrgName  string
-		ProjName string
+		Ctx     context.Context
+		OrgName string
 	}{
-		Ctx:      ctx,
-		OrgName:  orgName,
-		ProjName: projName,
+		Ctx:     ctx,
+		OrgName: orgName,
 	}
-	mock.lockListAgentComponents.Lock()
-	mock.calls.ListAgentComponents = append(mock.calls.ListAgentComponents, callInfo)
-	mock.lockListAgentComponents.Unlock()
-	return mock.ListAgentComponentsFunc(ctx, orgName, projName)
+	mock.lockListOrgEnvironments.Lock()
+	mock.calls.ListOrgEnvironments = append(mock.calls.ListOrgEnvironments, callInfo)
+	mock.lockListOrgEnvironments.Unlock()
+	return mock.ListOrgEnvironmentsFunc(ctx, orgName)
 }
 
-// ListAgentComponentsCalls gets all the calls that were made to ListAgentComponents.
+// ListOrgEnvironmentsCalls gets all the calls that were made to ListOrgEnvironments.
 // Check the length with:
 //
-//	len(mockedOpenChoreoSvcClient.ListAgentComponentsCalls())
-func (mock *OpenChoreoSvcClientMock) ListAgentComponentsCalls() []struct {
-	Ctx      context.Context
-	OrgName  string
-	ProjName string
+//	len(mockedOpenChoreoSvcClient.ListOrgEnvironmentsCalls())
+func (mock *OpenChoreoSvcClientMock) ListOrgEnvironmentsCalls() []struct {
+	Ctx     context.Context
+	OrgName string
 } {
 	var calls []struct {
-		Ctx      context.Context
-		OrgName  string
-		ProjName string
+		Ctx     context.Context
+		OrgName string
 	}
-	mock.lockListAgentComponents.RLock()
-	calls = mock.calls.ListAgentComponents
-	mock.lockListAgentComponents.RUnlock()
-	return calls
-}
-
-// ListOrganizations calls ListOrganizationsFunc.
-func (mock *OpenChoreoSvcClientMock) ListOrganizations(ctx context.Context) ([]*models.OrganizationResponse, error) {
-	if mock.ListOrganizationsFunc == nil {
-		panic("OpenChoreoSvcClientMock.ListOrganizationsFunc: method is nil but OpenChoreoSvcClient.ListOrganizations was just called")
-	}
-	callInfo := struct {
-		Ctx context.Context
-	}{
-		Ctx: ctx,
-	}
-	mock.lockListOrganizations.Lock()
-	mock.calls.ListOrganizations = append(mock.calls.ListOrganizations, callInfo)
-	mock.lockListOrganizations.Unlock()
-	return mock.ListOrganizationsFunc(ctx)
-}
-
-// ListOrganizationsCalls gets all the calls that were made to ListOrganizations.
-// Check the length with:
-//
-//	len(mockedOpenChoreoSvcClient.ListOrganizationsCalls())
-func (mock *OpenChoreoSvcClientMock) ListOrganizationsCalls() []struct {
-	Ctx context.Context
-} {
-	var calls []struct {
-		Ctx context.Context
-	}
-	mock.lockListOrganizations.RLock()
-	calls = mock.calls.ListOrganizations
-	mock.lockListOrganizations.RUnlock()
+	mock.lockListOrgEnvironments.RLock()
+	calls = mock.calls.ListOrgEnvironments
+	mock.lockListOrgEnvironments.RUnlock()
 	return calls
 }
 
@@ -1911,54 +1245,6 @@ func (mock *OpenChoreoSvcClientMock) ListProjectsCalls() []struct {
 	mock.lockListProjects.RLock()
 	calls = mock.calls.ListProjects
 	mock.lockListProjects.RUnlock()
-	return calls
-}
-
-// SetupDeployment calls SetupDeploymentFunc.
-func (mock *OpenChoreoSvcClientMock) SetupDeployment(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest, envVars []spec.EnvironmentVariable) error {
-	if mock.SetupDeploymentFunc == nil {
-		panic("OpenChoreoSvcClientMock.SetupDeploymentFunc: method is nil but OpenChoreoSvcClient.SetupDeployment was just called")
-	}
-	callInfo := struct {
-		Ctx      context.Context
-		OrgName  string
-		ProjName string
-		Req      *spec.CreateAgentRequest
-		EnvVars  []spec.EnvironmentVariable
-	}{
-		Ctx:      ctx,
-		OrgName:  orgName,
-		ProjName: projName,
-		Req:      req,
-		EnvVars:  envVars,
-	}
-	mock.lockSetupDeployment.Lock()
-	mock.calls.SetupDeployment = append(mock.calls.SetupDeployment, callInfo)
-	mock.lockSetupDeployment.Unlock()
-	return mock.SetupDeploymentFunc(ctx, orgName, projName, req, envVars)
-}
-
-// SetupDeploymentCalls gets all the calls that were made to SetupDeployment.
-// Check the length with:
-//
-//	len(mockedOpenChoreoSvcClient.SetupDeploymentCalls())
-func (mock *OpenChoreoSvcClientMock) SetupDeploymentCalls() []struct {
-	Ctx      context.Context
-	OrgName  string
-	ProjName string
-	Req      *spec.CreateAgentRequest
-	EnvVars  []spec.EnvironmentVariable
-} {
-	var calls []struct {
-		Ctx      context.Context
-		OrgName  string
-		ProjName string
-		Req      *spec.CreateAgentRequest
-		EnvVars  []spec.EnvironmentVariable
-	}
-	mock.lockSetupDeployment.RLock()
-	calls = mock.calls.SetupDeployment
-	mock.lockSetupDeployment.RUnlock()
 	return calls
 }
 

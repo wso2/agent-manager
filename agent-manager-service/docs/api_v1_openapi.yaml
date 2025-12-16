@@ -1543,7 +1543,7 @@ components:
           description: Name of the environment
         dataplaneRef:
           type: string
-          description: Kubernetes namespace for the environment
+          description: Reference to the data plane for the environment
         displayName:
           type: string
           description: Human-readable display name

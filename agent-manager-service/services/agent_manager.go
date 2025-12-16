@@ -366,6 +366,10 @@ func (s *agentManagerService) saveAgentRecord(ctx context.Context, orgId uuid.UU
 
 // createOpenChoreoAgentComponent handles the creation of a managed agent
 func (s *agentManagerService) createOpenChoreoAgentComponent(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
+		_, err := s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
+	if err != nil {
+		return fmt.Errorf("failed to get oc project %s in org %s: %w", projectName, orgName, err)
+	}
 	// Create agent component in Open Choreo
 	if err := s.OpenChoreoSvcClient.CreateAgentComponent(ctx, orgName, projectName, req); err != nil {
 		return fmt.Errorf("failed to create agent component: agentName %s, error: %w", req.Name, err)
