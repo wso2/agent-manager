@@ -18,14 +18,17 @@
 
 import React from "react";
 import { AgentChat } from "./AgentTest/AgentChat";
-import { FadeIn, PageLayout } from "@agent-management-platform/views";
 import {
-  Box,
-  Tab,
-  Tabs,
-  Typography,
-} from "@wso2/oxygen-ui";
-import { ChevronsLeftRight, MessageCircle } from "@wso2/oxygen-ui-icons-react";
+  FadeIn,
+  NoDataFound,
+  PageLayout,
+} from "@agent-management-platform/views";
+import { Box, Tab, Tabs, Typography } from "@wso2/oxygen-ui";
+import {
+  ChevronsLeftRight,
+  MessageCircle,
+  Rocket,
+} from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
   Link,
@@ -40,6 +43,7 @@ import {
   relativeRouteMap,
 } from "@agent-management-platform/types";
 import { Swagger } from "./AgentTest/Swagger";
+import { useListAgentDeployments } from "@agent-management-platform/api-client";
 
 export const TestComponent: React.FC = () => {
   const { orgId, projectId, agentId, envId } = useParams<{
@@ -49,10 +53,31 @@ export const TestComponent: React.FC = () => {
     envId: string;
   }>();
 
+  const { data: deployments } =
+    useListAgentDeployments({
+      orgName: orgId ?? "",
+      projName: projectId ?? "",
+      agentName: agentId ?? "",
+    });
+  const currentDeployment = deployments?.[envId ?? ""];
+
   const isChatView = useMatch(
     absoluteRouteMap.children.org.children.projects.children.agents.children
       .environment.children.tryOut.children.chat.path
   );
+
+  if (currentDeployment?.status !== "active") {
+    return (
+      <Box height="50vh" display="flex" justifyContent="center" alignItems="center">
+        <NoDataFound
+          iconElement={Rocket}
+          disableBackground
+          message="Agent is not deployed"
+          subtitle="Deploy your agent to try it out. You can deploy your agent by clicking the deploy button in the deploy tab."
+        />
+      </Box>
+    );
+  }
 
   return (
     <FadeIn>
@@ -111,7 +136,7 @@ export const TestComponent: React.FC = () => {
                 relativeRouteMap.children.org.children.projects.children.agents
                   .children.environment.children.tryOut.children.api.path
               }
-              element={<Swagger/>}
+              element={<Swagger />}
             />
           </Route>
           <Route

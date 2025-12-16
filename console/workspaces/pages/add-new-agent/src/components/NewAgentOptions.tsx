@@ -36,7 +36,7 @@ export const NewAgentOptions = ({ onSelect }: NewAgentOptionsProps) => {
                 type="existing"
                 title="Externally-Hosted Agent"
                 subheader="Connect an existing agent running outside the platform and enable observability and governance."
-                icon={<img src={ImageList.EXTERNAL_AGENT} width={300} height={300} alt="External Agent" />}
+                icon={<img src={ImageList.EXTERNAL_AGENT} width={150} height={300} alt="External Agent" />}
                 onClick={handleSelect}
                 content={
                     <Box />
@@ -46,7 +46,7 @@ export const NewAgentOptions = ({ onSelect }: NewAgentOptionsProps) => {
                 type="new"
                 title="Platform-Hosted Agent"
                 subheader="Deploy and manage agents with full lifecycle support, including built-in CI/CD, scaling, observability, and governance."
-                icon={<img src={ImageList.INTERNAL_AGENT} width={300} height={300} alt="Internal Agent" />}
+                icon={<img src={ImageList.INTERNAL_AGENT} width={150} height={300} alt="Internal Agent" />}
                 onClick={handleSelect}
                 content={
                     <Box />
