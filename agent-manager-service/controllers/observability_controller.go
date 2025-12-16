@@ -20,7 +20,6 @@ import (
 	"net/http"
 	"strconv"
 
-	traceobserver "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/trace_observer"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
@@ -87,8 +86,8 @@ func (c *observabilityController) ListTraces(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Build parameters for the trace observer service
-	params := traceobserver.ListTracesParams{
+	// Build parameters for the service
+	params := services.ListTracesRequest{
 		ServiceName: agentName,
 		StartTime:   startTime,
 		EndTime:     endTime,
@@ -117,42 +116,10 @@ func (c *observabilityController) GetTrace(w http.ResponseWriter, r *http.Reques
 	agentName := r.PathValue(utils.PathParamAgentName)
 	traceID := r.PathValue(utils.PathParamTraceId)
 
-	// Validate traceId
-	if traceID == "" {
-		log.Error("GetTrace: traceId is required")
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "traceId path parameter is required")
-		return
-	}
-
-	// Optional query parameters
-	limitStr := r.URL.Query().Get("limit")
-	if limitStr == "" {
-		limitStr = "100"
-	}
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 {
-		log.Error("GetTrace: invalid limit parameter", "limit", limitStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be a positive integer")
-		return
-	}
-
-	sortOrder := r.URL.Query().Get("sortOrder")
-	if sortOrder == "" {
-		sortOrder = "desc"
-	}
-	if sortOrder != "asc" && sortOrder != "desc" {
-		log.Error("GetTrace: invalid sortOrder parameter", "sortOrder", sortOrder)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid sortOrder parameter: must be 'asc' or 'desc'")
-		return
-	}
-
-	// Build parameters for the trace observer service
-	params := traceobserver.TraceDetailsByIdParams{
+	// Build parameters for the service
+	params := services.TraceDetailsRequest{
 		TraceID:     traceID,
 		ServiceName: agentName,
-		SortOrder:   sortOrder,
-		Limit:       limit,
 	}
 
 	// Call the service

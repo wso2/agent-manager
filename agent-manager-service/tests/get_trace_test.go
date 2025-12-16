@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
-	traceobserver "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/trace_observer"
+	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/wiring"
@@ -38,9 +38,9 @@ import (
 
 func createMockTraceObserverClientWithDetails() *clientmocks.TraceObserverClientMock {
 	return &clientmocks.TraceObserverClientMock{
-		TraceDetailsByIdFunc: func(ctx context.Context, params traceobserver.TraceDetailsByIdParams) (*traceobserver.TraceResponse, error) {
-			return &traceobserver.TraceResponse{
-				Spans: []traceobserver.Span{
+		TraceDetailsByIdFunc: func(ctx context.Context, params traceobserversvc.TraceDetailsByIdParams) (*traceobserversvc.TraceResponse, error) {
+			return &traceobserversvc.TraceResponse{
+				Spans: []traceobserversvc.Span{
 					{
 						TraceID:         params.TraceID,
 						SpanID:          "span-1",
@@ -127,7 +127,7 @@ func TestGetTrace(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("response body: %s", string(b))
 
-		var response traceobserver.TraceResponse
+		var response traceobserversvc.TraceResponse
 		require.NoError(t, json.Unmarshal(b, &response))
 
 		// Validate response fields
@@ -160,92 +160,6 @@ func TestGetTrace(t *testing.T) {
 		traceDetailsCall := traceObserverClient.TraceDetailsByIdCalls()[0]
 		require.Equal(t, traceID, traceDetailsCall.Params.TraceID)
 		require.Equal(t, traceDetailsAgentName, traceDetailsCall.Params.ServiceName)
-		require.Equal(t, 100, traceDetailsCall.Params.Limit)        // default limit
-		require.Equal(t, "desc", traceDetailsCall.Params.SortOrder) // default sort order
-	})
-
-	t.Run("Getting trace details with custom limit should return 200", func(t *testing.T) {
-		traceObserverClient := createMockTraceObserverClientWithDetails()
-		openChoreoClient := createMockOpenChoreoClient()
-		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
-			TraceObserverClient: traceObserverClient,
-		}
-
-		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
-
-		// Send the request with custom limit
-		traceID := "trace-id-456"
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/trace/%s?limit=50&sortOrder=asc",
-			traceDetailsOrgName, traceDetailsProjName, traceDetailsAgentName, traceID)
-		req := httptest.NewRequest(http.MethodGet, url, nil)
-
-		rr := httptest.NewRecorder()
-		app.ServeHTTP(rr, req)
-
-		// Assert response
-		require.Equal(t, http.StatusOK, rr.Code)
-
-		// Validate service calls
-		require.Len(t, traceObserverClient.TraceDetailsByIdCalls(), 1)
-
-		// Validate call parameters
-		traceDetailsCall := traceObserverClient.TraceDetailsByIdCalls()[0]
-		require.Equal(t, traceID, traceDetailsCall.Params.TraceID)
-		require.Equal(t, traceDetailsAgentName, traceDetailsCall.Params.ServiceName)
-		require.Equal(t, 50, traceDetailsCall.Params.Limit)
-		require.Equal(t, "asc", traceDetailsCall.Params.SortOrder)
-	})
-
-	t.Run("Getting trace details with invalid limit should return 400", func(t *testing.T) {
-		traceObserverClient := createMockTraceObserverClientWithDetails()
-		openChoreoClient := createMockOpenChoreoClient()
-		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
-			TraceObserverClient: traceObserverClient,
-		}
-
-		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
-
-		// Send the request with invalid limit
-		traceID := "trace-id-789"
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/trace/%s?limit=invalid",
-			traceDetailsOrgName, traceDetailsProjName, traceDetailsAgentName, traceID)
-		req := httptest.NewRequest(http.MethodGet, url, nil)
-
-		rr := httptest.NewRecorder()
-		app.ServeHTTP(rr, req)
-
-		// Assert response
-		require.Equal(t, http.StatusBadRequest, rr.Code)
-
-		// Validate no service calls were made
-		require.Len(t, traceObserverClient.TraceDetailsByIdCalls(), 0)
-	})
-
-	t.Run("Getting trace details with invalid sortOrder should return 400", func(t *testing.T) {
-		traceObserverClient := createMockTraceObserverClientWithDetails()
-		openChoreoClient := createMockOpenChoreoClient()
-		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
-			TraceObserverClient: traceObserverClient,
-		}
-
-		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
-
-		// Send the request with invalid sortOrder
-		traceID := "trace-id-abc"
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/trace/%s?sortOrder=invalid",
-			traceDetailsOrgName, traceDetailsProjName, traceDetailsAgentName, traceID)
-		req := httptest.NewRequest(http.MethodGet, url, nil)
-
-		rr := httptest.NewRecorder()
-		app.ServeHTTP(rr, req)
-
-		// Assert response
-		require.Equal(t, http.StatusBadRequest, rr.Code)
-
-		// Validate no service calls were made
-		require.Len(t, traceObserverClient.TraceDetailsByIdCalls(), 0)
+		// Note: limit and sortOrder are hardcoded internally and not exposed as API parameters
 	})
 }

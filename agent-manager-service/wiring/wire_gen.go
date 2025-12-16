@@ -10,7 +10,7 @@ import (
 	"github.com/google/wire"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/trace_observer"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
@@ -40,7 +40,7 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
 	buildCIManagerService := services.NewBuildCIManager(openChoreoSvcClient, logger)
 	buildCIController := controllers.NewBuildCIController(buildCIManagerService)
-	traceObserverClient := traceobserver.NewTraceObserverClient()
+	traceObserverClient := traceobserversvc.NewTraceObserverClient()
 	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, logger)
 	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
 	appParams := &AppParams{
@@ -88,7 +88,7 @@ var configProviderSet = wire.NewSet(
 
 var repositoryProviderSet = wire.NewSet(repositories.NewOrganizationRepository, repositories.NewAgentRepository, repositories.NewProjectRepository, repositories.NewInternalAgentRepository)
 
-var clientProviderSet = wire.NewSet(openchoreosvc.NewOpenChoreoSvcClient, observabilitysvc.NewObservabilitySvcClient, traceobserver.NewTraceObserverClient)
+var clientProviderSet = wire.NewSet(openchoreosvc.NewOpenChoreoSvcClient, observabilitysvc.NewObservabilitySvcClient, traceobserversvc.NewTraceObserverClient)
 
 var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewBuildCIManager, services.NewInfraResourceManager, services.NewObservabilityManager)
 
@@ -120,6 +120,6 @@ func ProvideTestObservabilitySvcClient(testClients TestClients) observabilitysvc
 }
 
 // ProvideTestTraceObserverClient extracts the TraceObserverClient from TestClients
-func ProvideTestTraceObserverClient(testClients TestClients) traceobserver.TraceObserverClient {
+func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.TraceObserverClient {
 	return testClients.TraceObserverClient
 }

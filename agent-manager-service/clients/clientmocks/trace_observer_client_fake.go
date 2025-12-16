@@ -20,35 +20,35 @@ import (
 	"context"
 	"sync"
 
-	traceobserver "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/trace_observer"
+	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 )
 
 // Ensure TraceObserverClientMock implements TraceObserverClient interface
-var _ traceobserver.TraceObserverClient = (*TraceObserverClientMock)(nil)
+var _ traceobserversvc.TraceObserverClient = (*TraceObserverClientMock)(nil)
 
 type TraceObserverClientMock struct {
 	// ListTraces
-	ListTracesFunc  func(ctx context.Context, params traceobserver.ListTracesParams) (*traceobserver.TraceOverviewResponse, error)
+	ListTracesFunc  func(ctx context.Context, params traceobserversvc.ListTracesParams) (*traceobserversvc.TraceOverviewResponse, error)
 	listTracesMutex sync.RWMutex
 	listTracesCalls []struct {
 		Ctx    context.Context
-		Params traceobserver.ListTracesParams
+		Params traceobserversvc.ListTracesParams
 	}
 
 	// TraceDetailsById
-	TraceDetailsByIdFunc  func(ctx context.Context, params traceobserver.TraceDetailsByIdParams) (*traceobserver.TraceResponse, error)
+	TraceDetailsByIdFunc  func(ctx context.Context, params traceobserversvc.TraceDetailsByIdParams) (*traceobserversvc.TraceResponse, error)
 	traceDetailsByIdMutex sync.RWMutex
 	traceDetailsByIdCalls []struct {
 		Ctx    context.Context
-		Params traceobserver.TraceDetailsByIdParams
+		Params traceobserversvc.TraceDetailsByIdParams
 	}
 }
 
-func (m *TraceObserverClientMock) ListTraces(ctx context.Context, params traceobserver.ListTracesParams) (*traceobserver.TraceOverviewResponse, error) {
+func (m *TraceObserverClientMock) ListTraces(ctx context.Context, params traceobserversvc.ListTracesParams) (*traceobserversvc.TraceOverviewResponse, error) {
 	m.listTracesMutex.Lock()
 	m.listTracesCalls = append(m.listTracesCalls, struct {
 		Ctx    context.Context
-		Params traceobserver.ListTracesParams
+		Params traceobserversvc.ListTracesParams
 	}{
 		Ctx:    ctx,
 		Params: params,
@@ -59,23 +59,23 @@ func (m *TraceObserverClientMock) ListTraces(ctx context.Context, params traceob
 		return m.ListTracesFunc(ctx, params)
 	}
 
-	return &traceobserver.TraceOverviewResponse{}, nil
+	return &traceobserversvc.TraceOverviewResponse{}, nil
 }
 
 func (m *TraceObserverClientMock) ListTracesCalls() []struct {
 	Ctx    context.Context
-	Params traceobserver.ListTracesParams
+	Params traceobserversvc.ListTracesParams
 } {
 	m.listTracesMutex.RLock()
 	defer m.listTracesMutex.RUnlock()
 	return m.listTracesCalls
 }
 
-func (m *TraceObserverClientMock) TraceDetailsById(ctx context.Context, params traceobserver.TraceDetailsByIdParams) (*traceobserver.TraceResponse, error) {
+func (m *TraceObserverClientMock) TraceDetailsById(ctx context.Context, params traceobserversvc.TraceDetailsByIdParams) (*traceobserversvc.TraceResponse, error) {
 	m.traceDetailsByIdMutex.Lock()
 	m.traceDetailsByIdCalls = append(m.traceDetailsByIdCalls, struct {
 		Ctx    context.Context
-		Params traceobserver.TraceDetailsByIdParams
+		Params traceobserversvc.TraceDetailsByIdParams
 	}{
 		Ctx:    ctx,
 		Params: params,
@@ -86,12 +86,12 @@ func (m *TraceObserverClientMock) TraceDetailsById(ctx context.Context, params t
 		return m.TraceDetailsByIdFunc(ctx, params)
 	}
 
-	return &traceobserver.TraceResponse{}, nil
+	return &traceobserversvc.TraceResponse{}, nil
 }
 
 func (m *TraceObserverClientMock) TraceDetailsByIdCalls() []struct {
 	Ctx    context.Context
-	Params traceobserver.TraceDetailsByIdParams
+	Params traceobserversvc.TraceDetailsByIdParams
 } {
 	m.traceDetailsByIdMutex.RLock()
 	defer m.traceDetailsByIdMutex.RUnlock()

@@ -19,7 +19,7 @@ package wiring
 import (
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	clients "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
-	traceobserver "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/trace_observer"
+	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
@@ -37,7 +37,7 @@ type AppParams struct {
 type TestClients struct {
 	OpenChoreoSvcClient    clients.OpenChoreoSvcClient
 	ObservabilitySvcClient observabilitysvc.ObservabilitySvcClient
-	TraceObserverClient    traceobserver.TraceObserverClient
+	TraceObserverClient    traceobserversvc.TraceObserverClient
 }
 
 func ProvideConfigFromPtr(config *config.Config) config.Config {

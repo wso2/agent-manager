@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package traceobserver
+package traceobserversvc
 
 import (
 	"context"
@@ -46,63 +46,6 @@ func NewTraceObserverClient() TraceObserverClient {
 	return &traceObserverClient{
 		httpClient: httpClient,
 	}
-}
-
-// ListTracesParams holds parameters for listing trace overviews
-type ListTracesParams struct {
-	ServiceName string
-	StartTime   string
-	EndTime     string
-	Limit       int
-	Offset      int
-	SortOrder   string
-}
-
-// TraceDetailsByIdParams holds parameters for getting trace details by ID
-type TraceDetailsByIdParams struct {
-	TraceID     string
-	ServiceName string
-	SortOrder   string
-	Limit       int
-}
-
-// TraceOverview represents a single trace overview with root span info
-type TraceOverview struct {
-	TraceID         string `json:"traceId"`
-	RootSpanID      string `json:"rootSpanId"`
-	RootSpanName    string `json:"rootSpanName"`
-	StartTime       string `json:"startTime"`
-	EndTime         string `json:"endTime"`
-	DurationInNanos int64  `json:"durationInNanos"`
-	SpanCount       int    `json:"spanCount"`
-}
-
-// TraceOverviewResponse represents the response for trace overview queries
-type TraceOverviewResponse struct {
-	Traces     []TraceOverview `json:"traces"`
-	TotalCount int             `json:"totalCount"`
-}
-
-// Span represents a single trace span
-type Span struct {
-	TraceID         string                 `json:"traceId"`
-	SpanID          string                 `json:"spanId"`
-	ParentSpanID    string                 `json:"parentSpanId,omitempty"`
-	Name            string                 `json:"name"`
-	Service         string                 `json:"service"`
-	StartTime       time.Time              `json:"startTime"`
-	EndTime         time.Time              `json:"endTime,omitempty"`
-	DurationInNanos int64                  `json:"durationInNanos"`
-	Kind            string                 `json:"kind,omitempty"`
-	Status          string                 `json:"status,omitempty"`
-	Attributes      map[string]interface{} `json:"attributes,omitempty"`
-	Resource        map[string]interface{} `json:"resource,omitempty"`
-}
-
-// TraceResponse represents the response for trace queries
-type TraceResponse struct {
-	Spans      []Span `json:"spans"`
-	TotalCount int    `json:"totalCount"`
 }
 
 // ListTraces retrieves trace overviews from the traces-observer-service
@@ -156,13 +99,6 @@ func (c *traceObserverClient) TraceDetailsById(ctx context.Context, params Trace
 	queryParams := url.Values{}
 	queryParams.Set("traceId", params.TraceID)
 	queryParams.Set("serviceName", params.ServiceName)
-
-	if params.SortOrder != "" {
-		queryParams.Set("sortOrder", params.SortOrder)
-	}
-	if params.Limit > 0 {
-		queryParams.Set("limit", strconv.Itoa(params.Limit))
-	}
 
 	fullURL := fmt.Sprintf("%s?%s", traceURL, queryParams.Encode())
 

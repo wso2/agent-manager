@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
-	traceobserver "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/trace_observer"
+	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/wiring"
@@ -37,9 +37,9 @@ import (
 
 func createMockTraceObserverClient() *clientmocks.TraceObserverClientMock {
 	return &clientmocks.TraceObserverClientMock{
-		ListTracesFunc: func(ctx context.Context, params traceobserver.ListTracesParams) (*traceobserver.TraceOverviewResponse, error) {
-			return &traceobserver.TraceOverviewResponse{
-				Traces: []traceobserver.TraceOverview{
+		ListTracesFunc: func(ctx context.Context, params traceobserversvc.ListTracesParams) (*traceobserversvc.TraceOverviewResponse, error) {
+			return &traceobserversvc.TraceOverviewResponse{
+				Traces: []traceobserversvc.TraceOverview{
 					{
 						TraceID:         "trace-id-1",
 						RootSpanID:      "root-span-1",
@@ -103,7 +103,7 @@ func TestListTraces(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("response body: %s", string(b))
 
-		var response traceobserver.TraceOverviewResponse
+		var response traceobserversvc.TraceOverviewResponse
 		require.NoError(t, json.Unmarshal(b, &response))
 
 		// Validate response fields
