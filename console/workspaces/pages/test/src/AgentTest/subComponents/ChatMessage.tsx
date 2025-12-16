@@ -29,9 +29,9 @@ interface ChatMessageProps {
 export function ChatMessage({ role, content }: ChatMessageProps) {
   const { orgId, projectId, agentId } = useParams();
   const { data: agent } = useGetAgent({
-    orgName: orgId ?? "default",
-    projName: projectId ?? "default",
-    agentName: agentId ?? "default",
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
   });
 
   return (

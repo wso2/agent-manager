@@ -25,7 +25,7 @@ export const DeployComponent = () => {
   const { orgId } = useParams();
 
   const { data: environments } = useListEnvironments({
-    orgName: orgId ?? '',
+    orgName: orgId,
   });
   
 

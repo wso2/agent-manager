@@ -43,13 +43,13 @@ export function useNavigationItems(): Array<
 > {
   const { orgId, projectId, agentId, envId } = useParams();
   const { data: agent, isLoading: isLoadingAgent } = useGetAgent({
-    agentName: agentId ?? "",
-    orgName: orgId ?? "",
-    projName: projectId ?? "",
+    agentName: agentId,
+    orgName: orgId,
+    projName: projectId,
   });
   const { data: environments, isLoading: isLoadingEnvironments } =
     useListEnvironments({
-      orgName: orgId ?? "",
+      orgName: orgId,
     });
   const defaultEnv = envId ?? environments?.[0]?.name;
   const { pathname } = useLocation();

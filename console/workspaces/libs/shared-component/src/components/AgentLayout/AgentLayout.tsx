@@ -51,9 +51,9 @@ export interface AgentInfoPageLayoutProps {
 export function AgentInfoPageLayout({ children }: AgentInfoPageLayoutProps) {
   const { orgId, agentId, projectId } = useParams();
   const { data: agent, isLoading: isAgentLoading } = useGetAgent({
-    orgName: orgId ?? "default",
-    projName: projectId ?? "default",
-    agentName: agentId ?? "",
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
   });
   const isOverview = !!useMatch(
     absoluteRouteMap.children.org.children.projects.children.agents.path

@@ -65,6 +65,7 @@ export function useGetAgentBuilds(
   return useQuery<BuildsListResponse>({
     queryKey: ["agent-builds", params, query],
     queryFn: () => getAgentBuilds(params, query, getToken),
+    enabled: !!params.orgName && !!params.projName && !!params.agentName,
     refetchInterval: (queryState) => {
       // Check if any build is in progress
       const hasInProgressBuild =
@@ -93,6 +94,7 @@ export function useGetBuild(params: GetBuildPathParams) {
   return useQuery<BuildDetailsResponse>({
     queryKey: ["build", params],
     queryFn: () => getBuild(params, getToken),
+    enabled: !!params.orgName && !!params.projName && !!params.agentName && !!params.buildName,
     refetchInterval: (queryState) => {
       // Check if build is in progress
       const isBuildInProgress =
@@ -109,5 +111,6 @@ export function useGetBuildLogs(params: GetBuildLogsPathParams) {
   return useQuery<BuildLogEntry[]>({
     queryKey: ["build-logs", params],
     queryFn: () => getBuildLogs(params, getToken),
+    enabled: !!params.orgName && !!params.projName && !!params.agentName && !!params.buildName,
   });
 }

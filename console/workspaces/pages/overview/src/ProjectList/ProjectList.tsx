@@ -135,10 +135,10 @@ function ProjectCard(props: {
                 flexDirection="column"
                 alignItems="flex-start"
               >
-                <Typography variant="h5" noWrap textOverflow="ellipsis">
+                <Typography variant="h5" noWrap textOverflow="ellipsis" maxWidth="70%">
                   {project.displayName}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption">
                   {project.description ? project.description : "No description"}
                 </Typography>
               </Box>
@@ -213,7 +213,7 @@ export function ProjectList() {
     refetch: refetchProjects,
     isPending: isLoadingProjects,
   } = useListProjects({
-    orgName: orgId ?? "default",
+    orgName: orgId,
   });
   const { addConfirmation } = useConfirmationDialog();
   const { mutate: deleteProject, isPending: isDeletingProject } =
@@ -226,7 +226,7 @@ export function ProjectList() {
         description: `Are you sure you want to delete the project "${project.displayName}"? This action cannot be undone.`,
         onConfirm: () => {
           deleteProject({
-            orgName: orgId ?? "default",
+            orgName: orgId,
             projName: project.name,
           });
         },

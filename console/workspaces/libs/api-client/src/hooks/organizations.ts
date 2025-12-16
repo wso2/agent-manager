@@ -45,6 +45,7 @@ export function useGetOrganization(params: GetOrganizationPathParams) {
   return useQuery<OrganizationResponse>({
     queryKey: ['organization', params],
     queryFn: () => getOrganization(params, getToken),
+    enabled: !!params.orgName,
   });
 }
 

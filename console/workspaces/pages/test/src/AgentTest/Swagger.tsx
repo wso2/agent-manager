@@ -17,16 +17,15 @@ const disableAuthorizeAndInfoPluginCustomSecuritySchema = {
   wrapComponents: {
     info: () => (): any => null,
   },
-  
 };
 
 export function Swagger() {
   const { orgId, projectId, agentId, envId } = useParams();
   const { data, isLoading, error } = useGetAgentEndpoints(
     {
-      agentName: agentId ?? "",
-      orgName: orgId ?? "",
-      projName: projectId ?? "",
+      agentName: agentId,
+      orgName: orgId,
+      projName: projectId,
     },
     {
       environment: envId ?? "",
@@ -37,39 +36,43 @@ export function Swagger() {
   const requestInterceptor = useMemo(
     () => (req: any) => {
       const targetUrl = data?.[endpoint]?.url;
-      if (!targetUrl) return req;
-      try {
-        const incoming = new URL(req.url, window.location.origin);
-        const target = new URL(targetUrl);
-
-        const targetPath = target.pathname.replace(/\/+$/, "");
-        const incomingPath = incoming.pathname.replace(/^\/+/, "");
-        const mergedPath = [targetPath, incomingPath].filter(Boolean).join("/");
-
-        target.pathname = mergedPath.startsWith("/") ? mergedPath : `/${mergedPath}`;
-        target.search = incoming.search;
-        target.hash = incoming.hash;
-
-        req.url = target.toString();
-      } catch {
-        req.url = targetUrl;
+      if (!targetUrl) {
+        return req;
       }
+      const incoming = new URL(req.url, window.location.origin);
+      const target = new URL(targetUrl);
+
+      const targetPath = target.pathname.replace(/\/+$/, "");
+      const incomingPath = incoming.pathname.replace(/^\/+/, "");
+      const mergedPath = [targetPath, incomingPath].filter(Boolean).join("/");
+
+      target.pathname = mergedPath.startsWith("/")
+        ? mergedPath
+        : `/${mergedPath}`;
+      target.search = incoming.search;
+      target.hash = incoming.hash;
+      req.url = target.toString();
       return req;
     },
     [data, endpoint]
   );
 
-
   if (isLoading) {
     return <Skeleton variant="rounded" height={500} />;
   }
 
-  if (!data?.[endpoint]?.schema?.content) {
-    return <Alert severity="warning">No API schema available for this endpoint.</Alert>;
-  }
   if (error) {
     return <Alert severity="error">{error.message}</Alert>;
   }
+  
+  if (!data?.[endpoint]?.schema?.content) {
+    return (
+      <Alert severity="warning">
+        No API schema available for this endpoint.
+      </Alert>
+    );
+  }
+
   return (
     <Box sx={{ "& .swagger-ui .wrapper": { padding: 0 } }}>
       <SwaggerUI

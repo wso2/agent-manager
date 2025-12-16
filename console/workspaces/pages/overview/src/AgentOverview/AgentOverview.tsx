@@ -24,9 +24,9 @@ import { ExternalAgentOverview } from "./ExternalAgentOverview";
 export function AgentOverview() {
     const { orgId, agentId, projectId } = useParams();
     const { data: agent } = useGetAgent({
-        orgName: orgId ?? 'default',
-        projName: projectId ?? 'default',
-        agentName: agentId ?? ''
+        orgName: orgId,
+        projName: projectId,
+        agentName: agentId,
     });
 
     if (agent?.provisioning.type === 'internal') {

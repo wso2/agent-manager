@@ -119,24 +119,24 @@ export const AgentsList: React.FC = () => {
     isRefetching,
     refetch: refetchAgents,
   } = useListAgents({
-    orgName: orgId ?? "default",
-    projName: projectId ?? "default",
+    orgName: orgId,
+    projName: projectId,
   });
   const { mutate: deleteAgent, isPending: isDeletingAgent } = useDeleteAgent();
   const { data: project, isLoading: isProjectLoading } = useGetProject({
-    orgName: orgId ?? "default",
-    projName: projectId ?? "default",
+    orgName: orgId,
+    projName: projectId,
   });
   const { addConfirmation } = useConfirmationDialog();
   const handleDeleteAgent = useCallback(
     (agentId: string) => {
       deleteAgent({
-        orgName: orgId ?? "default",
-        projName: "default",
+        orgName: orgId,
+        projName: projectId,
         agentName: agentId,
       });
     },
-    [deleteAgent, orgId]
+    [deleteAgent, orgId, projectId]
   );
 
   const handleRowMouseEnter = useCallback(

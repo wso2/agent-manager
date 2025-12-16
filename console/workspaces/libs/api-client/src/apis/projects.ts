@@ -94,5 +94,9 @@ export async function deleteProject(
     `/projects/${encodeURIComponent(projName)}`;
   const res = await httpDELETE(url, { token });
   if (!res.ok) throw await res.json();
+    // DELETE may return 204 No Content
+  if (res.status === 204 || res.headers.get('content-length') === '0') {
+    return;
+  }
   return res.json();
 }

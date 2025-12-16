@@ -41,7 +41,7 @@ export function AgentBuildSkeleton() {
 
 export const AgentBuild: React.FC = () => {
   const { agentId, projectId, orgId } = useParams();
-  const { isLoading } = useGetAgentBuilds({ orgName: orgId ?? 'default', projName: projectId ?? 'default', agentName: agentId ?? '' });
+  const { isLoading } = useGetAgentBuilds({ orgName: orgId, projName: projectId, agentName: agentId });
 
   if (isLoading) {
     return <AgentBuildSkeleton />;

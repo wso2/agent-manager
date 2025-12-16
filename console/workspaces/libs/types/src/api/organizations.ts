@@ -38,5 +38,5 @@ export interface OrganizationListResponse extends PaginationMeta {
 
 // Path/Query helpers
 export type ListOrganizationsQuery = ListQuery;
-export type GetOrganizationPathParams = { orgName: string };
+export type GetOrganizationPathParams = { orgName: string | undefined };
 

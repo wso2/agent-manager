@@ -38,7 +38,7 @@ export const ProjectForm = () => {
   const displayName = watch("displayName");
   
   const { mutate: generateName } = useGenerateResourceName({
-    orgName: orgId ?? 'default',
+    orgName: orgId,
   });
 
   // Create debounced function for name generation

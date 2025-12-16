@@ -26,6 +26,14 @@ export async function getTrace(
     getToken?: () => Promise<string>
 ): Promise<TraceDetailsResponse>{
     const { orgName = "default", projName = "default", agentName, envId, traceId } = params;
+    
+    if (!agentName) {
+        throw new Error("agentName (serviceName) is required");
+    }
+    if (!traceId) {
+        throw new Error("traceId is required");
+    }
+    
     const token = getToken ? await getToken() : undefined;
     // to do: remove logs once api ready
     console.log('getTrace', orgName, projName, envId);
@@ -44,6 +52,11 @@ export async function getTraceList(
     getToken?: () => Promise<string>
 ): Promise<TraceListResponse>{
     const { orgName = "default", projName = "default", agentName, envId, startTime, endTime } = params;
+    
+    if (!agentName) {
+        throw new Error("agentName (serviceName) is required");
+    }
+    
     const token = getToken ? await getToken() : undefined;
     // to do: remove logs once api ready
     console.log('getTraceList', orgName, projName, envId);

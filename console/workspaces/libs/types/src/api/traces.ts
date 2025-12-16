@@ -49,18 +49,18 @@ export interface TraceDetailsResponse {
 }
 
 export interface GetTracePathParams {
-  orgName: string;
-  projName: string;
-  agentName: string;
-  envId: string;
-  traceId: string;
+  orgName: string | undefined;
+  projName: string | undefined;
+  agentName: string | undefined;
+  envId: string | undefined;
+  traceId: string | undefined;
 }
 
 export type GetTraceListPathParams = { 
-  orgName: string,
-  projName: string,
-  agentName: string,
-  envId: string,
+  orgName: string | undefined,
+  projName: string | undefined,
+  agentName: string | undefined,
+  envId: string | undefined,
   startTime: string,
   endTime: string,
 };

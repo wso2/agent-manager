@@ -54,19 +54,19 @@ export function ConfirmationDialogProvider({
 
   const handleConfirm = useCallback(() => {
     currentConfirmation?.onConfirm();
-    setConfirmations(confirmations.slice(0, -1));
-  }, [currentConfirmation, confirmations]);
+    setConfirmations((prev) => prev.slice(0, -1)); 
+  }, [currentConfirmation]);
 
   const handleCancel = useCallback(() => {
     currentConfirmation?.onCancel?.();
-    setConfirmations(confirmations.slice(0, -1));
-  }, [currentConfirmation, confirmations]);
+    setConfirmations((prev) => prev.slice(0, -1));  
+  }, [currentConfirmation]);
 
   const addConfirmation = useCallback(
     (confirmation: ConfirmationEvent) => {
       setConfirmations((prev) => [...prev, confirmation]);
     },
-    [setConfirmations]
+    []
   );
 
   return (

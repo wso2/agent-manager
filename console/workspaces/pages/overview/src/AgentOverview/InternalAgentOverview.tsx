@@ -42,17 +42,17 @@ import { absoluteRouteMap } from "@agent-management-platform/types";
 export const InternalAgentOverview = () => {
   const { orgId, agentId, projectId } = useParams();
   const { data: agent } = useGetAgent({
-    orgName: orgId ?? "default",
-    projName: projectId ?? "default",
-    agentName: agentId ?? "",
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
   });
   const { data: buildList } = useGetAgentBuilds({
-    orgName: orgId ?? "",
-    projName: projectId ?? "",
-    agentName: agentId ?? "",
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
   });
   const { data: environmentList } = useListEnvironments({
-    orgName: orgId ?? "",
+    orgName: orgId,
   });
   const theme = useTheme();
 

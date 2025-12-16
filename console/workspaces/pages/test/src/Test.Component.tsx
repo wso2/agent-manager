@@ -23,7 +23,7 @@ import {
   NoDataFound,
   PageLayout,
 } from "@agent-management-platform/views";
-import { Box, Tab, Tabs, Typography } from "@wso2/oxygen-ui";
+import { Box, Skeleton, Stack, Tab, Tabs, Typography } from "@wso2/oxygen-ui";
 import {
   ChevronsLeftRight,
   MessageCircle,
@@ -45,6 +45,29 @@ import {
 import { Swagger } from "./AgentTest/Swagger";
 import { useListAgentDeployments } from "@agent-management-platform/api-client";
 
+const SkeletonTestPageLayout: React.FC = () => {
+  return (
+    <Stack spacing={3} sx={{ padding: 3 }}>
+      {/* Page Title Skeleton */}
+      <Box display="flex" alignItems="center" justifyContent="space-between" gap={1}>
+      <Stack spacing={1}>
+        <Skeleton variant="rounded" width={200} height={36} />
+      </Stack>
+      {/* Tabs Skeleton */}
+      <Box display="flex" gap={2} sx={{ borderBottom: 1, borderColor: 'divider', pb: 1 }}>
+        <Skeleton variant="rounded" width={100} height={36} />
+        <Skeleton variant="rounded" width={100} height={36} />
+      </Box>
+      </Box>
+      
+      {/* Content Area Skeleton */}
+      <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" gap={2} height="70vh">
+        <Skeleton variant="rounded" width="80%" height={50} />
+      </Box>
+    </Stack>
+  );
+};
+
 export const TestComponent: React.FC = () => {
   const { orgId, projectId, agentId, envId } = useParams<{
     orgId: string;
@@ -53,11 +76,11 @@ export const TestComponent: React.FC = () => {
     envId: string;
   }>();
 
-  const { data: deployments } =
+  const { data: deployments, isLoading: isDeploymentsLoading } =
     useListAgentDeployments({
-      orgName: orgId ?? "",
-      projName: projectId ?? "",
-      agentName: agentId ?? "",
+      orgName: orgId,
+      projName: projectId,
+      agentName: agentId,
     });
   const currentDeployment = deployments?.[envId ?? ""];
 
@@ -66,9 +89,18 @@ export const TestComponent: React.FC = () => {
       .environment.children.tryOut.children.chat.path
   );
 
+  if (isDeploymentsLoading) {
+    return <SkeletonTestPageLayout />;
+  }
+
   if (currentDeployment?.status !== "active") {
     return (
-      <Box height="50vh" display="flex" justifyContent="center" alignItems="center">
+      <Box
+        height="50vh"
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+      >
         <NoDataFound
           iconElement={Rocket}
           disableBackground

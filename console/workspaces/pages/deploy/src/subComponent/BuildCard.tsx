@@ -46,9 +46,9 @@ export function BuildCard() {
   const { orgId, projectId, agentId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: builds, isLoading: isBuildsLoading } = useGetAgentBuilds({
-    orgName: orgId ?? "default",
-    projName: projectId ?? "default",
-    agentName: agentId ?? "",
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
   });
 
   // Sort builds by most recent first

@@ -56,9 +56,9 @@ export function AgentChat() {
   const { agentId, orgId, projectId, envId } = useParams();
   const { data: endpoints } = useGetAgentEndpoints(
     {
-      projName: projectId ?? "",
-      orgName: orgId ?? "",
-      agentName: agentId ?? "",
+      projName: projectId,
+      orgName: orgId,
+      agentName: agentId,
     },
     {
       environment: envId ?? "",

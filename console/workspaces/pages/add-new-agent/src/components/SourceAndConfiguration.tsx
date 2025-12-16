@@ -36,7 +36,7 @@ export const SourceAndConfiguration = () => {
   const displayName = watch("displayName");
   
   const { mutate: generateName } = useGenerateResourceName({
-    orgName: orgId ?? 'default',
+    orgName: orgId,
   });
 
   // Create debounced function for name generation
@@ -46,7 +46,7 @@ export const SourceAndConfiguration = () => {
         generateName({
           displayName: name,
           resourceType: 'agent',
-          projectName: projectId ?? 'default',
+          projectName: projectId,
         }, {
           onSuccess: (data) => {
             setValue("name", data.name, {

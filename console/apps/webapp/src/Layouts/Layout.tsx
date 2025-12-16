@@ -53,13 +53,13 @@ export function Layout() {
 
   // Get all projects for the organization
   const { data: projects } = useListProjects({
-    orgName: orgId ?? "",
+    orgName: orgId,
   });
 
   // Get all agents for the project
   const { data: agents } = useListAgents({
-    orgName: orgId ?? "",
-    projName: projectId ?? "",
+    orgName: orgId,
+    projName: projectId,
   });
 
   return (

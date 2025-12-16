@@ -30,9 +30,9 @@ export const ExternalAgentOverview = () => {
   const isInstrumentationDrawerOpen = searchParams.get("setup") === "true";
 
   const { data: agent } = useGetAgent({
-    orgName: orgId ?? "default",
-    projName: projectId ?? "default",
-    agentName: agentId ?? "",
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
   });
 
   // Sample instrumentation config - these would come from props or API

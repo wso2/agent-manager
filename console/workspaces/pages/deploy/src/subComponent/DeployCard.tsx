@@ -52,9 +52,9 @@ export function DeployCard(props: DeployCardProps) {
 
   const { data: deployments, isLoading: isDeploymentsLoading } =
     useListAgentDeployments({
-      orgName: orgId ?? "",
-      projName: projectId ?? "",
-      agentName: agentId ?? "",
+      orgName: orgId,
+      projName: projectId,
+      agentName: agentId,
     });
   const currentDeployment = deployments?.[currentEnvironment.name];
 
