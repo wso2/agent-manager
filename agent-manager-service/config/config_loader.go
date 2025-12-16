@@ -34,6 +34,10 @@ func init() {
 	loadEnvs()
 }
 
+// loadEnvs initializes the package-level config by reading environment variables and an optional env file.
+// It populates server, database (PostgreSQL), OTEL, observer/trace observer, and various timeout and API settings,
+// validates HTTP server-related configurations, and causes the process to exit if validation errors are found.
+// If ENV_FILE_PATH is set and loading that file fails, the function panics.
 func loadEnvs() {
 	config = &Config{}
 
@@ -115,6 +119,12 @@ func loadEnvs() {
 		Username: r.readOptionalString("OBSERVER_USERNAME", "dummy"),
 		Password: r.readOptionalString("OBSERVER_PASSWORD", "dummy"),
 	}
+
+	// Trace Observer service configuration - for distributed tracing
+	config.TraceObserver = TraceObserverConfig{
+		URL: r.readOptionalString("TRACE_OBSERVER_URL", "http://localhost:9098"),
+	}
+
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
 
 	// Validate HTTP server configurations

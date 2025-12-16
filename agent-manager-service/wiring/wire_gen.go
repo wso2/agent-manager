@@ -7,20 +7,20 @@
 package wiring
 
 import (
-	"log/slog"
-
 	"github.com/google/wire"
-
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	"log/slog"
 )
 
-// Injectors from wire.go:
+// InitializeAppParams builds and returns a fully initialized AppParams using the provided configuration.
+// It returns an error if creating the OpenChoreo service client fails.
 
 func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	configConfig := ProvideConfigFromPtr(cfg)
@@ -41,15 +41,21 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
 	buildCIManagerService := services.NewBuildCIManager(openChoreoSvcClient, logger)
 	buildCIController := controllers.NewBuildCIController(buildCIManagerService)
+	traceObserverClient := traceobserversvc.NewTraceObserverClient()
+	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, logger)
+	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
 	appParams := &AppParams{
 		AuthMiddleware:          middleware,
 		AgentController:         agentController,
 		InfraResourceController: infraResourceController,
 		BuildCIController:       buildCIController,
+		ObservabilityController: observabilityController,
 	}
 	return appParams, nil
 }
 
+// InitializeTestAppParamsWithClientMocks builds and returns an AppParams configured for tests using the provided auth middleware and test client mocks.
+// It constructs in-memory repositories, test service clients from testClients, services, and controllers, assembles them into an AppParams, and returns the assembled params and nil error.
 func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware jwtassertion.Middleware, testClients TestClients) (*AppParams, error) {
 	organizationRepository := repositories.NewOrganizationRepository()
 	projectRepository := repositories.NewProjectRepository()
@@ -64,11 +70,15 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
 	buildCIManagerService := services.NewBuildCIManager(openChoreoSvcClient, logger)
 	buildCIController := controllers.NewBuildCIController(buildCIManagerService)
+	traceObserverClient := ProvideTestTraceObserverClient(testClients)
+	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, logger)
+	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
 	appParams := &AppParams{
 		AuthMiddleware:          authMiddleware,
 		AgentController:         agentController,
 		InfraResourceController: infraResourceController,
 		BuildCIController:       buildCIController,
+		ObservabilityController: observabilityController,
 	}
 	return appParams, nil
 }
@@ -81,15 +91,16 @@ var configProviderSet = wire.NewSet(
 
 var repositoryProviderSet = wire.NewSet(repositories.NewOrganizationRepository, repositories.NewAgentRepository, repositories.NewProjectRepository, repositories.NewInternalAgentRepository)
 
-var clientProviderSet = wire.NewSet(openchoreosvc.NewOpenChoreoSvcClient, observabilitysvc.NewObservabilitySvcClient)
+var clientProviderSet = wire.NewSet(openchoreosvc.NewOpenChoreoSvcClient, observabilitysvc.NewObservabilitySvcClient, traceobserversvc.NewTraceObserverClient)
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewBuildCIManager, services.NewInfraResourceManager)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewBuildCIManager, services.NewInfraResourceManager, services.NewObservabilityManager)
 
-var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewBuildCIController, controllers.NewInfraResourceController)
+var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewBuildCIController, controllers.NewInfraResourceController, controllers.NewObservabilityController)
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoSvcClient,
 	ProvideTestObservabilitySvcClient,
+	ProvideTestTraceObserverClient,
 )
 
 // ProvideLogger provides the configured slog.Logger instance
@@ -106,7 +117,12 @@ func ProvideTestOpenChoreoSvcClient(testClients TestClients) openchoreosvc.OpenC
 	return testClients.OpenChoreoSvcClient
 }
 
-// ProvideTestObservabilitySvcClient extracts the ObservabilitySvcClient from TestClients
+// ProvideTestObservabilitySvcClient returns the ObservabilitySvcClient contained in testClients for use in test wiring.
 func ProvideTestObservabilitySvcClient(testClients TestClients) observabilitysvc.ObservabilitySvcClient {
 	return testClients.ObservabilitySvcClient
+}
+
+// ProvideTestTraceObserverClient extracts the TraceObserverClient from the provided TestClients.
+func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.TraceObserverClient {
+	return testClients.TraceObserverClient
 }

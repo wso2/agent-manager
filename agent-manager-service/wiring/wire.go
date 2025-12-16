@@ -26,6 +26,7 @@ import (
 
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	clients "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
@@ -47,23 +48,27 @@ var repositoryProviderSet = wire.NewSet(
 var clientProviderSet = wire.NewSet(
 	clients.NewOpenChoreoSvcClient,
 	observabilitysvc.NewObservabilitySvcClient,
+	traceobserversvc.NewTraceObserverClient,
 )
 
 var serviceProviderSet = wire.NewSet(
 	services.NewAgentManagerService,
 	services.NewBuildCIManager,
 	services.NewInfraResourceManager,
+	services.NewObservabilityManager,
 )
 
 var controllerProviderSet = wire.NewSet(
 	controllers.NewAgentController,
 	controllers.NewBuildCIController,
 	controllers.NewInfraResourceController,
+	controllers.NewObservabilityController,
 )
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoSvcClient,
 	ProvideTestObservabilitySvcClient,
+	ProvideTestTraceObserverClient,
 )
 
 // ProvideLogger provides the configured slog.Logger instance
@@ -80,11 +85,18 @@ func ProvideTestOpenChoreoSvcClient(testClients TestClients) clients.OpenChoreoS
 	return testClients.OpenChoreoSvcClient
 }
 
-// ProvideTestObservabilitySvcClient extracts the ObservabilitySvcClient from TestClients
+// ProvideTestObservabilitySvcClient returns the ObservabilitySvcClient from the provided TestClients.
 func ProvideTestObservabilitySvcClient(testClients TestClients) observabilitysvc.ObservabilitySvcClient {
 	return testClients.ObservabilitySvcClient
 }
 
+// ProvideTestTraceObserverClient retrieves the TraceObserverClient from the provided TestClients.
+func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.TraceObserverClient {
+	return testClients.TraceObserverClient
+}
+
+// InitializeAppParams constructs an AppParams populated by dependency injection using the provided configuration.
+// It returns the wired AppParams or an error if dependency injection fails.
 func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	wire.Build(
 		configProviderSet,

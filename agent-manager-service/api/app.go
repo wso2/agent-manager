@@ -25,7 +25,10 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/wiring"
 )
 
-// MakeHTTPHandler creates a new HTTP handler with middleware and routes
+// MakeHTTPHandler creates the top-level HTTP handler that routes public and internal API requests and applies the appropriate middleware.
+// It registers a health check and mounts API v1 handlers under /api/v1 (agent, infra, and observability routes) with middleware for authentication, correlation IDs, request logging, CORS, and panic recovery.
+// It also mounts internal routes under /internal with API-key enforcement, correlation IDs, request logging, and panic recovery.
+// The configured http.ServeMux is returned as the HTTP handler.
 func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	mux := http.NewServeMux()
 
@@ -36,6 +39,7 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	apiMux := http.NewServeMux()
 	registerAgentRoutes(apiMux, params.AgentController)
 	registerInfraRoutes(apiMux, params.InfraResourceController)
+	registerObservabilityRoutes(apiMux, params.ObservabilityController)
 
 	// Apply middleware in reverse order (last middleware is applied first)
 	apiHandler := http.Handler(apiMux)
