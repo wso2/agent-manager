@@ -18,7 +18,7 @@
 
 import { Box, Card, CardContent, Typography } from "@wso2/oxygen-ui";
 import { useFormContext } from "react-hook-form";
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
 import { TextInput } from "@agent-management-platform/views";
@@ -32,7 +32,6 @@ export const SourceAndConfiguration = () => {
     setValue,
   } = useFormContext();
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
-  const isNameManuallyEdited = useRef(false);
   const displayName = watch("displayName");
   
   const { mutate: generateName } = useGenerateResourceName({
@@ -61,7 +60,7 @@ export const SourceAndConfiguration = () => {
           }
         });
       }, 500), // 500ms delay
-    [generateName, setValue, projectId]
+    [generateName, setValue, projectId, orgId]
   );
 
   // Cleanup debounce on unmount
@@ -73,9 +72,9 @@ export const SourceAndConfiguration = () => {
 
   // Auto-generate name from display name using API with debounce
   useEffect(() => {
-    if (displayName && !isNameManuallyEdited.current) {
+    if (displayName) {
       debouncedGenerateName(displayName);
-    } else if (!displayName && !isNameManuallyEdited.current) {
+    } else if (!displayName) {
       // Clear the name field if display name is empty
       debouncedGenerateName.cancel();
       setValue("name", "", {

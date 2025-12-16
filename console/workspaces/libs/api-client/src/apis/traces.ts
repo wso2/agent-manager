@@ -25,7 +25,7 @@ export async function getTrace(
     params: GetTracePathParams, 
     getToken?: () => Promise<string>
 ): Promise<TraceDetailsResponse>{
-    const { orgName = "default", projName = "default", agentName, envId, traceId } = params;
+    const { agentName, traceId } = params;
     
     if (!agentName) {
         throw new Error("agentName (serviceName) is required");
@@ -35,8 +35,6 @@ export async function getTrace(
     }
     
     const token = getToken ? await getToken() : undefined;
-    // to do: remove logs once api ready
-    console.log('getTrace', orgName, projName, envId);
     const searchParams = { traceId , serviceName: agentName };
     const res = await httpGET(
         `${OBS_SERVICE_BASE}/trace`,
@@ -51,15 +49,14 @@ export async function getTraceList(
     params: GetTraceListPathParams, 
     getToken?: () => Promise<string>
 ): Promise<TraceListResponse>{
-    const { orgName = "default", projName = "default", agentName, envId, startTime, endTime } = params;
+    const { agentName, startTime, endTime } = params;
     
     if (!agentName) {
         throw new Error("agentName (serviceName) is required");
     }
     
     const token = getToken ? await getToken() : undefined;
-    // to do: remove logs once api ready
-    console.log('getTraceList', orgName, projName, envId);
+    
     const searchParams = { startTime, endTime, serviceName: agentName };
     const res = await httpGET(
         `${OBS_SERVICE_BASE}/traces`,

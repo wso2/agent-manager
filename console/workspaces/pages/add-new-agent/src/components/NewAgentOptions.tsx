@@ -19,7 +19,6 @@
 import { Box } from "@wso2/oxygen-ui";
 import { NewAgentTypeCard } from "./NewAgentTypeCard";
 import { ImageList } from "@agent-management-platform/views";
-// import  from "node_modules/@agent-management-platform/views/dist/component/Image/Image";
 
 interface NewAgentOptionsProps {
     onSelect: (option: 'new' | 'existing') => void;
