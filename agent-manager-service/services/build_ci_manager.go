@@ -92,7 +92,10 @@ func (b *buildCIManagerService) HandleBuildCallback(ctx context.Context, orgName
 		return "", fmt.Errorf("agent workload specification is missing for agent: %s", agentName)
 	}
 	// Build Workload CR template with placeholders
-	workloadCR := buildWorkloadCRTemplate(agent.AgentDetails.WorkloadSpec, org.OpenChoreoOrgName, projectName, agentName)
+	workloadCR, err := buildWorkloadCRTemplate(agent.AgentDetails.WorkloadSpec, org.OpenChoreoOrgName, projectName, agentName)
+	if err != nil {
+		return "", err
+	}
 
 	b.logger.Info("Successfully generated workload CR template",
 		"agentName", agentName,
@@ -105,7 +108,7 @@ func (b *buildCIManagerService) HandleBuildCallback(ctx context.Context, orgName
 // buildWorkloadCRTemplate constructs a Workload CR object with placeholders and converts to YAML string
 // IMAGE_TAG - placeholder for the actual container image
 // SCHEMA_CONTENT - placeholder for the OpenAPI schema content (if applicable)
-func buildWorkloadCRTemplate(workloadSpec map[string]interface{}, orgName, projectName, componentName string) string {
+func buildWorkloadCRTemplate(workloadSpec map[string]interface{}, orgName, projectName, componentName string) (string,error) {
 	// Create Workload object
 	workload := &v1alpha1.Workload{
 		TypeMeta: metav1.TypeMeta{
@@ -137,10 +140,10 @@ func buildWorkloadCRTemplate(workloadSpec map[string]interface{}, orgName, proje
 	yamlBytes, err := yaml.Marshal(workload)
 	if err != nil {
 		// Fallback to empty string if marshaling fails
-		return ""
+		return "", fmt.Errorf("failed to marshal workload to YAML: %w", err)
 	}
 
-	return string(yamlBytes)
+	return string(yamlBytes), nil
 }
 
 // buildEnvVars converts environment variables from workload spec to v1alpha1.EnvVar slice
