@@ -134,6 +134,7 @@ const (
 	PathParamProjName  = "projName"
 	PathParamAgentName = "agentName"
 	PathParamBuildName = "buildName"
+	PathParamTraceId   = "traceId"
 )
 
 // Environment variable names for otel and tracing configuration

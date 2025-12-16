@@ -26,6 +26,7 @@ import (
 
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	clients "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
@@ -47,23 +48,27 @@ var repositoryProviderSet = wire.NewSet(
 var clientProviderSet = wire.NewSet(
 	clients.NewOpenChoreoSvcClient,
 	observabilitysvc.NewObservabilitySvcClient,
+	traceobserversvc.NewTraceObserverClient,
 )
 
 var serviceProviderSet = wire.NewSet(
 	services.NewAgentManagerService,
 	services.NewBuildCIManager,
 	services.NewInfraResourceManager,
+	services.NewObservabilityManager,
 )
 
 var controllerProviderSet = wire.NewSet(
 	controllers.NewAgentController,
 	controllers.NewBuildCIController,
 	controllers.NewInfraResourceController,
+	controllers.NewObservabilityController,
 )
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoSvcClient,
 	ProvideTestObservabilitySvcClient,
+	ProvideTestTraceObserverClient,
 )
 
 // ProvideLogger provides the configured slog.Logger instance
@@ -83,6 +88,11 @@ func ProvideTestOpenChoreoSvcClient(testClients TestClients) clients.OpenChoreoS
 // ProvideTestObservabilitySvcClient extracts the ObservabilitySvcClient from TestClients
 func ProvideTestObservabilitySvcClient(testClients TestClients) observabilitysvc.ObservabilitySvcClient {
 	return testClients.ObservabilitySvcClient
+}
+
+// ProvideTestTraceObserverClient extracts the TraceObserverClient from TestClients
+func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.TraceObserverClient {
+	return testClients.TraceObserverClient
 }
 
 func InitializeAppParams(cfg *config.Config) (*AppParams, error) {

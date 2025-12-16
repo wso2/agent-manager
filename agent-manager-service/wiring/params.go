@@ -19,6 +19,7 @@ package wiring
 import (
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	clients "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
@@ -29,12 +30,14 @@ type AppParams struct {
 	AgentController         controllers.AgentController
 	InfraResourceController controllers.InfraResourceController
 	BuildCIController       controllers.BuildCIController
+	ObservabilityController controllers.ObservabilityController
 }
 
 // TestClients contains all mock clients needed for testing
 type TestClients struct {
 	OpenChoreoSvcClient    clients.OpenChoreoSvcClient
 	ObservabilitySvcClient observabilitysvc.ObservabilitySvcClient
+	TraceObserverClient    traceobserversvc.TraceObserverClient
 }
 
 func ProvideConfigFromPtr(config *config.Config) config.Config {
