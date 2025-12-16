@@ -1,8 +1,9 @@
 .PHONY: help build run stop clean test docker-build docker-run docker-stop docker-clean
 
 # Variables
-APP_NAME=traces-observer
-DOCKER_IMAGE=$(APP_NAME):latest
+TAG=0.0.0-dev
+APP_NAME=amp-traces-observer
+DOCKER_IMAGE=$(APP_NAME):$(TAG)
 CONTAINER_NAME=$(APP_NAME)
 PORT=9098
 KIND_CLUSTER_NAME=openchoreo-local

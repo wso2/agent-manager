@@ -36,6 +36,7 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	apiMux := http.NewServeMux()
 	registerAgentRoutes(apiMux, params.AgentController)
 	registerInfraRoutes(apiMux, params.InfraResourceController)
+	registerObservabilityRoutes(apiMux, params.ObservabilityController)
 
 	// Apply middleware in reverse order (last middleware is applied first)
 	apiHandler := http.Handler(apiMux)

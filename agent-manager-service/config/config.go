@@ -43,8 +43,11 @@ type Config struct {
 	// OpenTelemetry configuration
 	OTEL OTELConfig
 
-	// Observer service configuration
+	// Observer service configuration (for build logs, etc.)
 	Observer ObserverConfig
+
+	// Trace Observer service configuration (for distributed tracing)
+	TraceObserver TraceObserverConfig
 
 	IsLocalDevEnv bool
 }
@@ -71,6 +74,11 @@ type ObserverConfig struct {
 	URL      string
 	Username string
 	Password string `json:"-"`
+}
+
+type TraceObserverConfig struct {
+	// Trace Observer service URL
+	URL string
 }
 
 type POSTGRESQL struct {

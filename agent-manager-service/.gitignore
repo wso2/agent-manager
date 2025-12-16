@@ -9,3 +9,6 @@ local.development.env
 localdata/*
 .DS_Store
 .bin
+
+# Build output
+tmp/*
