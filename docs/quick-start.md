@@ -133,6 +133,6 @@ sudo usermod -aG docker $USER
 
 ## See Also
 
-- [Single Cluster Installation](./single-cluster.md) - Install on existing OpenChoreo cluster
-- [Main README](../../README.md) - Project overview and architecture
+- [Single Cluster Installation](./install/single-cluster.md) - Install on existing OpenChoreo cluster
+- [README](../README.md) - Project overview and architecture
 
