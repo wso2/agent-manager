@@ -70,10 +70,6 @@ func validateInternalAgent(payload spec.CreateAgentRequest) error {
 		return fmt.Errorf("runtimeConfigs is required for internal agents")
 	}
 
-	if *payload.RuntimeConfigs.RunCommand == "" {
-		return fmt.Errorf("runtimeConfigs.runCommand cannot be empty")
-	}
-
 	if err := validateLanguage(payload.RuntimeConfigs.Language, payload.RuntimeConfigs.LanguageVersion); err != nil {
 		return fmt.Errorf("invalid language: %w", err)
 	}

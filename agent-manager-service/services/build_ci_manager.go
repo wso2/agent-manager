@@ -128,7 +128,7 @@ func buildWorkloadCRTemplate(workloadSpec map[string]interface{}, orgName, proje
 						Env:   buildEnvVars(workloadSpec),
 					},
 				},
-				Endpoints: buildEndpoints(workloadSpec, componentName),
+				Endpoints: buildEndpoints(workloadSpec),
 			},
 		},
 	}
@@ -164,7 +164,7 @@ func buildEnvVars(workloadSpec map[string]interface{}) []v1alpha1.EnvVar {
 }
 
 // buildEndpoints converts endpoints from workload spec to v1alpha1.WorkloadEndpoint map
-func buildEndpoints(workloadSpec map[string]interface{}, componentName string) map[string]v1alpha1.WorkloadEndpoint {
+func buildEndpoints(workloadSpec map[string]interface{}) map[string]v1alpha1.WorkloadEndpoint {
 	endpoints := make(map[string]v1alpha1.WorkloadEndpoint)
 
 	if endpointsList, ok := workloadSpec["endpoints"].([]interface{}); ok {
