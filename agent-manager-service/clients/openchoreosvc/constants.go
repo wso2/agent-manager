@@ -56,9 +56,10 @@ const (
 	BuildStatusInitiated BuildStatus = "BuildInitiated"
 	BuildStatusTriggered BuildStatus = "BuildTriggered"
 	BuildStatusRunning   BuildStatus = "BuildRunning"
+	BuildStatusCompleted BuildStatus = "BuildCompleted"
 	BuildStatusSucceeded BuildStatus = "BuildSucceeded"
 	BuildStatusFailed    BuildStatus = "BuildFailed"
-	BuildStatusCompleted BuildStatus = "WorkloadUpdated" // workload created
+	WorkloadUpdated      BuildStatus = "WorkloadUpdated"
 )
 
 type BuildStepStatus string

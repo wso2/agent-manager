@@ -2024,7 +2024,7 @@ func (a *DefaultAPIService) GetNameByDisplayNameExecute(r ApiGetNameByDisplayNam
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/generate-name"
+	localVarPath := localBasePath + "/orgs/{orgName}/utils/generate-name"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
 
 	localVarHeaderParams := make(map[string]string)

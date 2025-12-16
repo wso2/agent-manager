@@ -493,7 +493,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/generate-name:
+  /orgs/{orgName}/utils/generate-name:
     post:
       summary: Get name by display name
       description: Retrieve name using display name for a specific resource
@@ -1292,11 +1292,17 @@ components:
           type: string
           description: Type of build step
           enum:
-            [BuildInitiated, BuildTriggered, BuildCompleted, WorkloadUpdated]
+            [
+              BuildInitiated,
+              BuildTriggered,
+              BuildRunning,
+              BuildCompleted,
+              WorkloadUpdated,
+            ]
         status:
           type: string
           description: Status of the build step
-          enum: [True, False, Unknown]
+          enum: [Succeeded, Failed, Running, Pending]
         message:
           type: string
           description: Human-readable message about the step

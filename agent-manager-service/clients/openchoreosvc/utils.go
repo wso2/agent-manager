@@ -315,40 +315,37 @@ func isStatusConditionPresentAndEqual(conditions []metav1.Condition, conditionTy
 }
 
 func determineBuildStatus(conditions []metav1.Condition) BuildStatus {
-	// Check if workflow was initiated (WorkflowCompleted condition exists)
-	workflowCompletedCond := findStatusCondition(conditions, string(ConditionWorkflowCompleted))
-	if workflowCompletedCond == nil {
-		return BuildStatusInitiated // ComponentWorkflowRun just created
+	if len(conditions) == 0 {
+		return BuildStatusInitiated // Just created
 	}
 
-	// Check if workload was updated (final state)
+	// Check terminal states first (priority order)
 	if isStatusConditionTrue(conditions, string(ConditionWorkloadUpdated)) {
-		return BuildStatusCompleted // Everything done
+		return WorkloadUpdated // Fully done
 	}
 
-	// Check if workflow is completed
-	if workflowCompletedCond.Status == metav1.ConditionTrue {
-		// Check success vs failure
-		if isStatusConditionTrue(conditions, string(ConditionWorkflowSucceeded)) {
-			return BuildStatusSucceeded
-		}
-		if isStatusConditionTrue(conditions, string(ConditionWorkflowFailed)) {
-			return BuildStatusFailed
-		}
-		return BuildStatusCompleted // Completed but state unclear
+	if isStatusConditionTrue(conditions, string(ConditionWorkflowFailed)) {
+		return BuildStatusFailed
 	}
 
-	// Check if workflow is running
+	if isStatusConditionTrue(conditions, string(ConditionWorkflowSucceeded)) {
+		return BuildStatusSucceeded // Workflow succeeded
+	}
+
+	// Check active states
 	if isStatusConditionTrue(conditions, string(ConditionWorkflowRunning)) {
 		return BuildStatusRunning
 	}
 
-	// Workflow pending/triggered but not yet running
-	if workflowCompletedCond.Reason == string(ConditionWorkflowPending) {
-		return BuildStatusTriggered // Argo Workflow created, pending execution
+	// Check if workflow was triggered but not running yet
+	workflowCompletedCond := findStatusCondition(conditions, string(ConditionWorkflowCompleted))
+	if workflowCompletedCond != nil && workflowCompletedCond.Status == metav1.ConditionFalse {
+		if workflowCompletedCond.Reason == string(ConditionWorkflowPending) {
+			return BuildStatusTriggered // Argo Workflow created, not started
+		}
 	}
 
-	return BuildStatusInitiated // Default fallback
+	return BuildStatusInitiated // Has conditions but unclear state
 }
 
 func toBuildDetailsResponse(componentWorkflow *v1alpha1.ComponentWorkflowRun) (*models.BuildDetailsResponse, error) {
@@ -429,7 +426,7 @@ func toDeploymentDetailsResponse(binding *v1alpha1.ReleaseBinding, envRelease *v
 
 func determineReleaseBindingStatus(binding *v1alpha1.ReleaseBinding) string {
 	if len(binding.Status.Conditions) == 0 {
-		return DeploymentStatusNotReady
+		return DeploymentStatusNotDeployed
 	}
 
 	generation := binding.ObjectMeta.Generation
@@ -445,7 +442,7 @@ func determineReleaseBindingStatus(binding *v1alpha1.ReleaseBinding) string {
 	// Expected conditions: ReleaseSynced, ResourcesReady, Ready
 	// If there are less than 3 conditions for the current generation, it's still in progress
 	if len(conditionsForGeneration) < 3 {
-		return DeploymentStatusNotReady
+		return DeploymentStatusInProgress
 	}
 
 	// Check if any condition has Status == False with ResourcesDegraded reason
@@ -458,7 +455,7 @@ func determineReleaseBindingStatus(binding *v1alpha1.ReleaseBinding) string {
 	// Check if any condition has Status == False with ResourcesProgressing reason
 	for i := range conditionsForGeneration {
 		if conditionsForGeneration[i].Status == metav1.ConditionFalse && conditionsForGeneration[i].Reason == "ResourcesProgressing" {
-			return DeploymentStatusNotReady
+			return DeploymentStatusInProgress
 		}
 	}
 
@@ -589,8 +586,8 @@ func MapConditionsToBuildSteps(conditions []metav1.Condition) []models.BuildStep
 		{Type: string(BuildStatusInitiated), Status: string(BuildStepStatusPending)},
 		{Type: string(BuildStatusTriggered), Status: string(BuildStepStatusPending)},
 		{Type: string(BuildStatusRunning), Status: string(BuildStepStatusPending)},
-		{Type: string(BuildStatusSucceeded), Status: string(BuildStepStatusPending)},
 		{Type: string(BuildStatusCompleted), Status: string(BuildStepStatusPending)},
+		{Type: string(WorkloadUpdated), Status: string(BuildStepStatusPending)},
 	}
 
 	// Helper to find condition
@@ -608,67 +605,61 @@ func MapConditionsToBuildSteps(conditions []metav1.Condition) []models.BuildStep
 	workflowSucceeded := findCondition(string(ConditionWorkflowSucceeded))
 	workflowFailed := findCondition(string(ConditionWorkflowFailed))
 	workloadUpdated := findCondition(string(ConditionWorkloadUpdated))
-	// Step 1: Build Initiated (always true if ComponentWorkflowRun exists)
-	steps[0].Status = string(BuildStepStatusSucceeded)
-	steps[0].Message = "ComponentWorkflowRun created"
 
-	// Step 2: Build Triggered (WorkflowCompleted condition exists)
-	if workflowCompleted != nil {
+	// Step 1: BuildInitiated (always succeeded if ComponentWorkflowRun exists)
+	steps[0].Status = string(BuildStepStatusSucceeded)
+	steps[0].Message = "Build initiated"
+
+	// Step 2: BuildTriggered (workflow created)
+	if workflowCompleted != nil || workflowRunning != nil {
 		steps[1].Status = string(BuildStepStatusSucceeded)
-		steps[1].Message = "Argo Workflow resource created"
-		steps[1].StartedAt = &workflowCompleted.LastTransitionTime.Time
-		steps[1].FinishedAt = &workflowCompleted.LastTransitionTime.Time
+		steps[1].Message = "Build triggered"
+		if workflowCompleted != nil {
+			steps[1].StartedAt = &workflowCompleted.LastTransitionTime.Time
+			steps[1].FinishedAt = &workflowCompleted.LastTransitionTime.Time
+		}
 	}
 
-	// Step 3: Build Running (WorkflowRunning = True)
+	// Step 3: BuildRunning
 	if workflowRunning != nil && workflowRunning.Status == metav1.ConditionTrue {
 		steps[2].Status = string(BuildStepStatusRunning)
-		steps[2].Message = workflowRunning.Message
+		steps[2].Message = "Build running"
 		steps[2].StartedAt = &workflowRunning.LastTransitionTime.Time
 	} else if workflowCompleted != nil && workflowCompleted.Status == metav1.ConditionTrue {
-		// Workflow completed, so running step is done
 		steps[2].Status = string(BuildStepStatusSucceeded)
-		steps[2].Message = "Build execution completed"
+		steps[2].Message = "Build execution finished"
 		if workflowRunning != nil {
 			steps[2].StartedAt = &workflowRunning.LastTransitionTime.Time
-			steps[2].FinishedAt = &workflowCompleted.LastTransitionTime.Time
 		}
-	} else if workflowCompleted != nil {
-		// Workflow initiated but not running yet
-		steps[2].Status = string(BuildStepStatusPending)
-		steps[2].Message = "Waiting for workflow to start"
+		steps[2].FinishedAt = &workflowCompleted.LastTransitionTime.Time
 	}
 
-	// Step 4: Build Completed
-	if workflowCompleted != nil && workflowCompleted.Status == metav1.ConditionTrue {
-		if workflowSucceeded != nil && workflowSucceeded.Status == metav1.ConditionTrue {
-			steps[3].Status = string(BuildStepStatusSucceeded)
-			steps[3].Message = "Build completed successfully"
-			steps[3].FinishedAt = &workflowSucceeded.LastTransitionTime.Time
-		} else if workflowFailed != nil && workflowFailed.Status == metav1.ConditionTrue {
-			steps[3].Status = string(BuildStepStatusFailed)
-			steps[3].Message = workflowFailed.Message
-			steps[3].FinishedAt = &workflowFailed.LastTransitionTime.Time
-		} else {
-			steps[3].Status = string(BuildStepStatusSucceeded)
-			steps[3].Message = "Build workflow completed"
-			steps[3].FinishedAt = &workflowCompleted.LastTransitionTime.Time
-		}
-		steps[3].StartedAt = &workflowCompleted.LastTransitionTime.Time
+	// Step 4: BuildCompleted (succeeded or failed)
+	if workflowFailed != nil && workflowFailed.Status == metav1.ConditionTrue {
+		steps[3].Status = string(BuildStepStatusFailed)
+		steps[3].Message = workflowFailed.Message
+		steps[3].StartedAt = &workflowFailed.LastTransitionTime.Time
+		steps[3].FinishedAt = &workflowFailed.LastTransitionTime.Time
+	} else if workflowSucceeded != nil && workflowSucceeded.Status == metav1.ConditionTrue {
+		steps[3].Status = string(BuildStepStatusSucceeded)
+		steps[3].Message = "Build completed successfully"
+		steps[3].StartedAt = &workflowSucceeded.LastTransitionTime.Time
+		steps[3].FinishedAt = &workflowSucceeded.LastTransitionTime.Time
 	}
 
-	// Step 5: Workload Updated
+	// Step 5: WorkloadUpdated (final deployment step)
 	if workloadUpdated != nil && workloadUpdated.Status == metav1.ConditionTrue {
 		steps[4].Status = string(BuildStepStatusSucceeded)
-		steps[4].Message = workloadUpdated.Message
+		steps[4].Message = "Workload updated successfully"
 		steps[4].StartedAt = &workloadUpdated.LastTransitionTime.Time
 		steps[4].FinishedAt = &workloadUpdated.LastTransitionTime.Time
 	} else if workflowSucceeded != nil && workflowSucceeded.Status == metav1.ConditionTrue {
-		// Build succeeded but workload not yet updated
+		steps[4].Status = string(BuildStepStatusRunning)
+		steps[4].Message = "Updating workload"
+	} else if workflowFailed != nil && workflowFailed.Status == metav1.ConditionTrue {
 		steps[4].Status = string(BuildStepStatusPending)
-		steps[4].Message = "Updating workload CR"
+		steps[4].Message = "Workload update skipped"
 	}
-
 	return steps
 }
 
