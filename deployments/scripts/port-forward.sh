@@ -37,16 +37,12 @@ echo "📊 Forwarding OpenSearch (9200)..."
 kubectl port-forward -n openchoreo-observability-plane svc/opensearch 9200:9200 &
 
 # Port forward Data Prepper
-echo "📊 Forwarding Data Prepper (21893)..."
-kubectl port-forward -n openchoreo-observability-plane svc/data-prepper 21893:21893 &
-
-# Port forward OpenSearch Dashboard
-echo "📊 Forwarding OpenSearch Dashboard (5601)..."
-kubectl port-forward -n openchoreo-observability-plane svc/opensearch-dashboard 5601:5601 &
+echo "📊 Forwarding OpenTelemetry Collector..."
+kubectl port-forward -n openchoreo-observability-plane svc/opentelemetry-collector 21893:4318 &
 
 # Port forward Traces Observer Service
 echo "🔍 Forwarding Traces Observer Service (9098)..."
-kubectl port-forward -n openchoreo-observability-plane svc/traces-observer-service 9098:9098 &
+kubectl port-forward -n openchoreo-observability-plane svc/amp-traces-observer 9098:9098 &
 
 #Port forward Observer Service API
 echo "🔍 Forwarding Observer Service API (8085)..."

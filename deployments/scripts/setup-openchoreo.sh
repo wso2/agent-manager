@@ -192,14 +192,6 @@ else
         --set tracesObserver.developmentMode=true
 fi
 
-
-
-echo "⏳ Waiting for OpenSearch and OpenSearch Dashboards pods to be ready..."
-kubectl wait --for=condition=Ready pod --all -n openchoreo-observability-plane --timeout=900s || {
-    echo "⚠️  Some OpenSearch and OpenSearch Dashboards pods may still be starting (non-fatal)"
-}
-echo "✅ OpenSearch and OpenSearch Dashboards ready"
-
 echo "⏳ Waiting for Observability Plane pods to be ready..."
 kubectl wait --for=condition=Ready pod --all -n openchoreo-observability-plane --timeout=600s || {
     echo "⚠️  Some Observability pods may still be starting (non-fatal)"
