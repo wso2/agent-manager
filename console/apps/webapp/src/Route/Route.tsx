@@ -139,6 +139,7 @@ export function RootRouter() {
             </Route>
             <Route path="*" element={<div>404 Not Found</div>} />
           </Route>
+          <Route path="*" element={<div>404 Not Found</div>} />
         </Route>
       </Routes>
     </BrowserRouter>

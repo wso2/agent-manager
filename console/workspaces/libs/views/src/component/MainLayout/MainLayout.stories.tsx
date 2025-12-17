@@ -88,11 +88,11 @@ export const WithCustomUserMenu: Story = {
       avatar: 'https://i.pravatar.cc/150?img=2',
     },
     userMenuItems: [
-      { label: 'My Profile', icon: <Box>👤</Box>, onClick: () => { } },
-      { label: 'Account Settings', icon: <Box>⚙️</Box>, onClick: () => { } },
-      { label: 'Billing', icon: <Box>💳</Box>, onClick: () => { } },
-      { label: 'Help & Support', icon: <Box>❓</Box>, onClick: () => { } },
-      { label: 'Sign Out', icon: <Box>🚪</Box>, onClick: () => { }, divider: true },
+      { label: 'My Profile', icon: <Box>👤</Box>, onClick: async () => { } },
+      { label: 'Account Settings', icon: <Box>⚙️</Box>, onClick: async () => { } },
+      { label: 'Billing', icon: <Box>💳</Box>, onClick: async () => { } },
+      { label: 'Help & Support', icon: <Box>❓</Box>, onClick: async () => { } },
+      { label: 'Sign Out', icon: <Box>🚪</Box>, onClick: async () => { }, divider: true },
     ],
   },
 };

@@ -171,7 +171,7 @@ describe('MainLayout', () => {
 
   it('renders custom user menu items', async () => {
     const userMenuItems = [
-      { label: 'Custom Item', onClick: vi.fn() },
+      { label: 'Custom Item', onClick: vi.fn(async () => {}) },
     ];
     const user = {
       name: 'John Doe',

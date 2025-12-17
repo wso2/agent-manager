@@ -37,6 +37,7 @@ export function useListOrganizations(
   return useQuery<OrganizationListResponse>({
     queryKey: ['organizations', query],
     queryFn: () => listOrganizations(query, getToken),
+    retry: false,
   });
 }
 

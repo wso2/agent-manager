@@ -34,7 +34,7 @@ import { absoluteRouteMap } from "@agent-management-platform/types";
 import { useMemo } from "react";
 
 export function Layout() {
-  const { userInfo } = useAuthHooks();
+  const { userInfo, logout } = useAuthHooks();
   const { orgId, projectId, agentId } = useParams<{
     orgId: string;
     projectId: string;
@@ -157,7 +157,9 @@ export function Layout() {
           },
         },
       ]}
-      userMenuItems={createUserMenuItems()}
+      userMenuItems={createUserMenuItems({ logout: async () => {
+        await logout();
+      } })}
       navigationItems={navigationItems}
     >
       <Box p={1} flexGrow={1}>

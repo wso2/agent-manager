@@ -16,5 +16,15 @@
  * under the License.
  */
 
+import { globalConfig } from "@agent-management-platform/types";
+import { LogOut } from "@wso2/oxygen-ui-icons-react";
 
-export const createUserMenuItems = () => [];
+
+export const createUserMenuItems = ({ logout }: { logout: () => Promise<void> }) => [
+    {
+        label: "Logout",
+        onClick:logout,
+        icon: <LogOut />,
+        href: globalConfig.authConfig.signOutRedirectURL,
+    },
+];

@@ -107,7 +107,6 @@ export function MainLayout({
         />
         {user && (
           <UserMenu
-            user={user}
             userMenuItems={userMenuItems}
             anchorEl={userMenuAnchor}
             open={Boolean(userMenuAnchor)}
