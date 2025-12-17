@@ -516,10 +516,10 @@ func extractEndpointURLFromEnvRelease(envRelease *v1alpha1.Release) ([]models.En
 			return nil, fmt.Errorf("HTTPRoute missing hostnames")
 		}
 		hostname := hostnames[0]
-
-		// Get path from rules[0].matches[0].path.value
-		pathValue, _, _ := unstructured.NestedString(obj.Object, "spec", "rules", "0", "matches", "0", "path", "value")
-
+		pathValue, err := extractPathValue(obj)
+		if err != nil {
+			return nil, fmt.Errorf("error extracting path from HTTPRoute: %w", err)	
+		}
 		// Construct the invoke URL
 		port := config.GetConfig().DefaultGatewayPort
 		url := fmt.Sprintf("http://%s:%d", hostname, port)
@@ -535,6 +535,35 @@ func extractEndpointURLFromEnvRelease(envRelease *v1alpha1.Release) ([]models.En
 	}
 
 	return endpoints, nil
+}
+
+func extractPathValue(obj unstructured.Unstructured) (string, error) {
+
+		// Get path from rules[0].matches[0].path.value
+		rules, found, err := unstructured.NestedSlice(obj.Object, "spec", "rules")
+		if err != nil || !found || len(rules) == 0 {
+			return "", fmt.Errorf("HTTPRoute missing rules")
+		}
+
+		rule0, ok := rules[0].(map[string]any)
+		if !ok {
+			return "", fmt.Errorf("invalid rule format in HTTPRoute")
+		}
+
+		matches, found, err := unstructured.NestedSlice(rule0, "matches")
+		if err != nil || !found || len(matches) == 0 {
+			return "", fmt.Errorf("HTTPRoute missing matches")
+		}
+
+		match0, ok := matches[0].(map[string]any)
+		if !ok {
+			return "", fmt.Errorf("invalid match format in HTTPRoute")
+		}
+		pathValue, found, err := unstructured.NestedString(match0, "path", "value")
+		if err != nil || !found {
+			return "", fmt.Errorf("HTTPRoute missing path value")
+		}
+		return pathValue, nil
 }
 
 // findDeployedImageFromEnvRelease extracts the deployed image from the Deployment resource in the Release

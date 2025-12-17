@@ -314,7 +314,7 @@ func (s *infraResourceManager) handleProjectDeletion(ctx context.Context,  orgId
     // Soft delete project from database
 	s.logger.Debug("Handling project deletion", "orgName", orgName, "projectName", projectName)
 	if err := s.ProjectRepository.SoftDeleteProject(ctx, orgId, projectId); err != nil {
-		s.logger.Error("Critical: Project deleted from OpenChoreo but DB deletion failed, retry required",
+		s.logger.Error("Critical: Failed to soft delete project from database",
 			"projectId", projectId, "projectName", projectName, "orgName", orgName, "error", err)
 		return fmt.Errorf("failed to delete project %s from repository: %w", projectName, err)
 	}
@@ -327,7 +327,7 @@ func (s *infraResourceManager) handleProjectDeletion(ctx context.Context,  orgId
 			s.logger.Error("Critical: Project exists in database but not in OpenChoreo, manual cleanup required",
 				"projectId", projectId, "projectName", projectName, "orgName", orgName, "error", err)
 		}
-		return fmt.Errorf("failed to delete project %s from OpenChoreo and database: %w", projectName, err)
+		return fmt.Errorf("failed to delete project %s from OpenChoreo: %w", projectName, err)
 	}
 	s.logger.Debug("Project deleted from OpenChoreo successfully", "orgName", orgName, "projectName", projectName)
 	// Delete project from database
