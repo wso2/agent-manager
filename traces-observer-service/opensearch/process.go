@@ -54,22 +54,14 @@ func parseSpan(source map[string]interface{}) Span {
 		span.Kind = kind
 	}
 
-	// Extract service name from nested resource.attributes.service.name
+	// Extract component UID from resource
 	if resource, ok := source["resource"].(map[string]interface{}); ok {
-		if attributes, ok := resource["attributes"].(map[string]interface{}); ok {
-			if serviceName, ok := attributes["service.name"].(string); ok {
-				span.Service = serviceName
-			}
+		if componentUid, ok := resource["openchoreo.dev/component-uid"].(string); ok {
+			span.Service = componentUid
 		}
 
 		// Store the complete resource object
 		span.Resource = resource
-	}
-	// Fallback to serviceName if exists
-	if span.Service == "" {
-		if service, ok := source["serviceName"].(string); ok {
-			span.Service = service
-		}
 	}
 
 	// Parse timestamps
@@ -84,9 +76,12 @@ func parseSpan(source map[string]interface{}) Span {
 		}
 	}
 
-	// Parse duration
+	// Parse duration - try durationInNanos field first
 	if duration, ok := source["durationInNanos"].(float64); ok {
 		span.DurationInNanos = int64(duration)
+	} else if !span.StartTime.IsZero() && !span.EndTime.IsZero() {
+		// Fallback: calculate duration from timestamps if durationInNanos not present
+		span.DurationInNanos = span.EndTime.Sub(span.StartTime).Nanoseconds()
 	}
 
 	// Parse status

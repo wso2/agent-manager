@@ -35,6 +35,8 @@ OPENSEARCH_PASSWORD=admin
 OPENSEARCH_TRACE_INDEX=custom-otel-span-index
 ```
 
+# Set the environment Variables
+
 ## Build and run — local (Go)
 
 Prerequisites: Go 1.20+ and a running OpenSearch instance reachable by the service.
@@ -44,11 +46,15 @@ Build the binary:
 ```bash
 go build -o traces-observer-service ./...
 ```
+Set the enviornment variables:
+```bash
+export OPENSEARCH_ADDRESS=https://localhost:9200 OPENSEARCH_USERNAME=admin OPENSEARCH_PASSWORD=ThisIsTheOpenSearchPassword1 TRACES_OBSERVER_PORT=9098
+```
 
 Run with environment variables set (example):
 
 ```bash
-OPENSEARCH_ADDRESS=http://localhost:9200 OPENSEARCH_USERNAME=admin OPENSEARCH_PASSWORD=admin OPENSEARCH_TRACE_INDEX=custom-otel-span-index TRACES_OBSERVER_PORT=9098 \
+OPENSEARCH_ADDRESS=http://localhost:9200 OPENSEARCH_USERNAME=admin OPENSEARCH_PASSWORD=ThisIsTheOpenSearchPassword1  TRACES_OBSERVER_PORT=9098 \
 ./traces-observer-service
 ```
 
@@ -72,8 +78,7 @@ Run the container (example):
 docker run --rm -p 9098:9098 \
 	-e OPENSEARCH_ADDRESS=http://host.docker.internal:9200 \
 	-e OPENSEARCH_USERNAME=admin \
-	-e OPENSEARCH_PASSWORD=admin \
-	-e OPENSEARCH_TRACE_INDEX=custom-otel-span-index \
+	-e OPENSEARCH_PASSWORD=ThisIsTheOpenSearchPassword1 \
     -e TRACES_OBSERVER_PORT=9098 \
 	traces-observer-service
 ```
@@ -82,7 +87,7 @@ docker run --rm -p 9098:9098 \
 
 All APIs use standard GET requests with query parameters
 
-### 1. List traces - `GET /api/traces`
+### 1. List traces - `GET /api/v1/traces`
 
 Retrieves a list of trace overviews for a specific service with optional time filtering and pagination.
 
@@ -98,7 +103,7 @@ Retrieves a list of trace overviews for a specific service with optional time fi
 **Example request:**
 
 ```bash
-curl --location 'http://localhost:9098/api/traces?serviceName=sample-app&startTime=2025-11-03T00:00:00Z&endTime=2025-11-08T23:59:59Z&limit=10&offset=0'
+curl --location 'http://localhost:9098/api/v1/traces?serviceName=sample-app&startTime=2025-11-03T00:00:00Z&endTime=2025-11-08T23:59:59Z&limit=10&offset=0'
 ```
 
 **Response (200):**
@@ -119,7 +124,7 @@ curl --location 'http://localhost:9098/api/traces?serviceName=sample-app&startTi
 }
 ```
 
-### 2. Get trace spans - `GET /api/trace`
+### 2. Get trace spans - `GET /api/v1/trace`
 
 Retrieves all spans for a specific trace ID and service.
 
@@ -133,7 +138,7 @@ Retrieves all spans for a specific trace ID and service.
 **Example request:**
 
 ```bash
-curl --location 'http://localhost:9098/api/trace?traceId=21a29d5d24837ca724b8751494e70a95&serviceName=langchain-docker-app&sortOrder=asc&limit=100'
+curl --location 'http://localhost:9098/api/v1/trace?traceId=21a29d5d24837ca724b8751494e70a95&serviceName=langchain-docker-app&sortOrder=asc&limit=100'
 ```
 
 **Response (200):**

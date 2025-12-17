@@ -38,7 +38,6 @@ type OpenSearchConfig struct {
 	Address  string
 	Username string
 	Password string
-	Index    string
 }
 
 // Load loads configuration from environment variables with defaults
@@ -48,10 +47,9 @@ func Load() (*Config, error) {
 			Port: getEnvAsInt("TRACES_OBSERVER_PORT", 9098),
 		},
 		OpenSearch: OpenSearchConfig{
-			Address:  getEnv("OPENSEARCH_ADDRESS", "http://localhost:9200"),
+			Address:  getEnv("OPENSEARCH_ADDRESS", "https://localhost:9200"),
 			Username: getEnv("OPENSEARCH_USERNAME", ""),
 			Password: getEnv("OPENSEARCH_PASSWORD", ""),
-			Index:    getEnv("OPENSEARCH_TRACE_INDEX", "custom-otel-span-index"),
 		},
 	}
 
