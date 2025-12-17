@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/openchoreo/openchoreo/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
@@ -120,6 +121,12 @@ func createComponentCR(orgName, projectName string, req *spec.CreateAgentRequest
 			"limits": map[string]string{
 				"cpu":    DefaultCPULimit,
 				"memory": DefaultMemoryLimit,
+			},
+		},
+		"endpoints": map[string]interface{}{
+			fmt.Sprintf("%s-endpoint", req.Name): map[string]interface{}{
+				"port":     containerPort,
+				"basePath": basePath,
 			},
 		},
 		"basePath": basePath,
@@ -221,8 +228,14 @@ func getInstrumentationImage(languageVersion string) string {
 	if len(parts) >= 2 {
 		majorMinor := parts[0] + "." + parts[1]
 		switch majorMinor {
+		case "3.10":
+			return config.GetConfig().OTEL.OTELInstrumentationImage.Python310
 		case "3.11":
-			return "ghcr.io/agent-mgt-platform/otel-tracing-instrumentation:python3.11@sha256:d06e28a12e4a83edfcb8e4f6cb98faf5950266b984156f3192433cf0f903e529"
+			return config.GetConfig().OTEL.OTELInstrumentationImage.Python311
+		case "3.12":
+			return config.GetConfig().OTEL.OTELInstrumentationImage.Python312
+		case "3.13":
+			return config.GetConfig().OTEL.OTELInstrumentationImage.Python313
 		}
 	}
 	return ""
@@ -387,9 +400,9 @@ func toBuildDetailsResponse(componentWorkflow *v1alpha1.ComponentWorkflowRun) (*
 	return buildResp, nil
 }
 
-func toDeploymentDetailsResponse(binding *v1alpha1.ReleaseBinding, envRelease *v1alpha1.Release, environmentMap map[string]*models.EnvironmentResponse, promotionTargetEnv *models.PromotionTargetEnvironment) *models.DeploymentResponse {
+func toDeploymentDetailsResponse(binding *v1alpha1.ReleaseBinding, envRelease *v1alpha1.Release, environmentMap map[string]*models.EnvironmentResponse, promotionTargetEnv *models.PromotionTargetEnvironment) (*models.DeploymentResponse, error) {
 	if binding == nil {
-		return nil
+		return nil, nil
 	}
 
 	// Extract deployment status from Release Binding
@@ -402,7 +415,10 @@ func toDeploymentDetailsResponse(binding *v1alpha1.ReleaseBinding, envRelease *v
 	}
 
 	// Extract endpoints from EnvRelease status
-	endpoints := extractEndpointURLFromEnvRelease(envRelease)
+	endpoints, err := extractEndpointURLFromEnvRelease(envRelease)
+	if err != nil {
+		return nil, fmt.Errorf("error extracting endpoints: %w", err)
+	}
 	// Extract deployed image from EnvRelease status
 	deployedImage := findDeployedImageFromEnvRelease(envRelease)
 
@@ -421,7 +437,7 @@ func toDeploymentDetailsResponse(binding *v1alpha1.ReleaseBinding, envRelease *v
 		PromotionTargetEnvironment: promotionTargetEnv,
 		LastDeployedAt:             lastDeployedTime,
 		Endpoints:                  endpoints,
-	}
+	}, nil
 }
 
 func determineReleaseBindingStatus(binding *v1alpha1.ReleaseBinding) string {
@@ -464,11 +480,11 @@ func determineReleaseBindingStatus(binding *v1alpha1.ReleaseBinding) string {
 }
 
 // extractEndpointsFromEnvReleaseBinding converts EnvRelease endpoints to model endpoints
-func extractEndpointURLFromEnvRelease(envRelease *v1alpha1.Release) []models.Endpoint {
+func extractEndpointURLFromEnvRelease(envRelease *v1alpha1.Release) ([]models.Endpoint, error) {
 	var endpoints []models.Endpoint
 
 	if envRelease == nil || envRelease.Spec.Resources == nil {
-		return endpoints
+		return endpoints, nil
 	}
 
 	// Check spec.resources for HTTPRoute definitions
@@ -476,62 +492,49 @@ func extractEndpointURLFromEnvRelease(envRelease *v1alpha1.Release) []models.End
 
 	// Find all HTTPRoute objects in spec resources
 	for i := range specResources {
-		resource := &specResources[i]
-
-		// Unmarshal the RawExtension to extract the object
-		if len(resource.Object.Raw) > 0 {
-			var objMap map[string]interface{}
-			if err := json.Unmarshal(resource.Object.Raw, &objMap); err != nil {
-				continue
-			}
-
-			// Check if this is an HTTPRoute
-			if kind, ok := objMap["kind"].(string); !ok || kind != "HTTPRoute" {
-				continue
-			}
-
-			// Extract hostname and path from the HTTPRoute spec
-			var hostname string
-			var pathValue string
-
-			if spec, ok := objMap["spec"].(map[string]interface{}); ok {
-				// Get hostname
-				if hostnames, ok := spec["hostnames"].([]interface{}); ok && len(hostnames) > 0 {
-					hostname, _ = hostnames[0].(string)
-				}
-
-				// Get path from rules
-				if rules, ok := spec["rules"].([]interface{}); ok && len(rules) > 0 {
-					if rule, ok := rules[0].(map[string]interface{}); ok {
-						// Get path from matches
-						if matches, ok := rule["matches"].([]interface{}); ok && len(matches) > 0 {
-							if match, ok := matches[0].(map[string]interface{}); ok {
-								if path, ok := match["path"].(map[string]interface{}); ok {
-									pathValue, _ = path["value"].(string)
-								}
-							}
-						}
-					}
-				}
-			}
-
-			// Construct the invoke URL if hostname is available
-			if hostname != "" {
-				port := config.GetConfig().DefaultGatewayPort
-				url := fmt.Sprintf("http://%s:%d", hostname, port)
-				if pathValue != "" {
-					url = fmt.Sprintf("http://%s:%d%s", hostname, port, pathValue)
-				}
-
-				endpoints = append(endpoints, models.Endpoint{
-					URL:        url,
-					Visibility: "Public",
-				})
-			}
+		rawResource := specResources[i].Object.Raw
+		if len(rawResource) == 0 {
+			continue
 		}
+
+		var obj unstructured.Unstructured
+		if err := json.Unmarshal(rawResource, &obj); err != nil {
+			return nil, fmt.Errorf("error unmarshalling resource: %w", err)
+		}
+
+		// Check if this is an HTTPRoute
+		if obj.GetKind() != "HTTPRoute" {
+			continue
+		}
+
+		// Get hostname
+		hostnames, found, err := unstructured.NestedStringSlice(obj.Object, "spec", "hostnames")
+		if err != nil {
+			return nil, fmt.Errorf("error extracting hostnames from HTTPRoute: %w", err)
+		}
+		if !found || len(hostnames) == 0 {
+			return nil, fmt.Errorf("HTTPRoute missing hostnames")
+		}
+		hostname := hostnames[0]
+
+		// Get path from rules[0].matches[0].path.value
+		pathValue, _, _ := unstructured.NestedString(obj.Object, "spec", "rules", "0", "matches", "0", "path", "value")
+
+		// Construct the invoke URL
+		port := config.GetConfig().DefaultGatewayPort
+		url := fmt.Sprintf("http://%s:%d", hostname, port)
+		if pathValue != "" {
+			url = fmt.Sprintf("http://%s:%d%s", hostname, port, pathValue)
+		}
+
+		endpoints = append(endpoints, models.Endpoint{
+			URL:        url,
+			Visibility: "Public",
+		})
+		
 	}
 
-	return endpoints
+	return endpoints, nil
 }
 
 // findDeployedImageFromEnvRelease extracts the deployed image from the Deployment resource in the Release
@@ -542,40 +545,41 @@ func findDeployedImageFromEnvRelease(envRelease *v1alpha1.Release) string {
 
 	// Iterate through resources to find the Deployment
 	for i := range envRelease.Spec.Resources {
-		resource := &envRelease.Spec.Resources[i]
+		rawResource := envRelease.Spec.Resources[i].Object.Raw
+		if len(rawResource) == 0 {
+			continue
+		}
 
 		// Unmarshal the RawExtension to extract the object
-		if len(resource.Object.Raw) > 0 {
-			var objMap map[string]interface{}
-			if err := json.Unmarshal(resource.Object.Raw, &objMap); err != nil {
+		var obj unstructured.Unstructured
+		if err := json.Unmarshal(rawResource, &obj); err != nil {
+			continue
+		}
+
+		// Check if this is a Deployment
+		if obj.GetKind() != "Deployment" {
+			continue
+		}
+
+		// Extract image from spec.template.spec.containers[].image
+		containers, found, err := unstructured.NestedSlice(obj.Object, "spec", "template", "spec", "containers")
+		if err != nil || !found {
+			continue
+		}
+
+		for _, container := range containers {
+			containerMap, ok := container.(map[string]interface{})
+			if !ok {
 				continue
 			}
-
-			// Check if this is a Deployment
-			if kind, ok := objMap["kind"].(string); !ok || kind != "Deployment" {
-				continue
-			}
-
-			// Extract image from spec.template.spec.containers[].image
-			if spec, ok := objMap["spec"].(map[string]interface{}); ok {
-				if template, ok := spec["template"].(map[string]interface{}); ok {
-					if podSpec, ok := template["spec"].(map[string]interface{}); ok {
-						if containers, ok := podSpec["containers"].([]interface{}); ok {
-							for _, container := range containers {
-								if containerMap, ok := container.(map[string]interface{}); ok {
-									// Look for the "main" container
-									if name, ok := containerMap["name"].(string); ok && name == "main" {
-										if image, ok := containerMap["image"].(string); ok {
-											return image
-										}
-									}
-								}
-							}
-						}
-					}
+			// Look for the "main" container
+			if name, ok := containerMap["name"].(string); ok && name == "main" {
+				if image, ok := containerMap["image"].(string); ok {
+					return image
 				}
 			}
 		}
+		
 	}
 
 	return ""
@@ -607,58 +611,58 @@ func MapConditionsToBuildSteps(conditions []metav1.Condition) []models.BuildStep
 	workloadUpdated := findCondition(string(ConditionWorkloadUpdated))
 
 	// Step 1: BuildInitiated (always succeeded if ComponentWorkflowRun exists)
-	steps[0].Status = string(BuildStepStatusSucceeded)
-	steps[0].Message = "Build initiated"
+	steps[StepIndexInitiated].Status = string(BuildStepStatusSucceeded)
+	steps[StepIndexInitiated].Message = "Build initiated"
 
 	// Step 2: BuildTriggered (workflow created)
 	if workflowCompleted != nil || workflowRunning != nil {
-		steps[1].Status = string(BuildStepStatusSucceeded)
-		steps[1].Message = "Build triggered"
+		steps[StepIndexTriggered].Status = string(BuildStepStatusSucceeded)
+		steps[StepIndexTriggered].Message = "Build triggered"
 		if workflowCompleted != nil {
-			steps[1].StartedAt = &workflowCompleted.LastTransitionTime.Time
-			steps[1].FinishedAt = &workflowCompleted.LastTransitionTime.Time
+			steps[StepIndexTriggered].StartedAt = &workflowCompleted.LastTransitionTime.Time
+			steps[StepIndexTriggered].FinishedAt = &workflowCompleted.LastTransitionTime.Time
 		}
 	}
 
 	// Step 3: BuildRunning
 	if workflowRunning != nil && workflowRunning.Status == metav1.ConditionTrue {
-		steps[2].Status = string(BuildStepStatusRunning)
-		steps[2].Message = "Build running"
-		steps[2].StartedAt = &workflowRunning.LastTransitionTime.Time
+		steps[StepIndexRunning].Status = string(BuildStepStatusRunning)
+		steps[StepIndexRunning].Message = "Build running"
+		steps[StepIndexRunning].StartedAt = &workflowRunning.LastTransitionTime.Time
 	} else if workflowCompleted != nil && workflowCompleted.Status == metav1.ConditionTrue {
-		steps[2].Status = string(BuildStepStatusSucceeded)
-		steps[2].Message = "Build execution finished"
+		steps[StepIndexRunning].Status = string(BuildStepStatusSucceeded)
+		steps[StepIndexRunning].Message = "Build execution finished"
 		if workflowRunning != nil {
-			steps[2].StartedAt = &workflowRunning.LastTransitionTime.Time
+			steps[StepIndexRunning].StartedAt = &workflowRunning.LastTransitionTime.Time
 		}
-		steps[2].FinishedAt = &workflowCompleted.LastTransitionTime.Time
+		steps[StepIndexRunning].FinishedAt = &workflowCompleted.LastTransitionTime.Time
 	}
 
 	// Step 4: BuildCompleted (succeeded or failed)
 	if workflowFailed != nil && workflowFailed.Status == metav1.ConditionTrue {
-		steps[3].Status = string(BuildStepStatusFailed)
-		steps[3].Message = workflowFailed.Message
-		steps[3].StartedAt = &workflowFailed.LastTransitionTime.Time
-		steps[3].FinishedAt = &workflowFailed.LastTransitionTime.Time
+		steps[StepIndexCompleted].Status = string(BuildStepStatusFailed)
+		steps[StepIndexCompleted].Message = workflowFailed.Message
+		steps[StepIndexCompleted].StartedAt = &workflowFailed.LastTransitionTime.Time
+		steps[StepIndexCompleted].FinishedAt = &workflowFailed.LastTransitionTime.Time
 	} else if workflowSucceeded != nil && workflowSucceeded.Status == metav1.ConditionTrue {
-		steps[3].Status = string(BuildStepStatusSucceeded)
-		steps[3].Message = "Build completed successfully"
-		steps[3].StartedAt = &workflowSucceeded.LastTransitionTime.Time
-		steps[3].FinishedAt = &workflowSucceeded.LastTransitionTime.Time
+		steps[StepIndexCompleted].Status = string(BuildStepStatusSucceeded)
+		steps[StepIndexCompleted].Message = "Build completed successfully"
+		steps[StepIndexCompleted].StartedAt = &workflowSucceeded.LastTransitionTime.Time
+		steps[StepIndexCompleted].FinishedAt = &workflowSucceeded.LastTransitionTime.Time
 	}
 
 	// Step 5: WorkloadUpdated (final deployment step)
 	if workloadUpdated != nil && workloadUpdated.Status == metav1.ConditionTrue {
-		steps[4].Status = string(BuildStepStatusSucceeded)
-		steps[4].Message = "Workload updated successfully"
-		steps[4].StartedAt = &workloadUpdated.LastTransitionTime.Time
-		steps[4].FinishedAt = &workloadUpdated.LastTransitionTime.Time
+		steps[StepIndexWorkloadUpdated].Status = string(BuildStepStatusSucceeded)
+		steps[StepIndexWorkloadUpdated].Message = "Workload updated successfully"
+		steps[StepIndexWorkloadUpdated].StartedAt = &workloadUpdated.LastTransitionTime.Time
+		steps[StepIndexWorkloadUpdated].FinishedAt = &workloadUpdated.LastTransitionTime.Time
 	} else if workflowSucceeded != nil && workflowSucceeded.Status == metav1.ConditionTrue {
-		steps[4].Status = string(BuildStepStatusRunning)
-		steps[4].Message = "Updating workload"
+		steps[StepIndexWorkloadUpdated].Status = string(BuildStepStatusRunning)
+		steps[StepIndexWorkloadUpdated].Message = "Updating workload"
 	} else if workflowFailed != nil && workflowFailed.Status == metav1.ConditionTrue {
-		steps[4].Status = string(BuildStepStatusPending)
-		steps[4].Message = "Workload update skipped"
+		steps[StepIndexWorkloadUpdated].Status = string(BuildStepStatusPending)
+		steps[StepIndexWorkloadUpdated].Message = "Workload update skipped"
 	}
 	return steps
 }

@@ -32,6 +32,7 @@ type ProjectRepository interface {
 	CreateProject(ctx context.Context, project *models.Project) error
 	SoftDeleteProject(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID) error
 	HardDeleteProject(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID) error
+	RollbackSoftDeleteProject(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID) error
 }
 
 type projectRepository struct{}
@@ -74,6 +75,15 @@ func (r *projectRepository) SoftDeleteProject(ctx context.Context, orgId uuid.UU
 func (r *projectRepository) HardDeleteProject(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID) error {
 	if err := db.DB(ctx).Unscoped().Where("id = ? AND org_id = ?", projectId, orgId).Delete(&models.Project{}).Error; err != nil {
 		return fmt.Errorf("projectRepository.HardDeleteProject: %w", err)
+	}
+	return nil
+}
+
+func (r *projectRepository) RollbackSoftDeleteProject(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID) error {
+	if err := db.DB(ctx).Unscoped().Model(&models.Project{}).
+		Where("id = ? AND org_id = ?", projectId, orgId).
+		Update("deleted_at", nil).Error; err != nil {
+		return fmt.Errorf("projectRepository.RollbackSoftDeleteProject: %w", err)
 	}
 	return nil
 }

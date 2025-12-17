@@ -71,6 +71,16 @@ const (
 	BuildStepStatusFailed    BuildStepStatus = "Failed"
 )
 
+
+// Build step indices
+const (
+	StepIndexInitiated = iota
+	StepIndexTriggered
+	StepIndexRunning
+	StepIndexCompleted
+	StepIndexWorkloadUpdated
+)
+
 // Deployment status values
 const (
 	DeploymentStatusFailed      = "failed"

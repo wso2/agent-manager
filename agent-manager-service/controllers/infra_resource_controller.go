@@ -271,6 +271,10 @@ func (c *infraResourceController) DeleteProject(w http.ResponseWriter, r *http.R
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
 			return
 		}
+		if errors.Is(err, utils.ErrProjectHasAssociatedAgents) {
+			utils.WriteErrorResponse(w, http.StatusConflict, "Project has associated agents")
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete project")
 		return
 	}

@@ -34,6 +34,7 @@ type AgentRepository interface {
 	SoftDeleteAgentByName(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string) error
 	HardDeleteAgentByName(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string) error
 	UpdateAgentTimestamp(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string) error
+	RollbackSoftDeleteAgent(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string) error
 }
 
 type agentRepository struct{}
@@ -92,6 +93,15 @@ func (r *agentRepository) UpdateAgentTimestamp(ctx context.Context, orgId uuid.U
 		Where("org_id = ? AND project_id = ? AND name = ?", orgId, projectId, agentName).
 		Update("updated_at", gorm.Expr("NOW()")).Error; err != nil {
 		return fmt.Errorf("agentRepository.UpdateAgentTimestamp: %w", err)
+	}
+	return nil
+}
+
+func (r *agentRepository) RollbackSoftDeleteAgent(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string) error {
+	if err := db.DB(ctx).Unscoped().Model(&models.Agent{}).
+		Where("org_id = ? AND project_id = ? AND name = ?", orgId, projectId, agentName).
+		Update("deleted_at", nil).Error; err != nil {
+		return fmt.Errorf("agentRepository.RollbackSoftDeleteAgent: %w", err)
 	}
 	return nil
 }

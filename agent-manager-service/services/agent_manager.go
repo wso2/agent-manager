@@ -262,7 +262,7 @@ func (s *agentManagerService) GenerateName(ctx context.Context, userIdpId uuid.U
 		_, err = s.AgentRepository.GetAgentByName(ctx, org.ID, project.ID, candidateName)
 		if err != nil && db.IsRecordNotFoundError(err) {
 			// Name is available, return it
-			s.logger.Info("Generated unique agent name", "agentName", candidateName, "orgName", orgName, "projectName", projectName)
+			s.logger.Info("Generated unique agent name from display name", "agentName", candidateName, "orgName", orgName, "projectName", projectName)
 			return candidateName, nil
 		}
 		if err != nil {
@@ -463,33 +463,53 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, userIdpId uuid.UU
 		}
 		return fmt.Errorf("failed to check existing agents: %w", err)
 	}
-	// Soft deletion
-	err = s.deleteAgentRecord(ctx, org.ID, project.ID, agentName, true)
-	if err != nil {
-		s.logger.Error("Failed to soft delete agent", "agentName", agentName, "error", err)
-		return err
-	}
 	if agent.ProvisioningType == string(utils.InternalAgent) {
-		// Remove open Choreo managed resources
-		err = s.deleteManagedAgent(ctx, orgName, projectName, agentName)
+		// Remove open Choreo managed agent and associated resources 
+		err := s.handleInternalAgentDeletion(ctx, org.ID, project.ID, orgName, projectName, agentName)
 		if err != nil {
 			s.logger.Error("Failed to delete oc agent", "agentName", agentName, "error", err)
 			return err
 		}
+		return nil
 	}
-	// Delete Agent record from table
-	return s.deleteAgentRecord(ctx, org.ID, project.ID, agentName, false)
-}
-
-func (s *agentManagerService) deleteManagedAgent(ctx context.Context, orgName, projectName, agentName string) error {
-	// Delete agent component in Open Choreo
-	if err := s.OpenChoreoSvcClient.DeleteAgentComponent(ctx, orgName, projectName, agentName); err != nil {
-		s.logger.Error("Failed to delete agent component from OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return fmt.Errorf("failed to delete agent component: agentName %s, error: %w", agentName, err)
+	// Directly delete external agent from database
+	if err := s.AgentRepository.HardDeleteAgentByName(ctx, org.ID, project.ID, agentName); err != nil {
+		s.logger.Error("Critical: Agent deleted from OpenChoreo but DB deletion failed, retry required",
+			"projectId", project.ID, "projectName", projectName, "orgName", orgName, "error", err)
+		return fmt.Errorf("failed to delete agent %s from repository: %w", agentName, err)
 	}
-	s.logger.Info("Managed agent deleted successfully from OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName)
 	return nil
 }
+
+func (s *agentManagerService) handleInternalAgentDeletion(ctx context.Context,  orgId uuid.UUID, projectId uuid.UUID, orgName string, projectName string, agentName string) error {
+    
+	// Soft delete agent from database
+	s.logger.Debug("Handling project deletion", "orgName", orgName, "projectName", projectName)
+	if err := s.AgentRepository.SoftDeleteAgentByName(ctx, orgId, projectId, agentName); err != nil {
+		s.logger.Error("Failed to soft delete agent from repository", "agentName", agentName, "orgId", orgId, "projectId", projectId, "error", err)
+		return fmt.Errorf("failed to delete agent %s from repository: %w", projectName, err)
+	}
+	// Delete agent from OpenChoreo
+	err := s.OpenChoreoSvcClient.DeleteAgentComponent(ctx, orgName, projectName, agentName)
+	if err != nil {
+		// Delete agent from OpenChoreo failed, rollback database changes
+		err := s.AgentRepository.RollbackSoftDeleteAgent(ctx, orgId, projectId, agentName)
+		if err != nil {
+			s.logger.Error("Critical: Agent exists in database but not in OpenChoreo, manual cleanup required",
+				"projectId", projectId, "projectName", projectName, "orgName", orgName, "error", err)
+		}
+		return fmt.Errorf("failed to delete agent %s from OpenChoreo and database: %w", agentName, err)
+	}	
+	s.logger.Debug("Agent deleted from OpenChoreo successfully", "orgName", orgName, "agentName", agentName)
+	// Delete agent from database
+	if err := s.AgentRepository.HardDeleteAgentByName(ctx, orgId, projectId, agentName); err != nil {
+		s.logger.Error("Critical: Agent deleted from OpenChoreo but DB deletion failed, retry required",
+			"projectId", projectId, "projectName", projectName, "orgName", orgName, "error", err)
+		return fmt.Errorf("failed to delete agent %s from repository: %w", agentName, err)
+	}
+	return nil
+}
+
 
 func (s *agentManagerService) deleteAgentRecord(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string, isSoftDelete bool) error {
 	// Delete agent record from the database
@@ -972,7 +992,7 @@ func (s *agentManagerService) convertToAgentListItem(agent *models.Agent, projNa
 		CreatedAt: agent.CreatedAt,
 	}
 	if agent.AgentDetails != nil {
-		response.AgentType = models.AgentType{
+		response.Type = models.AgentType{
 			Type:    agent.AgentDetails.AgentType,
 			SubType: agent.AgentDetails.AgentSubType,
 		}
@@ -1010,7 +1030,7 @@ func (s *agentManagerService) convertManagedAgentToAgentResponse(ocAgentComponen
 				AppPath: ocAgentComponent.Repository.AppPath,
 			},
 		},
-		AgentType: models.AgentType{
+		Type: models.AgentType{
 			Type:    agent.AgentDetails.AgentType,
 			SubType: agent.AgentDetails.AgentSubType,
 		},

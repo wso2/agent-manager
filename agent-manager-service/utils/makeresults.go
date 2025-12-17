@@ -63,8 +63,8 @@ func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentR
 			Language: component.Language,
 		},
 		AgentType: &spec.AgentType{
-			Type:    component.AgentType.Type,
-			SubType: component.AgentType.SubType,
+			Type:    component.Type.Type,
+			SubType: component.Type.SubType,
 		},
 	}
 }

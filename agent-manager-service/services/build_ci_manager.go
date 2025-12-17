@@ -109,6 +109,18 @@ func (b *buildCIManagerService) HandleBuildCallback(ctx context.Context, orgName
 // IMAGE_TAG - placeholder for the actual container image
 // SCHEMA_CONTENT - placeholder for the OpenAPI schema content (if applicable)
 func buildWorkloadCRTemplate(workloadSpec map[string]interface{}, orgName, projectName, componentName string) (string,error) {
+	// Build environment variables
+	envVars, err := buildEnvVars(workloadSpec)
+	if err != nil {
+		return "", fmt.Errorf("failed to build environment variables: %w", err)
+	}
+
+	// Build endpoints
+	endpoints, err := buildEndpoints(workloadSpec)
+	if err != nil {
+		return "", fmt.Errorf("failed to build endpoints: %w", err)
+	}
+
 	// Create Workload object
 	workload := &v1alpha1.Workload{
 		TypeMeta: metav1.TypeMeta{
@@ -128,10 +140,10 @@ func buildWorkloadCRTemplate(workloadSpec map[string]interface{}, orgName, proje
 				Containers: map[string]v1alpha1.Container{
 					"main": {
 						Image: "IMAGE_TAG", // Placeholder for actual image
-						Env:   buildEnvVars(workloadSpec),
+						Env:   envVars,
 					},
 				},
-				Endpoints: buildEndpoints(workloadSpec),
+				Endpoints: endpoints,
 			},
 		},
 	}
@@ -147,67 +159,88 @@ func buildWorkloadCRTemplate(workloadSpec map[string]interface{}, orgName, proje
 }
 
 // buildEnvVars converts environment variables from workload spec to v1alpha1.EnvVar slice
-func buildEnvVars(workloadSpec map[string]interface{}) []v1alpha1.EnvVar {
+func buildEnvVars(workloadSpec map[string]interface{}) ([]v1alpha1.EnvVar, error) {
 	var envVars []v1alpha1.EnvVar
 
-	if envVarsList, ok := workloadSpec["envVars"].([]interface{}); ok {
-		for _, envVarItem := range envVarsList {
-			if envVar, ok := envVarItem.(map[string]interface{}); ok {
-				key, _ := envVar["key"].(string)
-				value, _ := envVar["value"].(string)
-				envVars = append(envVars, v1alpha1.EnvVar{
-					Key:   key,
-					Value: value,
-				})
-			}
-		}
+	envVarsList, ok := workloadSpec["envVars"].([]interface{})
+	if !ok {
+		return envVars, nil
 	}
 
-	return envVars
+	for _, envVarItem := range envVarsList {
+		envVar, ok := envVarItem.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid envVar format in workload spec")
+		}
+
+		key, keyOk := envVar["key"].(string)
+		value, valueOk := envVar["value"].(string)
+		if !keyOk || !valueOk {
+			return nil, fmt.Errorf("envVar missing required key or value fields")
+		}
+
+		envVars = append(envVars, v1alpha1.EnvVar{
+			Key:   key,
+			Value: value,
+		})
+	}
+
+	return envVars, nil
 }
 
 // buildEndpoints converts endpoints from workload spec to v1alpha1.WorkloadEndpoint map
-func buildEndpoints(workloadSpec map[string]interface{}) map[string]v1alpha1.WorkloadEndpoint {
+func buildEndpoints(workloadSpec map[string]interface{}) (map[string]v1alpha1.WorkloadEndpoint, error) {
 	endpoints := make(map[string]v1alpha1.WorkloadEndpoint)
 
-	if endpointsList, ok := workloadSpec["endpoints"].([]interface{}); ok {
-		for _, endpointItem := range endpointsList {
-			if endpoint, ok := endpointItem.(map[string]interface{}); ok {
-				endpointName, _ := endpoint["name"].(string)
-				endpointType, _ := endpoint["type"].(string)
-
-				// Handle port - JSON unmarshaling converts numbers to float64
-				var port int32
-				if portFloat, ok := endpoint["port"].(float64); ok {
-					port = int32(portFloat)
-				}
-
-				workloadEndpoint := v1alpha1.WorkloadEndpoint{
-					Type: v1alpha1.EndpointType(endpointType),
-					Port: port,
-				}
-
-				// Check if schema content or schema path is provided
-				schemaContent, hasSchemaContent := endpoint["schemaContent"].(string)
-				schemaPath, hasSchemaPath := endpoint["schemaPath"].(string)
-
-				// If schema content exists or schema path exists, use placeholder
-				if hasSchemaContent && schemaContent != "" {
-					workloadEndpoint.Schema = &v1alpha1.Schema{
-						Type:    string(v1alpha1.EndpointTypeREST),
-						Content: schemaContent,
-					}
-				} else if hasSchemaPath && schemaPath != "" {
-					workloadEndpoint.Schema = &v1alpha1.Schema{
-						Type:    string(v1alpha1.EndpointTypeREST),
-						Content: "SCHEMA_CONTENT", // Placeholder for actual schema
-					}
-				}
-
-				endpoints[endpointName] = workloadEndpoint
-			}
-		}
+	endpointsList, ok := workloadSpec["endpoints"].([]interface{})
+	if !ok {
+		return endpoints, nil
 	}
 
-	return endpoints
+	for _, endpointItem := range endpointsList {
+		endpoint, ok := endpointItem.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid endpoint format in workload spec")
+		}
+
+		endpointName, nameOk := endpoint["name"].(string)
+		endpointType, typeOk := endpoint["type"].(string)
+		if !nameOk || !typeOk {
+			return nil, fmt.Errorf("endpoint missing required name or type fields")
+		}
+
+		// Handle port - JSON unmarshaling converts numbers to float64
+		var port int32
+		if portFloat, ok := endpoint["port"].(float64); ok {
+			port = int32(portFloat)
+		} else {
+			return nil, fmt.Errorf("endpoint %s missing or invalid port", endpointName)
+		}
+
+		workloadEndpoint := v1alpha1.WorkloadEndpoint{
+			Type: v1alpha1.EndpointType(endpointType),
+			Port: port,
+		}
+
+		// Check if schema content or schema path is provided
+		schemaContent, hasSchemaContent := endpoint["schemaContent"].(string)
+		schemaPath, hasSchemaPath := endpoint["schemaPath"].(string)
+		
+		// If schema content exists or schema path exists, use placeholder
+		if hasSchemaContent && schemaContent != "" {
+			workloadEndpoint.Schema = &v1alpha1.Schema{
+				Type:    string(v1alpha1.EndpointTypeREST),
+				Content: schemaContent,
+			}
+		} else if hasSchemaPath && schemaPath != "" {
+			workloadEndpoint.Schema = &v1alpha1.Schema{
+				Type:    string(v1alpha1.EndpointTypeREST),
+				Content: "SCHEMA_CONTENT", // Placeholder for actual schema
+			}
+		}
+
+		endpoints[endpointName] = workloadEndpoint
+	}
+
+	return endpoints, nil
 }

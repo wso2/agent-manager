@@ -55,7 +55,7 @@ type Config struct {
 // OTELConfig holds all OpenTelemetry related configuration
 type OTELConfig struct {
 	// Instrumentation configuration
-	InstrumentationImage string
+	OTELInstrumentationImage
 	SDKVolumeName        string
 	SDKMountPath         string
 
@@ -65,6 +65,14 @@ type OTELConfig struct {
 	// OTLP Exporter configuration
 	ExporterEndpoint string
 }
+
+type OTELInstrumentationImage struct {
+	Python310 string
+     Python311 string
+	 Python312 string
+	 Python313 string
+}
+
 type ObserverConfig struct {
 	// Observer service URL
 	URL      string

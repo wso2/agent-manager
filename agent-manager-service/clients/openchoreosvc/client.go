@@ -596,7 +596,11 @@ func (k *openChoreoSvcClient) GetAgentDeployments(ctx context.Context, orgName s
 			if _, releaseExists := releaseMap[envName]; !releaseExists {
 				return nil, fmt.Errorf("release not found for environment %s", envName)
 			}
-			deploymentDetails = append(deploymentDetails, toDeploymentDetailsResponse(releaseBinding, releaseMap[envName], environmentMap, promotionTargetEnv))
+			deploymentDetail, err := toDeploymentDetailsResponse(releaseBinding, releaseMap[envName], environmentMap, promotionTargetEnv)
+			if err != nil {
+				return nil, fmt.Errorf("error creating deployment details for environment %s: %w", envName, err)
+			}
+			deploymentDetails = append(deploymentDetails, deploymentDetail)
 		} else {
 			var displayName string
 			if env, envExists := environmentMap[envName]; envExists {
@@ -649,7 +653,10 @@ func (k *openChoreoSvcClient) GetAgentEndpoints(ctx context.Context, orgName str
 
 	// Get the first matching Release (there should only be one per component/environment)
 	release := &releaseList.Items[0]
-	endpointURLs := extractEndpointURLFromEnvRelease(release)
+	endpointURLs,err := extractEndpointURLFromEnvRelease(release)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract endpoint URLs from release: %w", err)
+	}
 	if len(endpointURLs) == 0 {
 		return nil, fmt.Errorf("no endpoint URLs found in release")
 	}

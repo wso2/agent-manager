@@ -22,7 +22,6 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 
 	clients "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
@@ -194,14 +193,7 @@ func (s *infraResourceManager) CreateProject(ctx context.Context, userIdpId uuid
 	if err := s.OpenChoreoSvcClient.CreateProject(ctx, orgName, payload.Name, payload.DeploymentPipeline, payload.DisplayName, utils.StrPointerAsStr(payload.Description, "")); err != nil {
 		s.logger.Error("Failed to create project in OpenChoreo, initiating rollback", "orgName", orgName, "projectName", payload.Name, "error", err)
 		// OpenChoreo creation failed, rollback database changes
-		deleteErr := db.DB(ctx).Transaction(func(tx *gorm.DB) error {
-			txCtx := db.CtxWithTx(ctx, tx)
-			if deleteErr := db.DB(txCtx).Where("id = ?", project.ID).Delete(&models.Project{}).Error; deleteErr != nil {
-				s.logger.Error("Failed to rollback project creation from database", "projectId", project.ID, "error", deleteErr)
-				return deleteErr
-			}
-			return nil
-		})
+		deleteErr := s.ProjectRepository.HardDeleteProject(ctx, org.ID, project.ID)
 		if deleteErr != nil {
 			s.logger.Error("Critical: Project exists in database but not in OpenChoreo, manual cleanup required",
 				"projectId", project.ID, "projectName", payload.Name, "orgName", orgName)
@@ -210,8 +202,6 @@ func (s *infraResourceManager) CreateProject(ctx context.Context, userIdpId uuid
 		}
 		return nil, fmt.Errorf("failed to create project in OpenChoreo: %w", err)
 	}
-	s.logger.Debug("Project created in OpenChoreo successfully", "orgName", orgName, "projectName", payload.Name)
-
 	s.logger.Info("Project created successfully", "orgName", orgName, "projectName", payload.Name, "projectId", project.ID)
 
 	return &models.ProjectResponse{
@@ -309,27 +299,44 @@ func (s *infraResourceManager) DeleteProject(ctx context.Context, userIdpId uuid
 	}
 	if len(agents) > 0 {
 		s.logger.Warn("Cannot delete project with associated agents", "orgName", orgName, "projectName", projectName, "agentCount", len(agents))
-		return fmt.Errorf("cannot delete project %s: project has %d associated agent(s)", projectName, len(agents))
+		return utils.ErrProjectHasAssociatedAgents
 	}
 	s.logger.Debug("No associated agents found, proceeding with deletion", "projectName", projectName)
-
-	// Delete project from OpenChoreo first
-	if err := s.OpenChoreoSvcClient.DeleteProject(ctx, orgName, projectName); err != nil {
-		s.logger.Error("Failed to delete project from OpenChoreo", "orgName", orgName, "projectName", projectName, "error", err)
-		return fmt.Errorf("failed to delete project %s from OpenChoreo: %w", projectName, err)
+	err = s.handleProjectDeletion(ctx, org.ID, project.ID, orgName, projectName)
+	if err != nil {
+		return err
 	}
-	s.logger.Debug("Project deleted from OpenChoreo successfully", "orgName", orgName, "projectName", projectName)
+	s.logger.Info("Project deleted successfully", "orgName", orgName, "projectName", projectName, "projectId", project.ID)
+	return nil
+}
 
-	// Delete project from database
-	s.logger.Debug("Deleting project from database", "projectId", project.ID, "projectName", projectName)
-	if err := s.ProjectRepository.HardDeleteProject(ctx, org.ID, project.ID); err != nil {
+func (s *infraResourceManager) handleProjectDeletion(ctx context.Context,  orgId uuid.UUID, projectId uuid.UUID, orgName string, projectName string) error {
+    // Soft delete project from database
+	s.logger.Debug("Handling project deletion", "orgName", orgName, "projectName", projectName)
+	if err := s.ProjectRepository.SoftDeleteProject(ctx, orgId, projectId); err != nil {
 		s.logger.Error("Critical: Project deleted from OpenChoreo but DB deletion failed, retry required",
-			"projectId", project.ID, "projectName", projectName, "orgName", orgName, "error", err)
+			"projectId", projectId, "projectName", projectName, "orgName", orgName, "error", err)
 		return fmt.Errorf("failed to delete project %s from repository: %w", projectName, err)
 	}
-	s.logger.Debug("Project deleted from database successfully", "projectId", project.ID, "projectName", projectName)
-
-	s.logger.Info("Project deleted successfully", "orgName", orgName, "projectName", projectName, "projectId", project.ID)
+	// Delete project from OpenChoreo
+	err := s.OpenChoreoSvcClient.DeleteProject(ctx, orgName, projectName)
+	if err != nil {
+		// Delete project from OpenChoreo failed, rollback database changes
+		err := s.ProjectRepository.RollbackSoftDeleteProject(ctx, orgId, projectId)
+		if err != nil {
+			s.logger.Error("Critical: Project exists in database but not in OpenChoreo, manual cleanup required",
+				"projectId", projectId, "projectName", projectName, "orgName", orgName, "error", err)
+		}
+		return fmt.Errorf("failed to delete project %s from OpenChoreo and database: %w", projectName, err)
+	}
+	s.logger.Debug("Project deleted from OpenChoreo successfully", "orgName", orgName, "projectName", projectName)
+	// Delete project from database
+	s.logger.Debug("Deleting project from database", "projectId", projectId, "projectName", projectName)
+	if err := s.ProjectRepository.HardDeleteProject(ctx, orgId, projectId); err != nil {
+		s.logger.Error("Critical: Project deleted from OpenChoreo but DB deletion failed, retry required",
+			"projectId", projectId, "projectName", projectName, "orgName", orgName, "error", err)
+		return fmt.Errorf("failed to delete project %s from repository: %w", projectName, err)
+	}
 	return nil
 }
 

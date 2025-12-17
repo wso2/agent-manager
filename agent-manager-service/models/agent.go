@@ -32,7 +32,7 @@ type AgentResponse struct {
 	CreatedAt    time.Time    `json:"createdAt"`
 	Status       string       `json:"status,omitempty"`
 	Provisioning Provisioning `json:"provisioning,omitempty"`
-	AgentType    AgentType    `json:"agentType,omitempty"`
+	Type    AgentType    `json:"type,omitempty"`
 	Language     string       `json:"language,omitempty"`
 }
 
