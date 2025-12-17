@@ -39,7 +39,7 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	agentController := controllers.NewAgentController(agentManagerService)
 	infraResourceManager := services.NewInfraResourceManager(organizationRepository, projectRepository, agentRepository, openChoreoSvcClient, logger)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
-	buildCIManagerService := services.NewBuildCIManager(openChoreoSvcClient, logger)
+	buildCIManagerService := services.NewBuildCIManager(openChoreoSvcClient, logger, organizationRepository, projectRepository, agentRepository)
 	buildCIController := controllers.NewBuildCIController(buildCIManagerService)
 	appParams := &AppParams{
 		AuthMiddleware:          middleware,
@@ -62,7 +62,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 	agentController := controllers.NewAgentController(agentManagerService)
 	infraResourceManager := services.NewInfraResourceManager(organizationRepository, projectRepository, agentRepository, openChoreoSvcClient, logger)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
-	buildCIManagerService := services.NewBuildCIManager(openChoreoSvcClient, logger)
+	buildCIManagerService := services.NewBuildCIManager(openChoreoSvcClient, logger, organizationRepository, projectRepository, agentRepository)
 	buildCIController := controllers.NewBuildCIController(buildCIManagerService)
 	appParams := &AppParams{
 		AuthMiddleware:          authMiddleware,

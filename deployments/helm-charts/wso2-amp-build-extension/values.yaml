@@ -2,55 +2,22 @@
 global:
   # -- Common labels to add to every resource.
   commonLabels: {}
-
+  # -- Base domain for external access (e.g., "openchoreo.example.com")
+  # When set, registry will be accessible at registry.<baseDomain>
+  baseDomain: ""
+  # -- Container registry configuration
+  registry:
+    # -- Registry endpoint for pushing and pulling images
+    # For local registry: "host.k3d.internal:10082"
+    # For external registry with baseDomain: automatically uses "registry.<baseDomain>"
+    endpoint: "host.k3d.internal:10082"
   # -- Agent Manager Service configuration
   agentManagerService:
     # -- The base URL of the agent manager service
-    # Use host.docker.internal for Docker Desktop/Kind to access host machine
-    url: "http://amp-api.wso2-amp:8080"
+    # Use host.k3d.internal for k3d or host.docker.internal for Docker Desktop/Kind to access host machine
+    url: "http://host.k3d.internal:8080"
     apiKeyHeader: "X-API-Key"
     # -- API Key for agent manager authentication
     # Provide it during installation with:
     # helm install custom-build-ci-workflows <path> --namespace <ns> --set global.agentManagerService.apiKey=your-secret-key
     apiKey: "abc-def-123"
-
-  # -- Configuration for the default workflow templates required for building container images.
-  defaultResources:
-    # -- If true, applies the workflow templates.
-    enabled:
-      true
-      # -- Container registry configuration
-    registry:
-      # -- Type of registry to use. Supported values: "local", "external".
-      # "local": Deploys a built-in registry managed by data plane Helm chart.
-      # "external": Connects to a pre-existing registry you provide.
-      type: local
-
-      # -- Settings for the built-in registry.
-      # These values are ONLY used if registry.type is "local".
-      local:
-        # -- The internal cluster address used by build pipelines (e.g., Podman) to push images.
-        pushEndpoint: "registry.openchoreo-data-plane:5000"
-
-        # -- The public-facing address used by cluster nodes (kubelet) to pull images.
-        # This could be a NodePort, LoadBalancer, or Ingress address.
-        pullEndpoint: "localhost:30003"
-
-      # -- Settings for using your own external registry.
-      # These values are ONLY used if registry.type is "external".
-      external:
-        # -- The full address of your external registry.
-        # (e.g., "gcr.io/my-project", "docker.io/my-org", "my-harbor.corp:5000")
-        endpoint: ""
-
-    # -- Buildpack builder configuration
-    googleBuildpack:
-      # -- The builder image to use for buildpack builds
-      builder: "gcr.io/buildpacks/builder@sha256:5977b4bd47d3e9ff729eefe9eb99d321d4bba7aa3b14986323133f40b622aef1"
-      # -- The run image to use for buildpack builds
-      runImage: "gcr.io/buildpacks/google-22/run:latest"
-    ballerinaBuildpack:
-      # -- The builder image to use for ballerina buildpack builds
-      builder: "ghcr.io/openchoreo/buildpack/ballerina:18"
-      # -- The run image to use for ballerina buildpack builds
-      runImage: "ghcr.io/openchoreo/buildpack/ballerina:18-run"

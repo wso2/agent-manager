@@ -1,0 +1,13 @@
+apiVersion: openchoreo.dev/v1alpha1
+kind: Project
+metadata:
+  name: {{ .Values.project.name }}
+  namespace: default
+  annotations:
+    openchoreo.dev/display-name: {{ .Values.project.displayName }}
+    openchoreo.dev/description: {{ .Values.project.description }}
+  labels:
+    openchoreo.dev/organization: {{ .Values.organization.name }}
+    openchoreo.dev/name: {{ .Values.project.name }}
+spec:
+  deploymentPipelineRef: {{ .Values.deploymentPipeline.name }}

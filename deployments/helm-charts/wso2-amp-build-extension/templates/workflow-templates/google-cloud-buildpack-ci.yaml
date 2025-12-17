@@ -1,14 +1,12 @@
-{{ if .Values.global.defaultResources.enabled }}
----
 apiVersion: argoproj.io/v1alpha1
 kind: ClusterWorkflowTemplate
 metadata:
-  name: buildpack-ci
+  name: google-cloud-buildpack-ci
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "15"
   labels:
-    {{- include "amp-build-extension.labels" . | nindent 4 }}
+{{- include "amp-build-extension.labels" . | nindent 4 }}
 spec:
   entrypoint: build-workflow
   templates:
@@ -28,8 +26,8 @@ spec:
               parameters:
                 - name: git-revision
                   value: '{{ "{{" }}steps.clone-step.outputs.parameters.git-revision{{ "}}" }}'
-        - - name: build-callback-step
-            template: build-callback-step
+        - - name: workload-create-step
+            template: workload-create-step
             arguments:
               parameters:
                 - name: image
@@ -82,14 +80,10 @@ spec:
             set -e
 
             WORKDIR=/mnt/vol/source
-            CACHE_DIR=/shared/podman/cache
 
             IMAGE="{{ "{{" }}workflow.parameters.image-name{{ "}}" }}:{{ "{{" }}workflow.parameters.image-tag{{ "}}" }}-{{ "{{" }}inputs.parameters.git-revision{{ "}}" }}"
             APP_PATH="{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
 
-            BUILDER="{{ .Values.global.defaultResources.googleBuildpack.builder }}"
-            RUN_IMG="{{ .Values.global.defaultResources.googleBuildpack.runImage }}"
-            
             # Set Google Buildpack entrypoint if provided
             GOOGLE_ENTRYPOINT="{{ "{{" }}workflow.parameters.google-entry-point{{ "}}" }}"
             LANGUAGE_VERSION="{{ "{{" }}workflow.parameters.language-version{{ "}}" }}"
@@ -112,30 +106,34 @@ spec:
             until podman info --format '{{ "{{" }}.Host.RemoteSocket.Exists{{ "}}" }}' 2>/dev/null | grep -q true; do sleep 1; done
 
             #####################################################################
-            # 2. Cache builder/run images
+            # 2. Registry configuration and pull pre-cached images
             #####################################################################
-            ensure_cached () {
-              local image=$1 tar=$2
-              if [[ ! -f "$tar" ]]; then
-                podman pull "$image"
-                podman save -o "$tar" "$image"
-              else
-                podman load -i "$tar" 2>/dev/null || {
-                  podman pull "$image"
-                  podman save -o "$tar" "$image"
-                }
-              fi
-            }
+            REGISTRY_ENDPOINT="{{ include "openchoreo-build-plane.registryEndpoint" . }}"
+
+            # Pull pre-cached buildpack images from registry
+            BUILDER="${REGISTRY_ENDPOINT}/buildpacks-cache/google-builder:latest"
+            RUN_IMG="${REGISTRY_ENDPOINT}/buildpacks-cache/google-run:latest"
+            LIFECYCLE_IMG="${REGISTRY_ENDPOINT}/buildpacks-cache/lifecycle:0.20.5"
+
+            echo "Pulling cached builder: $BUILDER"
+            podman pull --tls-verify=false "$BUILDER"
+
+            echo "Pulling cached run image: $RUN_IMG"
+            podman pull --tls-verify=false "$RUN_IMG"
+
+            echo "Pulling cached lifecycle: $LIFECYCLE_IMG"
+            podman pull --tls-verify=false "$LIFECYCLE_IMG"
+
+            # Tag lifecycle image to expected name (referenced by builder image metadata)
+            podman tag "$LIFECYCLE_IMG" "docker.io/buildpacksio/lifecycle:0.20.5"
 
             #####################################################################
             # 3. Build with Google Buildpacks
             #####################################################################
-            ensure_cached "$BUILDER" "$CACHE_DIR/google-builder.tar"
-            ensure_cached "$RUN_IMG" "$CACHE_DIR/google-run.tar"
 
             # Build with Google Buildpacks - create pack command with proper environment variables
             CMD_ARGS="--builder $BUILDER --docker-host inherit --path $WORKDIR/$APP_PATH --pull-policy if-not-present"
-            
+
             if [ -n "$GOOGLE_ENTRYPOINT" ]; then
               echo "Setting GOOGLE_ENTRYPOINT=$GOOGLE_ENTRYPOINT"
               CMD_ARGS="$CMD_ARGS --env GOOGLE_ENTRYPOINT=\"$GOOGLE_ENTRYPOINT\""
@@ -186,19 +184,9 @@ spec:
             SRC_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
 
             #####################################################################
-            # 2. Registry endpoints from Helm values
-            #    - type: "local" or "external"
-            #    - choose the right push/pull endpoints
+            # 2. Registry
             #####################################################################
-            REGISTRY_TYPE="{{ .Values.global.defaultResources.registry.type | default "local" }}"
-
-            if [ "${REGISTRY_TYPE}" = "local" ]; then
-              REGISTRY_PULL="{{ .Values.global.defaultResources.registry.local.pullEndpoint }}"
-              REGISTRY_PUSH="{{ .Values.global.defaultResources.registry.local.pushEndpoint }}"
-            else
-              REGISTRY_PULL="{{ .Values.global.defaultResources.registry.external.endpoint }}"
-              REGISTRY_PUSH="{{ .Values.global.defaultResources.registry.external.endpoint }}"
-            fi
+            REGISTRY_ENDPOINT="{{ include "openchoreo-build-plane.registryEndpoint" . }}"
 
             #####################################################################
             # 3. Podman storage configuration
@@ -218,13 +206,13 @@ spec:
             #####################################################################
             podman load -i /mnt/vol/app-image.tar
 
-            podman tag "$SRC_IMAGE" "$REGISTRY_PUSH/$SRC_IMAGE"
-            podman push --tls-verify=false "$REGISTRY_PUSH/$SRC_IMAGE"
+            podman tag "$SRC_IMAGE" "$REGISTRY_ENDPOINT/$SRC_IMAGE"
+            podman push --tls-verify=false "$REGISTRY_ENDPOINT/$SRC_IMAGE"
 
             #####################################################################
             # 5. Emit image reference (for later steps/kubelet pulls)
             #####################################################################
-            echo -n "$REGISTRY_PULL/$SRC_IMAGE" > /tmp/image.txt
+            echo -n "$REGISTRY_ENDPOINT/$SRC_IMAGE" > /tmp/image.txt
         command:
           - sh
           - -c
@@ -234,13 +222,18 @@ spec:
         volumeMounts:
           - mountPath: /mnt/vol
             name: workspace
-    - name: build-callback-step
+    - name: workload-create-step
       inputs:
         parameters:
           - name: image
+      outputs:
+        parameters:
+          - name: workload-cr
+            valueFrom:
+              path: /mnt/vol/workload-cr.yaml
       container:
         image: ghcr.io/openchoreo/podman-runner:v1.0
-        command: [ sh, -c ]
+        command: [sh, -c]
         args:
           - |-
             set -e
@@ -251,14 +244,20 @@ spec:
             IMAGE={{ "{{" }}inputs.parameters.image{{ "}}" }}
             PROJECT_NAME={{ "{{" }}workflow.parameters.project-name{{ "}}" }}
             COMPONENT_NAME={{ "{{" }}workflow.parameters.component-name{{ "}}" }}
+            SCHEMA_FILE_PATH={{ "{{" }}workflow.parameters.schema-file-path{{ "}}" }}
             ORG_NAME=$(echo {{ "{{" }}workflow.namespace{{ "}}" }} | sed 's/^openchoreo-ci-//')
-            
+
+
+            WORKDIR=/mnt/vol/source
+            APP_PATH="{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
+            SOURCE_PATH="$WORKDIR/$APP_PATH"
+
+
             #####################################################################
             # 2. Prepare callback payload
             #####################################################################
             CALLBACK_PAYLOAD=$(cat <<EOF
             {
-              "imageId": "$IMAGE",
               "agentName": "$COMPONENT_NAME",
               "projectName": "$PROJECT_NAME",
               "orgName": "$ORG_NAME"
@@ -273,12 +272,13 @@ spec:
             CALLBACK_ENDPOINT="$AGENT_MANAGER_BASE_URL/internal/builds/callback"
             AUTH_HEADER="{{ .Values.global.agentManagerService.apiKeyHeader }}"
             API_KEY="{{ .Values.global.agentManagerService.apiKey }}"
-            
+
             echo "Calling build callback API with payload:"
             echo "$CALLBACK_PAYLOAD"
             echo "Endpoint: $CALLBACK_ENDPOINT"
-            
-            curl -X POST \
+
+            # 1. Call API to get workload CR template
+            WORKLOAD_CR=$(curl -X POST \
               -H "Content-Type: application/json" \
               -H "$AUTH_HEADER: $API_KEY" \
               -d "$CALLBACK_PAYLOAD" \
@@ -286,23 +286,41 @@ spec:
               --max-time 30 \
               --retry 3 \
               --retry-delay 5 \
-              --fail-with-body
-            
-            if [ $? -eq 0 ]; then
-              echo "Build callback API call successful"
-            else
-              echo "Build callback API call failed"
+              --fail-with-body)
+
+            # Check if WORKLOAD_CR is empty
+            if [ -z "$WORKLOAD_CR" ]; then
+              echo "Error: Received empty response from build callback API"
               exit 1
             fi
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: openchoreo.dev/noderole
-                operator: In
-                values:
-                  - workflow-runner
+
+            # 2. Replace IMAGE placeholder
+            WORKLOAD_CR=$(echo "$WORKLOAD_CR" | sed "s|IMAGE_TAG|$IMAGE|g")
+
+            # 3. Replace OpenAPI spec content if provided
+            if [ -n "$SCHEMA_FILE_PATH" ] && [ -f "$SOURCE_PATH/$SCHEMA_FILE_PATH" ]; then
+              echo "Replacing schema content in Workload CR"
+              # Replace SCHEMA_CONTENT with | block scalar and indented content
+              SCHEMA_CONTENT=$(cat "$SOURCE_PATH/$SCHEMA_FILE_PATH" | sed 's/^/          /')
+              WORKLOAD_CR=$(echo "$WORKLOAD_CR" | awk -v schema="$SCHEMA_CONTENT" '
+                {
+                  if ($0 ~ /content: SCHEMA_CONTENT/) {
+                    # Replace SCHEMA_CONTENT with block scalar marker (pipe literal)
+                    sub(/SCHEMA_CONTENT/, "|")
+                    print
+                    print schema
+                  } else {
+                    print
+                  }
+                }
+              ')
+            fi
+
+            # 4. Save final CR (printf to handle newlines properly)
+            printf "%s\n" "$WORKLOAD_CR" > /mnt/vol/workload-cr.yaml
+        volumeMounts:
+          - name: workspace
+            mountPath: /mnt/vol
   ttlStrategy:
     secondsAfterFailure: 3600
     secondsAfterSuccess: 3600
@@ -321,4 +339,3 @@ spec:
         path: /shared/podman/cache
         type: DirectoryOrCreate
       name: podman-cache
-{{ end }}

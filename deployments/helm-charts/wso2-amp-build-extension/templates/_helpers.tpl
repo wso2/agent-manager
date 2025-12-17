@@ -44,3 +44,15 @@ They should NOT include version or chart labels as these change with upgrades.
 app.kubernetes.io/name: {{ include "amp-build-extension.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+Get the registry endpoint for workflow templates
+Returns external endpoint if global.baseDomain is set, otherwise uses configured endpoint
+*/}}
+{{- define "openchoreo-build-plane.registryEndpoint" -}}
+{{- if .Values.global.baseDomain -}}
+  {{- printf "registry.%s" .Values.global.baseDomain -}}
+{{- else -}}
+  {{- .Values.global.registry.endpoint -}}
+{{- end -}}
+{{- end -}}

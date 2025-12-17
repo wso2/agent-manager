@@ -22,7 +22,7 @@ const (
 	LabelKeyOrganizationName LabelKeys = "openchoreo.dev/organization"
 	LabelKeyProjectName      LabelKeys = "openchoreo.dev/project"
 	LabelKeyComponentName    LabelKeys = "openchoreo.dev/component"
-	LabelKeyComponentType    LabelKeys = "agent-manager/component-type"
+	LabelKeyEnvironmentName  LabelKeys = "openchoreo.dev/environment"
 )
 
 type AnnotationKeys string
@@ -32,13 +32,6 @@ const (
 	AnnotationKeyDescription AnnotationKeys = "openchoreo.dev/description"
 )
 
-type BuildTemplateNames string
-
-const (
-	GoogleBuildpackBuildTemplate    BuildTemplateNames = "buildpack-ci"
-	BallerinaBuildpackBuildTemplate BuildTemplateNames = "ballerina-buildpack-ci"
-)
-
 const (
 	AgentComponentType string = "agent-component"
 	GoogleEntryPoint   string = "google-entry-point"
@@ -46,28 +39,46 @@ const (
 	LanguageVersionKey string = "language-version-key"
 )
 
-// Build condition types
-type BuildConditionType string
+type WorkflowConditionType string
 
 const (
-	ConditionBuildInitiated  BuildConditionType = "BuildInitiated"
-	ConditionBuildTriggered  BuildConditionType = "BuildTriggered"
-	ConditionBuildCompleted  BuildConditionType = "BuildCompleted"
-	ConditionWorkloadUpdated BuildConditionType = "WorkloadUpdated"
+	ConditionWorkloadUpdated   WorkflowConditionType = "WorkloadUpdated"
+	ConditionWorkflowFailed    WorkflowConditionType = "WorkflowFailed"
+	ConditionWorkflowSucceeded WorkflowConditionType = "WorkflowSucceeded"
+	ConditionWorkflowRunning   WorkflowConditionType = "WorkflowRunning"
+	ConditionWorkflowPending   WorkflowConditionType = "WorkflowPending"
+	ConditionWorkflowCompleted WorkflowConditionType = "WorkflowCompleted"
 )
 
+type BuildStatus string
+
 const (
-	statusUnknown   = "Unknown"
-	statusCompleted = "Completed"
+	BuildStatusInitiated BuildStatus = "BuildInitiated"
+	BuildStatusTriggered BuildStatus = "BuildTriggered"
+	BuildStatusRunning   BuildStatus = "BuildRunning"
+	BuildStatusCompleted BuildStatus = "BuildCompleted"
+	BuildStatusSucceeded BuildStatus = "BuildSucceeded"
+	BuildStatusFailed    BuildStatus = "BuildFailed"
+	WorkloadUpdated      BuildStatus = "WorkloadUpdated"
 )
 
-// ServiceBinding condition types
+type BuildStepStatus string
+
 const (
-	ConditionActive         = "Active"
-	ConditionFailed         = "Failed"
-	ConditionInProgress     = "InProgress"
-	ConditionNotYetDeployed = "NotYetDeployed"
-	ConditionSuspended      = "Suspended"
+	BuildStepStatusPending   BuildStepStatus = "Pending"
+	BuildStepStatusRunning   BuildStepStatus = "Running"
+	BuildStepStatusSucceeded BuildStepStatus = "Succeeded"
+	BuildStepStatusFailed    BuildStepStatus = "Failed"
+)
+
+
+// Build step indices
+const (
+	StepIndexInitiated = iota
+	StepIndexTriggered
+	StepIndexRunning
+	StepIndexCompleted
+	StepIndexWorkloadUpdated
 )
 
 // Deployment status values
@@ -77,6 +88,7 @@ const (
 	DeploymentStatusSuspended   = "suspended"
 	DeploymentStatusInProgress  = "in-progress"
 	DeploymentStatusActive      = "active"
+	DeploymentStatusNotReady    = "not-ready"
 )
 
 const (
@@ -85,25 +97,18 @@ const (
 )
 
 const (
-	MainContainerName                    = "main"
-	DevEnvironmentName                   = "development"
-	DevEnvironmentDisplayName            = "Development"
-	DefaultDisplayName                   = "Default"
-	DefaultName                          = "default"
-	DefaultAPIClassNameWithCORS          = "default-with-cors"
-	ObservabilityEnabledServiceClassName = "default-otel-supported"
-	DefaultServiceClassName              = "default"
+	MainContainerName         = "main"
+	DevEnvironmentName        = "development"
+	DevEnvironmentDisplayName = "Development"
+	DefaultDisplayName        = "Default"
+	DefaultName               = "default"
 )
 
 // Resource constants
 const (
 	DefaultCPURequest    = "100m"
-	DefaultMemoryRequest = "64Mi"
-	DefaultCPULimit      = "400m"
-	DefaultMemoryLimit   = "256Mi"
-)
-
-const (
-	BuildPlaneKind = "BuildPlane"
-	DataPlaneKind  = "DataPlane"
+	DefaultMemoryRequest = "256Mi"
+	DefaultCPULimit      = "500m"
+	DefaultMemoryLimit   = "512Mi"
+	DefaultReplicaCount  = 1
 )

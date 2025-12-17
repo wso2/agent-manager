@@ -20,11 +20,19 @@ import "time"
 
 type EnvironmentResponse struct {
 	Name         string    `json:"name"`
-	Namespace    string    `json:"namespace"`
+	DataplaneRef string    `json:"dataplaneRef"`
 	DisplayName  string    `json:"displayName,omitempty"`
 	IsProduction bool      `json:"isProduction"`
 	DNSPrefix    string    `json:"dnsPrefix,omitempty"`
 	CreatedAt    time.Time `json:"createdAt"`
+}
+
+type DataPlaneResponse struct {
+	Name        string    `json:"name"`
+	OrgName     string    `json:"orgName"`
+	DisplayName string    `json:"displayName,omitempty"`
+	Description string    `json:"description,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
 }
 
 type DeploymentPipelineResponse struct {

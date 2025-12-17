@@ -29,7 +29,7 @@ var migration005 = migration{
    id      UUID PRIMARY KEY,
    name          VARCHAR(100) NOT NULL,
    display_name  VARCHAR(100) NOT NULL,
-   agent_type    VARCHAR(100) NOT NULL,
+   provisioning_type    VARCHAR(100) NOT NULL,
    description   TEXT,
    project_id    UUID NOT NULL,
    org_id        UUID NOT NULL,
@@ -38,7 +38,7 @@ var migration005 = migration{
    deleted_at    TIMESTAMPTZ,
    CONSTRAINT fk_agents_project_id FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
    CONSTRAINT fk_agents_org_id FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE,
-   CONSTRAINT agent_type_enum check (agent_type in ('internal', 'external'))
+   CONSTRAINT provisioning_type_enum check (provisioning_type in ('internal', 'external'))
 )`
 
 		createIndex := `CREATE UNIQUE INDEX uk_agents_name_project_org ON agents(name, project_id, org_id) WHERE deleted_at IS NULL`

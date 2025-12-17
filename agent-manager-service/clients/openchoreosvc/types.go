@@ -18,15 +18,33 @@ package openchoreosvc
 
 import "time"
 
+type ComponentType string
+
+const (
+	ComponentTypeAgentAPI ComponentType = "deployment/agent-api"
+)
+
+type TraitType string
+
+const (
+	TraitTypeOTELInstrumentation TraitType = "python-otel-instrumentation-trait"
+)
+
+type ComponentWorkflow string
+
+const (
+	ComponentWorkflowGCB       ComponentWorkflow = "google-cloud-buildpacks"
+	ComponentWorkflowBallerina ComponentWorkflow = "ballerina-buildpack"
+)
+
 type AgentComponent struct {
-	Name             string     `json:"name"`
-	DisplayName      string     `json:"displayName,omitempty"`
-	Description      string     `json:"description,omitempty"`
-	ProjectName      string     `json:"projectName"`
-	CreatedAt        time.Time  `json:"createdAt"`
-	Status           string     `json:"status,omitempty"`
-	Repository       Repository `json:"buildConfig,omitempty"`
-	BuildTemplateRef string     `json:"buildTemplateRef,omitempty"`
+	Name        string     `json:"name"`
+	DisplayName string     `json:"displayName,omitempty"`
+	Description string     `json:"description,omitempty"`
+	ProjectName string     `json:"projectName"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	Status      string     `json:"status,omitempty"`
+	Repository  Repository `json:"buildConfig,omitempty"`
 }
 
 type Repository struct {

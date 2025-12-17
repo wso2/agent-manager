@@ -26,8 +26,10 @@ type AgentResponse struct {
 	CreatedAt   time.Time `json:"createdAt"`
 	ProjectName string    `json:"projectName"`
 	// Current status of the agent
-	Status       *string      `json:"status,omitempty"`
-	Provisioning Provisioning `json:"provisioning"`
+	Status         *string               `json:"status,omitempty"`
+	Provisioning   Provisioning          `json:"provisioning"`
+	AgentType      *AgentType            `json:"agentType,omitempty"`
+	RuntimeConfigs *RuntimeConfiguration `json:"runtimeConfigs,omitempty"`
 }
 
 // NewAgentResponse instantiates a new AgentResponse object
@@ -229,6 +231,70 @@ func (o *AgentResponse) SetProvisioning(v Provisioning) {
 	o.Provisioning = v
 }
 
+// GetAgentType returns the AgentType field value if set, zero value otherwise.
+func (o *AgentResponse) GetAgentType() AgentType {
+	if o == nil || IsNil(o.AgentType) {
+		var ret AgentType
+		return ret
+	}
+	return *o.AgentType
+}
+
+// GetAgentTypeOk returns a tuple with the AgentType field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *AgentResponse) GetAgentTypeOk() (*AgentType, bool) {
+	if o == nil || IsNil(o.AgentType) {
+		return nil, false
+	}
+	return o.AgentType, true
+}
+
+// HasAgentType returns a boolean if a field has been set.
+func (o *AgentResponse) HasAgentType() bool {
+	if o != nil && !IsNil(o.AgentType) {
+		return true
+	}
+
+	return false
+}
+
+// SetAgentType gets a reference to the given AgentType and assigns it to the AgentType field.
+func (o *AgentResponse) SetAgentType(v AgentType) {
+	o.AgentType = &v
+}
+
+// GetRuntimeConfigs returns the RuntimeConfigs field value if set, zero value otherwise.
+func (o *AgentResponse) GetRuntimeConfigs() RuntimeConfiguration {
+	if o == nil || IsNil(o.RuntimeConfigs) {
+		var ret RuntimeConfiguration
+		return ret
+	}
+	return *o.RuntimeConfigs
+}
+
+// GetRuntimeConfigsOk returns a tuple with the RuntimeConfigs field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *AgentResponse) GetRuntimeConfigsOk() (*RuntimeConfiguration, bool) {
+	if o == nil || IsNil(o.RuntimeConfigs) {
+		return nil, false
+	}
+	return o.RuntimeConfigs, true
+}
+
+// HasRuntimeConfigs returns a boolean if a field has been set.
+func (o *AgentResponse) HasRuntimeConfigs() bool {
+	if o != nil && !IsNil(o.RuntimeConfigs) {
+		return true
+	}
+
+	return false
+}
+
+// SetRuntimeConfigs gets a reference to the given RuntimeConfiguration and assigns it to the RuntimeConfigs field.
+func (o *AgentResponse) SetRuntimeConfigs(v RuntimeConfiguration) {
+	o.RuntimeConfigs = &v
+}
+
 func (o AgentResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -248,6 +314,12 @@ func (o AgentResponse) ToMap() (map[string]interface{}, error) {
 		toSerialize["status"] = o.Status
 	}
 	toSerialize["provisioning"] = o.Provisioning
+	if !IsNil(o.AgentType) {
+		toSerialize["agentType"] = o.AgentType
+	}
+	if !IsNil(o.RuntimeConfigs) {
+		toSerialize["runtimeConfigs"] = o.RuntimeConfigs
+	}
 	return toSerialize, nil
 }
 

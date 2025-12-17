@@ -30,6 +30,9 @@ type OrganizationRepository interface {
 	GetOrganizationsByUserIdpID(ctx context.Context, userIdpID uuid.UUID) ([]models.Organization, error)
 	CreateOrganization(ctx context.Context, organization *models.Organization) error
 	GetOrganizationByOrgName(ctx context.Context, userIdpID uuid.UUID, orgName string) (*models.Organization, error)
+	GetOrganizationById(ctx context.Context, orgId uuid.UUID) (*models.Organization, error)
+	// This is used only for internal build callback handling
+	GetOrganizationByOcName(ctx context.Context, orgName string) (*models.Organization, error)
 }
 
 type organizationRepository struct{}
@@ -40,7 +43,7 @@ func NewOrganizationRepository() OrganizationRepository {
 
 func (r *organizationRepository) GetOrganizationsByUserIdpID(ctx context.Context, userIdpID uuid.UUID) ([]models.Organization, error) {
 	var orgs []models.Organization
-	if err := db.DB(ctx).Where("user_idp_id = ?", userIdpID).Find(&orgs).Error; err != nil {
+	if err := db.DB(ctx).Where("user_idp_id = ?", userIdpID).Order("created_at DESC").Find(&orgs).Error; err != nil {
 		return nil, fmt.Errorf("organizationRepository.GetOrganizationsByUserIdpID: %w", err)
 	}
 	return orgs, nil
@@ -57,6 +60,22 @@ func (r *organizationRepository) GetOrganizationByOrgName(ctx context.Context, u
 	var org models.Organization
 	if err := db.DB(ctx).Where("user_idp_id = ? AND org_name = ?", userIdpID, orgName).First(&org).Error; err != nil {
 		return nil, fmt.Errorf("organizationRepository.GetOrganizationByOrgName: %w", err)
+	}
+	return &org, nil
+}
+
+func (r *organizationRepository) GetOrganizationById(ctx context.Context, orgId uuid.UUID) (*models.Organization, error) {
+	var org models.Organization
+	if err := db.DB(ctx).Where("id = ?", orgId).First(&org).Error; err != nil {
+		return nil, fmt.Errorf("organizationRepository.GetOrganizationById: %w", err)
+	}
+	return &org, nil
+}
+
+func (r *organizationRepository) GetOrganizationByOcName(ctx context.Context, orgName string) (*models.Organization, error) {
+	var org models.Organization
+	if err := db.DB(ctx).Where("open_choreo_org_name = ?", orgName).First(&org).Error; err != nil {
+		return nil, fmt.Errorf("organizationRepository.GetOrganizationByOcName: %w", err)
 	}
 	return &org, nil
 }

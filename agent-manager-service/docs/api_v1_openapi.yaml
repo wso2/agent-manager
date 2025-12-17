@@ -105,6 +105,59 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/deployment-pipelines:
+    get:
+      summary: List all deployment pipelines in an organization
+      operationId: listDeploymentPipelines
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of results to return
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+        - name: offset
+          in: query
+          description: Number of results to skip
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        "200":
+          description: List of deployment pipelines
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentPipelineListResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects:
     post:
       summary: Create a new project
@@ -226,6 +279,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProjectResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete a project
+      operationId: deleteProject
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Project deleted successfully
         "404":
           description: Project not found
           content:
@@ -411,7 +493,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/generate-name:
+  /orgs/{orgName}/utils/generate-name:
     post:
       summary: Get name by display name
       description: Retrieve name using display name for a specific resource
@@ -874,6 +956,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /orgs/{orgName}/data-planes:
+    get:
+      summary: List all data planes in an organization
+      description: Retrieves all data planes available in the specified organization
+      operationId: listDataPlanes
+      parameters:
+        - name: orgName
+          in: path
+          description: Organization name
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of data planes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataPlaneListResponse"
+        "404":
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /orgs/{orgName}/projects/{projName}/deployment-pipeline:
     get:
       summary: Get deployment pipeline for a project
@@ -954,6 +1067,19 @@ components:
         repository:
           $ref: "#/components/schemas/RepositoryConfig"
 
+    AgentType:
+      type: object
+      required:
+        - type
+        - subType
+      properties:
+        type:
+          type: string
+          description: Type of the agent
+        subType:
+          type: string
+          description: Sub-type of the agent
+
     CreateAgentRequest:
       type: object
       required:
@@ -961,17 +1087,19 @@ components:
         - displayName
         - provisioning
       properties:
-        provisioning:
-          $ref: "#/components/schemas/Provisioning"
         name:
           type: string
           description: Unique name of the agent
         displayName:
           type: string
           description: Display name of the agent
+        provisioning:
+          $ref: "#/components/schemas/Provisioning"
         description:
           type: string
           description: Description of the agent
+        agentType:
+          $ref: "#/components/schemas/AgentType"
         runtimeConfigs:
           $ref: "#/components/schemas/RuntimeConfiguration"
         inputInterface:
@@ -995,6 +1123,10 @@ components:
           description: Current status of the agent
         provisioning:
           $ref: "#/components/schemas/Provisioning"
+        agentType:
+          $ref: "#/components/schemas/AgentType"
+        runtimeConfigs:
+          $ref: "#/components/schemas/RuntimeConfiguration"
       required:
         - name
         - displayName
@@ -1160,23 +1292,32 @@ components:
           type: string
           description: Type of build step
           enum:
-            [BuildInitiated, BuildTriggered, BuildCompleted, WorkloadUpdated]
+            [
+              BuildInitiated,
+              BuildTriggered,
+              BuildRunning,
+              BuildCompleted,
+              WorkloadUpdated,
+            ]
         status:
           type: string
           description: Status of the build step
-          enum: [True, False, Unknown]
+          enum: [Succeeded, Failed, Running, Pending]
         message:
           type: string
           description: Human-readable message about the step
-        at:
+        startedAt:
           type: string
           format: date-time
           description: Timestamp when the step occurred
+        finishedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the step finished
       required:
         - type
         - status
         - message
-        - at
 
     BuildDetailsResponse:
       allOf:
@@ -1244,27 +1385,26 @@ components:
       description: Endpoint configurations
       required:
         - type
-      properties:
-        type:
-          type: string
-          description: Type of input interface (e.g., default, custom)
-          enum: [DEFAULT, CUSTOM]
-        customOpenAPISpec:
-          $ref: "#/components/schemas/EndpointSpec"
-    EndpointSpec:
-      type: object
-      required:
         - port
         - schema
         - basePath
       properties:
+        type:
+          type: string
+          description: Type of the endpoint (e.g., HTTP)
         port:
           type: integer
           description: Port number
           minimum: 1
           maximum: 65535
         schema:
-          $ref: "#/components/schemas/EndpointSchema"
+          type: object
+          properties:
+            path:
+              type: string
+              description: Path to OpenAPI schema file
+          required:
+            - path
         basePath:
           type: string
           description: Base path for the endpoint
@@ -1329,8 +1469,6 @@ components:
           description: List of deployment endpoints
           items:
             $ref: "#/components/schemas/DeploymentEndpoint"
-        sourceEnvironment:
-          $ref: "#/components/schemas/EnvironmentObject"
         environmentDisplayName:
           type: string
           description: Environment display name
@@ -1352,7 +1490,6 @@ components:
         - status
         - lastDeployed
         - endpoints
-        - sourceEnvironment
     DeploymentListResponse:
       type: object
       additionalProperties:
@@ -1404,9 +1541,9 @@ components:
         name:
           type: string
           description: Name of the environment
-        namespace:
+        dataplaneRef:
           type: string
-          description: Kubernetes namespace for the environment
+          description: Reference to the data plane for the environment
         displayName:
           type: string
           description: Human-readable display name
@@ -1422,7 +1559,7 @@ components:
           description: Timestamp when the environment was created
       required:
         - name
-        - namespace
+        - dataplaneRef
         - isProduction
         - createdAt
 
@@ -1431,6 +1568,38 @@ components:
       items:
         $ref: "#/components/schemas/Environment"
       description: List of environments
+
+    DataPlane:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the data plane
+        displayName:
+          type: string
+          description: Human-readable display name
+        description:
+          type: string
+          description: Description of the data plane
+        orgName:
+          type: string
+          description: Organization name
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the data plane was created
+      required:
+        - name
+        - displayName
+        - description
+        - orgName
+        - createdAt
+
+    DataPlaneListResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/DataPlane"
+      description: List of data planes
 
     DeploymentPipelineResponse:
       type: object
@@ -1463,6 +1632,26 @@ components:
         - orgName
         - createdAt
         - promotionPaths
+
+    DeploymentPipelineListResponse:
+      type: object
+      properties:
+        deploymentPipelines:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeploymentPipelineResponse"
+        total:
+          type: integer
+          description: Total number of deployment pipelines matching the query
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required:
+        - deploymentPipelines
+        - total
+        - limit
+        - offset
 
     PromotionPath:
       type: object
@@ -1669,3 +1858,43 @@ components:
           additionalProperties: true
       required:
         - message
+
+    AgentTypeSubtype:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the agent subtype
+        displayName:
+          type: string
+          description: Display name of the agent subtype
+        description:
+          type: string
+          description: Description of the agent subtype
+      required:
+        - name
+        - displayName
+        - description
+
+    AgentTypeResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the agent type
+        displayName:
+          type: string
+          description: Display name of the agent type
+        description:
+          type: string
+          description: Description of the agent type
+        subtypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentTypeSubtype"
+          description: List of subtypes for this agent type
+      required:
+        - name
+        - displayName
+        - description
+        - subtypes
