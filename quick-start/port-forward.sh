@@ -207,12 +207,12 @@ main() {
     fi
     echo "" >&2
 
-    # Port forward Data Prepper (21893)
-    log_info "Setting up Data Prepper port forwarding (21893)..."
-    if nodeport_dataprepper=$(get_nodeport "data-prepper" "$OBSERVABILITY_NS"); then
-        setup_port_forward 21893 "$nodeport_dataprepper" "Data Prepper"
+    # Port forward OTel collector(21893)
+    log_info "Setting up OTel collectorport forwarding (21893)..."
+    if nodeport_otel_collector=$(get_nodeport "opentelemetry-collector" "$OBSERVABILITY_NS"); then
+        setup_port_forward 21893 "$nodeport_otel_collector" "OTel Collector"
     else
-        log_warning "Skipping Data Prepper (service not found or not NodePort type)"
+        log_warning "Skipping OTel Collector (service not found or not NodePort type)"
     fi
     echo "" >&2
 
@@ -234,7 +234,7 @@ main() {
     echo "  • Console:           http://localhost:3000" >&2
     echo "  • Agent Manager:     http://localhost:8080" >&2
     echo "  • Traces Observer:   http://localhost:9098" >&2
-    echo "  • Data Prepper:      http://localhost:21893" >&2
+    echo "  • OTel Collector:      http://localhost:21893" >&2
     echo "  • External Gateway:  https://localhost:8443" >&2
     echo "" >&2
     log_info "Port forwarding is active. Press Ctrl+C to stop."
