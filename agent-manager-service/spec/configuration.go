@@ -90,7 +90,7 @@ func NewConfiguration() *Configuration {
 		Debug:         false,
 		Servers: ServerConfigurations{
 			{
-				URL:         "/api/v1/agent-manager-service",
+				URL:         "/api/v1",
 				Description: "No description provided",
 			},
 		},

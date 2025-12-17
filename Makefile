@@ -1,14 +1,14 @@
-.PHONY: help setup setup-colima setup-kind setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward
+.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward
 
 # Default target
 help:
 	@echo "Agent Manager Platform - Development Commands"
 	@echo ""
 	@echo "🚀 Setup (run once):"
-	@echo "  make setup                   - Complete setup (Colima + Kind + OpenChoreo + Platform)"
+	@echo "  make setup                   - Complete setup (Colima + k3d + OpenChoreo + Platform)"
 	@echo "  make setup-colima            - Start Colima VM"
-	@echo "  make setup-kind              - Create Kind cluster"
-	@echo "  make setup-openchoreo        - Install OpenChoreo on Kind"
+	@echo "  make setup-k3d              - Create k3d cluster"
+	@echo "  make setup-openchoreo        - Install OpenChoreo on k3d"
 	@echo "  make setup-platform          - Build images and start core platform services"
 	@echo "  make setup-console-local     - Install console deps (only if changed)"
 	@echo "  make setup-console-local-force - Force reinstall console deps"
@@ -41,7 +41,7 @@ help:
 	@echo ""
 
 # Complete setup
-setup: setup-colima setup-kind setup-openchoreo .make/kubeconfig-docker-generated setup-platform setup-console-local
+setup: setup-colima setup-k3d setup-openchoreo .make/kubeconfig-docker-generated setup-platform setup-console-local
 	@echo ""
 	@echo "✅ Complete setup finished!"
 	@echo ""
@@ -58,8 +58,8 @@ setup: setup-colima setup-kind setup-openchoreo .make/kubeconfig-docker-generate
 setup-colima:
 	@cd deployments/scripts && ./setup-colima.sh
 
-setup-kind:
-	@cd deployments/scripts && ./setup-kind.sh
+setup-k3d:
+	@cd deployments/scripts && ./setup-k3d.sh
 
 setup-openchoreo:
 	@cd deployments/scripts && ./setup-openchoreo.sh $(CURDIR)
@@ -99,6 +99,7 @@ setup-console-local-force:
 # Generate Docker-specific kubeconfig using kind --internal
 .make/kubeconfig-docker-generated: | .make
 	@echo "🔧 Generating Docker kubeconfig..."
+	@rm -f .make/kubeconfig-docker-generated
 	@cd deployments/scripts && ./generate-docker-kubeconfig.sh
 	@touch .make/kubeconfig-docker-generated
 
@@ -149,7 +150,7 @@ dev-migrate:
 # OpenChoreo lifecycle management
 openchoreo-up:
 	@echo "🚀 Starting OpenChoreo cluster..."
-	@docker start openchoreo-local-control-plane openchoreo-local-worker 2>/dev/null || (echo "⚠️  Cluster not found. Run 'make setup-kind setup-openchoreo' first." && exit 1)
+	@docker start openchoreo-local-control-plane openchoreo-local-worker 2>/dev/null || (echo "⚠️  Cluster not found. Run 'make setup-k3d setup-openchoreo' first." && exit 1)
 	@echo "⏳ Waiting for nodes to be ready..."
 	@for i in 1 2 3 4 5 6 7 8 9 10 11 12; do \
 		kubectl get nodes --context kind-openchoreo-local >/dev/null 2>&1 && \

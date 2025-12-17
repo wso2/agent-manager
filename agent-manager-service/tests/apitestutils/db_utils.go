@@ -59,10 +59,10 @@ func CreateProject(t *testing.T, projectID uuid.UUID, orgID uuid.UUID, projectNa
 	return *project
 }
 
-func CreateAgent(t *testing.T, agentID uuid.UUID, orgID uuid.UUID, projectID uuid.UUID, agentName string, agentType string) models.Agent {
+func CreateAgent(t *testing.T, agentID uuid.UUID, orgID uuid.UUID, projectID uuid.UUID, agentName string, provisioningType string) models.Agent {
 	agent := &models.Agent{
 		ID:          agentID,
-		AgentType:   agentType,
+		ProvisioningType:   provisioningType,
 		ProjectId:   projectID,
 		OrgID:       orgID,
 		Name:        agentName,

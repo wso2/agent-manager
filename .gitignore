@@ -56,5 +56,6 @@ service/bin/
 
 # Make build artifacts
 .make/
+.kube/
 
 .env

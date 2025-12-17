@@ -54,7 +54,7 @@ func createMockOpenChoreoClientForCreateProject() *clientmocks.OpenChoreoSvcClie
 				},
 			}, nil
 		},
-		CreateProjectFunc: func(ctx context.Context, orgName, projectName, deploymentPipeline, displayName string) error {
+		CreateProjectFunc: func(ctx context.Context, orgName, projectName, deploymentPipeline, displayName , description string) error {
 			return nil
 		},
 	}
@@ -181,6 +181,7 @@ func TestCreateProject(t *testing.T) {
 				Name:               "existing-project",
 				DisplayName:        "Existing Project",
 				DeploymentPipeline: "default",
+				Description: 	  stringPtr(""),
 			},
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
 				return createMockOpenChoreoClientForCreateProject()
@@ -201,21 +202,23 @@ func TestCreateProject(t *testing.T) {
 				Name:               "test-project",
 				DisplayName:        "Test Project",
 				DeploymentPipeline: "default",
+				Description: 	  stringPtr(""),
 			},
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
 				return createMockOpenChoreoClientForCreateProject()
 			},
 		},
 		{
-			name:           "return 500 on deployment pipeline not found",
+			name:           "return 400 on deployment pipeline not found",
 			authMiddleware: authMiddleware,
-			wantStatus:     500,
-			wantErrMsg:     "Failed to create project",
+			wantStatus:     400,
+			wantErrMsg:     "Deployment pipeline not found",
 			url:            fmt.Sprintf("/api/v1/orgs/%s/projects", testCreateProjectOrgName),
 			payload: spec.CreateProjectRequest{
 				Name:               "test-project",
 				DisplayName:        "Test Project",
 				DeploymentPipeline: "nonexistent-pipeline",
+				Description: 	  stringPtr(""),
 			},
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
 				mock := createMockOpenChoreoClientForCreateProject()
@@ -232,10 +235,11 @@ func TestCreateProject(t *testing.T) {
 				Name:               "failing-project",
 				DisplayName:        "Failing Project",
 				DeploymentPipeline: "default",
+				Description: 	  stringPtr(""),
 			},
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
 				mock := createMockOpenChoreoClientForCreateProject()
-				mock.CreateProjectFunc = func(ctx context.Context, orgName, projectName, deploymentPipeline, displayName string) error {
+				mock.CreateProjectFunc = func(ctx context.Context, orgName, projectName, deploymentPipeline, displayName , description string) error {
 					return fmt.Errorf("OpenChoreo service error")
 				}
 				return mock

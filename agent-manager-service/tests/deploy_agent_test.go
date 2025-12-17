@@ -53,10 +53,25 @@ func createMockOpenChoreoClientForDeploy() *clientmocks.OpenChoreoSvcClientMock 
 	return &clientmocks.OpenChoreoSvcClientMock{
 		GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
 			return &models.ProjectResponse{
-				Name:        projectName,
-				DisplayName: projectName,
+				Name:               projectName,
+				DisplayName:        projectName,
+				OrgName:            orgName,
+				DeploymentPipeline: "default",
+				CreatedAt:          time.Now(),
+			}, nil
+		},
+		GetDeploymentPipelineFunc: func(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error) {
+			return &models.DeploymentPipelineResponse{
+				Name:        deploymentPipelineName,
+				DisplayName: deploymentPipelineName,
+				Description: "Test deployment pipeline",
 				OrgName:     orgName,
 				CreatedAt:   time.Now(),
+				PromotionPaths: []models.PromotionPath{
+					{
+						SourceEnvironmentRef: "Default",
+					},
+				},
 			}, nil
 		},
 		IsAgentComponentExistsFunc: func(ctx context.Context, orgName string, projName string, agentName string) (bool, error) {
@@ -69,7 +84,7 @@ func createMockOpenChoreoClientForDeploy() *clientmocks.OpenChoreoSvcClientMock 
 				CreatedAt:   time.Now(),
 			}, nil
 		},
-		DeployAgentComponentFunc: func(ctx context.Context, orgName string, projName string, componentName string, language string, req *spec.DeployAgentRequest) error {
+		DeployAgentComponentFunc: func(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error {
 			return nil
 		},
 	}
@@ -118,7 +133,7 @@ func TestDeployAgent(t *testing.T) {
 		require.Equal(t, deployTestAgentName, response.AgentName)
 		require.Equal(t, deployTestProjName, response.ProjectName)
 		require.Equal(t, "registry.example.com/myapp:v1.0.0", response.ImageId)
-		require.Equal(t, "Development", response.Environment)
+		require.Equal(t, "Default", response.Environment)
 
 		// Validate service calls
 		require.Len(t, openChoreoClient.DeployAgentComponentCalls(), 1)
@@ -185,7 +200,7 @@ func TestDeployAgent(t *testing.T) {
 		require.Equal(t, deployTestAgentName, response.AgentName)
 		require.Equal(t, deployTestProjName, response.ProjectName)
 		require.Equal(t, "registry.example.com/myapp:v1.2.0", response.ImageId)
-		require.Equal(t, "Development", response.Environment)
+		require.Equal(t, "Default", response.Environment)
 
 		// Validate service calls
 		require.Len(t, openChoreoClient.DeployAgentComponentCalls(), 1)
@@ -267,7 +282,7 @@ func TestDeployAgent(t *testing.T) {
 			wantErrMsg: "Organization not found",
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
 				mock := createMockOpenChoreoClientForDeploy()
-				mock.DeployAgentComponentFunc = func(ctx context.Context, orgName string, projName string, componentName string, language string, req *spec.DeployAgentRequest) error {
+				mock.DeployAgentComponentFunc = func(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error {
 					return utils.ErrOrganizationNotFound
 				}
 				return mock
@@ -286,7 +301,7 @@ func TestDeployAgent(t *testing.T) {
 			wantErrMsg: "Project not found",
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
 				mock := createMockOpenChoreoClientForDeploy()
-				mock.DeployAgentComponentFunc = func(ctx context.Context, orgName string, projName string, componentName string, language string, req *spec.DeployAgentRequest) error {
+				mock.DeployAgentComponentFunc = func(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error {
 					return utils.ErrProjectNotFound
 				}
 				return mock
@@ -305,7 +320,7 @@ func TestDeployAgent(t *testing.T) {
 			wantErrMsg: "Agent not found",
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
 				mock := createMockOpenChoreoClientForDeploy()
-				mock.DeployAgentComponentFunc = func(ctx context.Context, orgName string, projName string, componentName string, language string, req *spec.DeployAgentRequest) error {
+				mock.DeployAgentComponentFunc = func(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error {
 					return utils.ErrAgentNotFound
 				}
 				return mock
@@ -324,7 +339,7 @@ func TestDeployAgent(t *testing.T) {
 			wantErrMsg: "Failed to deploy agent",
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
 				mock := createMockOpenChoreoClientForDeploy()
-				mock.DeployAgentComponentFunc = func(ctx context.Context, orgName string, projName string, componentName string, language string, req *spec.DeployAgentRequest) error {
+				mock.DeployAgentComponentFunc = func(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error {
 					return fmt.Errorf("internal service error")
 				}
 				return mock

@@ -1,31 +1,44 @@
 openapi: 3.0.3
 info:
-  title: Default Agent API
+  title: Default Chat Agent API
   description: >
-    Minimal API with a single invocation endpoint. Both request and response
-    are free-form JSON objects (no fixed schema).
+    Chat API with message, session_id, and optional context parameters.
   version: 1.0.0
 servers:
   - url: http://localhost:8000
 paths:
-  /invocation:
+  /chat:
     post:
-      summary: Invoke an action
-      operationId: Invoke
+      summary: Send a chat message
+      operationId: Chat
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              description: Arbitrary JSON request body
-              additionalProperties: true
+              required:
+                - message
+                - session_id
+              properties:
+                message:
+                  type: string
+                  description: The chat message to send
+                session_id:
+                  type: string
+                  description: The session identifier
+                context:
+                  type: object
+                  description: Optional context as JSON
+                  additionalProperties: true
       responses:
         "200":
-          description: Successful invocation
+          description: Successful chat response
           content:
             application/json:
               schema:
                 type: object
-                description: Arbitrary JSON response body
-                additionalProperties: true
+                properties:
+                  response:
+                    type: string
+                    description: The chat response message

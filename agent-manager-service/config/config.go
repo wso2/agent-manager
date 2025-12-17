@@ -33,7 +33,6 @@ type Config struct {
 	// Database operation timeout configuration
 	DbOperationTimeoutSeconds int
 	HealthCheckTimeoutSeconds int
-	DefaultHTTPPort           int
 
 	APIKeyHeader string
 	APIKeyValue  string
@@ -50,25 +49,33 @@ type Config struct {
 	TraceObserver TraceObserverConfig
 
 	IsLocalDevEnv bool
+
+	// Default Chat API configuration
+	DefaultChatAPI     DefaultChatAPIConfig
+	DefaultGatewayPort int
 }
 
 // OTELConfig holds all OpenTelemetry related configuration
 type OTELConfig struct {
 	// Instrumentation configuration
-	InstrumentationImage    string
-	InstrumentationProvider string
-	SDKVolumeName           string
-	SDKMountPath            string
+	OTELInstrumentationImage
+	SDKVolumeName        string
+	SDKMountPath         string
 
 	// Tracing configuration
-	TraceContent     bool
-	MetricsEnabled   bool
-	TelemetryEnabled bool
+	IsTraceContentEnabled bool
 
 	// OTLP Exporter configuration
-	ExporterInsecure bool
 	ExporterEndpoint string
 }
+
+type OTELInstrumentationImage struct {
+	Python310 string
+     Python311 string
+	 Python312 string
+	 Python313 string
+}
+
 type ObserverConfig struct {
 	// Observer service URL
 	URL      string
@@ -100,4 +107,9 @@ type DbConfigs struct {
 	MaxOpenCount       *int64 // <= 0 means unlimited
 	MaxLifetimeSeconds *int64 // maximum amount of time a connection may be reused
 	MaxIdleTimeSeconds *int64
+}
+
+type DefaultChatAPIConfig struct {
+	DefaultHTTPPort int32
+	DefaultBasePath string
 }

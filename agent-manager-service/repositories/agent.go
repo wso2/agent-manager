@@ -34,6 +34,7 @@ type AgentRepository interface {
 	SoftDeleteAgentByName(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string) error
 	HardDeleteAgentByName(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string) error
 	UpdateAgentTimestamp(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string) error
+	RollbackSoftDeleteAgent(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string) error
 }
 
 type agentRepository struct{}
@@ -44,7 +45,11 @@ func NewAgentRepository() AgentRepository {
 
 func (r *agentRepository) ListAgents(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID) ([]*models.Agent, error) {
 	var agents []*models.Agent
-	if err := db.DB(ctx).Where("org_id = ? AND project_id = ?", orgId, projectId).Find(&agents).Error; err != nil {
+	if err := db.DB(ctx).
+		Preload("AgentDetails").
+		Where("org_id = ? AND project_id = ?", orgId, projectId).
+		Order("created_at DESC").
+		Find(&agents).Error; err != nil {
 		return nil, fmt.Errorf("agentRepository.ListAgents: %w", err)
 	}
 
@@ -53,7 +58,10 @@ func (r *agentRepository) ListAgents(ctx context.Context, orgId uuid.UUID, proje
 
 func (r *agentRepository) GetAgentByName(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string) (*models.Agent, error) {
 	var agent models.Agent
-	if err := db.DB(ctx).Where("org_id = ? AND project_id = ? AND name = ?", orgId, projectId, agentName).First(&agent).Error; err != nil {
+	if err := db.DB(ctx).
+		Preload("AgentDetails").
+		Where("org_id = ? AND project_id = ? AND name = ?", orgId, projectId, agentName).
+		First(&agent).Error; err != nil {
 		return nil, fmt.Errorf("agentRepository.GetAgentByName: %w", err)
 	}
 	return &agent, nil
@@ -85,6 +93,15 @@ func (r *agentRepository) UpdateAgentTimestamp(ctx context.Context, orgId uuid.U
 		Where("org_id = ? AND project_id = ? AND name = ?", orgId, projectId, agentName).
 		Update("updated_at", gorm.Expr("NOW()")).Error; err != nil {
 		return fmt.Errorf("agentRepository.UpdateAgentTimestamp: %w", err)
+	}
+	return nil
+}
+
+func (r *agentRepository) RollbackSoftDeleteAgent(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string) error {
+	if err := db.DB(ctx).Unscoped().Model(&models.Agent{}).
+		Where("org_id = ? AND project_id = ? AND name = ?", orgId, projectId, agentName).
+		Update("deleted_at", nil).Error; err != nil {
+		return fmt.Errorf("agentRepository.RollbackSoftDeleteAgent: %w", err)
 	}
 	return nil
 }

@@ -34,7 +34,7 @@ const (
 )
 
 type ObservabilitySvcClient interface {
-	GetBuildLogs(ctx context.Context, orgName string, projName string, agentName string, buildName string, buildUuid string) (*models.BuildLogsResponse, error)
+	GetBuildLogs(ctx context.Context, buildName string) (*models.BuildLogsResponse, error)
 }
 
 type observabilitySvcClient struct {
@@ -51,17 +51,21 @@ func NewObservabilitySvcClient() ObservabilitySvcClient {
 }
 
 // GetBuildLogs retrieves build logs for a specific agent build from the observer service
-func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, orgName string, projName string, agentName string, buildName string, buildUuid string) (*models.BuildLogsResponse, error) {
+func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, buildName string) (*models.BuildLogsResponse, error) {
 	// temporary use config to get observer URL since the observer url in dataplane is cluster svc name which is not accessible outside the cluster,
 	// so we need to portforward the observer svc and use localhost:port to access the observer service
 	baseURL := config.GetConfig().Observer.URL
-	logsURL := fmt.Sprintf("%s/api/logs/component/%s", baseURL, agentName)
+	logsURL := fmt.Sprintf("%s/api/logs/build/%s", baseURL, buildName)
+
+	// Calculate time range: 30 days ago to now
+	endTime := time.Now()
+	startTime := endTime.Add(-30 * 24 * time.Hour)
 
 	requestBody := map[string]interface{}{
-		"buildId":   buildName,
-		"buildUuid": buildUuid,
-		"logLevels": []string{BuildLogLevelInfo},
-		"logType":   BuildLogTypeBuild,
+		"startTime": startTime.Format(time.RFC3339),
+		"endTime":   endTime.Format(time.RFC3339),
+		"limit":     1000,
+		"sortOrder": "asc",
 	}
 
 	req := &requests.HttpRequest{

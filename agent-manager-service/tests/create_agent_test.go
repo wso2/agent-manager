@@ -77,9 +77,6 @@ func createMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
 				StartedAt:   time.Now(),
 			}, nil
 		},
-		SetupDeploymentFunc: func(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest, envVars []spec.EnvironmentVariable) error {
-			return nil
-		},
 		GetDeploymentPipelineFunc: func(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error) {
 			return &models.DeploymentPipelineResponse{
 				Name:        deploymentPipelineName,
@@ -123,13 +120,17 @@ func TestCreateAgent(t *testing.T) {
 					"appPath": "agent-sample",
 				},
 			},
+			"agentType": map[string]interface{}{
+				"type": "api",
+				"subType":"chat-api",
+			},
 			"runtimeConfigs": map[string]interface{}{
 				"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
 				"language":        "python",
 				"languageVersion": "3.11",
 			},
 			"inputInterface": map[string]interface{}{
-				"type": "DEFAULT",
+				"type": "HTTP",
 			},
 		})
 		require.NoError(t, err)
@@ -163,7 +164,6 @@ func TestCreateAgent(t *testing.T) {
 		require.Len(t, openChoreoClient.GetProjectCalls(), 1)
 		require.Len(t, openChoreoClient.CreateAgentComponentCalls(), 1)
 		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
-		require.Len(t, openChoreoClient.SetupDeploymentCalls(), 1)
 
 		// Validate call parameters
 		getProjectCall := openChoreoClient.GetProjectCalls()[0]
@@ -176,25 +176,7 @@ func TestCreateAgent(t *testing.T) {
 		require.Equal(t, testAgentNameOne, createComponentCall.Req.Name)
 		require.Equal(t, "Test Agent Description", *createComponentCall.Req.Description)
 
-		// Validate SetupDeployment call and environment variables
-		setupDeploymentCall := openChoreoClient.SetupDeploymentCalls()[0]
-		require.Equal(t, testOrgName, setupDeploymentCall.OrgName)
-		require.Equal(t, testProjName, setupDeploymentCall.ProjName)
-		require.Equal(t, testAgentNameOne, setupDeploymentCall.Req.Name)
 
-		// Validate that system environment variables are included
-		envVars := setupDeploymentCall.EnvVars
-		require.GreaterOrEqual(t, len(envVars), 4, "Should have at least 4 system environment variables")
-
-		// Check for system environment variables
-		envMap := make(map[string]string)
-		for _, env := range envVars {
-			envMap[env.Key] = env.Value
-		}
-		require.Equal(t, testAgentNameOne, envMap["AMP_COMPONENT_ID"])
-		require.Equal(t, testAgentNameOne, envMap["AMP_APP_NAME"])
-		require.Equal(t, "1.0.0", envMap["AMP_APP_VERSION"])
-		require.Equal(t, "Development", envMap["AMP_ENV"])
 	})
 
 	t.Run("Creating an agent with ballerina language should return 202", func(t *testing.T) {
@@ -224,8 +206,12 @@ func TestCreateAgent(t *testing.T) {
 				"language": "ballerina",
 				// No languageVersion or runCommand for Ballerina
 			},
+			"agentType": map[string]interface{}{
+				"type": "api",
+				"subType":"chat-api",
+			},
 			"inputInterface": map[string]interface{}{
-				"type": "DEFAULT",
+				"type": "HTTP",
 			},
 		})
 		require.NoError(t, err)
@@ -259,7 +245,6 @@ func TestCreateAgent(t *testing.T) {
 		require.Len(t, openChoreoClient.GetProjectCalls(), 1)
 		require.Len(t, openChoreoClient.CreateAgentComponentCalls(), 1)
 		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
-		require.Len(t, openChoreoClient.SetupDeploymentCalls(), 1)
 
 		// Validate call parameters
 		getProjectCall := openChoreoClient.GetProjectCalls()[0]
@@ -271,16 +256,6 @@ func TestCreateAgent(t *testing.T) {
 		require.Equal(t, testProjName, createComponentCall.ProjName)
 		require.Equal(t, testAgentNameBallerina, createComponentCall.Req.Name)
 		require.Equal(t, "Test Ballerina Agent Description", *createComponentCall.Req.Description)
-
-		// Validate SetupDeployment call and environment variables
-		setupDeploymentCall := openChoreoClient.SetupDeploymentCalls()[0]
-		require.Equal(t, testOrgName, setupDeploymentCall.OrgName)
-		require.Equal(t, testProjName, setupDeploymentCall.ProjName)
-		require.Equal(t, testAgentNameBallerina, setupDeploymentCall.Req.Name)
-
-		// Validate that system environment variables are 0 for Ballerina
-		envVars := setupDeploymentCall.EnvVars
-		require.Equal(t, 0, len(envVars), "Should have 0 system environment variables for Ballerina")
 
 		// Validate runtime configs
 		require.Equal(t, "ballerina", createComponentCall.Req.RuntimeConfigs.Language)
@@ -321,15 +296,18 @@ func TestCreateAgent(t *testing.T) {
 					},
 				},
 			},
+			"agentType": map[string]interface{}{
+				"type": "api",
+				"subType":"custom-api",
+			},
 			"inputInterface": map[string]interface{}{
-				"type": "CUSTOM",
-				"customOpenAPISpec": map[string]interface{}{
-					"port":     5000,
-					"basePath": "/reading-list",
-					"schema": map[string]interface{}{
-						"content": "openapi: 3.0.3\ninfo:\n  title: Basic API\n  version: 1.0.0\n\npaths:\n  /hello:\n    get:\n      summary: Returns a greeting\n      responses:\n        \"200\":\n          description: Successful response\n          content:\n            application/json:\n              schema:\n                type: object\n                properties:\n                  message:\n                    type: string\n                    example: Hello world",
-					},
+				"type": "HTTP",
+				"port":     5000,
+				"basePath": "/reading-list",
+				"schema": map[string]interface{}{
+					"path": "openapi.yaml",
 				},
+				
 			},
 		})
 		require.NoError(t, err)
@@ -363,7 +341,6 @@ func TestCreateAgent(t *testing.T) {
 		require.Len(t, openChoreoClient.GetProjectCalls(), 1)
 		require.Len(t, openChoreoClient.CreateAgentComponentCalls(), 1)
 		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
-		require.Len(t, openChoreoClient.SetupDeploymentCalls(), 1)
 
 		// Validate call parameters
 		getProjectCall := openChoreoClient.GetProjectCalls()[0]
@@ -376,37 +353,11 @@ func TestCreateAgent(t *testing.T) {
 		require.Equal(t, testAgentNameTwo, createComponentCall.Req.Name)
 		require.Equal(t, "Test Agent Description", *createComponentCall.Req.Description)
 
-		// Validate SetupDeployment call and environment variables
-		setupDeploymentCall := openChoreoClient.SetupDeploymentCalls()[0]
-		require.Equal(t, testOrgName, setupDeploymentCall.OrgName)
-		require.Equal(t, testProjName, setupDeploymentCall.ProjName)
-		require.Equal(t, testAgentNameTwo, setupDeploymentCall.Req.Name)
-
-		// Validate that system and user environment variables are merged correctly
-		envVars := setupDeploymentCall.EnvVars
-		require.GreaterOrEqual(t, len(envVars), 5, "Should have at least 5 environment variables (4 system + 1 user)")
-
-		// Check for both system and user environment variables
-		envMap := make(map[string]string)
-		for _, env := range envVars {
-			envMap[env.Key] = env.Value
-		}
-
-		// System environment variables
-		require.Equal(t, testAgentNameTwo, envMap["AMP_COMPONENT_ID"])
-		require.Equal(t, testAgentNameTwo, envMap["AMP_APP_NAME"])
-		require.Equal(t, "1.0.0", envMap["AMP_APP_VERSION"])
-		require.Equal(t, "Development", envMap["AMP_ENV"])
-
-		// User environment variables from request
-		require.Equal(t, "aiven", envMap["DB_HOST"])
-
 		// Validate custom interface specific fields
-		require.Equal(t, "CUSTOM", createComponentCall.Req.InputInterface.Type)
-		require.NotNil(t, createComponentCall.Req.InputInterface.CustomOpenAPISpec)
-		require.Equal(t, int32(5000), createComponentCall.Req.InputInterface.CustomOpenAPISpec.Port)
-		require.Equal(t, "/reading-list", createComponentCall.Req.InputInterface.CustomOpenAPISpec.BasePath)
-		require.Contains(t, createComponentCall.Req.InputInterface.CustomOpenAPISpec.Schema.Content, "openapi: 3.0.3")
+		require.Equal(t, "HTTP", createComponentCall.Req.InputInterface.Type)
+		require.NotNil(t, createComponentCall.Req.InputInterface.Schema.Path)
+		require.Equal(t, int32(5000), createComponentCall.Req.InputInterface.Port)
+		require.Equal(t, "/reading-list", createComponentCall.Req.InputInterface.BasePath)
 
 		// Validate runtime configs
 		require.Equal(t, "uvicorn app:app --host 0.0.0.0 --port 8000", *createComponentCall.Req.RuntimeConfigs.RunCommand)
@@ -444,8 +395,12 @@ func TestCreateAgent(t *testing.T) {
 					"language":        "python",
 					"languageVersion": "3.11",
 				},
+				"agentType": map[string]interface{}{
+					"type": "api",
+					"subType":"chat-api",
+				},
 				"inputInterface": map[string]interface{}{
-					"type": "DEFAULT",
+					"type": "HTTP",
 				},
 			},
 			wantStatus: 400,
@@ -475,8 +430,12 @@ func TestCreateAgent(t *testing.T) {
 					"language":        "python",
 					"languageVersion": "3.11",
 				},
+				"agentType": map[string]interface{}{
+					"type": "api",
+					"subType":"chat-api",
+				},
 				"inputInterface": map[string]interface{}{
-					"type": "DEFAULT",
+					"type": "HTTP",
 				},
 			},
 			wantStatus: 400,
@@ -501,8 +460,12 @@ func TestCreateAgent(t *testing.T) {
 					"language":        "python",
 					"languageVersion": "3.11",
 				},
+				"agentType": map[string]interface{}{
+					"type": "api",
+					"subType":"chat-api",
+				},
 				"inputInterface": map[string]interface{}{
-					"type": "DEFAULT",
+					"type": "HTTP",
 				},
 			},
 			wantStatus: 400,
@@ -532,8 +495,12 @@ func TestCreateAgent(t *testing.T) {
 					"language":        "python",
 					"languageVersion": "3.11",
 				},
+				"agentType": map[string]interface{}{
+					"type": "api",
+					"subType":"chat-api",
+				},
 				"inputInterface": map[string]interface{}{
-					"type": "DEFAULT",
+					"type": "HTTP",
 				},
 			},
 			wantStatus: 400,
@@ -563,8 +530,12 @@ func TestCreateAgent(t *testing.T) {
 					"language":        "python",
 					"languageVersion": "3.11",
 				},
+				"agentType": map[string]interface{}{
+					"type": "api",
+					"subType":"chat-api",
+				},
 				"inputInterface": map[string]interface{}{
-					"type": "DEFAULT",
+					"type": "HTTP",
 				},
 			},
 			wantStatus: 404,
@@ -595,8 +566,12 @@ func TestCreateAgent(t *testing.T) {
 					"language":        "python",
 					"languageVersion": "3.11",
 				},
+				"agentType": map[string]interface{}{
+					"type": "api",
+					"subType":"chat-api",
+				},
 				"inputInterface": map[string]interface{}{
-					"type": "DEFAULT",
+					"type": "HTTP",
 				},
 			},
 			wantStatus: 404,
@@ -627,8 +602,12 @@ func TestCreateAgent(t *testing.T) {
 					"language":        "python",
 					"languageVersion": "3.11",
 				},
+				"agentType": map[string]interface{}{
+					"type": "api",
+					"subType":"chat-api",
+				},
 				"inputInterface": map[string]interface{}{
-					"type": "DEFAULT",
+					"type": "HTTP",
 				},
 			},
 			wantStatus: 409,
@@ -665,8 +644,12 @@ func TestCreateAgent(t *testing.T) {
 					"language":        "python",
 					"languageVersion": "3.11",
 				},
+				"agentType": map[string]interface{}{
+					"type": "api",
+					"subType":"chat-api",
+				},
 				"inputInterface": map[string]interface{}{
-					"type": "DEFAULT",
+					"type": "HTTP",
 				},
 			},
 			wantStatus: 500,
@@ -704,8 +687,12 @@ func TestCreateAgent(t *testing.T) {
 					"language":        "python",
 					"languageVersion": "3.11",
 				},
+				"agentType": map[string]interface{}{
+					"type": "api",
+					"subType":"chat-api",
+				},
 				"inputInterface": map[string]interface{}{
-					"type": "DEFAULT",
+					"type": "HTTP",
 				},
 			},
 			wantStatus: 401,
@@ -735,8 +722,12 @@ func TestCreateAgent(t *testing.T) {
 					"language":        "rust", // Invalid language
 					"languageVersion": "1.70",
 				},
+				"agentType": map[string]interface{}{
+					"type": "api",
+					"subType":"chat-api",
+				},
 				"inputInterface": map[string]interface{}{
-					"type": "DEFAULT",
+					"type": "HTTP",
 				},
 			},
 			wantStatus: 400,
@@ -766,8 +757,12 @@ func TestCreateAgent(t *testing.T) {
 					"language":        "python",
 					"languageVersion": "2.7", // Invalid version for python
 				},
+				"agentType": map[string]interface{}{
+					"type": "api",
+					"subType":"chat-api",
+				},
 				"inputInterface": map[string]interface{}{
-					"type": "DEFAULT",
+					"type": "HTTP",
 				},
 			},
 			wantStatus: 400,
@@ -797,8 +792,12 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 					// Missing "language" field
 				},
+				"agentType": map[string]interface{}{
+					"type": "api",
+					"subType":"chat-api",
+				},
 				"inputInterface": map[string]interface{}{
-					"type": "DEFAULT",
+					"type": "HTTP",
 				},
 			},
 			wantStatus: 400,
@@ -828,8 +827,12 @@ func TestCreateAgent(t *testing.T) {
 					"language":   "python",
 					// Missing "languageVersion" field
 				},
+				"agentType": map[string]interface{}{
+					"type": "api",
+					"subType":"chat-api",
+				},
 				"inputInterface": map[string]interface{}{
-					"type": "DEFAULT",
+					"type": "HTTP",
 				},
 			},
 			wantStatus: 400,

@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# Generate Docker-specific kubeconfig for kind cluster using --internal flag
+# Generate Docker-specific kubeconfig for k3d cluster using internal networking
 # This creates a kubeconfig with internal cluster networking suitable for containers
 
 set -e
 
 # Check prerequisites
-if ! command -v kind &> /dev/null; then
-    echo "❌ kind is not installed. Please install it first:"
-    echo "   brew install kind"
+if ! command -v k3d &> /dev/null; then
+    echo "❌ k3d is not installed. Please install it first:"
+    echo "   brew install k3d"
     exit 1
 fi
 
@@ -19,37 +19,51 @@ if ! command -v kubectl &> /dev/null; then
 fi
 
 DOCKER_KUBECONFIG="$HOME/.kube/config-docker"
-CLUSTER_NAME="openchoreo-local"
+CLUSTER_NAME="openchoreo-local-v0.7"
 
-echo "🔧 Generating Docker kubeconfig using kind --internal..."
+echo "🔧 Generating Docker kubeconfig for k3d cluster..."
 
 # Check if the specific cluster exists
-if ! kind get clusters | grep -q "^${CLUSTER_NAME}$"; then
-    echo "❌ Kind cluster '${CLUSTER_NAME}' not found"
+if ! k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
+    echo "❌ k3d cluster '${CLUSTER_NAME}' not found"
     echo "   Available clusters:"
-    kind get clusters
-    echo "   Please run 'make setup-kind' first"
+    k3d cluster list
+    echo "   Please run 'make setup-k3d' first"
     exit 1
 fi
 
 # Remove existing config-docker if it's a directory or file
 if [ -e "$DOCKER_KUBECONFIG" ]; then
     echo "🧹 Removing existing $DOCKER_KUBECONFIG"
-    rm -f "$DOCKER_KUBECONFIG"
+    rm -rf "$DOCKER_KUBECONFIG"
 fi
 
 # Create ~/.kube directory if it doesn't exist
 mkdir -p "$(dirname "$DOCKER_KUBECONFIG")"
 
-# Generate kubeconfig with internal cluster IP
+# Generate kubeconfig from k3d
 echo "🔧 Generating kubeconfig for cluster: $CLUSTER_NAME"
-if ! kind get kubeconfig --name "$CLUSTER_NAME" --internal > "$DOCKER_KUBECONFIG"; then
+if ! k3d kubeconfig get "$CLUSTER_NAME" > "$DOCKER_KUBECONFIG"; then
     echo "❌ Failed to generate kubeconfig for cluster '$CLUSTER_NAME'"
     exit 1
 fi
 
+# Replace the server URL with the internal Docker network hostname
+# k3d exposes the API via the serverlb container on port 6443
+INTERNAL_SERVER="https://k3d-${CLUSTER_NAME}-serverlb:6443"
+echo "🔧 Updating server URL to use internal Docker network: $INTERNAL_SERVER"
+
+# Use sed to replace the server URL in the kubeconfig
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS
+    sed -i '' "s|server: https://.*:.*|server: ${INTERNAL_SERVER}|g" "$DOCKER_KUBECONFIG"
+else
+    # Linux
+    sed -i "s|server: https://.*:.*|server: ${INTERNAL_SERVER}|g" "$DOCKER_KUBECONFIG"
+fi
+
 # Set the context
-EXPECTED_CONTEXT="kind-$CLUSTER_NAME"
+EXPECTED_CONTEXT="k3d-$CLUSTER_NAME"
 if ! kubectl --kubeconfig="$DOCKER_KUBECONFIG" config use-context "$EXPECTED_CONTEXT" &> /dev/null; then
     echo "❌ Failed to set context to '$EXPECTED_CONTEXT'"
     exit 1

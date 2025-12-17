@@ -86,7 +86,10 @@ func loadEnvs() {
 	config.DbOperationTimeoutSeconds = int(r.readOptionalInt64("DB_OPERATION_TIMEOUT_SECONDS", 10))
 	config.HealthCheckTimeoutSeconds = int(r.readOptionalInt64("HEALTH_CHECK_TIMEOUT_SECONDS", 5))
 
-	config.DefaultHTTPPort = int(r.readOptionalInt64("DEFAULT_HTTP_PORT", 8000))
+	config.DefaultChatAPI = DefaultChatAPIConfig{
+		DefaultHTTPPort: int32(r.readOptionalInt64("DEFAULT_CHAT_API_HTTP_PORT", 8000)),
+		DefaultBasePath: r.readOptionalString("DEFAULT_CHAT_API_BASE_PATH", "/"),
+	}
 
 	config.APIKeyHeader = r.readOptionalString("API_KEY_HEADER", "X-API-KEY")
 	config.APIKeyValue = r.readRequiredString("API_KEY_VALUE")
@@ -94,18 +97,20 @@ func loadEnvs() {
 	// OpenTelemetry configuration
 	config.OTEL = OTELConfig{
 		// Instrumentation configuration
-		InstrumentationImage:    r.readOptionalString("OTEL_INSTRUMENTATION_IMAGE", "ghcr.io/agent-mgt-platform/otel-tracing-instrumentation:python3.11@sha256:d06e28a12e4a83edfcb8e4f6cb98faf5950266b984156f3192433cf0f903e529"),
-		InstrumentationProvider: r.readOptionalString("OTEL_INSTRUMENTATION_PROVIDER", "otel-tracing"),
-		SDKVolumeName:           r.readOptionalString("OTEL_SDK_VOLUME_NAME", "otel-tracing-sdk-volume"),
-		SDKMountPath:            r.readOptionalString("OTEL_SDK_MOUNT_PATH", "/otel-tracing-sdk"),
+		OTELInstrumentationImage: OTELInstrumentationImage{
+			Python310: r.readOptionalString("OTEL_INSTRUMENTATION_IMAGE_PYTHON_310", "ghcr.io/agent-mgt-platform/otel-tracing-instrumentation:python3.10@sha256:d06e28a12e4a83edfcb8e4f6cb98faf5950266b984156f3192433cf0f903e529"),
+			Python311: r.readOptionalString("OTEL_INSTRUMENTATION_IMAGE_PYTHON_311", "ghcr.io/agent-mgt-platform/otel-tracing-instrumentation:python3.11@sha256:d06e28a12e4a83edfcb8e4f6cb98faf5950266b984156f3192433cf0f903e529"),
+			Python312: r.readOptionalString("OTEL_INSTRUMENTATION_IMAGE_PYTHON_312", "ghcr.io/agent-mgt-platform/otel-tracing-instrumentation:python3.12@sha256:d06e28a12e4a83edfcb8e4f6cb98faf5950266b984156f3192433cf0f903e529"),
+			Python313: r.readOptionalString("OTEL_INSTRUMENTATION_IMAGE_PYTHON_313", "ghcr.io/agent-mgt-platform/otel-tracing-instrumentation:python3.13@sha256:d06e28a12e4a83edfcb8e4f6cb98faf5950266b984156f3192433cf0f903e529"),
+		},
+	
+		SDKVolumeName:        r.readOptionalString("OTEL_SDK_VOLUME_NAME", "otel-tracing-sdk-volume"),
+		SDKMountPath:         r.readOptionalString("OTEL_SDK_MOUNT_PATH", "/otel-tracing-sdk"),
 
 		// Tracing configuration
-		TraceContent:     r.readOptionalBool("OTEL_TRACELOOP_TRACE_CONTENT", true),
-		MetricsEnabled:   r.readOptionalBool("OTEL_TRACELOOP_METRICS_ENABLED", false),
-		TelemetryEnabled: r.readOptionalBool("OTEL_TRACELOOP_TELEMETRY_ENABLED", true),
+		IsTraceContentEnabled: r.readOptionalBool("OTEL_TRACELOOP_TRACE_CONTENT", true),
 
 		// OTLP Exporter configuration
-		ExporterInsecure: r.readOptionalBool("OTEL_EXPORTER_OTLP_INSECURE", true),
 		ExporterEndpoint: r.readOptionalString("OTEL_EXPORTER_OTLP_ENDPOINT", "http://data-prepper.openchoreo-observability-plane.svc.cluster.local:21893"),
 	}
 
@@ -122,6 +127,7 @@ func loadEnvs() {
 	}
 
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
+	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 9080))
 
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)
