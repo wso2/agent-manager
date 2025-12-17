@@ -117,7 +117,7 @@ export const ProjectForm = () => {
               helperText={errors.description?.message as string}
               {...register("description")}
             />
-            <Box display="flex" flexDirection="column" gap={0.5}>
+            <Box display="none" flexDirection="column" gap={0.5}>
               <Typography variant="body2" component="label">
                 Deployment Pipeline
               </Typography>

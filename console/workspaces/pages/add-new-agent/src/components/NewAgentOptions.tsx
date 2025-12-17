@@ -30,26 +30,20 @@ export const NewAgentOptions = ({ onSelect }: NewAgentOptionsProps) => {
     };
 
     return (
-        <Box display="flex" flexDirection="row" gap={3} py={2} width={1}>
+        <Box display="flex" flexDirection="row" gap={3} width={1}>
             <NewAgentTypeCard
                 type="existing"
                 title="Externally-Hosted Agent"
                 subheader="Connect an existing agent running outside the platform and enable observability and governance."
-                icon={<img src={ImageList.EXTERNAL_AGENT} width={150} height={300} alt="External Agent" />}
+                icon={<img src={ImageList.EXTERNAL_AGENT} width={150} alt="External Agent" />}
                 onClick={handleSelect}
-                content={
-                    <Box />
-                }
             />
             <NewAgentTypeCard
                 type="new"
                 title="Platform-Hosted Agent"
                 subheader="Deploy and manage agents with full lifecycle support, including built-in CI/CD, scaling, observability, and governance."
-                icon={<img src={ImageList.INTERNAL_AGENT} width={150} height={300} alt="Internal Agent" />}
+                icon={<img src={ImageList.INTERNAL_AGENT} width={150} alt="Internal Agent" />}
                 onClick={handleSelect}
-                content={
-                    <Box />
-                }
             />
         </Box>
     );
