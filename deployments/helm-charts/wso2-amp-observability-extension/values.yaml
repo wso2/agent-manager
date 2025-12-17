@@ -1,48 +1,7 @@
-deployment:
-  name: data-prepper
-  namespace: openchoreo-observability-plane
-  replicaCount: 1
-  resourceLimits:
-    memory: 500Mi
-    cpu: 1000m
-  resourceRequests:
-    memory: 250Mi
-    cpu: 500m
-
-image:
-  repository: opensearchproject/data-prepper
-  tag: latest
-  pullPolicy: IfNotPresent
-
-configmap:
-  name: data-prepper-config
-  namespace: openchoreo-observability-plane
-
-# Ports
-otlp:
-  port: 21893          
-
-service:
-  name: data-prepper
-  namespace: openchoreo-observability-plane
-  type: NodePort
-
-# OpenSearch sink config
-opensearch:
-  hosts:
-    - http://opensearch.openchoreo-observability-plane.svc.cluster.local:9200
-  indexType: custom
-  indexName: custom-otel-span-index
-  namespace: openchoreo-observability-plane
-  username: "admin"
-  password: "admin"
-  insecure: true
-  # Path inside the container where the index template is mounted
-  templatePath: /usr/share/data-prepper/otel-v1-apm-span-index-standard-template.json
-
 # Traces Observer Service config
 tracesObserver:
   enabled: true
+  developmentMode: false
   name: amp-traces-observer
   namespace: openchoreo-observability-plane
   replicaCount: 1
@@ -60,6 +19,12 @@ tracesObserver:
   service:
     type: NodePort
   env:
-    opensearchAddress: http://opensearch.openchoreo-observability-plane.svc.cluster.local:9200
-    opensearchTraceIndex: custom-otel-span-index
+    opensearchAddress: https://opensearch-headless.openchoreo-observability-plane.svc.cluster.local:9200
     # Note: OpenSearch credentials are stored in opensearch-credentials secret
+opensearch:
+  hosts:
+    - https://opensearch-headless.openchoreo-observability-plane.svc.cluster.local:9200
+  namespace: openchoreo-observability-plane
+  username: "admin"
+  password: "ThisIsTheOpenSearchPassword1"
+

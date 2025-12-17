@@ -1,6 +1,6 @@
 apiVersion: v2
 name: wso2-amp-observability-extension
-description: A Helm chart to add Tracing functionality for the Agent Management Platform, by Deploying and Configuring Data Prepper and the Traces Observer Service.
+description: A Helm chart to add Tracing functionality for the Agent Management Platform, by Deploying and Configuring the Traces Observer Service.
 type: application
 version: 0.0.0-dev
 appVersion: "0.0.0-dev"

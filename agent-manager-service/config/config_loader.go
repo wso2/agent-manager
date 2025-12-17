@@ -103,15 +103,15 @@ func loadEnvs() {
 			Python312: r.readOptionalString("OTEL_INSTRUMENTATION_IMAGE_PYTHON_312", "ghcr.io/agent-mgt-platform/otel-tracing-instrumentation:python3.12@sha256:d06e28a12e4a83edfcb8e4f6cb98faf5950266b984156f3192433cf0f903e529"),
 			Python313: r.readOptionalString("OTEL_INSTRUMENTATION_IMAGE_PYTHON_313", "ghcr.io/agent-mgt-platform/otel-tracing-instrumentation:python3.13@sha256:d06e28a12e4a83edfcb8e4f6cb98faf5950266b984156f3192433cf0f903e529"),
 		},
-	
-		SDKVolumeName:        r.readOptionalString("OTEL_SDK_VOLUME_NAME", "otel-tracing-sdk-volume"),
-		SDKMountPath:         r.readOptionalString("OTEL_SDK_MOUNT_PATH", "/otel-tracing-sdk"),
+
+		SDKVolumeName: r.readOptionalString("OTEL_SDK_VOLUME_NAME", "otel-tracing-sdk-volume"),
+		SDKMountPath:  r.readOptionalString("OTEL_SDK_MOUNT_PATH", "/otel-tracing-sdk"),
 
 		// Tracing configuration
 		IsTraceContentEnabled: r.readOptionalBool("OTEL_TRACELOOP_TRACE_CONTENT", true),
 
 		// OTLP Exporter configuration
-		ExporterEndpoint: r.readOptionalString("OTEL_EXPORTER_OTLP_ENDPOINT", "http://data-prepper.openchoreo-observability-plane.svc.cluster.local:21893"),
+		ExporterEndpoint: r.readOptionalString("OTEL_EXPORTER_OTLP_ENDPOINT", "http://opentelemetry-collector.openchoreo-observability-plane.svc.cluster.local:4318"),
 	}
 
 	// Observer service configuration - temporarily use localhost for agent-manager-service to access observer service
