@@ -120,6 +120,12 @@ func loadEnvs() {
 		Username: r.readOptionalString("OBSERVER_USERNAME", "dummy"),
 		Password: r.readOptionalString("OBSERVER_PASSWORD", "dummy"),
 	}
+
+	// Trace Observer service configuration - for distributed tracing
+	config.TraceObserver = TraceObserverConfig{
+		URL: r.readOptionalString("TRACE_OBSERVER_URL", "http://localhost:9098"),
+	}
+
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
 	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 9080))
 

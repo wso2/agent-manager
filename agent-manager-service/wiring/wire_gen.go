@@ -7,17 +7,16 @@
 package wiring
 
 import (
-	"log/slog"
-
 	"github.com/google/wire"
-
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	"log/slog"
 )
 
 // Injectors from wire.go:
@@ -41,11 +40,15 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
 	buildCIManagerService := services.NewBuildCIManager(openChoreoSvcClient, logger, organizationRepository, projectRepository, agentRepository)
 	buildCIController := controllers.NewBuildCIController(buildCIManagerService)
+	traceObserverClient := traceobserversvc.NewTraceObserverClient()
+	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, logger)
+	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
 	appParams := &AppParams{
 		AuthMiddleware:          middleware,
 		AgentController:         agentController,
 		InfraResourceController: infraResourceController,
 		BuildCIController:       buildCIController,
+		ObservabilityController: observabilityController,
 	}
 	return appParams, nil
 }
@@ -64,11 +67,15 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
 	buildCIManagerService := services.NewBuildCIManager(openChoreoSvcClient, logger, organizationRepository, projectRepository, agentRepository)
 	buildCIController := controllers.NewBuildCIController(buildCIManagerService)
+	traceObserverClient := ProvideTestTraceObserverClient(testClients)
+	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, logger)
+	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
 	appParams := &AppParams{
 		AuthMiddleware:          authMiddleware,
 		AgentController:         agentController,
 		InfraResourceController: infraResourceController,
 		BuildCIController:       buildCIController,
+		ObservabilityController: observabilityController,
 	}
 	return appParams, nil
 }
@@ -81,15 +88,16 @@ var configProviderSet = wire.NewSet(
 
 var repositoryProviderSet = wire.NewSet(repositories.NewOrganizationRepository, repositories.NewAgentRepository, repositories.NewProjectRepository, repositories.NewInternalAgentRepository)
 
-var clientProviderSet = wire.NewSet(openchoreosvc.NewOpenChoreoSvcClient, observabilitysvc.NewObservabilitySvcClient)
+var clientProviderSet = wire.NewSet(openchoreosvc.NewOpenChoreoSvcClient, observabilitysvc.NewObservabilitySvcClient, traceobserversvc.NewTraceObserverClient)
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewBuildCIManager, services.NewInfraResourceManager)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewBuildCIManager, services.NewInfraResourceManager, services.NewObservabilityManager)
 
-var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewBuildCIController, controllers.NewInfraResourceController)
+var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewBuildCIController, controllers.NewInfraResourceController, controllers.NewObservabilityController)
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoSvcClient,
 	ProvideTestObservabilitySvcClient,
+	ProvideTestTraceObserverClient,
 )
 
 // ProvideLogger provides the configured slog.Logger instance
@@ -109,4 +117,9 @@ func ProvideTestOpenChoreoSvcClient(testClients TestClients) openchoreosvc.OpenC
 // ProvideTestObservabilitySvcClient extracts the ObservabilitySvcClient from TestClients
 func ProvideTestObservabilitySvcClient(testClients TestClients) observabilitysvc.ObservabilitySvcClient {
 	return testClients.ObservabilitySvcClient
+}
+
+// ProvideTestTraceObserverClient extracts the TraceObserverClient from TestClients
+func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.TraceObserverClient {
+	return testClients.TraceObserverClient
 }

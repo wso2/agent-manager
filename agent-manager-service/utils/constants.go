@@ -45,6 +45,7 @@ const (
 	PathParamProjName  = "projName"
 	PathParamAgentName = "agentName"
 	PathParamBuildName = "buildName"
+	PathParamTraceId   = "traceId"
 )
 
 // Pagination constants

@@ -75,8 +75,7 @@ jobs:
       - name: Update docs versions
         run: |
           bash .github/scripts/update-docs-versions.sh \
-            "${{ inputs.target-release }}" \
-            "${{ env.REGISTRY_ORG }}"
+            "${{ inputs.target-release }}"
         shell: bash
 
       - name: Update install-helpers.sh
@@ -127,6 +126,13 @@ jobs:
           git tag -a "$MAJOR_TAG" -m "Latest release for major version $MAJOR_VERSION"
           git push origin "$MAJOR_TAG"
           echo "✅ Created/updated major version tag: $MAJOR_TAG"
+        shell: bash
+
+      - name: Push branch
+        if: steps.commit-changes.outputs.committed == 'true'
+        run: |
+          git push origin "${{ steps.create-branch.outputs.branch }}"
+          echo "✅ Pushed branch"
         shell: bash
 
   load-config:
@@ -208,7 +214,6 @@ jobs:
           registry: ${{ env.REGISTRY }}
           registry-org: ${{ env.REGISTRY_ORG }}
           tag: v${{ inputs.target-release }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   package-charts:
     name: Package ${{ matrix.chart.name }}

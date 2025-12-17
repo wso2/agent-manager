@@ -39,7 +39,7 @@ Fill in the agent creation form with these exact values:
 
 | Field                 | Value                                                   |
 | --------------------- | ------------------------------------------------------- |
-| **Display Name**      | `Customer Support Agent`                                |
+| **Display Name**      | `Support Agent`                                         |
 | **Description**       | `AI-powered customer support agent for travel services` |
 | **GitHub Repository** | `https://github.com/wso2/ai-agent-management-platform`  |
 | **Branch**            | `main`                                                  |
@@ -79,11 +79,13 @@ Click on the **"Try It"** section on the left navigation.
 Try these sample questions in the chat interface:
 
 **Flight Inquiries:**
+
 ```text
 What flights do I have booked?
 ```
 
 **Hotel Search:**
+
 ```text
 Find me a hotel in Geneva for next week
 ```
