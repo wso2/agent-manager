@@ -18,7 +18,7 @@ spec:
         - name: traces-observer
           # if developmentMode is true, use latest image for easier debugging
           {{- if .Values.tracesObserver.developmentMode }}
-          image: traces-observer:latest
+          image: amp-traces-observer:0.0.0-dev
           {{- else }}
           image: {{ .Values.tracesObserver.image.repository }}:{{ .Values.tracesObserver.image.tag }}
           {{- end }}
