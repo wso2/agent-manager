@@ -56,6 +56,9 @@ class TestInitializeInstrumentation:
         os.environ[env_vars.AMP_AGENT_NAME] = "test-app"
         os.environ[env_vars.AMP_OTEL_ENDPOINT] = "https://otel.example.com"
         os.environ[env_vars.AMP_AGENT_API_KEY] = "test-key"
+        os.environ[env_vars.AMP_TRACE_ATTRIBUTES] = (
+            "project-uid=proj,environment-uid=env,component-uid=comp"
+        )
 
         # Reset initialization state
         initialization._initialized = False

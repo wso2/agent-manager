@@ -24,7 +24,7 @@ import logging
 import sys
 import threading
 from . import constants as env_vars
-from utils import transform_resource_attributes
+from .utils import transform_resource_attributes
 
 # Track initialization state with thread safety
 _initialized = False
