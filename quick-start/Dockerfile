@@ -1,54 +1,53 @@
 FROM alpine:3.21
 
-RUN apk add --no-cache \
-  bash curl socat git jq bash-completion docker-cli openssl lsof && \
-  mkdir -p /etc/bash_completion.d
+# Version arguments for reproducibility and easy updates
+ARG KUBECTL_VERSION=v1.32.10
+ARG HELM_VERSION=v3.19.2
+ARG K3D_VERSION=v5.8.3
 
-# inject the target os and architecture (https://docs.docker.com/reference/dockerfile/#automatic-platform-args-in-the-global-scope)
+# Inject the target os and architecture
 ARG TARGETARCH
 ARG TARGETOS
+ARG USER_HOME=/home/wso2-amp
 
-# install kubectl
-RUN curl -fsSL "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$TARGETARCH/kubectl" > /tmp/kubectl && \
+# Install all base packages
+RUN apk add --no-cache \
+  bash curl socat git jq yq bash-completion docker-cli openssl \
+  bind-tools netcat-openbsd tcpdump \
+  htop procps \
+  vim \
+  sudo \
+  wget ca-certificates ncurses && \
+  mkdir -p /etc/bash_completion.d
+
+# Install kubectl, helm, and k3d with completions
+RUN curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl" > /tmp/kubectl && \
   install -o root -g root -m 0755 /tmp/kubectl /usr/local/bin/kubectl && \
   kubectl completion bash > /etc/bash_completion.d/kubectl && \
-  rm /tmp/kubectl
+  rm /tmp/kubectl && \
+  curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | DESIRED_VERSION=${HELM_VERSION} bash && \
+  helm completion bash > /etc/bash_completion.d/helm && \
+  curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=${K3D_VERSION} bash && \
+  k3d completion bash > /etc/bash_completion.d/k3d
 
-# install helm - latest stable version (https://github.com/helm/helm/releases)
-RUN curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash && \
-  helm completion bash > /etc/bash_completion.d/helm
+# Create user
+RUN adduser -D -h ${USER_HOME} -s /bin/bash wso2-amp && \
+    echo "wso2-amp ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wso2-amp && \
+    chmod 0440 /etc/sudoers.d/wso2-amp
 
-# install kind https://kind.sigs.k8s.io/docs/user/quick-start/#installing-from-release-binaries
-RUN curl -fsSL https://kind.sigs.k8s.io/dl/v0.27.0/kind-linux-${TARGETARCH} > /tmp/kind && \
-  install -o root -g root -m 0755 /tmp/kind /usr/local/bin/kind && \
-  rm /tmp/kind
+COPY .bash_profile ${USER_HOME}/.bash_profile
+COPY .bashrc ${USER_HOME}/.bashrc
 
-ENV KUBECONFIG="/state/kube/config-internal.yaml"
+# Copy scripts and configs
+COPY --chown=wso2-amp:wso2-amp install.sh ${USER_HOME}/install.sh
+COPY --chown=wso2-amp:wso2-amp k3d-config.yaml ${USER_HOME}/k3d-config.yaml
+COPY --chown=root:root entrypoint.sh /entrypoint.sh
+RUN chmod +x ${USER_HOME}/install.sh && \
+    chmod +x /entrypoint.sh
 
-COPY install-helpers.sh /app/install-helpers.sh
-RUN chmod +x /app/install-helpers.sh
+# Set working directory
+WORKDIR ${USER_HOME}
 
-COPY kind-config.yaml /app/kind-config.yaml
+# Set entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
 
-COPY install.sh /app/install.sh
-RUN chmod +x /app/install.sh
-
-COPY uninstall.sh /app/uninstall.sh
-RUN chmod +x /app/uninstall.sh
-
-COPY port-forward.sh /app/port-forward.sh
-RUN chmod +x /app/port-forward.sh
-
-COPY stop-port-forward.sh /app/stop-port-forward.sh
-RUN chmod +x /app/stop-port-forward.sh
-
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
-ENV PATH="/usr/local/bin:${PATH}"
-
-# Set custom shell prompt with meaningful hostname
-RUN echo 'export PS1="amp-quick-start:\w# "' >> /etc/profile
-
-WORKDIR /app
-
-ENTRYPOINT ["/app/entrypoint.sh"]

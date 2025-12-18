@@ -1,28 +1,34 @@
 #!/bin/bash
 
-container_id="$(cat /etc/hostname)"
+set -e
 
-# Check if the "kind" network exists and connect the container to kind network
-if docker network inspect kind &>/dev/null; then
-  # Check if the container is already connected
-  if [ "$(docker inspect -f '{{json .NetworkSettings.Networks.kind}}' "${container_id}")" = "null" ]; then
-    docker network connect "kind" "${container_id}"
-    echo "Connected container ${container_id} to kind network."
-  else
-    echo "Container ${container_id} is already connected to kind network."
+# Setup docker socket permissions for openchoreo user
+# This allows k3d and docker commands to work without sudo
+if [ -S /var/run/docker.sock ]; then
+  DOCKER_SOCK_GID=$(stat -c '%g' /var/run/docker.sock 2>/dev/null || stat -f '%g' /var/run/docker.sock 2>/dev/null || echo "0")
+
+  if [ "$DOCKER_SOCK_GID" != "0" ]; then
+    # Create docker group with the same GID as the socket
+    if ! getent group "$DOCKER_SOCK_GID" >/dev/null 2>&1; then
+      addgroup -g "$DOCKER_SOCK_GID" docker >/dev/null 2>&1 || true
+    fi
+
+    # Add openchoreo user to the docker group
+    addgroup wso2-amp docker >/dev/null 2>&1 || true
   fi
 fi
 
-# Fix kubeconfig to use kind cluster's internal network IP instead of 127.0.0.1
-if kind get clusters 2>/dev/null | grep -q "openchoreo-local"; then
-  CONTROL_PLANE_IP=$(docker inspect openchoreo-local-control-plane --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null | head -1)
-  if [ -n "$CONTROL_PLANE_IP" ]; then
-    echo "Configuring kubectl to connect to kind cluster at ${CONTROL_PLANE_IP}..."
-    mkdir -p /state/kube
-    kind get kubeconfig --name openchoreo-local | sed "s|server: https://127.0.0.1:[0-9]*|server: https://${CONTROL_PLANE_IP}:6443|" > /state/kube/config-internal.yaml
-    export KUBECONFIG=/state/kube/config-internal.yaml
-    echo "✓ kubectl configured successfully"
-  fi
-fi
+# Preserve environment variables by writing them to a file that .bashrc will source
+# This ensures DEV_MODE, OPENCHOREO_VERSION, and DEBUG are available after su -
+cat > /home/wso2-amp/.env_from_docker <<EOF
+export DEV_MODE='${DEV_MODE}'
+export OPENCHOREO_VERSION='${OPENCHOREO_VERSION}'
+export DEBUG='${DEBUG}'
+EOF
+chown wso2-amp:wso2-amp /home/wso2-amp/.env_from_docker
 
-exec /bin/bash -l
+# Switch to wso2-amp user and start interactive bash
+# The '-' flag starts a login shell, which sources ~/.bash_profile
+# which in turn sources ~/.bashrc.
+# Note: kubeconfig setup happens in .bashrc automatically
+exec su - wso2-amp

@@ -1,493 +1,607 @@
-#!/usr/bin/env bash
-set -eo pipefail
+#!/bin/bash
+set -euo pipefail
 
 # ============================================================================
-# Agent Management Platform - Complete Bootstrap Installation
+# OpenChoreo Development Environment Setup
 # ============================================================================
-# This script provides a single-command installation that:
-# 1. Creates a Kind cluster
-# 2. Installs OpenChoreo
-# 3. Installs Agent Management Platform
+# This script provides a comprehensive, idempotent installation that:
+# 1. Creates a k3d cluster
+# 2. Installs OpenChoreo (Control Plane, Data Plane, Build Plane, Observability Plane)
+# 3. Registers planes and configures observability
 #
-# Usage:
-#   ./install.sh              # Full installation
-#   ./install.sh --minimal    # Skip optional OpenChoreo components
-#   ./install.sh --verbose    # Show detailed output
-#   ./install.sh --help       # Show help
+# The script is idempotent - it can be run multiple times safely.
+# Only public helm charts are used - no local charts or custom images.
 # ============================================================================
-
-# Get the absolute path of the script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Source helper functions
-source "${SCRIPT_DIR}/install-helpers.sh"
 
 # Configuration
-VERBOSE="${VERBOSE:-false}"
-SKIP_KIND="${SKIP_KIND:-false}"
-SKIP_OPENCHOREO="${SKIP_OPENCHOREO:-false}"
-MINIMAL_MODE="${MINIMAL_MODE:-false}"
+CLUSTER_NAME="amp-local"
+CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
+OPENCHOREO_VERSION="0.7.0"
+OC_RELEASE="release-v0.7"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+K3D_CONFIG="${SCRIPT_DIR}/k3d-config.yaml"
 
-# Parse command line arguments
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --verbose|-v)
-            VERBOSE=true
-            shift
-            ;;
-        --minimal|--core-only)
-            MINIMAL_MODE=true
-            shift
-            ;;
-        --skip-kind)
-            SKIP_KIND=true
-            shift
-            ;;
-        --skip-openchoreo)
-            SKIP_OPENCHOREO=true
-            shift
-            ;;
-        --config)
-            if [[ -f "$2" ]]; then
-                AMP_HELM_ARGS+=("-f" "$2")
-            else
-                log_error "Config file not found: $2"
-                exit 1
+# Timeouts (in seconds)
+TIMEOUT_K3D_READY=60
+TIMEOUT_CONTROL_PLANE=600
+TIMEOUT_DATA_PLANE=600
+TIMEOUT_BUILD_PLANE=600
+TIMEOUT_OBSERVABILITY_PLANE=900
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Helper functions
+log_info() {
+    echo -e "${BLUE}ℹ${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}✓${NC} $1"
+}
+
+log_warning() {
+    echo -e "${YELLOW}⚠${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}✗${NC} $1"
+}
+
+log_step() {
+    echo ""
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}$1${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+}
+
+# Check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Wait for k3d cluster to be ready
+wait_for_k3d_cluster() {
+    local cluster_name=$1
+    local timeout=$2
+    local elapsed=0
+    
+    log_info "Waiting for k3d cluster '${cluster_name}' to be ready..."
+    
+    while true; do
+        # Check if cluster exists and get its status
+        CLUSTER_LINE=$(k3d cluster list 2>/dev/null | grep "${cluster_name}" || echo "")
+        
+        # Check if cluster is running - k3d shows status in various formats
+        # Format can be: "amp-local   1/1       0/0      true" or "amp-local   running"
+        if [ -n "${CLUSTER_LINE}" ]; then
+            # Check for "running" text or "true" status (which indicates running)
+            if echo "${CLUSTER_LINE}" | grep -qE "(running|true)" || \
+               echo "${CLUSTER_LINE}" | grep -qE "[0-9]+/[0-9]+.*true"; then
+                
+                # Give k3d a moment to register the kubeconfig context
+                sleep 2
+                
+                # Always try to merge kubeconfig to ensure it's up to date
+                k3d kubeconfig merge "${cluster_name}" --kubeconfig-merge-default 2>/dev/null || true
+                sleep 2
+                
+                # Check if context exists in kubeconfig
+                if kubectl config get-contexts "${CLUSTER_CONTEXT}" &>/dev/null 2>&1; then
+                    # Set context
+                    kubectl config use-context "${CLUSTER_CONTEXT}" &>/dev/null 2>&1 || true
+                    
+                    # Verify cluster is actually accessible (try multiple methods)
+                    # Method 1: cluster-info without context flag (uses current context)
+                    if kubectl cluster-info &>/dev/null 2>&1; then
+                        return 0
+                    fi
+                    
+                    # Method 2: cluster-info with context flag
+                    if kubectl cluster-info --context "${CLUSTER_CONTEXT}" &>/dev/null 2>&1; then
+                        return 0
+                    fi
+                    
+                    # Method 3: Try a simple get nodes command
+                    if kubectl get nodes &>/dev/null 2>&1; then
+                        return 0
+                    fi
+                else
+                    # Context doesn't exist yet, continue waiting
+                    if [ $((elapsed % 10)) -eq 0 ]; then
+                        log_info "Context ${CLUSTER_CONTEXT} not yet available, waiting... (${elapsed}s elapsed)"
+                    fi
+                fi
             fi
-            shift 2
-            ;;
-        --help|-h)
-            cat << EOF
+        fi
+        
+        if [ $elapsed -ge $timeout ]; then
+            log_error "Cluster not ready after ${timeout}s"
+            log_info "Cluster status: ${CLUSTER_LINE:-not found}"
+            log_info "Available contexts:"
+            kubectl config get-contexts 2>/dev/null || true
+            log_info "Expected context: ${CLUSTER_CONTEXT}"
+            log_info "Trying to merge kubeconfig one more time..."
+            k3d kubeconfig merge "${cluster_name}" --kubeconfig-merge-default 2>&1 || true
+            sleep 2
+            log_info "Contexts after merge:"
+            kubectl config get-contexts 2>/dev/null || true
+            # Try one last time with any k3d context
+            if kubectl config get-contexts 2>/dev/null | grep -q "k3d"; then
+                K3D_CTX=$(kubectl config get-contexts 2>/dev/null | grep "k3d" | awk '{print $1}' | head -1)
+                if [ -n "${K3D_CTX}" ]; then
+                    log_info "Trying with context: ${K3D_CTX}"
+                    kubectl config use-context "${K3D_CTX}" 2>/dev/null || true
+                    if kubectl cluster-info &>/dev/null 2>&1; then
+                        log_warning "Cluster accessible with context ${K3D_CTX}, but expected ${CLUSTER_CONTEXT}"
+                        # Update CLUSTER_CONTEXT to match
+                        CLUSTER_CONTEXT="${K3D_CTX}"
+                        return 0
+                    fi
+                fi
+            fi
+            return 1
+        fi
+        
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+}
 
-🚀 Agent Management Platform - Bootstrap Installation
+# Wait for kubectl to be ready (assumes context is already set)
+wait_for_kubectl() {
+    local timeout=$1
+    local elapsed=0
+    
+    log_info "Waiting for kubectl to be ready..."
+    
+    while ! kubectl cluster-info &>/dev/null; do
+        if [ $elapsed -ge $timeout ]; then
+            log_error "kubectl not ready after ${timeout}s"
+            return 1
+        fi
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+    return 0
+}
 
-This script provides a complete one-command installation of:
-  • Kind cluster (Kubernetes in Docker)
-  • OpenChoreo platform
-  • Agent Management Platform with observability
+# Install helm chart with idempotency check
+helm_install_idempotent() {
+    local release_name=$1
+    local chart=$2
+    local namespace=$3
+    local timeout=$4
+    shift 4
+    local extra_args=("$@")
 
-Usage:
-  $0 [OPTIONS]
+    if helm status "${release_name}" -n "${namespace}" &>/dev/null; then
+        log_info "${release_name} already installed, skipping..."
+        return 0
+    fi
 
-Options:
-  --verbose, -v           Show detailed installation output
-  --minimal, --core-only  Install only core OpenChoreo components (faster)
-  --skip-kind             Skip Kind cluster creation (use existing cluster)
-  --skip-openchoreo       Skip OpenChoreo installation (install platform only)
-  --config FILE           Use custom configuration file for platform
-  --help, -h              Show this help message
+    log_info "Installing ${release_name}..."
+    log_info "This may take several minutes..."
 
-Examples:
-  $0                      # Full installation (recommended)
-  $0 --verbose            # Full installation with detailed output
-  $0 --minimal            # Faster installation with core components only
-  $0 --skip-kind          # Use existing Kind cluster
-  $0 --config custom.yaml # Installation with custom platform config
+    if helm install "${release_name}" "${chart}" \
+        --namespace "${namespace}" \
+        --create-namespace \
+        --timeout "${timeout}s" \
+        "${extra_args[@]}"; then
+        log_success "${release_name} installed successfully"
+        return 0
+    else
+        log_error "Failed to install ${release_name}"
+        return 1
+    fi
+}
 
-After installation:
-  Run ./port-forward.sh to access services from localhost
+# Wait for pods to be ready
+wait_for_pods() {
+    local namespace=$1
+    local timeout=$2
+    local selector=${3:-""}
 
-Prerequisites:
-  • Docker (Docker Desktop or Colima)
-  • kubectl
-  • helm
-  • kind
+    log_info "Waiting for pods in ${namespace} to be ready (timeout: ${timeout}s)..."
 
-Installation Time:
-  • Full installation: ~10-15 minutes
-  • Minimal installation: ~5-8 minutes
+    if [ -n "$selector" ]; then
+        kubectl wait --for=condition=Ready pod -l "${selector}" -n "${namespace}" --timeout="${timeout}s" || {
+            log_warning "Some pods may still be starting (non-fatal)"
+            return 0
+        }
+    else
+        kubectl wait --for=condition=Ready pod --all -n "${namespace}" --timeout="${timeout}s" || {
+            log_warning "Some pods may still be starting (non-fatal)"
+            return 0
+        }
+    fi
+    log_success "Pods in ${namespace} are ready"
+}
 
-For more information:
-  • Quick Start Guide: https://github.com/wso2/ai-agent-management-platform/blob/main/docs/quick-start.md
-  • Troubleshooting: See README.md for troubleshooting section
-  • Documentation: https://github.com/wso2/agent-management-platform
+# Wait for deployments to be available
+wait_for_deployments() {
+    local namespace=$1
+    local timeout=$2
 
-EOF
-            exit 0
-            ;;
-        *)
-            log_error "Unknown option: $1"
-            echo "Use --help for usage information"
-            exit 1
-            ;;
-    esac
-done
+    log_info "Waiting for deployments in ${namespace} to be available (timeout: ${timeout}s)..."
+
+    kubectl wait --for=condition=Available deployment --all -n "${namespace}" --timeout="${timeout}s" || {
+        log_warning "Some deployments may still be starting (non-fatal)"
+        return 0
+    }
+    log_success "Deployments in ${namespace} are available"
+}
+
+# Wait for statefulsets to be ready
+wait_for_statefulsets() {
+    local namespace=$1
+    local timeout=$2
+
+    log_info "Waiting for statefulsets in ${namespace} to be ready (timeout: ${timeout}s)..."
+
+    kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 statefulset --all -n "${namespace}" --timeout="${timeout}s" || {
+        log_warning "Some statefulsets may still be starting (non-fatal)"
+        return 0
+    }
+    log_success "Statefulsets in ${namespace} are ready"
+}
 
 # ============================================================================
 # MAIN INSTALLATION FLOW
 # ============================================================================
 
-# Print header
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🚀 Agent Management Platform - Bootstrap"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
+log_step "OpenChoreo Development Environment Setup"
 
-if [[ "$MINIMAL_MODE" == "true" ]]; then
-    echo "Mode: Minimal (core components only)"
-else
-    echo "Mode: Full installation"
-fi
+# Check and fix Docker permissions
+check_docker_permissions() {
+    local docker_sock="/var/run/docker.sock"
+    
+    if [ ! -S "${docker_sock}" ]; then
+        log_error "Docker socket not found at ${docker_sock}"
+        log_info "Make sure Docker is running and the socket is mounted"
+        return 1
+    fi
+    
+    # Check if we can access Docker
+    if docker ps &>/dev/null; then
+        log_success "Docker access verified"
+        return 0
+    fi
+    
+    # Try to fix permissions
+    log_warning "Docker socket permissions issue detected. Attempting to fix..."
+    if sudo chmod 666 "${docker_sock}" 2>/dev/null; then
+        log_success "Docker socket permissions fixed"
+        return 0
+    else
+        log_error "Cannot fix Docker socket permissions. Please run: sudo chmod 666 ${docker_sock}"
+        return 1
+    fi
+}
 
-if [[ "$VERBOSE" == "true" ]]; then
-    echo "Verbosity: Detailed output enabled"
-fi
+# Check prerequisites
+log_step "Step 1/5: Verifying prerequisites"
 
-echo ""
-echo "This will install:"
-echo "  ✓ Kind cluster (local Kubernetes)"
-echo "  ✓ OpenChoreo platform"
-echo "  ✓ Agent Management Platform"
-echo "  ✓ Observability stack"
-echo ""
-
-if [[ "$VERBOSE" == "false" ]]; then
-    echo "💡 Tip: Use --verbose for detailed progress information"
-    echo ""
-fi
-
-# Estimate installation time
-if [[ "$MINIMAL_MODE" == "true" ]]; then
-    echo "⏱️  Estimated time: 5-8 minutes"
-else
-    echo "⏱️  Estimated time: 10-15 minutes"
-fi
-echo ""
-
-# ============================================================================
-# STEP 1: VERIFY PREREQUISITES
-# ============================================================================
-
-if [[ "$VERBOSE" == "false" ]]; then
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "Step 1/4: Verifying prerequisites..."
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-else
-    log_info "Step 1/4: Verifying prerequisites..."
-    echo ""
-fi
-
-if ! verify_openchoreo_prerequisites; then
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_error "Prerequisites check failed"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    echo "Please install the missing prerequisites and try again."
-    echo ""
+# Check Docker access first
+if ! check_docker_permissions; then
+    log_error "Docker permission check failed"
     exit 1
 fi
 
-if [[ "$VERBOSE" == "false" ]]; then
-    echo "✓ All prerequisites verified"
-else
-    log_success "Prerequisites check passed"
-fi
-echo ""
-
-# ============================================================================
-# STEP 2: SETUP KIND CLUSTER
-# ============================================================================
-
-if [[ "$SKIP_KIND" == "true" ]]; then
-    if [[ "$VERBOSE" == "false" ]]; then
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "Step 2/4: Skipping Kind cluster setup (--skip-kind)"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo ""
-    else
-        log_info "Step 2/4: Skipping Kind cluster setup (--skip-kind)"
-        echo ""
-    fi
-else
-    if [[ "$VERBOSE" == "false" ]]; then
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "Step 2/4: Setting up Kind cluster..."
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo ""
-        echo "⏱️  This may take 1-2 minutes..."
-        echo ""
-        echo "💡 Note: Nodes will become Ready after CNI installation (Step 3)"
-        echo ""
-    else
-        log_info "Step 2/4: Setting up Kind cluster..."
-        echo ""
-    fi
-    
-    if ! setup_kind_cluster "openchoreo-local" "${SCRIPT_DIR}/kind-config.yaml"; then
-        echo ""
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        log_error "Failed to setup Kind cluster"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo ""
-        echo "The Kind cluster could not be created or nodes did not become ready."
-        echo ""
-        echo "Common solutions:"
-        echo "  1. Delete existing cluster and retry:"
-        echo "       kind delete cluster --name openchoreo-local"
-        echo "       ./install.sh"
-        echo ""
-        echo "  2. Check Docker resources:"
-        echo "       • Ensure Docker is running (docker ps)"
-        echo "       • Allocate 4GB+ RAM to Docker"
-        echo "       • Check available disk space"
-        echo ""
-        echo "  3. Check if ports are available:"
-        echo "       • Port 6443 must be free for Kubernetes API"
-        echo "       lsof -i :6443  # Check if port is in use"
-        echo ""
-        echo "  4. View cluster logs for more details:"
-        echo "       docker logs openchoreo-local-control-plane"
-        echo "       docker logs openchoreo-local-worker"
-        echo ""
-        echo "  5. If using Colima, ensure it has sufficient resources:"
-        echo "       colima status"
-        echo "       colima start --cpu 4 --memory 8"
-        echo ""
-        echo "For more help, see: ./README.md"
-        echo ""
-        exit 1
-    fi
-    
-    if [[ "$VERBOSE" == "false" ]]; then
-        echo "✓ Kind cluster ready"
-    fi
-    echo ""
+if ! command_exists k3d; then
+    log_error "k3d is not installed"
+    exit 1
 fi
 
+if ! command_exists kubectl; then
+    log_error "kubectl is not installed"
+    exit 1
+fi
+
+if ! command_exists helm; then
+    log_error "helm is not installed"
+    exit 1
+fi
+
+if ! command_exists curl; then
+    log_error "curl is not installed"
+    exit 1
+fi
+
+log_success "All prerequisites verified"
+
 # ============================================================================
-# STEP 3: INSTALL OPENCHOREO
+# Step 2: Setup k3d Cluster
 # ============================================================================
 
-if [[ "$SKIP_OPENCHOREO" == "true" ]]; then
-    if [[ "$VERBOSE" == "false" ]]; then
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "Step 3/4: Skipping OpenChoreo installation (--skip-openchoreo)"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo ""
+log_step "Step 2/5: Setting up k3d cluster"
+
+# Check if cluster already exists
+if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
+    log_info "k3d cluster '${CLUSTER_NAME}' already exists"
+
+    # Check cluster status - k3d shows status in various formats
+    CLUSTER_LINE=$(k3d cluster list 2>/dev/null | grep "${CLUSTER_NAME}" || echo "")
+    if [ -n "${CLUSTER_LINE}" ] && (echo "${CLUSTER_LINE}" | grep -qE "(running|true)" || \
+        echo "${CLUSTER_LINE}" | grep -qE "[0-9]+/[0-9]+.*true"); then
+        CLUSTER_STATUS="running"
     else
-        log_info "Step 3/4: Skipping OpenChoreo installation (--skip-openchoreo)"
-        echo ""
+        CLUSTER_STATUS="stopped"
     fi
-else
-    if [[ "$VERBOSE" == "false" ]]; then
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "Step 3/4: Installing OpenChoreo..."
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo ""
-        if [[ "$MINIMAL_MODE" == "true" ]]; then
-            echo "⏱️  This may take 10-12 minutes (core components only)..."
+    
+    if [ "${CLUSTER_STATUS}" = "running" ]; then
+        log_info "Cluster is running, verifying access..."
+        
+        # Set context first (might not be set yet)
+        kubectl config use-context "${CLUSTER_CONTEXT}" 2>/dev/null || true
+        
+        # Verify cluster is accessible
+        if kubectl cluster-info --context "${CLUSTER_CONTEXT}" &>/dev/null; then
+            log_success "Cluster is running and accessible"
         else
-            echo "⏱️  This may take 12-15 minutes (full installation)..."
+            log_info "Cluster is running but not accessible yet. Merging kubeconfig and waiting..."
+            # Merge kubeconfig to ensure context is available
+            k3d kubeconfig merge "${CLUSTER_NAME}" --kubeconfig-merge-default 2>/dev/null || true
+            sleep 2
+            
+            if ! wait_for_k3d_cluster "${CLUSTER_NAME}" "${TIMEOUT_K3D_READY}"; then
+                log_error "Cluster failed to become ready"
+                exit 1
+            fi
         fi
-        echo ""
-        echo "Installing components:"
-        echo "  • Cilium CNI"
-        echo "  • OpenChoreo Control Plane"
-        echo "  • OpenChoreo Data Plane"
-        echo "  • OpenChoreo Observability Plane"
-        echo ""
     else
-        log_info "Step 3/4: Installing OpenChoreo..."
-        echo ""
+        log_info "Cluster exists but is not running. Starting cluster..."
+        k3d cluster start "${CLUSTER_NAME}"
+
+        # Merge kubeconfig to ensure context is available
+        log_info "Merging k3d kubeconfig..."
+        k3d kubeconfig merge "${CLUSTER_NAME}" --kubeconfig-merge-default 2>/dev/null || true
+        sleep 2
+
+        # Wait for cluster to be fully ready (context registered and API accessible)
+        if ! wait_for_k3d_cluster "${CLUSTER_NAME}" "${TIMEOUT_K3D_READY}"; then
+            log_error "Cluster failed to become ready"
+            exit 1
+        fi
+        log_success "Cluster is now ready"
     fi
-    
-    # Install core components
-    if ! install_openchoreo_core; then
-        echo ""
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        log_error "Failed to install OpenChoreo"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo ""
-        echo "OpenChoreo installation failed."
-        echo ""
-        echo "Troubleshooting steps:"
-        echo "  1. Check cluster status: kubectl get nodes"
-        echo "  2. Check pod status: kubectl get pods --all-namespaces"
-        echo "  3. View logs: kubectl logs -n <namespace> <pod-name>"
-        echo "  4. Ensure Docker has sufficient resources (4GB+ RAM)"
-        echo ""
-        echo "To clean up and retry:"
-        echo "  ./uninstall.sh"
-        echo "  ./install.sh"
-        echo ""
-        echo "For more help, see: ./README.md"
-        echo ""
+
+    # Ensure context is set
+    kubectl config use-context "${CLUSTER_CONTEXT}" || {
+        log_error "Failed to set kubectl context"
+        exit 1
+    }
+    log_success "Using existing cluster"
+else
+    log_info "Creating k3d cluster..."
+
+    # Create shared directory for OpenChoreo
+    mkdir -p /tmp/k3d-shared
+
+    # Create k3d cluster
+    if k3d cluster create --config "${K3D_CONFIG}"; then
+        log_success "k3d cluster created successfully"
+    else
+        log_error "Failed to create k3d cluster"
         exit 1
     fi
-    
-    if [[ "$VERBOSE" == "false" ]]; then
-        echo "✓ OpenChoreo installed successfully"
+
+    # Merge kubeconfig to ensure context is available
+    log_info "Merging k3d kubeconfig..."
+    k3d kubeconfig merge "${CLUSTER_NAME}" --kubeconfig-merge-default 2>/dev/null || true
+    sleep 2
+
+    # Set kubectl context
+    kubectl config use-context "${CLUSTER_CONTEXT}" || {
+        log_error "Failed to set kubectl context"
+        exit 1
+    }
+
+    # Wait for cluster to be ready
+    if wait_for_kubectl "${TIMEOUT_K3D_READY}"; then
+        log_success "Cluster is ready"
+    else
+        log_error "Cluster failed to become ready"
+        exit 1
     fi
+
+    log_info "Cluster info:"
+    kubectl cluster-info --context "${CLUSTER_CONTEXT}"
     echo ""
+    log_info "Cluster nodes:"
+    kubectl get nodes
 fi
 
 # ============================================================================
-# STEP 4: INSTALL AGENT MANAGEMENT PLATFORM
+# Step 3: Install OpenChoreo Control Plane
 # ============================================================================
 
-if [[ "$VERBOSE" == "false" ]]; then
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "Step 4/4: Installing Agent Management Platform..."
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    echo "⏱️  This may take 5-8 minutes..."
-    echo ""
+log_step "Step 3/5: Installing OpenChoreo Control Plane"
+
+helm_install_idempotent \
+    "openchoreo-control-plane" \
+    "oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane" \
+    "openchoreo-control-plane" \
+    "${TIMEOUT_CONTROL_PLANE}" \
+    --version "${OPENCHOREO_VERSION}" \
+    --values "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/k3d/single-cluster/values-cp.yaml" \
+    --set "global.defaultResources.enabled=false" \
+    --set "security.oidc.authorizationUrl=http://thunder.openchoreo.localhost:8089/oauth2/authorize"
+
+wait_for_pods "openchoreo-control-plane" "${TIMEOUT_CONTROL_PLANE}"
+
+# ============================================================================
+# Step 4: Install OpenChoreo Data Plane
+# ============================================================================
+
+log_step "Step 4/5: Installing OpenChoreo Data Plane"
+
+helm_install_idempotent \
+    "openchoreo-data-plane" \
+    "oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane" \
+    "openchoreo-data-plane" \
+    "${TIMEOUT_DATA_PLANE}" \
+    --version "${OPENCHOREO_VERSION}" \
+    --values "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/k3d/single-cluster/values-dp.yaml"
+
+# Register Data Plane
+log_info "Registering Data Plane..."
+if curl -s "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/add-data-plane.sh" | \
+    bash -s -- --enable-agent --control-plane-context "${CLUSTER_CONTEXT}" --name default; then
+    log_success "Data Plane registered successfully"
 else
-    log_info "Step 4/4: Installing Agent Management Platform..."
-    echo ""
+    log_warning "Data Plane registration script failed (non-fatal)"
 fi
 
-# Verify OpenChoreo Observability Plane is available
-if ! kubectl get namespace openchoreo-observability-plane >/dev/null 2>&1; then
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_error "OpenChoreo Observability Plane not found"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    echo "The Agent Management Platform requires OpenChoreo Observability Plane."
-    echo ""
-    echo "This should have been installed in Step 3."
-    echo "Please run the full bootstrap without --skip-openchoreo"
-    echo ""
-    exit 1
+# Verify DataPlane resource
+if kubectl get dataplane default -n default &>/dev/null; then
+    log_success "DataPlane resource 'default' exists"
+    AGENT_ENABLED=$(kubectl get dataplane default -n default -o jsonpath='{.spec.agent.enabled}' 2>/dev/null || echo "false")
+    if [ "$AGENT_ENABLED" = "true" ]; then
+        log_success "Agent mode is enabled"
+    else
+        log_warning "Agent mode is not enabled (expected: true, got: $AGENT_ENABLED)"
+    fi
+else
+    log_warning "DataPlane resource not found"
 fi
 
+wait_for_pods "openchoreo-data-plane" "${TIMEOUT_DATA_PLANE}"
 
-if ! kubectl get namespace openchoreo-build-plane >/dev/null 2>&1; then
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_error "OpenChoreo Build Plane not found"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    echo "The Agent Management Platform requires OpenChoreo Build Plane."
-    echo ""
-    echo "This should have been installed in Step 3."
-    echo "Please run the full bootstrap"
-    echo ""
-    exit 1
+# ============================================================================
+# Step 5: Install OpenChoreo Build Plane
+# ============================================================================
+
+log_step "Step 5/5: Installing OpenChoreo Build Plane"
+
+helm_install_idempotent \
+    "openchoreo-build-plane" \
+    "oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane" \
+    "openchoreo-build-plane" \
+    "${TIMEOUT_BUILD_PLANE}" \
+    --version "${OPENCHOREO_VERSION}" \
+    --values "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/k3d/single-cluster/values-bp.yaml"
+
+# Register Build Plane
+log_info "Registering Build Plane..."
+if curl -s "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/add-build-plane.sh" | \
+    bash -s -- --enable-agent --control-plane-context "${CLUSTER_CONTEXT}" --name default; then
+    log_success "Build Plane registered successfully"
+else
+    log_warning "Build Plane registration script failed (non-fatal)"
 fi
 
-# Install platform components
-if [[ "$VERBOSE" == "false" ]]; then
-    echo "Installing components:"
-    echo "  • PostgreSQL database"
-    echo "  • Agent Manager Service"
-    echo "  • Console (Web UI)"
-    echo "  • Observability stack"
-    echo ""
+# Verify BuildPlane resource
+if kubectl get buildplane default -n default &>/dev/null; then
+    log_success "BuildPlane resource 'default' exists"
+    AGENT_ENABLED=$(kubectl get buildplane default -n default -o jsonpath='{.spec.agent.enabled}' 2>/dev/null || echo "false")
+    if [ "$AGENT_ENABLED" = "true" ]; then
+        log_success "Agent mode is enabled"
+    else
+        log_warning "Agent mode is not enabled (expected: true, got: $AGENT_ENABLED)"
+    fi
+else
+    log_warning "BuildPlane resource not found"
 fi
 
-if ! install_agent_management_platform_silent; then
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_error "Failed to install Agent Management Platform"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    echo "Platform installation failed."
-    echo ""
-    echo "Troubleshooting steps:"
-    echo "  1. Check pod status: kubectl get pods -n agent-management-platform"
-    echo "  2. View logs: kubectl logs -n agent-management-platform <pod-name>"
-    echo "  3. Check Helm release: helm list -n agent-management-platform"
-    echo ""
-    echo "To retry platform installation only:"
-    echo "  ./install.sh"
-    echo ""
-    echo "For more help, see: ./TROUBLESHOOTING.md"
-    echo ""
-    exit 1
+wait_for_deployments "openchoreo-build-plane" "${TIMEOUT_BUILD_PLANE}"
+
+# ============================================================================
+# Step 6: Install OpenChoreo Observability Plane
+# ============================================================================
+
+log_step "Step 6/6: Installing OpenChoreo Observability Plane"
+
+helm_install_idempotent \
+    "openchoreo-observability-plane" \
+    "oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane" \
+    "openchoreo-observability-plane" \
+    "${TIMEOUT_OBSERVABILITY_PLANE}" \
+    --version "${OPENCHOREO_VERSION}" \
+    --values "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/k3d/single-cluster/values-op.yaml"
+
+wait_for_deployments "openchoreo-observability-plane" "${TIMEOUT_OBSERVABILITY_PLANE}"
+wait_for_statefulsets "openchoreo-observability-plane" "${TIMEOUT_OBSERVABILITY_PLANE}"
+
+log_success "OpenSearch ready"
+
+# Configure observability integration
+log_info "Configuring observability integration..."
+
+# Configure DataPlane observer
+if kubectl get dataplane default -n default &>/dev/null; then
+    if kubectl patch dataplane default -n default --type merge \
+        -p '{"spec":{"observer":{"url":"http://observer.openchoreo-observability-plane:8080","authentication":{"basicAuth":{"username":"dummy","password":"dummy"}}}}}' &>/dev/null; then
+        log_success "DataPlane observer configured"
+    else
+        log_warning "DataPlane observer configuration failed (non-fatal)"
+    fi
+else
+    log_warning "DataPlane resource not found yet (will use default observer)"
 fi
 
-if [[ "$VERBOSE" == "false" ]]; then
-    echo "✓ Platform components installed"
-    echo ""
-fi
-
-# Install observability
-if [[ "$VERBOSE" == "false" ]]; then
-    echo "Installing observability stack..."
-    echo ""
-fi
-
-if ! install_observability_dataprepper_silent; then
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_error "Failed to install observability stack"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    echo "Observability installation failed."
-    echo ""
-    echo "The platform is installed but observability features may not work."
-    echo ""
-    echo "Troubleshooting steps:"
-    echo "  1. Check pod status: kubectl get pods -n openchoreo-observability-plane"
-    echo "  2. View logs: kubectl logs -n openchoreo-observability-plane <pod-name>"
-    echo ""
-    exit 1
-fi
-
-if [[ "$VERBOSE" == "false" ]]; then
-    echo "✓ Observability stack ready"
-    echo ""
-fi
-
-if ! install_build_ci; then
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_error "Failed to install Build CI"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    echo "Build CI installation failed."
-    echo ""
-    exit 1
-fi
-
-if [[ "$VERBOSE" == "false" ]]; then
-    echo "✓ Build CI ready"
-    echo ""
+# Configure BuildPlane observer
+if kubectl get buildplane default -n default &>/dev/null; then
+    if kubectl patch buildplane default -n default --type merge \
+        -p '{"spec":{"observer":{"url":"http://observer.openchoreo-observability-plane:8080","authentication":{"basicAuth":{"username":"dummy","password":"dummy"}}}}}' &>/dev/null; then
+        log_success "BuildPlane observer configured"
+    else
+        log_warning "BuildPlane observer configuration failed (non-fatal)"
+    fi
+else
+    log_warning "BuildPlane resource not found yet (will use default observer)"
 fi
 
 # ============================================================================
-# SUCCESS MESSAGE
+# VERIFICATION
 # ============================================================================
 
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✅ Installation Complete!"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-echo "🚀 Next steps:"
-echo ""
-echo "   1. Start port forwarding:"
-echo "      ./port-forward.sh"
-echo ""
-echo "   2. Access your platform:"
-echo "      Console:         http://localhost:3000"
-echo ""
-echo "💡 Port forwarding must be running to access services from localhost"
-echo "   To stop: Press Ctrl+C in the port-forward.sh terminal"
-echo ""
-echo "🛑 To uninstall everything:"
-echo "   ./uninstall.sh"
+log_step "Verification"
+
+log_info "Plane Resources:"
+kubectl get dataplane,buildplane -A || true
 echo ""
 
-if [[ "$VERBOSE" == "true" ]]; then
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    log_info "Installation Summary"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    log_info "Cluster: $(kubectl config current-context)"
-    log_info "Platform Namespace: $AMP_NS"
-    log_info "Observability Namespace: $OBSERVABILITY_NS"
-    echo ""
-    log_info "Deployed Components:"
-    echo ""
-    kubectl get pods -n "$AMP_NS" 2>/dev/null || true
-    echo ""
-    kubectl get pods -n "$OBSERVABILITY_NS" 2>/dev/null || true
-    echo ""
-fi
+log_info "DataPlane Agent Status:"
+kubectl get pods -n openchoreo-data-plane -l app=cluster-agent || true
+echo ""
+
+log_info "BuildPlane Agent Status:"
+kubectl get pods -n openchoreo-build-plane -l app=cluster-agent || true
+echo ""
+
+log_info "All Pods Status:"
+echo "Control Plane:"
+kubectl get pods -n openchoreo-control-plane || true
+echo ""
+echo "Data Plane:"
+kubectl get pods -n openchoreo-data-plane || true
+echo ""
+echo "Build Plane:"
+kubectl get pods -n openchoreo-build-plane || true
+echo ""
+echo "Observability Plane:"
+kubectl get pods -n openchoreo-observability-plane || true
+echo ""
+
+# ============================================================================
+# SUCCESS
+# ============================================================================
+
+log_step "Installation Complete!"
+
+log_success "OpenChoreo development environment is ready!"
+echo ""
+log_info "Cluster: ${CLUSTER_CONTEXT}"
+log_info "Control Plane UI: http://localhost:8089"
+log_info "OpenSearch Dashboard: http://localhost:11081"
+echo ""
+log_info "To check status: kubectl get pods --all-namespaces"
+log_info "To delete cluster: k3d cluster delete ${CLUSTER_NAME}"
+echo ""
+
