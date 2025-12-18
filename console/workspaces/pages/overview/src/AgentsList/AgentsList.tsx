@@ -175,7 +175,8 @@ export const AgentsList: React.FC = () => {
       projectId &&
       !data?.agents?.length &&
       !isLoading &&
-      !isRefetching
+      !isRefetching &&
+      !debouncedSearch // Don't redirect when searching with no results
     ) {
       navigate(
         generatePath(
@@ -185,7 +186,7 @@ export const AgentsList: React.FC = () => {
         )
       );
     }
-  }, [orgId, projectId, data?.agents, isLoading, isRefetching, navigate]);
+  }, [orgId, projectId, data?.agents, isLoading, isRefetching, navigate, debouncedSearch]);
 
   const agentsWithHref: AgentWithHref[] = useMemo(
     () =>
