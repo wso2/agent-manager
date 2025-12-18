@@ -16,16 +16,91 @@
 
 package opensearch
 
+import (
+	"fmt"
+	"time"
+)
+
+// GetIndicesForTimeRange generates index names for the given time range
+// Returns indices in format: otel-traces-YYYY-MM-DD
+func GetIndicesForTimeRange(startTime, endTime string) ([]string, error) {
+	if startTime == "" || endTime == "" {
+		return nil, fmt.Errorf("start time and end time are required")
+	}
+
+	// Parse the time strings (expecting RFC3339 format)
+	start, err := time.Parse(time.RFC3339, startTime)
+	if err != nil {
+		return nil, fmt.Errorf("invalid start time format: %w", err)
+	}
+
+	end, err := time.Parse(time.RFC3339, endTime)
+	if err != nil {
+		return nil, fmt.Errorf("invalid end time format: %w", err)
+	}
+
+	// Ensure start is before end
+	if start.After(end) {
+		return nil, fmt.Errorf("start time must be before end time")
+	}
+
+	// Generate indices for each day in the range
+	indices := []string{}
+	indexMap := make(map[string]bool) // To avoid duplicates
+
+	// Iterate through each day from start to end
+	currentDay := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, start.Location())
+	endDay := time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, end.Location())
+
+	for !currentDay.After(endDay) {
+		indexName := fmt.Sprintf("otel-traces-%04d-%02d-%02d", currentDay.Year(), currentDay.Month(), currentDay.Day())
+		if !indexMap[indexName] {
+			indices = append(indices, indexName)
+			indexMap[indexName] = true
+		}
+		currentDay = currentDay.AddDate(0, 0, 1) // Add one day
+	}
+
+	return indices, nil
+}
+
 // BuildTraceQuery builds an OpenSearch query for traces
 func BuildTraceQuery(params TraceQueryParams) map[string]interface{} {
 	// Build the must conditions
 	mustConditions := []map[string]interface{}{}
 
-	// Add service name filter
-	if params.ServiceName != "" {
+	// Add component UID filter
+	if params.ComponentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
-				"resource.attributes.service.name": params.ServiceName,
+				"resource.openchoreo.dev/component-uid": params.ComponentUid,
+			},
+		})
+	}
+
+	// Add project UID filter
+	if params.ProjectUid != "" {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"resource.openchoreo.dev/project-uid": params.ProjectUid,
+			},
+		})
+	}
+
+	// Add environment UID filter
+	if params.EnvironmentUid != "" {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"resource.openchoreo.dev/environment-uid": params.EnvironmentUid,
+			},
+		})
+	}
+
+	// Add organization UID filter (optional)
+	if params.OrganizationUid != "" {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"resource.openchoreo.dev/organization-uid": params.OrganizationUid,
 			},
 		})
 	}
@@ -81,20 +156,51 @@ func BuildTraceQuery(params TraceQueryParams) map[string]interface{} {
 	return query
 }
 
-// BuildTraceByIdAndServiceQuery builds a query to get spans by both traceId and serviceName
+// BuildTraceByIdAndServiceQuery builds a query to get spans by both traceId and componentUid
 func BuildTraceByIdAndServiceQuery(params TraceByIdAndServiceParams) map[string]interface{} {
-	// Build the must conditions - both traceId and serviceName must match
+	// Build the must conditions - traceId and resource filters must match
 	mustConditions := []map[string]interface{}{
 		{
 			"term": map[string]interface{}{
 				"traceId": params.TraceID,
 			},
 		},
-		{
-			"match": map[string]interface{}{
-				"resource.attributes.service.name": params.ServiceName,
+	}
+
+	// Add component UID filter
+	if params.ComponentUid != "" {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"resource.openchoreo.dev/component-uid": params.ComponentUid,
 			},
-		},
+		})
+	}
+
+	// Add project UID filter
+	if params.ProjectUid != "" {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"resource.openchoreo.dev/project-uid": params.ProjectUid,
+			},
+		})
+	}
+
+	// Add environment UID filter
+	if params.EnvironmentUid != "" {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"resource.openchoreo.dev/environment-uid": params.EnvironmentUid,
+			},
+		})
+	}
+
+	// Add organization UID filter (optional)
+	if params.OrganizationUid != "" {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"resource.openchoreo.dev/organization-uid": params.OrganizationUid,
+			},
+		})
 	}
 
 	// Set default limit if not provided

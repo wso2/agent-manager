@@ -7,6 +7,7 @@ DOCKER_IMAGE=$(APP_NAME):$(TAG)
 CONTAINER_NAME=$(APP_NAME)
 PORT=9098
 KIND_CLUSTER_NAME=openchoreo-local
+K3D_CLUSTER_NAME=openchoreo-local-v0.7
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -66,6 +67,9 @@ docker-load-kind: docker-build ## Load Docker image into kind cluster
 	@echo "Loading Docker image into kind cluster..."
 	@kind load docker-image $(DOCKER_IMAGE) --name ${KIND_CLUSTER_NAME}
 
+docker-load-k3d: docker-build ## Load Docker image into kind cluster
+	@echo "Loading Docker image into k3d cluster..."
+	@k3d image import $(DOCKER_IMAGE) --cluster ${K3D_CLUSTER_NAME}
 # Combined commands
 dev: build run ## Build and run locally
 

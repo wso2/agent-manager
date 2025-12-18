@@ -27,7 +27,7 @@ docker  run  -it --rm --name wso2-amp \
     -p 127.0.0.1:3000:3000 \
     -p 127.0.0.1:8080:8080 \
     -p 127.0.0.1:9098:9098 \
-    -p 127.0.0.1:21893:21893 \
+    -p 127.0.0.1:21893:4318 \
     -p 127.0.0.1:8443:8443 \
   ghcr.io/wso2/amp-quick-start:v0.0.0-dev
 ```
@@ -69,7 +69,7 @@ this will start port-forwarding for all the required services.
 - **Console**: http://localhost:3000
 - **API**: http://localhost:8080
 - **Traces Observer**: http://localhost:9098
-- **Data Prepper**: http://localhost:21893
+- **OTel Collector**: http://localhost:21893
 - **Gateway**: https://localhost:8443
 
 ## Uninstall

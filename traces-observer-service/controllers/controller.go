@@ -40,7 +40,7 @@ func NewTracingController(osClient *opensearch.Client) *TracingController {
 
 // GetTraceOverviews retrieves unique trace IDs with root span information
 func (s *TracingController) GetTraceOverviews(ctx context.Context, params opensearch.TraceQueryParams) (*opensearch.TraceOverviewResponse, error) {
-	log.Printf("Getting trace overviews for service: %s", params.ServiceName)
+	log.Printf("Getting trace overviews for component: %s, project: %s, environment: %s", params.ComponentUid, params.ProjectUid, params.EnvironmentUid)
 
 	// Set defaults
 	if params.Limit == 0 {
@@ -60,8 +60,15 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 	// Use the existing BuildTraceQuery
 	query := opensearch.BuildTraceQuery(params)
 
+	// Generate indices based on time range
+	indices, err := opensearch.GetIndicesForTimeRange(params.StartTime, params.EndTime)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate indices: %w", err)
+	}
+	log.Printf("Searching indices: %v", indices)
+
 	// Execute search
-	response, err := s.osClient.Search(ctx, query)
+	response, err := s.osClient.Search(ctx, indices, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search trace overviews: %w", err)
 	}
@@ -81,11 +88,13 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 		// Find root span (span with no parentSpanId)
 		var rootSpanID, rootSpanName, startTime, endTime string
 		var durationInNanos int64
+		var rootSpanAttributes map[string]interface{}
 
 		for _, span := range traceSpans {
 			if span.ParentSpanID == "" {
 				rootSpanID = span.SpanID
 				rootSpanName = span.Name
+				rootSpanAttributes = span.Attributes
 				startTime = span.StartTime.Format(time.RFC3339Nano)
 				endTime = span.EndTime.Format(time.RFC3339Nano)
 				durationInNanos = span.DurationInNanos
@@ -96,18 +105,18 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 		// Add to overviews if we found a root span
 		if rootSpanID != "" {
 			allOverviews = append(allOverviews, opensearch.TraceOverview{
-				TraceID:         traceID,
-				RootSpanID:      rootSpanID,
-				RootSpanName:    rootSpanName,
-				StartTime:       startTime,
-				EndTime:         endTime,
-				DurationInNanos: durationInNanos,
-				SpanCount:       len(traceSpans),
+				TraceID:            traceID,
+				RootSpanID:         rootSpanID,
+				RootSpanName:       rootSpanName,
+				RootSpanAttributes: rootSpanAttributes,
+				StartTime:          startTime,
+				EndTime:            endTime,
+				DurationInNanos:    durationInNanos,
+				SpanCount:          len(traceSpans),
 			})
 		}
 	}
 
-	
 	// Sort by StartTime (descending) for consistent pagination
 	sort.Slice(allOverviews, func(i, j int) bool {
 		return allOverviews[i].StartTime > allOverviews[j].StartTime
@@ -136,15 +145,28 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 	}, nil
 }
 
-// GetTraceByIdAndService retrieves spans for a specific trace ID and service name
+// GetTraceByIdAndService retrieves spans for a specific trace ID and component UID
 func (s *TracingController) GetTraceByIdAndService(ctx context.Context, params opensearch.TraceByIdAndServiceParams) (*opensearch.TraceResponse, error) {
-	log.Printf("Getting trace for traceID: %s and service: %s", params.TraceID, params.ServiceName)
+	log.Printf("Getting trace for traceID: %s, component: %s, project: %s, environment: %s", params.TraceID, params.ComponentUid, params.ProjectUid, params.EnvironmentUid)
 
 	// Build query
 	query := opensearch.BuildTraceByIdAndServiceQuery(params)
 
+	// For trace by ID queries, we need to search across a broader time range
+	// Use current day and previous 7 days as default
+	endTime := time.Now()
+	startTime := endTime.AddDate(0, 0, -7)
+	indices, err := opensearch.GetIndicesForTimeRange(
+		startTime.Format(time.RFC3339),
+		endTime.Format(time.RFC3339),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate indices: %w", err)
+	}
+	log.Printf("Searching indices for trace ID: %v", indices)
+
 	// Execute search
-	response, err := s.osClient.Search(ctx, query)
+	response, err := s.osClient.Search(ctx, indices, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search traces: %w", err)
 	}
@@ -153,10 +175,10 @@ func (s *TracingController) GetTraceByIdAndService(ctx context.Context, params o
 	spans := opensearch.ParseSpans(response)
 
 	if len(spans) == 0 {
-		return nil, fmt.Errorf("no spans found for traceID: %s and service: %s", params.TraceID, params.ServiceName)
+		return nil, fmt.Errorf("no spans found for traceID: %s, component: %s, project: %s, environment: %s", params.TraceID, params.ComponentUid, params.ProjectUid, params.EnvironmentUid)
 	}
 
-	log.Printf("Retrieved %d spans for traceID: %s and service: %s", len(spans), params.TraceID, params.ServiceName)
+	log.Printf("Retrieved %d spans for traceID: %s, component: %s, project: %s, environment: %s", len(spans), params.TraceID, params.ComponentUid, params.ProjectUid, params.EnvironmentUid)
 
 	return &opensearch.TraceResponse{
 		Spans:      spans,

@@ -41,19 +41,25 @@ func NewHandler(controllers *controllers.TracingController) *Handler {
 
 // TraceRequest represents the request body for getting traces
 type TraceRequest struct {
-	ServiceName string `json:"serviceName"`
-	StartTime   string `json:"startTime"`
-	EndTime     string `json:"endTime"`
-	Limit       int    `json:"limit,omitempty"`
-	SortOrder   string `json:"sortOrder,omitempty"`
+	ComponentUid    string `json:"componentUid"`
+	ProjectUid      string `json:"projectUid"`
+	EnvironmentUid  string `json:"environmentUid"`
+	OrganizationUid string `json:"organizationUid,omitempty"`
+	StartTime       string `json:"startTime"`
+	EndTime         string `json:"endTime"`
+	Limit           int    `json:"limit,omitempty"`
+	SortOrder       string `json:"sortOrder,omitempty"`
 }
 
-// TraceByIdAndServiceRequest represents the request body for getting traces by ID and service
+// TraceByIdAndServiceRequest represents the request body for getting traces by ID and component
 type TraceByIdAndServiceRequest struct {
-	TraceID     string `json:"traceId"`
-	ServiceName string `json:"serviceName"`
-	SortOrder   string `json:"sortOrder,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
+	TraceID         string `json:"traceId"`
+	ComponentUid    string `json:"componentUid"`
+	ProjectUid      string `json:"projectUid"`
+	EnvironmentUid  string `json:"environmentUid"`
+	OrganizationUid string `json:"organizationUid,omitempty"`
+	SortOrder       string `json:"sortOrder,omitempty"`
+	Limit           int    `json:"limit,omitempty"`
 }
 
 // ErrorResponse represents an error response
@@ -67,11 +73,25 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters
 	query := r.URL.Query()
 
-	serviceName := query.Get("serviceName")
-	if serviceName == "" {
-		h.writeError(w, http.StatusBadRequest, "serviceName is required")
+	componentUid := query.Get("componentUid")
+	if componentUid == "" {
+		h.writeError(w, http.StatusBadRequest, "componentUid is required")
 		return
 	}
+
+	projectUid := query.Get("projectUid")
+	if projectUid == "" {
+		h.writeError(w, http.StatusBadRequest, "projectUid is required")
+		return
+	}
+
+	environmentUid := query.Get("environmentUid")
+	if environmentUid == "" {
+		h.writeError(w, http.StatusBadRequest, "environmentUid is required")
+		return
+	}
+
+	organizationUid := query.Get("organizationUid") // Optional
 
 	startTime := query.Get("startTime")
 	endTime := query.Get("endTime")
@@ -110,12 +130,15 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 
 	// Build query parameters
 	params := opensearch.TraceQueryParams{
-		ServiceName: serviceName,
-		StartTime:   startTime,
-		EndTime:     endTime,
-		Limit:       limit,
-		Offset:      offset,
-		SortOrder:   sortOrder,
+		ComponentUid:    componentUid,
+		ProjectUid:      projectUid,
+		EnvironmentUid:  environmentUid,
+		OrganizationUid: organizationUid,
+		StartTime:       startTime,
+		EndTime:         endTime,
+		Limit:           limit,
+		Offset:          offset,
+		SortOrder:       sortOrder,
 	}
 
 	// Execute query
@@ -142,11 +165,25 @@ func (h *Handler) GetTraceByIdAndService(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	serviceName := query.Get("serviceName")
-	if serviceName == "" {
-		h.writeError(w, http.StatusBadRequest, "serviceName is required")
+	componentUid := query.Get("componentUid")
+	if componentUid == "" {
+		h.writeError(w, http.StatusBadRequest, "componentUid is required")
 		return
 	}
+
+	projectUid := query.Get("projectUid")
+	if projectUid == "" {
+		h.writeError(w, http.StatusBadRequest, "projectUid is required")
+		return
+	}
+
+	environmentUid := query.Get("environmentUid")
+	if environmentUid == "" {
+		h.writeError(w, http.StatusBadRequest, "environmentUid is required")
+		return
+	}
+
+	organizationUid := query.Get("organizationUid") // Optional
 
 	// Parse sortOrder (default: desc)
 	sortOrder := query.Get("sortOrder")
@@ -171,10 +208,13 @@ func (h *Handler) GetTraceByIdAndService(w http.ResponseWriter, r *http.Request)
 
 	// Build query parameters
 	params := opensearch.TraceByIdAndServiceParams{
-		TraceID:     traceID,
-		ServiceName: serviceName,
-		SortOrder:   sortOrder,
-		Limit:       limit,
+		TraceID:         traceID,
+		ComponentUid:    componentUid,
+		ProjectUid:      projectUid,
+		EnvironmentUid:  environmentUid,
+		OrganizationUid: organizationUid,
+		SortOrder:       sortOrder,
+		Limit:           limit,
 	}
 
 	// Execute query

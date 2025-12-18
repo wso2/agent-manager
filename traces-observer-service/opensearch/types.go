@@ -20,20 +20,26 @@ import "time"
 
 // TraceQueryParams holds parameters for trace queries
 type TraceQueryParams struct {
-	ServiceName string
-	StartTime   string
-	EndTime     string
-	Limit       int
-	Offset      int
-	SortOrder   string
+	ComponentUid     string
+	ProjectUid       string
+	EnvironmentUid   string
+	OrganizationUid  string
+	StartTime        string
+	EndTime          string
+	Limit            int
+	Offset           int
+	SortOrder        string
 }
 
-// TraceByIdAndServiceParams holds parameters for querying by both traceId and serviceName
+// TraceByIdAndServiceParams holds parameters for querying by both traceId and componentUid
 type TraceByIdAndServiceParams struct {
-	TraceID     string
-	ServiceName string
-	SortOrder   string
-	Limit       int
+	TraceID          string
+	ComponentUid     string
+	ProjectUid       string
+	EnvironmentUid   string
+	OrganizationUid  string
+	SortOrder        string
+	Limit            int
 }
 
 // Span represents a single trace span
@@ -69,13 +75,14 @@ type TraceDetailResponse struct {
 
 // TraceOverview represents a single trace overview with root span info
 type TraceOverview struct {
-	TraceID         string `json:"traceId"`
-	RootSpanID      string `json:"rootSpanId"`
-	RootSpanName    string `json:"rootSpanName"`
-	StartTime       string `json:"startTime"`
-	EndTime         string `json:"endTime"`
-	DurationInNanos int64  `json:"durationInNanos"` // Total trace duration in nanoseconds
-	SpanCount       int    `json:"spanCount"`
+	TraceID            string                 `json:"traceId"`
+	RootSpanID         string                 `json:"rootSpanId"`
+	RootSpanName       string                 `json:"rootSpanName"`
+	RootSpanAttributes map[string]interface{} `json:"rootSpanAttributes,omitempty"`
+	StartTime          string                 `json:"startTime"`
+	EndTime            string                 `json:"endTime"`
+	DurationInNanos    int64                  `json:"durationInNanos"` // Total trace duration in nanoseconds
+	SpanCount          int                    `json:"spanCount"`
 }
 
 // TraceOverviewResponse represents the response for trace overview queries

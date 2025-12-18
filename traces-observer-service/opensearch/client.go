@@ -19,11 +19,14 @@ package opensearch
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 
 	"github.com/opensearch-project/opensearch-go"
+	"github.com/opensearch-project/opensearch-go/opensearchapi"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/config"
 )
 
@@ -35,8 +38,16 @@ type Client struct {
 
 // NewClient creates a new OpenSearch client
 func NewClient(cfg *config.OpenSearchConfig) (*Client, error) {
+	// Create HTTP transport with TLS verification disabled
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+
 	opensearchConfig := opensearch.Config{
 		Addresses: []string{cfg.Address},
+		Transport: transport,
 		Username:  cfg.Username,
 		Password:  cfg.Password,
 	}
@@ -60,27 +71,34 @@ func NewClient(cfg *config.OpenSearchConfig) (*Client, error) {
 	}, nil
 }
 
-// Search executes a search query
-func (c *Client) Search(ctx context.Context, query map[string]interface{}) (*SearchResponse, error) {
+// Search executes a search query against one or more indices
+func (c *Client) Search(ctx context.Context, indices []string, query map[string]interface{}) (*SearchResponse, error) {
+	log.Printf("Executing search on indices: %v", indices)
+
 	// Convert query to JSON
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(query); err != nil {
 		return nil, fmt.Errorf("failed to encode query: %w", err)
 	}
 
+	// Create search request with IgnoreUnavailable option
+	req := opensearchapi.SearchRequest{
+		Index:             indices,
+		Body:              &buf,
+		IgnoreUnavailable: opensearchapi.BoolPtr(true),
+	}
+
 	// Execute search
-	res, err := c.client.Search(
-		c.client.Search.WithContext(ctx),
-		c.client.Search.WithIndex(c.config.Index),
-		c.client.Search.WithBody(&buf),
-	)
+	res, err := req.Do(ctx, c.client)
 	if err != nil {
-		return nil, fmt.Errorf("search failed: %w", err)
+		log.Printf("Search request failed: %v", err)
+		return nil, fmt.Errorf("search request failed: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.IsError() {
-		return nil, fmt.Errorf("search returned error: %s", res.Status())
+		log.Printf("Search request returned error: %s", res.Status())
+		return nil, fmt.Errorf("search request failed with status: %s", res.Status())
 	}
 
 	// Parse response
@@ -88,6 +106,8 @@ func (c *Client) Search(ctx context.Context, query map[string]interface{}) (*Sea
 	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
+
+	log.Printf("Search completed: total_hits=%d, returned_hits=%d", response.Hits.Total.Value, len(response.Hits.Hits))
 
 	return &response, nil
 }

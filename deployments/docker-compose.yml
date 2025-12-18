@@ -89,6 +89,24 @@ services:
     depends_on:
       - agent-manager-service
 
+  #add traces observer service
+  traces-observer-service:
+    build:
+      context: ../traces-observer-service
+      dockerfile: Dockerfile.dev
+    container_name: traces-observer-service
+    ports:
+      - "9098:9098"
+    environment:
+      - TRACES_OBSERVER_PORT=9098
+      - OPENSEARCH_ADDRESS=http://host.docker.internal:9200
+      - OPENSEARCH_USERNAME=admin
+      - OPENSEARCH_PASSWORD=ThisIsTheOpenSearchPassword1
+    networks:
+      - agent-manager
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   postgres_data:
   console_node_modules:

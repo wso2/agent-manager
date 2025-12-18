@@ -1,0 +1,328 @@
+openapi: 3.0.3
+info:
+  title: Traces Observer Service API
+  description: API for querying and retrieving trace data from OpenSearch
+  version: 1.0.0
+  contact:
+    name: WSO2 LLC
+    url: https://www.wso2.com
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: http://localhost:9098/api/v1
+    description: Local development server
+  - url: /api/v1
+    description: Relative path for production
+
+tags:
+  - name: traces
+    description: Operations related to distributed traces
+
+paths:
+  /trace:
+    get:
+      tags:
+        - traces
+      summary: Get a single trace by trace ID
+      description: Retrieves detailed span information for a specific trace
+      operationId: getTrace
+      parameters:
+        - name: traceId
+          in: query
+          required: true
+          description: The unique identifier of the trace
+          schema:
+            type: string
+            example: "3cae024cf613a5f37843e9c6eefa3020"
+        - name: componentUid
+          in: query
+          required: true
+          description: The component (agent/service) unique identifier
+          schema:
+            type: string
+            example: "default-component"
+        - name: projectUid
+          in: query
+          required: true
+          description: The project unique identifier
+          schema:
+            type: string
+            example: "default-project"
+        - name: environmentUid
+          in: query
+          required: true
+          description: The environment unique identifier
+          schema:
+            type: string
+            example: "default-environment"
+      responses:
+        '200':
+          description: Successful response with trace details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraceDetailsResponse'
+        '400':
+          description: Bad request - missing or invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Trace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /traces:
+    get:
+      tags:
+        - traces
+      summary: List traces within a time range
+      description: Retrieves a list of traces for a specific component within the specified time range
+      operationId: listTraces
+      parameters:
+        - name: startTime
+          in: query
+          required: true
+          description: Start time for the trace query (ISO 8601 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2025-12-16T06:58:02.433Z"
+        - name: endTime
+          in: query
+          required: true
+          description: End time for the trace query (ISO 8601 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2025-12-18T06:58:02.433Z"
+        - name: componentUid
+          in: query
+          required: true
+          description: The component (agent/service) unique identifier
+          schema:
+            type: string
+            example: "default-component"
+        - name: projectUid
+          in: query
+          required: true
+          description: The project unique identifier
+          schema:
+            type: string
+            example: "default-project"
+        - name: environmentUid
+          in: query
+          required: true
+          description: The environment unique identifier
+          schema:
+            type: string
+            example: "default-environment"
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of traces to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+            example: 2
+        - name: offset
+          in: query
+          required: false
+          description: Number of traces to skip for pagination
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            example: 0
+      responses:
+        '200':
+          description: Successful response with list of traces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraceListResponse'
+        '400':
+          description: Bad request - missing or invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    Span:
+      type: object
+      required:
+        - traceId
+        - spanId
+        - name
+        - service
+        - startTime
+        - endTime
+        - durationInNanos
+        - kind
+        - status
+      properties:
+        traceId:
+          type: string
+          description: Unique identifier for the trace
+          example: "3cae024cf613a5f37843e9c6eefa3020"
+        spanId:
+          type: string
+          description: Unique identifier for the span
+          example: "abc123def456"
+        parentSpanId:
+          type: string
+          description: Identifier of the parent span (if exists)
+          example: "parent123"
+          nullable: true
+        name:
+          type: string
+          description: Name/operation of the span
+          example: "GET /api/users"
+        service:
+          type: string
+          description: Service name that generated this span
+          example: "user-service"
+        startTime:
+          type: string
+          format: date-time
+          description: Start timestamp of the span (ISO 8601 format)
+          example: "2025-12-17T10:30:00.000Z"
+        endTime:
+          type: string
+          format: date-time
+          description: End timestamp of the span (ISO 8601 format)
+          example: "2025-12-17T10:30:01.500Z"
+        durationInNanos:
+          type: integer
+          format: int64
+          description: Duration of the span in nanoseconds
+          example: 1500000000
+        kind:
+          type: string
+          description: Span kind (CLIENT, SERVER, PRODUCER, CONSUMER, INTERNAL)
+          example: "SERVER"
+          enum:
+            - CLIENT
+            - SERVER
+            - PRODUCER
+            - CONSUMER
+            - INTERNAL
+        status:
+          type: string
+          description: Span status (OK, ERROR, UNSET)
+          example: "OK"
+          enum:
+            - OK
+            - ERROR
+            - UNSET
+        attributes:
+          type: object
+          additionalProperties: true
+          description: Key-value pairs of span attributes
+          example:
+            http.method: "GET"
+            http.status_code: 200
+            http.url: "/api/users"
+
+    TraceDetailsResponse:
+      type: object
+      required:
+        - spans
+        - totalCount
+      properties:
+        spans:
+          type: array
+          items:
+            $ref: '#/components/schemas/Span'
+          description: List of spans belonging to the trace
+        totalCount:
+          type: integer
+          description: Total number of spans in the trace
+          example: 15
+
+    Trace:
+      type: object
+      required:
+        - traceId
+        - rootSpanId
+        - rootSpanName
+        - startTime
+        - endTime
+      properties:
+        traceId:
+          type: string
+          description: Unique identifier for the trace
+          example: "3cae024cf613a5f37843e9c6eefa3020"
+        rootSpanId:
+          type: string
+          description: Identifier of the root span
+          example: "root123"
+        rootSpanName:
+          type: string
+          description: Name of the root span
+          example: "POST /api/orders"
+        startTime:
+          type: string
+          format: date-time
+          description: Start timestamp of the trace (ISO 8601 format)
+          example: "2025-12-17T10:30:00.000Z"
+        endTime:
+          type: string
+          format: date-time
+          description: End timestamp of the trace (ISO 8601 format)
+          example: "2025-12-17T10:30:02.500Z"
+
+    TraceListResponse:
+      type: object
+      required:
+        - traces
+        - totalCount
+      properties:
+        traces:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trace'
+          description: List of traces matching the query
+        totalCount:
+          type: integer
+          description: Total number of traces found
+          example: 42
+
+    ErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Error message
+          example: "Invalid trace ID provided"
+        description:
+          type: string
+          description: Detailed error description
+          example: "The trace ID must be a valid hexadecimal string"
+        additionalData:
+          type: object
+          additionalProperties: true
+          description: Additional error context
