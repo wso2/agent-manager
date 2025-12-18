@@ -16,7 +16,6 @@
  * under the License.
  */
 
-import React from 'react';
 import {
     Dialog,
     DialogTitle,

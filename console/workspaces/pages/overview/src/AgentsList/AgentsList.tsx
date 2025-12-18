@@ -61,10 +61,10 @@ import {
   useDeleteAgent,
   useGetProject,
 } from "@agent-management-platform/api-client";
+import { useConfirmationDialog, useNotification } from "@agent-management-platform/shared-component";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { AgentTypeSummery } from "./subComponents/AgentTypeSummery";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 
 dayjs.extend(relativeTime);
 
@@ -123,20 +123,42 @@ export const AgentsList: React.FC = () => {
     projName: projectId,
   });
   const { mutate: deleteAgent, isPending: isDeletingAgent } = useDeleteAgent();
+  const { notify } = useNotification();
   const { data: project, isLoading: isProjectLoading } = useGetProject({
     orgName: orgId,
     projName: projectId,
   });
   const { addConfirmation } = useConfirmationDialog();
+
   const handleDeleteAgent = useCallback(
-    (agentId: string) => {
-      deleteAgent({
-        orgName: orgId,
-        projName: projectId,
-        agentName: agentId,
+    (agentId: string, agentName: string) => {
+      addConfirmation({
+        title: "Delete Agent?",
+        description: `Are you sure you want to delete the agent "${agentName}"? This action cannot be undone.`,
+        onConfirm: () => {
+          deleteAgent(
+            {
+              orgName: orgId,
+              projName: projectId,
+              agentName: agentId,
+            },
+            {
+              onSuccess: () => {
+                notify("success", `Agent "${agentName}" deleted successfully`);
+              },
+              onError: (err) => {
+                const message = err instanceof Error ? err.message : "Failed to delete agent";
+                notify("error", message);
+              },
+            }
+          );
+        },
+        confirmButtonColor: "error",
+        confirmButtonIcon: <DeleteOutlineOutlined size={16} />,
+        confirmButtonText: "Delete",
       });
     },
-    [deleteAgent, orgId, projectId]
+    [addConfirmation, deleteAgent, orgId, projectId, notify]
   );
 
   const handleRowMouseEnter = useCallback(
@@ -300,16 +322,7 @@ export const AgentsList: React.FC = () => {
                         size="small"
                         onClick={(e) => {
                           e.stopPropagation(); // Prevent row click if any
-                          addConfirmation({
-                            title: "Delete Agent?",
-                            description: `Are you sure you want to delete the agent "${row.displayName}"? This action cannot be undone.`,
-                            onConfirm: () => {
-                              handleDeleteAgent(row.name);
-                            },
-                            confirmButtonColor: "error",
-                            confirmButtonIcon: <DeleteOutlineOutlined size={16} />,
-                            confirmButtonText: "Delete",
-                          });
+                          handleDeleteAgent(row.name, row.displayName);
                         }}
                       >
                         Delete
@@ -333,7 +346,6 @@ export const AgentsList: React.FC = () => {
       theme.palette.primary.main,
       hoveredAgentId,
       isTouchDevice,
-      addConfirmation,
       handleDeleteAgent,
     ]
   );
