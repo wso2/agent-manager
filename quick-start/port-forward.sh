@@ -208,7 +208,7 @@ main() {
     echo "" >&2
 
     # Port forward OTel collector(21893)
-    log_info "Setting up OTel collectorport forwarding (21893)..."
+    log_info "Setting up OTel collector port forwarding (21893)..."
     if nodeport_otel_collector=$(get_nodeport "opentelemetry-collector" "$OBSERVABILITY_NS"); then
         setup_port_forward 21893 "$nodeport_otel_collector" "OTel Collector"
     else
