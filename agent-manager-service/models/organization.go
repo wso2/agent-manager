@@ -33,6 +33,7 @@ type Organization struct {
 
 // API Response DTO
 type OrganizationResponse struct {
+	UUID        string    `json:"uuid"`
 	Name        string    `json:"name"`
 	DisplayName string    `json:"displayName,omitempty"`
 	Description string    `json:"description,omitempty"`

@@ -121,8 +121,8 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			"agentType": map[string]interface{}{
-				"type": "api",
-				"subType":"chat-api",
+				"type":    "api",
+				"subType": "chat-api",
 			},
 			"runtimeConfigs": map[string]interface{}{
 				"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
@@ -175,8 +175,6 @@ func TestCreateAgent(t *testing.T) {
 		require.Equal(t, testProjName, createComponentCall.ProjName)
 		require.Equal(t, testAgentNameOne, createComponentCall.Req.Name)
 		require.Equal(t, "Test Agent Description", *createComponentCall.Req.Description)
-
-
 	})
 
 	t.Run("Creating an agent with ballerina language should return 202", func(t *testing.T) {
@@ -207,8 +205,8 @@ func TestCreateAgent(t *testing.T) {
 				// No languageVersion or runCommand for Ballerina
 			},
 			"agentType": map[string]interface{}{
-				"type": "api",
-				"subType":"chat-api",
+				"type":    "api",
+				"subType": "chat-api",
 			},
 			"inputInterface": map[string]interface{}{
 				"type": "HTTP",
@@ -297,17 +295,16 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			"agentType": map[string]interface{}{
-				"type": "api",
-				"subType":"custom-api",
+				"type":    "api",
+				"subType": "custom-api",
 			},
 			"inputInterface": map[string]interface{}{
-				"type": "HTTP",
+				"type":     "HTTP",
 				"port":     5000,
 				"basePath": "/reading-list",
 				"schema": map[string]interface{}{
 					"path": "openapi.yaml",
 				},
-				
 			},
 		})
 		require.NoError(t, err)
@@ -396,8 +393,8 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type": "api",
-					"subType":"chat-api",
+					"type":    "api",
+					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
 					"type": "HTTP",
@@ -431,8 +428,8 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type": "api",
-					"subType":"chat-api",
+					"type":    "api",
+					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
 					"type": "HTTP",
@@ -461,8 +458,8 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type": "api",
-					"subType":"chat-api",
+					"type":    "api",
+					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
 					"type": "HTTP",
@@ -496,8 +493,8 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type": "api",
-					"subType":"chat-api",
+					"type":    "api",
+					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
 					"type": "HTTP",
@@ -531,8 +528,8 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type": "api",
-					"subType":"chat-api",
+					"type":    "api",
+					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
 					"type": "HTTP",
@@ -567,8 +564,8 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type": "api",
-					"subType":"chat-api",
+					"type":    "api",
+					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
 					"type": "HTTP",
@@ -603,8 +600,8 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type": "api",
-					"subType":"chat-api",
+					"type":    "api",
+					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
 					"type": "HTTP",
@@ -645,8 +642,8 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type": "api",
-					"subType":"chat-api",
+					"type":    "api",
+					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
 					"type": "HTTP",
@@ -688,8 +685,8 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type": "api",
-					"subType":"chat-api",
+					"type":    "api",
+					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
 					"type": "HTTP",
@@ -723,8 +720,8 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "1.70",
 				},
 				"agentType": map[string]interface{}{
-					"type": "api",
-					"subType":"chat-api",
+					"type":    "api",
+					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
 					"type": "HTTP",
@@ -758,8 +755,8 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "2.7", // Invalid version for python
 				},
 				"agentType": map[string]interface{}{
-					"type": "api",
-					"subType":"chat-api",
+					"type":    "api",
+					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
 					"type": "HTTP",
@@ -793,8 +790,8 @@ func TestCreateAgent(t *testing.T) {
 					// Missing "language" field
 				},
 				"agentType": map[string]interface{}{
-					"type": "api",
-					"subType":"chat-api",
+					"type":    "api",
+					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
 					"type": "HTTP",
@@ -828,8 +825,8 @@ func TestCreateAgent(t *testing.T) {
 					// Missing "languageVersion" field
 				},
 				"agentType": map[string]interface{}{
-					"type": "api",
-					"subType":"chat-api",
+					"type":    "api",
+					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
 					"type": "HTTP",

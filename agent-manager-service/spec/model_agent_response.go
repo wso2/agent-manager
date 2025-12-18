@@ -28,7 +28,7 @@ type AgentResponse struct {
 	// Current status of the agent
 	Status         *string               `json:"status,omitempty"`
 	Provisioning   Provisioning          `json:"provisioning"`
-	AgentType      *AgentType            `json:"agentType,omitempty"`
+	AgentType      AgentType             `json:"agentType"`
 	RuntimeConfigs *RuntimeConfiguration `json:"runtimeConfigs,omitempty"`
 }
 
@@ -36,7 +36,7 @@ type AgentResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewAgentResponse(name string, displayName string, description string, createdAt time.Time, projectName string, provisioning Provisioning) *AgentResponse {
+func NewAgentResponse(name string, displayName string, description string, createdAt time.Time, projectName string, provisioning Provisioning, agentType AgentType) *AgentResponse {
 	this := AgentResponse{}
 	this.Name = name
 	this.DisplayName = displayName
@@ -44,6 +44,7 @@ func NewAgentResponse(name string, displayName string, description string, creat
 	this.CreatedAt = createdAt
 	this.ProjectName = projectName
 	this.Provisioning = provisioning
+	this.AgentType = agentType
 	return &this
 }
 
@@ -231,36 +232,28 @@ func (o *AgentResponse) SetProvisioning(v Provisioning) {
 	o.Provisioning = v
 }
 
-// GetAgentType returns the AgentType field value if set, zero value otherwise.
+// GetAgentType returns the AgentType field value
 func (o *AgentResponse) GetAgentType() AgentType {
-	if o == nil || IsNil(o.AgentType) {
+	if o == nil {
 		var ret AgentType
 		return ret
 	}
-	return *o.AgentType
+
+	return o.AgentType
 }
 
-// GetAgentTypeOk returns a tuple with the AgentType field value if set, nil otherwise
+// GetAgentTypeOk returns a tuple with the AgentType field value
 // and a boolean to check if the value has been set.
 func (o *AgentResponse) GetAgentTypeOk() (*AgentType, bool) {
-	if o == nil || IsNil(o.AgentType) {
+	if o == nil {
 		return nil, false
 	}
-	return o.AgentType, true
+	return &o.AgentType, true
 }
 
-// HasAgentType returns a boolean if a field has been set.
-func (o *AgentResponse) HasAgentType() bool {
-	if o != nil && !IsNil(o.AgentType) {
-		return true
-	}
-
-	return false
-}
-
-// SetAgentType gets a reference to the given AgentType and assigns it to the AgentType field.
+// SetAgentType sets field value
 func (o *AgentResponse) SetAgentType(v AgentType) {
-	o.AgentType = &v
+	o.AgentType = v
 }
 
 // GetRuntimeConfigs returns the RuntimeConfigs field value if set, zero value otherwise.
@@ -314,9 +307,7 @@ func (o AgentResponse) ToMap() (map[string]interface{}, error) {
 		toSerialize["status"] = o.Status
 	}
 	toSerialize["provisioning"] = o.Provisioning
-	if !IsNil(o.AgentType) {
-		toSerialize["agentType"] = o.AgentType
-	}
+	toSerialize["agentType"] = o.AgentType
 	if !IsNil(o.RuntimeConfigs) {
 		toSerialize["runtimeConfigs"] = o.RuntimeConfigs
 	}

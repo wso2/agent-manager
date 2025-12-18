@@ -1071,7 +1071,6 @@ components:
       type: object
       required:
         - type
-        - subType
       properties:
         type:
           type: string
@@ -1086,6 +1085,7 @@ components:
         - name
         - displayName
         - provisioning
+        - agentType
       properties:
         name:
           type: string
@@ -1134,6 +1134,7 @@ components:
         - projectName
         - description
         - provisioning
+        - agentType
     ResourceNameRequest:
       type: object
       properties:

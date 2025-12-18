@@ -22,17 +22,16 @@ type AgentType struct {
 	// Type of the agent
 	Type string `json:"type"`
 	// Sub-type of the agent
-	SubType string `json:"subType"`
+	SubType *string `json:"subType,omitempty"`
 }
 
 // NewAgentType instantiates a new AgentType object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewAgentType(type_ string, subType string) *AgentType {
+func NewAgentType(type_ string) *AgentType {
 	this := AgentType{}
 	this.Type = type_
-	this.SubType = subType
 	return &this
 }
 
@@ -68,28 +67,36 @@ func (o *AgentType) SetType(v string) {
 	o.Type = v
 }
 
-// GetSubType returns the SubType field value
+// GetSubType returns the SubType field value if set, zero value otherwise.
 func (o *AgentType) GetSubType() string {
-	if o == nil {
+	if o == nil || IsNil(o.SubType) {
 		var ret string
 		return ret
 	}
-
-	return o.SubType
+	return *o.SubType
 }
 
-// GetSubTypeOk returns a tuple with the SubType field value
+// GetSubTypeOk returns a tuple with the SubType field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *AgentType) GetSubTypeOk() (*string, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.SubType) {
 		return nil, false
 	}
-	return &o.SubType, true
+	return o.SubType, true
 }
 
-// SetSubType sets field value
+// HasSubType returns a boolean if a field has been set.
+func (o *AgentType) HasSubType() bool {
+	if o != nil && !IsNil(o.SubType) {
+		return true
+	}
+
+	return false
+}
+
+// SetSubType gets a reference to the given string and assigns it to the SubType field.
 func (o *AgentType) SetSubType(v string) {
-	o.SubType = v
+	o.SubType = &v
 }
 
 func (o AgentType) MarshalJSON() ([]byte, error) {
@@ -103,7 +110,9 @@ func (o AgentType) MarshalJSON() ([]byte, error) {
 func (o AgentType) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["type"] = o.Type
-	toSerialize["subType"] = o.SubType
+	if !IsNil(o.SubType) {
+		toSerialize["subType"] = o.SubType
+	}
 	return toSerialize, nil
 }
 

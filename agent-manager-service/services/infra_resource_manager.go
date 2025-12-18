@@ -310,8 +310,8 @@ func (s *infraResourceManager) DeleteProject(ctx context.Context, userIdpId uuid
 	return nil
 }
 
-func (s *infraResourceManager) handleProjectDeletion(ctx context.Context,  orgId uuid.UUID, projectId uuid.UUID, orgName string, projectName string) error {
-    // Soft delete project from database
+func (s *infraResourceManager) handleProjectDeletion(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, orgName string, projectName string) error {
+	// Soft delete project from database
 	s.logger.Debug("Handling project deletion", "orgName", orgName, "projectName", projectName)
 	if err := s.ProjectRepository.SoftDeleteProject(ctx, orgId, projectId); err != nil {
 		s.logger.Error("Critical: Failed to soft delete project from database",

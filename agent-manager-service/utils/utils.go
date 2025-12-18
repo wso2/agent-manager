@@ -40,7 +40,10 @@ func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
 	if err := validateAgentProvisioning(payload.Provisioning); err != nil {
 		return fmt.Errorf("invalid agent provisioning: %w", err)
 	}
-
+	// Validate agent type and subtype
+	if err := validateAgentType(payload.AgentType); err != nil {
+		return fmt.Errorf("invalid agent type or subtype: %w", err)
+	}
 	// Additional validations for internal agents
 	if payload.Provisioning.Type == string(InternalAgent) {
 		if err := validateInternalAgent(payload); err != nil {
@@ -53,11 +56,10 @@ func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
 
 // validateInternalAgent performs validations specific to internal agents
 func validateInternalAgent(payload spec.CreateAgentRequest) error {
-	// Validate agent type and subtype
-	if err := validateAgentType(payload.AgentType); err != nil {
-		return fmt.Errorf("invalid agent type or subtype: %w", err)
+	// Validate Agent Type
+	if err := validateAgentSubType(payload.AgentType); err != nil {
+		return fmt.Errorf("invalid agent subtype: %w", err)
 	}
-
 	// Validate API input interface for API agents
 	if payload.AgentType.Type == string(AgentTypeAPI) {
 		if err := validateInputInterface(payload.AgentType, payload.InputInterface); err != nil {
@@ -77,16 +79,24 @@ func validateInternalAgent(payload spec.CreateAgentRequest) error {
 	return nil
 }
 
-func validateAgentType(agentType *spec.AgentType) error {
-	if agentType == nil {
-		return fmt.Errorf("agentType is required for internal agents")
+func validateAgentType(agentType spec.AgentType) error {
+	if agentType.Type != string(AgentTypeAPI) {
+		return fmt.Errorf("unsupported agent type: %s", agentType.Type)
+	}
+	return nil
+}
+
+func validateAgentSubType(agentType spec.AgentType) error {
+	if agentType.SubType == nil {
+		return fmt.Errorf("agent subtype is required")
 	}
 	if agentType.Type != string(AgentTypeAPI) {
 		return fmt.Errorf("unsupported agent type: %s", agentType.Type)
 	}
 	// Validate subtype for API agent type
-	if agentType.SubType != string(AgentSubTypeChatAPI) && agentType.SubType != string(AgentSubTypeCustomAPI) {
-		return fmt.Errorf("unsupported agent subtype for type %s: %s", agentType.Type, agentType.SubType)
+	subType := StrPointerAsStr(agentType.SubType, "")
+	if subType != string(AgentSubTypeChatAPI) && subType != string(AgentSubTypeCustomAPI) {
+		return fmt.Errorf("unsupported agent subtype for type %s: %s", agentType.Type, subType)
 	}
 
 	return nil
@@ -163,14 +173,14 @@ func validateRepoDetails(repo *spec.RepositoryConfig) error {
 }
 
 // ValidateInputInterface validates the inputInterface field in CreateAgentRequest
-func validateInputInterface(agentType *spec.AgentType, inputInterface *spec.InputInterface) error {
+func validateInputInterface(agentType spec.AgentType, inputInterface *spec.InputInterface) error {
 	if inputInterface == nil {
 		return fmt.Errorf("inputInterface is required for internal agents")
 	}
 	if inputInterface.Type != string(InputInterfaceTypeHTTP) {
 		return fmt.Errorf("unsupported inputInterface type: %s", inputInterface.Type)
 	}
-	if agentType.SubType == string(AgentSubTypeCustomAPI) {
+	if StrPointerAsStr(agentType.SubType, "") == string(AgentSubTypeCustomAPI) {
 		if inputInterface.Schema.Path == "" {
 			return fmt.Errorf("inputInterface.schema.path is required")
 		}

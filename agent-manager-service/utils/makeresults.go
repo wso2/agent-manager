@@ -62,9 +62,9 @@ func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentR
 		RuntimeConfigs: &spec.RuntimeConfiguration{
 			Language: component.Language,
 		},
-		AgentType: &spec.AgentType{
+		AgentType: spec.AgentType{
 			Type:    component.Type.Type,
-			SubType: component.Type.SubType,
+			SubType: &component.Type.SubType,
 		},
 	}
 }
@@ -79,6 +79,9 @@ func convertToExternalAgentResponse(component *models.AgentResponse) spec.AgentR
 		Status:      &component.Status,
 		Provisioning: spec.Provisioning{
 			Type: component.Provisioning.Type,
+		},
+		AgentType: spec.AgentType{
+			Type: component.Type.Type,
 		},
 	}
 }

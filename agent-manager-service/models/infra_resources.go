@@ -19,6 +19,7 @@ package models
 import "time"
 
 type EnvironmentResponse struct {
+	UUID         string    `json:"uuid"`
 	Name         string    `json:"name"`
 	DataplaneRef string    `json:"dataplaneRef"`
 	DisplayName  string    `json:"displayName,omitempty"`

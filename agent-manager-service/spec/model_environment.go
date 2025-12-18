@@ -22,7 +22,7 @@ var _ MappedNullable = &Environment{}
 type Environment struct {
 	// Name of the environment
 	Name string `json:"name"`
-	// Kubernetes namespace for the environment
+	// Reference to the data plane for the environment
 	DataplaneRef string `json:"dataplaneRef"`
 	// Human-readable display name
 	DisplayName *string `json:"displayName,omitempty"`

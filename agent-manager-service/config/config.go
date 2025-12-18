@@ -59,8 +59,8 @@ type Config struct {
 type OTELConfig struct {
 	// Instrumentation configuration
 	OTELInstrumentationImage
-	SDKVolumeName        string
-	SDKMountPath         string
+	SDKVolumeName string
+	SDKMountPath  string
 
 	// Tracing configuration
 	IsTraceContentEnabled bool
@@ -71,9 +71,9 @@ type OTELConfig struct {
 
 type OTELInstrumentationImage struct {
 	Python310 string
-     Python311 string
-	 Python312 string
-	 Python313 string
+	Python311 string
+	Python312 string
+	Python313 string
 }
 
 type ObserverConfig struct {

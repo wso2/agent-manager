@@ -61,12 +61,12 @@ func CreateProject(t *testing.T, projectID uuid.UUID, orgID uuid.UUID, projectNa
 
 func CreateAgent(t *testing.T, agentID uuid.UUID, orgID uuid.UUID, projectID uuid.UUID, agentName string, provisioningType string) models.Agent {
 	agent := &models.Agent{
-		ID:          agentID,
-		ProvisioningType:   provisioningType,
-		ProjectId:   projectID,
-		OrgID:       orgID,
-		Name:        agentName,
-		DisplayName: agentName,
+		ID:               agentID,
+		ProvisioningType: provisioningType,
+		ProjectId:        projectID,
+		OrgID:            orgID,
+		Name:             agentName,
+		DisplayName:      agentName,
 	}
 	err := db.DB(context.Background()).Create(agent).Error
 	require.NoError(t, err)

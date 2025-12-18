@@ -18,6 +18,9 @@ import (
 //
 //		// make and configure a mocked openchoreosvc.OpenChoreoSvcClient
 //		mockedOpenChoreoSvcClient := &OpenChoreoSvcClientMock{
+//			AttachComponentTraitFunc: func(ctx context.Context, orgName string, projName string, agentName string) error {
+//				panic("mock out the AttachComponentTrait method")
+//			},
 //			CreateAgentComponentFunc: func(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error {
 //				panic("mock out the CreateAgentComponent method")
 //			},
@@ -69,6 +72,9 @@ import (
 //			IsAgentComponentExistsFunc: func(ctx context.Context, orgName string, projName string, agentName string) (bool, error) {
 //				panic("mock out the IsAgentComponentExists method")
 //			},
+//			ListAgentComponentsFunc: func(ctx context.Context, orgName string, projName string) ([]*openchoreosvc.AgentComponent, error) {
+//				panic("mock out the ListAgentComponents method")
+//			},
 //			ListComponentWorkflowsFunc: func(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error) {
 //				panic("mock out the ListComponentWorkflows method")
 //			},
@@ -88,6 +94,9 @@ import (
 //
 //	}
 type OpenChoreoSvcClientMock struct {
+	// AttachComponentTraitFunc mocks the AttachComponentTrait method.
+	AttachComponentTraitFunc func(ctx context.Context, orgName string, projName string, agentName string) error
+
 	// CreateAgentComponentFunc mocks the CreateAgentComponent method.
 	CreateAgentComponentFunc func(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error
 
@@ -139,6 +148,9 @@ type OpenChoreoSvcClientMock struct {
 	// IsAgentComponentExistsFunc mocks the IsAgentComponentExists method.
 	IsAgentComponentExistsFunc func(ctx context.Context, orgName string, projName string, agentName string) (bool, error)
 
+	// ListAgentComponentsFunc mocks the ListAgentComponents method.
+	ListAgentComponentsFunc func(ctx context.Context, orgName string, projName string) ([]*openchoreosvc.AgentComponent, error)
+
 	// ListComponentWorkflowsFunc mocks the ListComponentWorkflows method.
 	ListComponentWorkflowsFunc func(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error)
 
@@ -153,6 +165,17 @@ type OpenChoreoSvcClientMock struct {
 
 	// calls tracks calls to the methods.
 	calls struct {
+		// AttachComponentTrait holds details about calls to the AttachComponentTrait method.
+		AttachComponentTrait []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OrgName is the orgName argument value.
+			OrgName string
+			// ProjName is the projName argument value.
+			ProjName string
+			// AgentName is the agentName argument value.
+			AgentName string
+		}
 		// CreateAgentComponent holds details about calls to the CreateAgentComponent method.
 		CreateAgentComponent []struct {
 			// Ctx is the ctx argument value.
@@ -334,6 +357,15 @@ type OpenChoreoSvcClientMock struct {
 			// AgentName is the agentName argument value.
 			AgentName string
 		}
+		// ListAgentComponents holds details about calls to the ListAgentComponents method.
+		ListAgentComponents []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OrgName is the orgName argument value.
+			OrgName string
+			// ProjName is the projName argument value.
+			ProjName string
+		}
 		// ListComponentWorkflows holds details about calls to the ListComponentWorkflows method.
 		ListComponentWorkflows []struct {
 			// Ctx is the ctx argument value.
@@ -373,6 +405,7 @@ type OpenChoreoSvcClientMock struct {
 			CommitId string
 		}
 	}
+	lockAttachComponentTrait                  sync.RWMutex
 	lockCreateAgentComponent                  sync.RWMutex
 	lockCreateProject                         sync.RWMutex
 	lockDeleteAgentComponent                  sync.RWMutex
@@ -390,10 +423,55 @@ type OpenChoreoSvcClientMock struct {
 	lockGetOrganization                       sync.RWMutex
 	lockGetProject                            sync.RWMutex
 	lockIsAgentComponentExists                sync.RWMutex
+	lockListAgentComponents                   sync.RWMutex
 	lockListComponentWorkflows                sync.RWMutex
 	lockListOrgEnvironments                   sync.RWMutex
 	lockListProjects                          sync.RWMutex
 	lockTriggerBuild                          sync.RWMutex
+}
+
+// AttachComponentTrait calls AttachComponentTraitFunc.
+func (mock *OpenChoreoSvcClientMock) AttachComponentTrait(ctx context.Context, orgName string, projName string, agentName string) error {
+	if mock.AttachComponentTraitFunc == nil {
+		panic("OpenChoreoSvcClientMock.AttachComponentTraitFunc: method is nil but OpenChoreoSvcClient.AttachComponentTrait was just called")
+	}
+	callInfo := struct {
+		Ctx       context.Context
+		OrgName   string
+		ProjName  string
+		AgentName string
+	}{
+		Ctx:       ctx,
+		OrgName:   orgName,
+		ProjName:  projName,
+		AgentName: agentName,
+	}
+	mock.lockAttachComponentTrait.Lock()
+	mock.calls.AttachComponentTrait = append(mock.calls.AttachComponentTrait, callInfo)
+	mock.lockAttachComponentTrait.Unlock()
+	return mock.AttachComponentTraitFunc(ctx, orgName, projName, agentName)
+}
+
+// AttachComponentTraitCalls gets all the calls that were made to AttachComponentTrait.
+// Check the length with:
+//
+//	len(mockedOpenChoreoSvcClient.AttachComponentTraitCalls())
+func (mock *OpenChoreoSvcClientMock) AttachComponentTraitCalls() []struct {
+	Ctx       context.Context
+	OrgName   string
+	ProjName  string
+	AgentName string
+} {
+	var calls []struct {
+		Ctx       context.Context
+		OrgName   string
+		ProjName  string
+		AgentName string
+	}
+	mock.lockAttachComponentTrait.RLock()
+	calls = mock.calls.AttachComponentTrait
+	mock.lockAttachComponentTrait.RUnlock()
+	return calls
 }
 
 // CreateAgentComponent calls CreateAgentComponentFunc.
@@ -1129,6 +1207,46 @@ func (mock *OpenChoreoSvcClientMock) IsAgentComponentExistsCalls() []struct {
 	mock.lockIsAgentComponentExists.RLock()
 	calls = mock.calls.IsAgentComponentExists
 	mock.lockIsAgentComponentExists.RUnlock()
+	return calls
+}
+
+// ListAgentComponents calls ListAgentComponentsFunc.
+func (mock *OpenChoreoSvcClientMock) ListAgentComponents(ctx context.Context, orgName string, projName string) ([]*openchoreosvc.AgentComponent, error) {
+	if mock.ListAgentComponentsFunc == nil {
+		panic("OpenChoreoSvcClientMock.ListAgentComponentsFunc: method is nil but OpenChoreoSvcClient.ListAgentComponents was just called")
+	}
+	callInfo := struct {
+		Ctx      context.Context
+		OrgName  string
+		ProjName string
+	}{
+		Ctx:      ctx,
+		OrgName:  orgName,
+		ProjName: projName,
+	}
+	mock.lockListAgentComponents.Lock()
+	mock.calls.ListAgentComponents = append(mock.calls.ListAgentComponents, callInfo)
+	mock.lockListAgentComponents.Unlock()
+	return mock.ListAgentComponentsFunc(ctx, orgName, projName)
+}
+
+// ListAgentComponentsCalls gets all the calls that were made to ListAgentComponents.
+// Check the length with:
+//
+//	len(mockedOpenChoreoSvcClient.ListAgentComponentsCalls())
+func (mock *OpenChoreoSvcClientMock) ListAgentComponentsCalls() []struct {
+	Ctx      context.Context
+	OrgName  string
+	ProjName string
+} {
+	var calls []struct {
+		Ctx      context.Context
+		OrgName  string
+		ProjName string
+	}
+	mock.lockListAgentComponents.RLock()
+	calls = mock.calls.ListAgentComponents
+	mock.lockListAgentComponents.RUnlock()
 	return calls
 }
 
