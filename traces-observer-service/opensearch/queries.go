@@ -78,29 +78,11 @@ func BuildTraceQuery(params TraceQueryParams) map[string]interface{} {
 		})
 	}
 
-	// Add project UID filter
-	if params.ProjectUid != "" {
-		mustConditions = append(mustConditions, map[string]interface{}{
-			"term": map[string]interface{}{
-				"resource.openchoreo.dev/project-uid": params.ProjectUid,
-			},
-		})
-	}
-
 	// Add environment UID filter
 	if params.EnvironmentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
 				"resource.openchoreo.dev/environment-uid": params.EnvironmentUid,
-			},
-		})
-	}
-
-	// Add organization UID filter (optional)
-	if params.OrganizationUid != "" {
-		mustConditions = append(mustConditions, map[string]interface{}{
-			"term": map[string]interface{}{
-				"resource.openchoreo.dev/organization-uid": params.OrganizationUid,
 			},
 		})
 	}
@@ -176,29 +158,11 @@ func BuildTraceByIdAndServiceQuery(params TraceByIdAndServiceParams) map[string]
 		})
 	}
 
-	// Add project UID filter
-	if params.ProjectUid != "" {
-		mustConditions = append(mustConditions, map[string]interface{}{
-			"term": map[string]interface{}{
-				"resource.openchoreo.dev/project-uid": params.ProjectUid,
-			},
-		})
-	}
-
 	// Add environment UID filter
 	if params.EnvironmentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
 				"resource.openchoreo.dev/environment-uid": params.EnvironmentUid,
-			},
-		})
-	}
-
-	// Add organization UID filter (optional)
-	if params.OrganizationUid != "" {
-		mustConditions = append(mustConditions, map[string]interface{}{
-			"term": map[string]interface{}{
-				"resource.openchoreo.dev/organization-uid": params.OrganizationUid,
 			},
 		})
 	}
