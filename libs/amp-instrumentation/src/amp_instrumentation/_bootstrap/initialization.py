@@ -24,6 +24,7 @@ import logging
 import sys
 import threading
 from . import constants as env_vars
+from utils import transform_resource_attributes
 
 # Track initialization state with thread safety
 _initialized = False
@@ -82,7 +83,7 @@ def initialize_instrumentation() -> None:
     Initialize instrumentation from environment variables.
     """
     global _initialized
-    
+
     # Get logger for this module
     logger = logging.getLogger(__name__)
 
@@ -96,14 +97,21 @@ def initialize_instrumentation() -> None:
             app_name = _get_required_env_var(env_vars.AMP_AGENT_NAME)
             otel_endpoint = _get_required_env_var(env_vars.AMP_OTEL_ENDPOINT)
             api_key = _get_required_env_var(env_vars.AMP_AGENT_API_KEY)
+            resource_attributes = _get_required_env_var(env_vars.AMP_TRACE_ATTRIBUTES)
 
             # Get trace content setting (default: true)
             trace_content = os.getenv(env_vars.AMP_TRACE_CONTENT, "true")
+            transformed_resource_attributes = transform_resource_attributes(
+                resource_attributes
+            )
 
             # Set Traceloop environment variables
             os.environ[env_vars.TRACELOOP_TRACE_CONTENT] = trace_content
             os.environ[env_vars.TRACELOOP_METRICS_ENABLED] = "false"
             os.environ[env_vars.OTEL_EXPORTER_OTLP_INSECURE] = "true"
+            os.environ[env_vars.OTEL_RESOURCE_ATTRIBUTES] = (
+                transformed_resource_attributes
+            )
 
             # Import and initialize Traceloop
             from traceloop.sdk import Traceloop
@@ -126,9 +134,7 @@ def initialize_instrumentation() -> None:
             raise
 
         except ImportError as e:
-            logger.error(
-                f"Failed to import traceloop-sdk: {e}."
-            )
+            logger.error(f"Failed to import traceloop-sdk: {e}.")
             raise
 
         except Exception as e:
