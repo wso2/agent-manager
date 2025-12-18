@@ -18,6 +18,7 @@
 
 export * from './BuildLogs';
 export * from './BuildPanel';
+export * from './ConfirmDialog';
 export * from './BuildSteps';
 export * from './CodeBlock';
 export * from './DeploymentConfig';
