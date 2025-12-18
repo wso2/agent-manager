@@ -45,8 +45,8 @@ paths:
             example: "default-component"
         - name: projectUid
           in: query
-          required: true
-          description: The project unique identifier
+          required: false
+          description: The project unique identifier (optional)
           schema:
             type: string
             example: "default-project"
@@ -116,8 +116,8 @@ paths:
             example: "default-component"
         - name: projectUid
           in: query
-          required: true
-          description: The project unique identifier
+          required: false
+          description: The project unique identifier (optional)
           schema:
             type: string
             example: "default-project"

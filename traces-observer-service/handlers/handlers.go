@@ -79,11 +79,7 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	projectUid := query.Get("projectUid")
-	if projectUid == "" {
-		h.writeError(w, http.StatusBadRequest, "projectUid is required")
-		return
-	}
+	projectUid := query.Get("projectUid") // Optional
 
 	environmentUid := query.Get("environmentUid")
 	if environmentUid == "" {
@@ -171,11 +167,7 @@ func (h *Handler) GetTraceByIdAndService(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	projectUid := query.Get("projectUid")
-	if projectUid == "" {
-		h.writeError(w, http.StatusBadRequest, "projectUid is required")
-		return
-	}
+	projectUid := query.Get("projectUid") // Optional
 
 	environmentUid := query.Get("environmentUid")
 	if environmentUid == "" {
