@@ -20,26 +20,22 @@ import "time"
 
 // TraceQueryParams holds parameters for trace queries
 type TraceQueryParams struct {
-	ComponentUid     string
-	ProjectUid       string
-	EnvironmentUid   string
-	OrganizationUid  string
-	StartTime        string
-	EndTime          string
-	Limit            int
-	Offset           int
-	SortOrder        string
+	ComponentUid   string
+	EnvironmentUid string
+	StartTime      string
+	EndTime        string
+	Limit          int
+	Offset         int
+	SortOrder      string
 }
 
 // TraceByIdAndServiceParams holds parameters for querying by both traceId and componentUid
 type TraceByIdAndServiceParams struct {
-	TraceID          string
-	ComponentUid     string
-	ProjectUid       string
-	EnvironmentUid   string
-	OrganizationUid  string
-	SortOrder        string
-	Limit            int
+	TraceID        string
+	ComponentUid   string
+	EnvironmentUid string
+	SortOrder      string
+	Limit          int
 }
 
 // Span represents a single trace span

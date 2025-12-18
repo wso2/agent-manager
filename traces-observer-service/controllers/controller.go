@@ -40,7 +40,7 @@ func NewTracingController(osClient *opensearch.Client) *TracingController {
 
 // GetTraceOverviews retrieves unique trace IDs with root span information
 func (s *TracingController) GetTraceOverviews(ctx context.Context, params opensearch.TraceQueryParams) (*opensearch.TraceOverviewResponse, error) {
-	log.Printf("Getting trace overviews for component: %s, project: %s, environment: %s", params.ComponentUid, params.ProjectUid, params.EnvironmentUid)
+	log.Printf("Getting trace overviews for component: %s, environment: %s", params.ComponentUid, params.EnvironmentUid)
 
 	// Set defaults
 	if params.Limit == 0 {
@@ -147,7 +147,7 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 
 // GetTraceByIdAndService retrieves spans for a specific trace ID and component UID
 func (s *TracingController) GetTraceByIdAndService(ctx context.Context, params opensearch.TraceByIdAndServiceParams) (*opensearch.TraceResponse, error) {
-	log.Printf("Getting trace for traceID: %s, component: %s, project: %s, environment: %s", params.TraceID, params.ComponentUid, params.ProjectUid, params.EnvironmentUid)
+	log.Printf("Getting trace for traceID: %s, component: %s, environment: %s", params.TraceID, params.ComponentUid, params.EnvironmentUid)
 
 	// Build query
 	query := opensearch.BuildTraceByIdAndServiceQuery(params)
@@ -175,10 +175,10 @@ func (s *TracingController) GetTraceByIdAndService(ctx context.Context, params o
 	spans := opensearch.ParseSpans(response)
 
 	if len(spans) == 0 {
-		return nil, fmt.Errorf("no spans found for traceID: %s, component: %s, project: %s, environment: %s", params.TraceID, params.ComponentUid, params.ProjectUid, params.EnvironmentUid)
+		return nil, fmt.Errorf("no spans found for traceID: %s, component: %s, environment: %s", params.TraceID, params.ComponentUid, params.EnvironmentUid)
 	}
 
-	log.Printf("Retrieved %d spans for traceID: %s, component: %s, project: %s, environment: %s", len(spans), params.TraceID, params.ComponentUid, params.ProjectUid, params.EnvironmentUid)
+	log.Printf("Retrieved %d spans for traceID: %s, component: %s, environment: %s", len(spans), params.TraceID, params.ComponentUid, params.EnvironmentUid)
 
 	return &opensearch.TraceResponse{
 		Spans:      spans,

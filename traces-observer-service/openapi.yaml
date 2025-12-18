@@ -43,13 +43,6 @@ paths:
           schema:
             type: string
             example: "default-component"
-        - name: projectUid
-          in: query
-          required: false
-          description: The project unique identifier (optional)
-          schema:
-            type: string
-            example: "default-project"
         - name: environmentUid
           in: query
           required: true
@@ -114,13 +107,6 @@ paths:
           schema:
             type: string
             example: "default-component"
-        - name: projectUid
-          in: query
-          required: false
-          description: The project unique identifier (optional)
-          schema:
-            type: string
-            example: "default-project"
         - name: environmentUid
           in: query
           required: true
