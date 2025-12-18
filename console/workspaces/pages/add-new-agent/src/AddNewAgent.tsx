@@ -25,6 +25,7 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { addAgentSchema, type AddAgentFormValues } from './form/schema';
 import { useCreateAgent, useListAgents } from '@agent-management-platform/api-client';
+import { useNotification } from '@agent-management-platform/shared-component';
 import { AgentFlowRouter } from './components/AgentFlowRouter';
 import { CreateButtons } from './components/CreateButtons';
 import { useAgentFlow } from './hooks/useAgentFlow';
@@ -32,6 +33,7 @@ import { buildAgentCreationPayload } from './utils/buildAgentPayload';
 
 export const AddNewAgent: React.FC = () => {
   const navigate = useNavigate();
+  const { notify } = useNotification();
   const { orgId, projectId } = useParams<{ orgId: string; projectId?: string }>();
   const methods = useForm<AddAgentFormValues>({
     resolver: yupResolver(addAgentSchema),
@@ -80,6 +82,7 @@ export const AddNewAgent: React.FC = () => {
 
     createAgent(payload, {
       onSuccess: () => {
+        notify('success', 'Agent created successfully');
         navigate(generatePath(
           absoluteRouteMap.children.org.children.projects.children.agents.path,
           {
@@ -91,12 +94,11 @@ export const AddNewAgent: React.FC = () => {
         );
       },
       onError: (e: unknown) => {
-        // TODO: Show error toast/notification to user
-        // eslint-disable-next-line no-console
-        console.error('Failed to create agent:', e);
+        const message = e instanceof Error ? e.message : 'Failed to create agent';
+        notify('error', message);
       }
     });
-  }, [createAgent, navigate, params]);
+  }, [createAgent, navigate, notify, params]);
 
   const handleAddAgent = useMemo(() => methods.handleSubmit(onSubmit), [methods, onSubmit]);
 
