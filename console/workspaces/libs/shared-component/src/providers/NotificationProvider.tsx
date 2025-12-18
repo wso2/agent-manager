@@ -58,7 +58,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
           open
           autoHideDuration={AUTO_HIDE_DURATION}
           onClose={() => removeNotification(notifications[0].id)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         >
           <Alert
             severity={notifications[0].type}
