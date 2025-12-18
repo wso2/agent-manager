@@ -29,6 +29,7 @@ import (
 
 type AgentRepository interface {
 	ListAgents(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID) ([]*models.Agent, error)
+	ListAgentsWithFilter(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, filter models.AgentFilter) ([]*models.Agent, int64, error)
 	GetAgentByName(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string) (*models.Agent, error)
 	CreateAgent(ctx context.Context, agent *models.Agent) error
 	SoftDeleteAgentByName(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string) error
@@ -54,6 +55,62 @@ func (r *agentRepository) ListAgents(ctx context.Context, orgId uuid.UUID, proje
 	}
 
 	return agents, nil
+}
+
+func (r *agentRepository) ListAgentsWithFilter(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, filter models.AgentFilter) ([]*models.Agent, int64, error) {
+	var agents []*models.Agent
+	var total int64
+
+	query := db.DB(ctx).Model(&models.Agent{}).Where("org_id = ? AND project_id = ?", orgId, projectId)
+
+	// Apply search filter (case-insensitive search on name, display_name, description)
+	if filter.Search != "" {
+		searchPattern := "%" + filter.Search + "%"
+		query = query.Where("name ILIKE ? OR display_name ILIKE ? OR description ILIKE ?", searchPattern, searchPattern, searchPattern)
+	}
+
+	// Apply provisioning type filter
+	if filter.ProvisioningType != "" {
+		query = query.Where("provisioning_type = ?", filter.ProvisioningType)
+	}
+
+	// Get total count before pagination
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("agentRepository.ListAgentsWithFilter count: %w", err)
+	}
+
+	// Apply sorting
+	sortColumn := "created_at"
+	if filter.SortBy == "name" || filter.SortBy == "updatedAt" || filter.SortBy == "createdAt" {
+		switch filter.SortBy {
+		case "name":
+			sortColumn = "name"
+		case "updatedAt":
+			sortColumn = "updated_at"
+		case "createdAt":
+			sortColumn = "created_at"
+		}
+	}
+	sortOrder := "DESC"
+	if filter.SortOrder == "asc" {
+		sortOrder = "ASC"
+	}
+	query = query.Order(fmt.Sprintf("%s %s", sortColumn, sortOrder))
+
+	// Apply pagination
+	if filter.Limit > 0 {
+		query = query.Limit(filter.Limit)
+	}
+	if filter.Offset > 0 {
+		query = query.Offset(filter.Offset)
+	}
+
+	// Execute query with preload
+	if err := query.Preload("AgentDetails").Find(&agents).Error; err != nil {
+		return nil, 0, fmt.Errorf("agentRepository.ListAgentsWithFilter: %w", err)
+	}
+
+	return agents, total, nil
 }
 
 func (r *agentRepository) GetAgentByName(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string) (*models.Agent, error) {
