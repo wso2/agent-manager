@@ -430,7 +430,7 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, userIdpId uuid.UU
 		return fmt.Errorf("failed to find project %s: %w", projectName, err)
 	}
 	// Check if agent exists in the database
-	_ , err = s.AgentRepository.GetAgentByName(ctx, org.ID, project.ID, agentName)
+	_, err = s.AgentRepository.GetAgentByName(ctx, org.ID, project.ID, agentName)
 	if err != nil {
 		// DELETE is idempotent
 		s.logger.Error("Failed to check existing agents", "agentName", agentName, "orgId", org.ID, "projectId", project.ID, "error", err)
@@ -946,6 +946,7 @@ func (s *agentManagerService) GetAgentConfigurations(ctx context.Context, userId
 
 func (s *agentManagerService) convertToAgentListItem(agent *clients.AgentComponent) *models.AgentResponse {
 	response := &models.AgentResponse{
+		Uuid: agent.UUID,
 		Name:        agent.Name,
 		DisplayName: agent.DisplayName,
 		Description: agent.Description,
@@ -966,6 +967,7 @@ func (s *agentManagerService) convertToAgentListItem(agent *clients.AgentCompone
 // convertToExternalAgentResponse converts a database Agent model to AgentResponse for external agents
 func (s *agentManagerService) convertExternalAgentToAgentResponse(ocAgentComponent *clients.AgentComponent) *models.AgentResponse {
 	return &models.AgentResponse{
+		Uuid: ocAgentComponent.UUID,
 		Name:        ocAgentComponent.Name,
 		DisplayName: ocAgentComponent.DisplayName,
 		Description: ocAgentComponent.Description,
@@ -974,7 +976,7 @@ func (s *agentManagerService) convertExternalAgentToAgentResponse(ocAgentCompone
 			Type: ocAgentComponent.Provisioning.Type,
 		},
 		Type: models.AgentType{
-			Type:ocAgentComponent.Type.Type ,
+			Type: ocAgentComponent.Type.Type,
 		},
 		CreatedAt: ocAgentComponent.CreatedAt,
 	}
@@ -983,6 +985,7 @@ func (s *agentManagerService) convertExternalAgentToAgentResponse(ocAgentCompone
 // convertToManagedAgentResponse converts an OpenChoreo AgentComponent to AgentResponse for managed agents
 func (s *agentManagerService) convertManagedAgentToAgentResponse(ocAgentComponent *clients.AgentComponent) *models.AgentResponse {
 	return &models.AgentResponse{
+		Uuid: ocAgentComponent.UUID,
 		Name:        ocAgentComponent.Name,
 		DisplayName: ocAgentComponent.DisplayName,
 		Description: ocAgentComponent.Description,

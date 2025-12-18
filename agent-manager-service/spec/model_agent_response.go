@@ -20,6 +20,7 @@ var _ MappedNullable = &AgentResponse{}
 
 // AgentResponse struct for AgentResponse
 type AgentResponse struct {
+	Uuid        string    `json:"uuid"`
 	Name        string    `json:"name"`
 	DisplayName string    `json:"displayName"`
 	Description string    `json:"description"`
@@ -36,8 +37,9 @@ type AgentResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewAgentResponse(name string, displayName string, description string, createdAt time.Time, projectName string, provisioning Provisioning, agentType AgentType) *AgentResponse {
+func NewAgentResponse(uuid string, name string, displayName string, description string, createdAt time.Time, projectName string, provisioning Provisioning, agentType AgentType) *AgentResponse {
 	this := AgentResponse{}
+	this.Uuid = uuid
 	this.Name = name
 	this.DisplayName = displayName
 	this.Description = description
@@ -54,6 +56,30 @@ func NewAgentResponse(name string, displayName string, description string, creat
 func NewAgentResponseWithDefaults() *AgentResponse {
 	this := AgentResponse{}
 	return &this
+}
+
+// GetUuid returns the Uuid field value
+func (o *AgentResponse) GetUuid() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Uuid
+}
+
+// GetUuidOk returns a tuple with the Uuid field value
+// and a boolean to check if the value has been set.
+func (o *AgentResponse) GetUuidOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Uuid, true
+}
+
+// SetUuid sets field value
+func (o *AgentResponse) SetUuid(v string) {
+	o.Uuid = v
 }
 
 // GetName returns the Name field value
@@ -298,6 +324,7 @@ func (o AgentResponse) MarshalJSON() ([]byte, error) {
 
 func (o AgentResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
+	toSerialize["uuid"] = o.Uuid
 	toSerialize["name"] = o.Name
 	toSerialize["displayName"] = o.DisplayName
 	toSerialize["description"] = o.Description

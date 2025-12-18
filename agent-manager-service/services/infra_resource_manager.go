@@ -228,7 +228,7 @@ func (s *infraResourceManager) ListProjects(ctx context.Context, userIdpId uuid.
 		return nil, 0, fmt.Errorf("failed to find organization %s: %w", orgName, err)
 	}
 
-	projects, err := s.ProjectRepository.ListProjects(ctx, org.ID)
+	projects, err := s.OpenChoreoSvcClient.ListProjects(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to list projects from repository", "orgId", org.ID, "orgName", orgName, "error", err)
 		return nil, 0, fmt.Errorf("failed to list projects for organization %s: %w", orgName, err)
@@ -251,6 +251,7 @@ func (s *infraResourceManager) ListProjects(ctx context.Context, userIdpId uuid.
 	var projectResponses []*models.ProjectResponse
 	for _, project := range paginatedProjects {
 		projectResponse := &models.ProjectResponse{
+			UUID:  project.UUID,
 			Name:        project.Name,
 			OrgName:     orgName,
 			DisplayName: project.DisplayName,

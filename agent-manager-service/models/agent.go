@@ -25,6 +25,7 @@ import (
 
 // API Response DTO
 type AgentResponse struct {
+	Uuid 		 string	   `json:"uid"`
 	Name         string       `json:"name"`
 	DisplayName  string       `json:"displayName,omitempty"`
 	Description  string       `json:"description,omitempty"`

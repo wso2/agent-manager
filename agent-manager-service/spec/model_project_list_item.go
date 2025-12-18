@@ -20,6 +20,7 @@ var _ MappedNullable = &ProjectListItem{}
 
 // ProjectListItem struct for ProjectListItem
 type ProjectListItem struct {
+	Uuid string `json:"uuid"`
 	// Name of the project
 	Name string `json:"name"`
 	// Name of the organization
@@ -34,8 +35,9 @@ type ProjectListItem struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewProjectListItem(name string, orgName string, displayName string, createdAt time.Time) *ProjectListItem {
+func NewProjectListItem(uuid string, name string, orgName string, displayName string, createdAt time.Time) *ProjectListItem {
 	this := ProjectListItem{}
+	this.Uuid = uuid
 	this.Name = name
 	this.OrgName = orgName
 	this.DisplayName = displayName
@@ -49,6 +51,30 @@ func NewProjectListItem(name string, orgName string, displayName string, created
 func NewProjectListItemWithDefaults() *ProjectListItem {
 	this := ProjectListItem{}
 	return &this
+}
+
+// GetUuid returns the Uuid field value
+func (o *ProjectListItem) GetUuid() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Uuid
+}
+
+// GetUuidOk returns a tuple with the Uuid field value
+// and a boolean to check if the value has been set.
+func (o *ProjectListItem) GetUuidOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Uuid, true
+}
+
+// SetUuid sets field value
+func (o *ProjectListItem) SetUuid(v string) {
+	o.Uuid = v
 }
 
 // GetName returns the Name field value
@@ -157,6 +183,7 @@ func (o ProjectListItem) MarshalJSON() ([]byte, error) {
 
 func (o ProjectListItem) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
+	toSerialize["uuid"] = o.Uuid
 	toSerialize["name"] = o.Name
 	toSerialize["orgName"] = o.OrgName
 	toSerialize["displayName"] = o.DisplayName

@@ -19,14 +19,14 @@ package openchoreosvc
 type LabelKeys string
 
 const (
-	LabelKeyOrganizationName LabelKeys = "openchoreo.dev/organization"
-	LabelKeyProjectName      LabelKeys = "openchoreo.dev/project"
-	LabelKeyComponentName    LabelKeys = "openchoreo.dev/component"
-	LabelKeyEnvironmentName  LabelKeys = "openchoreo.dev/environment"
-	LabelKeyAgentSubType     LabelKeys = "openchoreo.dev/agent-sub-type"
-	LabelKeyAgentLanguage    LabelKeys = "openchoreo.dev/agent-language"
+	LabelKeyOrganizationName     LabelKeys = "openchoreo.dev/organization"
+	LabelKeyProjectName          LabelKeys = "openchoreo.dev/project"
+	LabelKeyComponentName        LabelKeys = "openchoreo.dev/component"
+	LabelKeyEnvironmentName      LabelKeys = "openchoreo.dev/environment"
+	LabelKeyAgentSubType         LabelKeys = "openchoreo.dev/agent-sub-type"
+	LabelKeyAgentLanguage        LabelKeys = "openchoreo.dev/agent-language"
 	LabelKeyAgentLanguageVersion LabelKeys = "opechoreo.dev/agent-language-version"
-	LabelKeyProvisioningType LabelKeys = "openchoreo.dev/provisioning-type"
+	LabelKeyProvisioningType     LabelKeys = "openchoreo.dev/provisioning-type"
 )
 
 type AnnotationKeys string
@@ -37,10 +37,11 @@ const (
 )
 
 type TraceAttributeKeys string
+
 const (
 	TraceAttributeKeyEnvironment TraceAttributeKeys = "openchoreo.dev/environment-uid"
-	TraceAttributeKeyProject TraceAttributeKeys = "openchoreo.dev/project-uid"
-	TraceAttributeKeyComponent TraceAttributeKeys = "openchoreo.dev/component-uid"
+	TraceAttributeKeyProject     TraceAttributeKeys = "openchoreo.dev/project-uid"
+	TraceAttributeKeyComponent   TraceAttributeKeys = "openchoreo.dev/component-uid"
 )
 
 type WorkflowConditionType string

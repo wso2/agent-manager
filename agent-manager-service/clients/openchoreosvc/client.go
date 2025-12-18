@@ -220,7 +220,6 @@ func (k *openChoreoSvcClient) GetAgentComponent(ctx context.Context, orgName str
 }
 
 func (k *openChoreoSvcClient) AttachComponentTrait(ctx context.Context, orgName string, projName string, agentName string) error {
-
 	openChoreoProject, err := k.GetProject(ctx, projName, orgName)
 	if err != nil {
 		return fmt.Errorf("failed to get project for trait attachment: %w", err)
@@ -234,7 +233,7 @@ func (k *openChoreoSvcClient) AttachComponentTrait(ctx context.Context, orgName 
 		return fmt.Errorf("failed to fetch deployment pipeline: %w", err)
 	}
 	lowestEnvName := findLowestEnvironment(pipeline.PromotionPaths)
-	openChoreoEnv, err := k.GetEnvironment(ctx,orgName,lowestEnvName);
+	openChoreoEnv, err := k.GetEnvironment(ctx, orgName, lowestEnvName)
 	if err != nil {
 		return fmt.Errorf("")
 	}
@@ -283,7 +282,7 @@ func (k *openChoreoSvcClient) CreateAgentComponent(ctx context.Context, orgName 
 		componentCR, err = createComponentCRForInternalAgents(orgName, projName, req)
 		// Add OpenTelemetry instrumentation trait for Python agents
 		if req.AgentType.Type == string(utils.AgentTypeAPI) && req.RuntimeConfigs.Language == string(utils.LanguagePython) {
-			err := k.AttachComponentTrait(ctx,orgName, projName,req.Name)
+			err := k.AttachComponentTrait(ctx, orgName, projName, req.Name)
 			if err != nil {
 				return fmt.Errorf("error attaching OTEL instrumentation trait: %w", err)
 			}
@@ -1044,6 +1043,7 @@ func (k *openChoreoSvcClient) ListProjects(ctx context.Context, orgName string) 
 	var projects []*models.ProjectResponse
 	for _, project := range projectList.Items {
 		projects = append(projects, &models.ProjectResponse{
+			UUID: string(project.UID),
 			Name:               project.Name,
 			OrgName:            project.Namespace,
 			CreatedAt:          project.CreationTimestamp.Time,
