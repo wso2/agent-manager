@@ -173,8 +173,13 @@ else
 fi
 
 echo "⏳ Waiting for OpenSearch pods to be ready..."
-kubectl wait --for=condition=Ready pod --all -n openchoreo-observability-plane --timeout=900s || {
-    echo "⚠️  Some OpenSearch pods may still be starting (non-fatal)"
+# Wait for deployments to be available
+kubectl wait --for=condition=Available deployment --all -n openchoreo-observability-plane --timeout=900s || {
+    echo "⚠️  Some deployments may still be starting (non-fatal)"
+}
+# Wait for statefulsets to be ready
+kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 statefulset --all -n openchoreo-observability-plane --timeout=900s || {
+    echo "⚠️  Some statefulsets may still be starting (non-fatal)"
 }
 echo "✅ OpenSearch ready"
 
@@ -193,8 +198,13 @@ else
 fi
 
 echo "⏳ Waiting for Observability Plane pods to be ready..."
-kubectl wait --for=condition=Ready pod --all -n openchoreo-observability-plane --timeout=600s || {
-    echo "⚠️  Some Observability pods may still be starting (non-fatal)"
+# Wait for deployments to be available
+kubectl wait --for=condition=Available deployment --all -n openchoreo-observability-plane --timeout=900s || {
+    echo "⚠️  Some deployments may still be starting (non-fatal)"
+}
+# Wait for statefulsets to be ready
+kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 statefulset --all -n openchoreo-observability-plane --timeout=900s || {
+    echo "⚠️  Some statefulsets may still be starting (non-fatal)"
 }
 echo "✅ OpenChoreo Observability Plane ready"
 echo ""
