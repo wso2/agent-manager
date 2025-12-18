@@ -25,7 +25,7 @@ def transform_resource_attributes(resource_attributes):
         resource_attributes: Comma-separated key=value pairs
 
     Returns:
-        dict: Dictionary with openchoreo.dev/ prepended to each key
+        str: Comma-separated string with openchoreo.dev/ prepended to each key
 
     Raises:
         ValueError: If resource_attributes is empty or missing required attributes
@@ -48,12 +48,13 @@ def transform_resource_attributes(resource_attributes):
     if missing_attrs:
         raise ValueError(
             f"Missing required resource attributes in AMP_TRACE_ATTRIBUTES: {', '.join(missing_attrs)}. "
-            f"Expected format: organization=value,project=value,environment=value"
         )
 
-    # Prepend openchoreo.dev/ to each key
-    transformed_attrs = {
-        f"openchoreo.dev/{key}": value for key, value in attrs_dict.items()
-    }
+    # Prepend openchoreo.dev/ to each key and format as comma-separated string
+    # Sort keys for deterministic output and format as key=value pairs
+    sorted_pairs = [
+        f"openchoreo.dev/{key}={str(value)}"
+        for key, value in sorted(attrs_dict.items())
+    ]
 
-    return transformed_attrs
+    return ",".join(sorted_pairs)
