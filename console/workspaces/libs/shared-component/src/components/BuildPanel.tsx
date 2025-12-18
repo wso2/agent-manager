@@ -21,6 +21,7 @@ import { Wrench } from "@wso2/oxygen-ui-icons-react";
 import { Box, Button, Typography } from "@wso2/oxygen-ui";
 import { FormProvider, useForm } from "react-hook-form";
 import { TextInput, DrawerHeader, DrawerContent } from "@agent-management-platform/views";
+import { useNotification } from "../providers";
 
 interface BuildPanelProps {
     onClose: () => void;
@@ -41,41 +42,41 @@ export function BuildPanel({
     agentName,
 }: BuildPanelProps) {
     const { mutate: buildAgent, isPending } = useBuildAgent();
+    const { notify } = useNotification();
     const { data: agent, isLoading: isLoadingAgent } = useGetAgent({
         orgName,
         projName,
         agentName,
-    });    const methods = useForm<BuildFormData>({
+    });
+
+    const methods = useForm<BuildFormData>({
         defaultValues: {
             branch: "main",
             commitId: "",
         },
     });
 
-    const handleBuild = async () => {
-        try {
-            const formData = methods.getValues();
-            buildAgent({
-                params: {
-                    orgName,
-                    projName,
-                    agentName,
-                },
-                query: {
-                    commitId: formData.commitId || "",
-                },
-            }, {
-                onSuccess: () => {
-                    onClose();
-                },
-                onError: (error) => {
-                    console.error("Build trigger failed:", error);
-                },
-            });
-        }
-        catch (error) {
-            console.error("Build trigger failed:", error);
-        }
+    const handleBuild = () => {
+        const formData = methods.getValues();
+        buildAgent({
+            params: {
+                orgName,
+                projName,
+                agentName,
+            },
+            query: {
+                commitId: formData.commitId || "",
+            },
+        }, {
+            onSuccess: () => {
+                notify('success', 'Build triggered successfully');
+                onClose();
+            },
+            onError: (error) => {
+                const message = error instanceof Error ? error.message : 'Build trigger failed';
+                notify('error', message);
+            },
+        });
     };
 
     return (
