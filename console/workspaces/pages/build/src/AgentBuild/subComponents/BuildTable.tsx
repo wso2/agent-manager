@@ -44,7 +44,7 @@ export function BuildTable() {
     const selectedBuildName = searchParams.get('selectedBuild');
     const selectedPanel = searchParams.get('panel'); // 'logs' | 'deploy'
     const { orgId, projectId, agentId } = useParams();
-    const { data: builds } = useGetAgentBuilds({ orgName: orgId ?? 'default', projName: projectId ?? 'default', agentName: agentId ?? '' });
+    const { data: builds } = useGetAgentBuilds({ orgName: orgId, projName: projectId, agentName: agentId });
     const orderedBuilds = useMemo(() =>
         builds?.builds.sort(
             (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()),

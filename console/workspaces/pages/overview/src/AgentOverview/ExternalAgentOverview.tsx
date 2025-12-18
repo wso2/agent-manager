@@ -30,9 +30,9 @@ export const ExternalAgentOverview = () => {
   const isInstrumentationDrawerOpen = searchParams.get("setup") === "true";
 
   const { data: agent } = useGetAgent({
-    orgName: orgId ?? "default",
-    projName: projectId ?? "default",
-    agentName: agentId ?? "",
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
   });
 
   // Sample instrumentation config - these would come from props or API
@@ -41,7 +41,7 @@ export const ExternalAgentOverview = () => {
 
   return (
     <>
-      <Box display="flex" flexDirection="column" pb={4} gap={1}>
+      <Box display="flex" flexDirection="column" pb={4} gap={4}>
         <Box
           sx={{
             maxWidth: "fit-content",
@@ -53,9 +53,9 @@ export const ExternalAgentOverview = () => {
         >
           <Box display="flex" flexDirection="row" gap={1} alignItems="center">
             <Typography variant="body2">Created</Typography>
-            <AccessTime size={16} />
+            <AccessTime size={14} />
             <Typography variant="body2">
-              {dayjs(agent?.createdAt).fromNow()}
+              {agent?.createdAt ? dayjs(agent.createdAt).fromNow() : '—'}
             </Typography>
           </Box>
         </Box>

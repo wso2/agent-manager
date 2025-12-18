@@ -16,54 +16,88 @@
  * under the License.
  */
 
-import { Box, Typography} from "@wso2/oxygen-ui";
-import { SearchX as SearchOffOutlined } from "@wso2/oxygen-ui-icons-react";
-import { FadeIn } from "../FadeIn/FadeIn";
-import { ReactNode } from "react";
+import { Box, Paper, Typography } from '@wso2/oxygen-ui';
+import {
+  LucideProps,
+  SearchX as SearchOffOutlined,
+} from '@wso2/oxygen-ui-icons-react';
+import { FadeIn } from '../FadeIn/FadeIn';
+import React, { createElement, ReactNode } from 'react';
 
 interface NoDataFoundProps {
-    message?: string;
-    action?: ReactNode;
-    icon?: ReactNode;
-    subtitle?: string;
+  message?: string;
+  action?: ReactNode;
+  icon?: ReactNode;
+  iconElement?: React.ForwardRefExoticComponent<
+    Omit<LucideProps, 'ref'> & React.RefAttributes<SVGSVGElement>
+  >;
+  subtitle?: string;
+  disableBackground?: boolean;
 }
 
-export function NoDataFound({ 
-    message = "No data found", 
-    action,
-    icon,
-    subtitle
-}: NoDataFoundProps) {    return (
-        <FadeIn>
-            <Box sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100%',
-                color: 'text.secondary',
-                p: 2,
-                gap: 1
-            }}>
-                {icon || (
-                    <Box sx={{ fontSize: 100, mb: 2, opacity: 0.2, display: 'inline-flex' }}>
-                        <SearchOffOutlined size={100} color="primary" />
-                    </Box>
-                )}
-                <Typography variant="h6" align="center" color="textSecondary" sx={{ mb: subtitle ? 1 : 2 }}>
-                    {message}
-                </Typography>
-                {subtitle && (
-                    <Typography variant="body2" align="center" color="textSecondary" sx={{ mb: 2, opacity: 0.7 }}>
-                        {subtitle}
-                    </Typography>
-                )}
-                {action && (
-                    <Box sx={{ mt: 2 }}>
-                        {action}
-                    </Box>
-                )}
-            </Box>
-        </FadeIn>
+export function NoDataFound({
+  message = 'No data found',
+  action,
+  icon,
+  iconElement,
+  subtitle,
+  disableBackground = false,
+}: NoDataFoundProps) {
+  const WrapperComponent = (props: { children: ReactNode }) =>
+    disableBackground ? (
+      <Box
+        sx={{
+          display: 'flex',
+          height: '100%',
+          width: '100%',
+          justifyContent: 'center',
+          alignItems: 'center',
+          flexDirection: 'column',
+          gap: 1,
+          p: 4,
+        }}
+      >
+        {props.children}
+      </Box>
+    ) : (
+      <Paper
+        variant="outlined"
+        elevation={0}
+        sx={{
+          display: 'flex',
+          height: '100%',
+          width: '100%',
+          justifyContent: 'center',
+          alignItems: 'center',
+          flexDirection: 'column',
+          gap: 1,
+          p: 4,
+          '&.MuiPaper-root': {
+            backgroundColor: 'background.default',
+          },
+        }}
+      >
+        {props.children}
+      </Paper>
     );
+  return (
+    <FadeIn>
+      <WrapperComponent>
+        <Box color="secondary.dark">
+          <Typography variant="body2" color="textSecondary">
+            {iconElement
+              ? createElement(iconElement, { size: 100 })
+              : (icon ?? <SearchOffOutlined size={100} />)}
+          </Typography>
+        </Box>
+        <Typography variant="h6">{message}</Typography>
+        {subtitle && (
+          <Typography variant="caption" color="textSecondary" align="center">
+            {subtitle}
+          </Typography>
+        )}
+        {action && <Box sx={{ mt: 2 }}>{action}</Box>}
+      </WrapperComponent>
+    </FadeIn>
+  );
 }

@@ -24,7 +24,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const { authConfig } = globalConfig;
 
   return (
-    <AsgardeoAuthProvider config={authConfig}>
+    <AsgardeoAuthProvider config={authConfig} >
       {children}
     </AsgardeoAuthProvider>
   );

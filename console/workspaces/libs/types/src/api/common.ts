@@ -63,18 +63,22 @@ export interface ErrorResponse {
   additionalData?: Record<string, unknown>;
 }
 
+
 // Common path parameters
-export interface OrgProjPathParams {
-  orgName: string;
-  projName: string;
+export interface OrgPathParams {
+  orgName: string | undefined;
+}
+
+export interface OrgProjPathParams extends OrgPathParams {
+  projName: string | undefined;
 }
 
 export interface AgentPathParams extends OrgProjPathParams {
-  agentName: string;
+  agentName: string | undefined;
 }
 
 export interface BuildPathParams extends AgentPathParams {
-  buildName: string;
+  buildName: string | undefined;
 }
 
 // Resource name generation
@@ -93,7 +97,7 @@ export interface ResourceNameResponse {
 }
 
 export interface GenerateResourceNamePathParams {
-  orgName: string;
+  orgName: string | undefined;
 }
 
 

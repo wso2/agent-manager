@@ -24,7 +24,7 @@ import { absoluteRouteMap, OrgProjPathParams } from '@agent-management-platform/
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { addAgentSchema, type AddAgentFormValues } from './form/schema';
-import { useCreateAgent } from '@agent-management-platform/api-client';
+import { useCreateAgent, useListAgents } from '@agent-management-platform/api-client';
 import { AgentFlowRouter } from './components/AgentFlowRouter';
 import { CreateButtons } from './components/CreateButtons';
 import { useAgentFlow } from './hooks/useAgentFlow';
@@ -57,7 +57,10 @@ export const AddNewAgent: React.FC = () => {
     reValidateMode: 'onChange',
   });
   const { mutate: createAgent, isPending, error } = useCreateAgent();
-
+  const { data: agents} = useListAgents({
+    orgName: orgId ?? 'default',
+    projName: projectId ?? 'default'
+  });
   const params = useMemo<OrgProjPathParams>(() => ({
     orgName: orgId ?? 'default',
     projName: projectId ?? 'default'
@@ -120,19 +123,27 @@ export const AddNewAgent: React.FC = () => {
   }, [selectedOption]);
 
   const { title, description, backable } = pageMetadata;
+  const hasAgents = Boolean(agents?.agents?.length && agents?.agents?.length > 0);
+
+  const backHref = useMemo(() => {
+    if (!hasAgents) {
+      return undefined;
+    }
+
+    const route = backable
+      ? absoluteRouteMap.children.org.children.projects.children.newAgent.path
+      : absoluteRouteMap.children.org.children.projects.path;
+
+    return generatePath(route, {
+      orgId: orgId ?? '',
+      projectId: projectId ?? 'default'
+    });
+  }, [backable, hasAgents, orgId, projectId]);
 
   return (
-    <PageLayout title={title} description={description} disableIcon
-      backHref={backable ?
-        generatePath(
-          absoluteRouteMap.children.org.children.projects.children.newAgent.path,
-          { orgId: orgId ?? '', projectId: projectId ?? 'default' }
-        ) :
-        generatePath(
-          absoluteRouteMap.children.org.children.projects.path,
-          { orgId: orgId ?? '', projectId: projectId ?? 'default' }
-        )
-      }
+    <PageLayout title={title} description={description} 
+    disableIcon
+      backHref={backHref}
       backLabel={backable ? 'Back to Agent Hosting Options' : "Back to Projects Home"}
     >
       <Box display="flex" flexDirection="column" gap={2}>

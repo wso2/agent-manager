@@ -22,19 +22,16 @@ import {
   MenuItem,
   ListItemIcon,
   ListItemText,
-  Box,
   Typography,
   Divider,
   useTheme,
 } from '@wso2/oxygen-ui';
-import { Link as RouterLink } from "react-router-dom"
-
 export interface UserMenuItem {
   label: string;
   icon?: ReactNode;
-  onClick?: () => void;
   href?: string;
   divider?: boolean;
+  onClick?: () => Promise<void>;
 }
 
 export interface User {
@@ -43,8 +40,6 @@ export interface User {
   avatar?: string;
 }
 export interface UserMenuProps {
-  /** User information */
-  user: User;
   /** User menu items */
   userMenuItems: UserMenuItem[];
   /** Menu anchor element */
@@ -56,7 +51,6 @@ export interface UserMenuProps {
 }
 
 export function UserMenu({
-  user,
   userMenuItems,
   anchorEl,
   open,
@@ -64,7 +58,6 @@ export function UserMenu({
 
 }: UserMenuProps) {
   const theme = useTheme();
-
   return (
     <Menu
       id="user-menu"
@@ -81,23 +74,22 @@ export function UserMenu({
         }
       }}
     >
-      {/* User Info Header */}
-      <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-          {user.name}
-        </Typography>
-        {user.email && (
-          <Typography variant="body2" color="text.secondary">
-            {user.email}
-          </Typography>
-        )}
-      </Box>
-
       {/* Menu Items */}
       {userMenuItems.map((item, index) => [
         item.divider && <Divider key={`divider-${index}`} />,
-        <RouterLink key={index} to={item.href ?? ''}>
-          <MenuItem key={index} onClick={item.onClick} >
+          <MenuItem key={index} onClick={async () => {
+            try {
+              await item.onClick?.();
+              if (item.href) {
+                window.location.href = item.href;
+              }
+            } catch (error) {
+              // eslint-disable-next-line no-console
+              console.error('Error executing menu item onClick:', error);
+            } finally {
+              onClose();
+            }
+          }}>
             {item.icon && (
               <ListItemIcon>
                 {item.icon}
@@ -107,8 +99,6 @@ export function UserMenu({
               <Typography variant="body2" color={theme.palette.text.primary}>{item.label}</Typography>
             </ListItemText>
           </MenuItem>
-        </RouterLink>
-
       ]).flat()}
     </Menu>
   );

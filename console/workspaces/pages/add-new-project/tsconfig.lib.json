@@ -8,7 +8,7 @@
     "sourceMap": false,
     "baseUrl": ".",
     "paths": {
-      "@agents-list-page/*": ["./src/*"]
+      "@add-new-agent/*": ["./src/*"]
     },
     "rootDir": "src"
   },
@@ -26,5 +26,3 @@
     "dist"
   ]
 }
-
-

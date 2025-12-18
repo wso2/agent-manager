@@ -14,6 +14,9 @@
     "preview": "vite preview",
     "generate-route": "cd ../../libs/types && npm run generate-route"
   },
+  "scarfSettings": {
+    "enabled": false
+  },
   "dependencies": {
     "react": "19.1.1",
     "react-dom": "19.1.1",
@@ -32,8 +35,8 @@
     "@emotion/styled": "11.13.5",
     "@fontsource/roboto": "5.2.5",
     "react-router-dom": "6.28.0",
-    "@agent-management-platform/agents-list-page": "workspace:*",
     "@agent-management-platform/add-new-agent": "workspace:*",
+    "@agent-management-platform/add-new-project": "workspace:*",
     "@agent-management-platform/shared-component": "workspace:*",
     "yup": "1.4.0",
     "react-hook-form": "7.53.0",
@@ -44,7 +47,8 @@
     "@agent-management-platform/test": "workspace:*",
     "@agent-management-platform/traces": "workspace:*",
     "@wso2/oxygen-ui-icons-react": "0.0.1-alpha.9",
-    "@wso2/oxygen-ui": "0.0.1-alpha.9"
+    "@wso2/oxygen-ui": "0.0.1-alpha.9",
+    "swagger-ui-react": "5.19.0"
   },
   "devDependencies": {
     "@types/node": "24.6.0",
@@ -57,7 +61,8 @@
     "ts-node": "10.9.2",
     "tsx": "4.7.0",
     "typescript": "5.9.3",
-    "vite": "7.1.7"
+    "vite": "7.1.7",
+    "@types/swagger-ui-react": "5.18.0"
   },
   "peerDependencies": {
     "@babel/runtime-corejs3": "7.11.2"

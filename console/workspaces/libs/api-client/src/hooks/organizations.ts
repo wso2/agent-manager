@@ -37,6 +37,7 @@ export function useListOrganizations(
   return useQuery<OrganizationListResponse>({
     queryKey: ['organizations', query],
     queryFn: () => listOrganizations(query, getToken),
+    retry: false,
   });
 }
 
@@ -45,6 +46,7 @@ export function useGetOrganization(params: GetOrganizationPathParams) {
   return useQuery<OrganizationResponse>({
     queryKey: ['organization', params],
     queryFn: () => getOrganization(params, getToken),
+    enabled: !!params.orgName,
   });
 }
 

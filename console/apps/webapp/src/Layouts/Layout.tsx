@@ -53,13 +53,13 @@ export function Layout() {
 
   // Get all projects for the organization
   const { data: projects } = useListProjects({
-    orgName: orgId ?? "",
+    orgName: orgId,
   });
 
   // Get all agents for the project
   const { data: agents } = useListAgents({
-    orgName: orgId ?? "",
-    projName: projectId ?? "",
+    orgName: orgId,
+    projName: projectId,
   });
 
   return (
@@ -68,7 +68,6 @@ export function Layout() {
       user={{
         name: userInfo?.displayName ?? userInfo?.username ?? "",
         email: userInfo?.username ?? userInfo?.orgHandle ?? "",
-        avatar: userInfo?.username ?? "",
       }}
       homePath={homePath}
       topSelectorsProps={[
@@ -102,6 +101,11 @@ export function Layout() {
               generatePath(absoluteRouteMap.children.org.path, { orgId })
             );
           },
+          onCreate: ()=>{
+            navigate(
+              generatePath(absoluteRouteMap.children.org.children.newProject.path, {orgId})
+            )
+          }
         },
         {
           label: "Agent",
@@ -153,7 +157,9 @@ export function Layout() {
           },
         },
       ]}
-      userMenuItems={createUserMenuItems(orgId ?? "", logout)}
+      userMenuItems={createUserMenuItems({ logout: async () => {
+        await logout();
+      } })}
       navigationItems={navigationItems}
     >
       <Box p={1} flexGrow={1}>

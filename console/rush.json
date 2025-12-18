@@ -361,10 +361,6 @@
       "projectFolder": "workspaces/libs/views"
     },
     {
-      "packageName": "@agent-management-platform/agents-list-page",
-      "projectFolder": "workspaces/pages/agent-list"
-    },
-    {
       "packageName": "@agent-management-platform/add-new-agent",
       "projectFolder": "workspaces/pages/add-new-agent"
     },
@@ -395,8 +391,11 @@
     {
       "packageName": "@agent-management-platform/traces",
       "projectFolder": "workspaces/pages/traces"
+    },
+    {
+      "packageName": "@agent-management-platform/add-new-project",
+      "projectFolder": "workspaces/pages/add-new-project"
     }
-    
     // {
     //   /**
     //    * The NPM package name of the project (must match package.json)

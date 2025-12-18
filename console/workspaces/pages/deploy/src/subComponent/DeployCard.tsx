@@ -19,7 +19,12 @@
 import { useListAgentDeployments } from "@agent-management-platform/api-client";
 import { Environment } from "@agent-management-platform/types/dist/api/deployments";
 import { NoDataFound, TextInput } from "@agent-management-platform/views";
-import { Clock, FlaskConical, Rocket, Workflow } from "@wso2/oxygen-ui-icons-react";
+import {
+  Clock,
+  FlaskConical,
+  Rocket,
+  Workflow,
+} from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
 import {
   Box,
@@ -32,7 +37,7 @@ import {
 } from "@wso2/oxygen-ui";
 import {
   EnvStatus,
-  TabStatus,
+  DeploymentStatus,
 } from "@agent-management-platform/shared-component";
 import dayjs from "dayjs";
 import { absoluteRouteMap } from "@agent-management-platform/types";
@@ -47,9 +52,9 @@ export function DeployCard(props: DeployCardProps) {
 
   const { data: deployments, isLoading: isDeploymentsLoading } =
     useListAgentDeployments({
-      orgName: orgId ?? "",
-      projName: projectId ?? "",
-      agentName: agentId ?? "",
+      orgName: orgId,
+      projName: projectId,
+      agentName: agentId,
     });
   const currentDeployment = deployments?.[currentEnvironment.name];
 
@@ -77,7 +82,7 @@ export function DeployCard(props: DeployCardProps) {
     );
   }
 
-  if (!currentDeployment) {
+  if (!currentDeployment || currentDeployment.status === "not-deployed") {
     return (
       <Card
         variant="outlined"
@@ -87,17 +92,24 @@ export function DeployCard(props: DeployCardProps) {
             gap: 2,
             display: "flex",
             width: 350,
-            height: "100%",
-            flexDirection: "column",
           },
+          height: "fit-content",
         }}
       >
         <CardContent>
-          <NoDataFound
-            message="No deployment found"
-            subtitle="Please deploy your agent to get started"
-            icon={<Rocket size={64} />}
-          />
+          <Box
+            display="flex"
+            flexGrow={1}
+            pt={2}
+            justifyContent="center"
+            alignItems="center"
+          >
+            <NoDataFound
+              message="No Deployment found"
+              icon={<Rocket size={32} />}
+              disableBackground
+            />
+          </Box>
         </CardContent>
       </Card>
     );
@@ -122,7 +134,7 @@ export function DeployCard(props: DeployCardProps) {
           <Typography variant="h4">
             {currentEnvironment?.displayName}
           </Typography>
-          <EnvStatus status={currentDeployment?.status as TabStatus} />
+          <EnvStatus status={currentDeployment?.status as DeploymentStatus} />
         </Box>
         <Divider />
         <Box display="flex" flexDirection="row" gap={1} alignItems="center">
@@ -176,7 +188,7 @@ export function DeployCard(props: DeployCardProps) {
           size="small"
           startIcon={<FlaskConical size={16} />}
         >
-          Try out
+          Try It
         </Button>
         <Button
           variant="text"

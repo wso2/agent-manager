@@ -16,22 +16,15 @@
  * under the License.
  */
 
-import React from 'react';
-import { Box } from '@wso2/oxygen-ui';
-import { NoDataFound } from '../../NoDataFound/NoDataFound';
+/// <reference types="vitest" />
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
-export const EmptyState: React.FC = () => {
-  return (
-    <Box 
-      display="flex" 
-      flexDirection="column"
-      justifyContent="center" 
-      alignItems="center" 
-      minHeight={200}
-      gap={2}
-      padding={4}
-    >
-      <NoDataFound message="No data found" />
-    </Box>
-  );
-};
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './setupTests.tsx',
+  },
+});

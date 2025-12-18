@@ -117,7 +117,7 @@ export type DeployAgentPathParams = AgentPathParams;
 export type ListAgentDeploymentsPathParams = AgentPathParams;
 export type GetAgentEndpointsPathParams = AgentPathParams;
 export type GetAgentConfigurationsPathParams = AgentPathParams;
-export type ListEnvironmentsPathParams = { orgName: string };
+export type ListEnvironmentsPathParams = { orgName: string | undefined };
 export type GetDeploymentPipelinePathParams = OrgProjPathParams;
 
 // Query helpers

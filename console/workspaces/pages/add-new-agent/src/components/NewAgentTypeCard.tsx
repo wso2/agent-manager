@@ -18,10 +18,10 @@
 
 import {
   Card,
-  CardActionArea,
   CardContent,
   Box,
   Typography,
+  CardHeader,
 } from "@wso2/oxygen-ui";
 
 interface NewAgentTypeCardProps {
@@ -29,12 +29,11 @@ interface NewAgentTypeCardProps {
   title: string;
   subheader: string;
   icon: React.ReactNode;
-  content: React.ReactNode;
   onClick: (type: string) => void;
 }
 
 export const NewAgentTypeCard = (props: NewAgentTypeCardProps) => {
-  const { type, title, subheader, icon, content, onClick } = props;
+  const { type, title, subheader, icon, onClick } = props;
   const handleClick = () => {
     onClick(type);
   };
@@ -45,57 +44,38 @@ export const NewAgentTypeCard = (props: NewAgentTypeCardProps) => {
       elevation={0}
       sx={{
         width: 450,
+        py: 2,
         transition: "all 0.3s ease-in-out",
+        cursor: "pointer",
         "&.MuiCard-root": {
-          backgroundColor: "background.paper",
-        },
-        "&:hover": {
-          borderColor: "primary.main",
+          backgroundColor: "background.default",
+          "&:hover": {
+            borderColor: "primary.main",
+            boxShadow: theme => theme.shadows[2],
+          },
         },
       }}
+      onClick={handleClick}
     >
-      <CardActionArea
-        onClick={handleClick}
-        sx={{
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-        }}
-      >
-        <CardContent
+      <CardHeader title={
+        <Typography variant="h4" textAlign="center">
+            {title}
+        </Typography>
+      } />
+      <CardContent>
+        <Box
           sx={{
-            flexGrow: 1,
             display: "flex",
-            flexDirection: "column",
-            width: "100%",
-            p: 3,
             justifyContent: "center",
-            alignItems: "center",
+            alignItems: "flex-end",
+            height: 250,
+            mb: 10,
           }}
         >
-          <Typography variant="h4" textAlign="center" gutterBottom>
-            {title}
-          </Typography>
-
-          <Box
-            sx={{
-              color: "primary.main",
-            }}
-          >
-            {icon}
-          </Box>
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            textAlign="center"
-            sx={{ mb: 2 }}
-          >
-            {subheader}
-          </Typography>
-          <Box sx={{ mb: 2 }}>{content}</Box>
-        </CardContent>
-      </CardActionArea>
+          {icon}
+        </Box>
+        <Typography variant="body2" textAlign="center">{subheader}</Typography>
+      </CardContent>
     </Card>
   );
 };

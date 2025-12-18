@@ -72,12 +72,11 @@ function TracesTableSkeleton() {
       sx={{
         display: "flex",
         flexDirection: "column",
-        gap: 1,
+        gap: 0.5,
       }}
     >
-      <Skeleton variant="rectangular" width="100%" height={7} />
       {[...Array(10)].map((_, index) => (
-        <Skeleton key={index} variant="rectangular" width="100%" height={6} />
+        <Skeleton key={index} variant="rectangular" width="100%" height={65} />
       ))}
     </Box>
   );
@@ -335,7 +334,7 @@ export function TracesTable({
 
   return (
     <FadeIn>
-      <Box display="flex" flexDirection="column" gap={2}>
+      <Box display="flex" flexDirection="column" gap={4}>
         <Box display="flex" justifyContent="flex-end" gap={1} width="100%">
           {setTimeRange && (
             <Select
@@ -417,13 +416,12 @@ export function TracesTable({
           </Box>
         )}
         {(rows.length === 0 && !isLoading )&& (
-          <Box p={4}>
             <NoDataFound
               message="No traces found!"
               icon={<Workflow size={32} />}
               subtitle="Try changing the time range"
             />
-          </Box>
+
         )}
       </Box>
     </FadeIn>

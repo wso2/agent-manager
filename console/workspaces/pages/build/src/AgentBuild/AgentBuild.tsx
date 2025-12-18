@@ -27,8 +27,8 @@ import { useGetAgentBuilds } from '@agent-management-platform/api-client';
 
 export function AgentBuildSkeleton() {
   return (
-    <Box display="flex" flexDirection="column" gap={1} pt={1}>
-      <Box display="flex" justifyContent="space-between" gap={2}>
+    <Box display="flex" flexDirection="column" gap={4} pt={1}>
+      <Box display="flex" justifyContent="space-between" gap={4}>
         <Skeleton variant="rounded" width="100%" height={120} />
         <Skeleton variant="rounded" width="100%" height={120} />
         <Skeleton variant="rounded" width="100%" height={120} />
@@ -41,7 +41,7 @@ export function AgentBuildSkeleton() {
 
 export const AgentBuild: React.FC = () => {
   const { agentId, projectId, orgId } = useParams();
-  const { isLoading } = useGetAgentBuilds({ orgName: orgId ?? 'default', projName: projectId ?? 'default', agentName: agentId ?? '' });
+  const { isLoading } = useGetAgentBuilds({ orgName: orgId, projName: projectId, agentName: agentId });
 
   if (isLoading) {
     return <AgentBuildSkeleton />;
@@ -49,7 +49,7 @@ export const AgentBuild: React.FC = () => {
 
   return (
     <FadeIn>
-      <Box gap={2} pt={2} pb={2} display="flex" flexDirection="column">
+      <Box gap={4} pt={2} pb={2} display="flex" flexDirection="column">
         <TopCards />
         <BuildTable />
       </Box>

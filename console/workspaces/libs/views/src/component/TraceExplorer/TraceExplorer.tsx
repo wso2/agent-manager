@@ -39,6 +39,7 @@ import {
   HandCoins,
   List,
   Funnel,
+  XCircle,
 } from '@wso2/oxygen-ui-icons-react';
 import { TraceEntityPreview } from './TraceEntityPreview';
 
@@ -187,7 +188,15 @@ export function TraceExplorer(props: TraceExplorerProps) {
               },
             }}
           >
-            <Box display="flex" pl={1} justifyContent="center" alignItems="center" height="100%" flexDirection="row" gap={1}>
+            <Box
+              display="flex"
+              pl={1}
+              justifyContent="center"
+              alignItems="center"
+              height="100%"
+              flexDirection="row"
+              gap={1}
+            >
               <IconButton
                 disabled={!hasChildren}
                 onClick={(e) => {
@@ -197,8 +206,8 @@ export function TraceExplorer(props: TraceExplorerProps) {
                 }}
                 color="primary"
                 sx={{
-                    height: 'fit-content',
-                    width: 'fit-content',
+                  height: 'fit-content',
+                  width: 'fit-content',
                 }}
               >
                 {hasChildren ? (
@@ -239,6 +248,16 @@ export function TraceExplorer(props: TraceExplorerProps) {
                       size="small"
                       variant="outlined"
                     />
+                    &nbsp;
+                    {span.span.status === '2' && (
+                      <Chip
+                        icon={<XCircle size={16} />}
+                        color="error"
+                        label="Error"
+                        size="small"
+                        variant="outlined"
+                      />
+                    )}
                   </Typography>
                   <Typography variant="caption">
                     id: {span.span.spanId}

@@ -22,6 +22,7 @@ import {
   Box,
   Button,
   Container,
+  Stack,
   Typography,
 } from '@wso2/oxygen-ui';
 import { ReactNode } from 'react';
@@ -55,7 +56,7 @@ export function PageLayout({
       display="flex"
       flexDirection="column"
       overflow="auto"
-      py={disablePadding ? 0 : 1.5}
+      py={disablePadding ? 0 : 3}
       px={disablePadding ? 0 : 3}
       gap={2}
     >
@@ -83,7 +84,7 @@ export function PageLayout({
         <Box display="flex" alignItems="center" gap={2}>
           <Box display="flex" flexDirection="column" gap={2}>
             <FadeIn>
-              <Box display="flex" alignItems="start" justifyContent="start" gap={2}>
+              <Box display="flex" alignItems="center" justifyContent="start" gap={2}>
                 {!disableIcon && (
                   <Avatar
                     variant="rounded"
@@ -105,7 +106,7 @@ export function PageLayout({
                   flexDirection="column"
                   gap={1}
                 >
-                  <Box display="flex" gap={2} alignItems="center">
+                  <Box display="flex" gap={1} alignItems="center">
                     <Typography
                       variant={backHref ? 'h3' : 'h2'}
                     >
@@ -128,9 +129,9 @@ export function PageLayout({
         </Box>
         <Box>{actions && <Box>{actions}</Box>}</Box>
       </Box>
-      <Box flexGrow={1} display="flex" flexDirection="column">
-        <Box gap={2}>{children}</Box>
-      </Box>
+      <Stack pt={2}>
+        {children}
+      </Stack>
     </Box>
   );
 }

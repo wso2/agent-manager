@@ -24,7 +24,7 @@ export const useAuthHooks = () => {
   const { 
       signIn, 
       signOut,
-      getAccessToken,
+      getIDToken,
       getBasicUserInfo, 
       isAuthenticated,
       trySignInSilently,
@@ -52,12 +52,13 @@ export const useAuthHooks = () => {
     signIn();
     refetchIsAuthenticated();
   };
+
   return {
     isAuthenticated: isAuthenticatedState,
     userInfo: userInfo as UserInfo,
     isLoadingUserInfo: isLoadingUserInfo,
     isLoadingIsAuthenticated: isLoadingIsAuthenticated,
-    getToken: () => getAccessToken(),
+    getToken: () => getIDToken(),
     login: () => customLogin(),
     logout: () => signOut(),
     trySignInSilently: () => trySignInSilently(),

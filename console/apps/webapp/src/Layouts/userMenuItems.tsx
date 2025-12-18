@@ -16,17 +16,15 @@
  * under the License.
  */
 
-import { LogOut as LogOutIcon, Settings as SettingsIcon } from '@wso2/oxygen-ui-icons-react';
+import { globalConfig } from "@agent-management-platform/types";
+import { LogOut } from "@wso2/oxygen-ui-icons-react";
 
-export const createUserMenuItems = (orgId: string, logout: () => void) => [
-  {
-    label: 'Settings',
-    href: "/unknown" + orgId,
-    icon: <SettingsIcon fontSize='inherit' />,
-  },
-  {
-    label: 'Logout',
-    onClick: () => logout(),
-    icon: <LogOutIcon fontSize='inherit' />,
-  },
+
+export const createUserMenuItems = ({ logout }: { logout: () => Promise<void> }) => [
+    {
+        label: "Logout",
+        onClick:logout,
+        icon: <LogOut />,
+        href: globalConfig.authConfig.signOutRedirectURL,
+    },
 ];

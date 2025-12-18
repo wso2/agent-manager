@@ -41,8 +41,9 @@ export interface ProjectListResponse extends PaginationMeta {
 }
 
 // Path/Query helpers
-export type ListProjectsPathParams = { orgName: string };
-export type CreateProjectPathParams = { orgName: string };
-export type GetProjectPathParams = { orgName: string; projName: string };
+export type ListProjectsPathParams = { orgName: string | undefined };
+export type CreateProjectPathParams = { orgName: string | undefined };
+export type GetProjectPathParams = { orgName: string | undefined; projName: string | undefined };
 export type ListProjectsQuery = ListQuery;
+export type DeleteProjectPathParams = { orgName: string | undefined; projName: string | undefined };
 

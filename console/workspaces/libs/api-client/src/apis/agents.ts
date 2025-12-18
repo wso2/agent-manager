@@ -75,6 +75,11 @@ export async function getAgent(
   getToken?: () => Promise<string>,
 ): Promise<AgentResponse> {
   const { orgName = "default", projName = "default", agentName } = params;
+  
+  if (!agentName) {
+    throw new Error("agentName is required");
+  }
+  
   const token = getToken ? await getToken() : undefined;
   const url =
     `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}` +
@@ -90,6 +95,11 @@ export async function deleteAgent(
   getToken?: () => Promise<string>,
 ): Promise<void> {
   const { orgName = "default", projName = "default", agentName } = params;
+  
+  if (!agentName) {
+    throw new Error("agentName is required");
+  }
+  
   const token = getToken ? await getToken() : undefined;
   const url =
     `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}` +

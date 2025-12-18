@@ -32,9 +32,9 @@ import { useGetAgent } from "@agent-management-platform/api-client";
 export const AgentTraces: React.FC = () => {
   const { agentId, orgId, projectId, envId } = useParams();
   const { data: agent } = useGetAgent({
-    orgName: orgId ?? "",
-    projName: projectId ?? "",
-    agentName: agentId ?? "",
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
   });
   const [timeRange, setTimeRange] = useState<TraceListTimeRange>(
     TraceListTimeRange.ONE_DAY

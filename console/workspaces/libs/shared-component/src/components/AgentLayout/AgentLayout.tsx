@@ -28,12 +28,15 @@ import { absoluteRouteMap } from "@agent-management-platform/types";
 
 const AgentLayoutSkeleton = () => {
   return (
-    <Box display="flex" flexDirection="column" gap={1} width="100%">
-      <Box display="flex" flexDirection="row" gap={1} alignItems="center">
-        <Skeleton variant="circular" width={50} height={50} />
-        <Skeleton variant="rounded" width={400} height={50} />
+    <Box display="flex" flexDirection="column" p={3} gap={4} width="100%">
+      <Box display="flex" flexDirection="row" gap={2} alignItems="center">
+        <Skeleton variant="rounded" width={70} height={70} />
+        <Box display="flex" gap={2} flexDirection="column">
+        <Skeleton variant="rounded" width={400} height={30} />
+        <Skeleton variant="rounded" width={500} height={20} />
+        </Box>
       </Box>
-      <Skeleton variant="rounded" width="100%" height="80vh" />
+      <Skeleton variant="rounded" width="100%" height="40vh" />
     </Box>
   );
 };
@@ -48,9 +51,9 @@ export interface AgentInfoPageLayoutProps {
 export function AgentInfoPageLayout({ children }: AgentInfoPageLayoutProps) {
   const { orgId, agentId, projectId } = useParams();
   const { data: agent, isLoading: isAgentLoading } = useGetAgent({
-    orgName: orgId ?? "default",
-    projName: projectId ?? "default",
-    agentName: agentId ?? "",
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
   });
   const isOverview = !!useMatch(
     absoluteRouteMap.children.org.children.projects.children.agents.path

@@ -67,7 +67,7 @@ export function useListAgentDeployments(
   return useQuery<DeploymentListResponse>({
     queryKey: ['agent-deployments', params.orgName, params.projName, params.agentName],
     queryFn: () => listAgentDeployments(params, getToken),
-    enabled: options?.enabled ?? true,
+    enabled: options?.enabled ?? (!!params.orgName && !!params.projName && !!params.agentName),
     refetchInterval: (queryState) => {
       // Check if any deployment is in progress
       const hasInProgressDeployment = 
@@ -86,6 +86,7 @@ export function useGetAgentEndpoints(params: GetAgentEndpointsPathParams, query:
   return useQuery<EndpointsResponse>({
     queryKey: ['agent-endpoints', params, query],
     queryFn: () => getAgentEndpoints(params, query, getToken),
+    enabled: !!params.orgName && !!params.projName && !!params.agentName && !!query.environment,
   });
 }
 
@@ -95,6 +96,7 @@ export function useGetAgentConfigurations
   return useQuery<ConfigurationResponse>({
     queryKey: ['agent-configurations', params, query],
     queryFn: () => getAgentConfigurations(params, query, getToken),
+    enabled: !!params.orgName && !!params.projName && !!params.agentName && !!query.environment,
   });
 }
 
@@ -103,6 +105,7 @@ export function useListEnvironments(params: ListEnvironmentsPathParams) {
   return useQuery<EnvironmentListResponse>({
     queryKey: ['environments', params],
     queryFn: () => listEnvironments(params, getToken),
+    enabled: !!params.orgName,
   });
 }
 
@@ -111,6 +114,7 @@ export function useGetDeploymentPipeline(params: GetDeploymentPipelinePathParams
   return useQuery<DeploymentPipelineResponse>({
     queryKey: ['deployment-pipeline', params],
     queryFn: () => getDeploymentPipeline(params, getToken),
+    enabled: !!params.orgName && !!params.projName,
   });
 }
 

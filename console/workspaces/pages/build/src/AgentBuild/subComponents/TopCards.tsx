@@ -127,7 +127,7 @@ function TopCardsSkeleton() {
 export const TopCards: React.FC = (
 ) => {
     const { agentId, projectId, orgId } = useParams();
-    const { data: builds, isLoading } = useGetAgentBuilds({ orgName: orgId ?? 'default', projName: projectId ?? 'default', agentName: agentId ?? '' });
+    const { data: builds, isLoading } = useGetAgentBuilds({ orgName: orgId, projName: projectId, agentName: agentId });
 
     // Latest Build
     const latestBuild = builds?.builds[0];
@@ -146,7 +146,7 @@ export const TopCards: React.FC = (
     return (
         <Box sx={{
             display: 'grid',
-            gap: 2,
+            gap: 4,
             gridTemplateColumns: {
                 xs: '1fr',
                 md: '1fr 1fr',

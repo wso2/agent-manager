@@ -92,6 +92,7 @@ export function MainLayout({
         leftElements={leftElements}
         rightElements={rightElements}
         user={user}
+        disableUserMenu={userMenuItems?.length === 0}
         onSidebarToggle={handleSidebarToggle}
         onUserMenuOpen={handleUserMenuOpen}
         topSelectorsProps={topSelectorsProps}
@@ -106,7 +107,6 @@ export function MainLayout({
         />
         {user && (
           <UserMenu
-            user={user}
             userMenuItems={userMenuItems}
             anchorEl={userMenuAnchor}
             open={Boolean(userMenuAnchor)}

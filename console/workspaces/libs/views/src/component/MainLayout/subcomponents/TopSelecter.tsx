@@ -250,7 +250,7 @@ export function TopSelecter(props: TopSelecterProps) {
             </Box>
           )}
           <Divider />
-          <MenuList>
+          <MenuList >
             {filteredOptions.length > 0 ? (
               filteredOptions.map((option) => (
                 <MenuItem

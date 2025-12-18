@@ -16,14 +16,35 @@
  * under the License.
  */
 
-import { AgentsListPage } from './AgentsListPage';
-import { Users as PeopleOutlined } from "@wso2/oxygen-ui-icons-react";
-import { absoluteRouteMap } from '@agent-management-platform/types';
+import eslintConfig from "@agent-management-platform/eslint-config";
+import { FlatCompat } from "@eslint/eslintrc";
 
-export const metaData = {
-  title: 'Agents',
-  description: 'Agents List Page',
-  icon: PeopleOutlined,
-  path: absoluteRouteMap.children.org.children.projects.path,
-  component: AgentsListPage,
-}
+const compat = new FlatCompat();
+
+export default [
+  ...eslintConfig,
+  ...compat.extends('plugin:storybook/recommended'),
+  {
+    files: [
+      '**/*.ts',
+      '**/*.tsx',
+      '**/*.js',
+      '**/*.jsx',
+      '**/*.mjs',
+      '**/*.cjs'
+    ],
+  },
+  {
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/.rush/**',
+      '**/common/temp/**',
+      '**/coverage/**',
+      '**/.storybook/**',
+      '**/storybook-static/**',
+      "**.config.js",
+      "**.config.cjs"
+    ],
+  }
+]

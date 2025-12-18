@@ -19,15 +19,20 @@
 import { AuthProvider } from "@agent-management-platform/auth";
 import { ClientProvider } from "@agent-management-platform/api-client";
 import { OxygenUIThemeProvider } from "@wso2/oxygen-ui";
+import { ConfirmationDialogProvider } from "@agent-management-platform/shared-component";
 
-export const GlobalProviders = ({ children }: { children: React.ReactNode }) => {
+export const GlobalProviders = ({
+  children,
+}: {
+  children: React.ReactNode;
+}) => {
   return (
-      <OxygenUIThemeProvider  radialBackground>
-        <AuthProvider>
-          <ClientProvider>
-            {children}
-          </ClientProvider>
-        </AuthProvider>
-        </OxygenUIThemeProvider>
+    <OxygenUIThemeProvider radialBackground>
+      <AuthProvider>
+        <ClientProvider>
+          <ConfirmationDialogProvider>{children}</ConfirmationDialogProvider>
+        </ClientProvider>
+      </AuthProvider>
+    </OxygenUIThemeProvider>
   );
 };

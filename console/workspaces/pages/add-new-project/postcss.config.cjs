@@ -3,5 +3,3 @@ module.exports = {
     'postcss-simple-vars': {},
   },
 };
-
-

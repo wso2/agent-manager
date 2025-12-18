@@ -46,9 +46,9 @@ export function BuildCard() {
   const { orgId, projectId, agentId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: builds, isLoading: isBuildsLoading } = useGetAgentBuilds({
-    orgName: orgId ?? "default",
-    projName: projectId ?? "default",
-    agentName: agentId ?? "",
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
   });
 
   // Sort builds by most recent first
@@ -162,7 +162,7 @@ export function BuildCard() {
       >
         <CardContent>
           <Box display="flex" flexGrow={1} pt={2} justifyContent="center" alignItems="center">
-            <NoDataFound message="No builds available" icon={<Rocket size={32} />} />
+            <NoDataFound message="No builds available" icon={<Rocket size={32} />} disableBackground />
           </Box>
         </CardContent>
       </Card>

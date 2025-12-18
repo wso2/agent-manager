@@ -40,12 +40,12 @@ const TypeLine = (props: {
 };
 export function AgentTypeSummery() {
     const { orgId } = useParams<{ orgId: string }>();
-    const { data } = useListAgents({ orgName: orgId ?? 'default', projName: 'default' });    const [externalCount, internalCount] = useMemo(() => {
+    const { data } = useListAgents({ orgName: orgId, projName: 'default' });    const [externalCount, internalCount] = useMemo(() => {
         return [data?.agents?.filter((agent) => agent.provisioning.type === 'external')?.length ?? 0, data?.agents?.filter((agent) => agent.provisioning.type === 'internal')?.length ?? 0];
     }, [data]);
 
     return (
-        <Card variant="outlined" sx={{ minWidth: 360, "&.MuiCard-root": { backgroundColor: "background.paper" } }}>
+        <Card variant="outlined" sx={{ minWidth: 300, flexGrow: 1, "&.MuiCard-root": { backgroundColor: "background.paper" } }}>
             <CardContent>
                 <Box display="flex" flexDirection="column" gap={1.5}>
                     <Typography variant='h6'>

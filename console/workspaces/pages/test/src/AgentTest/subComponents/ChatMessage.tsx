@@ -29,9 +29,9 @@ interface ChatMessageProps {
 export function ChatMessage({ role, content }: ChatMessageProps) {
   const { orgId, projectId, agentId } = useParams();
   const { data: agent } = useGetAgent({
-    orgName: orgId ?? "default",
-    projName: projectId ?? "default",
-    agentName: agentId ?? "default",
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
   });
 
   return (
@@ -44,7 +44,7 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
       <Box
         display="flex"
         gap={1.5}
-        maxWidth="75%"
+        maxWidth={500}
         flexDirection={role === "user" ? "row-reverse" : "row"}
         alignItems="flex-start"
       >
@@ -56,7 +56,7 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
             "& .MuiCardContent-root": {
               minWidth: 300,
               backgroundColor:
-                role === "user" ? "secondary.dark" : "background.paper",
+                role === "user" ? "primary.main" : "background.paper",
             },
           }}
         >

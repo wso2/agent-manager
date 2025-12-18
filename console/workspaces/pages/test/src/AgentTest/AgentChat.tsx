@@ -29,11 +29,7 @@ import { MessageCircle, Send } from "@wso2/oxygen-ui-icons-react";
 import { useGetAgentEndpoints } from "@agent-management-platform/api-client";
 import { useParams } from "react-router-dom";
 import { ChatMessage } from "./subComponents/ChatMessage";
-import { NoDataFound } from "@agent-management-platform/views";
-
-export interface AgentTestProps {
-  defaultBody?: Record<string, unknown>;
-}
+import { FadeIn } from "@agent-management-platform/views";
 
 interface ChatMessage {
   id: string;
@@ -42,15 +38,17 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-export function AgentTest({
-  defaultBody = {
-    thread_id: 123,
-    passenger_id: "2021 652719",
-    question: "Hi, How can you help me?",
-  },
-}: AgentTestProps) {
+
+export function AgentChat() {
   const [endpoint, setEndpoint] = useState("");
   const [message, setMessage] = useState("");
+  const defaultBody = useMemo(() => {
+    return {
+      thread_id: Math.floor(Math.random() * 1000),
+      passenger_id: "2021 652719",
+      question: "Hi, How can you help me?",
+    };
+  }, []);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -58,9 +56,9 @@ export function AgentTest({
   const { agentId, orgId, projectId, envId } = useParams();
   const { data: endpoints } = useGetAgentEndpoints(
     {
-      projName: projectId ?? "",
-      orgName: orgId ?? "",
-      agentName: agentId ?? "",
+      projName: projectId,
+      orgName: orgId,
+      agentName: agentId,
     },
     {
       environment: envId ?? "",
@@ -140,7 +138,7 @@ export function AgentTest({
       } else {
         const responseText =
           typeof responseData?.results === "string"
-            ? responseData.results as string
+            ? (responseData.results as string)
             : JSON.stringify(responseData?.result, null, 4);
 
         const assistantMessage: ChatMessage = {
@@ -177,103 +175,158 @@ export function AgentTest({
     }
   };
 
-  return (
-    <Box
-      display="flex"
-      flexDirection="column"
-      minHeight="calc(100vh - 200px)"
-      width="100%"
-    >
-      {/* Chat Messages Area */}
-      <Box
-        flex={1}
-        overflow="auto"
-        display="flex"
-        flexDirection="column"
-        justifyContent="flex-end"
-        gap={2}
-        p={2}
-        sx={{
-          flexGrow: 1,
-        }}
-      >
-        {messages.length === 0 && (
-          <NoDataFound
-            message="Start a conversation"
-            subtitle="Send a message to begin chatting with the agent"
-            icon={<MessageCircle />}
-          />
-        )}
-
-        {messages.map((msg) => (
-          <ChatMessage
-            key={msg.id}
-            id={msg.id}
-            role={msg.role}
-            content={msg.content}
-          />
-        ))}
-
-        {isLoading && (
-          <Box display="flex" justifyContent="flex-start" width="100%">
-            <Box display="flex" gap={1} alignItems="flex-start">
-              <CircularProgress size={16} />
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ fontSize: "0.875rem" }}
+  if (messages.length === 0) {
+    return (
+      <FadeIn>
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          width="100%"
+          flexDirection="column"
+          minHeight="calc(100vh - 350px)"
+          gap={2}
+        >
+          <Box
+            display="flex"
+            flexDirection="column"
+            gap={1}
+            alignItems="center"
+          >
+            <MessageCircle size={40} />
+            <Typography variant="h5">Start a conversation</Typography>
+            <Typography variant="body2">
+              Send a message to begin chatting with the agent
+            </Typography>
+          </Box>
+          <Box width="100%" maxWidth={600}>
+            <Box
+              width="100%"
+              display="flex"
+              justifyContent="flex-end"
+              alignItems="center"
+              gap={1}
+            >
+              <TextField
+                fullWidth
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type your message..."
+                variant="outlined"
+                disabled={isLoading}
+              />
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleSendMessage}
+                disabled={isLoading || !message.trim()}
+                startIcon={
+                  isLoading ? (
+                    <CircularProgress size={16} />
+                  ) : (
+                    <Send size={16} />
+                  )
+                }
               >
-                Loading...
-              </Typography>
+                {isLoading ? "Sending" : "Send"}
+              </Button>
             </Box>
           </Box>
-        )}
-        <div ref={messagesEndRef} />
-      </Box>
-
-      {/* Error Display */}
-      {error && (
-        <Alert
-          severity="error"
-          onClose={() => setError(null)}
-          sx={{
-            borderRadius: 1,
-          }}
-        >
-          {error}
-        </Alert>
-      )}
-
-      {/* Message Input Area */}
+        </Box>
+      </FadeIn>
+    );
+  }
+  return (
+    <FadeIn>
       <Box
         display="flex"
-        justifyContent="flex-end"
-        alignItems="center"
-        gap={1}
-        pt={2}
+        flexDirection="column"
+        minHeight="calc(100vh - 250px)"
+        width="100%"
       >
-        <TextField
-          fullWidth
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Type your message..."
-          variant="outlined"
-          size="small"
-          disabled={isLoading}
-        />
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={handleSendMessage}
-          disabled={isLoading || !message.trim()}
-          startIcon={
-            isLoading ? <CircularProgress size={16} /> : <Send size={16} />
-          }
+        <Box
+          flex={1}
+          overflow="auto"
+          display="flex"
+          flexDirection="column"
+          justifyContent="flex-end"
+          gap={2}
+          p={2}
+          sx={{
+            flexGrow: 1,
+          }}
         >
-          {isLoading ? "Sending" : "Send"}
-        </Button>
+          {messages.map((msg) => (
+            <ChatMessage
+              key={msg.id}
+              id={msg.id}
+              role={msg.role}
+              content={msg.content}
+            />
+          ))}
+
+          {isLoading && (
+            <Box display="flex" justifyContent="flex-start" width="100%">
+              <Box display="flex" gap={1} alignItems="flex-start">
+                <CircularProgress size={16} />
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ fontSize: "0.875rem" }}
+                >
+                  Loading...
+                </Typography>
+              </Box>
+            </Box>
+          )}
+          <div ref={messagesEndRef} />
+        </Box>
+
+        {/* Error Display */}
+        {error && (
+          <Alert
+            severity="error"
+            onClose={() => setError(null)}
+            sx={{
+              borderRadius: 1,
+            }}
+          >
+            {error}
+          </Alert>
+        )}
+
+        {/* Message Input Area */}
+        <Box
+          display="flex"
+          justifyContent="flex-end"
+          alignItems="center"
+          gap={1}
+          pt={2}
+        >
+          <TextField
+            fullWidth
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type your message..."
+            variant="outlined"
+            size="small"
+            disabled={isLoading}
+          />
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleSendMessage}
+            disabled={isLoading || !message.trim()}
+            startIcon={
+              isLoading ? <CircularProgress size={16} /> : <Send size={16} />
+            }
+          >
+            {isLoading ? "Sending" : "Send"}
+          </Button>
+        </Box>
       </Box>
-    </Box>
+    </FadeIn>
   );
 }

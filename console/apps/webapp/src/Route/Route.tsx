@@ -16,24 +16,28 @@
  * under the License.
  */
 
+import { Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Layout } from "../Layouts";
 import { Protected } from "../Providers/Protected";
 import {
-  addNewAgentPageMetaData,
-  overviewMetadata,
-  testMetadata,
-  tracesMetadata,
-  buildMetadata,
   Login,
-  deploymentMetadata,
+  LazyOverviewOrg,
+  LazyOverviewProject,
+  LazyOverviewComponent,
+  LazyAddNewAgent,
+  LazyAddNewProject,
+  LazyBuildComponent,
+  LazyDeploymentComponent,
+  LazyTestComponent,
+  LazyTracesComponent,
 } from "../pages";
+import { LoadingFallback } from "../components/LoadingFallback";
 import { relativeRouteMap } from "@agent-management-platform/types";
 import {
   AgentInfoPageLayout,
   AgentLayout,
 } from "@agent-management-platform/shared-component";
-import { PageLayout } from "@agent-management-platform/views";
 export function RootRouter() {
   return (
     <BrowserRouter>
@@ -51,15 +55,27 @@ export function RootRouter() {
           }
         >
           <Route path={relativeRouteMap.children.org.path}>
-            <Route index element={<overviewMetadata.levels.organization />} />
+            <Route index element={<LazyOverviewOrg />} />
+            <Route
+              path={relativeRouteMap.children.org.children.newProject.path}
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <LazyAddNewProject />
+                </Suspense>
+              }
+            />
             <Route path={relativeRouteMap.children.org.children.projects.path}>
-              <Route index element={<overviewMetadata.levels.project />} />
+              <Route index element={<LazyOverviewProject />} />
               <Route
                 path={
                   relativeRouteMap.children.org.children.projects.children
                     .newAgent.path + "/*"
                 }
-                element={<addNewAgentPageMetaData.component />}
+                element={
+                  <Suspense fallback={<LoadingFallback />}>
+                    <LazyAddNewAgent />
+                  </Suspense>
+                }
               />
               <Route
                 path={
@@ -72,7 +88,7 @@ export function RootRouter() {
                   index
                   element={
                     <AgentInfoPageLayout>
-                      <overviewMetadata.levels.component />
+                      <LazyOverviewComponent />
                     </AgentInfoPageLayout>
                   }
                 />
@@ -81,47 +97,34 @@ export function RootRouter() {
                     relativeRouteMap.children.org.children.projects.children
                       .agents.children.build.path
                   }
-                  element={
-                    <PageLayout title={buildMetadata.title} disableIcon>
-                      <buildMetadata.levels.component />
-                    </PageLayout>
-                  }
+                  element={<LazyBuildComponent />}
                 />
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
                       .agents.children.deployment.path
                   }
-                  element={
-                    <PageLayout title={deploymentMetadata.title} disableIcon>
-                      <deploymentMetadata.levels.component />
-                    </PageLayout>
-                  }
+                  element={<LazyDeploymentComponent />}
                 />
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
                       .agents.children.observe.path + "/*"
                   }
-                  element={<tracesMetadata.levels.component />}
+                  element={<LazyTracesComponent />}
                 />
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
                       .agents.children.environment.path
                   }
-                  // element={<EnvSubNavBar />}
                 >
                   <Route
                     path={
                       relativeRouteMap.children.org.children.projects.children
-                        .agents.children.environment.children.tryOut.path
+                        .agents.children.environment.children.tryOut.path + "/*"
                     }
-                    element={
-                      <PageLayout title={"Test your agent"} disableIcon>
-                        <testMetadata.levels.component />
-                      </PageLayout>
-                    }
+                    element={<LazyTestComponent />}
                   />
                   <Route
                     path={
@@ -129,13 +132,14 @@ export function RootRouter() {
                         .agents.children.environment.children.observability
                         .path + "/*"
                     }
-                    element={<tracesMetadata.levels.component />}
+                    element={<LazyTracesComponent />}
                   />
                 </Route>
               </Route>
             </Route>
             <Route path="*" element={<div>404 Not Found</div>} />
           </Route>
+          <Route path="*" element={<div>404 Not Found</div>} />
         </Route>
       </Routes>
     </BrowserRouter>

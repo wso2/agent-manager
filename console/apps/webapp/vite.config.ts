@@ -61,13 +61,37 @@ export default defineConfig({
     },
   },
   build: {
-    chunkSizeWarningLimit: 3000, // Increase limit to 3000 kB
+    chunkSizeWarningLimit: 5000, // Set reasonable limit
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          // Keep MUI and Emotion together since MUI v7 depends on Emotion
-          'vendor-mui': ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
+        manualChunks: (id) => {
+          // Split node_modules into separate chunks
+          if (id.includes('node_modules')) {
+            // Agent management platform workspace packages
+            if (id.includes('@agent-management-platform')) {
+              // Extract the package name
+              const match = id.match(/@agent-management-platform\/([^/]+)/);
+              if (match) {
+                const packageName = match[1];
+                // Group related packages
+                if (['overview', 'build', 'deploy', 'test', 'traces'].includes(packageName)) {
+                  return `page-${packageName}`;
+                }
+                if (['add-new-agent', 'add-new-project'].includes(packageName)) {
+                  return `page-create-${packageName}`;
+                }
+                if (['shared-component', 'views', 'types'].includes(packageName)) {
+                  return 'platform-shared';
+                }
+              }
+              return 'vendor-amp-other';
+            }
+            if (id.includes('@wso2/oxygen-ui')) {
+              return 'vendor-oxygen-ui';
+            }
+            // Other vendor libraries
+            return 'vendor-other';
+          }
         },
       },
     },

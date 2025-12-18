@@ -32,27 +32,24 @@ import {
   useGetAgent,
   useListEnvironments,
 } from "@agent-management-platform/api-client";
-import {
-  overviewMetadata,
-  buildMetadata,
-  testMetadata,
-  tracesMetadata,
-  deploymentMetadata,
-} from "../pages";
-// import { useGetAgent } from '@agent-management-platform/api-client';
+import { metaData as overviewMetadata } from "@agent-management-platform/overview";
+import { metaData as buildMetadata } from "@agent-management-platform/build";
+import { metaData as testMetadata } from "@agent-management-platform/test";
+import { metaData as tracesMetadata } from "@agent-management-platform/traces";
+import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
 
 export function useNavigationItems(): Array<
   NavigationSection | NavigationItem
 > {
   const { orgId, projectId, agentId, envId } = useParams();
   const { data: agent, isLoading: isLoadingAgent } = useGetAgent({
-    agentName: agentId ?? "",
-    orgName: orgId ?? "",
-    projName: projectId ?? "",
+    agentName: agentId,
+    orgName: orgId,
+    projName: projectId,
   });
   const { data: environments, isLoading: isLoadingEnvironments } =
     useListEnvironments({
-      orgName: orgId ?? "",
+      orgName: orgId,
     });
   const defaultEnv = envId ?? environments?.[0]?.name;
   const { pathname } = useLocation();
@@ -157,7 +154,7 @@ export function useNavigationItems(): Array<
         icon: <testMetadata.icon  />,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents
-            .children.environment.children.tryOut.path,
+            .children.environment.children.tryOut.wildPath,
           pathname
         ),
         href: generatePath(

@@ -32,7 +32,12 @@
     "build": "rushx clean && tsc -project tsconfig.lib.json && rushx copy-assets",
     "dev": "rushx clean && tsc -project tsconfig.lib.json  --watch && rushx copy-assets"
   },
-  "keywords": ["ai", "agents", "page", "react"],
+  "keywords": [
+    "ai",
+    "agents",
+    "page",
+    "react"
+  ],
   "author": "",
   "license": "Apache-2.0",
   "description": "A page component for Test",
@@ -53,7 +58,8 @@
     "@agent-management-platform/shared-component": "workspace:*",
     "yup": "1.4.0",
     "react-hook-form": "7.53.0",
-    "@hookform/resolvers": "3.9.0"
+    "@hookform/resolvers": "3.9.0",
+    "swagger-ui-react": "5.19.0"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "8.6.13",
@@ -96,7 +102,8 @@
     "eslint-plugin-import": "2.31.0",
     "globals": "16.4.0",
     "@agent-management-platform/eslint-config": "workspace:*",
-    "@eslint/eslintrc": "3.3.1"
+    "@eslint/eslintrc": "3.3.1",
+    "@types/swagger-ui-react": "5.18.0"
   },
   "peerDependencies": {
     "react": "19.1.1",

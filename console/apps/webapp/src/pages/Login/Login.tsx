@@ -20,28 +20,58 @@ import { useAuthHooks } from "@agent-management-platform/auth";
 import { generatePath, Navigate, useLocation } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { Button, Box, Typography } from "@wso2/oxygen-ui";
+import { useEffect } from "react";
+import { FullPageLoader } from "@agent-management-platform/views";
 
 export function Login() {
-    const { isAuthenticated, login, userInfo } = useAuthHooks();
-    const { state } = useLocation();
-    const from = state?.from?.pathname;
-    if (isAuthenticated) {
-        return <Navigate to={from ? from : generatePath(absoluteRouteMap.children.org.path, { orgId: userInfo?.orgHandle ?? '' })} />;
-    }
+  // eslint-disable-next-line max-len
+  const {
+    isAuthenticated,
+    login,
+    userInfo,
+    isLoadingUserInfo,
+    isLoadingIsAuthenticated,
+  } = useAuthHooks();
 
+  const { state } = useLocation();
+  const from = state?.from?.pathname;
+
+  useEffect(() => {
+    if (!isAuthenticated && !isLoadingIsAuthenticated) {
+        login();    
+    }
+  }, [login, isAuthenticated, isLoadingIsAuthenticated]);
+
+  if (isAuthenticated && !isLoadingUserInfo && !isLoadingIsAuthenticated) {
     return (
-        <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" minHeight="100vh">
-            <Typography variant="h4" gutterBottom>
-                Welcome to Agent Management Platform
-            </Typography>
-            <Button 
-                variant="contained" 
-                size="large" 
-                onClick={login}
-                sx={{ mt: 2 }}
-            >
-                Login
-            </Button>
-        </Box>
+      <Navigate
+        to={
+          from
+            ? from
+            : generatePath(absoluteRouteMap.children.org.path, {
+                orgId: userInfo?.orgHandle ?? "default",
+              })
+        }
+      />
     );
+  }
+  if (isLoadingIsAuthenticated || isLoadingUserInfo) {
+    return <FullPageLoader />;
+  }
+  return (
+    <Box
+      display="flex"
+      flexDirection="column"
+      alignItems="center"
+      justifyContent="center"
+      minHeight="100vh"
+    >
+      <Typography variant="h4" gutterBottom>
+        Welcome to Agent Management Platform
+      </Typography>
+      <Button variant="contained" size="large" onClick={login} sx={{ mt: 2 }}>
+        Login
+      </Button>
+    </Box>
+  );
 }

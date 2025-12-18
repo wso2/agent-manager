@@ -16,4 +16,4 @@
  * under the License.
  */
 
-export * from './EnvSubNavBar';
+import '@testing-library/jest-dom';

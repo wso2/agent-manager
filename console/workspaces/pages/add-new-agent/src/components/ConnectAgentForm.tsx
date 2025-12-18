@@ -18,29 +18,11 @@
 
 import { Box, Card, CardContent, Typography } from "@wso2/oxygen-ui";
 import { useFormContext } from "react-hook-form";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo } from "react";
+import { useParams } from "react-router-dom";
+import { debounce } from "lodash";
 import { TextInput } from "@agent-management-platform/views";
-
-// Generate a random 6-character string
-const generateRandomString = (length: number = 6): string => {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-};
-
-// Convert display name to URL-friendly format
-const sanitizeNameForUrl = (displayName: string): string => {
-  return displayName
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "") // Remove special characters
-    .replace(/\s+/g, "-") // Replace spaces with hyphens
-    .replace(/-+/g, "-") // Replace multiple hyphens with single hyphen
-    .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
-};
+import { useGenerateResourceName } from "@agent-management-platform/api-client";
 
 export const ConnectAgentForm = () => {
   const {
@@ -49,36 +31,60 @@ export const ConnectAgentForm = () => {
     watch,
     setValue,
   } = useFormContext();
-  const isNameManuallyEdited = useRef(false);
-  const randomSuffix = useRef<string>("");
+  const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
   const displayName = watch("displayName");
+  
+  const { mutate: generateName } = useGenerateResourceName({
+    orgName: orgId,
+  });
 
-  // Generate random suffix once
-  if (!randomSuffix.current) {
-    randomSuffix.current = generateRandomString(6);
-  }
-
-  // Auto-generate name from display name
-  useEffect(() => {
-    if (displayName && !isNameManuallyEdited.current) {
-      const sanitizedName = sanitizeNameForUrl(displayName);
-      if (sanitizedName) {
-        const generatedName = `${sanitizedName.substring(0, 10)}-${randomSuffix.current}`;
-        setValue("name", generatedName, {
-          shouldValidate: true,
-          shouldDirty: true,
-          shouldTouch: false,
+  // Create debounced function for name generation
+  const debouncedGenerateName = useMemo(
+    () =>
+      debounce((name: string) => {
+        generateName({
+          displayName: name,
+          resourceType: 'agent',
+          projectName: projectId,
+        }, {
+          onSuccess: (data) => {
+            setValue("name", data.name, {
+              shouldValidate: true,
+              shouldDirty: true,
+              shouldTouch: false,
+            });
+          },
+          onError: (error) => {
+            // eslint-disable-next-line no-console
+            console.error('Failed to generate name:', error);
+          }
         });
-      }
-    } else if (!displayName && !isNameManuallyEdited.current) {
+      }, 500), // 500ms delay
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [generateName, setValue, projectId, orgId]
+  );
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      debouncedGenerateName.cancel();
+    };
+  }, [debouncedGenerateName]);
+
+  // Auto-generate name from display name using API with debounce
+  useEffect(() => {
+    if (displayName) {
+      debouncedGenerateName(displayName);
+    } else if (!displayName) {
       // Clear the name field if display name is empty
+      debouncedGenerateName.cancel();
       setValue("name", "", {
         shouldValidate: true,
         shouldDirty: true,
         shouldTouch: false,
       });
     }
-  }, [displayName, setValue]);
+  }, [displayName, setValue, debouncedGenerateName]);
 
   return (
     <Box display="flex" flexDirection="column" gap={2} flexGrow={1}>

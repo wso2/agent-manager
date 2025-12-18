@@ -56,9 +56,8 @@ function TopCardsSkeleton() {
                 lg: '1fr 1fr 1fr'
             }
         }}>
-            <Skeleton variant="rectangular" height={15} />
-            <Skeleton variant="rectangular" height={15} />
-            <Skeleton variant="rectangular" height={15} />
+            <Skeleton variant="rounded" height={120} />
+            <Skeleton variant="rounded" height={120} />
         </Box>
     );
 }
@@ -115,7 +114,7 @@ export const TracesTopCards: React.FC<TracesTopCardsProps> = ({ timeRange }) => 
     return (
         <Box sx={{
             display: 'grid',
-            gap: 2,
+            gap: 4,
             gridTemplateColumns: {
                 xs: '1fr',
                 md: '1fr 1fr',

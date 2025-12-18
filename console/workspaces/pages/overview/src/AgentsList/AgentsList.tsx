@@ -30,18 +30,21 @@ import {
   Skeleton,
   Chip,
   alpha,
+  IconButton,
+  CircularProgress,
 } from "@wso2/oxygen-ui";
 import {
   Clock as AccessTimeRounded,
   Plus as Add,
   Trash2 as DeleteOutlineOutlined,
+  RefreshCcw,
   Search as SearchRounded,
+  User,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   PageLayout,
   DataListingTable,
   TableColumn,
-  BackgoundLoader,
   NoDataFound,
   FadeIn,
   InitialState,
@@ -61,6 +64,7 @@ import {
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { AgentTypeSummery } from "./subComponents/AgentTypeSummery";
+import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 
 dayjs.extend(relativeTime);
 
@@ -73,9 +77,9 @@ export function ListPageSkeleton() {
         justifyContent="space-between"
         gap={2}
       >
-        <Box display="flex" flexDirection="column" gap={2}>
-          <Skeleton variant="rounded" width={100} height={40} />
-          <Skeleton variant="rounded" width={400} height={20} />
+        <Box display="flex" gap={2}>
+          <Skeleton variant="rounded" width={100} height={100} />
+          <Skeleton variant="rounded" width={400} height={100} />
         </Box>
         <Skeleton variant="rounded" height={40} width={150} />
       </Box>
@@ -108,24 +112,31 @@ export const AgentsList: React.FC = () => {
     projectId: string;
   }>();
   const navigate = useNavigate();
-  const { data, isLoading, error, isRefetching } = useListAgents({
-    orgName: orgId ?? "default",
-    projName: projectId ?? "default",
+  const {
+    data,
+    isLoading,
+    error,
+    isRefetching,
+    refetch: refetchAgents,
+  } = useListAgents({
+    orgName: orgId,
+    projName: projectId,
   });
-  const { mutate: deleteAgent } = useDeleteAgent();
+  const { mutate: deleteAgent, isPending: isDeletingAgent } = useDeleteAgent();
   const { data: project, isLoading: isProjectLoading } = useGetProject({
-    orgName: orgId ?? "default",
-    projName: projectId ?? "default",
+    orgName: orgId,
+    projName: projectId,
   });
+  const { addConfirmation } = useConfirmationDialog();
   const handleDeleteAgent = useCallback(
     (agentId: string) => {
       deleteAgent({
-        orgName: orgId ?? "default",
-        projName: "default",
+        orgName: orgId,
+        projName: projectId,
         agentName: agentId,
       });
     },
-    [deleteAgent, orgId]
+    [deleteAgent, orgId, projectId]
   );
 
   const handleRowMouseEnter = useCallback(
@@ -223,19 +234,15 @@ export const AgentsList: React.FC = () => {
                   >
                     {agentInfo.displayName.substring(0, 1).toUpperCase()}
                   </Avatar>
-                  <Box
-                    display="flex"
-                    alignItems="flex-start"
-                    gap={1}
-                  >
+                  <Box display="flex" alignItems="flex-start" gap={1}>
                     <Typography variant="body1">
                       {agentInfo.displayName}
                     </Typography>
                     {row.provisioning.type !== "internal" && (
                       <Chip
-                        label={
-                          displayProvisionTypes((row.provisioning as Provisioning).type)
-                        }
+                        label={displayProvisionTypes(
+                          (row.provisioning as Provisioning).type
+                        )}
                         size="small"
                         variant="outlined"
                       />
@@ -252,7 +259,12 @@ export const AgentsList: React.FC = () => {
           sortable: true,
           width: "30%",
           render: (value) => (
-            <Typography variant="body2" color="text.secondary">
+            <Typography
+              variant="body2"
+              noWrap
+              textOverflow="ellipsis"
+              overflow="hidden"
+            >
               {(value as string).substring(0, 40) +
                 ((value as string).length > 40 ? "..." : "")}
             </Typography>
@@ -288,7 +300,16 @@ export const AgentsList: React.FC = () => {
                         size="small"
                         onClick={(e) => {
                           e.stopPropagation(); // Prevent row click if any
-                          handleDeleteAgent(row.name);
+                          addConfirmation({
+                            title: "Delete Agent?",
+                            description: `Are you sure you want to delete the agent "${row.displayName}"? This action cannot be undone.`,
+                            onConfirm: () => {
+                              handleDeleteAgent(row.name);
+                            },
+                            confirmButtonColor: "error",
+                            confirmButtonIcon: <DeleteOutlineOutlined size={16} />,
+                            confirmButtonText: "Delete",
+                          });
                         }}
                       >
                         Delete
@@ -308,20 +329,36 @@ export const AgentsList: React.FC = () => {
           ),
         },
       ] as TableColumn<AgentWithHref>[],
-    [theme, handleDeleteAgent, hoveredAgentId, isTouchDevice]
+    [
+      theme.palette.primary.main,
+      hoveredAgentId,
+      isTouchDevice,
+      addConfirmation,
+      handleDeleteAgent,
+    ]
   );
 
   // Define initial state for sorting - most recently updated agents first
-  const tableInitialState: InitialState<AgentWithHref> = useMemo(() => ({
-    sorting: {
-      sortModel: [{
-        field: 'createdAt',
-        sort: 'desc'
-      }]
-    }
-  }), []);
+  const tableInitialState: InitialState<AgentWithHref> = useMemo(
+    () => ({
+      sorting: {
+        sortModel: [
+          {
+            field: "createdAt",
+            sort: "desc",
+          },
+        ],
+      },
+    }),
+    []
+  );
 
-  if (isLoading || isProjectLoading) {
+  if (
+    isLoading ||
+    isProjectLoading ||
+    (isRefetching && !data?.agents?.length) ||
+    isDeletingAgent
+  ) {
     return <ListPageSkeleton />;
   }
 
@@ -332,15 +369,39 @@ export const AgentsList: React.FC = () => {
         project?.description ??
         "Manage and monitor all your AI agents across environments"
       }
+      titleTail={
+        <Box
+          display="flex"
+          alignItems="center"
+          minWidth={32}
+          justifyContent="center"
+        >
+          {isRefetching ? (
+            <CircularProgress size={18} color="primary" />
+          ) : (
+            <IconButton
+              size="small"
+              color="primary"
+              onClick={() => refetchAgents()}
+            >
+              <RefreshCcw size={18} />
+            </IconButton>
+          )}
+        </Box>
+      }
     >
-      {isRefetching && <BackgoundLoader />}
-      <Box display="flex" justifyContent="space-between" gap={2} minHeight="calc(100vh - 250px)">
+      <Box
+        display="flex"
+        justifyContent="space-between"
+        gap={4}
+        minHeight="calc(100vh - 250px)"
+      >
         <Box
           sx={{
             display: "flex",
             flexGrow: 1,
             flexDirection: "column",
-            gap: 2,
+            gap: 4,
           }}
         >
           <Box display="flex" justifyContent="flex-end" gap={1}>
@@ -368,7 +429,7 @@ export const AgentsList: React.FC = () => {
                   generatePath(
                     absoluteRouteMap.children.org.children.projects.children
                       .newAgent.path,
-                    { orgId: orgId ?? "", projectId: "default" }
+                    { orgId: orgId ?? "", projectId: projectId ?? "" }
                   )
                 )
               }
@@ -397,41 +458,36 @@ export const AgentsList: React.FC = () => {
                 onRowFocusIn={handleRowMouseEnter}
                 onRowFocusOut={handleRowMouseLeave}
                 onRowClick={(row) => navigate(row?.href)}
+                emptyStateTitle="No agents found"
+                emptyStateDescription="Looks like there are no agents matching your search."
               />
             </Box>
           )}
 
-          {!isLoading && !data?.agents?.length && (
-            <Box
-              sx={{
-                boxShadow: theme.shadows[1],
-                backgroundColor: theme.palette.background.paper,
-                borderRadius: theme.shape.borderRadius,
-                p: 2.5, // 20px equivalent
-              }}
-            >
-              <NoDataFound
-                message="No agents found"
-                action={
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    startIcon={<Add />}
-                    onClick={() =>
-                      navigate(
-                        generatePath(
-                          absoluteRouteMap.children.org.children.projects
-                            .children.newAgent.path,
-                          { orgId: orgId ?? "", projectId: "default" }
-                        )
+          {!isLoading && !data?.agents?.length && !isRefetching && (
+            <NoDataFound
+              message="No agents found"
+              iconElement={User}
+              subtitle="Create a new agent to get started"
+              action={
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<Add />}
+                  onClick={() =>
+                    navigate(
+                      generatePath(
+                        absoluteRouteMap.children.org.children.projects.children
+                          .newAgent.path,
+                        { orgId: orgId ?? "", projectId: projectId ?? "" }
                       )
-                    }
-                  >
-                    Add New Agent
-                  </Button>
-                }
-              />
-            </Box>
+                    )
+                  }
+                >
+                  Add New Agent
+                </Button>
+              }
+            />
           )}
         </Box>
         <Box>

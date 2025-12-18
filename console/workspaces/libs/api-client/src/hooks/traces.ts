@@ -52,6 +52,7 @@ export function useTraceList(
             return [];
         }
     },
+    enabled: !!orgName && !!projName && !!agentName && !!envId,
   });
 }
 
@@ -80,5 +81,6 @@ export function useTrace(
             return null;
         }
     },
+    enabled: !!orgName && !!projName && !!agentName && !!envId && !!traceId,
   });
 }

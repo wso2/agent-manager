@@ -57,7 +57,7 @@ export const EnvironmentVariable = () => {
                     color="primary"
                     onClick={() => append({ key: '', value: '' })}
                 >
-                    Add Environment Variable
+                    Add
                 </Button>
             </Box>
         </Box>
