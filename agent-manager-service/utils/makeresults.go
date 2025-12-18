@@ -45,7 +45,7 @@ func ConvertToAgentResponse(component *models.AgentResponse) spec.AgentResponse 
 
 func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentResponse {
 	return spec.AgentResponse{
-		Uuid: component.Uuid,
+		Uuid: component.UUID,
 		Name:        component.Name,
 		DisplayName: component.DisplayName,
 		Description: component.Description,
@@ -72,7 +72,7 @@ func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentR
 
 func convertToExternalAgentResponse(component *models.AgentResponse) spec.AgentResponse {
 	return spec.AgentResponse{
-		Uuid:  component.Uuid,
+		Uuid:  component.UUID,
 		Name:        component.Name,
 		DisplayName: component.DisplayName,
 		Description: component.Description,

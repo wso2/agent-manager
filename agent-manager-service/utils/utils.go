@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"os"
 	"regexp"
 	"strings"
 
@@ -370,18 +369,4 @@ func GenerateUniqueNameWithSuffix(baseName string, checker NameChecker) (string,
 	}
 
 	return "", fmt.Errorf("failed to generate unique name after %d attempts", MaxNameGenerationAttempts)
-}
-
-// ReadChatAPISchema reads the OpenAPI schema for chat API from the docs directory
-func ReadChatAPISchema() (string, error) {
-	// Get the schema file path relative to the project root
-	schemaPath := "clients/openchoreosvc/default-openapi-schema.yaml"
-
-	// Read the file content
-	content, err := os.ReadFile(schemaPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read chat API schema: %w", err)
-	}
-
-	return string(content), nil
 }

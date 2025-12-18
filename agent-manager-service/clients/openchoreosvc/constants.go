@@ -25,7 +25,7 @@ const (
 	LabelKeyEnvironmentName      LabelKeys = "openchoreo.dev/environment"
 	LabelKeyAgentSubType         LabelKeys = "openchoreo.dev/agent-sub-type"
 	LabelKeyAgentLanguage        LabelKeys = "openchoreo.dev/agent-language"
-	LabelKeyAgentLanguageVersion LabelKeys = "opechoreo.dev/agent-language-version"
+	LabelKeyAgentLanguageVersion LabelKeys = "openchoreo.dev/agent-language-version"
 	LabelKeyProvisioningType     LabelKeys = "openchoreo.dev/provisioning-type"
 )
 

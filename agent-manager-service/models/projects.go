@@ -23,7 +23,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// API Response DTO“
+// API Response DTO
 type ProjectResponse struct {
 	UUID               string    `json:"uuid"`
 	Name               string    `json:"name"`

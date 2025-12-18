@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
@@ -59,6 +60,9 @@ func createMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
 				DeploymentPipeline: "test-pipeline",
 				CreatedAt:          time.Now(),
 			}, nil
+		},
+		GetAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agentName string) (*openchoreosvc.AgentComponent, error) {
+			return nil, utils.ErrAgentNotFound
 		},
 		IsAgentComponentExistsFunc: func(ctx context.Context, orgName string, projName string, agentName string) (bool, error) {
 			return false, nil
@@ -612,11 +616,12 @@ func TestCreateAgent(t *testing.T) {
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
 				mock := createMockOpenChoreoClient()
-				mock.IsAgentComponentExistsFunc = func(ctx context.Context, orgName string, projName string, agentName string) (bool, error) {
-					return true, nil
-				}
-				mock.CreateAgentComponentFunc = func(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error {
-					return utils.ErrAgentAlreadyExists
+				mock.GetAgentComponentFunc = func(ctx context.Context, orgName string, projName string, agentName string) (*openchoreosvc.AgentComponent, error) {
+					// Return an existing agent component
+					return &openchoreosvc.AgentComponent{
+						Name:        agentName,
+						ProjectName: projName,
+					}, nil
 				}
 				return mock
 			},

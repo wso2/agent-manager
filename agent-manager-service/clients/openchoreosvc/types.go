@@ -53,7 +53,7 @@ type AgentComponent struct {
 
 type AgentType struct {
 	Type    string `json:"type"`
-	SubType string `json:"subType"`
+	SubType string `json:"subType,omitempty"`
 }
 type Provisioning struct {
 	Type       string     `json:"type"`

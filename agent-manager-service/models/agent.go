@@ -25,7 +25,7 @@ import (
 
 // API Response DTO
 type AgentResponse struct {
-	Uuid 		 string	   `json:"uid"`
+	UUID         string       `json:"uuid"`
 	Name         string       `json:"name"`
 	DisplayName  string       `json:"displayName,omitempty"`
 	Description  string       `json:"description,omitempty"`
@@ -41,7 +41,7 @@ type AgentType struct {
 	// Type of the agent
 	Type string `json:"type"`
 	// Sub-type of the agent
-	SubType string `json:"subType"`
+	SubType string `json:"subType,omitempty"`
 }
 
 type Provisioning struct {

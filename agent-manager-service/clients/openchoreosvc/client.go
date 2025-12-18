@@ -210,7 +210,7 @@ func (k *openChoreoSvcClient) GetAgentComponent(ctx context.Context, orgName str
 		if client.IgnoreNotFound(err) == nil {
 			return nil, utils.ErrAgentNotFound
 		}
-		return nil, fmt.Errorf("failed to get component: %w", err)
+		return nil, fmt.Errorf("failed to get agent component: %w", err)
 	}
 	// Verify that the component belongs to the specified project
 	if component.Spec.Owner.ProjectName != projName {
@@ -226,16 +226,16 @@ func (k *openChoreoSvcClient) AttachComponentTrait(ctx context.Context, orgName 
 	}
 	pipelineName := openChoreoProject.DeploymentPipeline
 	if pipelineName == "" {
-		return fmt.Errorf("fa")
+		return fmt.Errorf("failed to attach trait: project %s does not have a deployment pipeline configured", projName)
 	}
 	pipeline, err := k.GetDeploymentPipeline(ctx, orgName, pipelineName)
 	if err != nil {
-		return fmt.Errorf("failed to fetch deployment pipeline: %w", err)
+		return fmt.Errorf("failed to get deployment pipeline for trait attachment: %w", err)
 	}
 	lowestEnvName := findLowestEnvironment(pipeline.PromotionPaths)
 	openChoreoEnv, err := k.GetEnvironment(ctx, orgName, lowestEnvName)
 	if err != nil {
-		return fmt.Errorf("")
+		return fmt.Errorf("failed to get environment for trait attachment: %w", err)
 	}
 	component := &v1alpha1.Component{}
 	key := client.ObjectKey{
@@ -280,6 +280,15 @@ func (k *openChoreoSvcClient) CreateAgentComponent(ctx context.Context, orgName 
 		}
 	} else {
 		componentCR, err = createComponentCRForInternalAgents(orgName, projName, req)
+		if err != nil {
+			return fmt.Errorf("failed to create component CR for internal agents: %w", err)
+		}
+		err = k.retryK8sOperation(ctx, "CreateComponent", func() error {
+			return k.client.Create(ctx, componentCR)
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create component: %w", err)
+		}
 		// Add OpenTelemetry instrumentation trait for Python agents
 		if req.AgentType.Type == string(utils.AgentTypeAPI) && req.RuntimeConfigs.Language == string(utils.LanguagePython) {
 			err := k.AttachComponentTrait(ctx, orgName, projName, req.Name)
@@ -287,16 +296,8 @@ func (k *openChoreoSvcClient) CreateAgentComponent(ctx context.Context, orgName 
 				return fmt.Errorf("error attaching OTEL instrumentation trait: %w", err)
 			}
 		}
-		if err != nil {
-			return fmt.Errorf("failed to create component CR for internal agents: %w", err)
-		}
 	}
-	err = k.retryK8sOperation(ctx, "CreateComponent", func() error {
-		return k.client.Create(ctx, componentCR)
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create component: %w", err)
-	}
+	
 	return nil
 }
 

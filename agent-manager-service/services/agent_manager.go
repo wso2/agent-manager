@@ -168,24 +168,29 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, userIdpId uuid.UU
 		}
 		return fmt.Errorf("failed to find organization %s: %w", orgName, err)
 	}
-	// Validates the project name by checking its existence
+	// Validate project exists in OpenChoreo
+	_, err = s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
+	if err != nil {
+		s.logger.Error("Failed to find project", "projectName", projectName, "orgId", org.ID, "error", err)
+		return err
+	}
+	// Check if agent already exists
+	agent, err := s.OpenChoreoSvcClient.GetAgentComponent(ctx, orgName, projectName, req.Name)
+	if err != nil && err != utils.ErrAgentNotFound {
+		s.logger.Error("Failed to check existing agents", "agentName", req.Name, "orgId", org.ID, "project", projectName, "error", err)
+		return fmt.Errorf("failed to check existing agents: %w", err)
+	}
+	if agent != nil {
+		s.logger.Warn("Agent already exists", "agentName", req.Name, "orgId", org.ID, "project", projectName)
+		return utils.ErrAgentAlreadyExists
+	}
 	project, err := s.ProjectRepository.GetProjectByName(ctx, org.ID, projectName)
 	if err != nil {
 		s.logger.Error("Failed to find project", "projectName", projectName, "orgId", org.ID, "error", err)
 		if db.IsRecordNotFoundError(err) {
 			return utils.ErrProjectNotFound
 		}
-		return fmt.Errorf("failed to find project %s: %w", projectName, err)
-	}
-	// Check if agent already exists
-	agent, err := s.AgentRepository.GetAgentByName(ctx, org.ID, project.ID, req.Name)
-	if err != nil && !db.IsRecordNotFoundError(err) {
-		s.logger.Error("Failed to check existing agents", "agentName", req.Name, "orgId", org.ID, "projectId", project.ID, "error", err)
-		return fmt.Errorf("failed to check existing agents: %w", err)
-	}
-	if agent != nil {
-		s.logger.Warn("Agent already exists", "agentName", req.Name, "orgId", org.ID, "projectId", project.ID)
-		return utils.ErrAgentAlreadyExists
+		return err
 	}
 	// Save agent record in database first
 	err = s.saveAgentRecord(ctx, org.ID, project.ID, req)
@@ -946,7 +951,7 @@ func (s *agentManagerService) GetAgentConfigurations(ctx context.Context, userId
 
 func (s *agentManagerService) convertToAgentListItem(agent *clients.AgentComponent) *models.AgentResponse {
 	response := &models.AgentResponse{
-		Uuid: agent.UUID,
+		UUID: agent.UUID,
 		Name:        agent.Name,
 		DisplayName: agent.DisplayName,
 		Description: agent.Description,
@@ -967,7 +972,7 @@ func (s *agentManagerService) convertToAgentListItem(agent *clients.AgentCompone
 // convertToExternalAgentResponse converts a database Agent model to AgentResponse for external agents
 func (s *agentManagerService) convertExternalAgentToAgentResponse(ocAgentComponent *clients.AgentComponent) *models.AgentResponse {
 	return &models.AgentResponse{
-		Uuid: ocAgentComponent.UUID,
+		UUID: ocAgentComponent.UUID,
 		Name:        ocAgentComponent.Name,
 		DisplayName: ocAgentComponent.DisplayName,
 		Description: ocAgentComponent.Description,
@@ -985,7 +990,7 @@ func (s *agentManagerService) convertExternalAgentToAgentResponse(ocAgentCompone
 // convertToManagedAgentResponse converts an OpenChoreo AgentComponent to AgentResponse for managed agents
 func (s *agentManagerService) convertManagedAgentToAgentResponse(ocAgentComponent *clients.AgentComponent) *models.AgentResponse {
 	return &models.AgentResponse{
-		Uuid: ocAgentComponent.UUID,
+		UUID: ocAgentComponent.UUID,
 		Name:        ocAgentComponent.Name,
 		DisplayName: ocAgentComponent.DisplayName,
 		Description: ocAgentComponent.Description,
@@ -1015,8 +1020,8 @@ func buildWorkloadSpec(req *spec.CreateAgentRequest) (map[string]interface{}, er
 
 	if req.AgentType.Type == string(utils.AgentTypeAPI) &&
 		utils.StrPointerAsStr(req.AgentType.SubType, "") == string(utils.AgentSubTypeChatAPI) {
-		// Read OpenAPI schema from file
-		schemaContent, err := utils.ReadChatAPISchema()
+		// Read OpenAPI schema from embedded file
+		schemaContent, err := clients.GetDefaultChatAPISchema()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read Chat API schema: %w", err)
 		}

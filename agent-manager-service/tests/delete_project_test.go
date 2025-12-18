@@ -83,7 +83,7 @@ func TestDeleteProject(t *testing.T) {
 		require.Equal(t, testDeleteProjectProjName, deleteCall.ProjectName)
 	})
 
-	t.Run("Deleting a project with agents should return 500", func(t *testing.T) {
+	t.Run("Deleting a project with agents should return 409", func(t *testing.T) {
 		openChoreoClient := createMockOpenChoreoClientForProjectDelete()
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
@@ -99,7 +99,7 @@ func TestDeleteProject(t *testing.T) {
 		app.ServeHTTP(rr, req)
 
 		// Assert response
-		require.Equal(t, http.StatusInternalServerError, rr.Code)
+		require.Equal(t, http.StatusConflict, rr.Code)
 
 		// Validate that OpenChoreo delete was NOT called
 		require.Len(t, openChoreoClient.DeleteProjectCalls(), 0)
