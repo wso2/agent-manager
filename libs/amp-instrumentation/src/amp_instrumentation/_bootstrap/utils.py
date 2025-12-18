@@ -41,7 +41,13 @@ def transform_resource_attributes(resource_attributes):
     for attr in resource_attributes.split(","):
         if "=" in attr:
             key, value = attr.split("=", 1)
-            attrs_dict[key.strip()] = value.strip()
+            key = key.strip()
+            value = value.strip()
+            if not value:
+                raise ValueError(
+                    f"Empty value for attribute '{key}' in AMP_TRACE_ATTRIBUTES"
+                )
+            attrs_dict[key] = value
 
     # Check for missing attributes
     missing_attrs = [attr for attr in required_attrs if attr not in attrs_dict]
