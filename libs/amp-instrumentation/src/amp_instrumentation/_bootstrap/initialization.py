@@ -131,15 +131,15 @@ def initialize_instrumentation() -> None:
 
         except ConfigurationError as e:
             logger.error(f"Configuration error: {e}")
-            raise
+            # Do not raise - allow application to continue without instrumentation
 
         except ImportError as e:
             logger.error(f"Failed to import traceloop-sdk: {e}.")
-            raise
+            # Do not raise - allow application to continue without instrumentation
 
         except Exception as e:
-            logger.error(
-                f"Unexpected error during instrumentation initialization: {e}",
-                exc_info=True,
+            logger.exception(
+                f"Unexpected error during instrumentation initialization: {e}"
             )
-            raise
+
+            # Do not raise - allow application to continue without instrumentation
