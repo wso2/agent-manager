@@ -18,6 +18,10 @@ inputs:
   tag:
     description: 'Image tag (usually release tag)'
     required: true
+  build-args:
+    description: 'Build arguments (multiline string, one per line)'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -30,6 +34,7 @@ runs:
         push: true
         platforms: linux/amd64,linux/arm64
         tags: ${{ inputs.registry }}/${{ inputs.registry-org }}/${{ inputs.image-name }}:${{ inputs.tag }}
+        build-args: ${{ inputs.build-args }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
