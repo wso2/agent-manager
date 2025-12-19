@@ -20,6 +20,7 @@ var _ MappedNullable = &ProjectResponse{}
 
 // ProjectResponse struct for ProjectResponse
 type ProjectResponse struct {
+	Uuid string `json:"uuid"`
 	// Name of the project
 	Name string `json:"name"`
 	// Name of the organization
@@ -38,8 +39,9 @@ type ProjectResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewProjectResponse(name string, orgName string, displayName string, description string, deploymentPipeline string, createdAt time.Time) *ProjectResponse {
+func NewProjectResponse(uuid string, name string, orgName string, displayName string, description string, deploymentPipeline string, createdAt time.Time) *ProjectResponse {
 	this := ProjectResponse{}
+	this.Uuid = uuid
 	this.Name = name
 	this.OrgName = orgName
 	this.DisplayName = displayName
@@ -55,6 +57,30 @@ func NewProjectResponse(name string, orgName string, displayName string, descrip
 func NewProjectResponseWithDefaults() *ProjectResponse {
 	this := ProjectResponse{}
 	return &this
+}
+
+// GetUuid returns the Uuid field value
+func (o *ProjectResponse) GetUuid() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Uuid
+}
+
+// GetUuidOk returns a tuple with the Uuid field value
+// and a boolean to check if the value has been set.
+func (o *ProjectResponse) GetUuidOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Uuid, true
+}
+
+// SetUuid sets field value
+func (o *ProjectResponse) SetUuid(v string) {
+	o.Uuid = v
 }
 
 // GetName returns the Name field value
@@ -211,6 +237,7 @@ func (o ProjectResponse) MarshalJSON() ([]byte, error) {
 
 func (o ProjectResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
+	toSerialize["uuid"] = o.Uuid
 	toSerialize["name"] = o.Name
 	toSerialize["orgName"] = o.OrgName
 	toSerialize["displayName"] = o.DisplayName

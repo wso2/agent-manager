@@ -14,28 +14,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package dbmigrations
+package openchoreosvc
 
 import (
-	"gorm.io/gorm"
+	_ "embed"
+	"fmt"
 )
 
-// create table internal_agents
-var migration007 = migration{
-	ID: 7,
-	Migrate: func(db *gorm.DB) error {
-		createTable := `CREATE TABLE internal_agents
-(
-   id            UUID PRIMARY KEY,
-   workload_spec    JSONB,
-   CONSTRAINT fk_internal_agents_id FOREIGN KEY (id) REFERENCES agents(id) ON DELETE CASCADE
-)`
+//go:embed default-openapi-schema.yaml
+var defaultChatAPISchema string
 
-		return db.Transaction(func(tx *gorm.DB) error {
-			if err := runSQL(tx, createTable); err != nil {
-				return err
-			}
-			return nil
-		})
-	},
+// GetDefaultChatAPISchema returns the embedded default OpenAPI schema for chat API
+func GetDefaultChatAPISchema() (string, error) {
+	if defaultChatAPISchema == "" {
+		return "", fmt.Errorf("failed to read chat API schema: embedded schema is empty")
+	}
+	return defaultChatAPISchema, nil
 }

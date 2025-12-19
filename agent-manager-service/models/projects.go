@@ -25,6 +25,7 @@ import (
 
 // API Response DTO
 type ProjectResponse struct {
+	UUID               string    `json:"uuid"`
 	Name               string    `json:"name"`
 	OrgName            string    `json:"orgName"`
 	DisplayName        string    `json:"displayName,omitempty"`

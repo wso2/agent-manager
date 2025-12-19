@@ -16,6 +16,7 @@ spec:
       otelEndpoint: "string | description='OpenTelemetry collector endpoint URL'"
       isTraceContentEnabled: 'string | default="true" description=''Flag to enable or disable tracing of content'''
       agentApiKey: "string | default='' description='API key for authenticating with the agent service'"
+      traceAttributes: "string | description='Comma-separated resource attributes for tracing (e.g., organization=org1,project=proj1,environment=prod)'"
 
   # Patches to modify the Deployment resource
   patches:
@@ -71,6 +72,11 @@ spec:
           value:
             name: AMP_AGENT_API_KEY
             value: "${parameters.agentApiKey}"
+        - op: add
+          path: /spec/template/spec/containers/0/env/-
+          value:
+            name: AMP_TRACE_ATTRIBUTES
+            value: "${parameters.traceAttributes}"
         - op: add
           path: /spec/template/spec/containers/0/env/-
           value:

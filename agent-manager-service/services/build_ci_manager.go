@@ -108,7 +108,7 @@ func (b *buildCIManagerService) HandleBuildCallback(ctx context.Context, orgName
 // buildWorkloadCRTemplate constructs a Workload CR object with placeholders and converts to YAML string
 // IMAGE_TAG - placeholder for the actual container image
 // SCHEMA_CONTENT - placeholder for the OpenAPI schema content (if applicable)
-func buildWorkloadCRTemplate(workloadSpec map[string]interface{}, orgName, projectName, componentName string) (string,error) {
+func buildWorkloadCRTemplate(workloadSpec map[string]interface{}, orgName, projectName, componentName string) (string, error) {
 	// Build environment variables
 	envVars, err := buildEnvVars(workloadSpec)
 	if err != nil {
@@ -225,7 +225,7 @@ func buildEndpoints(workloadSpec map[string]interface{}) (map[string]v1alpha1.Wo
 		// Check if schema content or schema path is provided
 		schemaContent, hasSchemaContent := endpoint["schemaContent"].(string)
 		schemaPath, hasSchemaPath := endpoint["schemaPath"].(string)
-		
+
 		// If schema content exists or schema path exists, use placeholder
 		if hasSchemaContent && schemaContent != "" {
 			workloadEndpoint.Schema = &v1alpha1.Schema{

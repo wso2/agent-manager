@@ -25,6 +25,7 @@ import (
 
 // API Response DTO
 type AgentResponse struct {
+	UUID         string       `json:"uuid"`
 	Name         string       `json:"name"`
 	DisplayName  string       `json:"displayName,omitempty"`
 	Description  string       `json:"description,omitempty"`
@@ -32,7 +33,7 @@ type AgentResponse struct {
 	CreatedAt    time.Time    `json:"createdAt"`
 	Status       string       `json:"status,omitempty"`
 	Provisioning Provisioning `json:"provisioning,omitempty"`
-	Type    AgentType    `json:"type,omitempty"`
+	Type         AgentType    `json:"type,omitempty"`
 	Language     string       `json:"language,omitempty"`
 }
 
@@ -40,7 +41,7 @@ type AgentType struct {
 	// Type of the agent
 	Type string `json:"type"`
 	// Sub-type of the agent
-	SubType string `json:"subType"`
+	SubType string `json:"subType,omitempty"`
 }
 
 type Provisioning struct {
@@ -71,8 +72,5 @@ type Agent struct {
 
 type InternalAgent struct {
 	ID           uuid.UUID              `gorm:"column:id;primaryKey"`
-	AgentType    string                 `gorm:"column:agent_type"`
-	AgentSubType string                 `gorm:"column:agent_subtype"`
-	Language     string                 `gorm:"column:language"`
 	WorkloadSpec map[string]interface{} `gorm:"column:workload_spec;type:jsonb;serializer:json"`
 }

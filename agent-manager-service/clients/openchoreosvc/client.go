@@ -19,7 +19,6 @@ package openchoreosvc
 import (
 	"context"
 	"fmt"
-	"log"
 	"regexp"
 	"sort"
 	"time"
@@ -52,6 +51,7 @@ type KubernetesConfigData struct {
 
 type OpenChoreoSvcClient interface {
 	CreateAgentComponent(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error
+	AttachComponentTrait(ctx context.Context, orgName string, projName string, agentName string) error
 	TriggerBuild(ctx context.Context, orgName string, projName string, agentName string, commitId string) (*models.BuildResponse, error)
 	GetProject(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error)
 	ListOrgEnvironments(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error)
@@ -62,6 +62,7 @@ type OpenChoreoSvcClient interface {
 	GetDeploymentPipeline(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error)
 	CreateProject(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string, projectDescription string) error
 	GetAgentComponent(ctx context.Context, orgName string, projName string, agentName string) (*AgentComponent, error)
+	ListAgentComponents(ctx context.Context, orgName string, projName string) ([]*AgentComponent, error)
 	DeleteAgentComponent(ctx context.Context, orgName string, projName string, agentName string) error
 	DeployAgentComponent(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error
 	ListComponentWorkflows(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error)
@@ -140,6 +141,7 @@ func (k *openChoreoSvcClient) GetProject(ctx context.Context, projectName string
 		return nil, fmt.Errorf("failed to get project: %w", err)
 	}
 	return &models.ProjectResponse{
+		UUID:               string(project.UID),
 		Name:               project.Name,
 		OrgName:            project.Namespace,
 		DisplayName:        project.Annotations[string(AnnotationKeyDisplayName)],
@@ -147,6 +149,28 @@ func (k *openChoreoSvcClient) GetProject(ctx context.Context, projectName string
 		CreatedAt:          project.CreationTimestamp.Time,
 		DeploymentPipeline: project.Spec.DeploymentPipelineRef,
 	}, nil
+}
+
+func (k *openChoreoSvcClient) ListAgentComponents(ctx context.Context, orgName string, projName string) ([]*AgentComponent, error) {
+	componentList := &v1alpha1.ComponentList{}
+	err := k.retryK8sOperation(ctx, "ListComponents", func() error {
+		return k.client.List(ctx, componentList, client.InNamespace(orgName))
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list components: %w", err)
+	}
+	var agentComponents []*AgentComponent
+	for i := range componentList.Items {
+		component := &componentList.Items[i]
+		if component.Spec.Owner.ProjectName == projName {
+			agentComponents = append(agentComponents, toComponentResponse(component))
+		}
+	}
+	// Sort components by creation time descending
+	sort.SliceStable(agentComponents, func(i, j int) bool {
+		return agentComponents[i].CreatedAt.After(agentComponents[j].CreatedAt)
+	})
+	return agentComponents, nil
 }
 
 func (k *openChoreoSvcClient) IsAgentComponentExists(ctx context.Context, orgName string, projName string, agentName string) (bool, error) {
@@ -186,7 +210,7 @@ func (k *openChoreoSvcClient) GetAgentComponent(ctx context.Context, orgName str
 		if client.IgnoreNotFound(err) == nil {
 			return nil, utils.ErrAgentNotFound
 		}
-		return nil, fmt.Errorf("failed to get component: %w", err)
+		return nil, fmt.Errorf("failed to get agent component: %w", err)
 	}
 	// Verify that the component belongs to the specified project
 	if component.Spec.Owner.ProjectName != projName {
@@ -195,17 +219,91 @@ func (k *openChoreoSvcClient) GetAgentComponent(ctx context.Context, orgName str
 	return toComponentResponse(component), nil
 }
 
-func (k *openChoreoSvcClient) CreateAgentComponent(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error {
-	componentCR, err := createComponentCR(orgName, projName, req)
+func (k *openChoreoSvcClient) AttachComponentTrait(ctx context.Context, orgName string, projName string, agentName string) error {
+	openChoreoProject, err := k.GetProject(ctx, projName, orgName)
 	if err != nil {
-		return fmt.Errorf("failed to create component CR: %w", err)
+		return fmt.Errorf("failed to get project for trait attachment: %w", err)
 	}
-	err = k.retryK8sOperation(ctx, "CreateComponent", func() error {
-		return k.client.Create(ctx, componentCR)
+	pipelineName := openChoreoProject.DeploymentPipeline
+	if pipelineName == "" {
+		return fmt.Errorf("failed to attach trait: project %s does not have a deployment pipeline configured", projName)
+	}
+	pipeline, err := k.GetDeploymentPipeline(ctx, orgName, pipelineName)
+	if err != nil {
+		return fmt.Errorf("failed to get deployment pipeline for trait attachment: %w", err)
+	}
+	lowestEnvName := findLowestEnvironment(pipeline.PromotionPaths)
+	openChoreoEnv, err := k.GetEnvironment(ctx, orgName, lowestEnvName)
+	if err != nil {
+		return fmt.Errorf("failed to get environment for trait attachment: %w", err)
+	}
+	component := &v1alpha1.Component{}
+	key := client.ObjectKey{
+		Name:      agentName,
+		Namespace: orgName,
+	}
+	err = k.retryK8sOperation(ctx, "GetComponentForTraitAttachment", func() error {
+		return k.client.Get(ctx, key, component)
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create component: %w", err)
+		if client.IgnoreNotFound(err) == nil {
+			return utils.ErrAgentNotFound
+		}
+		return fmt.Errorf("failed to get component for trait attachment: %w", err)
 	}
+	// Verify that the component belongs to the specified project
+	if component.Spec.Owner.ProjectName != projName {
+		return fmt.Errorf("component does not belong to the specified project")
+	}
+	otelInstrumentationTrait, err := createOTELInstrumentationTrait(component, openChoreoEnv.UUID, openChoreoProject.UUID)
+	if err != nil {
+		return fmt.Errorf("error creating OTEL instrumentation trait: %w", err)
+	}
+	component.Spec.Traits = append(component.Spec.Traits, *otelInstrumentationTrait)
+	err = k.retryK8sOperation(ctx, "UpdateComponentWithTrait", func() error {
+		return k.client.Update(ctx, component)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update component with trait: %w", err)
+	}
+	return nil
+}
+
+func (k *openChoreoSvcClient) CreateAgentComponent(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error {
+	var componentCR *v1alpha1.Component
+	var err error
+
+	if req.Provisioning.Type == string(utils.ExternalAgent) {
+		componentCR, err = createComponentCRForExternalAgents(orgName, projName, req)
+		if err != nil {
+			return fmt.Errorf("failed to create component CR for external agents: %w", err)
+		}
+		err = k.retryK8sOperation(ctx, "CreateComponent", func() error {
+			return k.client.Create(ctx, componentCR)
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create component: %w", err)
+		}
+	} else {
+		componentCR, err = createComponentCRForInternalAgents(orgName, projName, req)
+		if err != nil {
+			return fmt.Errorf("failed to create component CR for internal agents: %w", err)
+		}
+		err = k.retryK8sOperation(ctx, "CreateComponent", func() error {
+			return k.client.Create(ctx, componentCR)
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create component: %w", err)
+		}
+		// Add OpenTelemetry instrumentation trait for Python agents
+		if req.AgentType.Type == string(utils.AgentTypeAPI) && req.RuntimeConfigs.Language == string(utils.LanguagePython) {
+			err := k.AttachComponentTrait(ctx, orgName, projName, req.Name)
+			if err != nil {
+				return fmt.Errorf("error attaching OTEL instrumentation trait: %w", err)
+			}
+		}
+	}
+	
 	return nil
 }
 
@@ -535,7 +633,6 @@ func (k *openChoreoSvcClient) GetAgentDeployments(ctx context.Context, orgName s
 
 	// Create environment order based on the deployment pipeline
 	environmentOrder := buildEnvironmentOrder(pipeline.PromotionPaths)
-	log.Printf("Environment order: %v", environmentOrder)
 
 	releaseBindingList := &v1alpha1.ReleaseBindingList{}
 
@@ -653,7 +750,7 @@ func (k *openChoreoSvcClient) GetAgentEndpoints(ctx context.Context, orgName str
 
 	// Get the first matching Release (there should only be one per component/environment)
 	release := &releaseList.Items[0]
-	endpointURLs,err := extractEndpointURLFromEnvRelease(release)
+	endpointURLs, err := extractEndpointURLFromEnvRelease(release)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract endpoint URLs from release: %w", err)
 	}
@@ -726,6 +823,7 @@ func (k *openChoreoSvcClient) GetEnvironment(ctx context.Context, orgName string
 	}
 
 	envModel := &models.EnvironmentResponse{
+		UUID:         string(environment.UID),
 		Name:         environment.Name,
 		DataplaneRef: environment.Spec.DataPlaneRef,
 		CreatedAt:    environment.CreationTimestamp.Time,
@@ -900,6 +998,7 @@ func (k *openChoreoSvcClient) GetOrganization(ctx context.Context, orgName strin
 	}
 
 	orgModel := &models.OrganizationResponse{
+		UUID:        string(org.UID),
 		Name:        org.Name,
 		Namespace:   org.Name,
 		CreatedAt:   org.CreationTimestamp.Time,
@@ -951,6 +1050,7 @@ func (k *openChoreoSvcClient) ListProjects(ctx context.Context, orgName string) 
 	var projects []*models.ProjectResponse
 	for _, project := range projectList.Items {
 		projects = append(projects, &models.ProjectResponse{
+			UUID: string(project.UID),
 			Name:               project.Name,
 			OrgName:            project.Namespace,
 			CreatedAt:          project.CreationTimestamp.Time,

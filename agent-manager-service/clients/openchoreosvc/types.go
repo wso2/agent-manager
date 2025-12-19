@@ -21,7 +21,8 @@ import "time"
 type ComponentType string
 
 const (
-	ComponentTypeAgentAPI ComponentType = "deployment/agent-api"
+	ComponentTypeInternalAgentAPI ComponentType = "deployment/agent-api"
+	ComponentTypeExternalAgentAPI ComponentType = "proxy/external-agent-api"
 )
 
 type TraitType string
@@ -38,15 +39,26 @@ const (
 )
 
 type AgentComponent struct {
-	Name        string     `json:"name"`
-	DisplayName string     `json:"displayName,omitempty"`
-	Description string     `json:"description,omitempty"`
-	ProjectName string     `json:"projectName"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	Status      string     `json:"status,omitempty"`
-	Repository  Repository `json:"buildConfig,omitempty"`
+	UUID         string       `json:"uuid"`
+	Name         string       `json:"name"`
+	DisplayName  string       `json:"displayName,omitempty"`
+	Description  string       `json:"description,omitempty"`
+	ProjectName  string       `json:"projectName"`
+	CreatedAt    time.Time    `json:"createdAt"`
+	Status       string       `json:"status,omitempty"`
+	Provisioning Provisioning `json:"provisioning"`
+	Type         AgentType    `json:"agentType,omitempty"`
+	Language     string       `json:"language,omitempty"`
 }
 
+type AgentType struct {
+	Type    string `json:"type"`
+	SubType string `json:"subType,omitempty"`
+}
+type Provisioning struct {
+	Type       string     `json:"type"`
+	Repository Repository `json:"repository,omitempty"`
+}
 type Repository struct {
 	RepoURL string `json:"repoURL"`
 	Branch  string `json:"branch,omitempty"`

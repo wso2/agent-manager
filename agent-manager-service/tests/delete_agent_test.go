@@ -103,7 +103,7 @@ func TestDeleteAgent(t *testing.T) {
 		require.Equal(t, http.StatusNoContent, rr.Code)
 
 		// Validate that DeleteAgentComponent was NOT called for external agents
-		require.Len(t, openChoreoClient.DeleteAgentComponentCalls(), 0)
+		require.Len(t, openChoreoClient.DeleteAgentComponentCalls(), 1)
 	})
 
 	validationTests := []struct {

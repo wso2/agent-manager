@@ -43,9 +43,12 @@ func getLanguageVersionEnvVariable(language string) string {
 	return ""
 }
 
-func getOpenChoreoComponentType(agentType string) ComponentType {
-	if agentType == string(utils.AgentTypeAPI) {
-		return ComponentTypeAgentAPI
+func getOpenChoreoComponentType(provisioningType string, agentType string) ComponentType {
+	if provisioningType == string(utils.ExternalAgent) {
+		return ComponentTypeExternalAgentAPI
+	}
+	if provisioningType == string(utils.InternalAgent) && agentType == string(utils.AgentTypeAPI) {
+		return ComponentTypeInternalAgentAPI
 	}
 	// agent type is already validated in controller layer
 	return ""
@@ -76,7 +79,8 @@ func isGoogleBuildpack(language string) bool {
 }
 
 func getInputInterfaceConfig(req *spec.CreateAgentRequest) (int32, string) {
-	if req.AgentType.Type == string(utils.AgentTypeAPI) && req.AgentType.SubType == string(utils.AgentSubTypeChatAPI) {
+	agentSubType := utils.StrPointerAsStr(req.AgentType.SubType, "")
+	if req.AgentType.Type == string(utils.AgentTypeAPI) && agentSubType == string(utils.AgentSubTypeChatAPI) {
 		return int32(config.GetConfig().DefaultChatAPI.DefaultHTTPPort), config.GetConfig().DefaultChatAPI.DefaultBasePath
 	}
 	return req.InputInterface.Port, req.InputInterface.BasePath
@@ -99,12 +103,49 @@ func getComponentWorkflowParametersForBallerinaBuildPack(req *spec.CreateAgentRe
 	}
 }
 
-func createComponentCR(orgName, projectName string, req *spec.CreateAgentRequest) (*v1alpha1.Component, error) {
+func createComponentCRForExternalAgents(orgName, projectName string, req *spec.CreateAgentRequest) (*v1alpha1.Component, error) {
 	annotations := map[string]string{
 		string(AnnotationKeyDisplayName): req.DisplayName,
 		string(AnnotationKeyDescription): utils.StrPointerAsStr(req.Description, ""),
 	}
-	componentType := getOpenChoreoComponentType(req.AgentType.Type)
+	labels := map[string]string{
+		string(LabelKeyProvisioningType): req.Provisioning.Type,
+	}
+	componentType := getOpenChoreoComponentType(req.Provisioning.Type, req.AgentType.Type)
+
+	componentCR := &v1alpha1.Component{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Component",
+			APIVersion: "openchoreo.dev/v1alpha1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        req.Name,
+			Namespace:   orgName,
+			Annotations: annotations,
+			Labels:      labels,
+		},
+		Spec: v1alpha1.ComponentSpec{
+			Owner: v1alpha1.ComponentOwner{
+				ProjectName: projectName,
+			},
+			ComponentType: string(componentType),
+		},
+	}
+	return componentCR, nil
+}
+
+func createComponentCRForInternalAgents(orgName, projectName string, req *spec.CreateAgentRequest) (*v1alpha1.Component, error) {
+	annotations := map[string]string{
+		string(AnnotationKeyDisplayName): req.DisplayName,
+		string(AnnotationKeyDescription): utils.StrPointerAsStr(req.Description, ""),
+	}
+	labels := map[string]string{
+		string(LabelKeyProvisioningType): req.Provisioning.Type,
+		string(LabelKeyAgentSubType):     utils.StrPointerAsStr(req.AgentType.SubType, ""),
+		string(LabelKeyAgentLanguage):    req.RuntimeConfigs.Language,
+		string(LabelKeyAgentLanguageVersion): utils.StrPointerAsStr(req.RuntimeConfigs.LanguageVersion,""),
+	}
+	componentType := getOpenChoreoComponentType(req.Provisioning.Type, req.AgentType.Type)
 	componentWorkflow := getOpenChoreoComponentWorkflow(req.RuntimeConfigs.Language)
 	containerPort, basePath := getInputInterfaceConfig(req)
 
@@ -121,12 +162,6 @@ func createComponentCR(orgName, projectName string, req *spec.CreateAgentRequest
 			"limits": map[string]string{
 				"cpu":    DefaultCPULimit,
 				"memory": DefaultMemoryLimit,
-			},
-		},
-		"endpoints": map[string]interface{}{
-			fmt.Sprintf("%s-endpoint", req.Name): map[string]interface{}{
-				"port":     containerPort,
-				"basePath": basePath,
 			},
 		},
 		"basePath": basePath,
@@ -157,6 +192,7 @@ func createComponentCR(orgName, projectName string, req *spec.CreateAgentRequest
 			Name:        req.Name,
 			Namespace:   orgName,
 			Annotations: annotations,
+			Labels:      labels,
 		},
 		Spec: v1alpha1.ComponentSpec{
 			Owner: v1alpha1.ComponentOwner{
@@ -184,29 +220,18 @@ func createComponentCR(orgName, projectName string, req *spec.CreateAgentRequest
 			},
 		},
 	}
-
-	// Add OpenTelemetry instrumentation trait for Python agents
-	if req.AgentType.Type == string(utils.AgentTypeAPI) && req.RuntimeConfigs.Language == string(utils.LanguagePython) {
-		trait, err := createOTELInstrumentationTrait(req)
-		if err != nil {
-			return nil, fmt.Errorf("error creating OTEL instrumentation trait: %w", err)
-		}
-		componentCR.Spec.Traits = []v1alpha1.ComponentTrait{
-			*trait,
-		}
-	}
-
 	return componentCR, nil
 }
 
-func createOTELInstrumentationTrait(req *spec.CreateAgentRequest) (*v1alpha1.ComponentTrait, error) {
+func createOTELInstrumentationTrait(ocAgentComponent *v1alpha1.Component, envUUID, projectUUID string) (*v1alpha1.ComponentTrait, error) {
 	traitParameters := map[string]interface{}{
-		"instrumentationImage":  getInstrumentationImage(utils.StrPointerAsStr(req.RuntimeConfigs.LanguageVersion, "")),
+		"instrumentationImage":  getInstrumentationImage(ocAgentComponent.Labels[string(LabelKeyAgentLanguageVersion)]),
 		"sdkVolumeName":         config.GetConfig().OTEL.SDKVolumeName,
 		"sdkMountPath":          config.GetConfig().OTEL.SDKMountPath,
-		"agentName":             req.Name,
+		"agentName":             ocAgentComponent.Name,
 		"otelEndpoint":          config.GetConfig().OTEL.ExporterEndpoint,
 		"isTraceContentEnabled": utils.BoolAsString(config.GetConfig().OTEL.IsTraceContentEnabled),
+		"traceAttributes":       fmt.Sprintf("%s=%s,%s=%s,%s=%s", TraceAttributeKeyProject, projectUUID, TraceAttributeKeyEnvironment, envUUID, TraceAttributeKeyComponent, ocAgentComponent.UID),
 	}
 	traitParametersJSON, err := json.Marshal(traitParameters)
 	if err != nil {
@@ -215,7 +240,7 @@ func createOTELInstrumentationTrait(req *spec.CreateAgentRequest) (*v1alpha1.Com
 
 	return &v1alpha1.ComponentTrait{
 		Name:         string(TraitTypeOTELInstrumentation),
-		InstanceName: fmt.Sprintf("%s-%s", req.Name, string(TraitTypeOTELInstrumentation)),
+		InstanceName: fmt.Sprintf("%s-%s", ocAgentComponent.Name, string(TraitTypeOTELInstrumentation)),
 		Parameters: &runtime.RawExtension{
 			Raw: traitParametersJSON,
 		},
@@ -267,19 +292,34 @@ func createComponentWorkflowRunCR(orgName, projName, componentName string, syste
 }
 
 func toComponentResponse(component *v1alpha1.Component) *AgentComponent {
-	return &AgentComponent{
+	response := &AgentComponent{
 		Name:        component.Name,
+		UUID:        string(component.UID),
 		DisplayName: component.Annotations[string(AnnotationKeyDisplayName)],
 		ProjectName: component.Spec.Owner.ProjectName,
-		Repository: Repository{
-			RepoURL: component.Spec.Workflow.SystemParameters.Repository.URL,
-			Branch:  component.Spec.Workflow.SystemParameters.Repository.Revision.Branch,
-			AppPath: component.Spec.Workflow.SystemParameters.Repository.AppPath,
+		Provisioning: Provisioning{
+			Type: component.Labels[string(LabelKeyProvisioningType)],
 		},
+		Type: AgentType{
+			Type:    strings.Split(string(component.Spec.ComponentType), "/")[1], // e.g., deployment/agent-api -> agent-api
+			SubType: component.Labels[string(LabelKeyAgentSubType)],
+		},
+		Language:    component.Labels[string(LabelKeyAgentLanguage)],
 		CreatedAt:   component.CreationTimestamp.Time,
 		Status:      "", // Todo: set status
 		Description: component.Annotations[string(AnnotationKeyDescription)],
 	}
+
+	// Only populate repository info if workflow exists (internal agents)
+	if component.Spec.Workflow != nil {
+		response.Provisioning.Repository = Repository{
+			RepoURL: component.Spec.Workflow.SystemParameters.Repository.URL,
+			Branch:  component.Spec.Workflow.SystemParameters.Repository.Revision.Branch,
+			AppPath: component.Spec.Workflow.SystemParameters.Repository.AppPath,
+		}
+	}
+
+	return response
 }
 
 func updateWorkloadSpec(existingWorkload *v1alpha1.Workload, req *spec.DeployAgentRequest) {
@@ -518,7 +558,7 @@ func extractEndpointURLFromEnvRelease(envRelease *v1alpha1.Release) ([]models.En
 		hostname := hostnames[0]
 		pathValue, err := extractPathValue(obj)
 		if err != nil {
-			return nil, fmt.Errorf("error extracting path from HTTPRoute: %w", err)	
+			return nil, fmt.Errorf("error extracting path from HTTPRoute: %w", err)
 		}
 		// Construct the invoke URL
 		port := config.GetConfig().DefaultGatewayPort
@@ -531,39 +571,38 @@ func extractEndpointURLFromEnvRelease(envRelease *v1alpha1.Release) ([]models.En
 			URL:        url,
 			Visibility: "Public",
 		})
-		
+
 	}
 
 	return endpoints, nil
 }
 
 func extractPathValue(obj unstructured.Unstructured) (string, error) {
+	// Get path from rules[0].matches[0].path.value
+	rules, found, err := unstructured.NestedSlice(obj.Object, "spec", "rules")
+	if err != nil || !found || len(rules) == 0 {
+		return "", fmt.Errorf("HTTPRoute missing rules")
+	}
 
-		// Get path from rules[0].matches[0].path.value
-		rules, found, err := unstructured.NestedSlice(obj.Object, "spec", "rules")
-		if err != nil || !found || len(rules) == 0 {
-			return "", fmt.Errorf("HTTPRoute missing rules")
-		}
+	rule0, ok := rules[0].(map[string]any)
+	if !ok {
+		return "", fmt.Errorf("invalid rule format in HTTPRoute")
+	}
 
-		rule0, ok := rules[0].(map[string]any)
-		if !ok {
-			return "", fmt.Errorf("invalid rule format in HTTPRoute")
-		}
+	matches, found, err := unstructured.NestedSlice(rule0, "matches")
+	if err != nil || !found || len(matches) == 0 {
+		return "", fmt.Errorf("HTTPRoute missing matches")
+	}
 
-		matches, found, err := unstructured.NestedSlice(rule0, "matches")
-		if err != nil || !found || len(matches) == 0 {
-			return "", fmt.Errorf("HTTPRoute missing matches")
-		}
-
-		match0, ok := matches[0].(map[string]any)
-		if !ok {
-			return "", fmt.Errorf("invalid match format in HTTPRoute")
-		}
-		pathValue, found, err := unstructured.NestedString(match0, "path", "value")
-		if err != nil || !found {
-			return "", fmt.Errorf("HTTPRoute missing path value")
-		}
-		return pathValue, nil
+	match0, ok := matches[0].(map[string]any)
+	if !ok {
+		return "", fmt.Errorf("invalid match format in HTTPRoute")
+	}
+	pathValue, found, err := unstructured.NestedString(match0, "path", "value")
+	if err != nil || !found {
+		return "", fmt.Errorf("HTTPRoute missing path value")
+	}
+	return pathValue, nil
 }
 
 // findDeployedImageFromEnvRelease extracts the deployed image from the Deployment resource in the Release
@@ -608,7 +647,7 @@ func findDeployedImageFromEnvRelease(envRelease *v1alpha1.Release) string {
 				}
 			}
 		}
-		
+
 	}
 
 	return ""
@@ -797,4 +836,26 @@ func buildPromotionPaths(promoPaths []v1alpha1.PromotionPath) []models.Promotion
 		})
 	}
 	return promotionPaths
+}
+
+func findLowestEnvironment(promotionPaths []models.PromotionPath) string {
+	if len(promotionPaths) == 0 {
+		return ""
+	}
+
+	// Collect all target environments
+	targets := make(map[string]bool)
+	for _, path := range promotionPaths {
+		for _, target := range path.TargetEnvironmentRefs {
+			targets[target.Name] = true
+		}
+	}
+
+	// Find a source environment that is not a target
+	for _, path := range promotionPaths {
+		if !targets[path.SourceEnvironmentRef] {
+			return path.SourceEnvironmentRef
+		}
+	}
+	return ""
 }

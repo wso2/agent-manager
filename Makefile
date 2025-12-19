@@ -97,9 +97,10 @@ setup-console-local-force:
 	@$(MAKE) setup-console-local
 
 # Generate Docker-specific kubeconfig using kind --internal
+# Always regenerates to ensure it matches the current cluster
 .make/kubeconfig-docker-generated: | .make
 	@echo "🔧 Generating Docker kubeconfig..."
-	@rm -f .make/kubeconfig-docker-generated
+	@rm -f .make/kubeconfig-docker-generated ~/.kube/config-docker
 	@cd deployments/scripts && ./generate-docker-kubeconfig.sh
 	@touch .make/kubeconfig-docker-generated
 

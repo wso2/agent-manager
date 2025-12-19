@@ -1071,7 +1071,6 @@ components:
       type: object
       required:
         - type
-        - subType
       properties:
         type:
           type: string
@@ -1086,6 +1085,7 @@ components:
         - name
         - displayName
         - provisioning
+        - agentType
       properties:
         name:
           type: string
@@ -1107,6 +1107,8 @@ components:
     AgentResponse:
       type: object
       properties:
+        uuid:
+          type: string
         name:
           type: string
         displayName:
@@ -1128,12 +1130,14 @@ components:
         runtimeConfigs:
           $ref: "#/components/schemas/RuntimeConfiguration"
       required:
+        - uuid
         - name
         - displayName
         - createdAt
         - projectName
         - description
         - provisioning
+        - agentType
     ResourceNameRequest:
       type: object
       properties:
@@ -1538,6 +1542,9 @@ components:
     Environment:
       type: object
       properties:
+        uuid:
+          type: string
+          description: Unique identifier of the environment
         name:
           type: string
           description: Name of the environment
@@ -1558,6 +1565,7 @@ components:
           format: date-time
           description: Timestamp when the environment was created
       required:
+        - uuid
         - name
         - dataplaneRef
         - isProduction
@@ -1775,6 +1783,8 @@ components:
     ProjectResponse:
       type: object
       properties:
+        uuid:
+          type: string
         name:
           type: string
           description: Name of the project
@@ -1795,6 +1805,7 @@ components:
           format: date-time
           description: Timestamp when the project was created
       required:
+        - uuid
         - name
         - orgName
         - displayName
@@ -1805,6 +1816,8 @@ components:
     ProjectListItem:
       type: object
       properties:
+        uuid:
+          type: string
         name:
           type: string
           description: Name of the project
@@ -1819,6 +1832,7 @@ components:
           format: date-time
           description: Timestamp when the project was created
       required:
+        - uuid
         - name
         - orgName
         - displayName

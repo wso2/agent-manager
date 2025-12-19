@@ -4,8 +4,8 @@ metadata:
   name: agent-api
   namespace: default
   annotations:
-    openchoreo.dev/display-name: Agent Service
-    openchoreo.dev/description: Component type for deploying agent services in the AI Agent Management Platform.
+    openchoreo.dev/display-name: Platform Hosted Agent API
+    openchoreo.dev/description: Component type for deploying agent APIs in the AI Agent Management Platform.
 spec:
   workloadType: deployment
 

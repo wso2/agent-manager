@@ -20,9 +20,11 @@ var _ MappedNullable = &Environment{}
 
 // Environment struct for Environment
 type Environment struct {
+	// Unique identifier of the environment
+	Uuid string `json:"uuid"`
 	// Name of the environment
 	Name string `json:"name"`
-	// Kubernetes namespace for the environment
+	// Reference to the data plane for the environment
 	DataplaneRef string `json:"dataplaneRef"`
 	// Human-readable display name
 	DisplayName *string `json:"displayName,omitempty"`
@@ -38,8 +40,9 @@ type Environment struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewEnvironment(name string, dataplaneRef string, isProduction bool, createdAt time.Time) *Environment {
+func NewEnvironment(uuid string, name string, dataplaneRef string, isProduction bool, createdAt time.Time) *Environment {
 	this := Environment{}
+	this.Uuid = uuid
 	this.Name = name
 	this.DataplaneRef = dataplaneRef
 	this.IsProduction = isProduction
@@ -53,6 +56,30 @@ func NewEnvironment(name string, dataplaneRef string, isProduction bool, created
 func NewEnvironmentWithDefaults() *Environment {
 	this := Environment{}
 	return &this
+}
+
+// GetUuid returns the Uuid field value
+func (o *Environment) GetUuid() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Uuid
+}
+
+// GetUuidOk returns a tuple with the Uuid field value
+// and a boolean to check if the value has been set.
+func (o *Environment) GetUuidOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Uuid, true
+}
+
+// SetUuid sets field value
+func (o *Environment) SetUuid(v string) {
+	o.Uuid = v
 }
 
 // GetName returns the Name field value
@@ -225,6 +252,7 @@ func (o Environment) MarshalJSON() ([]byte, error) {
 
 func (o Environment) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
+	toSerialize["uuid"] = o.Uuid
 	toSerialize["name"] = o.Name
 	toSerialize["dataplaneRef"] = o.DataplaneRef
 	if !IsNil(o.DisplayName) {
