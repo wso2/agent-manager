@@ -51,9 +51,13 @@ export interface EndpointSchema {
   content: string;
 }
 
+export interface SchemaPath {
+  path: string;
+}
+
 export interface EndpointSpec {
   port: number; // 1 - 65535
-  schema: EndpointSchema;
+  schema: SchemaPath;
   basePath: string;
 }
 

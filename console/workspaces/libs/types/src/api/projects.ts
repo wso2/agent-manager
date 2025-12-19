@@ -36,6 +36,13 @@ export interface ProjectResponse {
   createdAt: string; // ISO date-time
 }
 
+export interface ProjectListItem {
+  name: string;
+  orgName: string;
+  displayName: string;
+  createdAt: string; // ISO date-time
+}
+
 export interface ProjectListResponse extends PaginationMeta {
   projects: ProjectResponse[];
 }

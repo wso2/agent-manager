@@ -111,7 +111,7 @@ export function BuildLogs({
     }
 
     if (
-      build?.status === "BuildInProgress" ||
+      build?.status === "BuildRunning" ||
       build?.status === "BuildTriggered"
     ) {
       return {

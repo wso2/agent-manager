@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { type AgentPathParams, type EnvironmentVariable, type EndpointSchema, type OrgProjPathParams } from './common';
+import { type AgentPathParams, type EnvironmentVariable, type EndpointSchema, type OrgProjPathParams, type PaginationMeta, type ListQuery } from './common';
 
 // Requests
 export interface DeployAgentRequest {
@@ -55,7 +55,6 @@ export interface DeploymentDetailsResponse {
   status: string;
   lastDeployed: string; // ISO date-time
   endpoints: DeploymentEndpoint[];
-  sourceEnvironment: EnvironmentObject;
   environmentDisplayName?: string;
   promotionTargetEnvironment?: PromotionTargetEnvironment;
 }
@@ -85,7 +84,7 @@ export interface ConfigurationResponse {
 
 export interface Environment {
   name: string;
-  namespace: string;
+  dataplaneRef: string;
   displayName?: string;
   isProduction: boolean;
   dnsPrefix?: string;
@@ -93,6 +92,16 @@ export interface Environment {
 }
 
 export type EnvironmentListResponse = Environment[];
+
+export interface DataPlane {
+  name: string;
+  displayName: string;
+  description: string;
+  orgName: string;
+  createdAt: string; // ISO date-time
+}
+
+export type DataPlaneListResponse = DataPlane[];
 
 export interface TargetEnvironmentRef {
   name: string;
@@ -112,15 +121,23 @@ export interface DeploymentPipelineResponse {
   promotionPaths: PromotionPath[];
 }
 
+export interface DeploymentPipelineListResponse extends PaginationMeta {
+  deploymentPipelines: DeploymentPipelineResponse[];
+}
+
 // Path helpers
 export type DeployAgentPathParams = AgentPathParams;
 export type ListAgentDeploymentsPathParams = AgentPathParams;
 export type GetAgentEndpointsPathParams = AgentPathParams;
 export type GetAgentConfigurationsPathParams = AgentPathParams;
 export type ListEnvironmentsPathParams = { orgName: string | undefined };
+export type ListDataPlanesPathParams = { orgName: string | undefined };
+export type ListDeploymentPipelinesPathParams = { orgName: string | undefined };
 export type GetDeploymentPipelinePathParams = OrgProjPathParams;
 
 // Query helpers
 export interface EnvironmentQuery {
   environment: string;
 }
+
+export type ListDeploymentPipelinesQuery = ListQuery;

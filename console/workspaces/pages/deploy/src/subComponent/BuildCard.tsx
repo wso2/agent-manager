@@ -59,7 +59,7 @@ export function BuildCard() {
           (a, b) =>
             new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
         )
-        .filter((build) => build.status === "Completed"),
+        .filter((build) => build.status === "BuildCompleted" || build.status === "WorkloadUpdated"),
     [builds]
   );
 
@@ -249,7 +249,7 @@ export function BuildCard() {
             color="primary"
             fullWidth
             onClick={handleOpenDeployment}
-            disabled={!currentBuild || currentBuild.status !== "Completed"}
+            disabled={!currentBuild || (currentBuild.status !== "BuildCompleted" && currentBuild.status !== "WorkloadUpdated")}
             startIcon={<Rocket size={16} />}
           >
             Configure & Deploy

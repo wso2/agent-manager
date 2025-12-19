@@ -36,11 +36,12 @@ export interface TopCardsProps {
 }
 const getBuildIcon = (status: BuildStatus) => {
     switch (status) {
-        case "Completed":
+        case "BuildCompleted":
+        case "WorkloadUpdated":
             return <CheckCircleIcon size={20} />;
         case "BuildTriggered":
             return <PlayArrow size={20} />;
-        case "BuildInProgress":
+        case "BuildRunning":
             return <CircularProgress size={20} color="inherit" />;
         case "BuildFailed":
             return <Error size={20} />;
@@ -80,11 +81,12 @@ const percIconVariant = (percentage: number) => {
 
 const getBuildIconVariant = (status: BuildStatus): 'success' | 'warning' | 'error' | 'info' => {
     switch (status) {
-        case "Completed":
+        case "BuildCompleted":
+        case "WorkloadUpdated":
             return "success"; // greenish for success
         case "BuildTriggered":
             return "warning";
-        case "BuildInProgress":
+        case "BuildRunning":
             return "warning";
         case "BuildFailed":
             return "error"; // red for failed
@@ -94,11 +96,12 @@ const getBuildIconVariant = (status: BuildStatus): 'success' | 'warning' | 'erro
 }
 const getTagVariant = (status: BuildStatus): 'success' | 'warning' | 'error' | 'info' | 'default' => {
     switch (status) {
-        case "Completed":
+        case "BuildCompleted":
+        case "WorkloadUpdated":
             return "success";
         case "BuildTriggered":
             return "warning";
-        case "BuildInProgress":
+        case "BuildRunning":
             return "warning";
         case "BuildFailed":
             return "error";
@@ -135,7 +138,7 @@ export const TopCards: React.FC = (
     const latestBuildStartedTime = latestBuild?.startedAt ?? '';
 
     // Summery
-    const succesfullBuildCount = builds?.builds.filter((build) => build.status === 'Completed').length ?? 0;
+    const succesfullBuildCount = builds?.builds.filter((build) => build.status === 'BuildCompleted' || build.status === 'WorkloadUpdated').length ?? 0;
     const failedBuildCount = builds?.builds.filter((build) => build.status === 'BuildFailed').length ?? 0;
 
 

@@ -38,6 +38,10 @@ export const buildAgentCreationPayload = (
             appPath: data.appPath ?? '/',
           },
         },
+        agentType: {
+          type: 'api',
+          subType: data.interfaceType === 'CUSTOM' ? 'custom-api' : 'chat-api',
+        },
         runtimeConfigs: {
           language: data.language ?? 'python',
           languageVersion: data.languageVersion ?? '3.11',
@@ -47,14 +51,12 @@ export const buildAgentCreationPayload = (
             .map(envVar => ({ key: envVar.key!, value: envVar.value! })),
         },
         inputInterface: {
-          type: data.interfaceType,
-          ...(data.interfaceType === 'CUSTOM' && {
-            customOpenAPISpec: {
-              port: Number(data.port),
-              basePath: data.basePath || '/',
-              schema: { content: data.openApiContent ?? '' },
-            },
-          }),
+          type: 'HTTP',
+          port: data.interfaceType === 'CUSTOM' ? Number(data.port) : 8080,
+          basePath: data.interfaceType === 'CUSTOM' ? (data.basePath || '/') : '/chat',
+          schema: { 
+            path: data.interfaceType === 'CUSTOM' ? (data.openApiPath ?? '') : '/chat'
+          },
         },
       }
     };

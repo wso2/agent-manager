@@ -30,9 +30,9 @@ export interface BuildStepsProps {
 
 const getIcon = (step: BuildStep) => {
     switch (step.status) {
-        case "True":
+        case "Succeeded":
             return <CheckCircle size={16} />;
-        case "False":
+        case "Failed":
             return <ErrorOutlined size={16} />;
         default:
             return <QuestionMarkOutlined size={16} />;
@@ -47,6 +47,8 @@ const getDisplayName = (step: BuildStep) => {
             return "Initiated";
         case "BuildTriggered":
             return "Triggered";
+        case "BuildRunning":
+            return "Running";
         case "WorkloadUpdated":
             return "Workload Updated";
         default:
@@ -62,12 +64,12 @@ function Step(props: { step: BuildStep, index: number, buildStatus: BuildStatus 
         if (isLoading) {
             return theme.palette.warning.main;
         }
-        if (step.status === "True") {
+        if (step.status === "Succeeded") {
             return theme.palette.success.main;
         }
         return theme.palette.error.main;
     }
-    const isLoading = !(buildStatus === "Completed" || buildStatus === "BuildFailed") && step.status !== "True";
+    const isLoading = !(buildStatus === "BuildCompleted" || buildStatus === "WorkloadUpdated" || buildStatus === "BuildFailed") && step.status !== "Succeeded";
     const color = getColor(isLoading);
     return (
         <>
