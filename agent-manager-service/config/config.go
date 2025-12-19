@@ -18,6 +18,7 @@ package config
 
 // Config holds all configuration for the application
 type Config struct {
+	Version string
 	ServerHost          string
 	ServerPort          int
 	AuthHeader          string
@@ -58,7 +59,6 @@ type Config struct {
 // OTELConfig holds all OpenTelemetry related configuration
 type OTELConfig struct {
 	// Instrumentation configuration
-	OTELInstrumentationImage
 	SDKVolumeName string
 	SDKMountPath  string
 
@@ -67,13 +67,6 @@ type OTELConfig struct {
 
 	// OTLP Exporter configuration
 	ExporterEndpoint string
-}
-
-type OTELInstrumentationImage struct {
-	Python310 string
-	Python311 string
-	Python312 string
-	Python313 string
 }
 
 type ObserverConfig struct {

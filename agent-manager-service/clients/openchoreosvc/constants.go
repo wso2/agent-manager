@@ -116,3 +116,8 @@ const (
 	DefaultMemoryLimit   = "512Mi"
 	DefaultReplicaCount  = 1
 )
+
+const (
+	GithubImageRegistry = "ghcr.io/wso2"
+	ImageName 		   = "amp-python-instrumentation-provider"
+)

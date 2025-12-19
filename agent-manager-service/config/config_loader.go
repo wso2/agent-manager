@@ -96,17 +96,10 @@ func loadEnvs() {
 
 	// OpenTelemetry configuration
 	// Use Version from ldflags or environment variable override
-	version := r.readOptionalString("AMP_VERSION", Version)
+	config.Version = r.readOptionalString("AMP_VERSION", config.Version)
 	
 	config.OTEL = OTELConfig{
-		// Instrumentation configuration
-		OTELInstrumentationImage: OTELInstrumentationImage{
-			Python310: fmt.Sprintf("ghcr.io/wso2/amp-python-instrumentation-provider:%s-python3.10", version),
-			Python311: fmt.Sprintf("ghcr.io/wso2/amp-python-instrumentation-provider:%s-python3.11", version),
-			Python312: fmt.Sprintf("ghcr.io/wso2/amp-python-instrumentation-provider:%s-python3.12", version),
-			Python313: fmt.Sprintf("ghcr.io/wso2/amp-python-instrumentation-provider:%s-python3.13", version),
-		},
-
+		
 		SDKVolumeName: r.readOptionalString("OTEL_SDK_VOLUME_NAME", "otel-tracing-sdk-volume"),
 		SDKMountPath:  r.readOptionalString("OTEL_SDK_MOUNT_PATH", "/otel-tracing-sdk"),
 
