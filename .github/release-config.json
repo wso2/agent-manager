@@ -20,6 +20,13 @@
       "dir": "quick-start"
     }
   ],
+
+  "python-instrumentation-provider": [
+    {
+      "versions": ["3.10", "3.11", "3.12", "3.13"]
+    }
+  ],
+
   "charts": [
     "wso2-ai-agent-management-platform",
     "wso2-amp-build-extension",
