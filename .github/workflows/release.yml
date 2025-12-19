@@ -185,7 +185,6 @@ jobs:
         shell: bash
 
   build-images:
-    if: false
     name: Build ${{ matrix.image.name }}
     needs: load-config
     runs-on: ubuntu-latest

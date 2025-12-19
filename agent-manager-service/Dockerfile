@@ -3,6 +3,7 @@ FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
 # Add build args for cross-platform support
 ARG TARGETOS
 ARG TARGETARCH
+ARG VERSION=dev
 
 WORKDIR /app
 
@@ -19,7 +20,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -a \
     -installsuffix cgo \
-    -ldflags="-w -s" \
+    -ldflags="-w -s -X github.com/wso2/ai-agent-management-platform/agent-manager-service/config.Version=${VERSION}" \
     -o /go/bin/agent-manager-service \
     -buildvcs=false
 

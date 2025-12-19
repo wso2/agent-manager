@@ -37,7 +37,9 @@ runs:
         push: true
         platforms: ${{ inputs.platform }}
         tags: ${{ inputs.registry }}/${{ inputs.registry-org }}/${{ inputs.image-name }}:${{ inputs.tag }}
-        build-args: ${{ inputs.build-args }}
+        build-args: |
+          VERSION=${{ inputs.tag }}
+          ${{ inputs.build-args }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 

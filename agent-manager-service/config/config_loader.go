@@ -95,13 +95,16 @@ func loadEnvs() {
 	config.APIKeyValue = r.readRequiredString("API_KEY_VALUE")
 
 	// OpenTelemetry configuration
+	// Use Version from ldflags or environment variable override
+	version := r.readOptionalString("AMP_VERSION", Version)
+	
 	config.OTEL = OTELConfig{
 		// Instrumentation configuration
 		OTELInstrumentationImage: OTELInstrumentationImage{
-			Python310: r.readOptionalString("OTEL_INSTRUMENTATION_IMAGE_PYTHON_310", "ghcr.io/agent-mgt-platform/otel-tracing-instrumentation:python3.10@sha256:d06e28a12e4a83edfcb8e4f6cb98faf5950266b984156f3192433cf0f903e529"),
-			Python311: r.readOptionalString("OTEL_INSTRUMENTATION_IMAGE_PYTHON_311", "ghcr.io/agent-mgt-platform/otel-tracing-instrumentation:python3.11@sha256:d06e28a12e4a83edfcb8e4f6cb98faf5950266b984156f3192433cf0f903e529"),
-			Python312: r.readOptionalString("OTEL_INSTRUMENTATION_IMAGE_PYTHON_312", "ghcr.io/agent-mgt-platform/otel-tracing-instrumentation:python3.12@sha256:d06e28a12e4a83edfcb8e4f6cb98faf5950266b984156f3192433cf0f903e529"),
-			Python313: r.readOptionalString("OTEL_INSTRUMENTATION_IMAGE_PYTHON_313", "ghcr.io/agent-mgt-platform/otel-tracing-instrumentation:python3.13@sha256:d06e28a12e4a83edfcb8e4f6cb98faf5950266b984156f3192433cf0f903e529"),
+			Python310: fmt.Sprintf("ghcr.io/wso2/amp-python-instrumentation-provider:%s-python3.10", version),
+			Python311: fmt.Sprintf("ghcr.io/wso2/amp-python-instrumentation-provider:%s-python3.11", version),
+			Python312: fmt.Sprintf("ghcr.io/wso2/amp-python-instrumentation-provider:%s-python3.12", version),
+			Python313: fmt.Sprintf("ghcr.io/wso2/amp-python-instrumentation-provider:%s-python3.13", version),
 		},
 
 		SDKVolumeName: r.readOptionalString("OTEL_SDK_VOLUME_NAME", "otel-tracing-sdk-volume"),
