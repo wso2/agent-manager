@@ -15,8 +15,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  REGISTRY_ORG: wso2
-  HELM_REGISTRY: oci://ghcr.io/wso2
+  REGISTRY_ORG: hanzjk
+  HELM_REGISTRY: oci://ghcr.io/hanzjk
 
 jobs:
   prepare-release:
