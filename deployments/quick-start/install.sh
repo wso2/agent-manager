@@ -8,6 +8,7 @@ set -euo pipefail
 # 1. Creates a k3d cluster
 # 2. Installs OpenChoreo (Control Plane, Data Plane, Build Plane, Observability Plane)
 # 3. Registers planes and configures observability
+# 4. Installs Agent Management Platform
 #
 # The script is idempotent - it can be run multiple times safely.
 # Only public helm charts are used - no local charts or custom images.
@@ -20,6 +21,10 @@ OPENCHOREO_VERSION="0.7.0"
 OC_RELEASE="release-v0.7"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K3D_CONFIG="${SCRIPT_DIR}/k3d-config.yaml"
+AMP_RELEASE_VERSION="0.7.0"
+
+# Source AMP installation helpers
+source "${SCRIPT_DIR}/install-amp-helpers.sh"
 
 # Timeouts (in seconds)
 TIMEOUT_K3D_READY=60
@@ -285,7 +290,7 @@ check_docker_permissions() {
 }
 
 # Check prerequisites
-log_step "Step 1/5: Verifying prerequisites"
+log_step "Step 1/7: Verifying prerequisites"
 
 # Check Docker access first
 if ! check_docker_permissions; then
@@ -319,7 +324,7 @@ log_success "All prerequisites verified"
 # Step 2: Setup k3d Cluster
 # ============================================================================
 
-log_step "Step 2/5: Setting up k3d cluster"
+log_step "Step 2/7: Setting up k3d cluster"
 
 # Check if cluster already exists
 if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
@@ -421,7 +426,7 @@ fi
 # Step 3: Install OpenChoreo Control Plane
 # ============================================================================
 
-log_step "Step 3/5: Installing OpenChoreo Control Plane"
+log_step "Step 3/7: Installing OpenChoreo Control Plane"
 
 helm_install_idempotent \
     "openchoreo-control-plane" \
@@ -429,9 +434,7 @@ helm_install_idempotent \
     "openchoreo-control-plane" \
     "${TIMEOUT_CONTROL_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
-    --values "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/k3d/single-cluster/values-cp.yaml" \
-    --set "global.defaultResources.enabled=false" \
-    --set "security.oidc.authorizationUrl=http://thunder.openchoreo.localhost:8089/oauth2/authorize"
+    --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/${AMP_RELEASE_VERSION}/deployments/single-cluster/values-cp.yaml"
 
 wait_for_pods "openchoreo-control-plane" "${TIMEOUT_CONTROL_PLANE}"
 
@@ -439,7 +442,7 @@ wait_for_pods "openchoreo-control-plane" "${TIMEOUT_CONTROL_PLANE}"
 # Step 4: Install OpenChoreo Data Plane
 # ============================================================================
 
-log_step "Step 4/5: Installing OpenChoreo Data Plane"
+log_step "Step 4/7: Installing OpenChoreo Data Plane"
 
 helm_install_idempotent \
     "openchoreo-data-plane" \
@@ -477,7 +480,7 @@ wait_for_pods "openchoreo-data-plane" "${TIMEOUT_DATA_PLANE}"
 # Step 5: Install OpenChoreo Build Plane
 # ============================================================================
 
-log_step "Step 5/5: Installing OpenChoreo Build Plane"
+log_step "Step 5/7: Installing OpenChoreo Build Plane"
 
 helm_install_idempotent \
     "openchoreo-build-plane" \
@@ -515,15 +518,15 @@ wait_for_deployments "openchoreo-build-plane" "${TIMEOUT_BUILD_PLANE}"
 # Step 6: Install OpenChoreo Observability Plane
 # ============================================================================
 
-log_step "Step 6/6: Installing OpenChoreo Observability Plane"
+log_step "Step 6/7: Installing OpenChoreo Observability Plane"
 
 helm_install_idempotent \
     "openchoreo-observability-plane" \
     "oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane" \
-    "openchoreo-observability-plane" \
+    "${OBSERVABILITY_NS}" \
     "${TIMEOUT_OBSERVABILITY_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
-    --values "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/k3d/single-cluster/values-op.yaml"
+    --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/${AMP_RELEASE_VERSION}/deployments/single-cluster/values-op.yaml"
 
 wait_for_deployments "openchoreo-observability-plane" "${TIMEOUT_OBSERVABILITY_PLANE}"
 wait_for_statefulsets "openchoreo-observability-plane" "${TIMEOUT_OBSERVABILITY_PLANE}"
@@ -558,6 +561,75 @@ else
 fi
 
 # ============================================================================
+# Step 7: Install Agent Management Platform
+# ============================================================================
+
+log_step "Step 7/7: Installing Agent Management Platform"
+
+# Verify prerequisites
+if ! verify_amp_prerequisites; then
+    log_error "AMP prerequisites check failed"
+    exit 1
+fi
+
+log_info "Installing Agent Management Platform components..."
+log_info "This may take 5-8 minutes..."
+echo ""
+
+# Install main platform
+log_info "Installing Agent Management Platform (PostgreSQL, API, Console)..."
+if ! install_agent_management_platform; then
+    log_error "Failed to install Agent Management Platform"
+    echo ""
+    echo "Troubleshooting steps:"
+    echo "  1. Check pod status: kubectl get pods -n ${AMP_NS}"
+    echo "  2. View logs: kubectl logs -n ${AMP_NS} <pod-name>"
+    echo "  3. Check Helm release: helm list -n ${AMP_NS}"
+    exit 1
+fi
+log_success "Agent Management Platform installed successfully"
+echo ""
+
+
+# Install platform resources extension
+log_info "Installing Platform Resources Extension (Default Organization, Project, Environment, DeploymentPipeline)..."
+if ! install_platform_resources_extension; then
+    log_warning "Platform Resources Extension installation failed (non-fatal)"
+    echo "The platform is installed but platform resources features may not work."
+fi
+
+log_success "Platform Resources Extension installed successfully"
+echo ""
+
+# Install observability extension
+log_info "Installing Observability Extension (DataPrepper, Traces Observer)..."
+if ! install_observability_extension; then
+    log_warning "Observability Extension installation failed (non-fatal)"
+    echo "The platform is installed but observability features may not work."
+    echo ""
+    echo "Troubleshooting steps:"
+    echo "  1. Check pod status: kubectl get pods -n ${OBSERVABILITY_NS}"
+    echo "  2. View logs: kubectl logs -n ${OBSERVABILITY_NS} <pod-name>"
+else
+    log_success "Observability Extension installed successfully"
+fi
+echo ""
+
+# Install build extension
+log_info "Installing Build Extension (Workflow Templates)..."
+if ! install_build_extension; then
+    log_warning "Build Extension installation failed (non-fatal)"
+    echo "The platform is installed but build CI features may not work."
+    echo ""
+    echo "Troubleshooting steps:"
+    echo "  1. Check Helm release: helm list -n ${BUILD_CI_NS}"
+else
+    log_success "Build Extension installed successfully"
+fi
+echo ""
+
+
+# ============================================================================
 # VERIFICATION
 # ============================================================================
 
@@ -588,6 +660,9 @@ echo ""
 echo "Observability Plane:"
 kubectl get pods -n openchoreo-observability-plane || true
 echo ""
+echo "Agent Management Platform:"
+kubectl get pods -n "${AMP_NS}" || true
+echo ""
 
 # ============================================================================
 # SUCCESS
@@ -595,11 +670,16 @@ echo ""
 
 log_step "Installation Complete!"
 
-log_success "OpenChoreo development environment is ready!"
+log_success "OpenChoreo and Agent Management Platform are ready!"
 echo ""
 log_info "Cluster: ${CLUSTER_CONTEXT}"
 log_info "Control Plane UI: http://localhost:8089"
 log_info "OpenSearch Dashboard: http://localhost:11081"
+log_info "Agent Management Platform Console: http://localhost:3000"
+echo ""
+log_info "To access services, run port forwarding:"
+log_info "  kubectl port-forward -n ${AMP_NS} svc/amp-console 3000:3000"
+log_info "  kubectl port-forward -n ${AMP_NS} svc/amp-api 8080:8080"
 echo ""
 log_info "To check status: kubectl get pods --all-namespaces"
 log_info "To delete cluster: k3d cluster delete ${CLUSTER_NAME}"

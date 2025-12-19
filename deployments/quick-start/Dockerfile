@@ -40,6 +40,8 @@ COPY .bashrc ${USER_HOME}/.bashrc
 
 # Copy scripts and configs
 COPY --chown=wso2-amp:wso2-amp install.sh ${USER_HOME}/install.sh
+COPY --chown=wso2-amp:wso2-amp install-helpers.sh ${USER_HOME}/install-helpers.sh
+COPY --chown=wso2-amp:wso2-amp uninstall.sh ${USER_HOME}/uninstall.sh
 COPY --chown=wso2-amp:wso2-amp k3d-config.yaml ${USER_HOME}/k3d-config.yaml
 COPY --chown=root:root entrypoint.sh /entrypoint.sh
 RUN chmod +x ${USER_HOME}/install.sh && \
