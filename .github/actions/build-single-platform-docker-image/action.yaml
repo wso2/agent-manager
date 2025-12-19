@@ -29,18 +29,34 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./${{ inputs.service-dir }}
-        file: ./${{ inputs.service-dir }}/Dockerfile
-        push: true
-        platforms: ${{ inputs.platform }}
-        tags: ${{ inputs.registry }}/${{ inputs.registry-org }}/${{ inputs.image-name }}:${{ inputs.tag }}
-        build-args: |
-          ${{ inputs.build-args }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+    - name: Build Docker image
+      run: |
+        # Parse build-args into docker build format
+        BUILD_ARGS=""
+        if [ -n "$BUILD_ARGS_INPUT" ]; then
+          while IFS= read -r arg; do
+            if [ -n "$arg" ]; then
+              BUILD_ARGS="$BUILD_ARGS --build-arg $arg"
+            fi
+          done <<< "$BUILD_ARGS_INPUT"
+        fi
+
+        # Build the image using plain docker build
+        # Context: ./${{ inputs.service-dir }}
+        # Dockerfile: ./${{ inputs.service-dir }}/Dockerfile
+        docker build \
+          -f ./${{ inputs.service-dir }}/Dockerfile \
+          -t ${{ inputs.registry }}/${{ inputs.registry-org }}/${{ inputs.image-name }}:${{ inputs.tag }} \
+          $BUILD_ARGS \
+          ./${{ inputs.service-dir }}
+      shell: bash
+      env:
+        BUILD_ARGS_INPUT: ${{ inputs.build-args }}
+
+    - name: Push Docker image
+      run: |
+        docker push ${{ inputs.registry }}/${{ inputs.registry-org }}/${{ inputs.image-name }}:${{ inputs.tag }}
+      shell: bash
 
     - name: Log image details
       run: |
