@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { type AgentPathParams, type RuntimeConfiguration, type EndpointSpec, type ListQuery, type OrgProjPathParams, type PaginationMeta, type RepositoryConfig } from './common';
+import { type AgentPathParams, type RuntimeConfiguration, type ListQuery, type OrgProjPathParams, type PaginationMeta, type RepositoryConfig } from './common';
 
 // Requests
 export interface CreateAgentRequest {
@@ -24,6 +24,7 @@ export interface CreateAgentRequest {
   displayName: string;
   description?: string;
   provisioning: Provisioning;
+  agentType?: AgentType;
   runtimeConfigs?: RuntimeConfiguration;
   inputInterface?: InputInterface;
 }
@@ -31,8 +32,17 @@ export interface CreateAgentRequest {
 export type InputInterfaceType = 'DEFAULT' | 'CUSTOM';
 
 export interface InputInterface {
+  type: string; // Always "HTTP" for now
+  port: number;
+  schema: {
+    path: string;
+  };
+  basePath: string;
+}
+
+export interface AgentType {
   type: string;
-  customOpenAPISpec?: EndpointSpec;
+  subType: string;
 }
 
 export type ProvisioningType = 'internal' | 'external';
@@ -50,6 +60,8 @@ export interface AgentResponse {
   projectName: string;
   status?: string;
   provisioning: Provisioning;
+  agentType?: AgentType;
+  runtimeConfigs?: RuntimeConfiguration;
 }
 
 export interface AgentListResponse extends PaginationMeta {

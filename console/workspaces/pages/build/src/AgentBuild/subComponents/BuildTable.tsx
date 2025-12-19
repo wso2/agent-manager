@@ -23,7 +23,7 @@ import { Rocket } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { BuildLogs, DeploymentConfig } from "@agent-management-platform/shared-component";
 import { useGetAgentBuilds } from "@agent-management-platform/api-client";
-import { BuildStatus } from "@agent-management-platform/types";
+import { BuildStatus, BUILD_STATUS_COLOR_MAP } from "@agent-management-platform/types";
 import dayjs from "dayjs";
 
 interface BuildRow {
@@ -77,20 +77,6 @@ export function BuildTable() {
     }, [searchParams, setSearchParams]);
 
 
-    const getStatusColor = (status: BuildStatus) => {
-        switch (status) {
-            case "Completed":
-                return "success";
-            case "BuildTriggered":
-                return "warning";
-            case "BuildInProgress":
-                return "warning";
-            case "BuildFailed":
-                return "error";
-            default:
-                return "default";
-        }
-    }
     const columns: TableColumn<BuildRow>[] = useMemo(() => [
         {
             id: "branch",
@@ -130,7 +116,7 @@ export function BuildTable() {
             render: (value) =>
                 renderStatusChip(
                     {
-                        color: getStatusColor(value as BuildStatus),
+                        color: BUILD_STATUS_COLOR_MAP[value as BuildStatus],
                         label: value as string,
                     },
                     theme
@@ -150,16 +136,16 @@ export function BuildTable() {
                     <Button
                         variant="outlined"
                         color="primary"
-                        disabled={row.status === "BuildInProgress" || row.status === "BuildFailed"}
+                        disabled={row.status === "BuildRunning" || row.status === "BuildFailed"}
                         onClick={() => handleBuildClick(row.title, 'deploy')}
                         size="small"
                         startIcon={
-                            row.status === "BuildInProgress" ?
+                            row.status === "BuildRunning" ?
                                 <CircularProgress color="inherit" size={14} /> :
                                 <Rocket size={16} />
                         }
                     >
-                        {row.status === "BuildInProgress" ? "Building" : "Deploy"}
+                        {row.status === "BuildRunning" ? "Building" : "Deploy"}
                     </Button>
                 </Box>
             )

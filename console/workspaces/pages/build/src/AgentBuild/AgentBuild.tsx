@@ -16,14 +16,13 @@
  * under the License.
  */
 
-import React from 'react';
-import { Box, Skeleton } from '@wso2/oxygen-ui';
-import { TopCards } from './subComponents/TopCards';
-import { BuildTable } from './subComponents/BuildTable';
-import { FadeIn } from '@agent-management-platform/views';
-import { useParams } from 'react-router-dom';
-import { useGetAgentBuilds } from '@agent-management-platform/api-client';
-
+import React from "react";
+import { Box, Skeleton } from "@wso2/oxygen-ui";
+import { TopCards } from "./subComponents/TopCards";
+import { BuildTable } from "./subComponents/BuildTable";
+import { FadeIn } from "@agent-management-platform/views";
+import { useParams } from "react-router-dom";
+import { useGetAgentBuilds } from "@agent-management-platform/api-client";
 
 export function AgentBuildSkeleton() {
   return (
@@ -41,7 +40,11 @@ export function AgentBuildSkeleton() {
 
 export const AgentBuild: React.FC = () => {
   const { agentId, projectId, orgId } = useParams();
-  const { isLoading } = useGetAgentBuilds({ orgName: orgId, projName: projectId, agentName: agentId });
+  const { isLoading } = useGetAgentBuilds({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
 
   if (isLoading) {
     return <AgentBuildSkeleton />;

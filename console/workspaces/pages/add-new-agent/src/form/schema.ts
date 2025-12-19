@@ -35,8 +35,7 @@ export interface AddAgentFormValues {
   interfaceType: InterfaceType;
   port?: number;
   basePath?: string;
-  openApiFileName?: string;
-  openApiContent?: string;
+  openApiPath?: string;
   env: Array<{ key?: string; value?: string }>;
 }
 
@@ -100,14 +99,9 @@ export const addAgentSchema = yup.object({
     then: (schema) => schema.required('Base path is required'),
     otherwise: (schema) => schema.notRequired(),
   }),
-  openApiFileName: yup.string().when('interfaceType', {
+  openApiPath: yup.string().trim().when('interfaceType', {
     is: 'CUSTOM',
-    then: (schema) => schema.required('OpenAPI spec file is required'),
-    otherwise: (schema) => schema.notRequired(),
-  }),
-  openApiContent: yup.string().when('interfaceType', {
-    is: 'CUSTOM',
-    then: (schema) => schema.required('OpenAPI spec content is required'),
+    then: (schema) => schema.required('OpenAPI spec path is required'),
     otherwise: (schema) => schema.notRequired(),
   }),
   env: yup

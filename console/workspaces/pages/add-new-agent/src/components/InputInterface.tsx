@@ -17,7 +17,6 @@
  */
 
 import {
-  Paperclip as AttachFile,
   CheckCircle,
   Circle,
   Settings,
@@ -25,7 +24,6 @@ import {
 import {
   Alert,
   Box,
-  Button,
   Card,
   CardContent,
   Collapse,
@@ -33,22 +31,22 @@ import {
   Typography,
   useTheme,
 } from "@wso2/oxygen-ui";
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import { TextInput } from "@agent-management-platform/views";
 
 const inputInterfaces = [
   {
     label: "Chat Agent",
-    description: "Interactive chat agent following the interface specification",
+    description: "Standard chat interface with /chat endpoint on port 8080",
     default: true,
     value: "DEFAULT",
     icon: <CheckCircle />,
   },
   {
-    label: "Agent API",
+    label: "Custom API Agent",
     description:
-      "Agent exposed as an API, with a user-specified OpenAPI specification and port configuration.",
+      "Custom HTTP API with user-specified OpenAPI specification and port configuration",
     default: false,
     value: "CUSTOM",
     icon: <Settings />,
@@ -65,18 +63,12 @@ export const InputInterface = () => {
   const interfaceType =
     useWatch({ control, name: "interfaceType" }) || "DEFAULT";
   const port = useWatch({ control, name: "port" }) as unknown as string;
-  const openApiFileName = useWatch({
-    control,
-    name: "openApiFileName",
-  }) as string;
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const theme = useTheme();
   const handleSelect = useCallback(
     (value: string) => {
       setValue("interfaceType", value, { shouldValidate: true });
       if (value === "DEFAULT") {
-        setValue("openApiFileName", "", { shouldValidate: true });
-        setValue("openApiContent", "", { shouldValidate: true });
+        setValue("openApiPath", "", { shouldValidate: true });
         setValue("port", "" as unknown as number, { shouldValidate: true });
         setValue("basePath", "/", { shouldValidate: true });
       }
@@ -98,40 +90,6 @@ export const InputInterface = () => {
     [setValue]
   );
 
-  const handleFilePick = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
-      // Validate file size (max 2MB)
-      const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
-      if (file.size > MAX_FILE_SIZE) {
-        alert("File size exceeds 2MB. Please upload a smaller file.");
-        e.target.value = ""; // Reset file input
-        return;
-      }
-
-      // Validate file extension
-      if (!file.name.match(/\.(yaml|yml)$/i)) {
-        alert("Please upload a YAML file (.yaml or .yml)");
-        e.target.value = "";
-        return;
-      }
-
-      setValue("openApiFileName", file.name, { shouldValidate: true });
-      const reader = new FileReader();
-      reader.onload = () => {
-        const text = typeof reader.result === "string" ? reader.result : "";
-        setValue("openApiContent", text, { shouldValidate: true });
-      };
-      reader.onerror = () => {
-        alert("Failed to read file. Please try again.");
-        setValue("openApiFileName", "");
-      };
-      reader.readAsText(file);
-    },
-    [setValue]
-  );
 
   return (
     <Card variant="outlined">
@@ -204,48 +162,30 @@ export const InputInterface = () => {
             ))}
           </Box>
           <Collapse in={interfaceType === "DEFAULT"}>
-            <Typography variant="body2" color="text.secondary">
-              <Alert severity="info">
-                /chat (string message, string session_id, context: JSON) →
-                string reply Runs on port 8080.
-              </Alert>
-            </Typography>
+            <Alert severity="info">
+              Uses the standard chat interface: <strong>POST /chat</strong> on port <strong>8080</strong>
+              <br />
+              Request: <code>{`{message: string, session_id: string, context: JSON}`}</code>
+              <br />
+              Response: <code>{`{reply: string}`}</code>
+            </Alert>
           </Collapse>
           <Collapse in={interfaceType === "CUSTOM"}>
             <Box display="flex" flexDirection="column" gap={1}>
               <Box display="flex" flexDirection="row" gap={1}>
                 <Box display="flex" flexDirection="column" flexGrow={1}>
                   <TextInput
-                    label="OpenAPI Spec"
-                    placeholder="openapi.yaml"
-                    value={openApiFileName || ""}
+                    label="OpenAPI Spec Path"
+                    placeholder="/openapi.yaml"
+                    required
                     fullWidth
                     size="small"
-                    slotProps={{ input: { readOnly: true } }}
-                    error={!!errors.openApiFileName || !!errors.openApiContent}
+                    error={!!errors.openApiPath}
                     helperText={
-                      (errors.openApiFileName?.message as string) ||
-                      (errors.openApiContent?.message as string) ||
-                      (openApiFileName
-                        ? "File loaded in browser"
-                        : "Upload your OpenAPI YAML file")
+                      (errors.openApiPath?.message as string) ||
+                      "Path to OpenAPI schema file in your repository"
                     }
-                  />
-                  <Box pt={1}>
-                    <Button
-                      variant="outlined"
-                      startIcon={<AttachFile size={16} />}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      Choose File
-                    </Button>
-                  </Box>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".yaml,.yml,text/yaml,application/x-yaml,application/yaml"
-                    style={{ display: "none" }}
-                    onChange={handleFilePick}
+                    {...register("openApiPath")}
                   />
                 </Box>
                 <Box>

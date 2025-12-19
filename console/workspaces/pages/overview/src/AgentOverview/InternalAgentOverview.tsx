@@ -78,7 +78,7 @@ export const InternalAgentOverview = () => {
   const loadingBuilds = useMemo(() => {
     return buildList?.builds.filter(
       (build) =>
-        build.status === "BuildInProgress" || build.status === "BuildTriggered"
+        build.status === "BuildRunning" || build.status === "BuildTriggered"
     );
   }, [buildList]);
 

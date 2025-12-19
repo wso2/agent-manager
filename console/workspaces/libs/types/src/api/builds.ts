@@ -30,10 +30,21 @@ export interface BuildAgentQuery {
 
 // Responses
 export type BuildStatus =
-  | "BuildInProgress"
+  | "BuildRunning"
   | "BuildTriggered"
-  | "Completed"
-  | "BuildFailed";
+  | "BuildCompleted"
+  | "BuildFailed"
+  | "WorkloadUpdated";
+
+export type BuildStatusColor = 'success' | 'warning' | 'error' | 'default';
+
+export const BUILD_STATUS_COLOR_MAP: Record<BuildStatus, BuildStatusColor> = {
+  BuildCompleted: 'success',
+  BuildTriggered: 'warning',
+  BuildRunning: 'warning',
+  BuildFailed: 'error',
+  WorkloadUpdated: 'success',
+};
 
 export interface BuildResponse {
   buildId?: string;
@@ -67,15 +78,17 @@ export interface BuildLogsResponse {
 export type BuildStepType =
   | "BuildInitiated"
   | "BuildTriggered"
+  | "BuildRunning"
   | "BuildCompleted"
   | "WorkloadUpdated";
-export type BuildStepStatus = "True" | "False" | "Unknown";
+export type BuildStepStatus = "Succeeded" | "Failed" | "Running" | "Pending";
 
 export interface BuildStep {
-  type: string; // Using string to be flexible with backend step types
-  status: string; // Using string to be flexible with backend status values
+  type: BuildStepType;
+  status: BuildStepStatus;
   message: string;
-  at: string; // ISO date-time
+  startedAt?: string; // ISO date-time
+  finishedAt?: string; // ISO date-time
 }
 
 export interface BuildDetailsResponse extends BuildResponse {

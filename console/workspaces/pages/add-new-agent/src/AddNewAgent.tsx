@@ -16,114 +16,144 @@
  * under the License.
  */
 
-import React, { useCallback, useMemo } from 'react';
-import { Alert, Box } from '@wso2/oxygen-ui';
-import { PageLayout } from '@agent-management-platform/views'
-import { generatePath, useNavigate, useParams } from 'react-router-dom';
-import { absoluteRouteMap, OrgProjPathParams } from '@agent-management-platform/types';
-import { useForm } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import { addAgentSchema, type AddAgentFormValues } from './form/schema';
-import { useCreateAgent, useListAgents } from '@agent-management-platform/api-client';
-import { AgentFlowRouter } from './components/AgentFlowRouter';
-import { CreateButtons } from './components/CreateButtons';
-import { useAgentFlow } from './hooks/useAgentFlow';
-import { buildAgentCreationPayload } from './utils/buildAgentPayload';
+import React, { useCallback, useMemo } from "react";
+import { Alert, Box } from "@wso2/oxygen-ui";
+import { PageLayout } from "@agent-management-platform/views";
+import { generatePath, useNavigate, useParams } from "react-router-dom";
+import {
+  absoluteRouteMap,
+  OrgProjPathParams,
+} from "@agent-management-platform/types";
+import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+import { addAgentSchema, type AddAgentFormValues } from "./form/schema";
+import {
+  useCreateAgent,
+  useListAgents,
+} from "@agent-management-platform/api-client";
+import { AgentFlowRouter } from "./components/AgentFlowRouter";
+import { CreateButtons } from "./components/CreateButtons";
+import { useAgentFlow } from "./hooks/useAgentFlow";
+import { buildAgentCreationPayload } from "./utils/buildAgentPayload";
 
 export const AddNewAgent: React.FC = () => {
   const navigate = useNavigate();
-  const { orgId, projectId } = useParams<{ orgId: string; projectId?: string }>();
+  const { orgId, projectId } = useParams<{
+    orgId: string;
+    projectId?: string;
+  }>();
   const methods = useForm<AddAgentFormValues>({
     resolver: yupResolver(addAgentSchema),
     defaultValues: {
-      name: '',
-      displayName: '',
-      description: '',
-      repositoryUrl: '',
-      branch: 'main',
-      appPath: '',
-      runCommand: 'python main.py',
-      language: 'python',
-      languageVersion: '3.11',
-      interfaceType: 'DEFAULT',
-      port: '' as unknown as number,
-      basePath: '/',
-      openApiFileName: '',
-      openApiContent: '',
-      env: [{ key: '', value: '' }],
-      deploymentType: 'new',
+      name: "",
+      displayName: "",
+      description: "",
+      repositoryUrl: "",
+      branch: "main",
+      appPath: "",
+      runCommand: "python main.py",
+      language: "python",
+      languageVersion: "3.11",
+      interfaceType: "DEFAULT",
+      port: "" as unknown as number,
+      basePath: "/",
+      openApiPath: "",
+      env: [{ key: "", value: "" }],
+      deploymentType: "new",
     },
-    mode: 'all', // Validate on change, blur, and submit
-    reValidateMode: 'onChange',
+    mode: "all", // Validate on change, blur, and submit
+    reValidateMode: "onChange",
   });
   const { mutate: createAgent, isPending, error } = useCreateAgent();
-  const { data: agents} = useListAgents({
-    orgName: orgId ?? 'default',
-    projName: projectId ?? 'default'
+  const { data: agents } = useListAgents({
+    orgName: orgId ?? "default",
+    projName: projectId ?? "default",
   });
-  const params = useMemo<OrgProjPathParams>(() => ({
-    orgName: orgId ?? 'default',
-    projName: projectId ?? 'default'
-  }), [orgId, projectId]);
+  const params = useMemo<OrgProjPathParams>(
+    () => ({
+      orgName: orgId ?? "default",
+      projName: projectId ?? "default",
+    }),
+    [orgId, projectId]
+  );
 
-  const { selectedOption, handleSelect } = useAgentFlow(methods, orgId, projectId);
+  const { selectedOption, handleSelect } = useAgentFlow(
+    methods,
+    orgId,
+    projectId
+  );
 
   const handleCancel = useCallback(() => {
-    navigate(generatePath(
-      absoluteRouteMap.children.org.children.projects.path,
-      { orgId: orgId ?? '', projectId: projectId ?? 'default' }
-    ));
+    navigate(
+      generatePath(absoluteRouteMap.children.org.children.projects.path, {
+        orgId: orgId ?? "",
+        projectId: projectId ?? "default",
+      })
+    );
   }, [navigate, orgId, projectId]);
 
-  const onSubmit = useCallback((values: AddAgentFormValues) => {
-    const payload = buildAgentCreationPayload(values, params);
+  const onSubmit = useCallback(
+    (values: AddAgentFormValues) => {
+      const payload = buildAgentCreationPayload(values, params);
 
-    createAgent(payload, {
-      onSuccess: () => {
-        navigate(generatePath(
-          absoluteRouteMap.children.org.children.projects.children.agents.path,
-          {
-            orgId: params.orgName ?? '',
-            projectId: params.projName ?? '',
-            agentId: payload.body.name
-          })
-        + "?setup=true"
-        );
-      },
-      onError: (e: unknown) => {
-        // TODO: Show error toast/notification to user
-        // eslint-disable-next-line no-console
-        console.error('Failed to create agent:', e);
-      }
-    });
-  }, [createAgent, navigate, params]);
+      createAgent(payload, {
+        onSuccess: () => {
+          navigate(
+            generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .path,
+              {
+                orgId: params.orgName ?? "",
+                projectId: params.projName ?? "",
+                agentId: payload.body.name,
+              }
+            ) + "?setup=true"
+          );
+        },
+        onError: (e: unknown) => {
+          // TODO: Show error toast/notification to user
+          // eslint-disable-next-line no-console
+          console.error("Failed to create agent:", e);
+        },
+      });
+    },
+    [createAgent, navigate, params]
+  );
 
-  const handleAddAgent = useMemo(() => methods.handleSubmit(onSubmit), [methods, onSubmit]);
+  const handleAddAgent = useMemo(
+    () => methods.handleSubmit(onSubmit),
+    [methods, onSubmit]
+  );
 
   const pageMetadata = useMemo(() => {
-    if (selectedOption === 'new') {
+    if (selectedOption === "new") {
       return {
-        title: 'Create a Platform-Hosted Agent',
-        description: 'Specify the source repository, select the agent type, and deploy it on the platform.',
-        backable: true
+        title: "Create a Platform-Hosted Agent",
+        description:
+          "Specify the source repository, select the agent type, and deploy it on the platform.",
+        backable: true,
       };
     }
-    if (selectedOption === 'existing') {
+    if (selectedOption === "existing") {
       return {
-        title: 'Register an Externally-Hosted Agent',
-        description: 'Provide basic information to register your externally-hosted agent on the platform.',
-        backable: true
+        title: "Register an Externally-Hosted Agent",
+        description:
+          "Provide basic information to register your externally-hosted agent on the platform.",
+        backable: true,
       };
     }
     return {
-      title: 'Add a New Agent',
-      description: 'Choose how you want to get started. You can deploy an agent on the platform or register an agent that already runs elsewhere.',
-      backable: false
+      title: "Add a New Agent",
+      description:
+        "Choose how you want to get started. You can deploy an agent on the platform or register an agent that already runs elsewhere.",
+      backable: false,
     };
   }, [selectedOption]);
 
   const { title, description, backable } = pageMetadata;
-  const hasAgents = Boolean(agents?.agents?.length && agents?.agents?.length > 0);
+  const hasAgents = Boolean(
+    agents?.agents?.length && agents?.agents?.length > 0
+  );
 
   const backHref = useMemo(() => {
     if (!hasAgents) {
@@ -135,26 +165,27 @@ export const AddNewAgent: React.FC = () => {
       : absoluteRouteMap.children.org.children.projects.path;
 
     return generatePath(route, {
-      orgId: orgId ?? '',
-      projectId: projectId ?? 'default'
+      orgId: orgId ?? "",
+      projectId: projectId ?? "default",
     });
   }, [backable, hasAgents, orgId, projectId]);
 
   return (
-    <PageLayout title={title} description={description} 
-    disableIcon
+    <PageLayout
+      title={title}
+      description={description}
+      disableIcon
       backHref={backHref}
-      backLabel={backable ? 'Back to Agent Hosting Options' : "Back to Projects Home"}
+      backLabel={
+        backable ? "Back to Agent Hosting Options" : "Back to Projects Home"
+      }
     >
       <Box display="flex" flexDirection="column" gap={2}>
-        <AgentFlowRouter
-          methods={methods}
-          onSelect={handleSelect}
-        />
+        <AgentFlowRouter methods={methods} onSelect={handleSelect} />
 
         {!!error && (
           <Alert severity="error" sx={{ mt: 2 }}>
-            {error instanceof Error ? error.message : 'Failed to create agent'}
+            {error instanceof Error ? error.message : "Failed to create agent"}
           </Alert>
         )}
 
@@ -164,7 +195,7 @@ export const AddNewAgent: React.FC = () => {
             isPending={isPending}
             onCancel={handleCancel}
             onSubmit={handleAddAgent}
-            mode={selectedOption === 'existing' ? 'connect' : 'deploy'}
+            mode={selectedOption === "existing" ? "connect" : "deploy"}
           />
         )}
       </Box>

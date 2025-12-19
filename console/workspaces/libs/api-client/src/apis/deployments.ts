@@ -32,6 +32,11 @@ import {
   EnvironmentListResponse,
   GetDeploymentPipelinePathParams,
   DeploymentPipelineResponse,
+  ListDataPlanesPathParams,
+  DataPlaneListResponse,
+  ListDeploymentPipelinesPathParams,
+  DeploymentPipelineListResponse,
+  ListDeploymentPipelinesQuery,
 } from '@agent-management-platform/types';
 
 
@@ -134,6 +139,40 @@ export async function getDeploymentPipeline(params: GetDeploymentPipelinePathPar
     const res = await httpGET(
         `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/deployment-pipeline`,
         { token },
+    );
+    if (!res.ok) throw await res.json();
+    return res.json();
+}
+
+// eslint-disable-next-line max-len
+export async function listDataPlanes(params: ListDataPlanesPathParams, getToken?: () => Promise<string>)
+: Promise<DataPlaneListResponse> {
+    const { orgName = "default" } = params;
+    const token = getToken ? await getToken() : undefined;
+    const res = await httpGET(
+        `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/data-planes`,
+        { token },
+    );
+    if (!res.ok) throw await res.json();
+    return res.json();
+}
+
+// eslint-disable-next-line max-len
+export async function listDeploymentPipelines(params: ListDeploymentPipelinesPathParams, query?: ListDeploymentPipelinesQuery, getToken?: () => Promise<string>)
+: Promise<DeploymentPipelineListResponse> {
+    const { orgName = "default" } = params;
+    const search = query
+        ? Object.fromEntries(
+            Object.entries(query)
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                .filter(([_, v]) => v !== undefined)
+                .map(([k, v]) => [k, String(v)]),
+        )
+        : undefined;
+    const token = getToken ? await getToken() : undefined;
+    const res = await httpGET(
+        `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/deployment-pipelines`,
+        { searchParams: search, token },
     );
     if (!res.ok) throw await res.json();
     return res.json();
