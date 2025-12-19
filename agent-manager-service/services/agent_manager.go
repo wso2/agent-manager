@@ -951,7 +951,7 @@ func (s *agentManagerService) GetAgentConfigurations(ctx context.Context, userId
 
 func (s *agentManagerService) convertToAgentListItem(agent *clients.AgentComponent) *models.AgentResponse {
 	response := &models.AgentResponse{
-		UUID: agent.UUID,
+		UUID:        agent.UUID,
 		Name:        agent.Name,
 		DisplayName: agent.DisplayName,
 		Description: agent.Description,
@@ -972,7 +972,7 @@ func (s *agentManagerService) convertToAgentListItem(agent *clients.AgentCompone
 // convertToExternalAgentResponse converts a database Agent model to AgentResponse for external agents
 func (s *agentManagerService) convertExternalAgentToAgentResponse(ocAgentComponent *clients.AgentComponent) *models.AgentResponse {
 	return &models.AgentResponse{
-		UUID: ocAgentComponent.UUID,
+		UUID:        ocAgentComponent.UUID,
 		Name:        ocAgentComponent.Name,
 		DisplayName: ocAgentComponent.DisplayName,
 		Description: ocAgentComponent.Description,
@@ -990,7 +990,7 @@ func (s *agentManagerService) convertExternalAgentToAgentResponse(ocAgentCompone
 // convertToManagedAgentResponse converts an OpenChoreo AgentComponent to AgentResponse for managed agents
 func (s *agentManagerService) convertManagedAgentToAgentResponse(ocAgentComponent *clients.AgentComponent) *models.AgentResponse {
 	return &models.AgentResponse{
-		UUID: ocAgentComponent.UUID,
+		UUID:        ocAgentComponent.UUID,
 		Name:        ocAgentComponent.Name,
 		DisplayName: ocAgentComponent.DisplayName,
 		Description: ocAgentComponent.Description,

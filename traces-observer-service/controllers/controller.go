@@ -19,10 +19,10 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"log"
 	"sort"
 	"time"
 
+	"github.com/wso2/ai-agent-management-platform/traces-observer-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/opensearch"
 )
 
@@ -40,7 +40,10 @@ func NewTracingController(osClient *opensearch.Client) *TracingController {
 
 // GetTraceOverviews retrieves unique trace IDs with root span information
 func (s *TracingController) GetTraceOverviews(ctx context.Context, params opensearch.TraceQueryParams) (*opensearch.TraceOverviewResponse, error) {
-	log.Printf("Getting trace overviews for component: %s, environment: %s", params.ComponentUid, params.EnvironmentUid)
+	log := logger.GetLogger(ctx)
+	log.Info("Getting trace overviews",
+		"component", params.ComponentUid,
+		"environment", params.EnvironmentUid)
 
 	// Set defaults
 	if params.Limit == 0 {
@@ -65,7 +68,7 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate indices: %w", err)
 	}
-	log.Printf("Searching indices: %v", indices)
+	log.Debug("Searching indices", "indices", indices)
 
 	// Execute search
 	response, err := s.osClient.Search(ctx, indices, query)
@@ -86,33 +89,39 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 	allOverviews := []opensearch.TraceOverview{}
 	for traceID, traceSpans := range traceMap {
 		// Find root span (span with no parentSpanId)
-		var rootSpanID, rootSpanName, startTime, endTime string
-		var durationInNanos int64
-		var rootSpanAttributes map[string]interface{}
+		var rootSpan *opensearch.Span
 
-		for _, span := range traceSpans {
-			if span.ParentSpanID == "" {
-				rootSpanID = span.SpanID
-				rootSpanName = span.Name
-				rootSpanAttributes = span.Attributes
-				startTime = span.StartTime.Format(time.RFC3339Nano)
-				endTime = span.EndTime.Format(time.RFC3339Nano)
-				durationInNanos = span.DurationInNanos
+		for i := range traceSpans {
+			if traceSpans[i].ParentSpanID == "" {
+				rootSpan = &traceSpans[i]
 				break
 			}
 		}
 
+		// Extract token usage from GenAI spans
+		tokenUsage := opensearch.ExtractTokenUsage(traceSpans)
+
+		// Extract trace status and error information
+		traceStatus := opensearch.ExtractTraceStatus(traceSpans)
+
+		// Extract input and output from root span
+		input, output := opensearch.ExtractRootSpanInputOutput(rootSpan)
+
 		// Add to overviews if we found a root span
-		if rootSpanID != "" {
+		if rootSpan.SpanID != "" {
 			allOverviews = append(allOverviews, opensearch.TraceOverview{
-				TraceID:            traceID,
-				RootSpanID:         rootSpanID,
-				RootSpanName:       rootSpanName,
-				RootSpanAttributes: rootSpanAttributes,
-				StartTime:          startTime,
-				EndTime:            endTime,
-				DurationInNanos:    durationInNanos,
-				SpanCount:          len(traceSpans),
+				TraceID:         traceID,
+				RootSpanID:      rootSpan.SpanID,
+				RootSpanName:    rootSpan.Name,
+				RootSpanKind:    string(opensearch.DetermineSpanType(*rootSpan)),
+				StartTime:       rootSpan.StartTime.Format(time.RFC3339Nano),
+				EndTime:         rootSpan.EndTime.Format(time.RFC3339Nano),
+				DurationInNanos: rootSpan.DurationInNanos,
+				SpanCount:       len(traceSpans),
+				TokenUsage:      tokenUsage,
+				Status:          traceStatus,
+				Input:           input,
+				Output:          output,
 			})
 		}
 	}
@@ -136,8 +145,12 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 
 	paginatedOverviews := allOverviews[start:end]
 
-	log.Printf("Retrieved %d unique traces from %d spans (showing %d-%d of %d)",
-		len(allOverviews), len(spans), start, end, totalCount)
+	log.Info("Retrieved trace overviews",
+		"unique_traces", len(allOverviews),
+		"total_spans", len(spans),
+		"showing_start", start,
+		"showing_end", end,
+		"total_count", totalCount)
 
 	return &opensearch.TraceOverviewResponse{
 		Traces:     paginatedOverviews,
@@ -147,7 +160,11 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 
 // GetTraceByIdAndService retrieves spans for a specific trace ID and component UID
 func (s *TracingController) GetTraceByIdAndService(ctx context.Context, params opensearch.TraceByIdAndServiceParams) (*opensearch.TraceResponse, error) {
-	log.Printf("Getting trace for traceID: %s, component: %s, environment: %s", params.TraceID, params.ComponentUid, params.EnvironmentUid)
+	log := logger.GetLogger(ctx)
+	log.Info("Getting trace by ID",
+		"traceId", params.TraceID,
+		"component", params.ComponentUid,
+		"environment", params.EnvironmentUid)
 
 	// Build query
 	query := opensearch.BuildTraceByIdAndServiceQuery(params)
@@ -163,7 +180,7 @@ func (s *TracingController) GetTraceByIdAndService(ctx context.Context, params o
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate indices: %w", err)
 	}
-	log.Printf("Searching indices for trace ID: %v", indices)
+	log.Debug("Searching indices for trace ID", "indices", indices)
 
 	// Execute search
 	response, err := s.osClient.Search(ctx, indices, query)
@@ -175,14 +192,26 @@ func (s *TracingController) GetTraceByIdAndService(ctx context.Context, params o
 	spans := opensearch.ParseSpans(response)
 
 	if len(spans) == 0 {
-		return nil, fmt.Errorf("no spans found for traceID: %s, component: %s, environment: %s", params.TraceID, params.ComponentUid, params.EnvironmentUid)
+		return nil, fmt.Errorf("no spans found for traceID: %s and service: %s", params.TraceID, params.ComponentUid)
 	}
 
-	log.Printf("Retrieved %d spans for traceID: %s, component: %s, environment: %s", len(spans), params.TraceID, params.ComponentUid, params.EnvironmentUid)
+	// Extract token usage from GenAI spans
+	tokenUsage := opensearch.ExtractTokenUsage(spans)
+
+	// Extract trace status and error information
+	traceStatus := opensearch.ExtractTraceStatus(spans)
+
+	log.Info("Retrieved trace spans",
+		"span_count", len(spans),
+		"traceId", params.TraceID,
+		"component", params.ComponentUid,
+		"environment", params.EnvironmentUid)
 
 	return &opensearch.TraceResponse{
 		Spans:      spans,
 		TotalCount: len(spans),
+		TokenUsage: tokenUsage,
+		Status:     traceStatus,
 	}, nil
 }
 

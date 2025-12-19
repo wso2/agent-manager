@@ -18,100 +18,120 @@ package traceobserversvc
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
-	"time"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 )
 
-// TraceObserverClient interface defines methods for interacting with the traces-observer-service
+// TraceObserverClient is the interface for interacting with the trace observer service
 type TraceObserverClient interface {
 	ListTraces(ctx context.Context, params ListTracesParams) (*TraceOverviewResponse, error)
 	TraceDetailsById(ctx context.Context, params TraceDetailsByIdParams) (*TraceResponse, error)
 }
 
 type traceObserverClient struct {
-	httpClient requests.HttpClient
+	baseURL    string
+	httpClient *http.Client
 }
 
-// NewTraceObserverClient creates a new trace observer client
+// NewTraceObserverClient creates a new TraceObserverClient instance
 func NewTraceObserverClient() TraceObserverClient {
-	httpClient := &http.Client{
-		Timeout: time.Second * 15,
-	}
+	cfg := config.GetConfig()
 	return &traceObserverClient{
-		httpClient: httpClient,
+		baseURL:    cfg.TraceObserver.URL,
+		httpClient: &http.Client{},
 	}
 }
 
-// ListTraces retrieves trace overviews from the traces-observer-service
+// ListTraces retrieves trace overviews from the trace observer service
 func (c *traceObserverClient) ListTraces(ctx context.Context, params ListTracesParams) (*TraceOverviewResponse, error) {
-	baseURL := config.GetConfig().TraceObserver.URL
-	tracesURL := fmt.Sprintf("%s/api/traces", baseURL)
-
 	// Build query parameters
 	queryParams := url.Values{}
-	queryParams.Set("serviceName", params.ServiceName)
-
+	queryParams.Add("componentUid", params.ComponentUid)
+	if params.EnvironmentUid != "" {
+		queryParams.Add("environmentUid", params.EnvironmentUid)
+	}
 	if params.StartTime != "" {
-		queryParams.Set("startTime", params.StartTime)
+		queryParams.Add("startTime", params.StartTime)
 	}
 	if params.EndTime != "" {
-		queryParams.Set("endTime", params.EndTime)
+		queryParams.Add("endTime", params.EndTime)
 	}
-	if params.Limit > 0 {
-		queryParams.Set("limit", strconv.Itoa(params.Limit))
-	}
-	if params.Offset > 0 {
-		queryParams.Set("offset", strconv.Itoa(params.Offset))
-	}
-	if params.SortOrder != "" {
-		queryParams.Set("sortOrder", params.SortOrder)
+	queryParams.Add("limit", strconv.Itoa(params.Limit))
+	queryParams.Add("offset", strconv.Itoa(params.Offset))
+	queryParams.Add("sortOrder", params.SortOrder)
+
+	// Build URL - assuming endpoint is /traces/overview
+	requestURL := fmt.Sprintf("%s/traces/overview?%s", c.baseURL, queryParams.Encode())
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	fullURL := fmt.Sprintf("%s?%s", tracesURL, queryParams.Encode())
-
-	req := &requests.HttpRequest{
-		Name:   "traceobserver.ListTraces",
-		URL:    fullURL,
-		Method: http.MethodGet,
+	// Execute request
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}
-	req.SetHeader("Accept", "application/json")
+	defer resp.Body.Close()
 
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("trace observer returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse response
 	var response TraceOverviewResponse
-	if err := requests.SendRequest(ctx, c.httpClient, req).ScanResponse(&response, http.StatusOK); err != nil {
-		return nil, fmt.Errorf("traceobserver.ListTraces: %w", err)
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	return &response, nil
 }
 
-// TraceDetailsById retrieves detailed trace spans for a specific trace ID from the traces-observer-service
+// TraceDetailsById retrieves detailed trace information by trace ID
 func (c *traceObserverClient) TraceDetailsById(ctx context.Context, params TraceDetailsByIdParams) (*TraceResponse, error) {
-	baseURL := config.GetConfig().TraceObserver.URL
-	traceURL := fmt.Sprintf("%s/api/trace", baseURL)
-
 	// Build query parameters
 	queryParams := url.Values{}
-	queryParams.Set("traceId", params.TraceID)
-	queryParams.Set("serviceName", params.ServiceName)
-
-	fullURL := fmt.Sprintf("%s?%s", traceURL, queryParams.Encode())
-
-	req := &requests.HttpRequest{
-		Name:   "traceobserver.TraceDetailsById",
-		URL:    fullURL,
-		Method: http.MethodGet,
+	queryParams.Add("componentUid", params.ComponentUid)
+	if params.EnvironmentUid != "" {
+		queryParams.Add("environmentUid", params.EnvironmentUid)
 	}
-	req.SetHeader("Accept", "application/json")
 
+	// Build URL - assuming endpoint is /traces/{traceId}
+	requestURL := fmt.Sprintf("%s/traces/%s?%s", c.baseURL, params.TraceID, queryParams.Encode())
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Execute request
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("trace observer returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse response
 	var response TraceResponse
-	if err := requests.SendRequest(ctx, c.httpClient, req).ScanResponse(&response, http.StatusOK); err != nil {
-		return nil, fmt.Errorf("traceobserver.TraceDetailsById: %w", err)
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	return &response, nil

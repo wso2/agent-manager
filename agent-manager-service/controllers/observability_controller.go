@@ -46,6 +46,8 @@ func (c *observabilityController) ListTraces(w http.ResponseWriter, r *http.Requ
 	log := logger.GetLogger(ctx)
 
 	// Extract path parameters
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
 
 	// Parse query parameters
@@ -74,6 +76,7 @@ func (c *observabilityController) ListTraces(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Optional query parameters
+	environment := r.URL.Query().Get("environment")
 	startTime := r.URL.Query().Get("startTime")
 	endTime := r.URL.Query().Get("endTime")
 	sortOrder := r.URL.Query().Get("sortOrder")
@@ -88,7 +91,10 @@ func (c *observabilityController) ListTraces(w http.ResponseWriter, r *http.Requ
 
 	// Build parameters for the service
 	params := services.ListTracesRequest{
-		ServiceName: agentName,
+		OrgName:     orgName,
+		ProjectName: projName,
+		AgentName:   agentName,
+		Environment: environment,
 		StartTime:   startTime,
 		EndTime:     endTime,
 		Limit:       limit,
@@ -113,23 +119,31 @@ func (c *observabilityController) GetTrace(w http.ResponseWriter, r *http.Reques
 	log := logger.GetLogger(ctx)
 
 	// Extract path parameters
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
 	traceID := r.PathValue(utils.PathParamTraceId)
+
+	// Optional query parameters
+	environment := r.URL.Query().Get("environment")
 
 	// Build parameters for the service
 	params := services.TraceDetailsRequest{
 		TraceID:     traceID,
-		ServiceName: agentName,
+		OrgName:     orgName,
+		ProjectName: projName,
+		AgentName:   agentName,
+		Environment: environment,
 	}
 
 	// Call the service
 	response, err := c.observabilityService.GetTraceDetails(ctx, params)
 	if err != nil {
-		log.Error("GetTrace: failed to get trace details", "traceId", traceID, "serviceName", agentName, "error", err)
+		log.Error("GetTrace: failed to get trace details", "traceId", traceID, "agentName", agentName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to retrieve trace details")
 		return
 	}
 
-	log.Info("GetTrace: successfully retrieved trace details", "traceId", traceID, "serviceName", agentName, "spanCount", response.TotalCount)
+	log.Info("GetTrace: successfully retrieved trace details", "traceId", traceID, "agentName", agentName, "spanCount", response.TotalCount)
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }

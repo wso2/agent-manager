@@ -61,9 +61,6 @@ func createMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
 				CreatedAt:          time.Now(),
 			}, nil
 		},
-		GetAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agentName string) (*openchoreosvc.AgentComponent, error) {
-			return nil, utils.ErrAgentNotFound
-		},
 		IsAgentComponentExistsFunc: func(ctx context.Context, orgName string, projName string, agentName string) (bool, error) {
 			return false, nil
 		},
@@ -93,6 +90,16 @@ func createMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
 						SourceEnvironmentRef: "Development",
 					},
 				},
+			}, nil
+		},
+		GetAgentComponentFunc: func(ctx context.Context, orgName, projectName, agentName string) (*openchoreosvc.AgentComponent, error) {
+			return &openchoreosvc.AgentComponent{
+				UUID: "component-uid-123",
+			}, nil
+		},
+		GetEnvironmentFunc: func(ctx context.Context, orgName, environmentName string) (*models.EnvironmentResponse, error) {
+			return &models.EnvironmentResponse{
+				UUID: "environment-uid-123",
 			}, nil
 		},
 	}

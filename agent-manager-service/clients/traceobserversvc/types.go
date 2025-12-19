@@ -20,29 +20,50 @@ import "time"
 
 // ListTracesParams holds parameters for listing trace overviews
 type ListTracesParams struct {
-	ServiceName string
-	StartTime   string
-	EndTime     string
-	Limit       int
-	Offset      int
-	SortOrder   string
+	ServiceName    string
+	ComponentUid   string
+	EnvironmentUid string
+	StartTime      string
+	EndTime        string
+	Limit          int
+	Offset         int
+	SortOrder      string
 }
 
 // TraceDetailsByIdParams holds parameters for getting trace details by ID
 type TraceDetailsByIdParams struct {
-	TraceID     string
-	ServiceName string
+	TraceID        string
+	ServiceName    string
+	ComponentUid   string
+	EnvironmentUid string
 }
 
 // TraceOverview represents a single trace overview with root span info
 type TraceOverview struct {
-	TraceID         string `json:"traceId"`
-	RootSpanID      string `json:"rootSpanId"`
-	RootSpanName    string `json:"rootSpanName"`
-	StartTime       string `json:"startTime"`
-	EndTime         string `json:"endTime"`
-	DurationInNanos int64  `json:"durationInNanos"`
-	SpanCount       int    `json:"spanCount"`
+	TraceID         string       `json:"traceId"`
+	RootSpanID      string       `json:"rootSpanId"`
+	RootSpanName    string       `json:"rootSpanName"`
+	RootSpanKind    string       `json:"rootSpanKind"` // Semantic kind of the root span (llm, tool, embedding, etc.)
+	StartTime       string       `json:"startTime"`
+	EndTime         string       `json:"endTime"`
+	DurationInNanos int64        `json:"durationInNanos"`
+	SpanCount       int          `json:"spanCount"`
+	TokenUsage      *TokenUsage  `json:"tokenUsage,omitempty"` // Aggregated token usage from GenAI spans
+	Status          *TraceStatus `json:"status,omitempty"`     // Trace status including error information
+	Input           string       `json:"input,omitempty"`      // Input from root span's traceloop.entity.input
+	Output          string       `json:"output,omitempty"`     // Output from root span's traceloop.entity.output
+}
+
+// TokenUsage represents aggregated token usage from GenAI spans
+type TokenUsage struct {
+	InputTokens  int `json:"inputTokens"`
+	OutputTokens int `json:"outputTokens"`
+	TotalTokens  int `json:"totalTokens"`
+}
+
+// TraceStatus represents the status of a trace
+type TraceStatus struct {
+	ErrorCount int `json:"errorCount"` // Number of spans with errors (0 means no errors)
 }
 
 // TraceOverviewResponse represents the response for trace overview queries
@@ -65,10 +86,61 @@ type Span struct {
 	Status          string                 `json:"status,omitempty"`
 	Attributes      map[string]interface{} `json:"attributes,omitempty"`
 	Resource        map[string]interface{} `json:"resource,omitempty"`
+	AmpAttributes   *AmpAttributes         `json:"ampAttributes,omitempty"` // AMP-specific enriched attributes
+}
+
+// AmpAttributes contains AMP-specific enriched attributes
+type AmpAttributes struct {
+	Kind        string           `json:"kind"`                  // Semantic span type (llm, tool, embedding, etc.)
+	Input       interface{}      `json:"input,omitempty"`       // Input: []PromptMessage for LLM spans, string for tool spans
+	Output      interface{}      `json:"output,omitempty"`      // Output: []PromptMessage for LLM spans, string for tool spans
+	Tools       []ToolDefinition `json:"tools,omitempty"`       // List of available tools/functions (for LLM spans)
+	Name        string           `json:"name,omitempty"`        // Name of the entity (for tool spans)
+	Status      *SpanStatus      `json:"status,omitempty"`      // Execution status with error information
+	Model       string           `json:"model,omitempty"`       // Model name (for LLM spans)
+	Temperature *float64         `json:"temperature,omitempty"` // Temperature parameter (for LLM spans)
+	TokenUsage  *LLMTokenUsage   `json:"tokenUsage,omitempty"`  // Token usage details (for LLM spans)
+}
+
+// SpanStatus represents the execution status of a span
+type SpanStatus struct {
+	Error     bool   `json:"error"`               // Whether the span has an error
+	ErrorType string `json:"errorType,omitempty"` // Error type from error.type attribute (only if error is true)
+}
+
+// LLMTokenUsage represents token usage for a single LLM span
+type LLMTokenUsage struct {
+	InputTokens          int `json:"inputTokens"`
+	OutputTokens         int `json:"outputTokens"`
+	CacheReadInputTokens int `json:"cacheReadInputTokens,omitempty"`
+	TotalTokens          int `json:"totalTokens"`
+}
+
+// PromptMessage represents a single message in a conversation
+type PromptMessage struct {
+	Role      string     `json:"role"`                // system, user, assistant, tool
+	Content   string     `json:"content,omitempty"`   // The message content (text)
+	ToolCalls []ToolCall `json:"toolCalls,omitempty"` // Tool calls made by assistant (for assistant role with tool calls)
+}
+
+// ToolCall represents a tool/function call made by the assistant
+type ToolCall struct {
+	ID        string `json:"id"`        // Tool call ID
+	Name      string `json:"name"`      // Function/tool name
+	Arguments string `json:"arguments"` // JSON arguments for the tool
+}
+
+// ToolDefinition represents a tool/function available to the LLM
+type ToolDefinition struct {
+	Name        string `json:"name"`                  // Function name
+	Description string `json:"description,omitempty"` // Function description
+	Parameters  string `json:"parameters,omitempty"`  // JSON schema of parameters
 }
 
 // TraceResponse represents the response for trace queries
 type TraceResponse struct {
-	Spans      []Span `json:"spans"`
-	TotalCount int    `json:"totalCount"`
+	Spans      []Span       `json:"spans"`
+	TotalCount int          `json:"totalCount"`
+	TokenUsage *TokenUsage  `json:"tokenUsage,omitempty"` // Aggregated token usage from GenAI spans
+	Status     *TraceStatus `json:"status,omitempty"`     // Trace status including error information
 }

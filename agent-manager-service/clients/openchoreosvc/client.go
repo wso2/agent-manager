@@ -303,7 +303,7 @@ func (k *openChoreoSvcClient) CreateAgentComponent(ctx context.Context, orgName 
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -1050,7 +1050,7 @@ func (k *openChoreoSvcClient) ListProjects(ctx context.Context, orgName string) 
 	var projects []*models.ProjectResponse
 	for _, project := range projectList.Items {
 		projects = append(projects, &models.ProjectResponse{
-			UUID: string(project.UID),
+			UUID:               string(project.UID),
 			Name:               project.Name,
 			OrgName:            project.Namespace,
 			CreatedAt:          project.CreationTimestamp.Time,
