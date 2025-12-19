@@ -23,9 +23,7 @@ def run_agent(thread_id: int, question: str, passenger_id: str = "3442 587242"):
     }
 
     events = agent_graph.stream(
-        {"messages": ("user", question)},
-        config,
-        stream_mode="values"
+        {"messages": ("user", question)}, config, stream_mode="values"
     )
 
     final_answer = None
@@ -39,8 +37,13 @@ def run_agent(thread_id: int, question: str, passenger_id: str = "3442 587242"):
     return final_answer
 
 
-@app.post("/invocations")
-async def invocations(payload: dict):
+@app.post("/chat")
+async def chat(payload: dict):
     # Process the payload as needed
-    result = {"results": run_agent(payload["thread_id"], payload["question"],  payload["passenger_id"],)}
+    result = {
+        "results": run_agent(
+            payload["session_id"],
+            payload["message"],
+        )
+    }
     return JSONResponse(content=result)
