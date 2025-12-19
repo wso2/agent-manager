@@ -138,8 +138,8 @@ def initialize_instrumentation() -> None:
             # Do not raise - allow application to continue without instrumentation
 
         except Exception as e:
-            logger.error(
-                f"Unexpected error during instrumentation initialization: {e}",
-                exc_info=True,
+            logger.exception(
+                f"Unexpected error during instrumentation initialization: {e}"
             )
+
             # Do not raise - allow application to continue without instrumentation

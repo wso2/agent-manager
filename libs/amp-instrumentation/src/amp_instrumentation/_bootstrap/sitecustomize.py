@@ -40,4 +40,4 @@ try:
 except Exception as e:
     # Log error but allow application to continue without instrumentation
     logger = logging.getLogger(__name__)
-    logger.error(f"Failed to initialize WSO2 AMP instrumentation: {e}", exc_info=True)
+    logger.exception(f"Failed to initialize WSO2 AMP instrumentation: {e}")
