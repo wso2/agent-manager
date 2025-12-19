@@ -278,6 +278,12 @@ func (k *openChoreoSvcClient) CreateAgentComponent(ctx context.Context, orgName 
 		if err != nil {
 			return fmt.Errorf("failed to create component CR for external agents: %w", err)
 		}
+		err = k.retryK8sOperation(ctx, "CreateComponent", func() error {
+			return k.client.Create(ctx, componentCR)
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create component: %w", err)
+		}
 	} else {
 		componentCR, err = createComponentCRForInternalAgents(orgName, projName, req)
 		if err != nil {
