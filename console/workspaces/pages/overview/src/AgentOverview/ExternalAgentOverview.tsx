@@ -20,9 +20,10 @@ import { Box, Typography, Button } from "@wso2/oxygen-ui";
 import { Clock as AccessTime, Settings } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { useGetAgent } from "@agent-management-platform/api-client";
+import { useGetAgent, useListEnvironments } from "@agent-management-platform/api-client";
 import { EnvironmentCard } from "@agent-management-platform/shared-component";
 import { InstrumentationDrawer } from "./InstrumentationDrawer";
+import { globalConfig } from "@agent-management-platform/types";
 
 export const ExternalAgentOverview = () => {
   const { agentId, orgId, projectId } = useParams();
@@ -35,8 +36,12 @@ export const ExternalAgentOverview = () => {
     agentName: agentId,
   });
 
+  const { data: environments } = useListEnvironments({
+    orgName: orgId,
+  });
+  console.log(environments);
   // Sample instrumentation config - these would come from props or API
-  const instrumentationUrl = "http://localhost:21893";
+  const instrumentationUrl = globalConfig.instrumentationUrl ?? "http://localhost:21893";
   const apiKey = "00000000-0000-0000-0000-000000000000";
 
   return (
@@ -79,6 +84,7 @@ export const ExternalAgentOverview = () => {
       <InstrumentationDrawer
         open={isInstrumentationDrawerOpen}
         onClose={() => setSearchParams({})}
+        traceAttributes={`project-uid=${projectId},environment-uid="SS",component-uid=${agentId}`}
         agentId={agentId ?? ""}
         instrumentationUrl={instrumentationUrl}
         apiKey={apiKey}

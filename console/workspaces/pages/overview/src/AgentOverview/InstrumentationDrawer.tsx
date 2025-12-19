@@ -31,6 +31,7 @@ interface InstrumentationDrawerProps {
   agentId: string;
   instrumentationUrl: string;
   apiKey: string;
+  traceAttributes: string;
 }
 
 export const InstrumentationDrawer = ({
@@ -39,6 +40,7 @@ export const InstrumentationDrawer = ({
   agentId,
   instrumentationUrl,
   apiKey,
+  traceAttributes,
 }: InstrumentationDrawerProps) => {
   return (
     <DrawerWrapper open={open} onClose={onClose}>
@@ -71,7 +73,8 @@ export const InstrumentationDrawer = ({
             title="Set environment variables"
             code={`export AMP_AGENT_NAME="${agentId}"
 export AMP_OTEL_ENDPOINT="${instrumentationUrl}"
-export AMP_AGENT_API_KEY="${apiKey}"`}
+export AMP_AGENT_API_KEY="${apiKey}"
+AMP_TRACE_ATTRIBUTES="${traceAttributes}"`}
             language="bash"
             fieldId="env"
             description="Sets the agent endpoint and agent-specific API key so traces can be exported securely."

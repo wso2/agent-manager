@@ -58,6 +58,7 @@ export const buildAgentCreationPayload = (
             path: data.interfaceType === 'CUSTOM' ? (data.openApiPath ?? '') : '/chat'
           },
         },
+        
       }
     };
   }

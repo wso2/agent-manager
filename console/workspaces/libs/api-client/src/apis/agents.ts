@@ -16,7 +16,8 @@
  * under the License.
  */
 
-import { httpDELETE, httpGET, httpPOST, SERVICE_BASE } from '../utils';
+import { cloneDeep } from "lodash";
+import { httpDELETE, httpGET, httpPOST, SERVICE_BASE } from "../utils";
 import {
   AgentListResponse,
   AgentResponse,
@@ -25,14 +26,13 @@ import {
   GetAgentPathParams,
   ListAgentsPathParams,
   ListAgentsQuery,
-  CreateAgentRequest
-} from '@agent-management-platform/types';
-
+  CreateAgentRequest,
+} from "@agent-management-platform/types";
 
 export async function listAgents(
   params: ListAgentsPathParams,
   query?: ListAgentsQuery,
-  getToken?: () => Promise<string>,
+  getToken?: () => Promise<string>
 ): Promise<AgentListResponse> {
   const { orgName = "default", projName = "default" } = params;
 
@@ -41,13 +41,15 @@ export async function listAgents(
         Object.entries(query)
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           .filter(([_, v]) => v !== undefined)
-          .map(([k, v]) => [k, String(v)]),
+          .map(([k, v]) => [k, String(v)])
       )
     : undefined;
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents`,
-    {searchParams: search, token: token},
+    `${SERVICE_BASE}/orgs/${encodeURIComponent(
+      orgName
+    )}/projects/${encodeURIComponent(projName)}/agents`,
+    { searchParams: search, token: token }
   );
 
   if (!res.ok) throw await res.json();
@@ -57,14 +59,17 @@ export async function listAgents(
 export async function createAgent(
   params: CreateAgentPathParams,
   body: CreateAgentRequest,
-  getToken?: () => Promise<string>,
+  getToken?: () => Promise<string>
 ): Promise<AgentResponse> {
   const { orgName = "default", projName = "default" } = params;
   const token = getToken ? await getToken() : undefined;
+  console.log("###11", body);
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents`,
-    body,
-    { token },
+    `${SERVICE_BASE}/orgs/${encodeURIComponent(
+      orgName
+    )}/projects/${encodeURIComponent(projName)}/agents`,
+    cloneDeep(body),
+    { token }
   );
   if (!res.ok) throw await res.json();
   return res.json();
@@ -72,14 +77,14 @@ export async function createAgent(
 
 export async function getAgent(
   params: GetAgentPathParams,
-  getToken?: () => Promise<string>,
+  getToken?: () => Promise<string>
 ): Promise<AgentResponse> {
   const { orgName = "default", projName = "default", agentName } = params;
-  
+
   if (!agentName) {
     throw new Error("agentName is required");
   }
-  
+
   const token = getToken ? await getToken() : undefined;
   const url =
     `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}` +
@@ -92,14 +97,14 @@ export async function getAgent(
 
 export async function deleteAgent(
   params: DeleteAgentPathParams,
-  getToken?: () => Promise<string>,
+  getToken?: () => Promise<string>
 ): Promise<void> {
   const { orgName = "default", projName = "default", agentName } = params;
-  
+
   if (!agentName) {
     throw new Error("agentName is required");
   }
-  
+
   const token = getToken ? await getToken() : undefined;
   const url =
     `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}` +
@@ -108,5 +113,3 @@ export async function deleteAgent(
   const res = await httpDELETE(url, { token });
   if (!res.ok) throw await res.json();
 }
-
-

@@ -24,6 +24,7 @@ export interface AppConfig {
   apiBaseUrl: string;
   obsApiBaseUrl: string;
   disableAuth: boolean;
+  instrumentationUrl: string;
 }
 
 // Extend the Window interface to include our config

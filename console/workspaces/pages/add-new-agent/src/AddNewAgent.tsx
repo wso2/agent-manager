@@ -95,7 +95,6 @@ export const AddNewAgent: React.FC = () => {
   const onSubmit = useCallback(
     (values: AddAgentFormValues) => {
       const payload = buildAgentCreationPayload(values, params);
-
       createAgent(payload, {
         onSuccess: () => {
           navigate(

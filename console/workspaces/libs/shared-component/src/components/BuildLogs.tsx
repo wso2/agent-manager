@@ -25,20 +25,17 @@ import {
   DrawerHeader,
   DrawerContent,
 } from "@agent-management-platform/views";
+import { Clock, FileText, Logs } from "@wso2/oxygen-ui-icons-react";
 import {
-  FileText as DescriptionOutlined,
-  RefreshCw as RefreshOutlined,
-  Logs,
-} from "@wso2/oxygen-ui-icons-react";
-import {
-  Box,
-  Typography,
   Alert,
-  Collapse,
+  Box,
+  Divider,
   Skeleton,
-  Button,
+  Stack,
+  Typography,
 } from "@wso2/oxygen-ui";
 import { BuildSteps } from "./BuildSteps";
+import dayjs from "dayjs";
 
 export interface BuildLogsProps {
   onClose: () => void;
@@ -46,22 +43,6 @@ export interface BuildLogsProps {
   projName: string;
   agentName: string;
   buildName: string;
-}
-
-function LogsSkeleton() {
-  return (
-    <Box display="flex" flexDirection="column" gap={1}>
-      <Skeleton variant="rounded" height={20} />
-      <Skeleton variant="rounded" height={20} />
-      <Skeleton variant="rounded" height={20} />
-      <Skeleton variant="rounded" height={20} />
-      <Skeleton variant="rounded" height={20} />
-      <Skeleton variant="rounded" height={20} />
-      <Skeleton variant="rounded" height={20} />
-      <Skeleton variant="rounded" height={20} />
-      <Skeleton variant="rounded" height={20} />
-    </Box>
-  );
 }
 
 const InfoLoadingSkeleton = () => (
@@ -82,7 +63,6 @@ export function BuildLogs({
     data: buildLogs,
     error,
     isLoading,
-    refetch,
   } = useGetBuildLogs({
     orgName,
     projName,
@@ -139,94 +119,54 @@ export function BuildLogs({
   const emptyState = getEmptyStateMessage();
 
   return (
-    <Box display="flex" flexDirection="column" height="100%">
+    <Stack direction="column" height="100%" maxWidth={900}>
       <DrawerHeader
         icon={<Logs size={24} />}
         title="Build Details"
         onClose={onClose}
       />
       <DrawerContent>
-        {buildLogs?.length && (
-          <Typography variant="body2" color="text.secondary">
-            Build execution logs and output.
-          </Typography>
-        )}
-        <Box display="flex" flexDirection="column" gap={2}>
-          <Box>
-            {isBuildLoading && <InfoLoadingSkeleton />}
-            {build && <BuildSteps build={build} />}
-          </Box>
-          <Box
-            height="calc(100vh - 200px)"
-            display="flex"
-            gap={1}
-            flexDirection="column"
-            overflow="auto"
-          >
-            <Box
-              display="flex"
-              justifyContent="space-between"
-              alignItems="center"
-            >
-              <Typography variant="h6">Logs</Typography>
-
-              <Button
-                size="small"
-                startIcon={<RefreshOutlined size={16} />}
-                onClick={() => refetch()}
-                variant="outlined"
-                disabled={isLoading}
-              >
-                Refresh
-              </Button>
-            </Box>
-            {isLoading && <LogsSkeleton />}
-            {!!buildLogs?.length && (
-              <Typography
-                component="code"
-                variant="caption"
-                fontFamily="monospace"
-              >
-                {buildLogs?.map((log) => log.log).join("\n")}
+        <Stack direction="column" gap={2} height="calc(100vh - 72px)">
+          {build?.startedAt && (
+            <Stack direction="row" gap={1} alignItems="center">
+              <Clock size={16} />
+              <Typography variant="body2" color="text.secondary">
+                Triggered {dayjs(build?.startedAt).fromNow()}
               </Typography>
-            )}
-            {!buildLogs?.length && !isLoading && (
-              <NoDataFound
-                message={emptyState.title}
-                subtitle={emptyState.subtitle}
-                icon={
-                  <Box
-                    sx={{
-                      fontSize: 100,
-                      mb: 2,
-                      opacity: 0.2,
-                      display: "inline-flex",
-                    }}
-                  >
-                    <DescriptionOutlined size={100} color="inherit" />
-                  </Box>
-                }
-              />
-            )}
-          </Box>
-        </Box>
-        <Box display="flex" flexDirection="column" gap={1}>
-          <Collapse in={!!error}>
+            </Stack>
+          )}
+          {error && (
             <Alert severity="error">
-              {error?.message
-                ? error.message
-                : "Failed to load build logs. Please try refreshing."}
+              {error?.message ??
+                "Failed to load build logs. Please try refreshing."}
             </Alert>
-          </Collapse>
-          <Collapse in={!!buildError}>
+          )}
+          {buildError && (
             <Alert severity="error">
-              {buildError?.message
-                ? buildError.message
-                : "Failed to load build details."}
+              {buildError?.message ??
+                "Failed to load build details. Please try refreshing."}
             </Alert>
-          </Collapse>
-        </Box>
+          )}
+          {isBuildLoading && <InfoLoadingSkeleton />}
+          {build && <BuildSteps build={build} />}
+          {!buildLogs?.length && !isLoading && (
+            <NoDataFound
+              message={emptyState.title}
+              subtitle={emptyState.subtitle}
+              disableBackground
+              iconElement={FileText}
+            />
+          )}
+          {buildLogs?.length && <Divider />}
+          <Stack direction="column" gap={1} overflow="auto" mb={1}>
+            {buildLogs?.map((log) => (
+              <Typography variant="body1" key={log.log + log.timestamp}>
+                {log.log}
+              </Typography>
+            ))}
+          </Stack>
+        </Stack>
       </DrawerContent>
-    </Box>
+    </Stack>
   );
 }

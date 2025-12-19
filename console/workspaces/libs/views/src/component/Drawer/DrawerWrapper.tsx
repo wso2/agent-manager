@@ -21,12 +21,12 @@ import { ReactNode } from "react";
 
 export interface DrawerWrapperProps extends Omit<DrawerProps, "children"> {
   children: ReactNode;
-  width?: number;
+  minWidth?: number;
 }
 
 export function DrawerWrapper({
   children,
-  width = 600,
+  minWidth = 700,
   sx,
   ...drawerProps
 }: DrawerWrapperProps) {
@@ -40,7 +40,7 @@ export function DrawerWrapper({
       sx={[
         {
           "& .MuiDrawer-paper": {
-            width,
+            minWidth,
             px: 2,
             py: 1,
             overflow: "visible",
