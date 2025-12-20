@@ -281,7 +281,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
                     <Chip
                       icon={<Brain size={16} />}
                       label={
-                        span.span?.attributes['gen_ai.request.model'] as string
+                        span.span?.attributes?.['gen_ai.request.model'] as string
                       }
                       color="default"
                       size="small"
@@ -296,7 +296,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
                     <Chip
                       icon={<Languages size={16} />}
                       label={
-                        span.span?.attributes[
+                        span.span?.attributes?.[
                           'traceloop.association.properties.ls_model_type'
                         ] as string
                       }
@@ -309,7 +309,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
                   <Tooltip title={'Span Kind'}>
                     <Chip
                       label={
-                        span.span?.attributes['traceloop.span.kind'] as string
+                        span.span?.attributes?.['traceloop.span.kind'] as string
                       }
                       icon={<Funnel size={16} />}
                       size="small"
@@ -322,7 +322,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
                     <Chip
                       icon={<DollarSign size={16} />}
                       label={
-                        span.span?.attributes[
+                        span.span?.attributes?.[
                           'gen_ai.usage.completion_tokens'
                         ] as string
                       }
@@ -337,7 +337,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
                     <Chip
                       icon={<HandCoins size={16} />}
                       label={
-                        span.span?.attributes[
+                        span.span?.attributes?.[
                           'gen_ai.usage.prompt_tokens'
                         ] as string
                       }

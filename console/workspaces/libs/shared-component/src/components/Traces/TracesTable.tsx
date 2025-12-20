@@ -38,9 +38,7 @@ import {
   InitialState,
 } from "@agent-management-platform/views";
 import { generatePath, Link, useNavigate } from "react-router-dom";
-import {
-  useTraceList,
-} from "@agent-management-platform/api-client";
+import { useTraceList } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
   Trace,
@@ -62,7 +60,7 @@ interface TraceRow {
   rootSpanName: string;
   startTime: string;
   endTime: string;
-  durationInNanos: number;
+  durationInSeconds: number;
 }
 
 function TracesTableSkeleton() {
@@ -118,6 +116,23 @@ export function TracesTable({
     isRefetching,
   } = useTraceList(orgId, projectId, agentId, envId, timeRange);
 
+  const generateTraceDetailPath = useCallback(
+    (traceId: string) =>
+      generatePath(
+        absoluteRouteMap.children.org.children.projects.children.agents
+          .children.environment.children.observability.children.traces
+          .children.traceDetails.path,
+        {
+          orgId: orgId ?? "",
+          projectId: projectId ?? "",
+          agentId: agentId ?? "",
+          envId: envId ?? "",
+          traceId,
+        }
+      ),
+    [orgId, projectId, agentId, envId]
+  );
+
   const traceListResponse = traceData as unknown as TraceListResponse;
 
   const rows = useMemo(
@@ -132,15 +147,15 @@ export function TracesTable({
           rootSpanName: trace.rootSpanName,
           startTime: trace.startTime,
           endTime: trace.endTime,
-          durationInNanos: durationInSeconds,
+          durationInSeconds: durationInSeconds,
         } as TraceRow;
       }) ?? [],
     [traceListResponse?.traces]
   );
 
-  const getDurationColor = useCallback((durationInNanos: number) => {
-    if (durationInNanos < 2) return "success";
-    if (durationInNanos < 5) return "warning";
+  const getDurationColor = useCallback((durationInSeconds: number) => {
+    if (durationInSeconds < 2) return "success";
+    if (durationInSeconds < 5) return "warning";
     return "error";
   }, []);
 
@@ -153,18 +168,7 @@ export function TracesTable({
         render: (value, row) => (
           <ButtonBase
             component={Link}
-            to={generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.environment.children.observability.children.traces
-                .children.traceDetails.path,
-              {
-                orgId: orgId ?? "",
-                projectId: projectId ?? "",
-                agentId: agentId ?? "",
-                envId: envId ?? "",
-                traceId: row.traceId as string,
-              }
-            )}
+            to={generateTraceDetailPath(row.traceId as string)}
           >
             <Typography noWrap variant="body2">
               {value}
@@ -179,18 +183,7 @@ export function TracesTable({
         render: (value) => (
           <ButtonBase
             component={Link}
-            to={generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.environment.children.observability.children.traces
-                .children.traceDetails.path,
-              {
-                orgId: orgId ?? "",
-                projectId: projectId ?? "",
-                agentId: agentId ?? "",
-                envId: envId ?? "",
-                traceId: value as string,
-              }
-            )}
+            to={generateTraceDetailPath(value as string)}
           >
             <Typography noWrap variant="body2" color="text.secondary">
               {(value as string).substring(0, 8)}.....
@@ -233,25 +226,14 @@ export function TracesTable({
             size="small"
             component={Link}
             startIcon={<RemoveRedEyeOutlined size={16} />}
-            to={generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.environment.children.observability.children.traces
-                .children.traceDetails.path,
-              {
-                orgId: orgId ?? "",
-                projectId: projectId ?? "",
-                agentId: agentId ?? "",
-                envId: envId ?? "",
-                traceId: row.traceId as string,
-              }
-            )}
+            to={generateTraceDetailPath(row.traceId as string)}
           >
             Expand
           </Button>
         ),
       },
     ],
-    [orgId, projectId, agentId, envId, getDurationColor]
+    [getDurationColor, generateTraceDetailPath]
   );
 
   // Define initial state for sorting - most recent traces first
@@ -316,20 +298,7 @@ export function TracesTable({
               data={rows}
               columns={columns}
               onRowClick={(row) => {
-                navigate(
-                  generatePath(
-                    absoluteRouteMap.children.org.children.projects.children
-                      .agents.children.environment.children.observability
-                      .children.traces.children.traceDetails.path,
-                    {
-                      orgId: orgId ?? "",
-                      projectId: projectId ?? "",
-                      agentId: agentId ?? "",
-                      envId: envId ?? "",
-                      traceId: row.traceId as string,
-                    }
-                  )
-                );
+                navigate(generateTraceDetailPath(row.traceId as string));
               }}
               pagination
               pageSize={10}

@@ -149,7 +149,7 @@ export function BuildLogs({
           )}
           {isBuildLoading && <InfoLoadingSkeleton />}
           {build && <BuildSteps build={build} />}
-          {!buildLogs?.length && !isLoading && (
+          {!buildLogs?.length && !isLoading && !error && (
             <NoDataFound
               message={emptyState.title}
               subtitle={emptyState.subtitle}
@@ -159,8 +159,8 @@ export function BuildLogs({
           )}
           {buildLogs?.length && <Divider />}
           <Stack direction="column" gap={1} overflow="auto" mb={1}>
-            {buildLogs?.map((log) => (
-              <Typography variant="body1" key={log.log + log.timestamp}>
+            {buildLogs?.map((log, index) => (
+              <Typography variant="body1" key={index}>
                 {log.log}
               </Typography>
             ))}

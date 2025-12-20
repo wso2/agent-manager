@@ -270,7 +270,7 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
                       orgId,
                       projectId,
                       agentId,
-                      envId: environment?.name ?? "",
+                      envId: environment?.name ?? "default",
                     }
                   )}
                   color="primary"

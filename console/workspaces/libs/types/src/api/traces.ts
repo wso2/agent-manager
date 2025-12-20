@@ -68,7 +68,7 @@ export type GetTraceListPathParams = {
   endTime: string,
   limit?: number,
   offset?: number,
-  sortOrder?: string,
+  sortOrder?: 'asc' | 'desc',
 };
 
 export enum TraceListTimeRange {

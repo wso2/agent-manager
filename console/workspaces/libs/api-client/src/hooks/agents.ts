@@ -59,9 +59,7 @@ export function useCreateAgent() {
     unknown,
     { params: CreateAgentPathParams; body: CreateAgentRequest }
   >({
-    mutationFn: ({ params, body }) => {
-      return createAgent(params, body, getToken);
-    },
+    mutationFn: ({ params, body }) => createAgent(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] });
     },

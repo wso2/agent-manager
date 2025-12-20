@@ -20,7 +20,7 @@ import { Box, CircularProgress, Skeleton } from "@wso2/oxygen-ui";
 import { StatusCard } from "@agent-management-platform/views";
 import {
   CheckCircle as CheckCircleIcon,
-  XCircle as Error,
+  XCircle as ErrorIcon,
   Play as PlayArrow,
   AlertTriangle as Warning,
 } from "@wso2/oxygen-ui-icons-react";
@@ -49,9 +49,9 @@ const getBuildIcon = (status: BuildStatus) => {
     case "BuildRunning":
       return <CircularProgress size={20} color="inherit" />;
     case "BuildFailed":
-      return <Error size={20} />;
+      return <ErrorIcon size={20} />;
     default:
-      return <Error size={20} />;
+      return <ErrorIcon size={20} />;
   }
 };
 const percIcon = (percentage: number) => {
@@ -63,7 +63,7 @@ const percIcon = (percentage: number) => {
   } else if (percentage >= 0.5) {
     return <Warning size={20} />;
   } else {
-    return <Error size={20} />;
+    return <ErrorIcon size={20} />;
   }
 };
 const percIconVariant = (percentage: number) => {

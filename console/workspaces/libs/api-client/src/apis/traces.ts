@@ -30,20 +30,25 @@ export async function getTrace(
 ): Promise<TraceDetailsResponse> {
   const { agentName, traceId, projName, orgName, envId } = params;
 
+  const missingParams: string[] = [];
   if (!agentName) {
-    throw new Error("agentName is required");
+    missingParams.push("agentName");
   }
   if (!traceId) {
-    throw new Error("traceId is required");
+     missingParams.push("traceId");
   }
   if (!projName) {
-    throw new Error("projName is required");
+    missingParams.push("projName");
   }
   if (!orgName) {
-    throw new Error("orgName is required");
+    missingParams.push("orgName");
   }
   if (!envId) {
-    throw new Error("envId is required");
+    missingParams.push("envId");
+  }
+  
+  if (missingParams.length > 0) {
+    throw new Error(`Missing required parameters: ${missingParams.join(", ")}`);
   }
   const token = getToken ? await getToken() : undefined;
   
@@ -76,17 +81,14 @@ export async function getTraceList(
     sortOrder,
   } = params;
 
-  if (!agentName) {
-    throw new Error("agentName is required");
-  }
-  if (!projName) {
-    throw new Error("projName is required");
-  }
-  if (!orgName) {
-    throw new Error("orgName is required");
-  }
-  if (!envId) {
-    throw new Error("envId is required");
+  const missingParams: string[] = [];
+  if (!agentName) missingParams.push("agentName");
+  if (!projName) missingParams.push("projName");
+  if (!orgName) missingParams.push("orgName");
+  if (!envId) missingParams.push("envId");
+  
+  if (missingParams.length > 0) {
+    throw new Error(`Missing required parameters: ${missingParams.join(", ")}`);
   }
   const token = getToken ? await getToken() : undefined;
 

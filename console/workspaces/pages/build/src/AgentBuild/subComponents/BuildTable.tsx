@@ -50,7 +50,6 @@ interface BuildRow {
   status: BuildStatus;
   title: string;
   commit: string;
-  duration: number;
   actions: string;
   startedAt: string;
   imageId: string;
@@ -85,7 +84,6 @@ export function BuildTable() {
             actions: build.buildName,
             branch: build.branch,
             commit: build.commitId,
-            duration: 20,
             startedAt: build.startedAt,
             status: build.status as BuildStatus,
             title: build.buildName,
@@ -175,19 +173,21 @@ export function BuildTable() {
               variant="outlined"
               color="primary"
               disabled={
-                row.status === "BuildRunning" || row.status === "BuildFailed"
+                row.status === "BuildTriggered" ||
+                row.status === "BuildRunning" ||
+                row.status === "BuildFailed"
               }
               onClick={() => handleBuildClick(row.title, "deploy")}
               size="small"
               startIcon={
-                row.status === "BuildRunning" ? (
+                row.status === "BuildRunning" || row.status === "BuildTriggered" ? (
                   <CircularProgress color="inherit" size={14} />
                 ) : (
                   <Rocket size={16} />
                 )
               }
             >
-              {row.status === "BuildRunning" ? "Building" : "Deploy"}
+              {row.status === "BuildRunning" || row.status === "BuildTriggered" ? "Building" : "Deploy"}
             </Button>
           </Box>
         ),
@@ -219,10 +219,7 @@ export function BuildTable() {
       bgcolor={"background.paper"}
     >
       <DataListingTable
-        data={rows.map((row) => ({
-          ...row,
-          actions: row.id,
-        }))}
+        data={rows}
         columns={columns}
         pagination
         pageSize={5}

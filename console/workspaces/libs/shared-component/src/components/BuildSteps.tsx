@@ -105,7 +105,7 @@ export function BuildSteps(props: BuildStepsProps) {
   return (
     <Stack spacing={1}>
       {build.steps?.map((step, index) => (
-        <BuildStepItem step={step} key={step.type} index={index} />
+        <BuildStepItem step={step} key={`${step.type}-${index}`} index={index} />
       ))}
     </Stack>
   );

@@ -74,7 +74,7 @@ export const InstrumentationDrawer = ({
             code={`export AMP_AGENT_NAME="${agentId}"
 export AMP_OTEL_ENDPOINT="${instrumentationUrl}"
 export AMP_AGENT_API_KEY="${apiKey}"
-AMP_TRACE_ATTRIBUTES="${traceAttributes}"`}
+export AMP_TRACE_ATTRIBUTES="${traceAttributes}"`}
             language="bash"
             fieldId="env"
             description="Sets the agent endpoint and agent-specific API key so traces can be exported securely."

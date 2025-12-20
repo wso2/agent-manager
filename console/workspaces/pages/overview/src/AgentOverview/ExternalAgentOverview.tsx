@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, Typography, Button } from "@wso2/oxygen-ui";
+import { Box, Typography, Button, Skeleton } from "@wso2/oxygen-ui";
 import { Clock as AccessTime, Settings } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useMemo, useState } from "react";
@@ -24,6 +24,7 @@ import dayjs from "dayjs";
 import { useGetAgent, useGetProject, useListEnvironments } from "@agent-management-platform/api-client";
 import { EnvironmentCard } from "@agent-management-platform/shared-component";
 import { InstrumentationDrawer } from "./InstrumentationDrawer";
+import { NoDataFound } from "@agent-management-platform/views";
 import { globalConfig, type Environment } from "@agent-management-platform/types";
 
 export const ExternalAgentOverview = () => {
@@ -42,7 +43,7 @@ export const ExternalAgentOverview = () => {
     orgName: orgId,
     projName: projectId,
   });
-  const { data: environmentList } = useListEnvironments({
+  const { data: environmentList, isLoading: isEnvironmentsLoading } = useListEnvironments({
     orgName: orgId,
   });
 
@@ -83,7 +84,13 @@ export const ExternalAgentOverview = () => {
             </Typography>
           </Box>
         </Box>
-        {sortedEnvironmentList?.length && (
+        {isEnvironmentsLoading && (
+          <Box display="flex" flexDirection="column" gap={2}>
+            <Skeleton variant="rounded" height={100} />
+            <Skeleton variant="rounded" height={100} />
+          </Box>
+        )}
+        {!isEnvironmentsLoading && sortedEnvironmentList && sortedEnvironmentList.length > 0 && (
           <>
             {sortedEnvironmentList.map(
               (environment: Environment) =>
@@ -110,6 +117,13 @@ export const ExternalAgentOverview = () => {
             )}
           </>
         )}
+        {!isEnvironmentsLoading &&
+          (!sortedEnvironmentList || sortedEnvironmentList.length === 0) && (
+            <NoDataFound
+              message="No environments found"
+              subtitle="Environments will appear here once they are created"
+            />
+          )}
       </Box>
       <InstrumentationDrawer
         open={isInstrumentationDrawerOpen}

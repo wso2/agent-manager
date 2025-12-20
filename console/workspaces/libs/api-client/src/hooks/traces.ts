@@ -21,6 +21,7 @@ import {
   getTimeRange,
   TraceListResponse,
   TraceListTimeRange,
+  GetTraceListPathParams,
 } from "@agent-management-platform/types";
 import { getTrace, getTraceList } from "../apis/traces";
 import { useAuthHooks } from "@agent-management-platform/auth";
@@ -33,7 +34,7 @@ export function useTraceList(
   timeRange: TraceListTimeRange,
   limit?: number,
   offset?: number,
-  sortOrder?: string
+  sortOrder?: GetTraceListPathParams['sortOrder']
 ) {
   const { getToken } = useAuthHooks();
 
@@ -75,22 +76,17 @@ export function useTrace(
   return useQuery({
     queryKey: ["trace", orgName, projName, agentName, envId, traceId],
     queryFn: async () => {
-      try {
-        const res = await getTrace(
-          {
-            orgName,
-            projName,
-            agentName,
-            envId,
-            traceId,
-          },
-          getToken
-        );
-        return res;
-      } catch (error) {
-        console.error(error);
-        return null;
-      }
+      const res = await getTrace(
+        {
+          orgName,
+          projName,
+          agentName,
+          envId,
+          traceId,
+        },
+        getToken
+      );
+      return res;
     },
     enabled: !!orgName && !!projName && !!agentName && !!envId && !!traceId,
   });

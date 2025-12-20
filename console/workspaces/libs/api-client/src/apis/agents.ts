@@ -32,7 +32,7 @@ import {
 export async function listAgents(
   params: ListAgentsPathParams,
   query?: ListAgentsQuery,
-  getToken?: () => Promise<string>
+  getToken?: () => Promise<string>,
 ): Promise<AgentListResponse> {
   const { orgName = "default", projName = "default" } = params;
 
@@ -59,7 +59,7 @@ export async function listAgents(
 export async function createAgent(
   params: CreateAgentPathParams,
   body: CreateAgentRequest,
-  getToken?: () => Promise<string>
+  getToken?: () => Promise<string>,
 ): Promise<AgentResponse> {
   const { orgName = "default", projName = "default" } = params;
   const token = getToken ? await getToken() : undefined;
@@ -76,7 +76,7 @@ export async function createAgent(
 
 export async function getAgent(
   params: GetAgentPathParams,
-  getToken?: () => Promise<string>
+  getToken?: () => Promise<string>,
 ): Promise<AgentResponse> {
   const { orgName = "default", projName = "default", agentName } = params;
 
@@ -96,7 +96,7 @@ export async function getAgent(
 
 export async function deleteAgent(
   params: DeleteAgentPathParams,
-  getToken?: () => Promise<string>
+  getToken?: () => Promise<string>,
 ): Promise<void> {
   const { orgName = "default", projName = "default", agentName } = params;
 
