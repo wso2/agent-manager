@@ -33,11 +33,11 @@ export type InputInterfaceType = 'DEFAULT' | 'CUSTOM';
 
 export interface InputInterface {
   type: string; // Always "HTTP" for now
-  port: number;
-  schema: {
+  port?: number;
+  schema?: {
     path: string;
   };
-  basePath: string;
+  basePath?: string;
 }
 
 export interface AgentType {
@@ -62,6 +62,7 @@ export interface AgentResponse {
   provisioning: Provisioning;
   agentType?: AgentType;
   runtimeConfigs?: RuntimeConfiguration;
+  uuid?: string;
 }
 
 export interface AgentListResponse extends PaginationMeta {

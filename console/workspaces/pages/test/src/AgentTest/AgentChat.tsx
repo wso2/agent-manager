@@ -73,7 +73,7 @@ export function AgentChat() {
 
   useEffect(() => {
     if (endpointOptions.length > 0) {
-      setEndpoint(endpointOptions[0].value + "/invocations");
+      setEndpoint(endpointOptions[0].value + "/chat");
     }
   }, [endpointOptions]);
 

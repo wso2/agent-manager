@@ -16,18 +16,22 @@
  * under the License.
  */
 
-import { Box, Typography, Button } from "@wso2/oxygen-ui";
+import { Box, Typography, Button, Skeleton } from "@wso2/oxygen-ui";
 import { Clock as AccessTime, Settings } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
+import { useMemo, useState } from "react";
 import dayjs from "dayjs";
-import { useGetAgent } from "@agent-management-platform/api-client";
+import { useGetAgent, useGetProject, useListEnvironments } from "@agent-management-platform/api-client";
 import { EnvironmentCard } from "@agent-management-platform/shared-component";
 import { InstrumentationDrawer } from "./InstrumentationDrawer";
+import { NoDataFound } from "@agent-management-platform/views";
+import { globalConfig, type Environment } from "@agent-management-platform/types";
 
 export const ExternalAgentOverview = () => {
   const { agentId, orgId, projectId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const isInstrumentationDrawerOpen = searchParams.get("setup") === "true";
+  const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string>("");
 
   const { data: agent } = useGetAgent({
     orgName: orgId,
@@ -35,20 +39,41 @@ export const ExternalAgentOverview = () => {
     agentName: agentId,
   });
 
+  const { data: project } = useGetProject({
+    orgName: orgId,
+    projName: projectId,
+  });
+  const { data: environmentList, isLoading: isEnvironmentsLoading } = useListEnvironments({
+    orgName: orgId,
+  });
+
+  const sortedEnvironmentList = useMemo(() => {
+    return environmentList?.sort((_a: Environment, b: Environment) => {
+      if (b.isProduction) {
+        return -1;
+      }
+      return 0;
+    });
+  }, [environmentList]);
+
   // Sample instrumentation config - these would come from props or API
-  const instrumentationUrl = "http://localhost:21893";
+  const instrumentationUrl = globalConfig.instrumentationUrl ?? "http://localhost:21893";
   const apiKey = "00000000-0000-0000-0000-000000000000";
+
+  const handleSetupAgent = (environmentId: string) => {
+    setSelectedEnvironmentId(environmentId);
+    setSearchParams({ setup: "true" });
+  };
 
   return (
     <>
-      <Box display="flex" flexDirection="column" pb={4} gap={4}>
+      <Box display="flex" flexDirection="column" gap={4}>
         <Box
           sx={{
             maxWidth: "fit-content",
             gap: 1.5,
             display: "flex",
             flexDirection: "column",
-            width: "50%",
           }}
         >
           <Box display="flex" flexDirection="row" gap={1} alignItems="center">
@@ -59,26 +84,51 @@ export const ExternalAgentOverview = () => {
             </Typography>
           </Box>
         </Box>
-        <EnvironmentCard
-          external
-          orgId={orgId ?? "default"}
-          projectId={projectId ?? "default"}
-          agentId={agentId ?? "default"}
-          actions={
-            <Button
-              variant="text"
-              size="small"
-              startIcon={<Settings size={16} />}
-              onClick={() => setSearchParams({ setup: "true" })}
-            >
-              Setup Agent
-            </Button>
-          }
-        />
+        {isEnvironmentsLoading && (
+          <Box display="flex" flexDirection="column" gap={2}>
+            <Skeleton variant="rounded" height={100} />
+            <Skeleton variant="rounded" height={100} />
+          </Box>
+        )}
+        {!isEnvironmentsLoading && sortedEnvironmentList && sortedEnvironmentList.length > 0 && (
+          <>
+            {sortedEnvironmentList.map(
+              (environment: Environment) =>
+                environment && (
+                  <EnvironmentCard
+                    key={environment.name}
+                    external
+                    orgId={orgId ?? "default"}
+                    projectId={projectId ?? "default"}
+                    agentId={agentId ?? "default"}
+                    environment={environment}
+                    actions={
+                      <Button
+                        variant="text"
+                        size="small"
+                        startIcon={<Settings size={16} />}
+                        onClick={() => handleSetupAgent(environment.uid ?? "")}
+                      >
+                        Setup Agent
+                      </Button>
+                    }
+                  />
+                )
+            )}
+          </>
+        )}
+        {!isEnvironmentsLoading &&
+          (!sortedEnvironmentList || sortedEnvironmentList.length === 0) && (
+            <NoDataFound
+              message="No environments found"
+              subtitle="Environments will appear here once they are created"
+            />
+          )}
       </Box>
       <InstrumentationDrawer
         open={isInstrumentationDrawerOpen}
         onClose={() => setSearchParams({})}
+        traceAttributes={`project-uid=${project?.uuid},environment-uid=${selectedEnvironmentId},component-uid=${agent?.uuid}`}
         agentId={agentId ?? ""}
         instrumentationUrl={instrumentationUrl}
         apiKey={apiKey}

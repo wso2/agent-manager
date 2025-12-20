@@ -86,9 +86,8 @@ export const TracesTopCards: React.FC<TracesTopCardsProps> = ({ timeRange }) => 
 
         const averageDuration = traces.length > 0
             ? traces.reduce((sum, trace) => {
-                const start = new Date(trace.startTime).getTime();
-                const end = new Date(trace.endTime).getTime();
-                return sum + (end - start);
+                // Convert nanoseconds to milliseconds
+                return sum + (trace.durationInNanos / 1_000_000);
             }, 0) / traces.length
             : 0;
 

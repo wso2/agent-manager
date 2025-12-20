@@ -89,13 +89,13 @@ export function useNavigationItems(): Array<
             icon: <tracesMetadata.icon  />,
             isActive: !!matchPath(
               absoluteRouteMap.children.org.children.projects.children.agents
-                .children.observe.children.traces.wildPath,
+                .children.environment.children.observability.children.traces.wildPath,
               pathname
             ),
             href: generatePath(
               absoluteRouteMap.children.org.children.projects.children.agents
-                .children.observe.children.traces.path,
-              { orgId, projectId, agentId }
+                .children.environment.children.observability.children.traces.path,
+              { orgId, projectId, agentId, envId: defaultEnv }
             ),
           },
         ],

@@ -34,6 +34,7 @@ export interface ProjectResponse {
   description: string;
   deploymentPipeline: string;
   createdAt: string; // ISO date-time
+  uuid?: string;
 }
 
 export interface ProjectListItem {
@@ -41,6 +42,7 @@ export interface ProjectListItem {
   orgName: string;
   displayName: string;
   createdAt: string; // ISO date-time
+  uuid?: string;
 }
 
 export interface ProjectListResponse extends PaginationMeta {

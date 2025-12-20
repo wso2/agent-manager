@@ -22,6 +22,8 @@ export interface Trace {
   rootSpanName: string;
   startTime: string;
   endTime: string;
+  durationInNanos: number;
+  spanCount: number;
 }
 
 export interface TraceListResponse {
@@ -38,9 +40,10 @@ export interface Span {
   startTime: string;
   endTime: string;
   durationInNanos: number;
-  kind: string;
-  status: string;
-  attributes: Record<string, unknown>;
+  kind?: string;
+  status?: string;
+  attributes?: Record<string, unknown>;
+  resource?: Record<string, unknown>;
 }
 
 export interface TraceDetailsResponse {
@@ -63,6 +66,9 @@ export type GetTraceListPathParams = {
   envId: string | undefined,
   startTime: string,
   endTime: string,
+  limit?: number,
+  offset?: number,
+  sortOrder?: 'asc' | 'desc',
 };
 
 export enum TraceListTimeRange {
