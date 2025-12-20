@@ -30,12 +30,15 @@ export function useTraceList(
   projName: string,
   agentName: string,
   envId: string,
-  timeRange: TraceListTimeRange
+  timeRange: TraceListTimeRange,
+  limit?: number,
+  offset?: number,
+  sortOrder?: string
 ) {
   const { getToken } = useAuthHooks();
 
   return useQuery({
-    queryKey: ["trace-list", orgName, projName, agentName, envId, timeRange],
+    queryKey: ["trace-list", orgName, projName, agentName, envId, timeRange, limit, offset, sortOrder],
     queryFn: async () => {
       const { startTime, endTime } = getTimeRange(timeRange);
       const res = await getTraceList(
@@ -46,6 +49,9 @@ export function useTraceList(
           envId,
           startTime,
           endTime,
+          limit,
+          offset,
+          sortOrder,
         },
         getToken
       );

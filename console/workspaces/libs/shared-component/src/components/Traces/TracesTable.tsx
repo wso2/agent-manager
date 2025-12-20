@@ -123,9 +123,8 @@ export function TracesTable({
   const rows = useMemo(
     () =>
       traceListResponse?.traces?.map((trace: Trace) => {
-        const start = new Date(trace.startTime).getTime();
-        const end = new Date(trace.endTime).getTime();
-        const durationInNanos = (end - start) / 1000;
+        // Convert nanoseconds to seconds
+        const durationInSeconds = trace.durationInNanos / 1_000_000_000;
 
         return {
           id: trace.traceId,
@@ -133,7 +132,7 @@ export function TracesTable({
           rootSpanName: trace.rootSpanName,
           startTime: trace.startTime,
           endTime: trace.endTime,
-          durationInNanos: durationInNanos,
+          durationInNanos: durationInSeconds,
         } as TraceRow;
       }) ?? [],
     [traceListResponse?.traces]

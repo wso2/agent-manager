@@ -22,16 +22,16 @@ import {
   TraceDetailsResponse,
   TraceListResponse,
 } from "@agent-management-platform/types";
-import { httpGET, OBS_SERVICE_BASE } from "../utils";
+import { httpGET, SERVICE_BASE } from "../utils";
 
 export async function getTrace(
   params: GetTracePathParams,
   getToken?: () => Promise<string>
 ): Promise<TraceDetailsResponse> {
-  const { agentName, traceId, projName, envId, orgName } = params;
+  const { agentName, traceId, projName, orgName, envId } = params;
 
   if (!agentName) {
-    throw new Error("agentName (serviceName) is required");
+    throw new Error("agentName is required");
   }
   if (!traceId) {
     throw new Error("traceId is required");
@@ -39,25 +39,22 @@ export async function getTrace(
   if (!projName) {
     throw new Error("projName is required");
   }
-  if (!envId) {
-    throw new Error("envId is required");
-  }
   if (!orgName) {
     throw new Error("orgName is required");
   }
+  if (!envId) {
+    throw new Error("envId is required");
+  }
   const token = getToken ? await getToken() : undefined;
-  const searchParams = {
-    traceId,
-    serviceName: agentName,
-    projectName: projName,
-    environmentId: envId,
-    organizationName: orgName,
-  };
-  const res = await httpGET(`${OBS_SERVICE_BASE}/trace`, {
-    searchParams,
-    token,
-    options: { useObsPlaneHostApi: true },
-  });
+  
+  // Note: envId is validated but not sent to backend as per Go service implementation
+  // API path: GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/trace/{traceId}
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${orgName}/projects/${projName}/agents/${agentName}/trace/${traceId}`,
+    {
+      token,
+    }
+  );
 
   if (!res.ok) throw await res.json();
   return res.json();
@@ -67,35 +64,48 @@ export async function getTraceList(
   params: GetTraceListPathParams,
   getToken?: () => Promise<string>
 ): Promise<TraceListResponse> {
-  const { agentName, startTime, endTime, projName, envId, orgName } = params;
+  const {
+    agentName,
+    startTime,
+    endTime,
+    projName,
+    orgName,
+    envId,
+    limit,
+    offset,
+    sortOrder,
+  } = params;
 
   if (!agentName) {
-    throw new Error("agentName (serviceName) is required");
+    throw new Error("agentName is required");
   }
   if (!projName) {
     throw new Error("projName is required");
   }
-  if (!envId) {
-    throw new Error("envId is required");
-  }
   if (!orgName) {
     throw new Error("orgName is required");
   }
+  if (!envId) {
+    throw new Error("envId is required");
+  }
   const token = getToken ? await getToken() : undefined;
 
-  const searchParams = {
-    startTime,
-    endTime,
-    serviceName: agentName,
-    projectName: projName,
-    environmentId: envId,
-    organizationName: orgName,
-  };
-  const res = await httpGET(`${OBS_SERVICE_BASE}/traces`, {
-    searchParams,
-    token,
-    options: { useObsPlaneHostApi: true },
-  });
+  const searchParams: Record<string, string> = {};
+  if (startTime) searchParams.startTime = startTime;
+  if (endTime) searchParams.endTime = endTime;
+  if (limit !== undefined) searchParams.limit = limit.toString();
+  if (offset !== undefined) searchParams.offset = offset.toString();
+  if (sortOrder) searchParams.sortOrder = sortOrder;
+
+  // Note: envId is validated but not sent to backend as per Go service implementation
+  // API path: GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/traces
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${orgName}/projects/${projName}/agents/${agentName}/traces`,
+    {
+      searchParams: Object.keys(searchParams).length > 0 ? searchParams : undefined,
+      token,
+    }
+  );
   if (!res.ok) throw await res.json();
   return res.json();
 }

@@ -22,7 +22,6 @@ import dayjs from 'dayjs';
 export interface AppConfig {
   authConfig: AuthReactConfig;
   apiBaseUrl: string;
-  obsApiBaseUrl: string;
   disableAuth: boolean;
   instrumentationUrl: string;
 }
