@@ -112,7 +112,7 @@ func TestGetTrace(t *testing.T) {
 
 		// Send the request
 		traceID := "trace-id-123"
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/trace/%s",
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/trace/%s?environment=Development",
 			traceDetailsOrgName, traceDetailsProjName, traceDetailsAgentName, traceID)
 		req := httptest.NewRequest(http.MethodGet, url, nil)
 
@@ -161,5 +161,47 @@ func TestGetTrace(t *testing.T) {
 		require.Equal(t, traceID, traceDetailsCall.Params.TraceID)
 		require.Equal(t, traceDetailsAgentName, traceDetailsCall.Params.ServiceName)
 		// Note: limit and sortOrder are hardcoded internally and not exposed as API parameters
+	})
+
+	t.Run("Getting trace details for non-existent trace should return 404", func(t *testing.T) {
+		// Create a mock that returns HTTPError with 404 status
+		traceObserverClient := &clientmocks.TraceObserverClientMock{
+			TraceDetailsByIdFunc: func(ctx context.Context, params traceobserversvc.TraceDetailsByIdParams) (*traceobserversvc.TraceResponse, error) {
+				return nil, &traceobserversvc.HTTPError{
+					StatusCode: 404,
+					Message:    "Trace not found",
+				}
+			},
+		}
+		openChoreoClient := createMockOpenChoreoClient()
+		testClients := wiring.TestClients{
+			OpenChoreoSvcClient: openChoreoClient,
+			TraceObserverClient: traceObserverClient,
+		}
+
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		// Send the request
+		traceID := "non-existent-trace-id"
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/trace/%s?environment=Development",
+			traceDetailsOrgName, traceDetailsProjName, traceDetailsAgentName, traceID)
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+
+		rr := httptest.NewRecorder()
+		app.ServeHTTP(rr, req)
+
+		// Assert response
+		require.Equal(t, http.StatusNotFound, rr.Code)
+
+		// Read and validate response body
+		b, err := io.ReadAll(rr.Body)
+		require.NoError(t, err)
+		t.Logf("response body: %s", string(b))
+
+		// Validate that it contains an error message about trace not found
+		require.Contains(t, string(b), "Trace not found")
+
+		// Validate service was called
+		require.Len(t, traceObserverClient.TraceDetailsByIdCalls(), 1)
 	})
 }
