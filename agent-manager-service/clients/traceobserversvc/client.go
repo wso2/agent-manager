@@ -69,8 +69,8 @@ func (c *traceObserverClient) ListTraces(ctx context.Context, params ListTracesP
 	queryParams.Add("offset", strconv.Itoa(params.Offset))
 	queryParams.Add("sortOrder", params.SortOrder)
 
-	// Build URL - assuming endpoint is /traces/overview
-	requestURL := fmt.Sprintf("%s/traces/overview?%s", c.baseURL, queryParams.Encode())
+	// Build URL - endpoint is /api/v1/traces
+	requestURL := fmt.Sprintf("%s/api/v1/traces?%s", c.baseURL, queryParams.Encode())
 
 	// Create HTTP request
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
@@ -102,15 +102,16 @@ func (c *traceObserverClient) ListTraces(ctx context.Context, params ListTracesP
 
 // TraceDetailsById retrieves detailed trace information by trace ID
 func (c *traceObserverClient) TraceDetailsById(ctx context.Context, params TraceDetailsByIdParams) (*TraceResponse, error) {
-	// Build query parameters
+	// Build query parameters - traceId is also a query param, not path param
 	queryParams := url.Values{}
+	queryParams.Add("traceId", params.TraceID)
 	queryParams.Add("componentUid", params.ComponentUid)
 	if params.EnvironmentUid != "" {
 		queryParams.Add("environmentUid", params.EnvironmentUid)
 	}
 
-	// Build URL - assuming endpoint is /traces/{traceId}
-	requestURL := fmt.Sprintf("%s/traces/%s?%s", c.baseURL, params.TraceID, queryParams.Encode())
+	// Build URL - endpoint is /api/v1/trace (singular, not plural)
+	requestURL := fmt.Sprintf("%s/api/v1/trace?%s", c.baseURL, queryParams.Encode())
 
 	// Create HTTP request
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)

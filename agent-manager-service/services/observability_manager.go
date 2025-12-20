@@ -18,13 +18,18 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
 	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
+
+// ErrTraceNotFound is returned when a trace is not found
+var ErrTraceNotFound = errors.New("trace not found")
 
 // Service-level request/response types (not exposing client types)
 type ListTracesRequest struct {
@@ -181,6 +186,11 @@ func (s *observabilityManagerService) GetTraceDetails(ctx context.Context, req T
 	// Call the trace observer client
 	clientResponse, err := s.traceObserverClient.TraceDetailsById(ctx, clientParams)
 	if err != nil {
+		// Check if it's a 404 error
+		if strings.Contains(err.Error(), "status 404") {
+			s.logger.Warn("Trace not found", "traceId", req.TraceID, "agentName", req.AgentName)
+			return nil, ErrTraceNotFound
+		}
 		s.logger.Error("Failed to get trace details", "traceId", req.TraceID, "agentName", req.AgentName, "error", err)
 		return nil, fmt.Errorf("failed to get trace details: %w", err)
 	}

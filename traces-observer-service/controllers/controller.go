@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -25,6 +26,9 @@ import (
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/opensearch"
 )
+
+// ErrTraceNotFound is returned when a trace is not found
+var ErrTraceNotFound = errors.New("trace not found")
 
 // TracingController provides tracing functionality
 type TracingController struct {
@@ -43,7 +47,7 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 	log := logger.GetLogger(ctx)
 	log.Info("Getting trace overviews",
 		"component", params.ComponentUid,
-		"environment", params.EnvironmentUid)
+		"environment", params.EnvironmentUid, "startTime", params.StartTime, "endTime", params.EndTime)
 
 	// Set defaults
 	if params.Limit == 0 {
@@ -196,7 +200,11 @@ func (s *TracingController) GetTraceByIdAndService(ctx context.Context, params o
 	spans := opensearch.ParseSpans(response)
 
 	if len(spans) == 0 {
-		return nil, fmt.Errorf("no spans found for traceID: %s and service: %s", params.TraceID, params.ComponentUid)
+		log.Warn("No spans found for trace",
+			"traceId", params.TraceID,
+			"component", params.ComponentUid,
+			"environment", params.EnvironmentUid)
+		return nil, ErrTraceNotFound
 	}
 
 	// Extract token usage from GenAI spans

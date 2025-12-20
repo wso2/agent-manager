@@ -17,8 +17,10 @@
 package controllers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
@@ -77,8 +79,43 @@ func (c *observabilityController) ListTraces(w http.ResponseWriter, r *http.Requ
 
 	// Optional query parameters
 	environment := r.URL.Query().Get("environment")
+	if environment == "" {
+		log.Error("ListTraces: environment is required")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing parameter: environment is required")
+		return
+	}
+
 	startTime := r.URL.Query().Get("startTime")
 	endTime := r.URL.Query().Get("endTime")
+
+	// Validate time range parameters if provided
+	if startTime != "" || endTime != "" {
+		if startTime == "" {
+			log.Error("ListTraces: startTime is required")
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing parameter: startTime is required")
+			return
+		}
+		if endTime == "" {
+			log.Error("ListTraces: endTime is required")
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing parameter: endTime is required")
+			return
+		}
+
+		// Validate RFC3339 format for startTime
+		if _, err := time.Parse(time.RFC3339, startTime); err != nil {
+			log.Error("ListTraces: invalid startTime format", "startTime", startTime, "error", err)
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid startTime format: must be RFC3339 (e.g., 2025-12-20T10:00:00Z)")
+			return
+		}
+
+		// Validate RFC3339 format for endTime
+		if _, err := time.Parse(time.RFC3339, endTime); err != nil {
+			log.Error("ListTraces: invalid endTime format", "endTime", endTime, "error", err)
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid endTime format: must be RFC3339 (e.g., 2025-12-20T10:00:00Z)")
+			return
+		}
+	}
+
 	sortOrder := r.URL.Query().Get("sortOrder")
 	if sortOrder == "" {
 		sortOrder = "desc"
@@ -124,8 +161,20 @@ func (c *observabilityController) GetTrace(w http.ResponseWriter, r *http.Reques
 	agentName := r.PathValue(utils.PathParamAgentName)
 	traceID := r.PathValue(utils.PathParamTraceId)
 
+	// Validate traceID
+	if traceID == "" {
+		log.Error("GetTrace: traceId is required")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing parameter: traceId is required")
+		return
+	}
+
 	// Optional query parameters
 	environment := r.URL.Query().Get("environment")
+	if environment == "" {
+		log.Error("ListTraces: environment is required")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing parameter: environment is required")
+		return
+	}
 
 	// Build parameters for the service
 	params := services.TraceDetailsRequest{
@@ -139,6 +188,12 @@ func (c *observabilityController) GetTrace(w http.ResponseWriter, r *http.Reques
 	// Call the service
 	response, err := c.observabilityService.GetTraceDetails(ctx, params)
 	if err != nil {
+		// Check if it's a "not found" error
+		if errors.Is(err, services.ErrTraceNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Trace not found")
+			return
+		}
+		// Other errors are internal server errors
 		log.Error("GetTrace: failed to get trace details", "traceId", traceID, "agentName", agentName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to retrieve trace details")
 		return

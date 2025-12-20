@@ -1028,7 +1028,10 @@ paths:
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/traces:
     get:
       summary: List traces for an agent
-      description: Retrieves a paginated list of traces for the specified agent with optional filtering
+      description: |
+        Retrieves a paginated list of traces for the specified agent with optional filtering.
+        Note: If either startTime or endTime is provided, both must be provided together.
+        Both timestamps must be in RFC3339 format (e.g., 2025-12-20T10:00:00Z).
       operationId: listTraces
       parameters:
         - name: orgName
@@ -1052,10 +1055,10 @@ paths:
         - name: environment
           in: query
           description: Environment name (e.g., Development, Production)
-          required: false
+          required: true
           schema:
             type: string
-            default: Development
+          example: Development
         - name: limit
           in: query
           description: Maximum number of traces to return
@@ -1075,18 +1078,24 @@ paths:
             minimum: 0
         - name: startTime
           in: query
-          description: Filter traces starting from this time (RFC3339 format)
+          description: |
+            Filter traces starting from this time (RFC3339 format, e.g., 2025-12-20T10:00:00Z).
+            Must be provided together with endTime.
           required: false
           schema:
             type: string
             format: date-time
+          example: "2025-12-20T10:00:00Z"
         - name: endTime
           in: query
-          description: Filter traces up to this time (RFC3339 format)
+          description: |
+            Filter traces up to this time (RFC3339 format, e.g., 2025-12-20T10:00:00Z).
+            Must be provided together with startTime.
           required: false
           schema:
             type: string
             format: date-time
+          example: "2025-12-20T18:00:00Z"
         - name: sortOrder
           in: query
           description: Sort order for traces
@@ -1153,11 +1162,12 @@ paths:
             type: string
         - name: environment
           in: query
-          description: Environment name (e.g., Development, Production)
+          description: Environment name (defaults to "Development" if not provided)
           required: false
           schema:
             type: string
             default: Development
+          example: Development
       responses:
         "200":
           description: Trace details with all spans

@@ -18,6 +18,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -204,6 +205,12 @@ func (h *Handler) GetTraceByIdAndService(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	result, err := h.controllers.GetTraceByIdAndService(ctx, params)
 	if err != nil {
+		// Check if it's a "not found" error
+		if errors.Is(err, controllers.ErrTraceNotFound) {
+			h.writeError(w, http.StatusNotFound, "Trace not found")
+			return
+		}
+		// Other errors are internal server errors
 		log.Error("Failed to get trace by ID and service", "error", err)
 		h.writeError(w, http.StatusInternalServerError, "Failed to retrieve traces")
 		return
