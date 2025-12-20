@@ -44,7 +44,9 @@ func NewTraceObserverClient() TraceObserverClient {
 	cfg := config.GetConfig()
 	return &traceObserverClient{
 		baseURL:    cfg.TraceObserver.URL,
-		httpClient: &http.Client{},
+		httpClient: &http.Client{
+			Timeout: 15 * time.Second,
+		}
 	}
 }
 
