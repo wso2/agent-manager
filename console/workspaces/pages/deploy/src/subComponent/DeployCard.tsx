@@ -33,6 +33,7 @@ import {
   CardContent,
   CircularProgress,
   Divider,
+  Stack,
   Typography,
 } from "@wso2/oxygen-ui";
 import {
@@ -65,18 +66,16 @@ export function DeployCard(props: DeployCardProps) {
         sx={{
           "& .MuiCardContent-root": {
             backgroundColor: "background.paper",
-            gap: 2,
-            display: "flex",
-            height: "100%",
-            width: 350,
-            justifyContent: "center",
-            alignItems: "center",
-            flexDirection: "column",
           },
+          height: "fit-content",
+          width: 350,
+          minWidth: 350,
         }}
       >
         <CardContent>
-          <CircularProgress />
+          <Box p={2} display="flex" justifyContent="center" alignItems="center">
+            <CircularProgress />
+          </Box>
         </CardContent>
       </Card>
     );
@@ -89,11 +88,10 @@ export function DeployCard(props: DeployCardProps) {
         sx={{
           "& .MuiCardContent-root": {
             backgroundColor: "background.paper",
-            gap: 2,
-            display: "flex",
-            width: 350,
           },
           height: "fit-content",
+          width: 350,
+          minWidth: 350,
         }}
       >
         <CardContent>
@@ -121,93 +119,93 @@ export function DeployCard(props: DeployCardProps) {
       sx={{
         "& .MuiCardContent-root": {
           backgroundColor: "background.paper",
-          gap: 2,
-          display: "flex",
-          flexDirection: "column",
-          width: 350,
-          height: "100%",
         },
+        height: "fit-content",
+        width: 350,
+        minWidth: 350,
       }}
     >
       <CardContent>
-        <Box display="flex" flexDirection="row" gap={1}>
-          <Typography variant="h4">
-            {currentEnvironment?.displayName}
-          </Typography>
-          <EnvStatus status={currentDeployment?.status as DeploymentStatus} />
-        </Box>
-        <Divider />
-        <Box display="flex" flexDirection="row" gap={1} alignItems="center">
-          <Typography variant="body2">Last Deployed</Typography>
-          <Clock size={16} />
-          <Typography variant="body2">
-            {dayjs(currentDeployment?.lastDeployed).fromNow()}
-          </Typography>
-        </Box>
-        {currentDeployment?.imageId && (
-          <TextInput
-            label="Build Image"
-            value={currentDeployment?.imageId}
-            copyable
-            copyTooltipText="Copy Build Image"
-            slotProps={{
-              input: {
-                readOnly: true,
-              },
-            }}
-          />
-        )}
-        {currentDeployment?.endpoints.map((endpoint) => (
-          <TextInput
-            key={endpoint.url}
-            label="URL"
-            value={endpoint.url}
-            copyable
-            copyTooltipText="Copy URL"
-            slotProps={{
-              input: {
-                readOnly: true,
-              },
-            }}
-          />
-        ))}
-
-        <Button
-          variant="outlined"
-          component={Link}
-          to={generatePath(
-            absoluteRouteMap.children.org.children.projects.children.agents
-              .children.environment.children.tryOut.path,
-            {
-              orgId,
-              projectId,
-              agentId,
-              envId: currentEnvironment?.name,
-            }
+        <Stack gap={2}>
+          <Stack direction="row" gap={1} alignItems="center">
+            <Typography variant="h4">
+              {currentEnvironment?.displayName} Environment
+            </Typography>
+            <EnvStatus status={currentDeployment?.status as DeploymentStatus} />
+          </Stack>
+          <Divider />
+          <Stack direction="row" gap={1} alignItems="center">
+            <Typography variant="body2">Last Deployed</Typography>
+            <Clock size={16} />
+            <Typography variant="body2">
+              {dayjs(currentDeployment?.lastDeployed).fromNow()}
+            </Typography>
+          </Stack>
+          {currentDeployment?.imageId && (
+            <TextInput
+              label="Build Image"
+              value={currentDeployment?.imageId}
+              copyable
+              copyTooltipText="Copy Build Image"
+              slotProps={{
+                input: {
+                  readOnly: true,
+                },
+              }}
+            />
           )}
-          size="small"
-          startIcon={<FlaskConical size={16} />}
-        >
-          Try It
-        </Button>
-        <Button
-          variant="text"
-          component={Link}
-          to={generatePath(
-            absoluteRouteMap.children.org.children.projects.children.agents
-              .children.environment.children.observability.children.traces.path,
-            {
-              orgId,
-              projectId,
-              agentId,
-              envId: currentEnvironment?.name,
-            }
-          )}
-          size="small"
-          startIcon={<Workflow size={16} />}
-        >
-          View Traces
-        </Button>
+          {currentDeployment?.endpoints.map((endpoint) => (
+            <TextInput
+              key={endpoint.url}
+              label="URL"
+              value={endpoint.url}
+              copyable
+              copyTooltipText="Copy URL"
+              slotProps={{
+                input: {
+                  readOnly: true,
+                },
+              }}
+            />
+          ))}
+          <Button
+            variant="outlined"
+            component={Link}
+            to={generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.tryOut.path,
+              {
+                orgId,
+                projectId,
+                agentId,
+                envId: currentEnvironment?.name,
+              }
+            )}
+            size="small"
+            startIcon={<FlaskConical size={16} />}
+          >
+            Try It
+          </Button>
+          <Button
+            variant="text"
+            component={Link}
+            to={generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.traces
+                .path,
+              {
+                orgId,
+                projectId,
+                agentId,
+                envId: currentEnvironment?.name,
+              }
+            )}
+            size="small"
+            startIcon={<Workflow size={16} />}
+          >
+            View Traces
+          </Button>
+        </Stack>
       </CardContent>
     </Card>
   );
