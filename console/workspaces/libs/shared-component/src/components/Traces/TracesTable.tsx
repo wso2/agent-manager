@@ -208,7 +208,7 @@ export function TracesTable({
         width: "15%",
         render: (value) => (
           <Chip
-            label={`${(value as number).toFixed(2)}s`}
+            label={`${(value as number)}s`}
             size="small"
             color={getDurationColor(value as number)}
             variant="outlined"

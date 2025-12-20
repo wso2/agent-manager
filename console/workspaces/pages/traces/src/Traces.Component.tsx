@@ -16,16 +16,81 @@
  * under the License.
  */
 
-import React from 'react';
-import { AgentTraces } from './AgentTraces/AgentTraces';
-import { FadeIn } from '@agent-management-platform/views';
+import React, { useState } from "react";
+import { Box } from "@wso2/oxygen-ui";
+import { TracesTable } from "@agent-management-platform/shared-component";
+import { FadeIn, PageLayout } from "@agent-management-platform/views";
+import { generatePath, Route, Routes, useParams } from "react-router-dom";
+import { TraceDetails } from "./subComponents/TraceDetails";
+import {
+  absoluteRouteMap,
+  relativeRouteMap,
+  TraceListTimeRange,
+} from "@agent-management-platform/types";
 
 export const TracesComponent: React.FC = () => {
+  const { agentId, orgId, projectId, envId } = useParams();
+  const [timeRange, setTimeRange] = useState<TraceListTimeRange>(
+    TraceListTimeRange.ONE_DAY
+  );
+
   return (
     <FadeIn>
-      <AgentTraces />
+      <Box
+        sx={{
+          display: "flex",
+          pb: 2,
+          flexDirection: "column",
+        }}
+      >
+        <Routes>
+          <Route
+            path={
+              relativeRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.traces
+                .path + "/*"
+            }
+          >
+            <Route
+              index
+              element={
+                <PageLayout title="Traces" disableIcon>
+                  <TracesTable
+                    orgId={orgId ?? "default"}
+                    projectId={projectId ?? "default"}
+                    agentId={agentId ?? "default"}
+                    envId={envId ?? "default"}
+                    timeRange={timeRange}
+                    setTimeRange={setTimeRange}
+                  />
+                </PageLayout>
+              }
+            />
+            <Route
+              path={
+                relativeRouteMap.children.org.children.projects.children.agents
+                  .children.environment.children.observability.children.traces
+                  .children.traceDetails.path
+              }
+              element={
+                <PageLayout
+                  title="Trace Details"
+                  backLabel="Back to Traces"
+                  disableIcon
+                  backHref={generatePath(
+                    absoluteRouteMap.children.org.children.projects.children
+                      .agents.children.environment.children.observability
+                      .children.traces.path,
+                    { orgId, projectId, agentId, envId }
+                  )}
+                >
+                  <TraceDetails />
+                </PageLayout>
+              }
+            />
+          </Route>
+        </Routes>
+      </Box>
     </FadeIn>
   );
 };
-
-export default TracesComponent;
