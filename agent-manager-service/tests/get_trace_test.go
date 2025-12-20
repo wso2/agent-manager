@@ -164,10 +164,13 @@ func TestGetTrace(t *testing.T) {
 	})
 
 	t.Run("Getting trace details for non-existent trace should return 404", func(t *testing.T) {
-		// Create a mock that returns error similar to what the real client returns for 404
+		// Create a mock that returns HTTPError with 404 status
 		traceObserverClient := &clientmocks.TraceObserverClientMock{
 			TraceDetailsByIdFunc: func(ctx context.Context, params traceobserversvc.TraceDetailsByIdParams) (*traceobserversvc.TraceResponse, error) {
-				return nil, fmt.Errorf("trace observer returned status 404: Trace not found")
+				return nil, &traceobserversvc.HTTPError{
+					StatusCode: 404,
+					Message:    "Trace not found",
+				}
 			},
 		}
 		openChoreoClient := createMockOpenChoreoClient()

@@ -171,7 +171,7 @@ func (c *observabilityController) GetTrace(w http.ResponseWriter, r *http.Reques
 	// Optional query parameters
 	environment := r.URL.Query().Get("environment")
 	if environment == "" {
-		log.Error("ListTraces: environment is required")
+		log.Error("GetTrace: environment is required")
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing parameter: environment is required")
 		return
 	}

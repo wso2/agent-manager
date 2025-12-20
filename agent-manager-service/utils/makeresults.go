@@ -227,7 +227,7 @@ func ConvertToEnvironmentResponse(env *models.EnvironmentResponse) spec.Environm
 	}
 
 	return spec.Environment{
-		Uuid: env.UUID,
+		Uuid:         env.UUID,
 		Name:         env.Name,
 		DataplaneRef: env.DataplaneRef,
 		IsProduction: env.IsProduction,

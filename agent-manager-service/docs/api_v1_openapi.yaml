@@ -1162,11 +1162,10 @@ paths:
             type: string
         - name: environment
           in: query
-          description: Environment name (defaults to "Development" if not provided)
-          required: false
+          description: Environment name (e.g., Development, Production)
+          required: true
           schema:
             type: string
-            default: Development
           example: Development
       responses:
         "200":

@@ -16,7 +16,20 @@
 
 package traceobserversvc
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
+
+// HTTPError represents an HTTP error response from the trace observer service
+type HTTPError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("trace observer returned status %d: %s", e.StatusCode, e.Message)
+}
 
 // ListTracesParams holds parameters for listing trace overviews
 type ListTracesParams struct {

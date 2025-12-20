@@ -795,7 +795,7 @@ func (k *openChoreoSvcClient) ListOrgEnvironments(ctx context.Context, orgName s
 	var environments []*models.EnvironmentResponse
 	for _, env := range environmentList.Items {
 		environments = append(environments, &models.EnvironmentResponse{
-			UUID: string(env.UID),
+			UUID:         string(env.UID),
 			Name:         env.Name,
 			DataplaneRef: env.Spec.DataPlaneRef,
 			CreatedAt:    env.CreationTimestamp.Time,

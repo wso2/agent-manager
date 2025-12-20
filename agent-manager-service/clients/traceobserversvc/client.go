@@ -88,7 +88,10 @@ func (c *traceObserverClient) ListTraces(ctx context.Context, params ListTracesP
 	// Check response status
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("trace observer returned status %d: %s", resp.StatusCode, string(body))
+		return nil, &HTTPError{
+			StatusCode: resp.StatusCode,
+			Message:    string(body),
+		}
 	}
 
 	// Parse response
@@ -129,7 +132,10 @@ func (c *traceObserverClient) TraceDetailsById(ctx context.Context, params Trace
 	// Check response status
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("trace observer returned status %d: %s", resp.StatusCode, string(body))
+		return nil, &HTTPError{
+			StatusCode: resp.StatusCode,
+			Message:    string(body),
+		}
 	}
 
 	// Parse response
