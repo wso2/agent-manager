@@ -169,7 +169,8 @@ else
     --version 0.7.0 \
     --namespace openchoreo-observability-plane \
     --create-namespace \
-    --values https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.7/install/k3d/single-cluster/values-op.yaml
+    --values https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.7/install/k3d/single-cluster/values-op.yaml \
+    --set opentelemetryCollectorCustomizations.tailSampling.spansPerSecond=100000
 fi
 
 echo "⏳ Waiting for OpenSearch pods to be ready..."
