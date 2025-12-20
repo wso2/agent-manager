@@ -16,17 +16,38 @@
 
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
+)
 
 // TraceOverview represents a summary of a trace
 type TraceOverview struct {
-	TraceID         string `json:"traceId"`
-	RootSpanID      string `json:"rootSpanId"`
-	RootSpanName    string `json:"rootSpanName"`
-	StartTime       string `json:"startTime"`
-	EndTime         string `json:"endTime"`
-	DurationInNanos int64  `json:"durationInNanos"`
-	SpanCount       int    `json:"spanCount"`
+	TraceID         string       `json:"traceId"`
+	RootSpanID      string       `json:"rootSpanId"`
+	RootSpanName    string       `json:"rootSpanName"`
+	RootSpanKind    string       `json:"rootSpanKind"` // Semantic kind of the root span (llm, tool, embedding, etc.)
+	StartTime       string       `json:"startTime"`
+	EndTime         string       `json:"endTime"`
+	DurationInNanos int64        `json:"durationInNanos"`
+	SpanCount       int          `json:"spanCount"`
+	TokenUsage      *TokenUsage  `json:"tokenUsage,omitempty"` // Aggregated token usage from GenAI spans
+	Status          *TraceStatus `json:"status,omitempty"`     // Trace status including error information
+	Input           string       `json:"input,omitempty"`      // Input from root span's traceloop.entity.input
+	Output          string       `json:"output,omitempty"`     // Output from root span's traceloop.entity.output
+}
+
+// TokenUsage represents aggregated token usage from GenAI spans
+type TokenUsage struct {
+	InputTokens  int `json:"inputTokens"`
+	OutputTokens int `json:"outputTokens"`
+	TotalTokens  int `json:"totalTokens"`
+}
+
+// TraceStatus represents the status of a trace
+type TraceStatus struct {
+	ErrorCount int `json:"errorCount"` // Number of spans with errors (0 means no errors)
 }
 
 // TraceOverviewResponse represents the response for listing traces
@@ -49,6 +70,41 @@ type Span struct {
 	Status          string                 `json:"status,omitempty"`
 	Attributes      map[string]interface{} `json:"attributes,omitempty"`
 	Resource        map[string]interface{} `json:"resource,omitempty"`
+	AmpAttributes   *AmpAttributes         `json:"ampAttributes,omitempty"` // AMP-specific enriched attributes
+}
+
+// AmpAttributes contains AMP-specific enriched attributes
+type AmpAttributes struct {
+	Kind        string                          `json:"kind"`                  // Semantic span type (llm, tool, embedding, etc.)
+	Input       interface{}                     `json:"input,omitempty"`       // Input: []PromptMessage for LLM spans, string for tool spans
+	Output      interface{}                     `json:"output,omitempty"`      // Output: []PromptMessage for LLM spans, string for tool spans
+	Tools       []ToolDefinition                `json:"tools,omitempty"`       // List of available tools/functions (for LLM spans)
+	Name        string                          `json:"name,omitempty"`        // Name of the entity (for tool spans)
+	Status      *traceobserversvc.SpanStatus    `json:"status,omitempty"`      // Error status (for tool spans: Error bool, ErrorType string)
+	Model       string                          `json:"model,omitempty"`       // LLM model name (for LLM spans)
+	Temperature *float64                        `json:"temperature,omitempty"` // LLM temperature (for LLM spans)
+	TokenUsage  *traceobserversvc.LLMTokenUsage `json:"tokenUsage,omitempty"`  // Token usage (for LLM spans)
+}
+
+// PromptMessage represents a single message in a conversation
+type PromptMessage struct {
+	Role      string     `json:"role"`                // system, user, assistant, tool
+	Content   string     `json:"content,omitempty"`   // The message content (text)
+	ToolCalls []ToolCall `json:"toolCalls,omitempty"` // Tool calls made by assistant (for assistant role with tool calls)
+}
+
+// ToolCall represents a tool/function call made by the assistant
+type ToolCall struct {
+	ID        string `json:"id"`        // Tool call ID
+	Name      string `json:"name"`      // Function/tool name
+	Arguments string `json:"arguments"` // JSON arguments for the tool
+}
+
+// ToolDefinition represents a tool/function available to the LLM
+type ToolDefinition struct {
+	Name        string `json:"name"`                  // Function name
+	Description string `json:"description,omitempty"` // Function description
+	Parameters  string `json:"parameters,omitempty"`  // JSON schema of parameters
 }
 
 // SpanEvent represents an event within a span (for future use)
@@ -66,6 +122,8 @@ type SpanStatus struct {
 
 // TraceResponse represents the response for trace details
 type TraceResponse struct {
-	Spans      []Span `json:"spans"`
-	TotalCount int    `json:"totalCount"`
+	Spans      []Span       `json:"spans"`
+	TotalCount int          `json:"totalCount"`
+	TokenUsage *TokenUsage  `json:"tokenUsage,omitempty"` // Aggregated token usage from GenAI spans
+	Status     *TraceStatus `json:"status,omitempty"`     // Trace status including error information
 }

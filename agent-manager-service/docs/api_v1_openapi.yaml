@@ -1025,6 +1025,165 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/traces:
+    get:
+      summary: List traces for an agent
+      description: Retrieves a paginated list of traces for the specified agent with optional filtering
+      operationId: listTraces
+      parameters:
+        - name: orgName
+          in: path
+          description: Organization name
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          description: Project name
+          required: true
+          schema:
+            type: string
+        - name: agentName
+          in: path
+          description: Agent name
+          required: true
+          schema:
+            type: string
+        - name: environment
+          in: query
+          description: Environment name (e.g., Development, Production)
+          required: false
+          schema:
+            type: string
+            default: Development
+        - name: limit
+          in: query
+          description: Maximum number of traces to return
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          description: Number of traces to skip
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: startTime
+          in: query
+          description: Filter traces starting from this time (RFC3339 format)
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: endTime
+          in: query
+          description: Filter traces up to this time (RFC3339 format)
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: sortOrder
+          in: query
+          description: Sort order for traces
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: List of traces
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TraceOverviewResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/trace/{traceId}:
+    get:
+      summary: Get trace details
+      description: Retrieves detailed information about a specific trace including all spans
+      operationId: getTrace
+      parameters:
+        - name: orgName
+          in: path
+          description: Organization name
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          description: Project name
+          required: true
+          schema:
+            type: string
+        - name: agentName
+          in: path
+          description: Agent name
+          required: true
+          schema:
+            type: string
+        - name: traceId
+          in: path
+          description: Trace ID
+          required: true
+          schema:
+            type: string
+        - name: environment
+          in: query
+          description: Environment name (e.g., Development, Production)
+          required: false
+          schema:
+            type: string
+            default: Development
+      responses:
+        "200":
+          description: Trace details with all spans
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TraceResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trace not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     CreateOrganizationRequest:
@@ -1912,3 +2071,291 @@ components:
         - displayName
         - description
         - subtypes
+
+    TraceOverviewResponse:
+      type: object
+      properties:
+        traces:
+          type: array
+          items:
+            $ref: "#/components/schemas/TraceOverview"
+          description: List of trace overviews
+        totalCount:
+          type: integer
+          description: Total number of traces matching the query
+      required:
+        - traces
+        - totalCount
+
+    TraceOverview:
+      type: object
+      properties:
+        traceId:
+          type: string
+          description: Unique identifier for the trace
+        rootSpanId:
+          type: string
+          description: ID of the root span in the trace
+        rootSpanName:
+          type: string
+          description: Name of the root span
+        rootSpanKind:
+          type: string
+          description: Semantic kind of the root span (llm, tool, embedding, etc.)
+        startTime:
+          type: string
+          format: date-time
+          description: Trace start time
+        endTime:
+          type: string
+          format: date-time
+          description: Trace end time
+        durationInNanos:
+          type: integer
+          format: int64
+          description: Trace duration in nanoseconds
+        spanCount:
+          type: integer
+          description: Number of spans in the trace
+        tokenUsage:
+          $ref: "#/components/schemas/TokenUsage"
+        status:
+          $ref: "#/components/schemas/TraceStatus"
+        input:
+          type: string
+          description: Input from root span's traceloop.entity.input
+        output:
+          type: string
+          description: Output from root span's traceloop.entity.output
+      required:
+        - traceId
+        - rootSpanId
+        - rootSpanName
+        - startTime
+        - endTime
+        - durationInNanos
+        - spanCount
+
+    TokenUsage:
+      type: object
+      properties:
+        inputTokens:
+          type: integer
+          description: Number of input tokens consumed
+        outputTokens:
+          type: integer
+          description: Number of output tokens generated
+        totalTokens:
+          type: integer
+          description: Total tokens (input + output)
+      required:
+        - inputTokens
+        - outputTokens
+        - totalTokens
+
+    TraceStatus:
+      type: object
+      properties:
+        errorCount:
+          type: integer
+          description: Number of spans with errors (0 means no errors)
+      required:
+        - errorCount
+
+    TraceResponse:
+      type: object
+      properties:
+        spans:
+          type: array
+          items:
+            $ref: "#/components/schemas/Span"
+          description: List of spans in the trace
+        totalCount:
+          type: integer
+          description: Total number of spans in the trace
+        tokenUsage:
+          $ref: "#/components/schemas/TokenUsage"
+        status:
+          $ref: "#/components/schemas/TraceStatus"
+      required:
+        - spans
+        - totalCount
+
+    Span:
+      type: object
+      properties:
+        traceId:
+          type: string
+          description: Trace ID this span belongs to
+        spanId:
+          type: string
+          description: Unique span identifier
+        parentSpanId:
+          type: string
+          description: Parent span ID (if this is a child span)
+        name:
+          type: string
+          description: Span name/operation
+        service:
+          type: string
+          description: Service name
+        kind:
+          type: string
+          description: Span kind (CLIENT, SERVER, INTERNAL, etc.)
+        startTime:
+          type: string
+          format: date-time
+          description: Span start time
+        endTime:
+          type: string
+          format: date-time
+          description: Span end time
+        durationInNanos:
+          type: integer
+          format: int64
+          description: Span duration in nanoseconds
+        status:
+          type: string
+          description: Span status
+        attributes:
+          type: object
+          additionalProperties: true
+          description: Raw span attributes
+        resource:
+          type: object
+          additionalProperties: true
+          description: Resource attributes
+        ampAttributes:
+          $ref: "#/components/schemas/AmpAttributes"
+      required:
+        - traceId
+        - spanId
+        - name
+        - service
+        - startTime
+        - durationInNanos
+
+    AmpAttributes:
+      type: object
+      properties:
+        kind:
+          type: string
+          description: Semantic span type (llm, tool, embedding, etc.)
+        input:
+          oneOf:
+            - type: array
+              items:
+                $ref: "#/components/schemas/PromptMessage"
+            - type: string
+          description: Input for LLM spans (array) or tool spans (string)
+        output:
+          oneOf:
+            - type: array
+              items:
+                $ref: "#/components/schemas/PromptMessage"
+            - type: string
+          description: Output for LLM spans (array) or tool spans (string)
+        tools:
+          type: array
+          items:
+            $ref: "#/components/schemas/ToolDefinition"
+          description: List of available tools/functions (for LLM spans)
+        name:
+          type: string
+          description: Name of the entity (for tool spans)
+        status:
+          $ref: "#/components/schemas/SpanStatus"
+        model:
+          type: string
+          description: LLM model name (for LLM spans)
+        temperature:
+          type: number
+          format: float
+          description: LLM temperature (for LLM spans)
+        tokenUsage:
+          $ref: "#/components/schemas/LLMTokenUsage"
+      required:
+        - kind
+
+    PromptMessage:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [system, user, assistant, tool]
+          description: Message role
+        content:
+          type: string
+          description: Message content
+        toolCalls:
+          type: array
+          items:
+            $ref: "#/components/schemas/ToolCall"
+          description: Tool calls made by assistant
+      required:
+        - role
+
+    ToolCall:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Tool call ID
+        name:
+          type: string
+          description: Function/tool name
+        arguments:
+          type: string
+          description: JSON arguments for the tool
+      required:
+        - id
+        - name
+        - arguments
+
+    ToolDefinition:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Function name
+        description:
+          type: string
+          description: Function description
+        parameters:
+          type: string
+          description: JSON schema of parameters
+      required:
+        - name
+
+    SpanStatus:
+      type: object
+      properties:
+        error:
+          type: boolean
+          description: Whether the span has an error
+        errorType:
+          type: string
+          description: Type of error if present
+      required:
+        - error
+
+    LLMTokenUsage:
+      type: object
+      properties:
+        inputTokens:
+          type: integer
+          description: Number of input tokens
+        outputTokens:
+          type: integer
+          description: Number of output tokens
+        cacheReadInputTokens:
+          type: integer
+          description: Number of cached input tokens read
+        totalTokens:
+          type: integer
+          description: Total tokens used
+      required:
+        - inputTokens
+        - outputTokens
+        - totalTokens
+

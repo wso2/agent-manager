@@ -251,7 +251,7 @@ func (s *infraResourceManager) ListProjects(ctx context.Context, userIdpId uuid.
 	var projectResponses []*models.ProjectResponse
 	for _, project := range paginatedProjects {
 		projectResponse := &models.ProjectResponse{
-			UUID:  project.UUID,
+			UUID:        project.UUID,
 			Name:        project.Name,
 			OrgName:     orgName,
 			DisplayName: project.DisplayName,

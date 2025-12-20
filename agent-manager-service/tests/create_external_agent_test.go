@@ -91,7 +91,7 @@ func TestCreateExternalAgent(t *testing.T) {
 				"type": "external",
 			},
 			"agentType": map[string]interface{}{
-				"type":    "api",
+				"type": "api",
 			},
 		})
 		require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestCreateExternalAgent(t *testing.T) {
 					"type": "external",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type": "api",
 				},
 			},
 			wantStatus: 400,
@@ -163,7 +163,7 @@ func TestCreateExternalAgent(t *testing.T) {
 					"type": "external",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type": "api",
 				},
 			},
 			wantStatus: 400,
@@ -183,7 +183,7 @@ func TestCreateExternalAgent(t *testing.T) {
 					"type": "external",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type": "api",
 				},
 			},
 			wantStatus: 400,
@@ -204,7 +204,7 @@ func TestCreateExternalAgent(t *testing.T) {
 					// Missing "type" field
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type": "api",
 				},
 			},
 			wantStatus: 400,
@@ -225,7 +225,7 @@ func TestCreateExternalAgent(t *testing.T) {
 					"type": "managed", // Invalid type
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type": "api",
 				},
 			},
 			wantStatus: 400,
@@ -246,7 +246,7 @@ func TestCreateExternalAgent(t *testing.T) {
 					"type": "external",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type": "api",
 				},
 			},
 			wantStatus: 404,
@@ -267,7 +267,7 @@ func TestCreateExternalAgent(t *testing.T) {
 					"type": "external",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type": "api",
 				},
 			},
 			wantStatus: 404,
@@ -288,7 +288,7 @@ func TestCreateExternalAgent(t *testing.T) {
 					"type": "external",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type": "api",
 				},
 			},
 			wantStatus: 409,
@@ -321,7 +321,7 @@ func TestCreateExternalAgent(t *testing.T) {
 					"type": "external",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type": "api",
 				},
 			},
 			wantStatus: 401,

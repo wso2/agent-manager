@@ -43,7 +43,7 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	buildCIManagerService := services.NewBuildCIManager(openChoreoSvcClient, logger, organizationRepository, projectRepository, agentRepository)
 	buildCIController := controllers.NewBuildCIController(buildCIManagerService)
 	traceObserverClient := traceobserversvc.NewTraceObserverClient()
-	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, logger)
+	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoSvcClient, logger)
 	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
 	appParams := &AppParams{
 		AuthMiddleware:          middleware,
@@ -70,7 +70,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 	buildCIManagerService := services.NewBuildCIManager(openChoreoSvcClient, logger, organizationRepository, projectRepository, agentRepository)
 	buildCIController := controllers.NewBuildCIController(buildCIManagerService)
 	traceObserverClient := ProvideTestTraceObserverClient(testClients)
-	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, logger)
+	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoSvcClient, logger)
 	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
 	appParams := &AppParams{
 		AuthMiddleware:          authMiddleware,

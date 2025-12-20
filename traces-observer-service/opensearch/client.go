@@ -73,8 +73,6 @@ func NewClient(cfg *config.OpenSearchConfig) (*Client, error) {
 
 // Search executes a search query against one or more indices
 func (c *Client) Search(ctx context.Context, indices []string, query map[string]interface{}) (*SearchResponse, error) {
-	log.Printf("Executing search on indices: %v", indices)
-
 	// Convert query to JSON
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(query); err != nil {

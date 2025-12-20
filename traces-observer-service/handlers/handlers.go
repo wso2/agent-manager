@@ -18,12 +18,13 @@ package handlers
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/controllers"
+	"github.com/wso2/ai-agent-management-platform/traces-observer-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/opensearch"
 )
 
@@ -66,6 +67,9 @@ type ErrorResponse struct {
 
 // GetTraceOverviews handles GET /api/traces with query parameters
 func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
+	// Get logger from context
+	log := logger.GetLogger(r.Context())
+
 	// Parse query parameters
 	query := r.URL.Query()
 
@@ -131,7 +135,7 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	result, err := h.controllers.GetTraceOverviews(ctx, params)
 	if err != nil {
-		log.Printf("Failed to get trace overviews: %v", err)
+		log.Error("Failed to get trace overviews", "error", err)
 		h.writeError(w, http.StatusInternalServerError, "Failed to retrieve trace overviews")
 		return
 	}
@@ -142,6 +146,9 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 
 // GetTraceByIdAndService handles GET /api/trace with query parameters
 func (h *Handler) GetTraceByIdAndService(w http.ResponseWriter, r *http.Request) {
+	// Get logger from context
+	log := logger.GetLogger(r.Context())
+
 	// Parse query parameters
 	query := r.URL.Query()
 
@@ -197,7 +204,7 @@ func (h *Handler) GetTraceByIdAndService(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	result, err := h.controllers.GetTraceByIdAndService(ctx, params)
 	if err != nil {
-		log.Printf("Failed to get trace by ID and service: %v", err)
+		log.Error("Failed to get trace by ID and service", "error", err)
 		h.writeError(w, http.StatusInternalServerError, "Failed to retrieve traces")
 		return
 	}
@@ -208,9 +215,12 @@ func (h *Handler) GetTraceByIdAndService(w http.ResponseWriter, r *http.Request)
 
 // Health handles GET /health
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
+	// Get logger from context
+	log := logger.GetLogger(r.Context())
+
 	ctx := r.Context()
 	if err := h.controllers.HealthCheck(ctx); err != nil {
-		log.Printf("Health check failed: %v", err)
+		log.Error("Health check failed", "error", err)
 		h.writeJSON(w, http.StatusServiceUnavailable, map[string]string{
 			"status": "unhealthy",
 			"error":  "service unavailable",
@@ -229,7 +239,7 @@ func (h *Handler) writeJSON(w http.ResponseWriter, status int, data interface{})
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		log.Printf("Failed to encode JSON: %v", err)
+		slog.Error("Failed to encode JSON", "error", err)
 	}
 }
 

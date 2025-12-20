@@ -26,6 +26,7 @@ import (
 type Config struct {
 	Server     ServerConfig
 	OpenSearch OpenSearchConfig
+	LogLevel   string
 }
 
 // ServerConfig holds HTTP server configuration
@@ -51,6 +52,7 @@ func Load() (*Config, error) {
 			Username: getEnv("OPENSEARCH_USERNAME", ""),
 			Password: getEnv("OPENSEARCH_PASSWORD", ""),
 		},
+		LogLevel: getEnv("LOG_LEVEL", "INFO"),
 	}
 
 	// Validate

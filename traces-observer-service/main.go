@@ -19,7 +19,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -30,23 +30,55 @@ import (
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/handlers"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/middleware"
+	"github.com/wso2/ai-agent-management-platform/traces-observer-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/traces-observer-service/opensearch"
 )
+
+func setupLogger(cfg *config.Config) {
+	var level slog.Level
+	switch cfg.LogLevel {
+	case "DEBUG":
+		level = slog.LevelDebug
+	case "INFO":
+		level = slog.LevelInfo
+	case "WARN":
+		level = slog.LevelWarn
+	case "ERROR":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo // default to INFO
+	}
+
+	// Create handler options
+	opts := &slog.HandlerOptions{
+		Level: level,
+	}
+	handler := slog.NewJSONHandler(os.Stdout, opts)
+	slogger := slog.New(handler)
+	slog.SetDefault(slogger)
+
+	slog.Info("Logger configured",
+		"level", level.String())
+}
 
 func main() {
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		slog.Error("Failed to load config", "error", err)
+		os.Exit(1)
 	}
 
-	log.Printf("Starting tracing service on port %d", cfg.Server.Port)
+	// Setup structured logging
+	setupLogger(cfg)
+
+	slog.Info("Starting tracing service", "port", cfg.Server.Port)
 
 	// Initialize OpenSearch client
 	osClient, err := opensearch.NewClient(&cfg.OpenSearch)
 	if err != nil {
-		// log.Fatalf internally calls os.Exit(1)
-		log.Fatalf("Failed to create OpenSearch client: %v", err)
+		slog.Error("Failed to create OpenSearch client", "error", err)
+		os.Exit(1)
 	}
 
 	// Initialize service
@@ -61,23 +93,25 @@ func main() {
 	mux.HandleFunc("/api/v1/trace", handler.GetTraceByIdAndService)
 	mux.HandleFunc("/health", handler.Health)
 
-	// Apply CORS middleware
+	// Apply middleware: Request Logger -> CORS
 	corsConfig := middleware.DefaultCORSConfig()
 	corsHandler := middleware.CORS(corsConfig)(mux)
+	loggerHandler := logger.RequestLogger()(corsHandler)
 
 	// Create server
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:      corsHandler,
+		Handler:      loggerHandler,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("Server listening on :%d", cfg.Server.Port)
+		slog.Info("Server listening", "port", cfg.Server.Port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server failed: %v", err)
+			slog.Error("Server failed", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -86,15 +120,16 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutting down server...")
+	slog.Info("Shutting down server...")
 
 	// Graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		slog.Error("Server forced to shutdown", "error", err)
+		os.Exit(1)
 	}
 
-	log.Println("Server exited")
+	slog.Info("Server exited")
 }

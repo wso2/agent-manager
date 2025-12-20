@@ -12,3 +12,5 @@ localdata/*
 
 # Build output
 tmp/*
+
+.kube

@@ -140,10 +140,10 @@ func createComponentCRForInternalAgents(orgName, projectName string, req *spec.C
 		string(AnnotationKeyDescription): utils.StrPointerAsStr(req.Description, ""),
 	}
 	labels := map[string]string{
-		string(LabelKeyProvisioningType): req.Provisioning.Type,
-		string(LabelKeyAgentSubType):     utils.StrPointerAsStr(req.AgentType.SubType, ""),
-		string(LabelKeyAgentLanguage):    req.RuntimeConfigs.Language,
-		string(LabelKeyAgentLanguageVersion): utils.StrPointerAsStr(req.RuntimeConfigs.LanguageVersion,""),
+		string(LabelKeyProvisioningType):     req.Provisioning.Type,
+		string(LabelKeyAgentSubType):         utils.StrPointerAsStr(req.AgentType.SubType, ""),
+		string(LabelKeyAgentLanguage):        req.RuntimeConfigs.Language,
+		string(LabelKeyAgentLanguageVersion): utils.StrPointerAsStr(req.RuntimeConfigs.LanguageVersion, ""),
 	}
 	componentType := getOpenChoreoComponentType(req.Provisioning.Type, req.AgentType.Type)
 	componentWorkflow := getOpenChoreoComponentWorkflow(req.RuntimeConfigs.Language)
