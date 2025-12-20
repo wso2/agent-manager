@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 )
@@ -43,10 +44,10 @@ type traceObserverClient struct {
 func NewTraceObserverClient() TraceObserverClient {
 	cfg := config.GetConfig()
 	return &traceObserverClient{
-		baseURL:    cfg.TraceObserver.URL,
+		baseURL: cfg.TraceObserver.URL,
 		httpClient: &http.Client{
 			Timeout: 15 * time.Second,
-		}
+		},
 	}
 }
 
