@@ -9,7 +9,7 @@ set -euo pipefail
 # ============================================================================
 
 # Version
-VERSION="${VERSION:-0.0.0-dev}"
+VERSION="${VERSION:-0.2.5}"
 
 # Helm chart registry and versions
 HELM_CHART_REGISTRY="${HELM_CHART_REGISTRY:-ghcr.io/wso2}"
@@ -133,12 +133,15 @@ install_agent_management_platform() {
         return 1
     fi
 
-    # Wait for PostgreSQL deployment (Bitnami subchart uses release-name-postgresql)
-    if ! wait_for_deployment "${release_name}-postgresql" "${AMP_NS}" "${TIMEOUT_DEPLOYMENT}"; then
-        echo "PostgreSQL deployment failed to become ready"
+    # Wait for PostgreSQL StatefulSet (Bitnami subchart uses release-name-postgresql)
+    if ! wait_for_statefulset "${release_name}-postgresql" "${AMP_NS}" "${TIMEOUT_DEPLOYMENT}"; then
+        echo "PostgreSQL StatefulSet failed to become ready"
         echo ""
         echo "PostgreSQL pod status:"
         kubectl get pods -n "${AMP_NS}" -l app.kubernetes.io/name=postgresql 2>&1 || true
+        echo ""
+        echo "PostgreSQL StatefulSet status:"
+        kubectl get statefulset "${release_name}-postgresql" -n "${AMP_NS}" 2>&1 || true
         echo ""
         echo "PostgreSQL pod logs (if available):"
         kubectl logs -n "${AMP_NS}" -l app.kubernetes.io/name=postgresql --tail=30 2>&1 || true
@@ -182,15 +185,6 @@ install_observability_extension() {
     if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${OBSERVABILITY_NS}" "${TIMEOUT_AMP_INSTALL}" \
         --version "${chart_version}" \
         "${OBSERVABILITY_HELM_ARGS[@]}"; then
-        return 1
-    fi
-
-    # Wait for data-prepper deployment
-    if ! wait_for_deployment "data-prepper" "${OBSERVABILITY_NS}" "${TIMEOUT_DEPLOYMENT}"; then
-        echo "DataPrepper deployment failed to become ready"
-        echo ""
-        echo "DataPrepper pod status:"
-        kubectl get pods -n "${OBSERVABILITY_NS}" -l app=data-prepper 2>&1 || true
         return 1
     fi
 
@@ -270,4 +264,3 @@ verify_amp_prerequisites() {
 
     return 0
 }
-

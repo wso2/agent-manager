@@ -49,6 +49,23 @@ ports:
   - port: 11082:9200
     nodeFilters:
       - loadbalancer
+  # AMP Services
+  # AMP Console UI (NodePort service on port 3000)
+  - port: 3000:3000
+    nodeFilters:
+      - loadbalancer
+  # AMP API (NodePort service on port 8080)
+  - port: 8080:8080
+    nodeFilters:
+      - loadbalancer
+  # AMP Traces Observer (NodePort service on port 9098)
+  - port: 9098:9098
+    nodeFilters:
+      - loadbalancer
+  # OTel Collector (NodePort service on port 21893)
+  - port: 21893:21893
+    nodeFilters:
+      - loadbalancer
 options:
   k3s:
     extraArgs:

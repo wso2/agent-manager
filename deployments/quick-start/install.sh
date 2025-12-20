@@ -21,10 +21,9 @@ OPENCHOREO_VERSION="0.7.0"
 OC_RELEASE="release-v0.7"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K3D_CONFIG="${SCRIPT_DIR}/k3d-config.yaml"
-AMP_RELEASE_VERSION="0.7.0"
 
 # Source AMP installation helpers
-source "${SCRIPT_DIR}/install-amp-helpers.sh"
+source "${SCRIPT_DIR}/install-helpers.sh"
 
 # Timeouts (in seconds)
 TIMEOUT_K3D_READY=60
@@ -434,7 +433,7 @@ helm_install_idempotent \
     "openchoreo-control-plane" \
     "${TIMEOUT_CONTROL_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
-    --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/${AMP_RELEASE_VERSION}/deployments/single-cluster/values-cp.yaml"
+    --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp-${VERSION}/deployments/single-cluster/values-cp.yaml"
 
 wait_for_pods "openchoreo-control-plane" "${TIMEOUT_CONTROL_PLANE}"
 
@@ -526,7 +525,7 @@ helm_install_idempotent \
     "${OBSERVABILITY_NS}" \
     "${TIMEOUT_OBSERVABILITY_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
-    --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/${AMP_RELEASE_VERSION}/deployments/single-cluster/values-op.yaml"
+    --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp-${VERSION}/deployments/single-cluster/values-op.yaml"
 
 wait_for_deployments "openchoreo-observability-plane" "${TIMEOUT_OBSERVABILITY_PLANE}"
 wait_for_statefulsets "openchoreo-observability-plane" "${TIMEOUT_OBSERVABILITY_PLANE}"
@@ -602,7 +601,7 @@ log_success "Platform Resources Extension installed successfully"
 echo ""
 
 # Install observability extension
-log_info "Installing Observability Extension (DataPrepper, Traces Observer)..."
+log_info "Installing Observability Extension (Traces Observer)..."
 if ! install_observability_extension; then
     log_warning "Observability Extension installation failed (non-fatal)"
     echo "The platform is installed but observability features may not work."

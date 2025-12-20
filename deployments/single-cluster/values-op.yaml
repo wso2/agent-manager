@@ -34,3 +34,7 @@ fakeSecretStore:
 prometheus:
   prometheusSpec:
     maximumStartupDurationSeconds: 60
+
+opentelemetryCollectorCustomizations:
+  tailSampling:
+    spansPerSecond: 100000
