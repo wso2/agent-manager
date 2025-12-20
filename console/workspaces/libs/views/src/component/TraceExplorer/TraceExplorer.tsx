@@ -276,12 +276,12 @@ export function TraceExplorer(props: TraceExplorerProps) {
               justifyContent="right"
             >
               <Box display="flex" flexDirection="row" gap={1}>
-                {!!span.span?.attributes['gen_ai.request.model'] && (
+                {!!span.span?.attributes?.['gen_ai.request.model'] && (
                   <Tooltip title={'GenAI Model'}>
                     <Chip
                       icon={<Brain size={16} />}
                       label={
-                        span.span?.attributes['gen_ai.request.model'] as string
+                        span.span?.attributes?.['gen_ai.request.model'] as string
                       }
                       color="default"
                       size="small"
@@ -289,14 +289,14 @@ export function TraceExplorer(props: TraceExplorerProps) {
                     />
                   </Tooltip>
                 )}
-                {!!span.span?.attributes[
+                {!!span.span?.attributes?.[
                   'traceloop.association.properties.ls_model_type'
                 ] && (
                   <Tooltip title={'Language Service Model Type'}>
                     <Chip
                       icon={<Languages size={16} />}
                       label={
-                        span.span?.attributes[
+                        span.span?.attributes?.[
                           'traceloop.association.properties.ls_model_type'
                         ] as string
                       }
@@ -305,11 +305,11 @@ export function TraceExplorer(props: TraceExplorerProps) {
                     />
                   </Tooltip>
                 )}
-                {!!span.span?.attributes['traceloop.span.kind'] && (
+                {!!span.span?.attributes?.['traceloop.span.kind'] && (
                   <Tooltip title={'Span Kind'}>
                     <Chip
                       label={
-                        span.span?.attributes['traceloop.span.kind'] as string
+                        span.span?.attributes?.['traceloop.span.kind'] as string
                       }
                       icon={<Funnel size={16} />}
                       size="small"
@@ -317,12 +317,12 @@ export function TraceExplorer(props: TraceExplorerProps) {
                     />
                   </Tooltip>
                 )}
-                {!!span.span?.attributes['gen_ai.usage.completion_tokens'] && (
+                {!!span.span?.attributes?.['gen_ai.usage.completion_tokens'] && (
                   <Tooltip title={'Completion Tokens'}>
                     <Chip
                       icon={<DollarSign size={16} />}
                       label={
-                        span.span?.attributes[
+                        span.span?.attributes?.[
                           'gen_ai.usage.completion_tokens'
                         ] as string
                       }
@@ -332,12 +332,12 @@ export function TraceExplorer(props: TraceExplorerProps) {
                     />
                   </Tooltip>
                 )}
-                {!!span.span?.attributes['gen_ai.usage.prompt_tokens'] && (
+                {!!span.span?.attributes?.['gen_ai.usage.prompt_tokens'] && (
                   <Tooltip title={'Prompt Tokens'}>
                     <Chip
                       icon={<HandCoins size={16} />}
                       label={
-                        span.span?.attributes[
+                        span.span?.attributes?.[
                           'gen_ai.usage.prompt_tokens'
                         ] as string
                       }

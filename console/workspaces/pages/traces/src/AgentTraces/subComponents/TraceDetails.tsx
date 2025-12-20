@@ -59,14 +59,14 @@ export function TraceDetails() {
     orgId = "default",
     projectId = "default",
     agentId = "default",
-    envId,
+    envId = "default",
     traceId = "default",
   } = useParams();
   const { data: traceDetails, isLoading } = useTrace(
     orgId,
     projectId,
     agentId,
-    envId ?? "",
+    envId,
     traceId
   );
 

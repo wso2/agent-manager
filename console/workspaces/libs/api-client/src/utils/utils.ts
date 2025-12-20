@@ -34,10 +34,8 @@ export interface HttpOptions {
 export async function httpGET(
     context: string, 
     params:{searchParams?: Record<string, string>, token?: string, options?: HttpOptions}) {
-    const {searchParams, token, options} = params;
-    const baseUrl = options?.useObsPlaneHostApi
-     ? globalConfig.obsApiBaseUrl 
-     : globalConfig.apiBaseUrl;
+    const {searchParams, token} = params;
+    const baseUrl = globalConfig.apiBaseUrl;
     const response = await fetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
         method: 'GET',
         headers:  token ? {
@@ -55,10 +53,8 @@ export async function httpPOST(
     context: string, 
     body: object, 
     params: {searchParams?: Record<string, string>, token?: string, options?: HttpOptions}) {
-    const {searchParams, token, options} = params;
-    const baseUrl = options?.useObsPlaneHostApi
-     ? globalConfig.obsApiBaseUrl 
-     : globalConfig.apiBaseUrl;
+    const {searchParams, token} = params;
+    const baseUrl = globalConfig.apiBaseUrl;
     const response = await fetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
         method: 'POST',
         headers: token ? {
@@ -77,10 +73,8 @@ export async function httpPUT(
     context: string, 
     body: object, 
     params: {searchParams?: Record<string, string>, token?: string, options?: HttpOptions}) {
-    const {searchParams, token, options} = params;
-    const baseUrl = options?.useObsPlaneHostApi
-     ? globalConfig.obsApiBaseUrl 
-     : globalConfig.apiBaseUrl;
+    const {searchParams, token} = params;
+    const baseUrl = globalConfig.apiBaseUrl;
     const response = await fetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
         method: 'PUT',
         headers: token ? {
@@ -98,10 +92,8 @@ export async function httpPUT(
 export async function httpDELETE(
     context: string, 
     params: {searchParams?: Record<string, string>, token?: string, options?: HttpOptions}) {
-    const {searchParams, token, options} = params;
-    const baseUrl = options?.useObsPlaneHostApi
-     ? globalConfig.obsApiBaseUrl 
-     : globalConfig.apiBaseUrl;
+    const {searchParams, token} = params;
+    const baseUrl = globalConfig.apiBaseUrl;
     const response = await fetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
         method: 'DELETE',
         headers: token ? {
@@ -119,10 +111,8 @@ export async function httpPATCH(
     context: string, 
     body: object, 
     params: {searchParams?: Record<string, string>, token?: string, options?: HttpOptions}) {
-    const {searchParams, token, options} = params;
-    const baseUrl = options?.useObsPlaneHostApi
-     ? globalConfig.obsApiBaseUrl 
-     : globalConfig.apiBaseUrl;
+    const {searchParams, token} = params;
+    const baseUrl = globalConfig.apiBaseUrl;
     const response = await fetch(`${baseUrl}${context}?${new URLSearchParams(searchParams).toString()}`, {
         method: 'PATCH',
         headers: token ? {

@@ -27,15 +27,9 @@ import {
   relativeRouteMap,
   TraceListTimeRange,
 } from "@agent-management-platform/types";
-import { useGetAgent } from "@agent-management-platform/api-client";
 
 export const AgentTraces: React.FC = () => {
   const { agentId, orgId, projectId, envId } = useParams();
-  const { data: agent } = useGetAgent({
-    orgName: orgId,
-    projName: projectId,
-    agentName: agentId,
-  });
   const [timeRange, setTimeRange] = useState<TraceListTimeRange>(
     TraceListTimeRange.ONE_DAY
   );
@@ -52,12 +46,9 @@ export const AgentTraces: React.FC = () => {
         <Routes>
           <Route
             path={
-              agent?.provisioning.type === "internal"
-                ? relativeRouteMap.children.org.children.projects.children
-                    .agents.children.environment.children.observability.children
-                    .traces.path + "/*"
-                : relativeRouteMap.children.org.children.projects.children
-                    .agents.children.observe.children.traces.path + "/*"
+              relativeRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.traces
+                .path + "/*"
             }
           >
             <Route
@@ -77,13 +68,9 @@ export const AgentTraces: React.FC = () => {
             />
             <Route
               path={
-                agent?.provisioning.type === "internal"
-                  ? relativeRouteMap.children.org.children.projects.children
-                      .agents.children.environment.children.observability
-                      .children.traces.children.traceDetails.path
-                  : relativeRouteMap.children.org.children.projects.children
-                      .agents.children.observe.children.traces.children
-                      .traceDetails.path
+                relativeRouteMap.children.org.children.projects.children.agents
+                  .children.environment.children.observability.children.traces
+                  .children.traceDetails.path
               }
               element={
                 <PageLayout
@@ -91,12 +78,9 @@ export const AgentTraces: React.FC = () => {
                   backLabel="Back to Traces"
                   disableIcon
                   backHref={generatePath(
-                    agent?.provisioning.type === "internal"
-                      ? absoluteRouteMap.children.org.children.projects.children
-                      .agents.children.environment.children.observability.children
-                      .traces.path
-                      : absoluteRouteMap.children.org.children.projects.children
-                      .agents.children.observe.children.traces.path,
+                    absoluteRouteMap.children.org.children.projects.children
+                      .agents.children.environment.children.observability
+                      .children.traces.path,
                     { orgId, projectId, agentId, envId }
                   )}
                 >

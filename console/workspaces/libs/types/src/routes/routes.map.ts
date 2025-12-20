@@ -59,23 +59,6 @@ export const rootRouteMap: AppRoute = {
                         path: 'agents/:agentId',
                         index: true,
                         children: {
-                            observe:{
-                                path: 'observe',
-                                index: true,
-                                children: {
-                                    traces: {
-                                        path: 'traces',
-                                        index: true,
-                                        children: {
-                                            traceDetails: {
-                                                path: ':traceId',
-                                                index: true,
-                                                children: {},
-                                            },
-                                        },
-                                    }
-                                }
-                            },
                             build: {
                                 path: 'build',
                                 index: true,
