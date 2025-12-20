@@ -36,6 +36,9 @@ fi
 if [[ -z "${OBSERVABILITY_HELM_ARGS+x}" ]]; then
     OBSERVABILITY_HELM_ARGS=()
 fi
+if [[ -z "${PLATFORM_RESOURCES_HELM_ARGS+x}" ]]; then
+    PLATFORM_RESOURCES_HELM_ARGS=()
+fi
 
 # Timeouts (in seconds)
 TIMEOUT_AMP_INSTALL=1800
@@ -44,6 +47,19 @@ TIMEOUT_DEPLOYMENT=600
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
+
+# Fallback logging functions (can be overridden by sourcing script)
+if ! declare -f log_error >/dev/null 2>&1; then
+    log_error() {
+        echo "ERROR: $1" >&2
+    }
+fi
+
+if ! declare -f log_warning >/dev/null 2>&1; then
+    log_warning() {
+        echo "WARNING: $1" >&2
+    }
+fi
 
 # Check if helm release exists
 helm_release_exists() {
@@ -71,7 +87,11 @@ wait_for_statefulset() {
     local namespace="$2"
     local timeout="${3:-600}"
 
-    if kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 statefulset/"${statefulset}" -n "${namespace}" --timeout="${timeout}s" &>/dev/null; then
+    # Get the desired replica count
+    local replicas
+    replicas=$(kubectl get statefulset/"${statefulset}" -n "${namespace}" -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
+ 
+    if kubectl wait --for=jsonpath="{.status.readyReplicas}"="${replicas}" statefulset/"${statefulset}" -n "${namespace}" --timeout="${timeout}s" &>/dev/null; then
         return 0
     else
         return 1

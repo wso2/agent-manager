@@ -2,7 +2,7 @@ FROM alpine:3.21
 
 # Version arguments for reproducibility and easy updates
 ARG KUBECTL_VERSION=v1.32.10
-ARG HELM_VERSION=v3.19.2
+ARG HELM_VERSION=v3.19.4
 ARG K3D_VERSION=v5.8.3
 
 # Inject the target os and architecture
@@ -35,9 +35,8 @@ RUN adduser -D -h ${USER_HOME} -s /bin/bash wso2-amp && \
     echo "wso2-amp ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/wso2-amp && \
     chmod 0440 /etc/sudoers.d/wso2-amp
 
-COPY .bash_profile ${USER_HOME}/.bash_profile
-COPY .bashrc ${USER_HOME}/.bashrc
-
+COPY --chown=wso2-amp:wso2-amp .bash_profile ${USER_HOME}/.bash_profile
+COPY --chown=wso2-amp:wso2-amp .bashrc ${USER_HOME}/.bashrc
 # Copy scripts and configs
 COPY --chown=wso2-amp:wso2-amp install.sh ${USER_HOME}/install.sh
 COPY --chown=wso2-amp:wso2-amp install-helpers.sh ${USER_HOME}/install-helpers.sh
@@ -45,7 +44,9 @@ COPY --chown=wso2-amp:wso2-amp uninstall.sh ${USER_HOME}/uninstall.sh
 COPY --chown=wso2-amp:wso2-amp k3d-config.yaml ${USER_HOME}/k3d-config.yaml
 COPY --chown=root:root entrypoint.sh /entrypoint.sh
 RUN chmod +x ${USER_HOME}/install.sh && \
-    chmod +x /entrypoint.sh
+    chmod +x /entrypoint.sh && \
+    chmod +x ${USER_HOME}/install-helpers.sh && \
+    chmod +x ${USER_HOME}/uninstall.sh
 
 # Set working directory
 WORKDIR ${USER_HOME}

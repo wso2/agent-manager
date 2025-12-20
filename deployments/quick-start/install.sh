@@ -137,7 +137,7 @@ wait_for_k3d_cluster() {
             kubectl config get-contexts 2>/dev/null || true
             # Try one last time with any k3d context
             if kubectl config get-contexts 2>/dev/null | grep -q "k3d"; then
-                K3D_CTX=$(kubectl config get-contexts 2>/dev/null | grep "k3d" | awk '{print $1}' | head -1)
+                K3D_CTX=$(kubectl config get-contexts --no-headers 2>/dev/null | grep "k3d" | awk '{print $2}' | head -1)
                 if [ -n "${K3D_CTX}" ]; then
                     log_info "Trying with context: ${K3D_CTX}"
                     kubectl config use-context "${K3D_CTX}" 2>/dev/null || true
@@ -248,10 +248,11 @@ wait_for_statefulsets() {
 
     log_info "Waiting for statefulsets in ${namespace} to be ready (timeout: ${timeout}s)..."
 
-    kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 statefulset --all -n "${namespace}" --timeout="${timeout}s" || {
-        log_warning "Some statefulsets may still be starting (non-fatal)"
-        return 0
-    }
+    for sts in $(kubectl get statefulset -n "${namespace}" -o name 2>/dev/null); do
+        kubectl rollout status "${sts}" -n "${namespace}" --timeout="${timeout}s" || {
+            log_warning "StatefulSet ${sts} may still be starting (non-fatal)"
+        }
+    done
     log_success "Statefulsets in ${namespace} are ready"
 }
 

@@ -17,7 +17,7 @@ Ensure the following before you begin:
 
 ## 🚀 Installation Using Dev Container
 
-The quick-start includes a dev container with all required tools pre-installed (kubectl, Helm, Kind). This ensures a consistent environment across different systems.
+The quick-start includes a dev container with all required tools pre-installed (kubectl, Helm, K3d). This ensures a consistent environment across different systems.
 
 ### Step 1: Run the Dev Container
 

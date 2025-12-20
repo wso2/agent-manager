@@ -310,8 +310,9 @@ fi
 if [ "${AMP_ONLY}" = false ]; then
     for ns in "openchoreo-control-plane" "openchoreo-data-plane" "openchoreo-build-plane" "openchoreo-observability-plane"; do
         if kubectl get namespace "${ns}" &>/dev/null 2>&1; then
-            # Check if namespace is empty (only finalizers)
-            if kubectl get all -n "${ns}" 2>/dev/null | grep -q "No resources"; then
+            # Check if namespace has no pods (simplified check)
+            POD_COUNT=$(kubectl get pods -n "${ns}" --no-headers 2>/dev/null | wc -l || echo "0")
+            if [ "${POD_COUNT}" -eq 0 ]; then
                 log_info "Deleting namespace ${ns}..."
                 kubectl delete namespace "${ns}" --timeout=60s &>/dev/null || {
                     log_warning "Failed to delete namespace ${ns}, attempting force delete..."

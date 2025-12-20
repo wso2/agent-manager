@@ -9,6 +9,7 @@ tracesObserver:
     tag: "0.0.0-dev"
     pullPolicy: IfNotPresent
   port: 9098
+  opensearchUrl: https://opensearch.openchoreo-observability-plane.svc.cluster.local:9200
   resourceLimits:
     memory: 256Mi
     cpu: 500m

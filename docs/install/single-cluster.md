@@ -45,7 +45,7 @@ These values files configure:
 - Traefik ingress configuration for k3d
 - Cluster gateway configuration
 
-**Install OpenChoreo Control Plane**
+#### Install OpenChoreo Control Plane
 
 ```bash
 
@@ -58,7 +58,7 @@ helm install openchoreo-control-plane \
   --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp-v0.0.0-dev/deployments/single-cluster/values-cp.yaml
 ```
 
-**Install OpenChoreo Observability Plane**
+#### Install OpenChoreo Observability Plane
 
 ```bash
 # Install Observability Plane

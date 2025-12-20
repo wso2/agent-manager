@@ -35,10 +35,10 @@ options:
         nodeFilters:
           - server:*
       # Configure kubelet eviction thresholds to prevent resource exhaustion
-      - arg: "--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%"
+      - arg: "--kubelet-arg=eviction-hard=imagefs.available<10%,nodefs.available<10%"
         nodeFilters:
           - server:*
-      - arg: "--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%"
+      - arg: "--kubelet-arg=eviction-minimum-reclaim=imagefs.available=5%,nodefs.available=5%"
         nodeFilters:
           - server:*
 # Configure insecure registries for HTTP access
