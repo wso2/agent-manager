@@ -63,7 +63,6 @@ export async function createAgent(
 ): Promise<AgentResponse> {
   const { orgName = "default", projName = "default" } = params;
   const token = getToken ? await getToken() : undefined;
-  console.log("###11", body);
   const res = await httpPOST(
     `${SERVICE_BASE}/orgs/${encodeURIComponent(
       orgName

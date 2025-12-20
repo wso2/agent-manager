@@ -181,11 +181,12 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
                 component={Link}
                 to={generatePath(
                   absoluteRouteMap.children.org.children.projects.children
-                    .agents.children.observe.children.traces.path,
+                    .agents.children.environment.children.observability.children.traces.path,
                   {
                     orgId,
                     projectId,
                     agentId,
+                    envId: environment?.name ?? "",
                   }
                 )}
                 color="primary"

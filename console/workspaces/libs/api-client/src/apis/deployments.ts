@@ -126,9 +126,8 @@ export async function listEnvironments(params: ListEnvironmentsPathParams, getTo
         { token },
     );
     if (!res.ok) throw await res.json();
-    const result = await res.json() as EnvironmentListResponse;
-    const singleEnv = result.find(env => env.name === 'development' || env.name === 'default');
-    return singleEnv? [singleEnv] : []
+    return res.json();
+
 }
 
 // eslint-disable-next-line max-len

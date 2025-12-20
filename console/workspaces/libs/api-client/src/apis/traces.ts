@@ -16,52 +16,86 @@
  * under the License.
  */
 
-
-
-import { GetTraceListPathParams, GetTracePathParams, TraceDetailsResponse, TraceListResponse } from "@agent-management-platform/types";
+import {
+  GetTraceListPathParams,
+  GetTracePathParams,
+  TraceDetailsResponse,
+  TraceListResponse,
+} from "@agent-management-platform/types";
 import { httpGET, OBS_SERVICE_BASE } from "../utils";
 
 export async function getTrace(
-    params: GetTracePathParams, 
-    getToken?: () => Promise<string>
-): Promise<TraceDetailsResponse>{
-    const { agentName, traceId } = params;
-    
-    if (!agentName) {
-        throw new Error("agentName (serviceName) is required");
-    }
-    if (!traceId) {
-        throw new Error("traceId is required");
-    }
-    
-    const token = getToken ? await getToken() : undefined;
-    const searchParams = { traceId , serviceName: agentName };
-    const res = await httpGET(
-        `${OBS_SERVICE_BASE}/trace`,
-        { searchParams, token , options: { useObsPlaneHostApi: true } },
-    );
+  params: GetTracePathParams,
+  getToken?: () => Promise<string>
+): Promise<TraceDetailsResponse> {
+  const { agentName, traceId, projName, envId, orgName } = params;
 
-    if (!res.ok) throw await res.json();
-    return res.json();
+  if (!agentName) {
+    throw new Error("agentName (serviceName) is required");
+  }
+  if (!traceId) {
+    throw new Error("traceId is required");
+  }
+  if (!projName) {
+    throw new Error("projName is required");
+  }
+  if (!envId) {
+    throw new Error("envId is required");
+  }
+  if (!orgName) {
+    throw new Error("orgName is required");
+  }
+  const token = getToken ? await getToken() : undefined;
+  const searchParams = {
+    traceId,
+    serviceName: agentName,
+    projectName: projName,
+    environmentId: envId,
+    organizationName: orgName,
+  };
+  const res = await httpGET(`${OBS_SERVICE_BASE}/trace`, {
+    searchParams,
+    token,
+    options: { useObsPlaneHostApi: true },
+  });
+
+  if (!res.ok) throw await res.json();
+  return res.json();
 }
 
 export async function getTraceList(
-    params: GetTraceListPathParams, 
-    getToken?: () => Promise<string>
-): Promise<TraceListResponse>{
-    const { agentName, startTime, endTime } = params;
-    
-    if (!agentName) {
-        throw new Error("agentName (serviceName) is required");
-    }
-    
-    const token = getToken ? await getToken() : undefined;
-    
-    const searchParams = { startTime, endTime, serviceName: agentName };
-    const res = await httpGET(
-        `${OBS_SERVICE_BASE}/traces`,
-        { searchParams, token , options: { useObsPlaneHostApi: true } },
-    );
-    if (!res.ok) throw await res.json();
-    return res.json();
+  params: GetTraceListPathParams,
+  getToken?: () => Promise<string>
+): Promise<TraceListResponse> {
+  const { agentName, startTime, endTime, projName, envId, orgName } = params;
+
+  if (!agentName) {
+    throw new Error("agentName (serviceName) is required");
+  }
+  if (!projName) {
+    throw new Error("projName is required");
+  }
+  if (!envId) {
+    throw new Error("envId is required");
+  }
+  if (!orgName) {
+    throw new Error("orgName is required");
+  }
+  const token = getToken ? await getToken() : undefined;
+
+  const searchParams = {
+    startTime,
+    endTime,
+    serviceName: agentName,
+    projectName: projName,
+    environmentId: envId,
+    organizationName: orgName,
+  };
+  const res = await httpGET(`${OBS_SERVICE_BASE}/traces`, {
+    searchParams,
+    token,
+    options: { useObsPlaneHostApi: true },
+  });
+  if (!res.ok) throw await res.json();
+  return res.json();
 }

@@ -109,13 +109,6 @@ export function RootRouter() {
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
-                      .agents.children.observe.path + "/*"
-                  }
-                  element={<LazyTracesComponent />}
-                />
-                <Route
-                  path={
-                    relativeRouteMap.children.org.children.projects.children
                       .agents.children.environment.path
                   }
                 >

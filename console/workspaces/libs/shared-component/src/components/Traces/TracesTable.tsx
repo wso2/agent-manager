@@ -39,7 +39,6 @@ import {
 } from "@agent-management-platform/views";
 import { generatePath, Link, useNavigate } from "react-router-dom";
 import {
-  useGetAgent,
   useTraceList,
 } from "@agent-management-platform/api-client";
 import {
@@ -111,12 +110,6 @@ export function TracesTable({
   timeRange,
   setTimeRange,
 }: TracesTableProps) {
-  const { data: agentData } = useGetAgent({
-    orgName: orgId,
-    projName: projectId,
-    agentName: agentId,
-  });
-  const isExternalAgent = agentData?.provisioning?.type === "external";
   const navigate = useNavigate();
   const {
     data: traceData,
@@ -161,37 +154,20 @@ export function TracesTable({
         render: (value, row) => (
           <ButtonBase
             component={Link}
-            to={
-              isExternalAgent
-                ? generatePath(
-                    absoluteRouteMap.children.org.children.projects.children
-                      .agents.children.observe.children.traces.children
-                      .traceDetails.path,
-                    {
-                      orgId: orgId ?? "",
-                      projectId: projectId ?? "",
-                      agentId: agentId ?? "",
-                      traceId: row.traceId as string,
-                    }
-                  )
-                : generatePath(
-                    absoluteRouteMap.children.org.children.projects.children
-                      .agents.children.environment.children.observability
-                      .children.traces.children.traceDetails.path,
-                    {
-                      orgId: orgId ?? "",
-                      projectId: projectId ?? "",
-                      agentId: agentId ?? "",
-                      envId: envId ?? "",
-                      traceId: row.traceId as string,
-                    }
-                  )
-            }
+            to={generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.traces
+                .children.traceDetails.path,
+              {
+                orgId: orgId ?? "",
+                projectId: projectId ?? "",
+                agentId: agentId ?? "",
+                envId: envId ?? "",
+                traceId: row.traceId as string,
+              }
+            )}
           >
-            <Typography
-              noWrap
-              variant="body2"
-            >
+            <Typography noWrap variant="body2">
               {value}
             </Typography>
           </ButtonBase>
@@ -204,32 +180,18 @@ export function TracesTable({
         render: (value) => (
           <ButtonBase
             component={Link}
-            to={
-              isExternalAgent
-                ? generatePath(
-                    absoluteRouteMap.children.org.children.projects.children
-                      .agents.children.observe.children.traces.children
-                      .traceDetails.path,
-                    {
-                      orgId: orgId ?? "",
-                      projectId: projectId ?? "",
-                      agentId: agentId ?? "",
-                      traceId: value as string,
-                    }
-                  )
-                : generatePath(
-                    absoluteRouteMap.children.org.children.projects.children
-                      .agents.children.environment.children.observability
-                      .children.traces.children.traceDetails.path,
-                    {
-                      orgId: orgId ?? "",
-                      projectId: projectId ?? "",
-                      agentId: agentId ?? "",
-                      envId: envId ?? "",
-                      traceId: value as string,
-                    }
-                  )
-            }
+            to={generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.traces
+                .children.traceDetails.path,
+              {
+                orgId: orgId ?? "",
+                projectId: projectId ?? "",
+                agentId: agentId ?? "",
+                envId: envId ?? "",
+                traceId: value as string,
+              }
+            )}
           >
             <Typography noWrap variant="body2" color="text.secondary">
               {(value as string).substring(0, 8)}.....
@@ -243,10 +205,7 @@ export function TracesTable({
         label: "Start Time",
         width: "20%",
         render: (value) => (
-          <Typography
-            noWrap
-            variant="body2"
-          >
+          <Typography noWrap variant="body2">
             {dayjs(value as string).format("DD/MM/YYYY HH:mm:ss")}
           </Typography>
         ),
@@ -275,46 +234,25 @@ export function TracesTable({
             size="small"
             component={Link}
             startIcon={<RemoveRedEyeOutlined size={16} />}
-            to={
-              isExternalAgent
-                ? generatePath(
-                    absoluteRouteMap.children.org.children.projects.children
-                      .agents.children.observe.children.traces.children
-                      .traceDetails.path,
-                    {
-                      orgId: orgId ?? "",
-                      projectId: projectId ?? "",
-                      agentId: agentId ?? "",
-                      traceId: row.traceId as string,
-                    }
-                  )
-                : generatePath(
-                    absoluteRouteMap.children.org.children.projects.children
-                      .agents.children.environment.children.observability
-                      .children.traces.children.traceDetails.path,
-                    {
-                      orgId: orgId ?? "",
-                      projectId: projectId ?? "",
-                      agentId: agentId ?? "",
-                      envId: envId ?? "",
-                      traceId: row.traceId as string,
-                    }
-                  )
-            }
+            to={generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.traces
+                .children.traceDetails.path,
+              {
+                orgId: orgId ?? "",
+                projectId: projectId ?? "",
+                agentId: agentId ?? "",
+                envId: envId ?? "",
+                traceId: row.traceId as string,
+              }
+            )}
           >
             Expand
           </Button>
         ),
       },
     ],
-    [
-      orgId,
-      projectId,
-      agentId,
-      envId,
-      isExternalAgent,
-      getDurationColor,
-    ]
+    [orgId, projectId, agentId, envId, getDurationColor]
   );
 
   // Define initial state for sorting - most recent traces first
@@ -380,30 +318,18 @@ export function TracesTable({
               columns={columns}
               onRowClick={(row) => {
                 navigate(
-                  isExternalAgent
-                    ? generatePath(
-                        absoluteRouteMap.children.org.children.projects.children
-                          .agents.children.observe.children.traces.children
-                          .traceDetails.path,
-                        {
-                          orgId: orgId ?? "",
-                          projectId: projectId ?? "",
-                          agentId: agentId ?? "",
-                          traceId: row.traceId as string,
-                        }
-                      )
-                    : generatePath(
-                        absoluteRouteMap.children.org.children.projects.children
-                          .agents.children.environment.children.observability
-                          .children.traces.children.traceDetails.path,
-                        {
-                          orgId: orgId ?? "",
-                          projectId: projectId ?? "",
-                          agentId: agentId ?? "",
-                          envId: envId ?? "",
-                          traceId: row.traceId as string,
-                        }
-                      )
+                  generatePath(
+                    absoluteRouteMap.children.org.children.projects.children
+                      .agents.children.environment.children.observability
+                      .children.traces.children.traceDetails.path,
+                    {
+                      orgId: orgId ?? "",
+                      projectId: projectId ?? "",
+                      agentId: agentId ?? "",
+                      envId: envId ?? "",
+                      traceId: row.traceId as string,
+                    }
+                  )
                 );
               }}
               pagination
@@ -415,13 +341,12 @@ export function TracesTable({
             />
           </Box>
         )}
-        {(rows.length === 0 && !isLoading )&& (
-            <NoDataFound
-              message="No traces found!"
-              icon={<Workflow size={32} />}
-              subtitle="Try changing the time range"
-            />
-
+        {rows.length === 0 && !isLoading && (
+          <NoDataFound
+            message="No traces found!"
+            icon={<Workflow size={32} />}
+            subtitle="Try changing the time range"
+          />
         )}
       </Box>
     </FadeIn>

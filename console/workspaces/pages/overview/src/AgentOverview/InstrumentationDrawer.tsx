@@ -43,7 +43,7 @@ export const InstrumentationDrawer = ({
   traceAttributes,
 }: InstrumentationDrawerProps) => {
   return (
-    <DrawerWrapper open={open} onClose={onClose}>
+    <DrawerWrapper open={open} onClose={onClose} maxWidth={700}>
       <DrawerHeader
         icon={<Settings size={24} />}
         title="Setup Agent"
