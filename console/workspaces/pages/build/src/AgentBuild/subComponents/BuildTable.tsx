@@ -32,15 +32,20 @@ import {
   DrawerWrapper,
 } from "@agent-management-platform/views";
 import { Rocket } from "@wso2/oxygen-ui-icons-react";
-import { useParams, useSearchParams } from "react-router-dom";
 import {
-  BuildLogs,
-  DeploymentConfig,
+  generatePath,
+  Link,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
+import {
+  BuildLogs
 } from "@agent-management-platform/shared-component";
 import { useGetAgentBuilds } from "@agent-management-platform/api-client";
 import {
   BuildStatus,
   BUILD_STATUS_COLOR_MAP,
+  absoluteRouteMap,
 } from "@agent-management-platform/types";
 import dayjs from "dayjs";
 
@@ -167,7 +172,7 @@ export function BuildTable() {
               onClick={() => handleBuildClick(row.title, "logs")}
               size="small"
             >
-              Build Logs
+              Details
             </Button>
             <Button
               variant="outlined"
@@ -177,23 +182,31 @@ export function BuildTable() {
                 row.status === "BuildRunning" ||
                 row.status === "BuildFailed"
               }
-              onClick={() => handleBuildClick(row.title, "deploy")}
+              component={Link}
+              to={`${generatePath(
+                absoluteRouteMap.children.org.children.projects.children.agents
+                  .children.deployment.path,
+                { orgId, projectId, agentId }
+              )}?deployPanel=open&selectedBuild=${row.id}`}
               size="small"
               startIcon={
-                row.status === "BuildRunning" || row.status === "BuildTriggered" ? (
+                row.status === "BuildRunning" ||
+                row.status === "BuildTriggered" ? (
                   <CircularProgress color="inherit" size={14} />
                 ) : (
                   <Rocket size={16} />
                 )
               }
             >
-              {row.status === "BuildRunning" || row.status === "BuildTriggered" ? "Building" : "Deploy"}
+              {row.status === "BuildRunning" || row.status === "BuildTriggered"
+                ? "Building"
+                : "Deploy"}
             </Button>
           </Box>
         ),
       },
     ],
-    [theme, handleBuildClick]
+    [theme, handleBuildClick, orgId, projectId, agentId]
   );
 
   // Define initial state for sorting - most recent builds first
@@ -227,19 +240,6 @@ export function BuildTable() {
         initialState={tableInitialState}
       />
       <DrawerWrapper open={!!selectedBuildName} onClose={clearSelectedBuild}>
-        {selectedPanel === "deploy" && (
-          <DeploymentConfig
-            onClose={clearSelectedBuild}
-            imageId={
-              rows.find((row) => row.id === selectedBuildName)?.imageId ||
-              "busybox"
-            }
-            to="development"
-            orgName={orgId || ""}
-            projName={projectId || ""}
-            agentName={agentId || ""}
-          />
-        )}
         {selectedPanel === "logs" && selectedBuildName && (
           <BuildLogs
             onClose={clearSelectedBuild}

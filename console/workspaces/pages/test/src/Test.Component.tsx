@@ -23,46 +23,39 @@ import {
   NoDataFound,
   PageLayout,
 } from "@agent-management-platform/views";
-import { Box, Skeleton, Stack, Tab, Tabs, Typography } from "@wso2/oxygen-ui";
-import {
-  ChevronsLeftRight,
-  MessageCircle,
-  Rocket,
-} from "@wso2/oxygen-ui-icons-react";
-import {
-  generatePath,
-  Link,
-  Navigate,
-  Route,
-  Routes,
-  useMatch,
-  useParams,
-} from "react-router-dom";
-import {
-  absoluteRouteMap,
-  relativeRouteMap,
-} from "@agent-management-platform/types";
+import { Box, Skeleton, Stack } from "@wso2/oxygen-ui";
+import { Rocket } from "@wso2/oxygen-ui-icons-react";
+import { useParams } from "react-router-dom";
 import { Swagger } from "./AgentTest/Swagger";
-import { useListAgentDeployments } from "@agent-management-platform/api-client";
+import {
+  useGetAgent,
+  useListAgentDeployments,
+} from "@agent-management-platform/api-client";
 
 const SkeletonTestPageLayout: React.FC = () => {
   return (
     <Stack spacing={3} sx={{ padding: 3 }}>
       {/* Page Title Skeleton */}
-      <Box display="flex" alignItems="center" justifyContent="space-between" gap={1}>
-      <Stack spacing={1}>
-        <Skeleton variant="rounded" width={200} height={36} />
-      </Stack>
-      {/* Tabs Skeleton */}
-      <Box display="flex" gap={2} sx={{ borderBottom: 1, borderColor: 'divider', pb: 1 }}>
-        <Skeleton variant="rounded" width={100} height={36} />
-        <Skeleton variant="rounded" width={100} height={36} />
+      <Box
+        display="flex"
+        alignItems="center"
+        justifyContent="space-between"
+        gap={1}
+      >
+        <Stack spacing={1}>
+          <Skeleton variant="rounded" width={200} height={36} />
+        </Stack>
       </Box>
-      </Box>
-      
+
       {/* Content Area Skeleton */}
-      <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" gap={2} height="70vh">
-        <Skeleton variant="rounded" width="80%" height={50} />
+      <Box
+        display="flex"
+        flexDirection="column"
+        alignItems="center"
+        justifyContent="center"
+        gap={2}
+      >
+        <Skeleton variant="rounded" width="100%" height="70vh" />
       </Box>
     </Stack>
   );
@@ -76,6 +69,14 @@ export const TestComponent: React.FC = () => {
     envId: string;
   }>();
 
+  const { data: agent, isLoading: isAgentLoading } = useGetAgent({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
+
+  const isChatAgent = agent?.agentType?.subType === "chat-api";
+
   const { data: deployments, isLoading: isDeploymentsLoading } =
     useListAgentDeployments({
       orgName: orgId,
@@ -84,12 +85,7 @@ export const TestComponent: React.FC = () => {
     });
   const currentDeployment = deployments?.[envId ?? ""];
 
-  const isChatView = useMatch(
-    absoluteRouteMap.children.org.children.projects.children.agents.children
-      .environment.children.tryOut.children.chat.path
-  );
-
-  if (isDeploymentsLoading) {
+  if (isDeploymentsLoading || isAgentLoading) {
     return <SkeletonTestPageLayout />;
   }
 
@@ -113,78 +109,8 @@ export const TestComponent: React.FC = () => {
 
   return (
     <FadeIn>
-      <PageLayout
-        title={"Try your agent"}
-        disableIcon
-        actions={
-          <Tabs value={isChatView ? 0 : 1}>
-            <Tab
-              component={Link}
-              to={generatePath(
-                absoluteRouteMap.children.org.children.projects.children.agents
-                  .children.environment.children.tryOut.children.chat.path,
-                { orgId, projectId, agentId, envId }
-              )}
-              label={
-                <Box display="flex" alignItems="center" gap={1}>
-                  <MessageCircle size={16} />
-                  <Typography variant="body2">Chat</Typography>
-                </Box>
-              }
-            />
-            <Tab
-              component={Link}
-              to={generatePath(
-                absoluteRouteMap.children.org.children.projects.children.agents
-                  .children.environment.children.tryOut.children.api.path,
-                { orgId, projectId, agentId, envId }
-              )}
-              label={
-                <Box display="flex" alignItems="center" gap={1}>
-                  <ChevronsLeftRight size={16} />
-                  <Typography variant="body2">API</Typography>
-                </Box>
-              }
-            />
-          </Tabs>
-        }
-      >
-        <Routes>
-          <Route
-            path={
-              relativeRouteMap.children.org.children.projects.children.agents
-                .children.environment.children.tryOut.wildPath
-            }
-          >
-            <Route
-              path={
-                relativeRouteMap.children.org.children.projects.children.agents
-                  .children.environment.children.tryOut.children.chat.path
-              }
-              element={<AgentChat />}
-            />
-            <Route
-              path={
-                relativeRouteMap.children.org.children.projects.children.agents
-                  .children.environment.children.tryOut.children.api.path
-              }
-              element={<Swagger />}
-            />
-          </Route>
-          <Route
-            path="*"
-            element={
-              <Navigate
-                to={generatePath(
-                  absoluteRouteMap.children.org.children.projects.children
-                    .agents.children.environment.children.tryOut.children.chat
-                    .path,
-                  { orgId, projectId, agentId, envId }
-                )}
-              />
-            }
-          />
-        </Routes>
+      <PageLayout title={"Try your agent"} disableIcon>
+        {isChatAgent ? <AgentChat /> : <Swagger />}
       </PageLayout>
     </FadeIn>
   );

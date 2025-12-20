@@ -17,7 +17,7 @@
  */
 
 import React from "react";
-import { Box, Skeleton } from "@wso2/oxygen-ui";
+import { Box, Skeleton, Stack } from "@wso2/oxygen-ui";
 import { TopCards } from "./subComponents/TopCards";
 import { BuildTable } from "./subComponents/BuildTable";
 import { FadeIn } from "@agent-management-platform/views";
@@ -33,7 +33,6 @@ export function AgentBuildSkeleton() {
         <Skeleton variant="rounded" width="100%" height={120} />
       </Box>
       <Skeleton variant="rounded" width="100%" height={500} />
-      {/* <Skeleton variant="rounded" width="100%" height={500} /> */}
     </Box>
   );
 }
@@ -52,10 +51,10 @@ export const AgentBuild: React.FC = () => {
 
   return (
     <FadeIn>
-      <Box gap={4} pt={2} pb={2} display="flex" flexDirection="column">
+      <Stack gap={4} flexDirection="column">
         <TopCards />
         <BuildTable />
-      </Box>
+      </Stack>
     </FadeIn>
   );
 };
