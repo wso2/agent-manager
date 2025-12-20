@@ -586,7 +586,7 @@ func ExtractToolDefinitions(attrs map[string]interface{}) []ToolDefinition {
 			// Parse the index and field name
 			// Format: llm.request.functions.{index}.{field}
 			parts := strings.Split(key, ".")
-			if len(parts) >= 4 {
+			if len(parts) >= 5 { // Need at least 5 parts to access parts[4]
 				// Extract index
 				var index int
 				if _, err := fmt.Sscanf(parts[3], "%d", &index); err == nil {
@@ -760,12 +760,12 @@ func DetermineSpanType(span Span) SpanType {
 	}
 
 	// Check for Agent orchestration
-	if hasAgentAttributes(span.Attributes) {
+	if hasAgentAttributes(span.Attributes, span.Name) {
 		return SpanTypeAgent
 	}
 
 	// Check for Task/Workflow operations
-	if hasTaskAttributes(span.Attributes) {
+	if hasTaskAttributes(span.Attributes, span.Name) {
 		return SpanTypeChain
 	}
 
@@ -954,41 +954,67 @@ func hasRerankAttributes(attrs map[string]interface{}) bool {
 }
 
 // hasAgentAttributes checks if span has agent orchestration attributes
-func hasAgentAttributes(attrs map[string]interface{}) bool {
-	// Traceloop specific: agent namespace
+func hasAgentAttributes(attrs map[string]interface{}, spanName string) bool {
+	// Check traceloop.span.kind attribute
+	if kind, ok := attrs["traceloop.span.kind"].(string); ok {
+		kindLower := strings.ToLower(kind)
+		if kindLower == "agent" {
+			return true
+		}
+	}
+
+	// Check the span name suffix (after the last dot)
+	// Example: "my_agent.agent" -> "agent"
+	if spanName != "" {
+		parts := strings.Split(spanName, ".")
+		if len(parts) > 0 {
+			lastPart := strings.ToLower(parts[len(parts)-1])
+			if lastPart == "agent" {
+				return true
+			}
+		}
+	}
+
+	// Check for agent name attribute
 	if _, ok := attrs["agent.name"].(string); ok {
 		return true
 	}
 
 	// Check for workflow/agent type
 	if spanType, ok := attrs["traceloop.entity.type"].(string); ok {
-		if spanType == "agent" || spanType == "workflow" {
+		spanTypeLower := strings.ToLower(spanType)
+		if spanTypeLower == "agent" || spanTypeLower == "workflow" {
 			return true
 		}
-	}
-
-	// LangGraph/LangChain agent indicators
-	if _, ok := attrs["langgraph.agent"].(string); ok {
-		return true
 	}
 
 	return false
 }
 
 // hasTaskAttributes checks if span has task/workflow attributes
-func hasTaskAttributes(attrs map[string]interface{}) bool {
-	// Traceloop specific: task namespace
-	if _, ok := attrs["traceloop.entity.type"].(string); ok {
-		return true
+func hasTaskAttributes(attrs map[string]interface{}, spanName string) bool {
+	// Check traceloop.span.kind attribute
+	if kind, ok := attrs["traceloop.span.kind"].(string); ok {
+		kindLower := strings.ToLower(kind)
+		if kindLower == "task" || kindLower == "workflow" {
+			return true
+		}
 	}
 
-	// Check for workflow-related attributes
+	// Check the span name suffix (after the last dot)
+	// Example: "tools_condition.task" -> "task"
+	if spanName != "" {
+		parts := strings.Split(spanName, ".")
+		if len(parts) > 0 {
+			lastPart := strings.ToLower(parts[len(parts)-1])
+			if lastPart == "task" || lastPart == "workflow" {
+				return true
+			}
+		}
+	}
+
+	// Check for workflow-related attributes as fallback
 	if _, ok := attrs["workflow.name"].(string); ok {
-		return true
-	}
-
-	// LangChain/Framework specific
-	if _, ok := attrs["langchain.task"].(string); ok {
 		return true
 	}
 

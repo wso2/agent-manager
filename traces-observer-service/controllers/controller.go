@@ -98,6 +98,12 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 			}
 		}
 
+		// Skip this trace if no root span found
+		if rootSpan == nil {
+			logger.GetLogger(ctx).Warn("No root span found for trace", "traceId", traceID)
+			continue
+		}
+
 		// Extract token usage from GenAI spans
 		tokenUsage := opensearch.ExtractTokenUsage(traceSpans)
 
@@ -107,23 +113,21 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 		// Extract input and output from root span
 		input, output := opensearch.ExtractRootSpanInputOutput(rootSpan)
 
-		// Add to overviews if we found a root span
-		if rootSpan.SpanID != "" {
-			allOverviews = append(allOverviews, opensearch.TraceOverview{
-				TraceID:         traceID,
-				RootSpanID:      rootSpan.SpanID,
-				RootSpanName:    rootSpan.Name,
-				RootSpanKind:    string(opensearch.DetermineSpanType(*rootSpan)),
-				StartTime:       rootSpan.StartTime.Format(time.RFC3339Nano),
-				EndTime:         rootSpan.EndTime.Format(time.RFC3339Nano),
-				DurationInNanos: rootSpan.DurationInNanos,
-				SpanCount:       len(traceSpans),
-				TokenUsage:      tokenUsage,
-				Status:          traceStatus,
-				Input:           input,
-				Output:          output,
-			})
-		}
+		// Add to overviews
+		allOverviews = append(allOverviews, opensearch.TraceOverview{
+			TraceID:         traceID,
+			RootSpanID:      rootSpan.SpanID,
+			RootSpanName:    rootSpan.Name,
+			RootSpanKind:    string(opensearch.DetermineSpanType(*rootSpan)),
+			StartTime:       rootSpan.StartTime.Format(time.RFC3339Nano),
+			EndTime:         rootSpan.EndTime.Format(time.RFC3339Nano),
+			DurationInNanos: rootSpan.DurationInNanos,
+			SpanCount:       len(traceSpans),
+			TokenUsage:      tokenUsage,
+			Status:          traceStatus,
+			Input:           input,
+			Output:          output,
+		})
 	}
 
 	// Sort by StartTime (descending) for consistent pagination
