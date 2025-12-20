@@ -9,47 +9,6 @@ kubeAPI:
   hostPort: "6550"
 # Single cluster mode exposes all plane port ranges for consistency with multi-cluster setup
 ports:
-  # Control Plane uses port range 8xxx
-  # HTTP traffic to OpenChoreo UI and API
-  - port: 8089:80
-    nodeFilters:
-      - loadbalancer
-  # HTTPS traffic to OpenChoreo UI and API
-  - port: 8443:443
-    nodeFilters:
-      - loadbalancer
-  # Data Plane uses port range 9xxx
-  # HTTP traffic to workloads via Envoy Gateway (uses port 9080 to avoid conflict with Traefik)
-  - port: 9080:9080
-    nodeFilters:
-      - loadbalancer
-  # HTTPS traffic to workloads via Envoy Gateway
-  - port: 9443:9443
-    nodeFilters:
-      - loadbalancer
-  # Build Plane uses port range 10xxx
-  # Argo Workflows UI for development testing
-  - port: 10081:2746
-    nodeFilters:
-      - loadbalancer
-  # Container Registry for storing built images
-  - port: 10082:5000
-    nodeFilters:
-      - loadbalancer
-  # Observability Plane uses port range 11xxx
-  # Observer API
-  - port: 11080:8080
-    nodeFilters:
-      - loadbalancer
-  # OpenSearch Dashboard
-  - port: 11081:5601
-    nodeFilters:
-      - loadbalancer
-  # OpenSearch API for Fluent Bit data pushing
-  - port: 11082:9200
-    nodeFilters:
-      - loadbalancer
-  # AMP Services
   # AMP Console UI (NodePort service on port 3000)
   - port: 3000:3000
     nodeFilters:
