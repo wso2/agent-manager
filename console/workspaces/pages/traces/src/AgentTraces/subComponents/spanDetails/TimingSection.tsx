@@ -33,7 +33,7 @@ export function TimingSection({ span }: TimingSectionProps) {
             />
             <InfoField
                 label="End Time"
-                value={new Date(span.endTime).toLocaleString()}
+                value={span.endTime ? new Date(span.endTime).toLocaleString() : "N/A"}
             />
             <InfoField
                 label="Duration"

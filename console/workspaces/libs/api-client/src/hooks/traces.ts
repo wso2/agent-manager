@@ -47,7 +47,7 @@ export function useTraceList(
           orgName,
           projName,
           agentName,
-          envId,
+          environment: envId,
           startTime,
           endTime,
           limit,
@@ -81,8 +81,8 @@ export function useTrace(
           orgName,
           projName,
           agentName,
-          envId,
           traceId,
+          environment: envId,
         },
         getToken
       );
