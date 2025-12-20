@@ -106,7 +106,7 @@ func TestListTraces(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Send the request
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/traces", tracesOrgName, tracesProjName, tracesAgentName)
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/traces?environment=Development", tracesOrgName, tracesProjName, tracesAgentName)
 		req := httptest.NewRequest(http.MethodGet, url, nil)
 
 		rr := httptest.NewRecorder()
@@ -157,7 +157,7 @@ func TestListTraces(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Send the request with query parameters
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/traces?limit=20&offset=10&sortOrder=asc",
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/traces?environment=Development&limit=20&offset=10&sortOrder=asc",
 			tracesOrgName, tracesProjName, tracesAgentName)
 		req := httptest.NewRequest(http.MethodGet, url, nil)
 
@@ -189,7 +189,7 @@ func TestListTraces(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Send the request with time range
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/traces?startTime=2025-12-16T10:00:00Z&endTime=2025-12-16T11:00:00Z",
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/traces?environment=Development&startTime=2025-12-16T10:00:00Z&endTime=2025-12-16T11:00:00Z",
 			tracesOrgName, tracesProjName, tracesAgentName)
 		req := httptest.NewRequest(http.MethodGet, url, nil)
 
@@ -208,6 +208,96 @@ func TestListTraces(t *testing.T) {
 		require.Equal(t, "2025-12-16T11:00:00Z", listTracesCall.Params.EndTime)
 	})
 
+	t.Run("Listing traces with only startTime should return 400", func(t *testing.T) {
+		traceObserverClient := createMockTraceObserverClient()
+		openChoreoClient := createMockOpenChoreoClient()
+		testClients := wiring.TestClients{
+			OpenChoreoSvcClient: openChoreoClient,
+			TraceObserverClient: traceObserverClient,
+		}
+
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		// Send the request with only startTime (missing endTime)
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/traces?environment=Development&startTime=2025-12-16T10:00:00Z",
+			tracesOrgName, tracesProjName, tracesAgentName)
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+
+		rr := httptest.NewRecorder()
+		app.ServeHTTP(rr, req)
+
+		// Assert response
+		require.Equal(t, http.StatusBadRequest, rr.Code)
+
+		// Validate error message
+		b, err := io.ReadAll(rr.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(b), "endTime")
+
+		// Validate no service calls were made
+		require.Len(t, traceObserverClient.ListTracesCalls(), 0)
+	})
+
+	t.Run("Listing traces with only endTime should return 400", func(t *testing.T) {
+		traceObserverClient := createMockTraceObserverClient()
+		openChoreoClient := createMockOpenChoreoClient()
+		testClients := wiring.TestClients{
+			OpenChoreoSvcClient: openChoreoClient,
+			TraceObserverClient: traceObserverClient,
+		}
+
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		// Send the request with only endTime (missing startTime)
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/traces?environment=Development&endTime=2025-12-16T11:00:00Z",
+			tracesOrgName, tracesProjName, tracesAgentName)
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+
+		rr := httptest.NewRecorder()
+		app.ServeHTTP(rr, req)
+
+		// Assert response
+		require.Equal(t, http.StatusBadRequest, rr.Code)
+
+		// Validate error message
+		b, err := io.ReadAll(rr.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(b), "startTime")
+
+		// Validate no service calls were made
+		require.Len(t, traceObserverClient.ListTracesCalls(), 0)
+	})
+
+	t.Run("Listing traces with invalid date format should return 400", func(t *testing.T) {
+		traceObserverClient := createMockTraceObserverClient()
+		openChoreoClient := createMockOpenChoreoClient()
+		testClients := wiring.TestClients{
+			OpenChoreoSvcClient: openChoreoClient,
+			TraceObserverClient: traceObserverClient,
+		}
+
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		// Send the request with invalid date format
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/traces?environment=Development&startTime=2025-12-16&endTime=2025-12-17",
+			tracesOrgName, tracesProjName, tracesAgentName)
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+
+		rr := httptest.NewRecorder()
+		app.ServeHTTP(rr, req)
+
+		// Assert response
+		require.Equal(t, http.StatusBadRequest, rr.Code)
+
+		// Validate error message mentions RFC3339 format
+		b, err := io.ReadAll(rr.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(b), "RFC3339")
+
+		// Validate no service calls were made
+		require.Len(t, traceObserverClient.ListTracesCalls(), 0)
+	})
+
 	t.Run("Listing traces with invalid limit should return 400", func(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
 		openChoreoClient := createMockOpenChoreoClient()
@@ -219,7 +309,7 @@ func TestListTraces(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Send the request with invalid limit
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/traces?limit=invalid",
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/traces?environment=Development&limit=invalid",
 			tracesOrgName, tracesProjName, tracesAgentName)
 		req := httptest.NewRequest(http.MethodGet, url, nil)
 
@@ -244,7 +334,7 @@ func TestListTraces(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Send the request with invalid sortOrder
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/traces?sortOrder=invalid",
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/traces?environment=Development&sortOrder=invalid",
 			tracesOrgName, tracesProjName, tracesAgentName)
 		req := httptest.NewRequest(http.MethodGet, url, nil)
 
@@ -253,6 +343,36 @@ func TestListTraces(t *testing.T) {
 
 		// Assert response
 		require.Equal(t, http.StatusBadRequest, rr.Code)
+
+		// Validate no service calls were made
+		require.Len(t, traceObserverClient.ListTracesCalls(), 0)
+	})
+
+	t.Run("Listing traces without environment parameter should return 400", func(t *testing.T) {
+		traceObserverClient := createMockTraceObserverClient()
+		openChoreoClient := createMockOpenChoreoClient()
+		testClients := wiring.TestClients{
+			OpenChoreoSvcClient: openChoreoClient,
+			TraceObserverClient: traceObserverClient,
+		}
+
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		// Send the request without environment parameter
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/traces",
+			tracesOrgName, tracesProjName, tracesAgentName)
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+
+		rr := httptest.NewRecorder()
+		app.ServeHTTP(rr, req)
+
+		// Assert response
+		require.Equal(t, http.StatusBadRequest, rr.Code)
+
+		// Validate error message
+		b, err := io.ReadAll(rr.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(b), "environment")
 
 		// Validate no service calls were made
 		require.Len(t, traceObserverClient.ListTracesCalls(), 0)
