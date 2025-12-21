@@ -19,14 +19,13 @@
 import { Span } from '@agent-management-platform/types';
 import {
   Box,
-  Button,
   ButtonBase,
   Chip,
   Collapse,
   IconButton,
+  Stack,
   Tooltip,
   Typography,
-  useTheme,
 } from '@wso2/oxygen-ui';
 import { useCallback, useMemo, useState } from 'react';
 import {
@@ -34,18 +33,16 @@ import {
   Brain,
   ChevronDown,
   Minus,
-  Languages,
-  DollarSign,
-  HandCoins,
-  List,
-  Funnel,
   XCircle,
+  Link,
+  Shovel,
+  Coins,
 } from '@wso2/oxygen-ui-icons-react';
-import { TraceEntityPreview } from './TraceEntityPreview';
 
 interface TraceExplorerProps {
   spans: Span[];
   onOpenAtributesClick: (span: Span) => void;
+  selectedSpan: Span | null;
 }
 
 interface RenderSpan {
@@ -68,7 +65,7 @@ function formatDuration(durationInNanos: number) {
 const populateRenderSpans = (
   spans: Span[]
 ): {
-  renderSpanMap: Map<string, RenderSpan>;
+  spanMap: Map<string, RenderSpan>;
   rootSpans: string[];
 } => {
   // Sort spans by start time (earliest first)
@@ -93,11 +90,11 @@ const populateRenderSpans = (
   });
 
   // Second pass: Create RenderSpan objects and store them in a Map keyed by spanId
-  const renderSpanMap = new Map<string, RenderSpan>();
+  const spanMap = new Map<string, RenderSpan>();
 
   sortedSpans.forEach((span) => {
     const childrenKeys = childrenMap.get(span.spanId) || null;
-    renderSpanMap.set(span.spanId, {
+    spanMap.set(span.spanId, {
       span,
       children: [],
       key: span.spanId,
@@ -106,36 +103,28 @@ const populateRenderSpans = (
     });
   });
 
-  return { renderSpanMap, rootSpans };
+  return { spanMap, rootSpans };
 };
 
 export function TraceExplorer(props: TraceExplorerProps) {
-  const { spans, onOpenAtributesClick } = props;
-  const theme = useTheme();
-
+  const { spans, onOpenAtributesClick, selectedSpan } = props;
   const renderSpan = useCallback(
     (
       key: string,
-      renderSpanMap: Map<string, RenderSpan>,
+      spanMap: Map<string, RenderSpan>,
       expandedSpans: Record<string, boolean>,
       toggleExpanded: (key: string) => void,
       isLastChild?: boolean,
       isRoot?: boolean
     ) => {
-      const span = renderSpanMap.get(key);
+      const span = spanMap.get(key);
       if (!span) {
         return null;
       }
       const expanded = expandedSpans[key];
       const hasChildren = span.childrenKeys && span.childrenKeys.length > 0;
       return (
-        <Box
-          key={key}
-          display="flex"
-          position="relative"
-          flexDirection="column"
-          flexGrow={1}
-        >
+        <Stack key={key} spacing={1} width="100%">
           {/* Connecting lines - only show for non-root nodes */}
           {!isRoot && (
             <>
@@ -145,13 +134,12 @@ export function TraceExplorer(props: TraceExplorerProps) {
                 sx={{
                   width: 32,
                   height: 44,
-                  borderLeft: isLastChild
-                    ? `2px solid ${theme.palette.primary.main}`
-                    : 'none',
-                  borderBottom: `2px solid ${theme.palette.primary.main}`,
+                  borderLeft: isLastChild ? `2px solid` : 'none',
+                  borderBottom: `2px solid`,
+                  borderColor: 'divider',
                   left: -32,
-                  top: -22,
-                  borderBottomLeftRadius: isLastChild ? '4px' : 0,
+                  top: -10,
+                  borderBottomLeftRadius: isLastChild ? 8 : 0,
                 }}
               />
               {/* Vertical line continuing down (only if not last child) */}
@@ -159,209 +147,147 @@ export function TraceExplorer(props: TraceExplorerProps) {
                 <Box
                   position="absolute"
                   sx={{
-                    width: 2,
+                    width: 1,
                     height: '100%',
-                    background: theme.palette.primary.main,
+                    borderLeft: `2px solid`,
+                    borderColor: 'divider',
                     left: -32,
-                    top: -22,
+                    top: -18,
                   }}
                 />
               )}
             </>
           )}
-
           <ButtonBase
             onClick={() => onOpenAtributesClick(span.span)}
             sx={{
               width: '100%',
-              mb: 0.5,
-              justifyContent: 'space-between',
-              textAlign: 'left',
-              flexGrow: 1,
-              display: 'flex',
-              border: `0px solid ${theme.palette.secondary.main}`,
-              borderLeft: `2px solid ${theme.palette.primary.main}`,
-              transition: 'all 0.2s ease-in-out',
-              backgroundColor: 'background.paper',
-              '&:hover': {
-                backgroundColor: 'background.default',
-              },
             }}
           >
-            <Box
-              display="flex"
-              pl={1}
-              justifyContent="center"
-              alignItems="center"
-              height="100%"
-              flexDirection="row"
-              gap={1}
+            <Stack
+              direction="row"
+              width="100%"
+              justifyContent="space-between"
+              sx={{
+                border: `1px solid`,
+                borderColor: selectedSpan?.spanId === span.span.spanId ? 'primary.main' : 'divider',
+                borderRadius: 0.5,
+                backgroundColor: 'background.paper',
+                px: 1,
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  backgroundColor: 'background.default',
+                },
+              }}
             >
-              <IconButton
-                disabled={!hasChildren}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  toggleExpanded(key);
-                }}
-                color="primary"
-                sx={{
-                  height: 'fit-content',
-                  width: 'fit-content',
-                }}
+              <Stack
+                direction="row"
+                spacing={1}
+                flexGrow={1}
+                alignItems="center"
               >
-                {hasChildren ? (
-                  <>
-                    <Box
-                      component="span"
-                      sx={{
-                        transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                        display: 'inline-flex',
-                        transition: 'transform 0.2s ease-in-out',
-                      }}
-                    >
-                      <ChevronDown size={16} />
-                    </Box>
-                  </>
-                ) : (
-                  <Minus size={16} />
-                )}
-              </IconButton>
-              <Box
-                display="flex"
-                flexDirection="column"
-                justifyContent="start"
-                py={1}
-              >
-                <Box
-                  display="flex"
-                  flexDirection="row"
-                  justifyContent="start"
-                  alignItems="center"
-                  gap={1}
+                <IconButton
+                  disabled={!hasChildren}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    toggleExpanded(key);
+                  }}
+                  size="small"
+                  color="primary"
                 >
-                  <Typography variant="h6">
-                    {span.span.name} &nbsp;
+                  {hasChildren ? (
+                    <>
+                      <Box
+                        component="span"
+                        sx={{
+                          transform: expanded
+                            ? 'rotate(180deg)'
+                            : 'rotate(0deg)',
+                          display: 'inline-flex',
+                          transition: 'transform 0.2s ease-in-out',
+                        }}
+                      >
+                        <ChevronDown size={16} />
+                      </Box>
+                    </>
+                  ) : (
+                    <Minus size={16} />
+                  )}
+                </IconButton>
+                <Stack direction="row" color="primary.main" alignItems="center">
+                  {span.span.ampAttributes?.kind === 'llm' && (
+                    <Brain size={16} />
+                  )}
+                  {span.span.ampAttributes?.kind === 'chain' && (
+                    <Link size={16} />
+                  )}
+                  {span.span.ampAttributes?.kind === 'tool' && (
+                    <Shovel size={16} />
+                  )}
+                </Stack>
+                <Stack direction="column" p={0.5} alignItems="start">
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Typography variant="h6">{span.span.name}</Typography>
+                    {span.span.ampAttributes?.status?.error && (
+                      <Stack
+                        justifyContent="center"
+                        sx={{ color: 'error.main' }}
+                      >
+                        <XCircle size={16} />
+                      </Stack>
+                    )}
                     <Chip
                       icon={<Clock size={16} />}
                       label={formatDuration(span.span.durationInNanos)}
                       size="small"
                       variant="outlined"
                     />
-                    &nbsp;
-                    {span.span.status === '2' && (
-                      <Chip
-                        icon={<XCircle size={16} />}
-                        color="error"
-                        label="Error"
-                        size="small"
-                        variant="outlined"
-                      />
-                    )}
+                  </Stack>
+                  <Typography variant="caption" fontFamily="monospace" noWrap>
+                    #{span.span.spanId}
                   </Typography>
-                  <Typography variant="caption">
-                    id: {span.span.spanId}
-                  </Typography>
-                </Box>
-                <Box display="flex" flexDirection="row" gap={1}>
-                  <TraceEntityPreview span={span.span} />
-                </Box>
-              </Box>
-            </Box>
-            <Box
-              p={1}
-              display="flex"
-              gap={1}
-              alignItems="flex-end"
-              justifyContent="right"
-            >
-              <Box display="flex" flexDirection="row" gap={1}>
-                {!!span.span?.attributes?.['gen_ai.request.model'] && (
-                  <Tooltip title={'GenAI Model'}>
+                </Stack>
+              </Stack>
+              <Stack direction="row" spacing={1} alignItems="center">
+                {span.span.ampAttributes?.model && (
+                  <Tooltip title={span.span.ampAttributes?.model}>
                     <Chip
                       icon={<Brain size={16} />}
-                      label={
-                        span.span?.attributes?.['gen_ai.request.model'] as string
-                      }
-                      color="default"
+                      label="Model"
                       size="small"
                       variant="outlined"
                     />
                   </Tooltip>
                 )}
-                {!!span.span?.attributes?.[
-                  'traceloop.association.properties.ls_model_type'
-                ] && (
-                  <Tooltip title={'Language Service Model Type'}>
+                {span.span.ampAttributes?.tools && (
+                  <Tooltip
+                    title={span.span.ampAttributes?.tools
+                      .map((tool) => tool.name)
+                      .join(', ')}
+                  >
                     <Chip
-                      icon={<Languages size={16} />}
-                      label={
-                        span.span?.attributes?.[
-                          'traceloop.association.properties.ls_model_type'
-                        ] as string
-                      }
+                      icon={<Shovel size={16} />}
+                      label="Tools"
                       size="small"
                       variant="outlined"
                     />
                   </Tooltip>
                 )}
-                {!!span.span?.attributes?.['traceloop.span.kind'] && (
-                  <Tooltip title={'Span Kind'}>
+                {span.span.ampAttributes?.tokenUsage && (
+                  <Tooltip
+                    title={`Used ${span.span.ampAttributes?.tokenUsage.inputTokens} input tokens, ${span.span.ampAttributes?.tokenUsage.outputTokens} output tokens`}
+                  >
                     <Chip
-                      label={
-                        span.span?.attributes?.['traceloop.span.kind'] as string
-                      }
-                      icon={<Funnel size={16} />}
+                      icon={<Coins size={16} />}
+                      label="Tokens"
                       size="small"
                       variant="outlined"
                     />
                   </Tooltip>
                 )}
-                {!!span.span?.attributes?.['gen_ai.usage.completion_tokens'] && (
-                  <Tooltip title={'Completion Tokens'}>
-                    <Chip
-                      icon={<DollarSign size={16} />}
-                      label={
-                        span.span?.attributes?.[
-                          'gen_ai.usage.completion_tokens'
-                        ] as string
-                      }
-                      color="default"
-                      size="small"
-                      variant="outlined"
-                    />
-                  </Tooltip>
-                )}
-                {!!span.span?.attributes?.['gen_ai.usage.prompt_tokens'] && (
-                  <Tooltip title={'Prompt Tokens'}>
-                    <Chip
-                      icon={<HandCoins size={16} />}
-                      label={
-                        span.span?.attributes?.[
-                          'gen_ai.usage.prompt_tokens'
-                        ] as string
-                      }
-                      color="default"
-                      size="small"
-                      variant="outlined"
-                    />
-                  </Tooltip>
-                )}
-              </Box>
-              <Button
-                onClick={(e) => {
-                  onOpenAtributesClick(span.span);
-                  e.stopPropagation();
-                  e.preventDefault();
-                }}
-                startIcon={<List size={16} />}
-                variant="text"
-                size="small"
-                color="primary"
-              >
-                Span Details
-              </Button>
-            </Box>
+              </Stack>
+            </Stack>
           </ButtonBase>
           {hasChildren && (
             <Collapse in={expanded} unmountOnExit>
@@ -375,7 +301,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
                   <Box key={childKey} display="flex" position="relative">
                     {renderSpan(
                       childKey,
-                      renderSpanMap,
+                      spanMap,
                       expandedSpans,
                       toggleExpanded,
                       index === (span.childrenKeys?.length || 0) - 1,
@@ -386,10 +312,10 @@ export function TraceExplorer(props: TraceExplorerProps) {
               </Box>
             </Collapse>
           )}
-        </Box>
+        </Stack>
       );
     },
-    [onOpenAtributesClick, theme]
+    [onOpenAtributesClick, selectedSpan]
   );
 
   const [expandedSpans, setExpandedSpans] = useState<Record<string, boolean>>(
@@ -404,7 +330,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
     }
   );
 
-  const renderSpans = useMemo(() => populateRenderSpans(spans), [spans]);
+  const renderingSpans = useMemo(() => populateRenderSpans(spans), [spans]);
 
   const renderedSpans = useMemo(() => {
     const toggleExpanded = (key: string) => {
@@ -413,25 +339,23 @@ export function TraceExplorer(props: TraceExplorerProps) {
         [key]: !prev[key],
       }));
     };
-    return renderSpans.rootSpans.map((rootSpan, index) => (
-      <Box key={rootSpan} mb={2} display="flex" flexGrow={1}>
+    return renderingSpans.rootSpans.map((rootSpan, index) => (
+      <Stack key={rootSpan}>
         {renderSpan(
           rootSpan,
-          renderSpans.renderSpanMap,
+          renderingSpans.spanMap,
           expandedSpans,
           toggleExpanded,
-          index === renderSpans.rootSpans.length - 1,
+          index === renderingSpans.rootSpans.length - 1,
           true // isRoot
         )}
-      </Box>
+      </Stack>
     ));
-  }, [renderSpans, expandedSpans, renderSpan]);
+  }, [renderingSpans, expandedSpans, renderSpan]);
 
   return (
-    <Box display="flex" gap={2}>
-      <Box position="relative" display="flex" flexGrow={1}>
-        {renderedSpans}
-      </Box>
-    </Box>
+    <Stack direction="column" spacing={2}>
+      {renderedSpans}
+    </Stack>
   );
 }

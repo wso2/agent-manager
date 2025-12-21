@@ -18,3 +18,4 @@
 
 export * from "./TracesTable";
 export * from "./TracesTopCards";
+export * from "./TraceDetails";

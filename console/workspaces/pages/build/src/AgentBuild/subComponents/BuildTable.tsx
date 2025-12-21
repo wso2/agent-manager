@@ -20,6 +20,7 @@ import { useMemo, useCallback } from "react";
 import {
   Box,
   Button,
+  Chip,
   CircularProgress,
   Typography,
   useTheme,
@@ -27,20 +28,22 @@ import {
 import {
   DataListingTable,
   TableColumn,
-  renderStatusChip,
   InitialState,
   DrawerWrapper,
 } from "@agent-management-platform/views";
-import { Rocket } from "@wso2/oxygen-ui-icons-react";
+import {
+  CheckCircle,
+  Rocket,
+  Circle,
+  XCircle,
+} from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
   Link,
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import {
-  BuildLogs
-} from "@agent-management-platform/shared-component";
+import { BuildLogs } from "@agent-management-platform/shared-component";
 import { useGetAgentBuilds } from "@agent-management-platform/api-client";
 import {
   BuildStatus,
@@ -59,6 +62,36 @@ interface BuildRow {
   startedAt: string;
   imageId: string;
 }
+
+export interface StatusConfig {
+  color: "success" | "warning" | "error" | "default";
+  label: string;
+}
+
+const getStatusIcon = (status: StatusConfig) => {
+  switch (status.color) {
+    case "success":
+      return <CheckCircle size={16} />;
+    case "warning":
+      return <CircularProgress size={14} color="warning" />;
+    case "error":
+      return <XCircle size={16} />;
+    default:
+      return <Circle size={16} />;
+  }
+};
+// Generic helper functions for common use cases
+export const renderStatusChip = (status: StatusConfig, theme?: any) => (
+  <Box display="flex" alignItems="center" gap={theme?.spacing(1) || 1}>
+    <Chip
+      variant="outlined"
+      icon={getStatusIcon(status)}
+      label={status.label}
+      color={status.color}
+      size="small"
+    />
+  </Box>
+);
 
 export function BuildTable() {
   const theme = useTheme();

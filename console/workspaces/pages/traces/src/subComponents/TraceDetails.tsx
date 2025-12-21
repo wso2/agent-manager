@@ -16,18 +16,17 @@
  * under the License.
  */
 
-import { Box, Skeleton } from "@wso2/oxygen-ui";
+import { Box, Skeleton, Stack } from "@wso2/oxygen-ui";
 import { useTrace } from "@agent-management-platform/api-client";
 import {
   FadeIn,
   NoDataFound,
   TraceExplorer,
-  DrawerWrapper,
 } from "@agent-management-platform/views";
 import { useParams } from "react-router-dom";
 import { Span } from "@agent-management-platform/types";
-import { GitBranch } from "@wso2/oxygen-ui-icons-react";
-import { useState, useCallback } from "react";
+import { Workflow } from "@wso2/oxygen-ui-icons-react";
+import { useEffect, useState } from "react";
 import { SpanDetailsPanel } from "./SpanDetailsPanel";
 
 function TraceDetailsSkeleton() {
@@ -54,13 +53,15 @@ function TraceDetailsSkeleton() {
   );
 }
 
-export function TraceDetails() {
+interface TraceDetailsProps {
+  traceId: string;
+}
+export function TraceDetails({ traceId }: TraceDetailsProps) {
   const {
     orgId = "default",
     projectId = "default",
     agentId = "default",
     envId = "default",
-    traceId = "default",
   } = useParams();
   const { data: traceDetails, isLoading } = useTrace(
     orgId,
@@ -71,65 +72,45 @@ export function TraceDetails() {
   );
 
   const [selectedSpan, setSelectedSpan] = useState<Span | null>(null);
-
-  const handleCloseSpan = useCallback(() => setSelectedSpan(null), []);
+  useEffect(() => {
+    setSelectedSpan(
+      traceDetails?.spans?.find((span) => !span.parentSpanId) ?? traceDetails?.spans?.[0] ?? null
+    );
+  }, [traceDetails]);
 
   if (isLoading) {
     return <TraceDetailsSkeleton />;
   }
 
-  const spans = traceDetails?.spans ?? [];
-
-  if (spans.length === 0) {
+  if (traceDetails?.spans?.length == 0) {
     return (
       <FadeIn>
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            height: "100%",
-            padding: 10,
-          }}
-        >
           <NoDataFound
             message="No spans found"
-            icon={<GitBranch size={16} />}
+            iconElement={Workflow}
+            disableBackground
             subtitle="Try changing the time range"
           />
-        </Box>
       </FadeIn>
     );
   }
 
   return (
     <FadeIn>
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-          height: "100%",
-        }}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 2,
-          }}
-        >
+      <Stack direction="row" spacing={2}>
+        <Box sx={{ width: "60%" }}>
           {traceId && (
             <TraceExplorer
               onOpenAtributesClick={setSelectedSpan}
-              spans={spans}
+              selectedSpan={selectedSpan}
+              spans={traceDetails?.spans ?? []}
             />
           )}
         </Box>
-        <DrawerWrapper open={!!selectedSpan} onClose={handleCloseSpan}>
-          <SpanDetailsPanel span={selectedSpan} onClose={handleCloseSpan} />
-        </DrawerWrapper>
-      </Box>
+        <Box sx={{ width: "40%" }}>
+          <SpanDetailsPanel span={selectedSpan ?? null} />
+        </Box>
+      </Stack>
     </FadeIn>
   );
 }
