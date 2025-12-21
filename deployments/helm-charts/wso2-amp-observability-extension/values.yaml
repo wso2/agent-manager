@@ -19,11 +19,11 @@ tracesObserver:
   service:
     type: NodePort
   env:
-    opensearchAddress: https://opensearch-headless.openchoreo-observability-plane.svc.cluster.local:9200
+    opensearchAddress: https://opensearch.openchoreo-observability-plane.svc.cluster.local:9200
     # Note: OpenSearch credentials are stored in opensearch-credentials secret
 opensearch:
   hosts:
-    - https://opensearch-headless.openchoreo-observability-plane.svc.cluster.local:9200
+    - https://opensearch.openchoreo-observability-plane.svc.cluster.local:9200
   namespace: openchoreo-observability-plane
   username: "admin"
   password: "ThisIsTheOpenSearchPassword1"
