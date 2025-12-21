@@ -38,7 +38,7 @@ kubectl get pods -n openchoreo-observability-plane -l app=opensearch
 The Agent Management Platform installation consists of three main components:
 
 1. **Agent Management Platform** - Core platform (PostgreSQL, API, Console)
-2. **Observability Stack** - DataPrepper and Traces Observer
+2. **Observability Stack** - OTel Collector and Traces Observer
 3. **Build CI** - Workflow templates for building container images
 
 ### Step 1: Install Agent Management Platform
@@ -80,7 +80,7 @@ kubectl patch apiclass default-with-cors \
 
 ### Step 3: Install Observability Stack
 
-The observability stack includes DataPrepper and Traces Observer:
+The observability stack includes Opentelemetry Collector and Traces Observer:
 
 ```bash
 # Set configuration variables
@@ -123,7 +123,7 @@ Verify all components are installed and running:
 kubectl get pods -n wso2-amp
 
 # Check Observability pods
-kubectl get pods -n openchoreo-observability-plane | grep -E "data-prepper|amp-traces-observer"
+kubectl get pods -n openchoreo-observability-plane | grep -E "opentelemetry-collector|amp-traces-observer"
 
 # Check Build CI pods (if installed)
 kubectl get pods -n openchoreo-build-plane | grep agent-manager
@@ -166,7 +166,7 @@ After port forwarding is set up:
 - **Console**: http://localhost:3000
 - **API**: http://localhost:8080
 - **Traces Observer**: http://localhost:9098
-- **Data Prepper**: http://localhost:21893
+- **Opentelemetry Collector**: http://localhost:21893
 
 ## Custom Configuration
 
