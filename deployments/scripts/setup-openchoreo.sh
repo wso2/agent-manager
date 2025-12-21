@@ -164,11 +164,11 @@ echo "7️⃣  Installing OpenChoreo Observability Plane..."
 if helm status openchoreo-observability-plane -n openchoreo-observability-plane &>/dev/null; then
     echo "⏭️  Observability Plane already installed, skipping..."
 else
-    echo "   This may take up to 15 minutes..."
+    echo "   Creating OpenChoreo Observability Plane namespace..."
     kubectl create namespace openchoreo-observability-plane --dry-run=client -o yaml | kubectl apply -f -
-
+    echo "   Applying Custom OpenTelemetry Collector configuration..."
     kubectl apply -f $1/deployments/values/oc-collector-configmap.yaml -n openchoreo-observability-plane
-
+    echo "   Installing Observability Plane Helm chart..."
     helm install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
         --version 0.7.0 \
         --namespace openchoreo-observability-plane \
