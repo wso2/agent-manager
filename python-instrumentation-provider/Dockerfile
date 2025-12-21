@@ -1,7 +1,10 @@
 ######### OpenLLMetry Instrumentation Image #########
 
+# Build argument to specify Python version (default: 3.11)
+ARG PYTHON_VERSION=3.11
+
 ############### STAGE 1 — BUILD INSTRUMENTATION PACKAGES ###############
-FROM python:3.11-slim AS otel-tracing
+FROM python:${PYTHON_VERSION}-slim AS otel-tracing
 
 # Set the working directory where all instrumentation-related build files will be stored.
 WORKDIR /instrumentation
@@ -15,7 +18,8 @@ COPY sitecustomize.py packages/sitecustomize.py
 
 ############### STAGE 2 — FINAL RUNTIME IMAGE ###############
 # Create final OpenLLMetry image
-FROM python:3.11-slim
+ARG PYTHON_VERSION=3.11
+FROM python:${PYTHON_VERSION}-slim
 WORKDIR /instrumentations
 
 # Copy the built instrumentation packages from the builder stage.

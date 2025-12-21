@@ -38,6 +38,8 @@ try:
     initialize_instrumentation()
     logger.info("WSO2 AMP instrumentation initialized successfully")
 except Exception as e:
-    # Log error but allow application to continue without instrumentation
+    # Print error directly to stderr to ensure visibility
+    print(f"ERROR: Failed to initialize WSO2 AMP instrumentation: {e}", file=sys.stderr)
+    # Also log for debug mode
     logger = logging.getLogger(__name__)
     logger.exception(f"Failed to initialize WSO2 AMP instrumentation: {e}")

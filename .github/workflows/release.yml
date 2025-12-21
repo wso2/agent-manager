@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: 'Source branch to create release from'
+        description: "Source branch to create release from"
         required: false
-        default: 'main'
+        default: "main"
         type: string
       target-release:
-        description: 'Target release version (e.g., 0.0.1)'
+        description: "Target release version (e.g., 0.0.1)"
         required: true
         type: string
 
@@ -89,7 +89,7 @@ jobs:
         id: commit-changes
         run: |
           git add "./quick-start/install-helpers.sh" "./deployments/helm-charts/*/Chart.yaml" "./deployments/helm-charts/*/values.yaml" "./docs/quick-start.md" "./docs/install/single-cluster.md" 2>/dev/null || true
-          
+
           if git diff --staged --quiet; then
             echo "No changes to commit"
             echo "committed=false" >> $GITHUB_OUTPUT
@@ -141,6 +141,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       images: ${{ steps.set-matrix.outputs.images }}
+      python-versions: ${{ steps.set-matrix.outputs.python-versions }}
       charts: ${{ steps.set-matrix.outputs.charts }}
     steps:
       - name: Checkout code
@@ -170,11 +171,16 @@ jobs:
             "chart-file": ($base + "/" + . + "/Chart.yaml")
           }]' "$CONFIG_FILE")
 
+          # Extract Python versions from python-instrumentation-provider
+          PYTHON_VERSIONS=$(jq -c '[.["python-instrumentation-provider"][0].versions[]]' "$CONFIG_FILE")
+
           echo "images=$IMAGES" >> $GITHUB_OUTPUT
+          echo "python-versions=$PYTHON_VERSIONS" >> $GITHUB_OUTPUT
           echo "charts=$CHARTS" >> $GITHUB_OUTPUT
 
           echo "✅ Loaded configuration:"
           echo "  - Images: $(echo "$IMAGES" | jq '. | length')"
+          echo "  - Python Versions: $(echo "$PYTHON_VERSIONS" | jq '. | length')"
           echo "  - Charts: $(echo "$CHARTS" | jq '. | length')"
         shell: bash
 
@@ -215,9 +221,46 @@ jobs:
           registry-org: ${{ env.REGISTRY_ORG }}
           tag: v${{ inputs.target-release }}
 
+  build-python-instrumentation-provider-images:
+    name: Build Instrumentation Provider Python ${{ matrix.python-version }}
+    needs: load-config
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: ${{ fromJson(needs.load-config.outputs.python-versions) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: amp/v${{ inputs.target-release }}
+          
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Python ${{ matrix.python-version }} image
+        uses: ./.github/actions/build-single-platform-docker-image
+        with:
+          service-dir: python-instrumentation-provider
+          image-name: amp-python-instrumentation-provider
+          registry: ${{ env.REGISTRY }}
+          registry-org: ${{ env.REGISTRY_ORG }}
+          tag: v${{ inputs.target-release }}-python${{ matrix.python-version }}
+          platform: linux/amd64
+          build-args: |
+            PYTHON_VERSION=${{ matrix.python-version }}
+
   package-charts:
     name: Package ${{ matrix.chart.name }}
-    needs: [load-config, build-images]
+    needs:
+      [load-config, build-images, build-python-instrumentation-provider-images]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -235,7 +278,7 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v4
         with:
-          version: '3.14.0'
+          version: "3.14.0"
 
       - name: Package and push ${{ matrix.chart.name }}
         if: hashFiles(matrix.chart.chart-file) != ''
@@ -249,7 +292,13 @@ jobs:
 
   create-release:
     name: Create Release
-    needs: [prepare-release, build-images, package-charts]
+    needs:
+      [
+        prepare-release,
+        build-images,
+        build-python-instrumentation-provider-images,
+        package-charts,
+      ]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -268,19 +317,18 @@ jobs:
           name: Release amp/v${{ inputs.target-release }}
           body: |
             ## Release amp/v${{ inputs.target-release }}
-            
+
             ### Docker Images
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-console:v${{ inputs.target-release }}`
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-api:v${{ inputs.target-release }}`
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-traces-observer:v${{ inputs.target-release }}`
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-python-instrumentation-provider:v${{ inputs.target-release }}`
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-quick-start:v${{ inputs.target-release }}`
-            
             ### Helm Charts
             - `${{ env.HELM_REGISTRY }}/wso2-ai-agent-management-platform:${{ inputs.target-release }}`
             - `${{ env.HELM_REGISTRY }}/wso2-amp-build-extension:${{ inputs.target-release }}`
             - `${{ env.HELM_REGISTRY }}/wso2-amp-observability-extension:${{ inputs.target-release }}`
-                        
+
           draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
