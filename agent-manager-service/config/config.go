@@ -18,7 +18,7 @@ package config
 
 // Config holds all configuration for the application
 type Config struct {
-	Version string
+	PackageVersion string
 	ServerHost          string
 	ServerPort          int
 	AuthHeader          string

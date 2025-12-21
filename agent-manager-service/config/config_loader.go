@@ -96,7 +96,7 @@ func loadEnvs() {
 
 	// OpenTelemetry configuration
 	// Use Version from ldflags or environment variable override
-	config.Version = r.readOptionalString("AMP_VERSION", config.Version)
+	config.PackageVersion = r.readOptionalString("AMP_VERSION", Version)
 	
 	config.OTEL = OTELConfig{
 		
