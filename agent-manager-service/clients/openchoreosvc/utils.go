@@ -232,6 +232,7 @@ func createOTELInstrumentationTrait(ocAgentComponent *v1alpha1.Component, envUUI
 		"otelEndpoint":          config.GetConfig().OTEL.ExporterEndpoint,
 		"isTraceContentEnabled": utils.BoolAsString(config.GetConfig().OTEL.IsTraceContentEnabled),
 		"traceAttributes":       fmt.Sprintf("%s=%s,%s=%s,%s=%s", TraceAttributeKeyProject, projectUUID, TraceAttributeKeyEnvironment, envUUID, TraceAttributeKeyComponent, ocAgentComponent.UID),
+		"agentApiKey":           "000000000-0000-0000-0000-000000000000",
 	}
 	traitParametersJSON, err := json.Marshal(traitParameters)
 	if err != nil {
@@ -250,7 +251,7 @@ func createOTELInstrumentationTrait(ocAgentComponent *v1alpha1.Component, envUUI
 func getInstrumentationImage(languageVersion string) string {
 	// Extract major.minor version (e.g., "3.10.5" -> "3.10")
 	parts := strings.Split(languageVersion, ".")
-	pythonMajorMinor := parts[0] + "." + parts[1]		
+	pythonMajorMinor := parts[0] + "." + parts[1]
 	imageTag := config.GetConfig().PackageVersion
 	return fmt.Sprintf("%s/%s:%s-python%s", GithubImageRegistry, ImageName, imageTag, pythonMajorMinor)
 }

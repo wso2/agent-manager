@@ -97,9 +97,8 @@ func loadEnvs() {
 	// OpenTelemetry configuration
 	// Use Version from ldflags or environment variable override
 	config.PackageVersion = r.readOptionalString("AMP_VERSION", Version)
-	
+
 	config.OTEL = OTELConfig{
-		
 		SDKVolumeName: r.readOptionalString("OTEL_SDK_VOLUME_NAME", "otel-tracing-sdk-volume"),
 		SDKMountPath:  r.readOptionalString("OTEL_SDK_MOUNT_PATH", "/otel-tracing-sdk"),
 
