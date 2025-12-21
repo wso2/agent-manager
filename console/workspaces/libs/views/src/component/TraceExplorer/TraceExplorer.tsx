@@ -37,6 +37,7 @@ import {
   Link,
   Shovel,
   Coins,
+  CircleQuestionMark,
 } from '@wso2/oxygen-ui-icons-react';
 
 interface TraceExplorerProps {
@@ -51,6 +52,19 @@ interface RenderSpan {
   key: string;
   parentKey: string | null;
   childrenKeys: string[] | null;
+}
+
+export function SpanIcon({ span }: { span: Span }) {
+  if (span.ampAttributes?.kind === 'llm') {
+    return <Brain size={16} />;
+  }
+  if (span.ampAttributes?.kind === 'chain') {
+    return <Link size={16} />;
+  }
+  if (span.ampAttributes?.kind === 'tool') {
+    return <Shovel size={16} />;
+  }
+  return <CircleQuestionMark size={16} />;
 }
 
 function formatDuration(durationInNanos: number) {
@@ -170,7 +184,10 @@ export function TraceExplorer(props: TraceExplorerProps) {
               justifyContent="space-between"
               sx={{
                 border: `1px solid`,
-                borderColor: selectedSpan?.spanId === span.span.spanId ? 'primary.main' : 'divider',
+                borderColor:
+                  selectedSpan?.spanId === span.span.spanId
+                    ? 'primary.main'
+                    : 'divider',
                 borderRadius: 0.5,
                 backgroundColor: 'background.paper',
                 px: 1,
@@ -215,17 +232,9 @@ export function TraceExplorer(props: TraceExplorerProps) {
                     <Minus size={16} />
                   )}
                 </IconButton>
-                <Stack direction="row" color="primary.main" alignItems="center">
-                  {span.span.ampAttributes?.kind === 'llm' && (
-                    <Brain size={16} />
-                  )}
-                  {span.span.ampAttributes?.kind === 'chain' && (
-                    <Link size={16} />
-                  )}
-                  {span.span.ampAttributes?.kind === 'tool' && (
-                    <Shovel size={16} />
-                  )}
-                </Stack>
+                <Box color="primary.main">
+                  <SpanIcon span={span.span} />
+                </Box>
                 <Stack direction="column" p={0.5} alignItems="start">
                   <Stack direction="row" spacing={1} alignItems="center">
                     <Typography variant="h6">{span.span.name}</Typography>
@@ -254,7 +263,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
                   <Tooltip title={span.span.ampAttributes?.model}>
                     <Chip
                       icon={<Brain size={16} />}
-                      label="Model"
+                      label="LLM"
                       size="small"
                       variant="outlined"
                     />
@@ -280,7 +289,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
                   >
                     <Chip
                       icon={<Coins size={16} />}
-                      label="Tokens"
+                      label={span.span.ampAttributes?.tokenUsage.totalTokens}
                       size="small"
                       variant="outlined"
                     />

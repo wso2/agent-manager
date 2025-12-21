@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, Skeleton, Stack } from "@wso2/oxygen-ui";
+import { Box, Divider, Skeleton, Stack } from "@wso2/oxygen-ui";
 import { useTrace } from "@agent-management-platform/api-client";
 import {
   FadeIn,
@@ -31,25 +31,11 @@ import { SpanDetailsPanel } from "./SpanDetailsPanel";
 
 function TraceDetailsSkeleton() {
   return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 0.5,
-      }}
-    >
-      {[...Array(8)].map((_, index) => (
-        <Skeleton
-          key={index}
-          variant="rectangular"
-          width="100%"
-          height={40}
-          sx={{
-            ml: (index % 3) * 2,
-          }}
-        />
-      ))}
-    </Box>
+    <Stack direction="row" height="calc(100vh - 64px)" gap={1}>
+      <Skeleton variant="rounded" width="55%" height="100%" />
+      <Divider orientation="vertical" flexItem />
+      <Skeleton variant="rounded" width="45%" height="100%" />
+    </Stack>
   );
 }
 
@@ -74,7 +60,9 @@ export function TraceDetails({ traceId }: TraceDetailsProps) {
   const [selectedSpan, setSelectedSpan] = useState<Span | null>(null);
   useEffect(() => {
     setSelectedSpan(
-      traceDetails?.spans?.find((span) => !span.parentSpanId) ?? traceDetails?.spans?.[0] ?? null
+      traceDetails?.spans?.find((span) => !span.parentSpanId) ??
+        traceDetails?.spans?.[0] ??
+        null
     );
   }, [traceDetails]);
 
@@ -85,20 +73,20 @@ export function TraceDetails({ traceId }: TraceDetailsProps) {
   if (traceDetails?.spans?.length == 0) {
     return (
       <FadeIn>
-          <NoDataFound
-            message="No spans found"
-            iconElement={Workflow}
-            disableBackground
-            subtitle="Try changing the time range"
-          />
+        <NoDataFound
+          message="No spans found"
+          iconElement={Workflow}
+          disableBackground
+          subtitle="Try changing the time range"
+        />
       </FadeIn>
     );
   }
 
   return (
     <FadeIn>
-      <Stack direction="row" spacing={2}>
-        <Box sx={{ width: "60%" }}>
+      <Stack direction="row" height="calc(100vh - 64px)">
+        <Box sx={{ width: "55%" }} pr={1}>
           {traceId && (
             <TraceExplorer
               onOpenAtributesClick={setSelectedSpan}
@@ -107,7 +95,8 @@ export function TraceDetails({ traceId }: TraceDetailsProps) {
             />
           )}
         </Box>
-        <Box sx={{ width: "40%" }}>
+        <Divider orientation="vertical" flexItem />
+        <Box sx={{ width: "45%" }}>
           <SpanDetailsPanel span={selectedSpan ?? null} />
         </Box>
       </Stack>

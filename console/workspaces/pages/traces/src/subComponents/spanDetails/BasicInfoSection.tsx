@@ -17,24 +17,99 @@
  */
 
 import { Span } from "@agent-management-platform/types";
-import { InfoField } from "./InfoField";
-import { InfoSection } from "./InfoSection";
+import { Chip, Stack, Tooltip } from "@wso2/oxygen-ui";
+import {
+  Brain,
+  Check,
+  Clock,
+  Coins,
+  Thermometer,
+  X,
+} from "@wso2/oxygen-ui-icons-react";
 
 interface BasicInfoSectionProps {
-    span: Span;
+  span: Span;
+}
+function formatDuration(durationInNanos: number) {
+  if (durationInNanos > 1000 * 1000 * 1000) {
+    return `${(durationInNanos / (1000 * 1000 * 1000)).toFixed(2)}s`;
+  }
+  if (durationInNanos > 1000 * 1000) {
+    return `${(durationInNanos / (1000 * 1000)).toFixed(2)}ms`;
+  }
+  return `${(durationInNanos / 1000).toFixed(2)}μs`;
 }
 
 export function BasicInfoSection({ span }: BasicInfoSectionProps) {
-    return (
-        <InfoSection title="Basic Information">
-            <InfoField label="Span ID" value={span.spanId} isMonospace />
-            <InfoField label="Trace ID" value={span.traceId} isMonospace />
-            {span.parentSpanId && (
-                <InfoField label="Parent Span ID" value={span.parentSpanId} isMonospace />
-            )}
-            <InfoField label="Name" value={span.name} />
-            <InfoField label="Service" value={span.service} />
-        </InfoSection>
-    );
+  return (
+    <Stack spacing={1} direction="row">
+      {span.ampAttributes?.status?.error && (
+        <Tooltip
+          title={
+            span.ampAttributes?.status?.errorType ||
+            "Failed to execute the span"
+          }
+        >
+          <Chip
+            icon={<X size={16} />}
+            size="small"
+            variant="outlined"
+            label={span.ampAttributes?.status?.errorType || "Failed"}
+            color="error"
+          />
+        </Tooltip>
+      )}
+      {!span.ampAttributes?.status?.error && (
+        <Chip
+          icon={<Check size={16} />}
+          size="small"
+          variant="outlined"
+          label={"Success"}
+          color="success"
+        />
+      )}
+      {span.startTime && (
+        <Tooltip title={"Execution duration"}>
+          <Chip
+            icon={<Clock size={16} />}
+            size="small"
+            variant="outlined"
+            label={formatDuration(span.durationInNanos)}
+          />
+        </Tooltip>
+      )}
+      {span.ampAttributes?.model && (
+        <Tooltip title={"Model used"}>
+          <Chip
+            icon={<Brain size={16} />}
+            size="small"
+            variant="outlined"
+            label={span.ampAttributes?.model}
+          />
+        </Tooltip>
+      )}
+      {span.ampAttributes?.tokenUsage && (
+        <Tooltip
+          title={`Used ${span.ampAttributes?.tokenUsage.inputTokens} input tokens, ${span.ampAttributes?.tokenUsage.outputTokens} output tokens`}
+        >
+          <Chip
+            icon={<Coins size={16} />}
+            size="small"
+            variant="outlined"
+            label={span.ampAttributes?.tokenUsage.totalTokens}
+          />
+        </Tooltip>
+      )}
+      {span.ampAttributes?.temperature && (
+        <Tooltip title={"Temperature"}>
+          <Chip
+            icon={<Thermometer size={16} />}
+            size="small"
+            variant="outlined"
+            label={span.ampAttributes?.temperature}
+          />
+        </Tooltip>
+      )}
+    </Stack>
+  );
 }
-
