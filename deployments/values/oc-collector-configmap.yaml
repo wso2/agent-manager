@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: amp-opentelemetry-collector-config
+  namespace: openchoreo-observability-plane 
+data:
+  relay: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    exporters:
+      opensearch:
+        http:
+          auth:
+            authenticator: basicauth/opensearch
+          endpoint: https://opensearch.openchoreo-observability-plane.svc.cluster.local:9200
+          tls:
+            insecure_skip_verify: true
+        sending_queue:
+          num_consumers: 5
+          queue_size: 1000
+          sizer: items
+        traces_index: "otel-traces"
+        traces_index_time_format: "yyyy-MM-dd"
+
+    extensions:
+      basicauth/opensearch:
+        client_auth: 
+          username: admin
+          password: ThisIsTheOpenSearchPassword1
+      health_check:
+        endpoint: ${env:MY_POD_IP}:13133
+  
+    processors:
+      k8sattributes:
+        auth_type: "serviceAccount"
+        passthrough: false
+
+        extract:
+          labels:
+            - key: openchoreo.dev/component-uid
+              tag_name: openchoreo.dev/component-uid
+            - key: openchoreo.dev/environment-uid
+              tag_name: openchoreo.dev/environment-uid
+            - key: openchoreo.dev/project-uid
+              tag_name: openchoreo.dev/project-uid
+            
+          metadata:
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.deployment.name
+            - k8s.namespace.name
+            - k8s.node.name
+
+    service:
+      extensions: [basicauth/opensearch, health_check]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [k8sattributes]
+          exporters: [opensearch]

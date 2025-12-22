@@ -164,13 +164,17 @@ echo "7️⃣  Installing OpenChoreo Observability Plane..."
 if helm status openchoreo-observability-plane -n openchoreo-observability-plane &>/dev/null; then
     echo "⏭️  Observability Plane already installed, skipping..."
 else
-    echo "   This includes OpenSearch"
+    echo "   Creating OpenChoreo Observability Plane namespace..."
+    kubectl create namespace openchoreo-observability-plane --dry-run=client -o yaml | kubectl apply -f -
+    echo "   Applying Custom OpenTelemetry Collector configuration..."
+    kubectl apply -f $1/deployments/values/oc-collector-configmap.yaml -n openchoreo-observability-plane
+    echo "   Installing Observability Plane Helm chart..."
     helm install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-    --version 0.7.0 \
-    --namespace openchoreo-observability-plane \
-    --create-namespace \
-    --values https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.7/install/k3d/single-cluster/values-op.yaml \
-    --set opentelemetryCollectorCustomizations.tailSampling.spansPerSecond=100000
+        --version 0.7.0 \
+        --namespace openchoreo-observability-plane \
+        --create-namespace \
+        --values https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.7/install/k3d/single-cluster/values-op.yaml \
+        --set opentelemetry-collector.configMap.existingName=amp-opentelemetry-collector-config
 fi
 
 echo "⏳ Waiting for OpenSearch pods to be ready..."
