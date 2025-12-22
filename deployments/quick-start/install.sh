@@ -434,7 +434,7 @@ helm_install_idempotent \
     "openchoreo-control-plane" \
     "${TIMEOUT_CONTROL_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
-    --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp-${VERSION}/deployments/single-cluster/values-cp.yaml"
+    --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/single-cluster/values-cp.yaml"
 
 wait_for_pods "openchoreo-control-plane" "${TIMEOUT_CONTROL_PLANE}"
 
@@ -535,7 +535,7 @@ fi
 
 # Apply OpenTelemetry Collector ConfigMap (idempotent)
 log_info "Applying Custom OpenTelemetry Collector configuration..."
-CONFIGMAP_FILE="https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp-${VERSION}/deployments/values/oc-collector-configmap.yaml"
+CONFIGMAP_FILE="https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/values/oc-collector-configmap.yaml"
 
 if kubectl apply -f "${CONFIGMAP_FILE}" -n "${OBSERVABILITY_NS}" &>/dev/null; then
     log_success "OpenTelemetry Collector configuration applied successfully"
@@ -557,7 +557,7 @@ helm_install_idempotent \
     "${OBSERVABILITY_NS}" \
     "${TIMEOUT_OBSERVABILITY_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
-    --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp-${VERSION}/deployments/single-cluster/values-op.yaml"
+    --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/single-cluster/values-op.yaml"
 
 wait_for_deployments "openchoreo-observability-plane" "${TIMEOUT_OBSERVABILITY_PLANE}"
 wait_for_statefulsets "openchoreo-observability-plane" "${TIMEOUT_OBSERVABILITY_PLANE}"
