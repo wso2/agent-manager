@@ -27,27 +27,30 @@ import { getTrace, getTraceList } from "../apis/traces";
 import { useAuthHooks } from "@agent-management-platform/auth";
 
 export function useTraceList(
-  orgName: string,
-  projName: string,
-  agentName: string,
-  envId: string,
-  timeRange: TraceListTimeRange,
-  limit?: number,
-  offset?: number,
-  sortOrder?: GetTraceListPathParams['sortOrder']
+  orgName?: string,
+  projName?: string,
+  agentName?: string,
+  envId?: string,
+  timeRange?: TraceListTimeRange | undefined,
+  limit?: number | undefined,
+  offset?: number | undefined,
+  sortOrder?: GetTraceListPathParams['sortOrder'] | undefined
 ) {
   const { getToken } = useAuthHooks();
 
   return useQuery({
     queryKey: ["trace-list", orgName, projName, agentName, envId, timeRange, limit, offset, sortOrder],
     queryFn: async () => {
+      if (!orgName || !projName || !agentName || !envId || !timeRange) {
+        throw new Error("Missing required parameters");
+      }
       const { startTime, endTime } = getTimeRange(timeRange);
       const res = await getTraceList(
         {
           orgName,
           projName,
           agentName,
-          envId,
+          environment: envId,
           startTime,
           endTime,
           limit,
@@ -61,6 +64,7 @@ export function useTraceList(
       }
       return res;
     },
+    refetchInterval: 30000, // 30 seconds
     enabled: !!orgName && !!projName && !!agentName && !!envId,
   });
 }
@@ -81,8 +85,8 @@ export function useTrace(
           orgName,
           projName,
           agentName,
-          envId,
           traceId,
+          environment: envId,
         },
         getToken
       );

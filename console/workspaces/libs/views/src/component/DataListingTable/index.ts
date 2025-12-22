@@ -16,7 +16,7 @@
  * under the License.
  */
 
-export { DataListingTable, renderStatusChip } from './DataListingTable';
+export { DataListingTable } from './DataListingTable';
 export { TableHeader } from './subcomponents/TableHeader';
 export { TableBody } from './subcomponents/TableBody';
 export { TableRow } from './subcomponents/TableRow';
@@ -25,7 +25,6 @@ export { LoadingState } from './subcomponents/LoadingState';
 
 export type { 
   TableColumn, 
-  StatusConfig, 
   MetricsData, 
   DataListingTableProps,
   SortModel,

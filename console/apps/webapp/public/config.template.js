@@ -27,6 +27,6 @@ window.__RUNTIME_CONFIG__ = {
   },
   disableAuth: '$DISABLE_AUTH' === 'true',
   apiBaseUrl: '$API_BASE_URL',
-  obsApiBaseUrl: '$OBS_API_BASE_URL'
+  instrumentationUrl: '$INSTRUMENTATION_URL',
 };
 

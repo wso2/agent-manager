@@ -24,6 +24,7 @@ import {
   Button,
   CircularProgress,
   Divider,
+  Stack,
 } from "@wso2/oxygen-ui";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useGetAgentBuilds } from "@agent-management-platform/api-client";
@@ -38,11 +39,16 @@ import { DeploymentConfig } from "@agent-management-platform/shared-component";
 import { DrawerWrapper, NoDataFound } from "@agent-management-platform/views";
 import { BuildSelectorDrawer } from "./BuildSelectorDrawer";
 import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime"
+import relativeTime from "dayjs/plugin/relativeTime";
+import { Environment } from "@agent-management-platform/types";
 
 dayjs.extend(relativeTime);
 
-export function BuildCard() {
+interface BuildCardProps {
+  initialEnvironment?: Environment;
+}
+export function BuildCard(props: BuildCardProps) {
+  const { initialEnvironment } = props;
   const { orgId, projectId, agentId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: builds, isLoading: isBuildsLoading } = useGetAgentBuilds({
@@ -59,7 +65,11 @@ export function BuildCard() {
           (a, b) =>
             new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
         )
-        .filter((build) => build.status === "BuildCompleted" || build.status === "WorkloadUpdated"),
+        .filter(
+          (build) =>
+            build.status === "BuildCompleted" ||
+            build.status === "WorkloadUpdated"
+        ),
     [builds]
   );
 
@@ -128,19 +138,16 @@ export function BuildCard() {
         sx={{
           "& .MuiCardContent-root": {
             backgroundColor: "background.paper",
-            gap: 2,
-            display: "flex",
-            height: "100%",
-            width: 350,
-            minHeight: 200,
-            justifyContent: "center",
-            alignItems: "center",
-            flexDirection: "column",
           },
+          width: 350,
+          minWidth: 350,
+          height: "fit-content",
         }}
       >
         <CardContent>
-          <CircularProgress />
+          <Box p={2} display="flex" justifyContent="center" alignItems="center">
+            <CircularProgress />
+          </Box>
         </CardContent>
       </Card>
     );
@@ -153,17 +160,20 @@ export function BuildCard() {
         sx={{
           "& .MuiCardContent-root": {
             backgroundColor: "background.paper",
-            gap: 2,
-            display: "flex",
-            width: 350,
           },
           height: "fit-content",
+          width: 350,
+          minWidth: 350,
         }}
       >
         <CardContent>
-          <Box display="flex" flexGrow={1} pt={2} justifyContent="center" alignItems="center">
-            <NoDataFound message="No builds available" icon={<Rocket size={32} />} disableBackground />
-          </Box>
+          <Stack gap={2} alignItems="center">
+            <NoDataFound
+              message="No builds available"
+              icon={<Rocket size={32} />}
+              disableBackground
+            />
+          </Stack>
         </CardContent>
       </Card>
     );
@@ -174,30 +184,20 @@ export function BuildCard() {
       <Card
         variant="outlined"
         sx={{
-          height: "fit-content",
           "& .MuiCardContent-root": {
             backgroundColor: "background.paper",
-            gap: 2,
-            display: "flex",
-            flexDirection: "column",
-            width: 350,
           },
+          height: "fit-content",
+          width: 350,
+          minWidth: 350,
         }}
       >
-        <CardContent
-          sx={{
-            gap: 1,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-          }}
-        >
-          <Box display="flex" flexDirection="column" gap={2}>
+        <CardContent>
+          <Stack direction="column" gap={2}>
             <Typography variant="h4">Set up</Typography>
             <Divider />
-          </Box>
-          {/* Build ID Selector */}
-          <Box display="flex" flexDirection="column" gap={1}>
+            {/* Build ID Selector */}
+
             <Typography variant="body2" color="text.secondary">
               Select Build
             </Typography>
@@ -205,7 +205,6 @@ export function BuildCard() {
             <Button
               variant="outlined"
               fullWidth
-              color="inherit"
               onClick={handleOpenBuildSelector}
               sx={{
                 borderRadius: 0.5,
@@ -213,12 +212,7 @@ export function BuildCard() {
                 textTransform: "none",
               }}
             >
-              <Box
-                display="flex"
-                flexDirection="column"
-                alignItems="flex-start"
-                gap={0.5}
-              >
+              <Stack gap={0.5} alignItems="flex-start">
                 <Typography variant="body1">
                   {currentBuild?.buildName || "Select a build"}
                 </Typography>
@@ -238,22 +232,27 @@ export function BuildCard() {
                     </Box>
                   </Box>
                 )}
-              </Box>
+              </Stack>
               <Edit size={16} />
             </Button>
-          </Box>
-          <Divider />
-          {/* Selected Build Details */}
-          <Button
-            variant="contained"
-            color="primary"
-            fullWidth
-            onClick={handleOpenDeployment}
-            disabled={!currentBuild || (currentBuild.status !== "BuildCompleted" && currentBuild.status !== "WorkloadUpdated")}
-            startIcon={<Rocket size={16} />}
-          >
-            Configure & Deploy
-          </Button>
+
+            <Divider />
+            {/* Selected Build Details */}
+            <Button
+              variant="contained"
+              color="primary"
+              fullWidth
+              onClick={handleOpenDeployment}
+              disabled={
+                !currentBuild ||
+                (currentBuild.status !== "BuildCompleted" &&
+                  currentBuild.status !== "WorkloadUpdated")
+              }
+              startIcon={<Rocket size={16} />}
+            >
+              Configure & Deploy
+            </Button>
+          </Stack>
         </CardContent>
       </Card>
       {/* Build Selector Drawer */}
@@ -271,7 +270,7 @@ export function BuildCard() {
           <DeploymentConfig
             onClose={handleCloseDrawer}
             imageId={currentBuild.imageId || "busybox"}
-            to="development"
+            to={initialEnvironment?.name || "development"}
             orgName={orgId || ""}
             projName={projectId || ""}
             agentName={agentId || ""}

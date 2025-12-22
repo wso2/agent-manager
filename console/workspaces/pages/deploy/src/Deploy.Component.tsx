@@ -16,10 +16,10 @@
  * under the License.
  */
 
-import { Box } from '@wso2/oxygen-ui';
-import { BuildCard, DeployCard } from './subComponent';
-import { useParams } from 'react-router-dom';
-import { useListEnvironments } from '@agent-management-platform/api-client';
+import { Stack } from "@wso2/oxygen-ui";
+import { BuildCard, DeployCard } from "./subComponent";
+import { useParams } from "react-router-dom";
+import { useListEnvironments } from "@agent-management-platform/api-client";
 
 export const DeployComponent = () => {
   const { orgId } = useParams();
@@ -27,17 +27,14 @@ export const DeployComponent = () => {
   const { data: environments } = useListEnvironments({
     orgName: orgId,
   });
-  
 
   return (
-    <Box display="flex" gap={4} pb={4} pt={4}>
-      <BuildCard />
-      {
-        environments?.map((env) => (
-          <DeployCard key={env.name} currentEnvironment={env} />
-        ))
-      }
-    </Box>
+    <Stack direction="row" pb={4} gap={4} width="100%" overflow="scroll">
+      <BuildCard initialEnvironment={environments?.[0]} />
+      {environments?.map((env) => (
+        <DeployCard key={env.name} currentEnvironment={env} />
+      ))}
+    </Stack>
   );
 };
 

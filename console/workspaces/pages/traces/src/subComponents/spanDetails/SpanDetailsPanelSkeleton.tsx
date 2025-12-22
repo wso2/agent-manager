@@ -16,5 +16,13 @@
  * under the License.
  */
 
-export * from "./TracesTable";
-export * from "./TracesTopCards";
+import { Skeleton, Stack } from "@wso2/oxygen-ui";
+
+export function SpanDetailsPanelSkeleton() {
+  return (
+    <Stack spacing={2} px={1} sx={{ overflowY: "auto", flexGrow: 1 }}>
+      <Skeleton variant="text" width="100%" height={40} />
+      <Skeleton variant="text" width="100%" height={40} />
+    </Stack>
+  );
+}

@@ -16,19 +16,79 @@
  * under the License.
  */
 
-export interface Trace {
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
+export interface TraceStatus {
+  errorCount: number;
+}
+
+export interface TraceOverview {
   traceId: string;
   rootSpanId: string;
   rootSpanName: string;
+  rootSpanKind?: string;
   startTime: string;
   endTime: string;
   durationInNanos: number;
   spanCount: number;
+  tokenUsage?: TokenUsage;
+  status?: TraceStatus;
+  input?: string;
+  output?: string;
 }
 
 export interface TraceListResponse {
-  traces: Trace[];
+  traces: TraceOverview[];
   totalCount: number;
+}
+
+// Keep Trace as an alias for backward compatibility
+export type Trace = TraceOverview;
+
+export interface SpanStatus {
+  error: boolean;
+  errorType?: string;
+}
+
+export interface LLMTokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens?: number;
+  totalTokens: number;
+}
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
+export interface PromptMessage {
+  role: "system" | "user" | "assistant" | "tool" | "unknown";
+  content?: string;
+  toolCalls?: ToolCall[];
+}
+
+export interface ToolDefinition {
+  name: string;
+  description?: string;
+  parameters?: string;
+}
+
+export interface AmpAttributes {
+  kind: string;
+  input?: PromptMessage[] | string;
+  output?: PromptMessage[] | string;
+  tools?: ToolDefinition[];
+  name?: string;
+  status?: SpanStatus;
+  model?: string;
+  temperature?: number;
+  tokenUsage?: LLMTokenUsage;
 }
 
 export interface Span {
@@ -38,34 +98,37 @@ export interface Span {
   name: string;
   service: string;
   startTime: string;
-  endTime: string;
+  endTime?: string;
   durationInNanos: number;
   kind?: string;
   status?: string;
   attributes?: Record<string, unknown>;
   resource?: Record<string, unknown>;
+  ampAttributes?: AmpAttributes;
 }
 
 export interface TraceDetailsResponse {
   spans: Span[];
   totalCount: number;
+  tokenUsage?: TokenUsage;
+  status?: TraceStatus;
 }
 
 export interface GetTracePathParams {
   orgName: string | undefined;
   projName: string | undefined;
   agentName: string | undefined;
-  envId: string | undefined;
   traceId: string | undefined;
+  environment?: string;
 }
 
 export type GetTraceListPathParams = { 
   orgName: string | undefined,
   projName: string | undefined,
   agentName: string | undefined,
-  envId: string | undefined,
-  startTime: string,
-  endTime: string,
+  environment?: string,
+  startTime?: string,
+  endTime?: string,
   limit?: number,
   offset?: number,
   sortOrder?: 'asc' | 'desc',
