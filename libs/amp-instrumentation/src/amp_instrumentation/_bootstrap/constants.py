@@ -20,7 +20,6 @@ This module centralizes all environment variable names used for configuration.
 """
 
 # Application Configuration
-AMP_AGENT_NAME = "AMP_AGENT_NAME"
 AMP_OTEL_ENDPOINT = "AMP_OTEL_ENDPOINT"
 AMP_AGENT_API_KEY = "AMP_AGENT_API_KEY"
 AMP_TRACE_CONTENT = "AMP_TRACE_CONTENT"

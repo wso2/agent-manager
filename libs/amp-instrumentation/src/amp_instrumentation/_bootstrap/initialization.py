@@ -94,7 +94,6 @@ def initialize_instrumentation() -> None:
 
         try:
             # Validate and read required configuration
-            app_name = _get_required_env_var(env_vars.AMP_AGENT_NAME)
             otel_endpoint = _get_required_env_var(env_vars.AMP_OTEL_ENDPOINT)
             api_key = _get_required_env_var(env_vars.AMP_AGENT_API_KEY)
             resource_attributes = _get_required_env_var(env_vars.AMP_TRACE_ATTRIBUTES)
@@ -119,14 +118,13 @@ def initialize_instrumentation() -> None:
             # Initialize Traceloop with configuration
             Traceloop.init(
                 telemetry_enabled=False,
-                app_name=app_name,
                 api_endpoint=otel_endpoint,
                 headers={"x-api-key": api_key},
             )
 
             _initialized = True
             logger.info(
-                f"Instrumentation initialized successfully for application: {app_name}"
+                "Instrumentation initialized successfully."
             )
 
         except ConfigurationError as e:
