@@ -37,7 +37,6 @@ interface InstrumentationDrawerProps {
 export const InstrumentationDrawer = ({
   open,
   onClose,
-  agentId,
   instrumentationUrl,
   apiKey,
   traceAttributes,

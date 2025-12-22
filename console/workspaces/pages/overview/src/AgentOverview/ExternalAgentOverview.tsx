@@ -21,7 +21,7 @@ import { Clock as AccessTime, Settings } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useMemo, useState } from "react";
 import dayjs from "dayjs";
-import { useGetAgent, useGetProject, useListEnvironments } from "@agent-management-platform/api-client";
+import { useGetAgent, useListEnvironments } from "@agent-management-platform/api-client";
 import { EnvironmentCard } from "@agent-management-platform/shared-component";
 import { InstrumentationDrawer } from "./InstrumentationDrawer";
 import { NoDataFound } from "@agent-management-platform/views";
@@ -39,10 +39,6 @@ export const ExternalAgentOverview = () => {
     agentName: agentId,
   });
 
-  const { data: project } = useGetProject({
-    orgName: orgId,
-    projName: projectId,
-  });
   const { data: environmentList, isLoading: isEnvironmentsLoading } = useListEnvironments({
     orgName: orgId,
   });
@@ -107,7 +103,7 @@ export const ExternalAgentOverview = () => {
                         variant="text"
                         size="small"
                         startIcon={<Settings size={16} />}
-                        onClick={() => handleSetupAgent(environment.uid ?? "")}
+                        onClick={() => handleSetupAgent(environment.uuid ?? "")}
                       >
                         Setup Agent
                       </Button>

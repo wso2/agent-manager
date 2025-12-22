@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+# Get the absolute directory of this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Change to script directory to ensure consistent working directory
+cd "$SCRIPT_DIR"
+
 PROJECT_ROOT="$1"
 CLUSTER_NAME="openchoreo-local-v0.7"
 CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
@@ -142,7 +148,7 @@ echo "5️⃣ Installing Custom Build CI Workflows..."
 if helm status amp-custom-build-ci-workflows -n openchoreo-build-plane &>/dev/null; then
     echo "⏭️  Custom Build CI Workflows already installed, skipping..."
 else
-    helm install amp-custom-build-ci-workflows $PROJECT_ROOT/deployments/helm-charts/wso2-amp-build-extension --namespace openchoreo-build-plane
+    helm install amp-custom-build-ci-workflows "${SCRIPT_DIR}/../helm-charts/wso2-amp-build-extension" --namespace openchoreo-build-plane
     echo "✅ Custom Build CI Workflows installed successfully"
 fi
 echo ""
@@ -153,7 +159,7 @@ if helm status amp-default-platform-resources &>/dev/null; then
     echo "⏭️  Platform Resources already installed, skipping..."
 else
     echo "   Creating default Organization, Project, Environment, and DeploymentPipeline..."
-    helm install amp-default-platform-resources $PROJECT_ROOT/deployments/helm-charts/wso2-amp-default-resources-extension --namespace default
+    helm install amp-default-platform-resources "${SCRIPT_DIR}/../helm-charts/wso2-amp-platform-resources-extension" --namespace default
     echo "✅ Default Platform Resources installed successfully"
 fi
 echo ""
@@ -164,13 +170,17 @@ echo "7️⃣  Installing OpenChoreo Observability Plane..."
 if helm status openchoreo-observability-plane -n openchoreo-observability-plane &>/dev/null; then
     echo "⏭️  Observability Plane already installed, skipping..."
 else
-    echo "   This includes OpenSearch"
+    echo "   Creating OpenChoreo Observability Plane namespace..."
+    kubectl create namespace openchoreo-observability-plane --dry-run=client -o yaml | kubectl apply -f -
+    echo "   Applying Custom OpenTelemetry Collector configuration..."
+    kubectl apply -f $1/deployments/values/oc-collector-configmap.yaml -n openchoreo-observability-plane
+    echo "   Installing Observability Plane Helm chart..."
     helm install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-    --version 0.7.0 \
-    --namespace openchoreo-observability-plane \
-    --create-namespace \
-    --values https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.7/install/k3d/single-cluster/values-op.yaml \
-    --set opentelemetryCollectorCustomizations.tailSampling.spansPerSecond=100000
+        --version 0.7.0 \
+        --namespace openchoreo-observability-plane \
+        --create-namespace \
+        --values https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.7/install/k3d/single-cluster/values-op.yaml \
+        --set opentelemetry-collector.configMap.existingName=amp-opentelemetry-collector-config
 fi
 
 echo "⏳ Waiting for OpenSearch pods to be ready..."
@@ -188,10 +198,10 @@ if helm status wso2-amp-observability-extension -n openchoreo-observability-plan
     echo "⏭️  WSO2 AMP Observability Extension already installed, skipping..."
 else
     echo "Building and loading Traces Observer Service Docker image into k3d cluster..."
-    make -C $1/traces-observer-service docker-load-k3d
+    make -C "${SCRIPT_DIR}/../../traces-observer-service" docker-load-k3d
     sleep 10        
     echo "   Traces Observer Service to the Observability Plane for tracing ingestion..."
-    helm install wso2-amp-observability-extension $1/deployments/helm-charts/wso2-amp-observability-extension \
+    helm install wso2-amp-observability-extension "${SCRIPT_DIR}/../helm-charts/wso2-amp-observability-extension" \
         --create-namespace \
         --namespace openchoreo-observability-plane \
         --timeout=10m \

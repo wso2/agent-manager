@@ -1,0 +1,52 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: amp-local
+image: rancher/k3s:v1.32.9-k3s1
+servers: 1
+agents: 0
+kubeAPI:
+  hostPort: "6550"
+# Single cluster mode exposes all plane port ranges for consistency with multi-cluster setup
+ports:
+  # AMP Console UI (NodePort service on port 3000)
+  - port: 3000:3000
+    nodeFilters:
+      - loadbalancer
+  # AMP API (LoadBalancer service on port 9000)
+  - port: 9000:9000
+    nodeFilters:
+      - loadbalancer
+  # AMP Traces Observer (NodePort service on port 9098)
+  - port: 9098:9098
+    nodeFilters:
+      - loadbalancer
+  # OTel Collector (NodePort service on port 21893)
+  - port: 21893:21893
+    nodeFilters:
+      - loadbalancer
+options:
+  k3s:
+    extraArgs:
+      # Add host.k3d.internal to API server TLS certificate SANs.
+      # This allows consistent DataPlane configuration across single and multi-cluster setups
+      # where Control Plane pods can access the API server via host.k3d.internal:6550
+      - arg: "--tls-san=host.k3d.internal"
+        nodeFilters:
+          - server:*
+      # Configure kubelet eviction thresholds to prevent resource exhaustion
+      - arg: "--kubelet-arg=eviction-hard=imagefs.available<10%,nodefs.available<10%"
+        nodeFilters:
+          - server:*
+      - arg: "--kubelet-arg=eviction-minimum-reclaim=imagefs.available=5%,nodefs.available=5%"
+        nodeFilters:
+          - server:*
+# Configure insecure registries for HTTP access
+# Allows kubelet to pull images from Build Plane registry via HTTP
+registries:
+  config: |
+    mirrors:
+      "host.k3d.internal:10082":
+        endpoint:
+          - http://host.k3d.internal:10082
+

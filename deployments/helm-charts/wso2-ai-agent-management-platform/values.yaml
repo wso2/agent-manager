@@ -42,8 +42,8 @@ agentManagerService:
     pullPolicy: IfNotPresent
 
   service:
-    type: NodePort
-    port: 8080
+    type: LoadBalancer
+    port: 9000
     targetPort: 8080
     annotations: {}
 
@@ -113,7 +113,7 @@ agentManagerService:
       metricsEnabled: "true"
       telemetryEnabled: "true"
       exporterInsecure: "true"
-      exporterEndpoint: "http://data-prepper.openchoreo-observability-plane:4317"
+      exporterEndpoint: "http://opentelemetry-collector.openchoreo-observability-plane:4318"
 
   # Pod-level configurations
   podAnnotations: {}
@@ -142,7 +142,7 @@ console:
     pullPolicy: Always
 
   service:
-    type: NodePort
+    type: LoadBalancer
     port: 3000
     targetPort: 3000
 
@@ -179,8 +179,8 @@ console:
     disableAuth: "true"
 
     # Backend API URLs (will be auto-configured if empty)
-    apiBaseUrl: "http://localhost:8080"  # Defaults to: http://amp-api:8080
-    obsApiBaseUrl: "http://localhost:9098"  # Optional observability API
+    apiBaseUrl: "http://localhost:9000"
+    obsApiBaseUrl: "http://localhost:9098"
 
   # Pod-level configurations
   podAnnotations: {}
@@ -218,19 +218,49 @@ dbMigration:
 
 # Ingress Configuration
 ingress:
-  enabled: true
+  enabled: false
   className: "nginx"
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
   hosts:
-    - host: agent-manager.local
+  - host: amp.local
+    http:
       paths:
-        - path: /
-          pathType: Prefix
-          service: console
-        - path: /api(/|$)(.*)
-          pathType: ImplementationSpecific
-          service: agent-manager-service
+      - path: /v1/traces
+        pathType: Prefix
+        backend:
+          service:
+            name: data-prepper-external
+            port:
+              number: 21893
+
+      - path: /api/trace
+        pathType: Prefix
+        backend:
+          service:
+            name: amp-traces-observer-external
+            port:
+              number: 9098
+
+      - path: /api/v1
+        pathType: Prefix
+        backend:
+          service:
+            name: amp-api
+            port:
+              number: 8080
+
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: amp-console
+            port:
+              number: 3000
   tls: []
 
 # ServiceAccount Configuration

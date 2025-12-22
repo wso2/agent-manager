@@ -34,7 +34,7 @@ spec:
               - name: AMP_TRACELOOP_TELEMETRY_ENABLED
                 value: "true"
               - name: AMP_OTEL_EXPORTER_OTLP_ENDPOINT
-                value: http://data-prepper.openchoreo-observability-plane.svc.cluster.local:21893
+                value: http://opentelemetry-collector.openchoreo-observability-plane.svc.cluster.local:4318
         initContainers:
           - name: setup-instrumentation
             image: ghcr.io/hanzjk/otel-instrumentation-setup:v1.0.1@sha256:c4d5a81d1112f5ea8bbbc1a9e3e3fd46c4a10b9c88c4d513677c364e4e63a7e4

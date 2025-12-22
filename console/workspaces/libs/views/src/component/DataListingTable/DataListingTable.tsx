@@ -21,20 +21,14 @@ import {
   Table,
   TableContainer,
   Paper,
-  Box,
   TablePagination,
-  Chip,
-  CircularProgress,
 } from '@wso2/oxygen-ui';
 import { TableHeader } from './subcomponents/TableHeader';
 import { TableBody } from './subcomponents/TableBody';
 import { LoadingState } from './subcomponents/LoadingState';
 import { ActionItem } from './subcomponents/ActionMenu';
 import {
-  BoxIcon,
-  CheckCircle,
-  Circle as CircleOutlined,
-  XCircle as ErrorOutline,
+  BoxIcon ,
 } from '@wso2/oxygen-ui-icons-react';
 import { NoDataFound } from '../NoDataFound';
 
@@ -47,10 +41,6 @@ export interface TableColumn<T = any> {
   align?: 'left' | 'center' | 'right';
 }
 
-export interface StatusConfig {
-  color: 'success' | 'warning' | 'error' | 'default';
-  label: string;
-}
 
 export interface MetricsData {
   metricsValue: string | number;
@@ -222,6 +212,9 @@ export const DataListingTable = <T extends Record<string, any>>({
     <Paper
       sx={{
         width: '100%',
+        "& .MuiTableContainer-root": {
+          backgroundColor: 'background.default',
+        },
       }}
     >
       <TableContainer>
@@ -260,28 +253,3 @@ export const DataListingTable = <T extends Record<string, any>>({
     </Paper>
   );
 };
-
-const getStatusIcon = (status: StatusConfig) => {
-  switch (status.color) {
-    case 'success':
-      return <CheckCircle size={16} />;
-    case 'warning':
-      return <CircularProgress size={14} color="warning" />;
-    case 'error':
-      return <ErrorOutline size={16} />;
-    default:
-      return <CircleOutlined size={16} />;
-  }
-};
-// Generic helper functions for common use cases
-export const renderStatusChip = (status: StatusConfig, theme?: any) => (
-  <Box display="flex" alignItems="center" gap={theme?.spacing(1) || 1}>
-    <Chip
-      variant="outlined"
-      icon={getStatusIcon(status)}
-      label={status.label}
-      color={status.color}
-      size="small"
-    />
-  </Box>
-);

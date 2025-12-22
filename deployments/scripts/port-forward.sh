@@ -36,7 +36,7 @@ trap cleanup EXIT INT TERM
 echo "📊 Forwarding OpenSearch (9200)..."
 kubectl port-forward -n openchoreo-observability-plane svc/opensearch 9200:9200 &
 
-# Port forward Data Prepper
+# Port forward OpenTelemetry Collector
 echo "📊 Forwarding OpenTelemetry Collector..."
 kubectl port-forward -n openchoreo-observability-plane svc/opentelemetry-collector 21893:4318 &
 
@@ -53,7 +53,7 @@ echo ""
 echo "✅ Port forwarding active:"
 echo "   Observer Service API: http://localhost:8085"
 echo "   OpenSearch:           http://localhost:9200"
-echo "   Data Prepper:        http://localhost:21893"
+echo "   OpenTelemetry Collector:        http://localhost:21893"
 echo "   Traces Observer Service:      http://localhost:9098"
 echo "   OpenSearch Dashboard: http://localhost:5601"
 

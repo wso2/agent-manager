@@ -21,8 +21,8 @@ import { ReactNode } from "react";
 
 export interface DrawerWrapperProps extends Omit<DrawerProps, "children"> {
   children: ReactNode;
-  minWidth?: number;
-  maxWidth?: number;
+  minWidth?: number | string;
+  maxWidth?: number | string;
 }
 
 export function DrawerWrapper({

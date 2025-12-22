@@ -3,8 +3,8 @@ name: WSO2 AI Agent Management Platform Release
 on:
   workflow_dispatch:
     inputs:
-      branch:
-        description: "Source branch to create release from"
+      source-ref:
+        description: "Source ref to create release from (branch name or commit SHA)"
         required: false
         default: "main"
         type: string
@@ -30,11 +30,24 @@ jobs:
       packages: write
     steps:
       - name: Validate inputs
+        id: validate
         run: |
+          # Validate target-release format
           if [[ ! "${{ inputs.target-release }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
             echo "Error: Invalid target-release format. Expected: X.Y.Z"
             exit 1
           fi
+          
+          # Determine if source-ref is a commit SHA or branch name
+          SOURCE_REF="${{ inputs.source-ref }}"
+          if [[ "$SOURCE_REF" =~ ^[0-9a-f]{7,40}$ ]]; then
+            echo "source-type=commit" >> $GITHUB_OUTPUT
+            echo "✅ Source ref is a commit SHA: $SOURCE_REF"
+          else
+            echo "source-type=branch" >> $GITHUB_OUTPUT
+            echo "✅ Source ref is a branch: $SOURCE_REF"
+          fi
+          echo "source-ref=$SOURCE_REF" >> $GITHUB_OUTPUT
           echo "✅ Inputs validated"
         shell: bash
 
@@ -44,7 +57,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: true
           fetch-depth: 0
-          ref: ${{ inputs.branch }}
+          ref: ${{ steps.validate.outputs.source-ref }}
 
       - name: Configure Git
         run: |
@@ -52,18 +65,47 @@ jobs:
           git config --local user.name "GitHub Action"
         shell: bash
 
+      - name: Verify source commit
+        id: verify-commit
+        run: |
+          SOURCE_REF="${{ steps.validate.outputs.source-ref }}"
+          SOURCE_TYPE="${{ steps.validate.outputs.source-type }}"
+          
+          # Get the commit SHA for the source ref
+          COMMIT_SHA=$(git rev-parse HEAD)
+          echo "commit-sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          
+          if [ "$SOURCE_TYPE" = "commit" ]; then
+            echo "✅ Using commit: $COMMIT_SHA"
+            echo "📝 Short SHA: ${COMMIT_SHA:0:7}"
+          else
+            echo "✅ Using branch '$SOURCE_REF' at commit: $COMMIT_SHA"
+            echo "📝 Short SHA: ${COMMIT_SHA:0:7}"
+          fi
+        shell: bash
+
       - name: Create release branch
         id: create-branch
         run: |
           BRANCH_NAME="amp-${{ inputs.target-release }}"
+          COMMIT_SHA="${{ steps.verify-commit.outputs.commit-sha }}"
+          
+          # Check if branch already exists
           if git show-ref --verify --quiet refs/heads/$BRANCH_NAME; then
-            echo "Branch $BRANCH_NAME already exists, checking it out"
+            echo "Branch $BRANCH_NAME already exists"
             git checkout "$BRANCH_NAME"
+            
+            # Reset to the source commit
+            git reset --hard "$COMMIT_SHA"
+            echo "✅ Reset existing branch to commit ${COMMIT_SHA:0:7}"
           else
+            # Create new branch from the source commit
             git checkout -b "$BRANCH_NAME"
+            echo "✅ Created new branch from commit ${COMMIT_SHA:0:7}"
           fi
+          
           echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          echo "✅ Created/checked out branch: $BRANCH_NAME"
+          echo "✅ Release branch: $BRANCH_NAME"
         shell: bash
 
       - name: Update Helm chart versions
@@ -82,14 +124,14 @@ jobs:
         run: |
           bash .github/scripts/update-install-helpers.sh \
             "${{ inputs.target-release }}" \
-            "./quick-start/install-helpers.sh"
+            "./deployments/quick-start/install-helpers.sh"
         shell: bash
 
       - name: Commit version updates
         id: commit-changes
         run: |
-          git add "./quick-start/install-helpers.sh" "./deployments/helm-charts/*/Chart.yaml" "./deployments/helm-charts/*/values.yaml" "./docs/quick-start.md" "./docs/install/single-cluster.md" 2>/dev/null || true
-
+          git add "./deployments/quick-start/install-helpers.sh" "./deployments/helm-charts/*/Chart.yaml" "./deployments/helm-charts/*/values.yaml" "./docs/quick-start.md" "./docs/install/single-cluster.md" 2>/dev/null || true
+          
           if git diff --staged --quiet; then
             echo "No changes to commit"
             echo "committed=false" >> $GITHUB_OUTPUT
@@ -104,32 +146,40 @@ jobs:
         id: create-tag
         run: |
           TAG="amp/v${{ inputs.target-release }}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists, deleting and recreating..."
-            git tag -d "$TAG" || true
-            git push origin ":refs/tags/$TAG" || true
+          COMMIT_SHA="${{ steps.verify-commit.outputs.commit-sha }}"
+          SOURCE_TYPE="${{ steps.validate.outputs.source-type }}"
+          
+          # Create tag message with source information
+          if [ "$SOURCE_TYPE" = "commit" ]; then
+            TAG_MESSAGE="Release $TAG from commit ${COMMIT_SHA:0:7}"
+          else
+            TAG_MESSAGE="Release $TAG from branch ${{ steps.validate.outputs.source-ref }} at commit ${COMMIT_SHA:0:7}"
           fi
-          git tag -a "$TAG" -m "Release $TAG"
+          
+          # Create new tag
+          git tag -a "$TAG" -m "$TAG_MESSAGE"
           git push origin "$TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "✅ Created and pushed tag: $TAG"
+          echo "📝 Source: $TAG_MESSAGE"
 
           # Extract major version and create/update major version tag
           MAJOR_VERSION=$(echo "${{ inputs.target-release }}" | cut -d. -f1)
           MAJOR_TAG="amp/v${MAJOR_VERSION}"
           echo "Creating/updating major version tag: $MAJOR_TAG"
+          
           if git rev-parse "$MAJOR_TAG" >/dev/null 2>&1; then
             echo "Major tag $MAJOR_TAG already exists, updating..."
             git tag -d "$MAJOR_TAG" || true
             git push origin ":refs/tags/$MAJOR_TAG" || true
           fi
+          
           git tag -a "$MAJOR_TAG" -m "Latest release for major version $MAJOR_VERSION"
           git push origin "$MAJOR_TAG"
           echo "✅ Created/updated major version tag: $MAJOR_TAG"
         shell: bash
 
       - name: Push branch
-        if: steps.commit-changes.outputs.committed == 'true'
         run: |
           git push origin "${{ steps.create-branch.outputs.branch }}"
           echo "✅ Pushed branch"
@@ -309,6 +359,15 @@ jobs:
           fetch-depth: 0
           ref: amp/v${{ inputs.target-release }}
 
+      - name: Get source commit info
+        id: commit-info
+        run: |
+          COMMIT_SHA=$(git rev-parse amp/v${{ inputs.target-release }}^{commit})
+          SHORT_SHA=${COMMIT_SHA:0:7}
+          echo "commit-sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "short-sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+        shell: bash
+
       - name: Create GitHub release
         id: create-release
         uses: softprops/action-gh-release@v2
@@ -324,6 +383,7 @@ jobs:
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-traces-observer:v${{ inputs.target-release }}`
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-python-instrumentation-provider:v${{ inputs.target-release }}`
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-quick-start:v${{ inputs.target-release }}`
+            
             ### Helm Charts
             - `${{ env.HELM_REGISTRY }}/wso2-ai-agent-management-platform:${{ inputs.target-release }}`
             - `${{ env.HELM_REGISTRY }}/wso2-amp-build-extension:${{ inputs.target-release }}`

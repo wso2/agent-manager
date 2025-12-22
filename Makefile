@@ -1,4 +1,4 @@
-.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward .make/kubeconfig-docker-generated
+.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward setup-kubeconfig-docker
 
 # Default target
 help:
@@ -41,7 +41,7 @@ help:
 	@echo ""
 
 # Complete setup
-setup: setup-colima setup-k3d setup-openchoreo .make/kubeconfig-docker-generated setup-platform setup-console-local
+setup: setup-colima setup-k3d setup-openchoreo setup-kubeconfig-docker setup-platform setup-console-local
 	@echo ""
 	@echo "✅ Complete setup finished!"
 	@echo ""
@@ -96,18 +96,15 @@ setup-console-local-force:
 	@rm -f .make/console-deps-installed .make/console-built
 	@$(MAKE) setup-console-local
 
-# Generate Docker-specific kubeconfig using kind --internal
+# Generate Docker-specific kubeconfig using k3d kubeconfig
 # Always regenerates to ensure it matches the current cluster
-.make/kubeconfig-docker-generated: | .make
+setup-kubeconfig-docker:
 	@echo "🔧 Generating Docker kubeconfig..."
 	@cd deployments/scripts && ./generate-docker-kubeconfig.sh
-	@touch .make/kubeconfig-docker-generated
-
-setup-kubeconfig-docker: .make/kubeconfig-docker-generated
 	@echo "✅ Docker kubeconfig is ready"
 
 # Daily development commands
-dev-up: setup-console-local .make/kubeconfig-docker-generated
+dev-up: setup-console-local setup-kubeconfig-docker
 	@echo "🚀 Starting Agent Manager platform..."
 	@cd deployments && docker compose up -d
 	@echo "✅ Platform is running!"

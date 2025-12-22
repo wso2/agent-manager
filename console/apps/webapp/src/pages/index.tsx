@@ -31,11 +31,7 @@ export const LazyOverviewOrg = overviewMetadata.levels.organization as FC;
 export const LazyOverviewProject = overviewMetadata.levels.project as FC;
 export const LazyOverviewComponent = overviewMetadata.levels.component as FC;
 
-export const LazyBuildComponent: FC = () => (
-  <PageLayout title={buildMetadata.title} disableIcon>
-    <buildMetadata.levels.component />
-  </PageLayout>
-);
+export const LazyBuildComponent = buildMetadata.levels.component as FC;
 
 export const LazyDeploymentComponent: FC = () => (
   <PageLayout title={deploymentMetadata.title} disableIcon>

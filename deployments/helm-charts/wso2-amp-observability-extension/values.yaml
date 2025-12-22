@@ -3,13 +3,13 @@ tracesObserver:
   enabled: true
   developmentMode: false
   name: amp-traces-observer
-  namespace: openchoreo-observability-plane
   replicaCount: 1
   image:
     repository: ghcr.io/wso2/amp-traces-observer
     tag: "0.0.0-dev"
     pullPolicy: IfNotPresent
   port: 9098
+  opensearchUrl: https://opensearch.openchoreo-observability-plane.svc.cluster.local:9200
   resourceLimits:
     memory: 256Mi
     cpu: 500m
@@ -17,14 +17,8 @@ tracesObserver:
     memory: 128Mi
     cpu: 250m
   service:
-    type: NodePort
-  env:
-    opensearchAddress: https://opensearch-headless.openchoreo-observability-plane.svc.cluster.local:9200
-    # Note: OpenSearch credentials are stored in opensearch-credentials secret
+    type: LoadBalancer
+
 opensearch:
-  hosts:
-    - https://opensearch-headless.openchoreo-observability-plane.svc.cluster.local:9200
-  namespace: openchoreo-observability-plane
   username: "admin"
   password: "ThisIsTheOpenSearchPassword1"
-

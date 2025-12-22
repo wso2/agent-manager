@@ -34,7 +34,7 @@ Then the API is available at: http://localhost:8080
 {{- end }}
 
 Next steps:
-1. Install observability-dataprepper chart (if needed)
+1. Install wso2-amp-observability-extension chart (if needed)
 2. Install build-ci chart (if needed)
 3. Configure your agents to connect to this platform
 

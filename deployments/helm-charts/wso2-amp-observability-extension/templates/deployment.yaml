@@ -3,7 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Values.tracesObserver.name }}
-  namespace: {{ .Values.tracesObserver.namespace }}
+  namespace: {{ .Release.Namespace }}
 spec:
   replicas: {{ .Values.tracesObserver.replicaCount }}
   selector:
@@ -30,7 +30,7 @@ spec:
             - name: TRACES_OBSERVER_PORT
               value: "{{ .Values.tracesObserver.port }}"
             - name: OPENSEARCH_ADDRESS
-              value: {{ .Values.tracesObserver.env.opensearchAddress }}
+              value: "{{ .Values.tracesObserver.opensearchUrl }}"
             - name: OPENSEARCH_USERNAME
               valueFrom:
                 secretKeyRef:
