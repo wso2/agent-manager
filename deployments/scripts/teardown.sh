@@ -18,7 +18,7 @@ fi
 
 echo ""
 
-# Delete Kind cluster
+# Delete K3d cluster
 if command -v k3d &> /dev/null; then
     if k3d cluster list 2>/dev/null | grep -q $CLUSTER_NAME; then
         echo "🛑 Deleting K3d cluster ..."
@@ -28,7 +28,7 @@ if command -v k3d &> /dev/null; then
         echo "⚠️  K3d cluster $CLUSTER_NAME not found"
     fi
 else
-    echo "⚠️  Kind not installed, skipping cluster deletion"
+    echo "⚠️  K3d not installed, skipping cluster deletion"
 fi
 
 echo ""
@@ -49,12 +49,6 @@ fi
 
 echo ""
 
-# Clean up shared directory
-if [ -d "/tmp/kind-shared" ]; then
-    echo "🧹 Cleaning up /tmp/kind-shared..."
-    rm -rf /tmp/kind-shared
-    echo "✅ Shared directory cleaned"
-fi
 
 echo ""
 
