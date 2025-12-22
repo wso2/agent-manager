@@ -1,4 +1,6 @@
 #!/bin/bash
+CLUSTER_NAME="openchoreo-local-v0.7"
+
 set -e
 
 echo "=== Tearing Down Agent Manager Development Environment ==="
@@ -17,13 +19,13 @@ fi
 echo ""
 
 # Delete Kind cluster
-if command -v kind &> /dev/null; then
-    if kind get clusters 2>/dev/null | grep -q "^openchoreo-local$"; then
-        echo "🛑 Deleting Kind cluster 'openchoreo-local'..."
-        kind delete cluster --name openchoreo-local
-        echo "✅ Kind cluster deleted"
+if command -v k3d &> /dev/null; then
+    if k3d cluster list 2>/dev/null | grep -q $CLUSTER_NAME; then
+        echo "🛑 Deleting K3d cluster ..."
+        k3d cluster delete $CLUSTER_NAME
+        echo "✅ K3d cluster deleted"
     else
-        echo "⚠️  Kind cluster 'openchoreo-local' not found"
+        echo "⚠️  K3d cluster $CLUSTER_NAME not found"
     fi
 else
     echo "⚠️  Kind not installed, skipping cluster deletion"
