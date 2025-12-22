@@ -44,9 +44,9 @@ export function AgentChat() {
   const [message, setMessage] = useState("");
   const defaultBody = useMemo(() => {
     return {
-      thread_id: Math.floor(Math.random() * 1000),
-      passenger_id: "2021 652719",
-      question: "Hi, How can you help me?",
+      session_id: Math.floor(Math.random() * 1000),
+      message: "Hi, How can you help me?",
+      context: {},
     };
   }, []);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -99,7 +99,7 @@ export function AgentChat() {
     try {
       const requestBody = {
         ...defaultBody,
-        question: userMessage.content,
+        message: userMessage.content,
       };
 
       const apiResponse = await fetch(endpoint, {
@@ -137,8 +137,8 @@ export function AgentChat() {
         setMessages((prev) => [...prev, errorMessageObj]);
       } else {
         const responseText =
-          typeof responseData?.results === "string"
-            ? (responseData.results as string)
+          typeof responseData?.response === "string"
+            ? (responseData.response as string)
             : JSON.stringify(responseData?.result, null, 4);
 
         const assistantMessage: ChatMessage = {
