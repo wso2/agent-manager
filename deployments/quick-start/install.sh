@@ -447,7 +447,7 @@ log_step "Step 4/7: Installing OpenChoreo Data Plane"
 helm_install_idempotent \
     "openchoreo-data-plane" \
     "oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane" \
-    "openchoreo-data-plane" \
+    "${DATA_PLANE_NS}" \
     "${TIMEOUT_DATA_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
     --values "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/k3d/single-cluster/values-dp.yaml"
@@ -485,7 +485,7 @@ log_step "Step 5/7: Installing OpenChoreo Build Plane"
 helm_install_idempotent \
     "openchoreo-build-plane" \
     "oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane" \
-    "openchoreo-build-plane" \
+    "${BUILD_CI_NS}" \
     "${TIMEOUT_BUILD_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
     --values "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/k3d/single-cluster/values-bp.yaml"
@@ -520,6 +520,42 @@ wait_for_deployments "openchoreo-build-plane" "${TIMEOUT_BUILD_PLANE}"
 
 log_step "Step 6/7: Installing OpenChoreo Observability Plane"
 
+# Create namespace (idempotent)
+log_info "Ensuring OpenChoreo Observability Plane namespace exists..."
+if kubectl get namespace "${OBSERVABILITY_NS}" &>/dev/null; then
+    log_info "Namespace '${OBSERVABILITY_NS}' already exists, skipping creation"
+else
+    if kubectl create namespace "${OBSERVABILITY_NS}" &>/dev/null; then
+        log_success "Namespace '${OBSERVABILITY_NS}' created successfully"
+    else
+        log_error "Failed to create namespace '${OBSERVABILITY_NS}'"
+        exit 1
+    fi
+fi
+
+# Apply OpenTelemetry Collector ConfigMap (idempotent)
+log_info "Applying Custom OpenTelemetry Collector configuration..."
+CONFIGMAP_FILE="https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp-${VERSION}/deployments/values/oc-collector-configmap.yaml"
+
+if [ ! -f "${CONFIGMAP_FILE}" ]; then
+    log_error "ConfigMap file not found: ${CONFIGMAP_FILE}"
+    exit 1
+fi
+
+if kubectl apply -f "${CONFIGMAP_FILE}" -n "${OBSERVABILITY_NS}" &>/dev/null; then
+    log_success "OpenTelemetry Collector configuration applied successfully"
+else
+    log_error "Failed to apply OpenTelemetry Collector configuration"
+    log_info "Attempting to verify ConfigMap status..."
+    if kubectl get configmap amp-opentelemetry-collector-config -n "${OBSERVABILITY_NS}" &>/dev/null; then
+        log_warning "ConfigMap exists but apply failed (may already be up-to-date)"
+    else
+        log_error "ConfigMap does not exist and apply failed"
+        exit 1
+    fi
+fi
+
+log_info "Installing OpenChoreo Observability Plane..."
 helm_install_idempotent \
     "openchoreo-observability-plane" \
     "oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane" \

@@ -28,6 +28,10 @@ openSearchDashboards:
 external-secrets:
   enabled: false
 
+opentelemetryCollector:
+  configMap:
+    existingName: amp-opentelemetry-collector-config
+
 fakeSecretStore:
   enabled: false
 

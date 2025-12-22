@@ -60,8 +60,20 @@ helm install openchoreo-control-plane \
 
 #### Install OpenChoreo Observability Plane
 
+Create namespace *openchoreo-observability-plane*
+
 ```bash
-# Install Observability Plane
+kubectl create namesapce openchoreo-observability-plane
+```
+
+Create the opentelemetry collector config map
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp-v0.0.0-dev/deployments/values/oc-collector-configmap.yaml
+```
+Install the Openchoreo observability plane to the same namespace.
+
+```bash
 helm install openchoreo-observability-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
   --version 0.7.0 \
