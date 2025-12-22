@@ -232,7 +232,7 @@ Configure the DataPlane and BuildPlane to use the observability observer:
 ```bash
 # Configure DataPlane observer
 kubectl patch dataplane default -n default --type merge \
-  -p '{"spec":{"observer":{"url":"http://observer.openchoreo-observability-plane:8080","authentication":{"basicAuth":{"username":"dummy","password":"dummy"}}}}}'
+  -p '{"spec":{"observer":{"url":"http://observer.openchoreo-observability-plane:8080","authentication":{"basicAuth":{"username":"dummy","password":"dummy"}}}, "gateway": {"publicVirtualHost": "localhost"}}}'
 
 # Configure BuildPlane observer
 kubectl patch buildplane default -n default --type merge \
@@ -257,17 +257,6 @@ helm install build-workflow-extensions \
 
 **Note:** This extension is non-fatal if installation fails. The platform will function, but build CI features may not work.
 
-### Step 6: Configure CORS 
-
-If accessing the console from a different origin, configure CORS:
-
-```bash
-# Patch APIClass to allow CORS origin
-kubectl patch apiclass default-with-cors \
-  -n default \
-  --type json \
-  -p '[{"op":"add","path":"/spec/restPolicy/defaults/cors/allowOrigins/-","value":"http://localhost:3000"}]'
-```
 
 ## Verification
 
@@ -307,10 +296,7 @@ Set up port forwarding to access the services locally:
 kubectl port-forward -n wso2-amp svc/amp-console 3000:3000 &
 
 # Agent Manager API (port 8080)
-kubectl port-forward -n wso2-amp svc/amp-api 8080:8080 &
-
-# Traces Observer (port 9098)
-kubectl port-forward -n openchoreo-observability-plane svc/amp-traces-observer 9098:9098 &
+kubectl port-forward -n wso2-amp svc/amp-api 9000:9000 &
 
 # OTel Collector (port 21893)
 kubectl port-forward -n openchoreo-observability-plane svc/otel-collector 21893:4318 &
@@ -322,8 +308,7 @@ kubectl port-forward -n openchoreo-observability-plane svc/otel-collector 21893:
 After port forwarding is set up:
 
 - **Console**: http://localhost:3000
-- **API**: http://localhost:8080
-- **Traces Observer**: http://localhost:9098
+- **API**: http://localhost:9000
 - **OpenTelemetry Collector**: http://localhost:21893
 
 ## Custom Configuration

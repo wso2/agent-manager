@@ -464,6 +464,14 @@ fi
 # Verify DataPlane resource
 if kubectl get dataplane default -n default &>/dev/null; then
     log_success "DataPlane resource 'default' exists"
+
+    log_info "Configuring DataPlane gateway..."
+    if kubectl patch dataplane default  --type merge -p '{"spec": {"gateway": {"publicVirtualHost": "localhost"}}}' &>/dev/null; then
+        log_success "DataPlane gateway configured successfully"
+    else
+        log_warning "DataPlane gateway configuration failed (non-fatal)"
+    fi
+
     AGENT_ENABLED=$(kubectl get dataplane default -n default -o jsonpath='{.spec.agent.enabled}' 2>/dev/null || echo "false")
     if [ "$AGENT_ENABLED" = "true" ]; then
         log_success "Agent mode is enabled"
