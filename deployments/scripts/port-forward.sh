@@ -36,7 +36,7 @@ trap cleanup EXIT INT TERM
 echo "📊 Forwarding OpenSearch (9200)..."
 kubectl port-forward -n openchoreo-observability-plane svc/opensearch 9200:9200 &
 
-# Port forward OTel Collector
+# Port forward OpenTelemetry Collector
 echo "📊 Forwarding OpenTelemetry Collector..."
 kubectl port-forward -n openchoreo-observability-plane svc/opentelemetry-collector 21893:4318 &
 
