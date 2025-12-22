@@ -16,11 +16,7 @@
  * under the License.
  */
 
-import {
-  CheckCircle,
-  Circle,
-  Settings,
-} from "@wso2/oxygen-ui-icons-react";
+import { CheckCircle, Circle, Settings } from "@wso2/oxygen-ui-icons-react";
 import {
   Alert,
   Box,
@@ -38,7 +34,7 @@ import { TextInput } from "@agent-management-platform/views";
 const inputInterfaces = [
   {
     label: "Chat Agent",
-    description: "Standard chat interface with /chat endpoint on port 8080",
+    description: "Standard chat interface with /chat endpoint on port 8000",
     default: true,
     value: "DEFAULT",
     icon: <CheckCircle />,
@@ -90,7 +86,6 @@ export const InputInterface = () => {
     [setValue]
   );
 
-
   return (
     <Card variant="outlined">
       <CardContent sx={{ gap: 1, display: "flex", flexDirection: "column" }}>
@@ -138,9 +133,7 @@ export const InputInterface = () => {
                     height="100%"
                     gap={1}
                   >
-                    <Box
-               
-                    >
+                    <Box>
                       {interfaceType === inputInterface.value ? (
                         <CheckCircle size={16} />
                       ) : (
@@ -163,11 +156,13 @@ export const InputInterface = () => {
           </Box>
           <Collapse in={interfaceType === "DEFAULT"}>
             <Alert severity="info">
-              Uses the standard chat interface: <strong>POST /chat</strong> on port <strong>8080</strong>
+              Uses the standard chat interface: <strong>POST /chat</strong> on
+              port <strong>8000</strong>
               <br />
-              Request: <code>{`{message: string, session_id: string, context: JSON}`}</code>
+              Request:{" "}
+              <code>{`{message: string, session_id: string, context: JSON}`}</code>
               <br />
-              Response: <code>{`{reply: string}`}</code>
+              Response: <code>{`{response: string}`}</code>
             </Alert>
           </Collapse>
           <Collapse in={interfaceType === "CUSTOM"}>
