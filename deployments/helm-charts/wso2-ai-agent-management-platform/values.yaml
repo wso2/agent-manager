@@ -113,7 +113,7 @@ agentManagerService:
       metricsEnabled: "true"
       telemetryEnabled: "true"
       exporterInsecure: "true"
-      exporterEndpoint: "http://data-prepper.openchoreo-observability-plane:4317"
+      exporterEndpoint: "http://opentelemetry-collector.openchoreo-observability-plane:4318"
 
   # Pod-level configurations
   podAnnotations: {}

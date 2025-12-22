@@ -69,7 +69,7 @@ this will start port-forwarding for all the required services.
 - **Console**: http://localhost:3000
 - **API**: http://localhost:8080
 - **Traces Observer**: http://localhost:9098
-- **OTel Collector**: http://localhost:21893
+- **OpenTelemetry Collector**: http://localhost:21893
 - **Gateway**: https://localhost:8443
 
 ## Uninstall
