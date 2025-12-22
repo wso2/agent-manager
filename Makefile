@@ -1,4 +1,4 @@
-.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward
+.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward .make/kubeconfig-docker-generated
 
 # Default target
 help:
@@ -100,7 +100,6 @@ setup-console-local-force:
 # Always regenerates to ensure it matches the current cluster
 .make/kubeconfig-docker-generated: | .make
 	@echo "🔧 Generating Docker kubeconfig..."
-	@rm -f .make/kubeconfig-docker-generated ~/.kube/config-docker
 	@cd deployments/scripts && ./generate-docker-kubeconfig.sh
 	@touch .make/kubeconfig-docker-generated
 
