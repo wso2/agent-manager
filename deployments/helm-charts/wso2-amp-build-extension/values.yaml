@@ -15,7 +15,7 @@ global:
   agentManagerService:
     # -- The base URL of the agent manager service
     # Use host.k3d.internal for k3d or host.docker.internal for Docker Desktop/Kind to access host machine
-    url: "http://host.k3d.internal:8080"
+    url: "http://host.k3d.internal:9000"
     apiKeyHeader: "X-API-Key"
     # -- API Key for agent manager authentication
     # Provide it during installation with:
