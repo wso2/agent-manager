@@ -232,7 +232,7 @@ func createOTELInstrumentationTrait(ocAgentComponent *v1alpha1.Component, envUUI
 		"otelEndpoint":          config.GetConfig().OTEL.ExporterEndpoint,
 		"isTraceContentEnabled": utils.BoolAsString(config.GetConfig().OTEL.IsTraceContentEnabled),
 		"traceAttributes":       fmt.Sprintf("%s=%s,%s=%s,%s=%s", TraceAttributeKeyProject, projectUUID, TraceAttributeKeyEnvironment, envUUID, TraceAttributeKeyComponent, ocAgentComponent.UID),
-		"agentApiKey":           "000000000-0000-0000-0000-000000000000",
+		"agentApiKey":           uuid.New().String(),
 	}
 	traitParametersJSON, err := json.Marshal(traitParameters)
 	if err != nil {
