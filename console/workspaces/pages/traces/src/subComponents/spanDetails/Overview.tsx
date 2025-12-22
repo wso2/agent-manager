@@ -25,7 +25,7 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { MessageCircle } from "@wso2/oxygen-ui-icons-react";
+import { Info } from "@wso2/oxygen-ui-icons-react";
 import { AmpAttributes, PromptMessage } from "@agent-management-platform/types";
 import { memo, useCallback, useMemo } from "react";
 
@@ -179,12 +179,12 @@ export function Overview({ ampAttributes }: OverviewProps) {
     }
   }, []);
 
-  if (!hasContent) {
+  if (!hasContent && !ampAttributes?.name) {
     return (
       <NoDataFound
-        message="No input or output messages found"
-        iconElement={MessageCircle}
-        subtitle="No messages found"
+        message="Failed to extract span details"
+        iconElement={Info}
+        subtitle="Try selecting a different span"
         disableBackground
       />
     );
@@ -192,6 +192,17 @@ export function Overview({ ampAttributes }: OverviewProps) {
 
   return (
     <Stack spacing={3}>
+      {ampAttributes?.name && (
+        <Stack>
+          <Typography variant="h6">Name</Typography>
+          <Card variant="outlined">
+            <CardContent>
+              <Typography variant="body2">{ampAttributes?.name}</Typography>
+            </CardContent>
+          </Card>
+        </Stack>
+      )}
+
       <MessageList
         title="Input Messages"
         messages={inputMessages}

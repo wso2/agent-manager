@@ -30,11 +30,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { FadeIn, NoDataFound } from "@agent-management-platform/views";
 import { TraceOverview } from "@agent-management-platform/types";
-import {
-  CheckCircle,
-  Workflow,
-  XCircle,
-} from "@wso2/oxygen-ui-icons-react";
+import { CheckCircle, Workflow, XCircle } from "@wso2/oxygen-ui-icons-react";
 import dayjs from "dayjs";
 
 interface TracesTableProps {
@@ -83,13 +79,22 @@ export function TracesTable({
                 <TableCell align="center" sx={{ width: "10%" }}>
                   Start Time
                 </TableCell>
-                <TableCell align="right" sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}>
+                <TableCell
+                  align="right"
+                  sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}
+                >
                   Duration
                 </TableCell>
-                <TableCell align="right" sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}>
+                <TableCell
+                  align="right"
+                  sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}
+                >
                   Tokens
                 </TableCell>
-                <TableCell align="right" sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}>
+                <TableCell
+                  align="right"
+                  sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}
+                >
                   Spans
                 </TableCell>
               </TableRow>
@@ -117,7 +122,7 @@ export function TracesTable({
                     }}
                   >
                     <Tooltip
-                      title={`${trace.status?.errorCount} errors found.`}
+                      title={`${trace.status?.errorCount} errors found`}
                       disableHoverListener={
                         !trace.status?.errorCount ||
                         trace.status?.errorCount === 0
@@ -195,21 +200,38 @@ export function TracesTable({
                       {dayjs(trace.startTime).format("YYYY-MM-DD HH:mm:ss")}
                     </Typography>
                   </TableCell>
-                  <TableCell align="right" sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}>
+                  <TableCell
+                    align="right"
+                    sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}
+                  >
                     <Typography variant="caption" component="span">
                       {toNStoSeconds(trace.durationInNanos).toFixed(2)}s
                     </Typography>
                   </TableCell>
-                  <TableCell align="right" sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}>
-                    <Typography variant="caption" component="span">
-                      {trace.tokenUsage?.totalTokens ? (
-                        <>{trace.tokenUsage.totalTokens}</>
-                      ) : (
-                        "-"
-                      )}
-                    </Typography>
+                  <TableCell
+                    align="right"
+                    sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}
+                  >
+                    <Tooltip
+                      disableHoverListener={
+                        !trace.tokenUsage?.totalTokens ||
+                        trace.tokenUsage.totalTokens === 0
+                      }
+                      title={`${trace.tokenUsage?.inputTokens} input tokens, ${trace.tokenUsage?.outputTokens} output tokens`}
+                    >
+                      <Typography variant="caption" component="span">
+                        {trace.tokenUsage?.totalTokens ? (
+                          <>{trace.tokenUsage.totalTokens}</>
+                        ) : (
+                          "-"
+                        )}
+                      </Typography>
+                    </Tooltip>
                   </TableCell>
-                  <TableCell align="right" sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}>
+                  <TableCell
+                    align="right"
+                    sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}
+                  >
                     <Typography variant="caption" component="span">
                       {trace.spanCount}
                     </Typography>

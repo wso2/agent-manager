@@ -16,13 +16,13 @@
  * under the License.
  */
 
-import { Box, Chip, Stack, Tab, Tabs, Typography } from "@wso2/oxygen-ui";
+import { Chip, Divider, Stack, Tab, Tabs, Typography } from "@wso2/oxygen-ui";
 import { Span } from "@agent-management-platform/types";
 import { BasicInfoSection } from "./spanDetails/BasicInfoSection";
 import { AttributesSection } from "./spanDetails/AttributesSection";
 import { useEffect, useState } from "react";
 import { ToolsSection } from "./spanDetails/ToolsSection";
-import { FadeIn, SpanIcon } from "@agent-management-platform/views";
+import { FadeIn } from "@agent-management-platform/views";
 import { Overview } from "./spanDetails/Overview";
 
 interface SpanDetailsPanelProps {
@@ -57,9 +57,6 @@ export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
     <Stack spacing={2} sx={{ height: "100%" }}>
       <Stack spacing={2} px={1}>
         <Stack direction="row" spacing={1}>
-          <Box color="primary.main">
-            <SpanIcon span={span} />
-          </Box>
           <Typography variant="h4">{span.name}</Typography>{" "}
           {span.ampAttributes?.kind && (
             <Chip
@@ -80,6 +77,7 @@ export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
         {span?.ampAttributes?.tools && <Tab label="Tools" value="tools" />}
         {span?.attributes && <Tab label="Attributes" value="attributes" />}
       </Tabs>
+      <Divider />
       <Stack spacing={2} px={1} sx={{ overflowY: "auto", flexGrow: 1 }}>
         {selectedTab === "attributes" && (
           <FadeIn>
