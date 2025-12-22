@@ -57,8 +57,10 @@ export const ExternalAgentOverview = () => {
   }, [environmentList]);
 
   useEffect(() => {
-    setSelectedEnvironmentId(sortedEnvironmentList?.[0]?.uuid ?? "");
-  }, [sortedEnvironmentList]);
+    if (!selectedEnvironmentId && sortedEnvironmentList) {
+      setSelectedEnvironmentId(sortedEnvironmentList?.[0]?.uuid ?? "");
+    }
+  }, [sortedEnvironmentList, selectedEnvironmentId]);
 
   // Sample instrumentation config - these would come from props or API
   const instrumentationUrl =

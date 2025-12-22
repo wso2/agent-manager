@@ -192,14 +192,17 @@ export function Overview({ ampAttributes }: OverviewProps) {
 
   return (
     <Stack spacing={3}>
-      <Stack>
-        <Typography variant="h6">Name</Typography>
-        <Card variant="outlined">
-          <CardContent>
-            <Typography variant="body2">{ampAttributes?.name}</Typography>
-          </CardContent>
-        </Card>
-      </Stack>
+      {ampAttributes?.name && (
+        <Stack>
+          <Typography variant="h6">Name</Typography>
+          <Card variant="outlined">
+            <CardContent>
+              <Typography variant="body2">{ampAttributes?.name}</Typography>
+            </CardContent>
+          </Card>
+        </Stack>
+      )}
+
       <MessageList
         title="Input Messages"
         messages={inputMessages}

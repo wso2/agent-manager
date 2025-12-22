@@ -90,7 +90,7 @@ export function BasicInfoSection({ span }: BasicInfoSectionProps) {
       )}
       {span.ampAttributes?.tokenUsage && (
         <Tooltip
-          title={`Used ${span.ampAttributes?.tokenUsage.inputTokens} input tokens, ${span.ampAttributes?.tokenUsage.outputTokens} output tokens`}
+          title={`${span.ampAttributes?.tokenUsage.inputTokens} input tokens, ${span.ampAttributes?.tokenUsage.outputTokens} output tokens`}
         >
           <Chip
             icon={<Coins size={16} />}

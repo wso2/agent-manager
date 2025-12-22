@@ -302,7 +302,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
               <Stack direction="row" spacing={1} alignItems="center">
                 {span.span.ampAttributes?.tokenUsage && (
                   <Tooltip
-                    title={`Used ${span.span.ampAttributes?.tokenUsage.inputTokens} input tokens, ${span.span.ampAttributes?.tokenUsage.outputTokens} output tokens`}
+                    title={`${span.span.ampAttributes?.tokenUsage.inputTokens} input tokens, ${span.span.ampAttributes?.tokenUsage.outputTokens} output tokens`}
                   >
                     <Chip
                       icon={<Coins size={16} />}

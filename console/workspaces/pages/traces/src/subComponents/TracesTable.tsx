@@ -213,6 +213,10 @@ export function TracesTable({
                     sx={{ width: "10%", maxWidth: 100, minWidth: 80 }}
                   >
                     <Tooltip
+                      disableHoverListener={
+                        !trace.tokenUsage?.totalTokens ||
+                        trace.tokenUsage.totalTokens === 0
+                      }
                       title={`${trace.tokenUsage?.inputTokens} input tokens, ${trace.tokenUsage?.outputTokens} output tokens`}
                     >
                       <Typography variant="caption" component="span">
