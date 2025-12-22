@@ -82,7 +82,7 @@ print("INIT_SUCCESS")
         "PYTHONPATH": str(bootstrap_dir),
         "AMP_OTEL_ENDPOINT": "https://otel.example.com",
         "AMP_AGENT_API_KEY": "test-key",
-        "AMP_TRACE_ATTRIBUTES": "project-uid=proj,environment-uid=env,component-uid=comp",
+        "AMP_TRACE_ATTRIBUTES": "environment-uid=env,component-uid=comp",
     }
 
     result = subprocess.run(

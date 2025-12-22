@@ -34,7 +34,7 @@ def transform_resource_attributes(resource_attributes):
         raise ValueError("AMP_TRACE_ATTRIBUTES is required but not set")
 
     # Define required attributes
-    required_attrs = ["project-uid", "environment-uid", "component-uid"]
+    required_attrs = ["environment-uid", "component-uid"]
 
     # Parse resource attributes into a dictionary
     attrs_dict = {}
