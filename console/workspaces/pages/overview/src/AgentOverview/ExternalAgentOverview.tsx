@@ -19,19 +19,23 @@
 import { Box, Typography, Button, Skeleton } from "@wso2/oxygen-ui";
 import { Clock as AccessTime, Settings } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
 import { useGetAgent, useListEnvironments } from "@agent-management-platform/api-client";
 import { EnvironmentCard } from "@agent-management-platform/shared-component";
 import { InstrumentationDrawer } from "./InstrumentationDrawer";
 import { NoDataFound } from "@agent-management-platform/views";
-import { globalConfig, type Environment } from "@agent-management-platform/types";
+import {
+  globalConfig,
+  type Environment,
+} from "@agent-management-platform/types";
 
 export const ExternalAgentOverview = () => {
   const { agentId, orgId, projectId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const isInstrumentationDrawerOpen = searchParams.get("setup") === "true";
-  const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<string>("");
+  const [selectedEnvironmentId, setSelectedEnvironmentId] =
+    useState<string>("");
 
   const { data: agent } = useGetAgent({
     orgName: orgId,
@@ -52,8 +56,13 @@ export const ExternalAgentOverview = () => {
     });
   }, [environmentList]);
 
+  useEffect(() => {
+    setSelectedEnvironmentId(sortedEnvironmentList?.[0]?.uuid ?? "");
+  }, [sortedEnvironmentList]);
+
   // Sample instrumentation config - these would come from props or API
-  const instrumentationUrl = globalConfig.instrumentationUrl ?? "http://localhost:21893";
+  const instrumentationUrl =
+    globalConfig.instrumentationUrl ?? "http://localhost:21893";
   const apiKey = "00000000-0000-0000-0000-000000000000";
 
   const handleSetupAgent = (environmentId: string) => {
@@ -76,7 +85,7 @@ export const ExternalAgentOverview = () => {
             <Typography variant="body2">Created</Typography>
             <AccessTime size={14} />
             <Typography variant="body2">
-              {agent?.createdAt ? dayjs(agent.createdAt).fromNow() : '—'}
+              {agent?.createdAt ? dayjs(agent.createdAt).fromNow() : "—"}
             </Typography>
           </Box>
         </Box>
@@ -86,33 +95,37 @@ export const ExternalAgentOverview = () => {
             <Skeleton variant="rounded" height={100} />
           </Box>
         )}
-        {!isEnvironmentsLoading && sortedEnvironmentList && sortedEnvironmentList.length > 0 && (
-          <>
-            {sortedEnvironmentList.map(
-              (environment: Environment) =>
-                environment && (
-                  <EnvironmentCard
-                    key={environment.name}
-                    external
-                    orgId={orgId ?? "default"}
-                    projectId={projectId ?? "default"}
-                    agentId={agentId ?? "default"}
-                    environment={environment}
-                    actions={
-                      <Button
-                        variant="text"
-                        size="small"
-                        startIcon={<Settings size={16} />}
-                        onClick={() => handleSetupAgent(environment.uuid ?? "")}
-                      >
-                        Setup Agent
-                      </Button>
-                    }
-                  />
-                )
-            )}
-          </>
-        )}
+        {!isEnvironmentsLoading &&
+          sortedEnvironmentList &&
+          sortedEnvironmentList.length > 0 && (
+            <>
+              {sortedEnvironmentList.map(
+                (environment: Environment) =>
+                  environment && (
+                    <EnvironmentCard
+                      key={environment.name}
+                      external
+                      orgId={orgId ?? "default"}
+                      projectId={projectId ?? "default"}
+                      agentId={agentId ?? "default"}
+                      environment={environment}
+                      actions={
+                        <Button
+                          variant="text"
+                          size="small"
+                          startIcon={<Settings size={16} />}
+                          onClick={() =>
+                            handleSetupAgent(environment.uuid ?? "")
+                          }
+                        >
+                          Setup Agent
+                        </Button>
+                      }
+                    />
+                  )
+              )}
+            </>
+          )}
         {!isEnvironmentsLoading &&
           (!sortedEnvironmentList || sortedEnvironmentList.length === 0) && (
             <NoDataFound
