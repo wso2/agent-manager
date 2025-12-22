@@ -228,7 +228,6 @@ func createOTELInstrumentationTrait(ocAgentComponent *v1alpha1.Component, envUUI
 		"instrumentationImage":  getInstrumentationImage(ocAgentComponent.Labels[string(LabelKeyAgentLanguageVersion)]),
 		"sdkVolumeName":         config.GetConfig().OTEL.SDKVolumeName,
 		"sdkMountPath":          config.GetConfig().OTEL.SDKMountPath,
-		"agentName":             ocAgentComponent.Name,
 		"otelEndpoint":          config.GetConfig().OTEL.ExporterEndpoint,
 		"isTraceContentEnabled": utils.BoolAsString(config.GetConfig().OTEL.IsTraceContentEnabled),
 		"traceAttributes":       fmt.Sprintf("%s=%s,%s=%s,%s=%s", TraceAttributeKeyProject, projectUUID, TraceAttributeKeyEnvironment, envUUID, TraceAttributeKeyComponent, ocAgentComponent.UID),
