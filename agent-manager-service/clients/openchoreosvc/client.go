@@ -410,6 +410,30 @@ func (k *openChoreoSvcClient) DeleteAgentComponent(ctx context.Context, orgName 
 		}
 	}
 
+	releaseList := &v1alpha1.ReleaseList{}
+	listOpts := []client.ListOption{
+		client.InNamespace(orgName),
+		client.MatchingLabels{
+			string(LabelKeyOrganizationName): orgName,
+			string(LabelKeyProjectName):      projName,
+			string(LabelKeyComponentName):    agentName,
+		},
+	}
+	err = k.retryK8sOperation(ctx, "ListRelease", func() error {
+		return k.client.List(ctx, releaseList, listOpts...)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list release: %w", err)
+	}
+	for _, release := range releaseList.Items {
+		err = k.retryK8sOperation(ctx, "DeleteRelease", func() error {
+			return k.client.Delete(ctx, &release)
+		})
+		if err != nil && client.IgnoreNotFound(err) != nil {
+			return fmt.Errorf("failed to delete release %s: %w", release.Name, err)
+		}
+	}
+
 	// Finally, delete the component
 	err = k.retryK8sOperation(ctx, "DeleteComponent", func() error {
 		return k.client.Delete(ctx, component)
