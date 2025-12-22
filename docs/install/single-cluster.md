@@ -55,7 +55,7 @@ helm install openchoreo-control-plane \
   --version 0.7.0 \
   --namespace openchoreo-control-plane \
   --create-namespace \
-  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp-v0.0.0-dev/deployments/single-cluster/values-cp.yaml
+  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/single-cluster/values-cp.yaml
 ```
 
 #### Install OpenChoreo Observability Plane
@@ -69,7 +69,7 @@ kubectl create namespace openchoreo-observability-plane
 Create the opentelemetry collector config map
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp-v0.0.0-dev/deployments/values/oc-collector-configmap.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/values/oc-collector-configmap.yaml
 ```
 Install the Openchoreo observability plane to the same namespace.
 
@@ -79,7 +79,7 @@ helm install openchoreo-observability-plane \
   --version 0.7.0 \
   --namespace openchoreo-observability-plane \
   --create-namespace \
-  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp-v0.0.0-dev/deployments/single-cluster/values-op.yaml
+  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/single-cluster/values-op.yaml
 ```
 Follow [OpenChoreo Single Cluster Setup](https://openchoreo.dev/docs/v0.7.x/getting-started/single-cluster/) to install the rest of the OpenChoreo components for single cluster.
 
