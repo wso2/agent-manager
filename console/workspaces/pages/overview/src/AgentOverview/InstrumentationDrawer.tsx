@@ -71,8 +71,7 @@ export const InstrumentationDrawer = ({
           <SetupStep
             stepNumber={2}
             title="Set environment variables"
-            code={`export AMP_AGENT_NAME="${agentId}"
-export AMP_OTEL_ENDPOINT="${instrumentationUrl}"
+            code={`export AMP_OTEL_ENDPOINT="${instrumentationUrl}"
 export AMP_AGENT_API_KEY="${apiKey}"
 export AMP_TRACE_ATTRIBUTES="${traceAttributes}"`}
             language="bash"

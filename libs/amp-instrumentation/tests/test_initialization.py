@@ -53,7 +53,6 @@ class TestInitializeInstrumentation:
     def test_successful_initialization(self, clean_environment, mock_traceloop):
         """Test successful initialization with all required env vars."""
         # Set required environment variables
-        os.environ[env_vars.AMP_AGENT_NAME] = "test-app"
         os.environ[env_vars.AMP_OTEL_ENDPOINT] = "https://otel.example.com"
         os.environ[env_vars.AMP_AGENT_API_KEY] = "test-key"
         os.environ[env_vars.AMP_TRACE_ATTRIBUTES] = (
@@ -68,6 +67,5 @@ class TestInitializeInstrumentation:
 
         # Verify Traceloop was initialized
         assert mock_traceloop.initialized is True
-        assert mock_traceloop.init_kwargs["app_name"] == "test-app"
         assert mock_traceloop.init_kwargs["api_endpoint"] == "https://otel.example.com"
         assert mock_traceloop.init_kwargs["headers"]["x-api-key"] == "test-key"
