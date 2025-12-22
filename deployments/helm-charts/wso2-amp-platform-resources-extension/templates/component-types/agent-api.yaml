@@ -157,6 +157,14 @@ spec:
                     path:
                       type: ReplacePrefixMatch
                       replacePrefixMatch: ${parameters.basePath}
+                - type: CORS
+                  cors:
+                    allowOrigins:
+                      - "*"
+                    allowMethods:
+                      - "*"
+                    allowHeaders:
+                      - "*"
               backendRefs:
                 - name: ${metadata.componentName}
                   port: 80

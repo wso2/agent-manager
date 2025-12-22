@@ -5,7 +5,7 @@
 set -euo pipefail
 
 VERSION="${1:-}"
-FILE="${2:-./quick-start/install-helpers.sh}"
+FILE="${2:-./deployments/quick-start/install-helpers.sh}"
 
 if [ -z "$VERSION" ]; then
   echo "Error: Version is required"
@@ -17,14 +17,8 @@ if [ ! -f "$FILE" ]; then
   exit 0
 fi
 
-# Update AMP_CHART_VERSION
-sed -i.bak "s/\(AMP_CHART_VERSION=\"\${AMP_CHART_VERSION:-\)[^}]*\(}\"\)/\1${VERSION}\2/" "$FILE"
-
-# Update BUILD_CI_CHART_VERSION
-sed -i.bak "s/\(BUILD_CI_CHART_VERSION=\"\${BUILD_CI_CHART_VERSION:-\)[^}]*\(}\"\)/\1${VERSION}\2/" "$FILE"
-
-# Update OBSERVABILITY_CHART_VERSION
-sed -i.bak "s/\(OBSERVABILITY_CHART_VERSION=\"\${OBSERVABILITY_CHART_VERSION:-\)[^}]*\(}\"\)/\1${VERSION}\2/" "$FILE"
+# Replace all remaining 0.0.0-dev references with the new version
+sed -i.bak "s/0\.0\.0-dev/${VERSION}/g" "$FILE"
 
 # Remove backup files
 rm -f "${FILE}.bak"

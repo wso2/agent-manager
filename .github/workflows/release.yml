@@ -82,14 +82,14 @@ jobs:
         run: |
           bash .github/scripts/update-install-helpers.sh \
             "${{ inputs.target-release }}" \
-            "./quick-start/install-helpers.sh"
+            "./deployments/quick-start/install-helpers.sh"
         shell: bash
 
       - name: Commit version updates
         id: commit-changes
         run: |
-          git add "./quick-start/install-helpers.sh" "./deployments/helm-charts/*/Chart.yaml" "./deployments/helm-charts/*/values.yaml" "./docs/quick-start.md" "./docs/install/single-cluster.md" 2>/dev/null || true
-
+          git add "./deployments/quick-start/install-helpers.sh" "./deployments/helm-charts/*/Chart.yaml" "./deployments/helm-charts/*/values.yaml" "./docs/quick-start.md" "./docs/install/single-cluster.md" 2>/dev/null || true
+          
           if git diff --staged --quiet; then
             echo "No changes to commit"
             echo "committed=false" >> $GITHUB_OUTPUT
@@ -129,7 +129,6 @@ jobs:
         shell: bash
 
       - name: Push branch
-        if: steps.commit-changes.outputs.committed == 'true'
         run: |
           git push origin "${{ steps.create-branch.outputs.branch }}"
           echo "✅ Pushed branch"

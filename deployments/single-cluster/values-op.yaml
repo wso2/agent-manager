@@ -1,0 +1,44 @@
+# Helm values for OpenChoreo Observability Plane in k3d single-cluster setup
+
+global:
+  # Single-cluster non-HA mode uses standalone OpenSearch instead of operator
+  installationMode: singleCluster
+
+# Use standalone OpenSearch (not operator-managed cluster)
+openSearch:
+  enabled: true
+  service:
+    type: LoadBalancer
+
+# Disable OpenSearch operator cluster (using standalone instead)
+openSearchCluster:
+  enabled: false
+
+# Observer API - REST API for querying logs and metrics
+observer:
+  service:
+    type: LoadBalancer
+
+# OpenSearch Dashboards - UI for visualizing logs and data
+openSearchDashboards:
+  service:
+    type: LoadBalancer
+
+# Disable External Secrets since it's already in the Data Plane (single cluster)
+external-secrets:
+  enabled: false
+
+opentelemetryCollector:
+  configMap:
+    existingName: amp-opentelemetry-collector-config
+
+fakeSecretStore:
+  enabled: false
+
+prometheus:
+  prometheusSpec:
+    maximumStartupDurationSeconds: 60
+
+opentelemetryCollectorCustomizations:
+  tailSampling:
+    spansPerSecond: 100000
