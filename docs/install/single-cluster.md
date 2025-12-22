@@ -63,7 +63,7 @@ helm install openchoreo-control-plane \
 Create namespace *openchoreo-observability-plane*
 
 ```bash
-kubectl create namesapce openchoreo-observability-plane
+kubectl create namespace openchoreo-observability-plane
 ```
 
 Create the opentelemetry collector config map

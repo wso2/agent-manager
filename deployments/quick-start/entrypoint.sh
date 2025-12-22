@@ -2,7 +2,7 @@
 
 set -e
 
-# Setup docker socket permissions for openchoreo user
+# Setup docker socket permissions for wso2-amp user
 # This allows k3d and docker commands to work without sudo
 if [ -S /var/run/docker.sock ]; then
   DOCKER_SOCK_GID=$(stat -c '%g' /var/run/docker.sock 2>/dev/null || stat -f '%g' /var/run/docker.sock 2>/dev/null || echo "0")
@@ -13,7 +13,7 @@ if [ -S /var/run/docker.sock ]; then
       addgroup -g "$DOCKER_SOCK_GID" docker >/dev/null 2>&1 || true
     fi
 
-    # Add openchoreo user to the docker group
+    # Add wso2-amp user to the docker group
     addgroup wso2-amp docker >/dev/null 2>&1 || true
   fi
 fi

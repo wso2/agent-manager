@@ -537,11 +537,6 @@ fi
 log_info "Applying Custom OpenTelemetry Collector configuration..."
 CONFIGMAP_FILE="https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp-${VERSION}/deployments/values/oc-collector-configmap.yaml"
 
-if [ ! -f "${CONFIGMAP_FILE}" ]; then
-    log_error "ConfigMap file not found: ${CONFIGMAP_FILE}"
-    exit 1
-fi
-
 if kubectl apply -f "${CONFIGMAP_FILE}" -n "${OBSERVABILITY_NS}" &>/dev/null; then
     log_success "OpenTelemetry Collector configuration applied successfully"
 else
@@ -671,30 +666,6 @@ echo ""
 
 log_step "Verification"
 
-log_info "Plane Resources:"
-kubectl get dataplane,buildplane -A || true
-echo ""
-
-log_info "DataPlane Agent Status:"
-kubectl get pods -n openchoreo-data-plane -l app=cluster-agent || true
-echo ""
-
-log_info "BuildPlane Agent Status:"
-kubectl get pods -n openchoreo-build-plane -l app=cluster-agent || true
-echo ""
-
-log_info "All Pods Status:"
-echo "Control Plane:"
-kubectl get pods -n openchoreo-control-plane || true
-echo ""
-echo "Data Plane:"
-kubectl get pods -n openchoreo-data-plane || true
-echo ""
-echo "Build Plane:"
-kubectl get pods -n openchoreo-build-plane || true
-echo ""
-echo "Observability Plane:"
-kubectl get pods -n openchoreo-observability-plane || true
 echo ""
 echo "Agent Management Platform:"
 kubectl get pods -n "${AMP_NS}" || true
@@ -709,15 +680,11 @@ log_step "Installation Complete!"
 log_success "OpenChoreo and Agent Management Platform are ready!"
 echo ""
 log_info "Cluster: ${CLUSTER_CONTEXT}"
-log_info "Control Plane UI: http://localhost:8089"
-log_info "OpenSearch Dashboard: http://localhost:11081"
 log_info "Agent Management Platform Console: http://localhost:3000"
 echo ""
-log_info "To access services, run port forwarding:"
-log_info "  kubectl port-forward -n ${AMP_NS} svc/amp-console 3000:3000"
-log_info "  kubectl port-forward -n ${AMP_NS} svc/amp-api 8080:8080"
 echo ""
-log_info "To check status: kubectl get pods --all-namespaces"
-log_info "To delete cluster: k3d cluster delete ${CLUSTER_NAME}"
+log_info "To check status: kubectl get pods -A"
+log_info "To Uninstall: ./uninstall.sh"
+log_info "To delete cluster: ./uninstall.sh --delete-cluster"
 echo ""
 

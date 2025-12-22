@@ -54,10 +54,10 @@ This installs everything you need:
 
 ## Access Your Platform
 
-After installation completes, use following endpoints to access the platform.
+After installation completes, use the following endpoints to access the platform.
 
-- **Console**: http://localhost:3000
-- **OTel Collector**: http://localhost:21893
+- **Console**: [`http://localhost:3000`](http://localhost:3000)
+- **OpenTelemetry Collector**: [`http://localhost:21893`](http://localhost:21893)
 
 ## Uninstall
 
