@@ -63,23 +63,53 @@ export function SpanIcon({ span }: { span: Span }) {
 
   switch (kind) {
     case 'llm':
-      return <Brain size={16} />;
+      return (
+        <Box color="primary.main">
+          <Brain size={16} />
+        </Box>
+      );
     case 'embedding':
-      return <Layers size={16} />;
+      return (
+        <Box color="success.main">
+          <Layers size={16} />
+        </Box>
+      );
     case 'tool':
-      return <Wrench size={16} />;
+      return (
+        <Box color="info.light">
+          <Wrench size={16} />
+        </Box>
+      );
     case 'retriever':
-      return <Search size={16} />;
+      return (
+        <Box color="info.main">
+          <Search size={16} />
+        </Box>
+      );
     case 'rerank':
-      return <ArrowUpDown size={16} />;
+      return (
+        <Box color="success.main">
+          <ArrowUpDown size={16} />
+        </Box>
+      );
     case 'agent':
-      return <Bot size={16} />;
+      return (
+        <Box color="warning.main">
+          <Bot size={16} />
+        </Box>
+      );
     case 'chain':
-      return <Link size={16} />;
-    case 'unknown':
-      return <CircleQuestionMark size={16} />;
+      return (
+        <Box color="text.secondary">
+          <Link size={16} />
+        </Box>
+      );
     default:
-      return <CircleQuestionMark size={16} />;
+      return (
+        <Box color="secondary.dark">
+          <CircleQuestionMark size={16} />
+        </Box>
+      );
   }
 }
 
@@ -248,9 +278,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
                     <Minus size={16} />
                   )}
                 </IconButton>
-                <Box color="primary.main">
-                  <SpanIcon span={span.span} />
-                </Box>
+                <SpanIcon span={span.span} />
                 <Stack direction="column" p={0.5} alignItems="start">
                   <Stack direction="row" spacing={1} alignItems="center">
                     <Typography variant="h6">{span.span.name}</Typography>
