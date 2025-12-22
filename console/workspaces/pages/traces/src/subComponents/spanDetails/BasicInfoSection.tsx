@@ -16,13 +16,16 @@
  * under the License.
  */
 
-import { Span } from "@agent-management-platform/types";
+import { Span, LLMData, AgentData, EmbeddingData, RetrieverData } from "@agent-management-platform/types";
 import { Chip, Stack, Tooltip } from "@wso2/oxygen-ui";
 import {
   Brain,
   Check,
   Clock,
   Coins,
+  Database,
+  Filter,
+  Package,
   Thermometer,
   X,
 } from "@wso2/oxygen-ui-icons-react";
@@ -41,6 +44,41 @@ function formatDuration(durationInNanos: number) {
 }
 
 export function BasicInfoSection({ span }: BasicInfoSectionProps) {
+  // Extract fields from data based on kind
+  const { kind, data } = span.ampAttributes || {};
+  let model: string | undefined;
+  let vendor: string | undefined;
+  let tokenUsage: { inputTokens: number; outputTokens: number; totalTokens: number } | undefined;
+  let temperature: number | undefined;
+  let framework: string | undefined;
+  let vectorDB: string | undefined;
+  let topK: number | undefined;
+
+  if (kind === 'llm' && data) {
+    const llmData = data as LLMData;
+    model = llmData.model;
+    vendor = llmData.vendor;
+    tokenUsage = llmData.tokenUsage;
+    temperature = llmData.temperature;
+  } else if (kind === 'agent' && data) {
+    const agentData = data as AgentData;
+    model = agentData.model;
+    framework = agentData.framework;
+    tokenUsage = agentData.tokenUsage;
+  } else if (kind === 'embedding' && data) {
+    const embeddingData = data as EmbeddingData;
+    model = embeddingData.model;
+    vendor = embeddingData.vendor;
+    tokenUsage = embeddingData.tokenUsage;
+  } else if (kind === 'retriever' && data) {
+    const retrieverData = data as RetrieverData;
+    vectorDB = retrieverData.vectorDB;
+    topK = retrieverData.topK;
+  }
+
+  // Format model display with vendor prefix if available
+  const modelDisplay = vendor && model ? `${vendor}/${model}` : model;
+
   return (
     <Stack spacing={1} direction="row">
       {span.ampAttributes?.status?.error && (
@@ -78,35 +116,65 @@ export function BasicInfoSection({ span }: BasicInfoSectionProps) {
           />
         </Tooltip>
       )}
-      {span.ampAttributes?.model && (
+      {framework && (
+        <Tooltip title={"Framework"}>
+          <Chip
+            icon={<Package size={16} />}
+            size="small"
+            variant="outlined"
+            label={framework}
+          />
+        </Tooltip>
+      )}
+      {modelDisplay && (
         <Tooltip title={"Model used"}>
           <Chip
             icon={<Brain size={16} />}
             size="small"
             variant="outlined"
-            label={span.ampAttributes?.model}
+            label={modelDisplay}
           />
         </Tooltip>
       )}
-      {span.ampAttributes?.tokenUsage && (
+      {vectorDB && (
+        <Tooltip title={"Vector database"}>
+          <Chip
+            icon={<Database size={16} />}
+            size="small"
+            variant="outlined"
+            label={vectorDB}
+          />
+        </Tooltip>
+      )}
+      {topK !== undefined && (
+        <Tooltip title={"Top K results"}>
+          <Chip
+            icon={<Filter size={16} />}
+            size="small"
+            variant="outlined"
+            label={`Top ${topK}`}
+          />
+        </Tooltip>
+      )}
+      {tokenUsage && (
         <Tooltip
-          title={`${span.ampAttributes?.tokenUsage.inputTokens} input tokens, ${span.ampAttributes?.tokenUsage.outputTokens} output tokens`}
+          title={`${tokenUsage.inputTokens} input tokens, ${tokenUsage.outputTokens} output tokens`}
         >
           <Chip
             icon={<Coins size={16} />}
             size="small"
             variant="outlined"
-            label={span.ampAttributes?.tokenUsage.totalTokens}
+            label={tokenUsage.totalTokens}
           />
         </Tooltip>
       )}
-      {span.ampAttributes?.temperature && (
+      {temperature && (
         <Tooltip title={"Temperature"}>
           <Chip
             icon={<Thermometer size={16} />}
             size="small"
             variant="outlined"
-            label={span.ampAttributes?.temperature}
+            label={temperature}
           />
         </Tooltip>
       )}

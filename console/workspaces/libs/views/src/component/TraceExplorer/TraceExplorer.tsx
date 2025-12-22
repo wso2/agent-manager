@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Span } from '@agent-management-platform/types';
+import { Span, LLMData, AgentData } from '@agent-management-platform/types';
 import {
   Box,
   ButtonBase,
@@ -56,6 +56,17 @@ interface RenderSpan {
   key: string;
   parentKey: string | null;
   childrenKeys: string[] | null;
+}
+
+// Helper function to extract token usage from data based on span kind
+function getTokenUsage(span: Span) {
+  const { kind, data } = span.ampAttributes || {};
+  if (kind === 'llm' && data) {
+    return (data as LLMData).tokenUsage;
+  } else if (kind === 'agent' && data) {
+    return (data as AgentData).tokenUsage;
+  }
+  return undefined;
 }
 
 export function SpanIcon({ span }: { span: Span }) {
@@ -290,6 +301,21 @@ export function TraceExplorer(props: TraceExplorerProps) {
                         <XCircle size={16} />
                       </Stack>
                     )}
+                    {(() => {
+                      const tokenUsage = getTokenUsage(span.span);
+                      return tokenUsage && (
+                        <Tooltip
+                          title={`${tokenUsage.inputTokens} input tokens, ${tokenUsage.outputTokens} output tokens`}
+                        >
+                          <Chip
+                            icon={<Coins size={16} />}
+                            label={tokenUsage.totalTokens}
+                            size="small"
+                            variant="outlined"
+                          />
+                        </Tooltip>
+                      );
+                    })()}
                     <Chip
                       icon={<Clock size={16} />}
                       label={formatDuration(span.span.durationInNanos)}
@@ -300,18 +326,6 @@ export function TraceExplorer(props: TraceExplorerProps) {
                 </Stack>
               </Stack>
               <Stack direction="row" spacing={1} alignItems="center">
-                {span.span.ampAttributes?.tokenUsage && (
-                  <Tooltip
-                    title={`${span.span.ampAttributes?.tokenUsage.inputTokens} input tokens, ${span.span.ampAttributes?.tokenUsage.outputTokens} output tokens`}
-                  >
-                    <Chip
-                      icon={<Coins size={16} />}
-                      label={span.span.ampAttributes?.tokenUsage.totalTokens}
-                      size="small"
-                      variant="outlined"
-                    />
-                  </Tooltip>
-                )}
               </Stack>
             </Stack>
           </ButtonBase>

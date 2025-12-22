@@ -57,15 +57,49 @@ type Span struct {
 
 // AmpAttributes holds custom attributes added by the AMP platform
 type AmpAttributes struct {
-	Kind        string           `json:"kind"`                  // Semantic span kind: llm, tool, embedding, retriever, rerank, agent, task, unknown
-	Input       interface{}      `json:"input,omitempty"`       // Input: []PromptMessage for LLM spans, string for tool spans
-	Output      interface{}      `json:"output,omitempty"`      // Output: []PromptMessage for LLM spans, string for tool spans
-	Tools       []ToolDefinition `json:"tools,omitempty"`       // List of available tools/functions (for LLM spans)
-	Name        string           `json:"name,omitempty"`        // Name of the entity (for tool spans)
-	Status      *SpanStatus      `json:"status,omitempty"`      // Execution status with error information
-	Model       string           `json:"model,omitempty"`       // Model name (for LLM spans: gen_ai.response.model or gen_ai.request.model)
-	Temperature *float64         `json:"temperature,omitempty"` // Temperature parameter (for LLM spans)
-	TokenUsage  *LLMTokenUsage   `json:"tokenUsage,omitempty"`  // Token usage details (for LLM spans)
+	Kind   string      `json:"kind"`             // Semantic span kind: llm, tool, embedding, retriever, rerank, agent, task, unknown
+	Input  interface{} `json:"input,omitempty"`  // Input data (type varies by kind)
+	Output interface{} `json:"output,omitempty"` // Output data (type varies by kind)
+	Status *SpanStatus `json:"status,omitempty"` // Execution status with error information
+	Data   interface{} `json:"data,omitempty"`   // Kind-specific data: *LLMData, *ToolData, *EmbeddingData, *RetrieverData, etc.
+}
+
+// LLMData contains LLM-specific span information
+type LLMData struct {
+	Tools       []ToolDefinition `json:"tools,omitempty"`       // Available tools/functions
+	Model       string           `json:"model,omitempty"`       // Model name (gen_ai.response.model or gen_ai.request.model)
+	Vendor      string           `json:"vendor,omitempty"`      // LLM vendor/provider (gen_ai.system)
+	Temperature *float64         `json:"temperature,omitempty"` // Temperature parameter
+	TokenUsage  *LLMTokenUsage   `json:"tokenUsage,omitempty"`  // Token usage details
+}
+
+// ToolData contains tool execution span information
+type ToolData struct {
+	Name string `json:"name,omitempty"` // Tool/function name
+}
+
+// EmbeddingData contains embedding generation span information
+// EmbeddingData contains embedding generation span information
+type EmbeddingData struct {
+	Model      string         `json:"model,omitempty"`      // Embedding model name
+	Vendor     string         `json:"vendor,omitempty"`     // Embedding vendor/provider (gen_ai.system)
+	TokenUsage *LLMTokenUsage `json:"tokenUsage,omitempty"` // Token usage details
+}
+
+// RetrieverData contains vector database retrieval span information
+type RetrieverData struct {
+	VectorDB string `json:"vectorDB,omitempty"` // Vector database system (e.g., Chroma, Pinecone)
+	TopK     int    `json:"topK,omitempty"`     // Number of top results requested
+}
+
+// AgentData contains agent execution span information
+type AgentData struct {
+	Name         string         `json:"name,omitempty"`         // Agent name (from gen_ai.agent.name)
+	Tools        []string       `json:"tools,omitempty"`        // Available tool names for the agent (from gen_ai.agent.tools)
+	Model        string         `json:"model,omitempty"`        // Model used by the agent (from gen_ai.request.model)
+	Framework    string         `json:"framework,omitempty"`    // Agent framework (from gen_ai.system, e.g., "strands-agents")
+	SystemPrompt string         `json:"systemPrompt,omitempty"` // System prompt for the agent
+	TokenUsage   *LLMTokenUsage `json:"tokenUsage,omitempty"`   // Token usage details (aggregated from agent execution)
 }
 
 // SpanStatus represents the execution status of a span

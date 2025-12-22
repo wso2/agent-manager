@@ -201,15 +201,11 @@ func (s *observabilityManagerService) GetTraceDetails(ctx context.Context, req T
 		var ampAttrs *models.AmpAttributes
 		if span.AmpAttributes != nil {
 			ampAttrs = &models.AmpAttributes{
-				Kind:        span.AmpAttributes.Kind,
-				Name:        span.AmpAttributes.Name,
-				Status:      span.AmpAttributes.Status,
-				Model:       span.AmpAttributes.Model,
-				Temperature: span.AmpAttributes.Temperature,
-				TokenUsage:  span.AmpAttributes.TokenUsage,
+				Kind:   span.AmpAttributes.Kind,
+				Status: span.AmpAttributes.Status,
 			}
 
-			// Handle Input - can be []PromptMessage (LLM) or string (tool)
+			// Handle Input - can be []PromptMessage (LLM), string (tool), []string (embedding), etc.
 			if span.AmpAttributes.Input != nil {
 				// Try to convert to []PromptMessage first (for LLM spans)
 				if inputMessages, ok := span.AmpAttributes.Input.([]traceobserversvc.PromptMessage); ok {
@@ -236,12 +232,12 @@ func (s *observabilityManagerService) GetTraceDetails(ctx context.Context, req T
 					}
 					ampAttrs.Input = input
 				} else {
-					// Otherwise keep as is (string for tool spans)
+					// Otherwise keep as is (string for tool spans, []string for embedding, etc.)
 					ampAttrs.Input = span.AmpAttributes.Input
 				}
 			}
 
-			// Handle Output - can be []PromptMessage (LLM) or string (tool)
+			// Handle Output - can be []PromptMessage (LLM), string (tool), etc.
 			if span.AmpAttributes.Output != nil {
 				// Try to convert to []PromptMessage first (for LLM spans)
 				if outputMessages, ok := span.AmpAttributes.Output.([]traceobserversvc.PromptMessage); ok {
@@ -268,22 +264,15 @@ func (s *observabilityManagerService) GetTraceDetails(ctx context.Context, req T
 					}
 					ampAttrs.Output = output
 				} else {
-					// Otherwise keep as is (string for tool spans)
+					// Otherwise keep as is (string for tool spans, etc.)
 					ampAttrs.Output = span.AmpAttributes.Output
 				}
 			}
 
-			// Convert tool definitions
-			if len(span.AmpAttributes.Tools) > 0 {
-				tools := make([]models.ToolDefinition, len(span.AmpAttributes.Tools))
-				for j, tool := range span.AmpAttributes.Tools {
-					tools[j] = models.ToolDefinition{
-						Name:        tool.Name,
-						Description: tool.Description,
-						Parameters:  tool.Parameters,
-					}
-				}
-				ampAttrs.Tools = tools
+			// Pass through Data field as-is - let the frontend handle type-specific rendering
+			// This avoids duplicating type definitions and keeps the service decoupled
+			if span.AmpAttributes.Data != nil {
+				ampAttrs.Data = span.AmpAttributes.Data
 			}
 		}
 
