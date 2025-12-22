@@ -35,7 +35,7 @@ interface OverviewProps {
 
 interface MessageListProps {
   title: string;
-  messages: PromptMessage[];
+  messages: Partial<PromptMessage>[];
   getRoleColor: (role: string) => "default" | "primary" | "success" | "info";
   "data-testid"?: string;
 }
@@ -72,7 +72,7 @@ const MessageList = memo(function MessageList({
               <CardContent>
                 <Stack spacing={1.5}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    {message.role !== "unknown" && (
+                    {message?.role && message.role !== "unknown" && (
                       <Chip
                         label={message.role}
                         size="small"
@@ -140,10 +140,12 @@ const MessageList = memo(function MessageList({
 
 export function Overview({ ampAttributes }: OverviewProps) {
   const normalizeMessages = useCallback(
-    (input: PromptMessage[] | string | undefined): PromptMessage[] => {
+    (
+      input: PromptMessage[] | string | undefined
+    ): (Partial<PromptMessage> | { content: string })[] => {
       if (!input) return [];
       if (typeof input === "string") {
-        return [{ role: "user", content: input }];
+        return [{ content: input }];
       }
       return input;
     },
