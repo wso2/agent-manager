@@ -25,6 +25,7 @@ AMP_NS="${AMP_NS:-wso2-amp}"
 BUILD_CI_NS="${BUILD_CI_NS:-openchoreo-build-plane}"
 OBSERVABILITY_NS="${OBSERVABILITY_NS:-openchoreo-observability-plane}"
 DEFAULT_NS="${DEFAULT_NS:-default}"
+DATA_PLANE_NS="${DATA_PLANE_NS:-openchoreo-data-plane}"
 
 # Helm arguments arrays (initialize if not set)
 if [[ -z "${AMP_HELM_ARGS+x}" ]]; then
