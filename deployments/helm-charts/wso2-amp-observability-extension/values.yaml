@@ -17,7 +17,7 @@ tracesObserver:
     memory: 128Mi
     cpu: 250m
   service:
-    type: NodePort
+    type: LoadBalancer
 
 opensearch:
   username: "admin"

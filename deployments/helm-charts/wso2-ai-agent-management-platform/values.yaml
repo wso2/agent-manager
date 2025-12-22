@@ -42,8 +42,8 @@ agentManagerService:
     pullPolicy: IfNotPresent
 
   service:
-    type: NodePort
-    port: 8080
+    type: LoadBalancer
+    port: 9000
     targetPort: 8080
     annotations: {}
 
@@ -142,7 +142,7 @@ console:
     pullPolicy: Always
 
   service:
-    type: NodePort
+    type: LoadBalancer
     port: 3000
     targetPort: 3000
 
@@ -179,7 +179,7 @@ console:
     disableAuth: "true"
 
     # Backend API URLs (will be auto-configured if empty)
-    apiBaseUrl: "http://localhost:8080"
+    apiBaseUrl: "http://localhost:9000"
     obsApiBaseUrl: "http://localhost:9098"
 
   # Pod-level configurations

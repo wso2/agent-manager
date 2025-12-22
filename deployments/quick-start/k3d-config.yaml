@@ -13,8 +13,8 @@ ports:
   - port: 3000:3000
     nodeFilters:
       - loadbalancer
-  # AMP API (NodePort service on port 8080)
-  - port: 8080:8080
+  # AMP API (LoadBalancer service on port 9000)
+  - port: 9000:9000
     nodeFilters:
       - loadbalancer
   # AMP Traces Observer (NodePort service on port 9098)
