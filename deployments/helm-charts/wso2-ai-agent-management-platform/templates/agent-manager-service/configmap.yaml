@@ -28,4 +28,5 @@ data:
   OTEL_TRACELOOP_TELEMETRY_ENABLED: {{ .Values.agentManagerService.config.otel.telemetryEnabled | quote }}
   OTEL_EXPORTER_OTLP_INSECURE: {{ .Values.agentManagerService.config.otel.exporterInsecure | quote }}
   OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.agentManagerService.config.otel.exporterEndpoint | quote }}
+  TRACE_OBSERVER_URL: {{ .Values.agentManagerService.config.traceObserverURL | quote }}
 {{- end }}

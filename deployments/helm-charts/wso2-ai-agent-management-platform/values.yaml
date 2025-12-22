@@ -92,6 +92,7 @@ agentManagerService:
     observerURL: "http://observer.openchoreo-observability-plane:8080"
     observerUsername: "admin"
     observerPassword: "admin"
+    traceObserverURL: "http://amp-traces-observer.openchoreo-observability-plane:9098"
 
     # API Key configuration
     apiKey:
