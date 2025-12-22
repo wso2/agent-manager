@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/name: otel-collector
     app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
-  type: NodePort
+  type: LoadBalancer
   selector:
     app.kubernetes.io/name: opentelemetry-collector
   ports:
