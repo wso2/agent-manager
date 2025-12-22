@@ -27,11 +27,112 @@ import {
 } from "@wso2/oxygen-ui";
 import { MessageCircle } from "@wso2/oxygen-ui-icons-react";
 import { AmpAttributes, PromptMessage } from "@agent-management-platform/types";
-import { useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
 
 interface OverviewProps {
   ampAttributes?: AmpAttributes;
 }
+
+interface MessageListProps {
+  title: string;
+  messages: PromptMessage[];
+  getRoleColor: (role: string) => "default" | "primary" | "success" | "info";
+  "data-testid"?: string;
+}
+
+const MessageList = memo(function MessageList({
+  title,
+  messages,
+  getRoleColor,
+  "data-testid": testId,
+}: MessageListProps) {
+  if (messages.length === 0) {
+    return null;
+  }
+
+  return (
+    <Box data-testid={testId}>
+      <Typography variant="h6" sx={{ mb: 2 }}>
+        {title}
+      </Typography>
+      <Stack spacing={2}>
+        {messages.map((message, index) => {
+          const messageKey = (message as PromptMessage & { id?: string }).id ?? index;
+          
+          return (
+            <Card key={messageKey} variant="outlined">
+              <CardContent>
+                <Stack spacing={1.5}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Chip
+                      label={message.role}
+                      size="small"
+                      color={getRoleColor(message.role)}
+                      variant="outlined"
+                    />
+                  </Box>
+                  {message.content && (
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {message.content}
+                    </Typography>
+                  )}
+                  {message.toolCalls && message.toolCalls.length > 0 && (
+                    <Box>
+                      <Typography
+                        variant="caption"
+                        sx={{ mb: 0.5, display: "block" }}
+                      >
+                        Tool Calls:
+                      </Typography>
+                      <Stack spacing={1}>
+                        {message.toolCalls.map((toolCall, toolIndex) => {
+                          const toolCallKey = toolCall.id ?? toolIndex;
+                          
+                          return (
+                            <Card key={toolCallKey} variant="outlined">
+                              <CardContent sx={{ "&:last-child": { pb: 1.5 } }}>
+                                <Typography
+                                  variant="caption"
+                                  sx={{ fontWeight: "bold" }}
+                                >
+                                  {toolCall.name}
+                                </Typography>
+                                {toolCall.arguments && (
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      display: "block",
+                                      mt: 0.5,
+                                      fontFamily: "monospace",
+                                      whiteSpace: "pre-wrap",
+                                      wordBreak: "break-word",
+                                    }}
+                                  >
+                                    {toolCall.arguments}
+                                  </Typography>
+                                )}
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </Stack>
+                    </Box>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </Stack>
+    </Box>
+  );
+});
 
 export function Overview({ ampAttributes }: OverviewProps) {
   const normalizeMessages = useCallback(
@@ -66,7 +167,7 @@ export function Overview({ ampAttributes }: OverviewProps) {
       case "assistant":
         return "success";
       case "tool":
-        return "secondary";
+        return "info";
       default:
         return "default";
     }
@@ -85,155 +186,18 @@ export function Overview({ ampAttributes }: OverviewProps) {
 
   return (
     <Stack spacing={3}>
-      {inputMessages.length > 0 && (
-        <Box>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Input Messages
-          </Typography>
-          <Stack spacing={2}>
-            {inputMessages.map((message, index) => (
-              <Card key={index} variant="outlined">
-                <CardContent>
-                  <Stack spacing={1.5}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Chip
-                        label={message.role}
-                        size="small"
-                        color={getRoleColor(message.role)}
-                        variant="outlined"
-                      />
-                    </Box>
-                    {message.content && (
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          whiteSpace: "pre-wrap",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {message.content}
-                      </Typography>
-                    )}
-                    {message.toolCalls && message.toolCalls.length > 0 && (
-                      <Box>
-                        <Typography
-                          variant="caption"
-                          sx={{ mb: 0.5, display: "block" }}
-                        >
-                          Tool Calls:
-                        </Typography>
-                        <Stack spacing={1}>
-                          {message.toolCalls.map((toolCall, toolIndex) => (
-                            <Card key={toolIndex} variant="outlined">
-                              <CardContent sx={{ "&:last-child": { pb: 1.5 } }}>
-                                <Typography
-                                  variant="caption"
-                                  sx={{ fontWeight: "bold" }}
-                                >
-                                  {toolCall.name}
-                                </Typography>
-                                {toolCall.arguments && (
-                                  <Typography
-                                    variant="caption"
-                                    sx={{
-                                      display: "block",
-                                      mt: 0.5,
-                                      fontFamily: "monospace",
-                                      whiteSpace: "pre-wrap",
-                                      wordBreak: "break-word",
-                                    }}
-                                  >
-                                    {toolCall.arguments}
-                                  </Typography>
-                                )}
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </Stack>
-                      </Box>
-                    )}
-                  </Stack>
-                </CardContent>
-              </Card>
-            ))}
-          </Stack>
-        </Box>
-      )}
-
-      {outputMessages.length > 0 && (
-        <Box>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Output Messages
-          </Typography>
-          <Stack spacing={2}>
-            {outputMessages.map((message, index) => (
-              <Card key={index} variant="outlined">
-                <CardContent>
-                  <Stack spacing={1.5}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Chip
-                        label={message.role}
-                        size="small"
-                        color={getRoleColor(message.role)}
-                        variant="outlined"
-                      />
-                    </Box>
-                    {message.content && (
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          whiteSpace: "pre-wrap",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {message.content}
-                      </Typography>
-                    )}
-                    {message.toolCalls && message.toolCalls.length > 0 && (
-                      <Box>
-                        <Typography
-                          variant="caption"
-                          sx={{ mb: 0.5, display: "block" }}
-                        >
-                          Tool Calls:
-                        </Typography>
-                        <Stack spacing={1}>
-                          {message.toolCalls.map((toolCall, toolIndex) => (
-                            <Card key={toolIndex} variant="outlined">
-                              <CardContent sx={{ "&:last-child": { pb: 1.5 } }}>
-                                <Typography
-                                  variant="caption"
-                                  sx={{ fontWeight: "bold" }}
-                                >
-                                  {toolCall.name}
-                                </Typography>
-                                {toolCall.arguments && (
-                                  <Typography
-                                    variant="caption"
-                                    sx={{
-                                      display: "block",
-                                      mt: 0.5,
-                                      fontFamily: "monospace",
-                                      whiteSpace: "pre-wrap",
-                                      wordBreak: "break-word",
-                                    }}
-                                  >
-                                    {toolCall.arguments}
-                                  </Typography>
-                                )}
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </Stack>
-                      </Box>
-                    )}
-                  </Stack>
-                </CardContent>
-              </Card>
-            ))}
-          </Stack>
-        </Box>
-      )}
+      <MessageList
+        title="Input Messages"
+        messages={inputMessages}
+        getRoleColor={getRoleColor}
+        data-testid="input-messages"
+      />
+      <MessageList
+        title="Output Messages"
+        messages={outputMessages}
+        getRoleColor={getRoleColor}
+        data-testid="output-messages"
+      />
     </Stack>
   );
 }

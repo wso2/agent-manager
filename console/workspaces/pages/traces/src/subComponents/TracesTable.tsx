@@ -194,10 +194,14 @@ export function TracesTable({
                   </TableCell>
                   <TableCell align="right" sx={{ width: "10%" }}>
                     <Typography variant="caption" component="span">
-                      {trace.tokenUsage?.totalTokens}&nbsp;
+                      {trace.tokenUsage?.totalTokens ? (
+                        <>
+                          {trace.tokenUsage.totalTokens} <BadgeCent size={10} />
+                        </>
+                      ) : (
+                        "-"
+                      )}
                     </Typography>
-                    {trace.tokenUsage?.totalTokens && <BadgeCent size={10} />}
-                    {!trace.tokenUsage?.totalTokens && "-"}
                   </TableCell>
                 </TableRow>
               ))}

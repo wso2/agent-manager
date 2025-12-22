@@ -89,7 +89,7 @@ export function TraceDetails({ traceId }: TraceDetailsProps) {
         <Box sx={{ width: "55%" }} pr={1}>
           {traceId && (
             <TraceExplorer
-              onOpenAtributesClick={setSelectedSpan}
+              onOpenAttributesClick={setSelectedSpan}
               selectedSpan={selectedSpan}
               spans={traceDetails?.spans ?? []}
             />

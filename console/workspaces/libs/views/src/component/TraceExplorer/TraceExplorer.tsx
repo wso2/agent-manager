@@ -42,7 +42,7 @@ import {
 
 interface TraceExplorerProps {
   spans: Span[];
-  onOpenAtributesClick: (span: Span) => void;
+  onOpenAttributesClick: (span: Span) => void;
   selectedSpan: Span | null;
 }
 
@@ -121,7 +121,7 @@ const populateRenderSpans = (
 };
 
 export function TraceExplorer(props: TraceExplorerProps) {
-  const { spans, onOpenAtributesClick, selectedSpan } = props;
+  const { spans, onOpenAttributesClick, selectedSpan } = props;
   const renderSpan = useCallback(
     (
       key: string,
@@ -173,7 +173,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
             </>
           )}
           <ButtonBase
-            onClick={() => onOpenAtributesClick(span.span)}
+            onClick={() => onOpenAttributesClick(span.span)}
             sx={{
               width: '100%',
             }}
@@ -324,7 +324,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
         </Stack>
       );
     },
-    [onOpenAtributesClick, selectedSpan]
+    [onOpenAttributesClick, selectedSpan]
   );
 
   const [expandedSpans, setExpandedSpans] = useState<Record<string, boolean>>(
