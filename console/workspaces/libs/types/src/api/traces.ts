@@ -68,7 +68,7 @@ export interface ToolCall {
 }
 
 export interface PromptMessage {
-  role: "system" | "user" | "assistant" | "tool";
+  role: "system" | "user" | "assistant" | "tool" | "unknown";
   content?: string;
   toolCalls?: ToolCall[];
 }

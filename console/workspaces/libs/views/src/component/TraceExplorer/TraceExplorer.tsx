@@ -35,9 +35,13 @@ import {
   Minus,
   XCircle,
   Link,
-  Shovel,
   Coins,
   CircleQuestionMark,
+  Wrench,
+  Layers,
+  Search,
+  ArrowUpDown,
+  Bot,
 } from '@wso2/oxygen-ui-icons-react';
 
 interface TraceExplorerProps {
@@ -55,16 +59,28 @@ interface RenderSpan {
 }
 
 export function SpanIcon({ span }: { span: Span }) {
-  if (span.ampAttributes?.kind === 'llm') {
-    return <Brain size={16} />;
+  const kind = span.ampAttributes?.kind;
+
+  switch (kind) {
+    case 'llm':
+      return <Brain size={16} />;
+    case 'embedding':
+      return <Layers size={16} />;
+    case 'tool':
+      return <Wrench size={16} />;
+    case 'retriever':
+      return <Search size={16} />;
+    case 'rerank':
+      return <ArrowUpDown size={16} />;
+    case 'agent':
+      return <Bot size={16} />;
+    case 'chain':
+      return <Link size={16} />;
+    case 'unknown':
+      return <CircleQuestionMark size={16} />;
+    default:
+      return <CircleQuestionMark size={16} />;
   }
-  if (span.ampAttributes?.kind === 'chain') {
-    return <Link size={16} />;
-  }
-  if (span.ampAttributes?.kind === 'tool') {
-    return <Shovel size={16} />;
-  }
-  return <CircleQuestionMark size={16} />;
 }
 
 function formatDuration(durationInNanos: number) {
@@ -147,12 +163,12 @@ export function TraceExplorer(props: TraceExplorerProps) {
                 position="absolute"
                 sx={{
                   width: 32,
-                  height: 44,
+                  height: 40,
                   borderLeft: isLastChild ? `2px solid` : 'none',
                   borderBottom: `2px solid`,
                   borderColor: 'divider',
                   left: -32,
-                  top: -10,
+                  top: -14,
                   borderBottomLeftRadius: isLastChild ? 8 : 0,
                 }}
               />
@@ -166,7 +182,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
                     borderLeft: `2px solid`,
                     borderColor: 'divider',
                     left: -32,
-                    top: -18,
+                    top: -20,
                   }}
                 />
               )}
@@ -253,36 +269,9 @@ export function TraceExplorer(props: TraceExplorerProps) {
                       variant="outlined"
                     />
                   </Stack>
-                  <Typography variant="caption" fontFamily="monospace" noWrap>
-                    #{span.span.spanId}
-                  </Typography>
                 </Stack>
               </Stack>
               <Stack direction="row" spacing={1} alignItems="center">
-                {span.span.ampAttributes?.model && (
-                  <Tooltip title={span.span.ampAttributes?.model}>
-                    <Chip
-                      icon={<Brain size={16} />}
-                      label="LLM"
-                      size="small"
-                      variant="outlined"
-                    />
-                  </Tooltip>
-                )}
-                {span.span.ampAttributes?.tools && (
-                  <Tooltip
-                    title={span.span.ampAttributes?.tools
-                      .map((tool) => tool.name)
-                      .join(', ')}
-                  >
-                    <Chip
-                      icon={<Shovel size={16} />}
-                      label="Tools"
-                      size="small"
-                      variant="outlined"
-                    />
-                  </Tooltip>
-                )}
                 {span.span.ampAttributes?.tokenUsage && (
                   <Tooltip
                     title={`Used ${span.span.ampAttributes?.tokenUsage.inputTokens} input tokens, ${span.span.ampAttributes?.tokenUsage.outputTokens} output tokens`}
@@ -331,7 +320,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
     () => {
       return spans.reduce(
         (acc, span) => {
-          acc[span.spanId] = !span.parentSpanId;
+          acc[span.spanId] = true;
           return acc;
         },
         {} as Record<string, boolean>

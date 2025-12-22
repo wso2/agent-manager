@@ -86,7 +86,7 @@ export function TraceDetails({ traceId }: TraceDetailsProps) {
   return (
     <FadeIn>
       <Stack direction="row" height="calc(100vh - 64px)">
-        <Box sx={{ width: "55%" }} pr={1}>
+        <Box sx={{ width: "45%" }} pr={1}>
           {traceId && (
             <TraceExplorer
               onOpenAttributesClick={setSelectedSpan}
@@ -96,7 +96,7 @@ export function TraceDetails({ traceId }: TraceDetailsProps) {
           )}
         </Box>
         <Divider orientation="vertical" flexItem />
-        <Box sx={{ width: "45%" }}>
+        <Box sx={{ width: "55%" }}>
           <SpanDetailsPanel span={selectedSpan ?? null} />
         </Box>
       </Stack>

@@ -40,6 +40,13 @@ interface MessageListProps {
   "data-testid"?: string;
 }
 
+function formattedMessage(message: string) {
+  try {
+    return JSON.stringify(JSON.parse(message), null, 2);
+  } catch {
+    return message;
+  }
+}
 const MessageList = memo(function MessageList({
   title,
   messages,
@@ -57,19 +64,22 @@ const MessageList = memo(function MessageList({
       </Typography>
       <Stack spacing={2}>
         {messages.map((message, index) => {
-          const messageKey = (message as PromptMessage & { id?: string }).id ?? index;
-          
+          const messageKey =
+            (message as PromptMessage & { id?: string }).id ?? index;
+
           return (
             <Card key={messageKey} variant="outlined">
               <CardContent>
                 <Stack spacing={1.5}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Chip
-                      label={message.role}
-                      size="small"
-                      color={getRoleColor(message.role)}
-                      variant="outlined"
-                    />
+                    {message.role !== "unknown" && (
+                      <Chip
+                        label={message.role}
+                        size="small"
+                        color={getRoleColor(message.role)}
+                        variant="outlined"
+                      />
+                    )}
                   </Box>
                   {message.content && (
                     <Typography
@@ -79,21 +89,15 @@ const MessageList = memo(function MessageList({
                         wordBreak: "break-word",
                       }}
                     >
-                      {message.content}
+                      {formattedMessage(message.content)}
                     </Typography>
                   )}
                   {message.toolCalls && message.toolCalls.length > 0 && (
                     <Box>
-                      <Typography
-                        variant="caption"
-                        sx={{ mb: 0.5, display: "block" }}
-                      >
-                        Tool Calls:
-                      </Typography>
                       <Stack spacing={1}>
                         {message.toolCalls.map((toolCall, toolIndex) => {
                           const toolCallKey = toolCall.id ?? toolIndex;
-                          
+
                           return (
                             <Card key={toolCallKey} variant="outlined">
                               <CardContent sx={{ "&:last-child": { pb: 1.5 } }}>
@@ -114,7 +118,7 @@ const MessageList = memo(function MessageList({
                                       wordBreak: "break-word",
                                     }}
                                   >
-                                    {toolCall.arguments}
+                                    {formattedMessage(toolCall.arguments)}
                                   </Typography>
                                 )}
                               </CardContent>
