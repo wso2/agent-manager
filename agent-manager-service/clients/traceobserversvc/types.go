@@ -103,16 +103,14 @@ type Span struct {
 }
 
 // AmpAttributes contains AMP-specific enriched attributes
+// The Data field contains kind-specific information defined by traces-observer-service.
+// This service passes it through without unpacking to avoid tight coupling.
 type AmpAttributes struct {
-	Kind        string           `json:"kind"`                  // Semantic span type (llm, tool, embedding, etc.)
-	Input       interface{}      `json:"input,omitempty"`       // Input: []PromptMessage for LLM spans, string for tool spans
-	Output      interface{}      `json:"output,omitempty"`      // Output: []PromptMessage for LLM spans, string for tool spans
-	Tools       []ToolDefinition `json:"tools,omitempty"`       // List of available tools/functions (for LLM spans)
-	Name        string           `json:"name,omitempty"`        // Name of the entity (for tool spans)
-	Status      *SpanStatus      `json:"status,omitempty"`      // Execution status with error information
-	Model       string           `json:"model,omitempty"`       // Model name (for LLM spans)
-	Temperature *float64         `json:"temperature,omitempty"` // Temperature parameter (for LLM spans)
-	TokenUsage  *LLMTokenUsage   `json:"tokenUsage,omitempty"`  // Token usage details (for LLM spans)
+	Kind   string      `json:"kind"`             // Semantic span type (llm, tool, embedding, etc.)
+	Input  interface{} `json:"input,omitempty"`  // Input: []PromptMessage for LLM spans, string for tool spans, etc.
+	Output interface{} `json:"output,omitempty"` // Output: []PromptMessage for LLM spans, string for tool spans, etc.
+	Status *SpanStatus `json:"status,omitempty"` // Execution status with error information
+	Data   interface{} `json:"data,omitempty"`   // Kind-specific data from traces-observer-service
 }
 
 // SpanStatus represents the execution status of a span

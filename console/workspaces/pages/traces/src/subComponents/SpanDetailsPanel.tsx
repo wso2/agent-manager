@@ -17,7 +17,7 @@
  */
 
 import { Chip, Divider, Stack, Tab, Tabs, Typography } from "@wso2/oxygen-ui";
-import { Span } from "@agent-management-platform/types";
+import { Span, LLMData, AgentData, ToolDefinition, ToolData } from "@agent-management-platform/types";
 import { BasicInfoSection } from "./spanDetails/BasicInfoSection";
 import { AttributesSection } from "./spanDetails/AttributesSection";
 import { useEffect, useState } from "react";
@@ -29,16 +29,57 @@ interface SpanDetailsPanelProps {
   span: Span | null;
 }
 
+// Helper function to extract tools from data based on span kind
+function getTools(span: Span): ToolDefinition[] | string[] | undefined {
+  const { kind, data } = span.ampAttributes || {};
+  if (kind === 'llm' && data) {
+    return (data as LLMData).tools;
+  } else if (kind === 'agent' && data) {
+    return (data as AgentData).tools;
+  }
+  return undefined;
+}
+
+// Helper function to check if span has overview content
+function hasOverviewContent(span: Span): boolean {
+  const { kind, data, input, output } = span.ampAttributes || {};
+  
+  // Check for input/output
+  if (input || output) {
+    return true;
+  }
+  
+  // Check for agent name or system prompt
+  if (kind === 'agent' && data) {
+    const agentData = data as AgentData;
+    if (agentData.name || agentData.systemPrompt) {
+      return true;
+    }
+  }
+  
+  // Check for tool name
+  if (kind === 'tool' && data) {
+    const toolData = data as ToolData;
+    if (toolData.name) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
   const [selectedTab, setSelectedTab] = useState<string>("overview");
 
   useEffect(() => {
-    // for chat
-    if (span?.ampAttributes?.input || span?.ampAttributes?.output) {
+    if (!span) return;
+    
+    // Check if there's overview content (input/output/name/systemPrompt)
+    if (hasOverviewContent(span)) {
       setSelectedTab("overview");
     }
     // for tools
-    else if (span?.ampAttributes?.tools) {
+    else if (getTools(span)) {
       setSelectedTab("tools");
     }
     // for attributes
@@ -51,7 +92,8 @@ export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
     return null;
   }
 
-
+  const tools = getTools(span);
+  const hasOverview = hasOverviewContent(span);
 
   return (
     <Stack spacing={2} sx={{ height: "100%" }}>
@@ -73,8 +115,8 @@ export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
         value={selectedTab}
         onChange={(_event, newValue) => setSelectedTab(newValue)}
       >
-        <Tab label="Overview" value="overview" />
-        {span?.ampAttributes?.tools && <Tab label="Tools" value="tools" />}
+        <Tab label="Overview" value="overview" disabled={!hasOverview} />
+        {tools && <Tab label="Tools" value="tools" />}
         {span?.attributes && <Tab label="Attributes" value="attributes" />}
       </Tabs>
       <Divider />
@@ -86,7 +128,7 @@ export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
         )}
         {selectedTab === "tools" && (
           <FadeIn>
-            <ToolsSection tools={span?.ampAttributes?.tools || []} />
+            <ToolsSection tools={tools || []} />
           </FadeIn>
         )}
         {selectedTab === "overview" && (

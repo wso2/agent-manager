@@ -32,7 +32,7 @@ import { ToolDefinition } from "@agent-management-platform/types";
 import { useCallback, useState } from "react";
 
 interface ToolsSectionProps {
-  tools: ToolDefinition[];
+  tools: ToolDefinition[] | string[];
 }
 
 export function ToolsSection({ tools }: ToolsSectionProps) {
@@ -102,7 +102,10 @@ export function ToolsSection({ tools }: ToolsSectionProps) {
   return (
     <Stack>
       {tools.map((tool, index) => {
-        const toolId = tool.name || `tool-${index}`;
+        // Handle both string (agent tools) and ToolDefinition (LLM tools)
+        const isStringTool = typeof tool === 'string';
+        const toolName = isStringTool ? tool : tool.name;
+        const toolId = toolName || `tool-${index}`;
         const isExpanded = expandedToolId === toolId;
 
         return (
@@ -112,11 +115,11 @@ export function ToolsSection({ tools }: ToolsSectionProps) {
             onChange={handleAccordionChange(toolId)}
           >
             <AccordionSummary>
-              <Typography variant="h6">{tool.name}</Typography>
+              <Typography variant="h6">{toolName}</Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Stack direction="column" spacing={2}>
-                {tool.description && (
+                {!isStringTool && tool.description && (
                   <Box>
                     <Typography variant="subtitle2" sx={{ mb: 1 }}>
                       Description
@@ -132,7 +135,7 @@ export function ToolsSection({ tools }: ToolsSectionProps) {
                     </Card>
                   </Box>
                 )}
-                {tool.parameters && (
+                {!isStringTool && tool.parameters && (
                   <Box>
                     <Typography variant="subtitle2" sx={{ mb: 1 }}>
                       Parameters
@@ -157,6 +160,17 @@ export function ToolsSection({ tools }: ToolsSectionProps) {
                           }}
                         >
                           {renderParameterValue(tool.parameters)}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Box>
+                )}
+                {isStringTool && (
+                  <Box>
+                    <Card variant="outlined" sx={{ bgcolor: 'action.hover' }}>
+                      <CardContent sx={{ "&:last-child": { pb: 1.5 } }}>
+                        <Typography variant="body2" color="text.secondary">
+                          Additional tool details are not available
                         </Typography>
                       </CardContent>
                     </Card>

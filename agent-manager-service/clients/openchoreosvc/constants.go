@@ -118,5 +118,5 @@ const (
 
 const (
 	GithubImageRegistry = "ghcr.io/wso2"
-	ImageName 		   = "amp-python-instrumentation-provider"
+	ImageName           = "amp-python-instrumentation-provider"
 )

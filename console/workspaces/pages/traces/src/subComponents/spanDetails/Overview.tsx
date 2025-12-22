@@ -26,7 +26,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { Info } from "@wso2/oxygen-ui-icons-react";
-import { AmpAttributes, PromptMessage } from "@agent-management-platform/types";
+import { AmpAttributes, PromptMessage, ToolData, AgentData } from "@agent-management-platform/types";
 import { memo, useCallback, useMemo } from "react";
 
 interface OverviewProps {
@@ -38,6 +38,7 @@ interface MessageListProps {
   messages: Partial<PromptMessage>[];
   getRoleColor: (role: string) => "default" | "primary" | "success" | "info";
   "data-testid"?: string;
+  showEmptyMessage?: boolean;
 }
 
 function formattedMessage(message: string) {
@@ -52,9 +53,27 @@ const MessageList = memo(function MessageList({
   messages,
   getRoleColor,
   "data-testid": testId,
+  showEmptyMessage = false,
 }: MessageListProps) {
   if (messages.length === 0) {
-    return null;
+    if (!showEmptyMessage) {
+      return null;
+    }
+    
+    return (
+      <Box data-testid={testId}>
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          {title}
+        </Typography>
+        <Card variant="outlined" sx={{ bgcolor: 'action.hover' }}>
+          <CardContent>
+            <Typography variant="body2" color="text.secondary">
+              No data available
+            </Typography>
+          </CardContent>
+        </Card>
+      </Box>
+    );
   }
 
   return (
@@ -141,13 +160,18 @@ const MessageList = memo(function MessageList({
 export function Overview({ ampAttributes }: OverviewProps) {
   const normalizeMessages = useCallback(
     (
-      input: PromptMessage[] | string | undefined
+      input: PromptMessage[] | string[] | string | undefined
     ): (Partial<PromptMessage> | { content: string })[] => {
       if (!input) return [];
       if (typeof input === "string") {
         return [{ content: input }];
       }
-      return input;
+      // Handle string arrays (e.g., for embedding documents)
+      if (Array.isArray(input) && input.length > 0 && typeof input[0] === "string") {
+        return (input as string[]).map(doc => ({ content: doc }));
+      }
+      // Handle PromptMessage arrays
+      return input as PromptMessage[];
     },
     []
   );
@@ -162,7 +186,33 @@ export function Overview({ ampAttributes }: OverviewProps) {
     [ampAttributes?.output, normalizeMessages]
   );
 
+  // Extract name from data based on kind
+  const name = useMemo(() => {
+    const { kind, data } = ampAttributes || {};
+    if (kind === 'tool' && data) {
+      return (data as ToolData).name;
+    } else if (kind === 'agent' && data) {
+      return (data as AgentData).name;
+    }
+    return undefined;
+  }, [ampAttributes]);
+
+  // Extract system prompt for agent spans
+  const systemPrompt = useMemo(() => {
+    const { kind, data } = ampAttributes || {};
+    if (kind === 'agent' && data) {
+      return (data as AgentData).systemPrompt;
+    }
+    return undefined;
+  }, [ampAttributes]);
+
   const hasContent = inputMessages.length > 0 || outputMessages.length > 0;
+
+  // Check if this is a span type that should have input/output
+  const shouldHaveInputOutput = useMemo(() => {
+    const { kind } = ampAttributes || {};
+    return kind === 'llm' || kind === 'tool' || kind === 'agent' || kind === 'embedding';
+  }, [ampAttributes]);
 
   const getRoleColor = useCallback((role: string) => {
     switch (role) {
@@ -179,7 +229,7 @@ export function Overview({ ampAttributes }: OverviewProps) {
     }
   }, []);
 
-  if (!hasContent && !ampAttributes?.name) {
+  if (!hasContent && !name) {
     return (
       <NoDataFound
         message="Failed to extract span details"
@@ -192,12 +242,31 @@ export function Overview({ ampAttributes }: OverviewProps) {
 
   return (
     <Stack spacing={3}>
-      {ampAttributes?.name && (
+      {name && (
         <Stack>
           <Typography variant="h6">Name</Typography>
           <Card variant="outlined">
             <CardContent>
-              <Typography variant="body2">{ampAttributes?.name}</Typography>
+              <Typography variant="body2">{name}</Typography>
+            </CardContent>
+          </Card>
+        </Stack>
+      )}
+
+      {systemPrompt && (
+        <Stack>
+          <Typography variant="h6">System Prompt</Typography>
+          <Card variant="outlined">
+            <CardContent>
+              <Typography 
+                variant="body2"
+                sx={{
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {formattedMessage(systemPrompt)}
+              </Typography>
             </CardContent>
           </Card>
         </Stack>
@@ -208,12 +277,14 @@ export function Overview({ ampAttributes }: OverviewProps) {
         messages={inputMessages}
         getRoleColor={getRoleColor}
         data-testid="input-messages"
+        showEmptyMessage={shouldHaveInputOutput && name !== undefined}
       />
       <MessageList
         title="Output Messages"
         messages={outputMessages}
         getRoleColor={getRoleColor}
         data-testid="output-messages"
+        showEmptyMessage={shouldHaveInputOutput && name !== undefined}
       />
     </Stack>
   );

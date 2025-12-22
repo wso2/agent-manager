@@ -2249,42 +2249,109 @@ components:
       properties:
         kind:
           type: string
-          description: Semantic span type (llm, tool, embedding, etc.)
+          description: Semantic span type (llm, tool, embedding, retriever, agent, etc.)
         input:
           oneOf:
             - type: array
               items:
                 $ref: "#/components/schemas/PromptMessage"
+            - type: array
+              items:
+                type: string
             - type: string
-          description: Input for LLM spans (array) or tool spans (string)
+          description: Input data - varies by span kind ([]PromptMessage for LLM, []string for embedding, string for tool/agent)
         output:
           oneOf:
             - type: array
               items:
                 $ref: "#/components/schemas/PromptMessage"
             - type: string
-          description: Output for LLM spans (array) or tool spans (string)
+          description: Output data - varies by span kind ([]PromptMessage for LLM, string for tool/agent)
+        status:
+          $ref: "#/components/schemas/SpanStatus"
+        data:
+          oneOf:
+            - $ref: "#/components/schemas/LLMData"
+            - $ref: "#/components/schemas/ToolData"
+            - $ref: "#/components/schemas/EmbeddingData"
+            - $ref: "#/components/schemas/RetrieverData"
+            - $ref: "#/components/schemas/AgentData"
+          description: Kind-specific data based on the span type
+      required:
+        - kind
+
+    LLMData:
+      type: object
+      properties:
         tools:
           type: array
           items:
             $ref: "#/components/schemas/ToolDefinition"
-          description: List of available tools/functions (for LLM spans)
-        name:
-          type: string
-          description: Name of the entity (for tool spans)
-        status:
-          $ref: "#/components/schemas/SpanStatus"
+          description: Available tools/functions
         model:
           type: string
-          description: LLM model name (for LLM spans)
+          description: Model name
+        vendor:
+          type: string
+          description: LLM vendor/provider (e.g., openai, anthropic)
         temperature:
           type: number
           format: float
-          description: LLM temperature (for LLM spans)
+          description: Temperature parameter
         tokenUsage:
           $ref: "#/components/schemas/LLMTokenUsage"
-      required:
-        - kind
+
+    ToolData:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Tool/function name
+
+    EmbeddingData:
+      type: object
+      properties:
+        model:
+          type: string
+          description: Embedding model name
+        vendor:
+          type: string
+          description: Embedding vendor/provider
+        tokenUsage:
+          $ref: "#/components/schemas/LLMTokenUsage"
+
+    RetrieverData:
+      type: object
+      properties:
+        vectorDB:
+          type: string
+          description: Vector database system (e.g., chroma, pinecone)
+        topK:
+          type: integer
+          description: Number of top results requested
+
+    AgentData:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Agent name
+        tools:
+          type: array
+          items:
+            type: string
+          description: Available tool names for the agent
+        model:
+          type: string
+          description: Model used by the agent
+        framework:
+          type: string
+          description: Agent framework (e.g., strands-agents, langchain)
+        systemPrompt:
+          type: string
+          description: System prompt for the agent
+        tokenUsage:
+          $ref: "#/components/schemas/LLMTokenUsage"
 
     PromptMessage:
       type: object

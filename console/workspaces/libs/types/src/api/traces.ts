@@ -79,16 +79,44 @@ export interface ToolDefinition {
   parameters?: string;
 }
 
-export interface AmpAttributes {
-  kind: string;
-  input?: PromptMessage[] | string;
-  output?: PromptMessage[] | string;
+export interface LLMData {
   tools?: ToolDefinition[];
-  name?: string;
-  status?: SpanStatus;
   model?: string;
+  vendor?: string;
   temperature?: number;
   tokenUsage?: LLMTokenUsage;
+}
+
+export interface ToolData {
+  name?: string;
+}
+
+export interface EmbeddingData {
+  model?: string;
+  vendor?: string;
+  tokenUsage?: LLMTokenUsage;
+}
+
+export interface RetrieverData {
+  vectorDB?: string;
+  topK?: number;
+}
+
+export interface AgentData {
+  name?: string;
+  tools?: string[];
+  model?: string;
+  framework?: string;
+  systemPrompt?: string;
+  tokenUsage?: LLMTokenUsage;
+}
+
+export interface AmpAttributes {
+  kind: string;
+  input?: PromptMessage[] | string[] | string;
+  output?: PromptMessage[] | string;
+  status?: SpanStatus;
+  data?: LLMData | ToolData | EmbeddingData | RetrieverData | AgentData;
 }
 
 export interface Span {
