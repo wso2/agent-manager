@@ -255,7 +255,7 @@ func (k *openChoreoSvcClient) AttachComponentTrait(ctx context.Context, orgName 
 	if component.Spec.Owner.ProjectName != projName {
 		return fmt.Errorf("component does not belong to the specified project")
 	}
-	otelInstrumentationTrait, err := createOTELInstrumentationTrait(component, openChoreoEnv.UUID, openChoreoProject.UUID)
+	otelInstrumentationTrait, err := createOTELInstrumentationTrait(component, openChoreoEnv.UUID)
 	if err != nil {
 		return fmt.Errorf("error creating OTEL instrumentation trait: %w", err)
 	}

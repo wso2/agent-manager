@@ -223,14 +223,14 @@ func createComponentCRForInternalAgents(orgName, projectName string, req *spec.C
 	return componentCR, nil
 }
 
-func createOTELInstrumentationTrait(ocAgentComponent *v1alpha1.Component, envUUID, projectUUID string) (*v1alpha1.ComponentTrait, error) {
+func createOTELInstrumentationTrait(ocAgentComponent *v1alpha1.Component, envUUID string) (*v1alpha1.ComponentTrait, error) {
 	traitParameters := map[string]interface{}{
 		"instrumentationImage":  getInstrumentationImage(ocAgentComponent.Labels[string(LabelKeyAgentLanguageVersion)]),
 		"sdkVolumeName":         config.GetConfig().OTEL.SDKVolumeName,
 		"sdkMountPath":          config.GetConfig().OTEL.SDKMountPath,
 		"otelEndpoint":          config.GetConfig().OTEL.ExporterEndpoint,
 		"isTraceContentEnabled": utils.BoolAsString(config.GetConfig().OTEL.IsTraceContentEnabled),
-		"traceAttributes":       fmt.Sprintf("%s=%s,%s=%s,%s=%s", TraceAttributeKeyProject, projectUUID, TraceAttributeKeyEnvironment, envUUID, TraceAttributeKeyComponent, ocAgentComponent.UID),
+		"traceAttributes":       fmt.Sprintf("%s=%s,%s=%s", TraceAttributeKeyEnvironment, envUUID, TraceAttributeKeyComponent, ocAgentComponent.UID),
 		"agentApiKey":           uuid.New().String(),
 	}
 	traitParametersJSON, err := json.Marshal(traitParameters)

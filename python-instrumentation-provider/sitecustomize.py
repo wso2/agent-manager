@@ -21,7 +21,6 @@ def validate_resource_attributes(resource_attributes):
     # Define required attributes
     required_attrs = [
         "openchoreo.dev/environment-uid",
-        "openchoreo.dev/project-uid",
         "openchoreo.dev/component-uid",
     ]
 

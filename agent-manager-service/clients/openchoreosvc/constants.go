@@ -40,7 +40,6 @@ type TraceAttributeKeys string
 
 const (
 	TraceAttributeKeyEnvironment TraceAttributeKeys = "openchoreo.dev/environment-uid"
-	TraceAttributeKeyProject     TraceAttributeKeys = "openchoreo.dev/project-uid"
 	TraceAttributeKeyComponent   TraceAttributeKeys = "openchoreo.dev/component-uid"
 )
 
