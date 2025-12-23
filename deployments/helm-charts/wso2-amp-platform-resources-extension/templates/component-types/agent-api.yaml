@@ -33,7 +33,7 @@ spec:
       exposed: "boolean | default=false"
       containerName: "string | default=main"
       basePath: "string | default=/"
-      cors: 'CORSConfig | default={"allowOrigin": ["http://localhost:3000"], "allowMethods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], "allowHeaders": ["authorization", "Content-Type", "Origin", "Access-Control-Allow-Origin"]}'
+      cors: 'CORSConfig | default={"allowOrigin": ["http://localhost:3000"], "allowMethods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], "allowHeaders": ["authorization", "Content-Type", "Origin"]}'
 
     envOverrides:
       resources: "ResourceRequirements | default={}"
