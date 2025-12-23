@@ -139,6 +139,10 @@ func isRetryableK8sError(err error) bool {
 	if apierrors.IsTooManyRequests(err) {
 		return true
 	}
+	// Conflict errors - resource was modified, should refetch and retry
+	if apierrors.IsConflict(err) {
+		return true
+	}
 	// Temporary network issues
 	if apierrors.IsUnexpectedServerError(err) {
 		return true
