@@ -93,12 +93,7 @@ agentManagerService:
     observerUsername: "admin"
     observerPassword: "admin"
     traceObserverURL: "http://amp-traces-observer.openchoreo-observability-plane.svc.cluster.local:9098"
-
-  agentWorkload:
-    agentWorkloadCorsAllowedOrigin: "http://localhost:3000"
-    agentWorkloadCorsAllowedMethods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-    agentWorkloadCorsAllowedHeaders: "authorization,Content-Type,Origin"
-
+  
     # API Key configuration
     apiKey:
       header: "X-API-Key"
@@ -113,6 +108,12 @@ agentManagerService:
     otel:
       traceContent: "true"
       exporterEndpoint: "http://opentelemetry-collector.openchoreo-observability-plane.svc.cluster.local:4318"
+
+  agentWorkload:
+    cors:
+      allowedOrigin: "http://localhost:3000"
+      allowedMethods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
+      allowedHeaders: "authorization,Content-Type,Origin"
 
   # Pod-level configurations
   podAnnotations: {}
