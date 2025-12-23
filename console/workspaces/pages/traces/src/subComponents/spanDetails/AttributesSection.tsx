@@ -72,6 +72,63 @@ type EditorInstance = Parameters<
   NonNullable<React.ComponentProps<typeof Editor>["onMount"]>
 >[0];
 
+/**
+ * Safely stringifies attributes, handling circular references and unsupported types
+ */
+function safeStringifyAttributes(
+  attributes: Record<string, unknown>
+): string {
+  const seen = new WeakSet();
+
+  const replacer = (_key: string, value: unknown): unknown => {
+    // Handle BigInt values
+    if (typeof value === "bigint") {
+      return value.toString();
+    }
+
+    // Handle circular references
+    if (typeof value === "object" && value !== null) {
+      if (seen.has(value)) {
+        return "[Circular]";
+      }
+      seen.add(value);
+    }
+
+    // Handle other unsupported types
+    if (value === undefined) {
+      return "[undefined]";
+    }
+
+    return value;
+  };
+
+  try {
+    return JSON.stringify(attributes, replacer, 2);
+  } catch {
+    // Fallback: attempt shallow serialization
+    try {
+      const shallowCopy: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(attributes)) {
+        try {
+          if (typeof val === "bigint") {
+            shallowCopy[key] = val.toString();
+          } else if (val === undefined) {
+            shallowCopy[key] = "[undefined]";
+          } else {
+            shallowCopy[key] = JSON.parse(JSON.stringify(val, replacer));
+          }
+        } catch {
+          shallowCopy[key] = "[unserializable]";
+        }
+      }
+      return JSON.stringify(shallowCopy, null, 2);
+    } catch {
+      // Final fallback
+      return "<unserializable attributes>";
+    }
+  }
+}
+
 export function AttributesSection({ attributes }: AttributesSectionProps) {
   const { mode: colorSchemeMode } = useColorScheme();
   const [searchText, setSearchText] = useState("");
@@ -170,7 +227,7 @@ export function AttributesSection({ attributes }: AttributesSectionProps) {
       <NoDataFound
         message="No attributes found"
         iconElement={ChartArea}
-        subtitle="No attributes found"
+        subtitle="Try selecting a different span to view attributes"
         disableBackground
       />
     );
@@ -191,6 +248,7 @@ export function AttributesSection({ attributes }: AttributesSectionProps) {
           onChange={(e) => handleSearchChange(e.target.value)}
           size="small"
           fullWidth
+          aria-label="Search attributes"
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               handleNext();
@@ -206,7 +264,7 @@ export function AttributesSection({ attributes }: AttributesSectionProps) {
                     </Typography>
                   </Stack>
                 ) : (
-                  <Search size={16} />
+                  <Search size={16} aria-hidden="true" />
                 ),
             },
           }}
@@ -214,11 +272,21 @@ export function AttributesSection({ attributes }: AttributesSectionProps) {
 
         {totalMatches > 0 && (
           <Stack direction="row" alignItems="center" gap={1}>
-            <IconButton size="small" onClick={handlePrevious}>
-              <ChevronUp size={16} />
+            <IconButton
+              size="small"
+              onClick={handlePrevious}
+              aria-label="Previous match"
+              title="Previous match"
+            >
+              <ChevronUp size={16} aria-hidden="true" />
             </IconButton>
-            <IconButton size="small" onClick={handleNext}>
-              <ChevronDown size={16} />
+            <IconButton
+              size="small"
+              onClick={handleNext}
+              aria-label="Next match"
+              title="Next match"
+            >
+              <ChevronDown size={16} aria-hidden="true" />
             </IconButton>
           </Stack>
         )}
@@ -228,7 +296,7 @@ export function AttributesSection({ attributes }: AttributesSectionProps) {
         theme={
           colorSchemeMode === "dark" ? CUSTOM_DARK_THEME : CUSTOM_LIGHT_THEME
         }
-        value={JSON.stringify(attributes, null, 2)}
+        value={safeStringifyAttributes(attributes)}
         language="json"
         beforeMount={handleEditorWillMount}
         onMount={handleEditorMount}
