@@ -38,7 +38,7 @@ type Config struct {
 	APIKeyHeader string
 	APIKeyValue  string
 	// CORSAllowedOrigin is the single allowed origin for CORS; use "*" to allow all
-	CORS CORSConfig
+	CORSAllowedOrigin string
 
 	// OpenTelemetry configuration
 	OTEL OTELConfig
@@ -54,6 +54,10 @@ type Config struct {
 	// Default Chat API configuration
 	DefaultChatAPI     DefaultChatAPIConfig
 	DefaultGatewayPort int
+}
+
+type AgentWorkload  struct {
+	CORS CORSConfig
 }
 
 // OTELConfig holds all OpenTelemetry related configuration

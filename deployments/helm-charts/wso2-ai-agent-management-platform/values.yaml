@@ -89,8 +89,9 @@ agentManagerService:
     dbOperationTimeout: 30
     healthCheckTimeout: 5
     corsAllowedOrigin: "http://localhost:3000"
-    corsAllowedMethods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-    corsAllowedHeaders: "authorization,Content-Type,Origin"
+    agentWorkloadCorsAllowedOrigin: "http://localhost:3000"
+    agentWorkloadCorsAllowedMethods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
+    agentWorkloadCorsAllowedHeaders: "authorization,Content-Type,Origin"
     observerURL: "http://observer.openchoreo-observability-plane.svc.cluster.local:8080"
     observerUsername: "admin"
     observerPassword: "admin"
