@@ -10,7 +10,7 @@ global:
     # -- Registry endpoint for pushing and pulling images
     # For local registry: "host.k3d.internal:10082"
     # For external registry with baseDomain: automatically uses "registry.<baseDomain>"
-    endpoint: "registry.openchoreo-build-plane.svc.cluster.local:5000"
+    endpoint: "host.k3d.internal:10082"
   # -- Agent Manager Service configuration
   agentManagerService:
     # -- The base URL of the agent manager service
