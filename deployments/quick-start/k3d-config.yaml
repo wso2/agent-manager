@@ -44,7 +44,7 @@ options:
       # Add host.k3d.internal to API server TLS certificate SANs.
       # This allows consistent DataPlane configuration across single and multi-cluster setups
       # where Control Plane pods can access the API server via host.k3d.internal:6550
-      - arg: "--tls-san=host.k3d.internal"
+      - arg: "--tls-san=host.k3d.internal --disable=traefik"
         nodeFilters:
           - server:*
       # Configure kubelet eviction thresholds to prevent resource exhaustion
