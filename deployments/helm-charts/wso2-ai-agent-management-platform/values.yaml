@@ -48,7 +48,7 @@ agentManagerService:
     annotations: {}
 
   observer:
-    url: "http://observer.openchoreo-observability-plane:8080"
+    url: "http://observer.openchoreo-observability-plane.svc.cluster.local:8080"
     username: "admin"
     password: "admin"
 
@@ -89,9 +89,10 @@ agentManagerService:
     dbOperationTimeout: 30
     healthCheckTimeout: 5
     corsAllowedOrigin: "*"
-    observerURL: "http://observer.openchoreo-observability-plane:8080"
+    observerURL: "http://observer.openchoreo-observability-plane.svc.cluster.local:8080"
     observerUsername: "admin"
     observerPassword: "admin"
+    traceObserverURL: "http://amp-traces-observer.openchoreo-observability-plane.svc.cluster.local:9098"
 
     # API Key configuration
     apiKey:
@@ -105,15 +106,8 @@ agentManagerService:
 
     # OpenTelemetry configuration
     otel:
-      instrumentationImage: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:latest"
-      instrumentationProvider: "opentelemetry"
-      sdkVolumeName: "opentelemetry-auto-instrumentation"
-      sdkMountPath: "/otel-auto-instrumentation"
       traceContent: "true"
-      metricsEnabled: "true"
-      telemetryEnabled: "true"
-      exporterInsecure: "true"
-      exporterEndpoint: "http://opentelemetry-collector.openchoreo-observability-plane:4318"
+      exporterEndpoint: "http://opentelemetry-collector.openchoreo-observability-plane.svc.cluster.local:4318"
 
   # Pod-level configurations
   podAnnotations: {}
