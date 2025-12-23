@@ -17,7 +17,7 @@
  */
 
 import { Chip, Divider, Stack, Tab, Tabs, Typography } from "@wso2/oxygen-ui";
-import { Span, LLMData, AgentData, ToolDefinition, ToolData } from "@agent-management-platform/types";
+import { Span, LLMData, AgentData, ToolDefinition, ToolData, CrewAITaskData } from "@agent-management-platform/types";
 import { BasicInfoSection } from "./spanDetails/BasicInfoSection";
 import { AttributesSection } from "./spanDetails/AttributesSection";
 import { useEffect, useState } from "react";
@@ -61,6 +61,14 @@ function hasOverviewContent(span: Span): boolean {
   if (kind === 'tool' && data) {
     const toolData = data as ToolData;
     if (toolData.name) {
+      return true;
+    }
+  }
+  
+  // Check for CrewAI task name or description
+  if (kind === 'crewaitask' && data) {
+    const taskData = data as CrewAITaskData;
+    if (taskData.name || taskData.description) {
       return true;
     }
   }

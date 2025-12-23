@@ -26,7 +26,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { Info } from "@wso2/oxygen-ui-icons-react";
-import { AmpAttributes, PromptMessage, ToolData, AgentData } from "@agent-management-platform/types";
+import { AmpAttributes, PromptMessage, ToolData, AgentData, CrewAITaskData } from "@agent-management-platform/types";
 import { memo, useCallback, useMemo } from "react";
 
 interface OverviewProps {
@@ -193,6 +193,17 @@ export function Overview({ ampAttributes }: OverviewProps) {
       return (data as ToolData).name;
     } else if (kind === 'agent' && data) {
       return (data as AgentData).name;
+    } else if (kind === 'crewaitask' && data) {
+      return (data as CrewAITaskData).name;
+    }
+    return undefined;
+  }, [ampAttributes]);
+
+  // Extract description for CrewAI tasks
+  const taskDescription = useMemo(() => {
+    const { kind, data } = ampAttributes || {};
+    if (kind === 'crewaitask' && data) {
+      return (data as CrewAITaskData).description;
     }
     return undefined;
   }, [ampAttributes]);
@@ -248,6 +259,25 @@ export function Overview({ ampAttributes }: OverviewProps) {
           <Card variant="outlined">
             <CardContent>
               <Typography variant="body2">{name}</Typography>
+            </CardContent>
+          </Card>
+        </Stack>
+      )}
+
+      {taskDescription && (
+        <Stack>
+          <Typography variant="h6">Description</Typography>
+          <Card variant="outlined">
+            <CardContent>
+              <Typography 
+                variant="body2"
+                sx={{
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {taskDescription}
+              </Typography>
             </CardContent>
           </Card>
         </Stack>
