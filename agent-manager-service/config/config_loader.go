@@ -25,9 +25,14 @@ import (
 )
 
 var config *Config
+var agentWorkloadConfig *AgentWorkload
 
 func GetConfig() *Config {
 	return config
+}
+
+func GetAgentWorkloadConfig() *AgentWorkload {
+	return agentWorkloadConfig
 }
 
 func init() {
@@ -36,6 +41,7 @@ func init() {
 
 func loadEnvs() {
 	config = &Config{}
+	agentWorkloadConfig = &AgentWorkload{}
 
 	envFilePath := os.Getenv("ENV_FILE_PATH")
 	if envFilePath != "" {
@@ -51,6 +57,12 @@ func loadEnvs() {
 	config.AuthHeader = r.readOptionalString("AUTH_HEADER", "Authorization")
 	config.AutoMaxProcsEnabled = r.readOptionalBool("AUTO_MAX_PROCS_ENABLED", true)
 	config.CORSAllowedOrigin = r.readOptionalString("CORS_ALLOWED_ORIGIN", "http://localhost:3000")
+
+	agentWorkloadConfig.CORS = CORSConfig{
+		AllowOrigin:  r.readOptionalString("AGENT_WORKLOAD_CORS_ALLOWED_ORIGIN", "http://localhost:3000"),
+		AllowMethods: r.readOptionalString("AGENT_WORKLOAD_CORS_ALLOWED_METHODS", "GET,POST,PUT,DELETE,PATCH,OPTIONS"),
+		AllowHeaders: r.readOptionalString("AGENT_WORKLOAD_CORS_ALLOWED_HEADERS", "authorization,Content-Type,Origin"),
+	}
 
 	// Logging configuration
 	config.LogLevel = r.readOptionalString("LOG_LEVEL", "INFO")

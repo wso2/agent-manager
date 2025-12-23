@@ -94,6 +94,11 @@ agentManagerService:
     observerPassword: "admin"
     traceObserverURL: "http://amp-traces-observer.openchoreo-observability-plane.svc.cluster.local:9098"
 
+  agentWorkload:
+    agentWorkloadCorsAllowedOrigin: "http://localhost:3000"
+    agentWorkloadCorsAllowedMethods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
+    agentWorkloadCorsAllowedHeaders: "authorization,Content-Type,Origin"
+
     # API Key configuration
     apiKey:
       header: "X-API-Key"
