@@ -11,7 +11,7 @@ global:
 
 # Disable helm chart's Traefik (use k3d's built-in Traefik instead)
 traefik:
-  enabled: false
+  enabled: true
 
 # Common security configuration
 security:
