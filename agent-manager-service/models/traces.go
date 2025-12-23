@@ -34,8 +34,8 @@ type TraceOverview struct {
 	SpanCount       int          `json:"spanCount"`
 	TokenUsage      *TokenUsage  `json:"tokenUsage,omitempty"` // Aggregated token usage from GenAI spans
 	Status          *TraceStatus `json:"status,omitempty"`     // Trace status including error information
-	Input           string       `json:"input,omitempty"`      // Input from root span's traceloop.entity.input
-	Output          string       `json:"output,omitempty"`     // Output from root span's traceloop.entity.output
+	Input           interface{}  `json:"input,omitempty"`      // Input from root span (nil if not found)
+	Output          interface{}  `json:"output,omitempty"`     // Output from root span (nil if not found)
 }
 
 // TokenUsage represents aggregated token usage from GenAI spans

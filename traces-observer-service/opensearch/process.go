@@ -119,8 +119,16 @@ func parseSpan(source map[string]interface{}) Span {
 		case SpanTypeRetriever:
 			populateRetrieverAttributes(ampAttrs, span.Attributes)
 		case SpanTypeAgent:
-			populateAgentAttributes(ampAttrs, span.Attributes)
+			// Check if this is a CrewAI workflow span and delegate to CrewAI processor
+			if IsCrewAISpan(span.Attributes) {
+				PopulateCrewAIAgentAttributes(ampAttrs, span.Attributes)
+			} else {
+				populateAgentAttributes(ampAttrs, span.Attributes)
+			}
+		case SpanTypeChain:
+			populateChainAttributes(ampAttrs, span.Attributes)
 		}
+
 	}
 
 	// Extract error status for all span types
@@ -225,7 +233,7 @@ func populateRetrieverAttributes(ampAttrs *AmpAttributes, attrs map[string]inter
 
 // populateAgentAttributes extracts and populates agent-specific attributes
 func populateAgentAttributes(ampAttrs *AmpAttributes, attrs map[string]interface{}) {
-	// Set common Input/Output fields from traceloop.entity attributes
+	// For standard agent spans, use traceloop.entity attributes
 	if input, ok := attrs["traceloop.entity.input"].(string); ok {
 		ampAttrs.Input = input
 	}
@@ -263,29 +271,93 @@ func populateAgentAttributes(ampAttrs *AmpAttributes, attrs map[string]interface
 	ampAttrs.Data = agentData
 }
 
-// extractAgentTools extracts tool names from gen_ai.agent.tools attribute
-// The attribute contains a JSON array of tool names: ["tool1", "tool2"]
-// If parsing fails, returns the raw string value in a single-element array
-func extractAgentTools(attrs map[string]interface{}) []string {
+// populateChainAttributes extracts and populates chain/task/workflow-specific attributes
+func populateChainAttributes(ampAttrs *AmpAttributes, attrs map[string]interface{}) {
+	// Check if this is a CrewAI chain/task span and delegate to CrewAI processor
+	if IsCrewAISpan(attrs) {
+		// Extract input and output using CrewAI extraction
+		ampAttrs.Input, ampAttrs.Output = ExtractCrewAISpanInputOutput(attrs)
+		return
+	}
+
+	// For standard chain/task spans, extract from traceloop.entity attributes
+	ampAttrs.Input, ampAttrs.Output = extractSpanInputOutput(attrs)
+}
+
+// parseToolsJSON is a common method to parse tools from JSON string
+// Supports two formats:
+// 1. Array of strings: ["tool1", "tool2"] -> creates ToolDefinition with just name
+// 2. Array of tool objects: [{"name": "tool1", "description": "...", "parameters": "..."}]
+// Returns array of ToolDefinition objects
+func parseToolsJSON(toolsJSON string) []ToolDefinition {
+	if toolsJSON == "" {
+		return nil
+	}
+
+	// First, try to parse as array of ToolDefinition objects
+	var toolDefs []ToolDefinition
+	if err := json.Unmarshal([]byte(toolsJSON), &toolDefs); err == nil && len(toolDefs) > 0 {
+		// Successfully parsed as ToolDefinition array
+		return toolDefs
+	}
+
+	// If that fails, try to parse as array of strings
+	var toolNames []string
+	if err := json.Unmarshal([]byte(toolsJSON), &toolNames); err == nil {
+		// Successfully parsed as string array, convert to ToolDefinition
+		result := make([]ToolDefinition, len(toolNames))
+		for i, name := range toolNames {
+			result[i] = ToolDefinition{Name: name}
+		}
+		return result
+	}
+
+	// If both fail, return the raw string as a single ToolDefinition
+	return []ToolDefinition{{Name: toolsJSON}}
+}
+
+// extractAgentTools extracts tool definitions from gen_ai.agent.tools attribute
+// The attribute can contain:
+// - JSON array of tool names: ["tool1", "tool2"]
+// - JSON array of tool objects: [{"name": "tool1", "description": "...", "parameters": "..."}]
+// Returns array of ToolDefinition objects
+func extractAgentTools(attrs map[string]interface{}) []ToolDefinition {
 	toolsJSON, ok := attrs["gen_ai.agent.tools"].(string)
 	if !ok || toolsJSON == "" {
 		return nil
 	}
 
-	// Try to unmarshal as array of strings
-	var tools []string
-	if err := json.Unmarshal([]byte(toolsJSON), &tools); err != nil {
-		// If it fails to unmarshal, return the raw string in an array
-		return []string{toolsJSON}
-	}
-
-	return tools
+	return parseToolsJSON(toolsJSON)
 }
 
 // extractSystemPrompt extracts the system prompt for an agent
 func extractAgentSystemPrompt(attrs map[string]interface{}) string {
 	// Look for system prompt in various possible locations
-	// First check gen_ai.prompt.0.content with role=system
+
+	// First check gen_ai.system_instructions (OTEL format)
+	// Can be a JSON array of instruction parts
+	if systemInstructions, ok := attrs["gen_ai.system_instructions"].(string); ok && systemInstructions != "" {
+		// Try to parse as JSON array first
+		var instructions []map[string]interface{}
+		if err := json.Unmarshal([]byte(systemInstructions), &instructions); err == nil {
+			// Extract text content from parts
+			var parts []string
+			for _, instruction := range instructions {
+				if partType, ok := instruction["type"].(string); ok && partType == "text" {
+					if content, ok := instruction["content"].(string); ok && content != "" {
+						parts = append(parts, content)
+					}
+				}
+			}
+			if len(parts) > 0 {
+				return strings.Join(parts, "\n")
+			}
+		}
+		// If not JSON or parsing failed, return as-is
+		return systemInstructions
+	}
+
+	// Check gen_ai.prompt.0.content with role=system (Traceloop format)
 	if role, ok := attrs["gen_ai.prompt.0.role"].(string); ok && role == "system" {
 		if content, ok := attrs["gen_ai.prompt.0.content"].(string); ok {
 			return content
@@ -294,10 +366,6 @@ func extractAgentSystemPrompt(attrs map[string]interface{}) string {
 
 	// Check for a dedicated system_prompt attribute if it exists
 	if systemPrompt, ok := attrs["system_prompt"].(string); ok {
-		return systemPrompt
-	}
-
-	if systemPrompt, ok := attrs["gen_ai.system_instructions"].(string); ok {
 		return systemPrompt
 	}
 
@@ -432,18 +500,20 @@ func isErrorStatus(status string) bool {
 	}
 }
 
-// ExtractRootSpanInputOutput extracts input and output from the root span (parent node)
-// by analyzing the "traceloop.entity.input" and "traceloop.entity.output" attributes
+// extractSpanInputOutput extracts input and output from traceloop.entity.* attributes
+// This is a generic method that works for any span with traceloop.entity.input and traceloop.entity.output
 // Input path: traceloop.entity.input -> inputs (ensure it's JSON)
 // Output path: traceloop.entity.output -> outputs -> messages[-1] -> kwargs -> content
-func ExtractRootSpanInputOutput(rootSpan *Span) (input string, output string) {
-	if rootSpan == nil || rootSpan.Attributes == nil {
-		return "", ""
+// Returns nil when attributes are not found
+func extractSpanInputOutput(attrs map[string]interface{}) (input interface{}, output interface{}) {
+	// Return nil if no attributes
+	if attrs == nil {
+		return nil, nil
 	}
 
 	// Extract input from traceloop.entity.input attribute
 	// Path: input -> inputs (make sure it's JSON)
-	if inputVal, ok := rootSpan.Attributes["traceloop.entity.input"]; ok {
+	if inputVal, ok := attrs["traceloop.entity.input"]; ok {
 		if inputStr, ok := inputVal.(string); ok {
 			// Try to parse as JSON
 			var inputMap map[string]interface{}
@@ -469,7 +539,7 @@ func ExtractRootSpanInputOutput(rootSpan *Span) (input string, output string) {
 
 	// Extract output from traceloop.entity.output attribute
 	// Path: output -> outputs -> messages[-1] -> kwargs -> content
-	if outputVal, ok := rootSpan.Attributes["traceloop.entity.output"]; ok {
+	if outputVal, ok := attrs["traceloop.entity.output"]; ok {
 		if outputStr, ok := outputVal.(string); ok {
 			// Try to parse as JSON
 			var outputMap map[string]interface{}
@@ -524,10 +594,132 @@ func ExtractRootSpanInputOutput(rootSpan *Span) (input string, output string) {
 	return input, output
 }
 
+// ExtractRootSpanInputOutput extracts input and output from the root span (parent node)
+// by analyzing the "traceloop.entity.input" and "traceloop.entity.output" attributes
+// Input path: traceloop.entity.input -> inputs (ensure it's JSON)
+// Output path: traceloop.entity.output -> outputs -> messages[-1] -> kwargs -> content
+// For CrewAI workflows: delegates to ExtractCrewAIRootSpanInputOutput
+// Returns nil when attributes are not found
+func ExtractRootSpanInputOutput(rootSpan *Span) (input interface{}, output interface{}) {
+	if rootSpan == nil || rootSpan.Attributes == nil {
+		return nil, nil
+	}
+
+	// Use the generic extraction method
+	return extractSpanInputOutput(rootSpan.Attributes)
+}
+
 // ExtractPromptMessages extracts and orders prompt messages from LLM span attributes
-// Handles attributes in the format: gen_ai.prompt.0.role, gen_ai.prompt.0.content, etc.
-// Also handles tool calls: gen_ai.prompt.{index}.tool_calls.{tool_index}.{field}
+// Handles two formats:
+// 1. OTEL format: gen_ai.input.messages (JSON array)
+// 2. Traceloop format: gen_ai.prompt.{index}.{field}
 func ExtractPromptMessages(attrs map[string]interface{}) []PromptMessage {
+	// First, try OTEL format (gen_ai.input.messages)
+	if messagesJSON, ok := attrs["gen_ai.input.messages"].(string); ok && messagesJSON != "" {
+		messages := parseOTELMessages(messagesJSON)
+		if len(messages) > 0 {
+			return messages
+		}
+	}
+
+	// Fallback to Traceloop format (gen_ai.prompt.*)
+	return extractTraceloopPromptMessages(attrs)
+}
+
+// parseOTELMessages parses OTEL format messages from JSON string
+// Format: [{"role": "user", "parts": [{"type": "text", "content": "..."}, {"type": "tool_call", ...}]}]
+func parseOTELMessages(messagesJSON string) []PromptMessage {
+	if messagesJSON == "" {
+		return nil
+	}
+
+	// Parse JSON array
+	var rawMessages []map[string]interface{}
+	if err := json.Unmarshal([]byte(messagesJSON), &rawMessages); err != nil {
+		return nil
+	}
+
+	messages := make([]PromptMessage, 0, len(rawMessages))
+	for _, rawMsg := range rawMessages {
+		msg := PromptMessage{}
+
+		// Extract role
+		if role, ok := rawMsg["role"].(string); ok {
+			msg.Role = role
+		}
+
+		// Extract parts
+		if parts, ok := rawMsg["parts"].([]interface{}); ok {
+			var contentParts []string
+			var toolCalls []ToolCall
+
+			for _, part := range parts {
+				if partMap, ok := part.(map[string]interface{}); ok {
+					partType, _ := partMap["type"].(string)
+
+					switch partType {
+					case "text":
+						// Extract text content
+						if content, ok := partMap["content"].(string); ok && content != "" {
+							contentParts = append(contentParts, content)
+						}
+
+					case "tool_call":
+						// Extract tool call
+						tc := ToolCall{}
+						if id, ok := partMap["id"].(string); ok {
+							tc.ID = id
+						}
+						if name, ok := partMap["name"].(string); ok {
+							tc.Name = name
+						}
+						// Arguments can be object or string
+						if args, ok := partMap["arguments"]; ok {
+							if argsStr, ok := args.(string); ok {
+								tc.Arguments = argsStr
+							} else {
+								// Convert to JSON string
+								if argsBytes, err := json.Marshal(args); err == nil {
+									tc.Arguments = string(argsBytes)
+								}
+							}
+						}
+						if tc.Name != "" {
+							toolCalls = append(toolCalls, tc)
+						}
+
+					case "tool_call_response":
+						// For tool role messages, extract result as content
+						if result, ok := partMap["result"].(string); ok && result != "" {
+							contentParts = append(contentParts, result)
+						}
+					}
+				}
+			}
+
+			// Combine content parts
+			if len(contentParts) > 0 {
+				msg.Content = strings.Join(contentParts, "\n")
+			}
+
+			// Add tool calls
+			if len(toolCalls) > 0 {
+				msg.ToolCalls = toolCalls
+			}
+		}
+
+		// Only add message if it has a role
+		if msg.Role != "" {
+			messages = append(messages, msg)
+		}
+	}
+
+	return messages
+}
+
+// extractTraceloopPromptMessages extracts prompt messages in Traceloop format
+// Format: gen_ai.prompt.{index}.{field}
+func extractTraceloopPromptMessages(attrs map[string]interface{}) []PromptMessage {
 	// Map to store messages by index
 	messageMap := make(map[int]*PromptMessage)
 	// Map to store tool calls for each message: messageIndex -> toolCallIndex -> ToolCall
@@ -586,15 +778,16 @@ func ExtractPromptMessages(attrs map[string]interface{}) []PromptMessage {
 							}
 
 							// Set the appropriate tool call field
-							if toolField == "id" {
+							switch toolField {
+							case "id":
 								if id, ok := value.(string); ok {
 									toolCallsMap[msgIndex][toolIndex].ID = id
 								}
-							} else if toolField == "name" {
+							case "name":
 								if name, ok := value.(string); ok {
 									toolCallsMap[msgIndex][toolIndex].Name = name
 								}
-							} else if toolField == "arguments" {
+							case "arguments":
 								if args, ok := value.(string); ok {
 									toolCallsMap[msgIndex][toolIndex].Arguments = args
 								}
@@ -645,9 +838,25 @@ func ExtractPromptMessages(attrs map[string]interface{}) []PromptMessage {
 }
 
 // ExtractCompletionMessages extracts and orders completion/output messages from LLM span attributes
-// Handles attributes in the format: gen_ai.completion.0.role, gen_ai.completion.0.content, etc.
-// Also handles tool calls: gen_ai.completion.{index}.tool_calls.{tool_index}.{field}
+// Handles two formats:
+// 1. OTEL format: gen_ai.output.messages (JSON array)
+// 2. Traceloop format: gen_ai.completion.{index}.{field}
 func ExtractCompletionMessages(attrs map[string]interface{}) []PromptMessage {
+	// First, try OTEL format (gen_ai.output.messages)
+	if messagesJSON, ok := attrs["gen_ai.output.messages"].(string); ok && messagesJSON != "" {
+		messages := parseOTELMessages(messagesJSON)
+		if len(messages) > 0 {
+			return messages
+		}
+	}
+
+	// Fallback to Traceloop format (gen_ai.completion.*)
+	return extractTraceloopCompletionMessages(attrs)
+}
+
+// extractTraceloopCompletionMessages extracts completion messages in Traceloop format
+// Format: gen_ai.completion.{index}.{field}
+func extractTraceloopCompletionMessages(attrs map[string]interface{}) []PromptMessage {
 	// Map to store messages by index
 	messageMap := make(map[int]*PromptMessage)
 	// Map to store tool calls for each message: messageIndex -> toolCallIndex -> ToolCall
@@ -706,15 +915,16 @@ func ExtractCompletionMessages(attrs map[string]interface{}) []PromptMessage {
 							}
 
 							// Set the appropriate tool call field
-							if toolField == "id" {
+							switch toolField {
+							case "id":
 								if id, ok := value.(string); ok {
 									toolCallsMap[msgIndex][toolIndex].ID = id
 								}
-							} else if toolField == "name" {
+							case "name":
 								if name, ok := value.(string); ok {
 									toolCallsMap[msgIndex][toolIndex].Name = name
 								}
-							} else if toolField == "arguments" {
+							case "arguments":
 								if args, ok := value.(string); ok {
 									toolCallsMap[msgIndex][toolIndex].Arguments = args
 								}
@@ -765,8 +975,73 @@ func ExtractCompletionMessages(attrs map[string]interface{}) []PromptMessage {
 }
 
 // ExtractToolDefinitions extracts tool/function definitions from LLM span attributes
-// Handles attributes in the format: llm.request.functions.0.name, llm.request.functions.0.description, etc.
+// Handles two formats:
+// 1. OTEL format: gen_ai.tool.definitions (JSON array)
+// 2. Traceloop format: llm.request.functions.{index}.{field}
 func ExtractToolDefinitions(attrs map[string]interface{}) []ToolDefinition {
+	// First, try OTEL format (gen_ai.tool.definitions)
+	if toolsJSON, ok := attrs["gen_ai.tool.definitions"].(string); ok && toolsJSON != "" {
+		tools := parseOTELToolDefinitions(toolsJSON)
+		if len(tools) > 0 {
+			return tools
+		}
+	}
+
+	// Fallback to Traceloop format (llm.request.functions.*)
+	return extractTraceloopToolDefinitions(attrs)
+}
+
+// parseOTELToolDefinitions parses OTEL format tool definitions from JSON string
+// Format: [{"type": "function", "name": "...", "description": "...", "parameters": {...}}]
+func parseOTELToolDefinitions(toolsJSON string) []ToolDefinition {
+	if toolsJSON == "" {
+		return nil
+	}
+
+	// Parse JSON array
+	var rawTools []map[string]interface{}
+	if err := json.Unmarshal([]byte(toolsJSON), &rawTools); err != nil {
+		return nil
+	}
+
+	tools := make([]ToolDefinition, 0, len(rawTools))
+	for _, rawTool := range rawTools {
+		tool := ToolDefinition{}
+
+		// Extract name
+		if name, ok := rawTool["name"].(string); ok {
+			tool.Name = name
+		}
+
+		// Extract description
+		if desc, ok := rawTool["description"].(string); ok {
+			tool.Description = desc
+		}
+
+		// Extract parameters (convert to JSON string)
+		if params, ok := rawTool["parameters"]; ok {
+			if paramsStr, ok := params.(string); ok {
+				tool.Parameters = paramsStr
+			} else {
+				// Convert to JSON string
+				if paramsBytes, err := json.Marshal(params); err == nil {
+					tool.Parameters = string(paramsBytes)
+				}
+			}
+		}
+
+		// Only add tool if it has a name
+		if tool.Name != "" {
+			tools = append(tools, tool)
+		}
+	}
+
+	return tools
+}
+
+// extractTraceloopToolDefinitions extracts tool definitions in Traceloop format
+// Format: llm.request.functions.{index}.{field}
+func extractTraceloopToolDefinitions(attrs map[string]interface{}) []ToolDefinition {
 	// Map to store tools by index
 	toolMap := make(map[int]*ToolDefinition)
 	maxIndex := -1
@@ -838,6 +1113,8 @@ func ExtractToolExecutionDetails(attrs map[string]interface{}, spanStatus string
 		name = entityName
 	} else if toolName, ok := attrs["tool.name"].(string); ok {
 		name = toolName
+	} else if toolID, ok := attrs["tool_name"].(string); ok { // crewai legacy
+		name = toolID
 	} else if funcName, ok := attrs["function.name"].(string); ok {
 		name = funcName
 	} else if genAIName, ok := attrs["gen_ai.tool.name"].(string); ok {
@@ -1115,6 +1392,11 @@ func hasToolAttributes(attrs map[string]interface{}) bool {
 
 	// Traceloop specific: tool.* namespace
 	if _, ok := attrs["tool.name"].(string); ok {
+		return true
+	}
+
+	// CrewAI specific: function.* namespace
+	if _, ok := attrs["tool_name"].(string); ok {
 		return true
 	}
 

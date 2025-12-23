@@ -94,12 +94,13 @@ type RetrieverData struct {
 
 // AgentData contains agent execution span information
 type AgentData struct {
-	Name         string         `json:"name,omitempty"`         // Agent name (from gen_ai.agent.name)
-	Tools        []string       `json:"tools,omitempty"`        // Available tool names for the agent (from gen_ai.agent.tools)
-	Model        string         `json:"model,omitempty"`        // Model used by the agent (from gen_ai.request.model)
-	Framework    string         `json:"framework,omitempty"`    // Agent framework (from gen_ai.system, e.g., "strands-agents")
-	SystemPrompt string         `json:"systemPrompt,omitempty"` // System prompt for the agent
-	TokenUsage   *LLMTokenUsage `json:"tokenUsage,omitempty"`   // Token usage details (aggregated from agent execution)
+	Name         string           `json:"name,omitempty"`         // Agent name (from gen_ai.agent.name)
+	Tools        []ToolDefinition `json:"tools,omitempty"`        // Available tools for the agent (from gen_ai.agent.tools)
+	Model        string           `json:"model,omitempty"`        // Model used by the agent (from gen_ai.request.model)
+	Framework    string           `json:"framework,omitempty"`    // Agent framework (from gen_ai.system, e.g., "strands-agents")
+	SystemPrompt string           `json:"systemPrompt,omitempty"` // System prompt for the agent
+	MaxIter      int              `json:"maxIter,omitempty"`      // Maximum iterations for the agent (from crewai.agent.max_iter)
+	TokenUsage   *LLMTokenUsage   `json:"tokenUsage,omitempty"`   // Token usage details (aggregated from agent execution)
 }
 
 // SpanStatus represents the execution status of a span
@@ -166,8 +167,8 @@ type TraceOverview struct {
 	SpanCount       int          `json:"spanCount"`
 	TokenUsage      *TokenUsage  `json:"tokenUsage,omitempty"` // Aggregated token usage from GenAI spans
 	Status          *TraceStatus `json:"status,omitempty"`     // Trace status including error information
-	Input           string       `json:"input,omitempty"`      // Input from root span's traceloop.entity.input
-	Output          string       `json:"output,omitempty"`     // Output from root span's traceloop.entity.output
+	Input           interface{}  `json:"input,omitempty"`      // Input from root span (nil if not found)
+	Output          interface{}  `json:"output,omitempty"`     // Output from root span (nil if not found)
 }
 
 // TraceStatus represents the status of a trace
