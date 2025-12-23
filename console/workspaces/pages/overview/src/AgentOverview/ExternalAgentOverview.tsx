@@ -21,14 +21,14 @@ import { Clock as AccessTime, Settings } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
-import { useGetAgent, useListEnvironments } from "@agent-management-platform/api-client";
+import {
+  useGetAgent,
+  useListEnvironments,
+} from "@agent-management-platform/api-client";
 import { EnvironmentCard } from "@agent-management-platform/shared-component";
 import { InstrumentationDrawer } from "./InstrumentationDrawer";
 import { NoDataFound } from "@agent-management-platform/views";
-import {
-  globalConfig,
-  type Environment,
-} from "@agent-management-platform/types";
+import { type Environment } from "@agent-management-platform/types";
 
 export const ExternalAgentOverview = () => {
   const { agentId, orgId, projectId } = useParams();
@@ -43,9 +43,10 @@ export const ExternalAgentOverview = () => {
     agentName: agentId,
   });
 
-  const { data: environmentList, isLoading: isEnvironmentsLoading } = useListEnvironments({
-    orgName: orgId,
-  });
+  const { data: environmentList, isLoading: isEnvironmentsLoading } =
+    useListEnvironments({
+      orgName: orgId,
+    });
 
   const sortedEnvironmentList = useMemo(() => {
     return environmentList?.sort((_a: Environment, b: Environment) => {
@@ -63,9 +64,8 @@ export const ExternalAgentOverview = () => {
   }, [sortedEnvironmentList, selectedEnvironmentId]);
 
   // Sample instrumentation config - these would come from props or API
-  const instrumentationUrl =
-    globalConfig.instrumentationUrl ?? "http://localhost:21893";
-  const apiKey = "00000000-0000-0000-0000-000000000000";
+  const instrumentationUrl = "http://localhost:21893";
+  const apiKey = "8e3c1f4a-9b7d-4c2f-92a6-5d8f3b1c27e0";
 
   const handleSetupAgent = (environmentId: string) => {
     setSelectedEnvironmentId(environmentId);
