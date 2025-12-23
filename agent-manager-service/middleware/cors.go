@@ -18,9 +18,11 @@ package middleware
 
 import (
 	"net/http"
+	"strings"
 )
 
-// CORS enables Cross-Origin Resource Sharing for the provided origin.
+// CORS enables Cross-Origin Resource Sharing for the provided origins.
+// allowedOrigin is comma-separated list of allowed origins.
 // It sets the necessary headers and short-circuits OPTIONS preflight requests.
 func CORS(allowedOrigin string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -32,10 +34,27 @@ func CORS(allowedOrigin string) func(http.Handler) http.Handler {
 			w.Header().Add("Vary", "Access-Control-Request-Method")
 			w.Header().Add("Vary", "Access-Control-Request-Headers")
 
-			if origin != "" && (allowedOrigin == "*" || origin == allowedOrigin) {
-				w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+			// Check if origin is allowed
+			var matchedOrigin string
+			if origin != "" {
+				// Parse comma-separated list of allowed origins
+				allowedOrigins := strings.Split(allowedOrigin, ",")
+				for _, allowed := range allowedOrigins {
+					allowed = strings.TrimSpace(allowed)
+					if allowed == "*" {
+						matchedOrigin = "*"
+						break
+					} else if origin == allowed {
+						matchedOrigin = origin
+						break
+					}
+				}
+			}
+
+			if matchedOrigin != "" {
+				w.Header().Set("Access-Control-Allow-Origin", matchedOrigin)
 				// Allow credentials if using cookies or Authorization header
-				if allowedOrigin != "*" {
+				if matchedOrigin != "*" {
 					w.Header().Set("Access-Control-Allow-Credentials", "true")
 				}
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")

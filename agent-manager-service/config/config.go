@@ -38,7 +38,7 @@ type Config struct {
 	APIKeyHeader string
 	APIKeyValue  string
 	// CORSAllowedOrigin is the single allowed origin for CORS; use "*" to allow all
-	CORSAllowedOrigin string
+	CORS CORSConfig
 
 	// OpenTelemetry configuration
 	OTEL OTELConfig
@@ -67,6 +67,12 @@ type OTELConfig struct {
 
 	// OTLP Exporter configuration
 	ExporterEndpoint string
+}
+
+type CORSConfig struct {
+	AllowOrigin  string
+	AllowMethods string
+	AllowHeaders string
 }
 
 type ObserverConfig struct {

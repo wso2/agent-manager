@@ -50,7 +50,12 @@ func loadEnvs() {
 	config.ServerPort = int(r.readOptionalInt64("SERVER_PORT", 8080))
 	config.AuthHeader = r.readOptionalString("AUTH_HEADER", "Authorization")
 	config.AutoMaxProcsEnabled = r.readOptionalBool("AUTO_MAX_PROCS_ENABLED", true)
-	config.CORSAllowedOrigin = r.readOptionalString("CORS_ALLOWED_ORIGIN", "http://localhost:3000")
+
+	config.CORS = CORSConfig{
+		AllowOrigin:  r.readOptionalString("CORS_ALLOWED_ORIGIN", "http://localhost:3000"),
+		AllowMethods: r.readOptionalString("CORS_ALLOWED_METHODS", "GET,POST,PUT,DELETE,PATCH,OPTIONS"),
+		AllowHeaders: r.readOptionalString("CORS_ALLOWED_HEADERS", "authorization,Content-Type,Origin"),
+	}
 
 	// Logging configuration
 	config.LogLevel = r.readOptionalString("LOG_LEVEL", "INFO")

@@ -165,6 +165,11 @@ func createComponentCRForInternalAgents(orgName, projectName string, req *spec.C
 			},
 		},
 		"basePath": basePath,
+		"cors": map[string]interface{}{
+			"allowOrigin":  strings.Split(config.GetConfig().CORS.AllowOrigin, ","),
+			"allowMethods": strings.Split(config.GetConfig().CORS.AllowMethods, ","),
+			"allowHeaders": strings.Split(config.GetConfig().CORS.AllowHeaders, ","),
+		},
 	}
 
 	var componentWorkflowParameters map[string]interface{}

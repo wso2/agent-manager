@@ -43,7 +43,7 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	apiHandler = params.AuthMiddleware(apiHandler)
 	apiHandler = middleware.AddCorrelationID()(apiHandler)
 	apiHandler = logger.RequestLogger()(apiHandler)
-	apiHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(apiHandler)
+	apiHandler = middleware.CORS(config.GetConfig().CORS.AllowOrigin)(apiHandler)
 	apiHandler = middleware.RecovererOnPanic()(apiHandler)
 
 	// Create a mux for internal API routes

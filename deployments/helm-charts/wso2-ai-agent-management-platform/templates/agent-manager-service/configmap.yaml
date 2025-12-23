@@ -17,6 +17,8 @@ data:
   DB_OPERATION_TIMEOUT_SECONDS: {{ .Values.agentManagerService.config.dbOperationTimeout | quote }}
   HEALTH_CHECK_TIMEOUT_SECONDS: {{ .Values.agentManagerService.config.healthCheckTimeout | quote }}
   CORS_ALLOWED_ORIGIN: {{ .Values.agentManagerService.config.corsAllowedOrigin | quote }}
+  CORS_ALLOWED_METHODS: {{ .Values.agentManagerService.config.corsAllowedMethods | quote }}
+  CORS_ALLOWED_HEADERS: {{ .Values.agentManagerService.config.corsAllowedHeaders | quote }}
   API_KEY_HEADER: {{ .Values.agentManagerService.config.apiKey.header | quote }}
   KUBECONFIG: {{ .Values.agentManagerService.config.kubeconfig | quote }}
   OTEL_TRACELOOP_TRACE_CONTENT: {{ .Values.agentManagerService.config.otel.traceContent | quote }}

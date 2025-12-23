@@ -21,6 +21,10 @@ spec:
       ResourceQuantity:
         cpu: "string | default=100m"
         memory: "string | default=256Mi"
+      CORSConfig:
+        allowOrigin: "[]string"
+        allowMethods: "[]string"
+        allowHeaders: "[]string"
 
     parameters:
       replicas: "integer | default=1"
@@ -29,6 +33,7 @@ spec:
       exposed: "boolean | default=false"
       containerName: "string | default=main"
       basePath: "string | default=/"
+      cors: 'CORSConfig | default={"allowOrigin": ["http://localhost:3000"], "allowMethods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], "allowHeaders": ["authorization", "Content-Type", "Origin", "Access-Control-Allow-Origin"]}'
 
     envOverrides:
       resources: "ResourceRequirements | default={}"
@@ -159,12 +164,9 @@ spec:
                       replacePrefixMatch: ${parameters.basePath}
                 - type: CORS
                   cors:
-                    allowOrigins:
-                      - "*"
-                    allowMethods:
-                      - "*"
-                    allowHeaders:
-                      - "*"
+                    allowOrigins: ${parameters.cors.allowOrigin}
+                    allowMethods: ${parameters.cors.allowMethods}
+                    allowHeaders: ${parameters.cors.allowHeaders}
               backendRefs:
                 - name: ${metadata.componentName}
                   port: 80
