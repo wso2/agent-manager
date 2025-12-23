@@ -382,12 +382,24 @@ func extractSpanStatus(attrs map[string]interface{}, spanStatus string) *SpanSta
 		if errorType, ok := attrs["error.type"].(string); ok {
 			status.Error = true
 			status.ErrorType = errorType
-		} else if toolStatus, ok := attrs["gen_ai.tool.status"].(string); ok && isErrorStatus(toolStatus) {
+			return status
+		}
+
+		if toolStatus, ok := attrs["gen_ai.tool.status"].(string); ok && isErrorStatus(toolStatus) {
 			status.Error = true
 			status.ErrorType = "ToolExecutionError"
+			return status
 		}
-	} else if isErrorStatus(spanStatus) {
-		// Handle case where attributes are nil but status is still error
+
+		if httpStatus, ok := attrs["http.status_code"].(float64); ok && int(httpStatus) >= 400 {
+			status.Error = true
+			status.ErrorType = fmt.Sprintf("%d", int(httpStatus))
+			return status
+		}
+	}
+
+	// Fallback to span status if no error attributes found
+	if isErrorStatus(spanStatus) {
 		status.Error = true
 	}
 
@@ -463,23 +475,9 @@ func ExtractTraceStatus(spans []Span) *TraceStatus {
 	var errorCount int
 
 	for _, span := range spans {
-		// Check for errors using the same logic as individual span processing
-		hasError := false
-
-		if span.Attributes != nil {
-			if _, ok := span.Attributes["error.type"].(string); ok {
-				hasError = true
-			} else if toolStatus, ok := span.Attributes["gen_ai.tool.status"].(string); ok && isErrorStatus(toolStatus) {
-				hasError = true
-			}
-		}
-
-		// Fallback to span status if no error attributes found
-		if !hasError && isErrorStatus(span.Status) {
-			hasError = true
-		}
-
-		if hasError {
+		// Use extractSpanStatus to check for errors
+		spanStatus := extractSpanStatus(span.Attributes, span.Status)
+		if spanStatus.Error {
 			errorCount++
 		}
 	}
