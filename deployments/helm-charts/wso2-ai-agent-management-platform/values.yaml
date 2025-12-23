@@ -88,7 +88,7 @@ agentManagerService:
     authHeader: "Authorization"
     dbOperationTimeout: 30
     healthCheckTimeout: 5
-    corsAllowedOrigin: "http://localhost:3000"
+    corsAllowedOrigin: "*"
     agentWorkloadCorsAllowedOrigin: "http://localhost:3000"
     agentWorkloadCorsAllowedMethods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
     agentWorkloadCorsAllowedHeaders: "authorization,Content-Type,Origin"
