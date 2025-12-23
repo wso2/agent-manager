@@ -49,7 +49,7 @@
     "@wso2/oxygen-ui-icons-react": "0.0.1-alpha.9",
     "@wso2/oxygen-ui": "0.0.1-alpha.9",
     "swagger-ui-react": "5.19.0",
-    "@monaco-editor/react": "~4.7.0"
+    "@monaco-editor/react": "4.7.0"
   },
   "devDependencies": {
     "@types/node": "24.6.0",
