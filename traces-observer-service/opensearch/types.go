@@ -103,6 +103,13 @@ type AgentData struct {
 	TokenUsage   *LLMTokenUsage   `json:"tokenUsage,omitempty"`   // Token usage details (aggregated from agent execution)
 }
 
+// CrewAITaskData contains CrewAI task execution span information
+type CrewAITaskData struct {
+	Name        string           `json:"name,omitempty"`        // Task name (from crewai.task.name)
+	Description string           `json:"description,omitempty"` // Task description (from crewai.task.description)
+	Tools       []ToolDefinition `json:"tools,omitempty"`       // Available tools for the task (from crewai.task.tools)
+}
+
 // SpanStatus represents the execution status of a span
 type SpanStatus struct {
 	Error     bool   `json:"error"`               // Whether the span has an error
@@ -180,14 +187,15 @@ type TraceStatus struct {
 type SpanType string
 
 const (
-	SpanTypeLLM       SpanType = "llm"       // LLM/Chat completion operations
-	SpanTypeEmbedding SpanType = "embedding" // Embedding generation operations
-	SpanTypeTool      SpanType = "tool"      // Tool/Function calls
-	SpanTypeRetriever SpanType = "retriever" // Vector DB retrieval operations
-	SpanTypeRerank    SpanType = "rerank"    // Reranking operations
-	SpanTypeAgent     SpanType = "agent"     // Agent orchestration
-	SpanTypeChain     SpanType = "chain"     // Generic tasks/workflows
-	SpanTypeUnknown   SpanType = "unknown"   // Unknown/unclassified spans
+	SpanTypeLLM        SpanType = "llm"        // LLM/Chat completion operations
+	SpanTypeEmbedding  SpanType = "embedding"  // Embedding generation operations
+	SpanTypeTool       SpanType = "tool"       // Tool/Function calls
+	SpanTypeRetriever  SpanType = "retriever"  // Vector DB retrieval operations
+	SpanTypeRerank     SpanType = "rerank"     // Reranking operations
+	SpanTypeAgent      SpanType = "agent"      // Agent orchestration
+	SpanTypeChain      SpanType = "chain"      // Generic tasks/workflows
+	SpanTypeCrewAITask SpanType = "crewaitask" // CrewAI task operations
+	SpanTypeUnknown    SpanType = "unknown"    // Unknown/unclassified spans
 )
 
 // TokenUsage represents aggregated token usage from GenAI spans

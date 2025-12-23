@@ -125,6 +125,8 @@ func parseSpan(source map[string]interface{}) Span {
 			} else {
 				populateAgentAttributes(ampAttrs, span.Attributes)
 			}
+		case SpanTypeCrewAITask:
+			populateCrewAITaskAttributes(ampAttrs, span.Attributes)
 		case SpanTypeChain:
 			populateChainAttributes(ampAttrs, span.Attributes)
 		}
@@ -282,6 +284,37 @@ func populateChainAttributes(ampAttrs *AmpAttributes, attrs map[string]interface
 
 	// For standard chain/task spans, extract from traceloop.entity attributes
 	ampAttrs.Input, ampAttrs.Output = extractSpanInputOutput(attrs)
+}
+
+// populateCrewAITaskAttributes extracts and populates CrewAI task-specific attributes
+func populateCrewAITaskAttributes(ampAttrs *AmpAttributes, attrs map[string]interface{}) {
+	// No input for CrewAI tasks
+	ampAttrs.Input = nil
+
+	// Extract output from traceloop.entity.output
+	if output, ok := attrs["traceloop.entity.output"].(string); ok {
+		ampAttrs.Output = output
+	}
+
+	// Set CrewAI task-specific data
+	taskData := CrewAITaskData{}
+
+	// Extract task name from crewai.task.name
+	if name, ok := attrs["crewai.task.name"].(string); ok {
+		taskData.Name = name
+	}
+
+	// Extract task description from crewai.task.description
+	if description, ok := attrs["crewai.task.description"].(string); ok {
+		taskData.Description = description
+	}
+
+	// Extract task tools from crewai.task.tools
+	if toolsJSON, ok := attrs["crewai.task.tools"].(string); ok && toolsJSON != "" {
+		taskData.Tools = parseToolsJSON(toolsJSON)
+	}
+
+	ampAttrs.Data = taskData
 }
 
 // parseToolsJSON is a common method to parse tools from JSON string
@@ -500,7 +533,7 @@ func isErrorStatus(status string) bool {
 
 // extractSpanInputOutput extracts input and output from traceloop.entity.* attributes
 // This is a generic method that works for any span with traceloop.entity.input and traceloop.entity.output
-// Input path: traceloop.entity.input -> inputs (ensure it's JSON)
+// Input path: traceloop.entity.input -> inputs (ensure it's JSON), also extracts metadata if present
 // Output path: traceloop.entity.output -> outputs -> messages[-1] -> kwargs -> content
 // Returns nil when attributes are not found
 func extractSpanInputOutput(attrs map[string]interface{}) (input interface{}, output interface{}) {
@@ -510,15 +543,29 @@ func extractSpanInputOutput(attrs map[string]interface{}) (input interface{}, ou
 	}
 
 	// Extract input from traceloop.entity.input attribute
-	// Path: input -> inputs (make sure it's JSON)
+	// Path: input -> inputs (make sure it's JSON), also extract metadata
 	if inputVal, ok := attrs["traceloop.entity.input"]; ok {
 		if inputStr, ok := inputVal.(string); ok {
 			// Try to parse as JSON
 			var inputMap map[string]interface{}
 			if err := json.Unmarshal([]byte(inputStr), &inputMap); err == nil {
-				// Navigate to inputs field
-				if nestedInputs, ok := inputMap["inputs"]; ok {
-					// Convert to JSON string
+				// Check if metadata exists
+				metadata, hasMetadata := inputMap["metadata"]
+				nestedInputs, hasInputs := inputMap["inputs"]
+
+				if hasMetadata && hasInputs {
+					// Both inputs and metadata exist, create a combined structure
+					combined := map[string]interface{}{
+						"inputs":   nestedInputs,
+						"metadata": metadata,
+					}
+					if combinedBytes, err := json.Marshal(combined); err == nil {
+						input = string(combinedBytes)
+					} else {
+						input = inputStr // Fallback to original
+					}
+				} else if hasInputs {
+					// Only inputs exist, convert to JSON string
 					if nestedBytes, err := json.Marshal(nestedInputs); err == nil {
 						input = string(nestedBytes)
 					} else {
@@ -1225,6 +1272,11 @@ func DetermineSpanType(span Span) SpanType {
 		return SpanTypeUnknown
 	}
 
+	// Check for CrewAI Task operations (must come before generic task check)
+	if hasCrewAITaskAttributes(span.Attributes) {
+		return SpanTypeCrewAITask
+	}
+
 	// First, check if Traceloop has already set the span kind
 	if traceloopKind, ok := span.Attributes["traceloop.span.kind"].(string); ok {
 		switch traceloopKind {
@@ -1470,6 +1522,22 @@ func hasAgentAttributes(attrs map[string]interface{}) bool {
 	// Type assert to string and check length
 	strVal, isString := val.(string)
 	return isString && len(strVal) > 0
+}
+
+// hasCrewAITaskAttributes checks if span has CrewAI task attributes
+func hasCrewAITaskAttributes(attrs map[string]interface{}) bool {
+	// Check if any attribute starts with "crewai.task"
+	for key := range attrs {
+		if strings.HasPrefix(key, "crewai.task") {
+			if kind, ok := attrs["traceloop.span.kind"].(string); ok {
+				if strings.ToLower(kind) == "task" {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
 }
 
 // hasTaskAttributes checks if span has task/workflow attributes

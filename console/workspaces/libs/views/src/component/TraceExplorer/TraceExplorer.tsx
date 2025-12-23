@@ -42,6 +42,7 @@ import {
   Search,
   ArrowUpDown,
   Bot,
+  ClipboardCheck,
 } from '@wso2/oxygen-ui-icons-react';
 
 interface TraceExplorerProps {
@@ -107,6 +108,12 @@ export function SpanIcon({ span }: { span: Span }) {
       return (
         <Box color="warning.main">
           <Bot size={16} />
+        </Box>
+      );
+    case 'crewaitask':
+      return (
+        <Box sx={{ color: '#9C27B0' }}>
+          <ClipboardCheck size={16} />
         </Box>
       );
     case 'chain':

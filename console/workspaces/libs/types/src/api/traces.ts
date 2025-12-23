@@ -111,12 +111,18 @@ export interface AgentData {
   tokenUsage?: LLMTokenUsage;
 }
 
+export interface CrewAITaskData {
+  name?: string;
+  description?: string;
+  tools?: ToolDefinition[];
+}
+
 export interface AmpAttributes {
   kind: string;
   input?: PromptMessage[] | string[] | string;
   output?: PromptMessage[] | string;
   status?: SpanStatus;
-  data?: LLMData | ToolData | EmbeddingData | RetrieverData | AgentData;
+  data?: LLMData | ToolData | EmbeddingData | RetrieverData | AgentData | CrewAITaskData;
 }
 
 export interface Span {
