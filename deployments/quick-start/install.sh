@@ -389,7 +389,7 @@ else
     mkdir -p /tmp/k3d-shared
 
     # Create k3d cluster
-    if k3d cluster create --config "${K3D_CONFIG}"; then
+    if k3d cluster create --config "${K3D_CONFIG}" --k3s-arg="--disable=traefik@server:0"; then
         log_success "k3d cluster created successfully"
     else
         log_error "Failed to create k3d cluster"
@@ -451,6 +451,15 @@ helm_install_idempotent \
     "${TIMEOUT_DATA_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
     --values "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/k3d/single-cluster/values-dp.yaml"
+
+
+log_info "Applying HTTPRoute CRD..."
+HTTP_ROUTE_CRD="https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/refs/tags/v1.4.1/config/crd/experimental/gateway.networking.k8s.io_httproutes.yaml"
+if kubectl apply  --server-side --force-conflicts -f "${HTTP_ROUTE_CRD}" &>/dev/null; then
+    log_success "HTTPRoute CRD applied successfully"
+else
+    log_error "Failed to apply HTTPRoute CRD"
+fi
 
 # Register Data Plane
 log_info "Registering Data Plane..."
