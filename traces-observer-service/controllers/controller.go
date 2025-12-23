@@ -115,7 +115,13 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 		traceStatus := opensearch.ExtractTraceStatus(traceSpans)
 
 		// Extract input and output from root span
-		input, output := opensearch.ExtractRootSpanInputOutput(rootSpan)
+		// Check if this is a CrewAI workflow span and delegate to CrewAI processor
+		var input, output interface{}
+		if opensearch.IsCrewAISpan(rootSpan.Attributes) {
+			input, output = opensearch.ExtractCrewAIRootSpanInputOutput(rootSpan)
+		} else {
+			input, output = opensearch.ExtractRootSpanInputOutput(rootSpan)
+		}
 
 		// Add to overviews
 		allOverviews = append(allOverviews, opensearch.TraceOverview{

@@ -102,78 +102,333 @@ func parseSpan(source map[string]interface{}) Span {
 
 	// Determine and add the semantic span type to AmpAttributes
 	spanType := DetermineSpanType(span)
+
 	ampAttrs := &AmpAttributes{
 		Kind: string(spanType),
 	}
 
-	// For LLM spans, extract prompts and tools
-	if spanType == SpanTypeLLM && span.Attributes != nil {
-		ampAttrs.Input = ExtractPromptMessages(span.Attributes)
-		ampAttrs.Output = ExtractCompletionMessages(span.Attributes)
-		ampAttrs.Tools = ExtractToolDefinitions(span.Attributes)
-
-		// Extract model information
-		if responseModel, ok := span.Attributes["gen_ai.response.model"].(string); ok {
-			ampAttrs.Model = responseModel
-		} else if requestModel, ok := span.Attributes["gen_ai.request.model"].(string); ok {
-			ampAttrs.Model = requestModel
-		}
-
-		// Extract temperature
-		if temp, ok := span.Attributes["gen_ai.request.temperature"].(float64); ok {
-			ampAttrs.Temperature = &temp
-		}
-
-		// Extract token usage
-		var inputTokens, outputTokens, cacheReadTokens int
-		if val, ok := span.Attributes["gen_ai.usage.input_tokens"].(float64); ok {
-			inputTokens = int(val)
-		}
-		if val, ok := span.Attributes["gen_ai.usage.output_tokens"].(float64); ok {
-			outputTokens = int(val)
-		}
-		if val, ok := span.Attributes["gen_ai.usage.cache_read_input_tokens"].(float64); ok {
-			cacheReadTokens = int(val)
-		}
-
-		if inputTokens > 0 || outputTokens > 0 {
-			ampAttrs.TokenUsage = &LLMTokenUsage{
-				InputTokens:          inputTokens,
-				OutputTokens:         outputTokens,
-				CacheReadInputTokens: cacheReadTokens,
-				TotalTokens:          inputTokens + outputTokens,
+	// Populate span-type-specific attributes
+	if span.Attributes != nil {
+		switch spanType {
+		case SpanTypeLLM:
+			populateLLMAttributes(ampAttrs, span.Attributes)
+		case SpanTypeTool:
+			populateToolAttributes(ampAttrs, span.Attributes, span.Status)
+		case SpanTypeEmbedding:
+			populateEmbeddingAttributes(ampAttrs, span.Attributes)
+		case SpanTypeRetriever:
+			populateRetrieverAttributes(ampAttrs, span.Attributes)
+		case SpanTypeAgent:
+			// Check if this is a CrewAI workflow span and delegate to CrewAI processor
+			if IsCrewAISpan(span.Attributes) {
+				PopulateCrewAIAgentAttributes(ampAttrs, span.Attributes)
+			} else {
+				populateAgentAttributes(ampAttrs, span.Attributes)
 			}
+		case SpanTypeChain:
+			populateChainAttributes(ampAttrs, span.Attributes)
 		}
-	}
 
-	// For Tool spans, extract tool execution details
-	if spanType == SpanTypeTool && span.Attributes != nil {
-		name, toolInput, toolOutput, _ := ExtractToolExecutionDetails(span.Attributes, span.Status) // TODO we need to use tool status for tool spans
-		ampAttrs.Name = name
-		ampAttrs.Input = toolInput
-		ampAttrs.Output = toolOutput
 	}
 
 	// Extract error status for all span types
-	spanStatus := &SpanStatus{
-		Error: false,
-	}
-
-	if span.Attributes != nil {
-		// Check for error.type attribute (e.g., "OperationalError")
-		if errorType, ok := span.Attributes["error.type"].(string); ok {
-			spanStatus.Error = true
-			spanStatus.ErrorType = errorType
-		} else if isErrorStatus(span.Status) {
-			// Fallback to generic error if span status indicates error but no error.type
-			spanStatus.Error = true
-		}
-	}
-
-	ampAttrs.Status = spanStatus
+	ampAttrs.Status = extractSpanStatus(span.Attributes, span.Status)
 	span.AmpAttributes = ampAttrs
 
 	return span
+}
+
+// populateLLMAttributes extracts and populates LLM-specific attributes
+func populateLLMAttributes(ampAttrs *AmpAttributes, attrs map[string]interface{}) {
+	// Set common Input/Output fields
+	ampAttrs.Input = ExtractPromptMessages(attrs)
+	ampAttrs.Output = ExtractCompletionMessages(attrs)
+
+	// Set LLM-specific data
+	llmData := LLMData{
+		Tools: ExtractToolDefinitions(attrs),
+	}
+
+	// Extract model information
+	if responseModel, ok := attrs["gen_ai.response.model"].(string); ok {
+		llmData.Model = responseModel
+	} else if requestModel, ok := attrs["gen_ai.request.model"].(string); ok {
+		llmData.Model = requestModel
+	}
+
+	// Extract vendor (gen_ai.system)
+	if vendor, ok := attrs["gen_ai.system"].(string); ok {
+		llmData.Vendor = vendor
+	}
+
+	// Extract temperature
+	if temp, ok := attrs["gen_ai.request.temperature"].(float64); ok {
+		llmData.Temperature = &temp
+	}
+
+	// Extract token usage
+	llmData.TokenUsage = extractTokenUsageFromAttributes(attrs)
+
+	ampAttrs.Data = llmData
+}
+
+// populateToolAttributes extracts and populates tool-specific attributes
+func populateToolAttributes(ampAttrs *AmpAttributes, attrs map[string]interface{}, spanStatus string) {
+	name, toolInput, toolOutput, _ := ExtractToolExecutionDetails(attrs, spanStatus)
+
+	// Set common Input/Output fields
+	ampAttrs.Input = toolInput
+	ampAttrs.Output = toolOutput
+
+	// Set tool-specific data
+	toolData := ToolData{
+		Name: name,
+	}
+
+	ampAttrs.Data = toolData
+}
+
+// populateEmbeddingAttributes extracts and populates embedding-specific attributes
+func populateEmbeddingAttributes(ampAttrs *AmpAttributes, attrs map[string]interface{}) {
+	// Set common Input field (documents to embed)
+	ampAttrs.Input = ExtractEmbeddingDocuments(attrs)
+
+	// Set embedding-specific data
+	embeddingData := EmbeddingData{}
+
+	// Extract model information
+	if responseModel, ok := attrs["gen_ai.response.model"].(string); ok {
+		embeddingData.Model = responseModel
+	} else if requestModel, ok := attrs["gen_ai.request.model"].(string); ok {
+		embeddingData.Model = requestModel
+	}
+
+	// Extract vendor (gen_ai.system)
+	if vendor, ok := attrs["gen_ai.system"].(string); ok {
+		embeddingData.Vendor = vendor
+	}
+
+	// Extract token usage
+	embeddingData.TokenUsage = extractTokenUsageFromAttributes(attrs)
+
+	ampAttrs.Data = embeddingData
+}
+
+// populateRetrieverAttributes extracts and populates retriever/vector DB-specific attributes
+func populateRetrieverAttributes(ampAttrs *AmpAttributes, attrs map[string]interface{}) {
+	retrieverData := RetrieverData{}
+
+	// Extract vector DB system
+	if dbSystem, ok := attrs["db.system"].(string); ok {
+		retrieverData.VectorDB = dbSystem
+	}
+
+	// Extract top_k parameter
+	if topK, ok := attrs["db.vector.query.top_k"].(float64); ok {
+		retrieverData.TopK = int(topK)
+	}
+
+	ampAttrs.Data = retrieverData
+}
+
+// populateAgentAttributes extracts and populates agent-specific attributes
+func populateAgentAttributes(ampAttrs *AmpAttributes, attrs map[string]interface{}) {
+	// For standard agent spans, use traceloop.entity attributes
+	if input, ok := attrs["traceloop.entity.input"].(string); ok {
+		ampAttrs.Input = input
+	}
+	if output, ok := attrs["traceloop.entity.output"].(string); ok {
+		ampAttrs.Output = output
+	}
+
+	// Set agent-specific data
+	agentData := AgentData{}
+
+	// Extract agent name from gen_ai.agent.name
+	if name, ok := attrs["gen_ai.agent.name"].(string); ok {
+		agentData.Name = name
+	}
+
+	// Extract agent tools from gen_ai.agent.tools
+	agentData.Tools = extractAgentTools(attrs)
+
+	// Extract model from gen_ai.request.model
+	if model, ok := attrs["gen_ai.request.model"].(string); ok {
+		agentData.Model = model
+	}
+
+	// Extract framework from gen_ai.system
+	if framework, ok := attrs["gen_ai.system"].(string); ok {
+		agentData.Framework = framework
+	}
+
+	// Extract system prompt
+	agentData.SystemPrompt = extractAgentSystemPrompt(attrs)
+
+	// Extract token usage
+	agentData.TokenUsage = extractTokenUsageFromAttributes(attrs)
+
+	ampAttrs.Data = agentData
+}
+
+// populateChainAttributes extracts and populates chain/task/workflow-specific attributes
+func populateChainAttributes(ampAttrs *AmpAttributes, attrs map[string]interface{}) {
+	// Check if this is a CrewAI chain/task span and delegate to CrewAI processor
+	if IsCrewAISpan(attrs) {
+		// Extract input and output using CrewAI extraction
+		ampAttrs.Input, ampAttrs.Output = ExtractCrewAISpanInputOutput(attrs)
+		return
+	}
+
+	// For standard chain/task spans, extract from traceloop.entity attributes
+	ampAttrs.Input, ampAttrs.Output = extractSpanInputOutput(attrs)
+}
+
+// parseToolsJSON is a common method to parse tools from JSON string
+// Supports two formats:
+// 1. Array of strings: ["tool1", "tool2"] -> creates ToolDefinition with just name
+// 2. Array of tool objects: [{"name": "tool1", "description": "...", "parameters": "..."}]
+// Returns array of ToolDefinition objects
+func parseToolsJSON(toolsJSON string) []ToolDefinition {
+	if toolsJSON == "" {
+		return nil
+	}
+
+	// First, try to parse as array of ToolDefinition objects
+	var toolDefs []ToolDefinition
+	if err := json.Unmarshal([]byte(toolsJSON), &toolDefs); err == nil && len(toolDefs) > 0 {
+		// Successfully parsed as ToolDefinition array
+		return toolDefs
+	}
+
+	// If that fails, try to parse as array of strings
+	var toolNames []string
+	if err := json.Unmarshal([]byte(toolsJSON), &toolNames); err == nil {
+		// Successfully parsed as string array, convert to ToolDefinition
+		result := make([]ToolDefinition, len(toolNames))
+		for i, name := range toolNames {
+			result[i] = ToolDefinition{Name: name}
+		}
+		return result
+	}
+
+	// If both fail, return the raw string as a single ToolDefinition
+	return []ToolDefinition{{Name: toolsJSON}}
+}
+
+// extractAgentTools extracts tool definitions from gen_ai.agent.tools attribute
+// The attribute can contain:
+// - JSON array of tool names: ["tool1", "tool2"]
+// - JSON array of tool objects: [{"name": "tool1", "description": "...", "parameters": "..."}]
+// Returns array of ToolDefinition objects
+func extractAgentTools(attrs map[string]interface{}) []ToolDefinition {
+	toolsJSON, ok := attrs["gen_ai.agent.tools"].(string)
+	if !ok || toolsJSON == "" {
+		return nil
+	}
+
+	return parseToolsJSON(toolsJSON)
+}
+
+// extractSystemPrompt extracts the system prompt for an agent
+func extractAgentSystemPrompt(attrs map[string]interface{}) string {
+	// Look for system prompt in various possible locations
+
+	// First check gen_ai.system_instructions (OTEL format)
+	// Can be a JSON array of instruction parts
+	if systemInstructions, ok := attrs["gen_ai.system_instructions"].(string); ok && systemInstructions != "" {
+		// Try to parse as JSON array first
+		var instructions []map[string]interface{}
+		if err := json.Unmarshal([]byte(systemInstructions), &instructions); err == nil {
+			// Extract text content from parts
+			var parts []string
+			for _, instruction := range instructions {
+				if partType, ok := instruction["type"].(string); ok && partType == "text" {
+					if content, ok := instruction["content"].(string); ok && content != "" {
+						parts = append(parts, content)
+					}
+				}
+			}
+			if len(parts) > 0 {
+				return strings.Join(parts, "\n")
+			}
+		}
+		// If not JSON or parsing failed, return as-is
+		return systemInstructions
+	}
+
+	// Check gen_ai.prompt.0.content with role=system (Traceloop format)
+	if role, ok := attrs["gen_ai.prompt.0.role"].(string); ok && role == "system" {
+		if content, ok := attrs["gen_ai.prompt.0.content"].(string); ok {
+			return content
+		}
+	}
+
+	// Check for a dedicated system_prompt attribute if it exists
+	if systemPrompt, ok := attrs["system_prompt"].(string); ok {
+		return systemPrompt
+	}
+
+	return ""
+}
+
+// extractSpanStatus determines the error status of a span
+func extractSpanStatus(attrs map[string]interface{}, spanStatus string) *SpanStatus {
+	status := &SpanStatus{
+		Error: false,
+	}
+
+	if attrs != nil {
+		if errorType, ok := attrs["error.type"].(string); ok {
+			status.Error = true
+			status.ErrorType = errorType
+		} else if toolStatus, ok := attrs["gen_ai.tool.status"].(string); ok && isErrorStatus(toolStatus) {
+			status.Error = true
+			status.ErrorType = "ToolExecutionError"
+		}
+	} else if isErrorStatus(spanStatus) {
+		// Handle case where attributes are nil but status is still error
+		status.Error = true
+	}
+
+	return status
+}
+
+// extractTokenUsageFromAttributes extracts token usage from span attributes
+// Supports both standard gen_ai.usage.* and legacy prompt_tokens/completion_tokens attributes
+func extractTokenUsageFromAttributes(attrs map[string]interface{}) *LLMTokenUsage {
+	var inputTokens, outputTokens, cacheReadTokens int
+
+	// Try to extract input tokens (gen_ai.usage.input_tokens or gen_ai.usage.prompt_tokens)
+	if val, ok := attrs["gen_ai.usage.input_tokens"].(float64); ok {
+		inputTokens = int(val)
+	} else if val, ok := attrs["gen_ai.usage.prompt_tokens"].(float64); ok {
+		inputTokens = int(val)
+	}
+
+	// Try to extract output tokens (gen_ai.usage.output_tokens or gen_ai.usage.completion_tokens)
+	if val, ok := attrs["gen_ai.usage.output_tokens"].(float64); ok {
+		outputTokens = int(val)
+	} else if val, ok := attrs["gen_ai.usage.completion_tokens"].(float64); ok {
+		outputTokens = int(val)
+	}
+
+	// Try to extract cache read tokens
+	if val, ok := attrs["gen_ai.usage.cache_read_input_tokens"].(float64); ok {
+		cacheReadTokens = int(val)
+	}
+
+	// Only return token usage if we found some tokens
+	if inputTokens > 0 || outputTokens > 0 {
+		return &LLMTokenUsage{
+			InputTokens:          inputTokens,
+			OutputTokens:         outputTokens,
+			CacheReadInputTokens: cacheReadTokens,
+			TotalTokens:          inputTokens + outputTokens,
+		}
+	}
+
+	return nil
 }
 
 // ExtractTokenUsage aggregates token usage from GenAI spans in a trace
@@ -183,18 +438,10 @@ func ExtractTokenUsage(spans []Span) *TokenUsage {
 	for _, span := range spans {
 		// Check if this is a GenAI span by looking for gen_ai.* attributes
 		if span.Attributes != nil {
-			// Try to extract input tokens (gen_ai.usage.input_tokens or gen_ai.prompt_tokens)
-			if val, ok := span.Attributes["gen_ai.usage.input_tokens"].(float64); ok {
-				inputTokens += int(val)
-			} else if val, ok := span.Attributes["gen_ai.usage.prompt_tokens"].(float64); ok {
-				inputTokens += int(val)
-			}
-
-			// Try to extract output tokens (gen_ai.usage.output_tokens or gen_ai.completion_tokens)
-			if val, ok := span.Attributes["gen_ai.usage.output_tokens"].(float64); ok {
-				outputTokens += int(val)
-			} else if val, ok := span.Attributes["gen_ai.usage.completion_tokens"].(float64); ok {
-				outputTokens += int(val)
+			// Use the helper method to extract token usage from attributes
+			if usage := extractTokenUsageFromAttributes(span.Attributes); usage != nil {
+				inputTokens += usage.InputTokens
+				outputTokens += usage.OutputTokens
 			}
 		}
 	}
@@ -216,10 +463,23 @@ func ExtractTraceStatus(spans []Span) *TraceStatus {
 	var errorCount int
 
 	for _, span := range spans {
-		// Check if span status indicates an error
-		// OTEL status codes: "UNSET" (0), "OK" (1), "ERROR" (2)
-		// Some systems use string values, others use numeric codes
-		if isErrorStatus(span.Status) {
+		// Check for errors using the same logic as individual span processing
+		hasError := false
+
+		if span.Attributes != nil {
+			if _, ok := span.Attributes["error.type"].(string); ok {
+				hasError = true
+			} else if toolStatus, ok := span.Attributes["gen_ai.tool.status"].(string); ok && isErrorStatus(toolStatus) {
+				hasError = true
+			}
+		}
+
+		// Fallback to span status if no error attributes found
+		if !hasError && isErrorStatus(span.Status) {
+			hasError = true
+		}
+
+		if hasError {
 			errorCount++
 		}
 	}
@@ -240,18 +500,20 @@ func isErrorStatus(status string) bool {
 	}
 }
 
-// ExtractRootSpanInputOutput extracts input and output from the root span (parent node)
-// by analyzing the "traceloop.entity.input" and "traceloop.entity.output" attributes
+// extractSpanInputOutput extracts input and output from traceloop.entity.* attributes
+// This is a generic method that works for any span with traceloop.entity.input and traceloop.entity.output
 // Input path: traceloop.entity.input -> inputs (ensure it's JSON)
 // Output path: traceloop.entity.output -> outputs -> messages[-1] -> kwargs -> content
-func ExtractRootSpanInputOutput(rootSpan *Span) (input string, output string) {
-	if rootSpan == nil || rootSpan.Attributes == nil {
-		return "", ""
+// Returns nil when attributes are not found
+func extractSpanInputOutput(attrs map[string]interface{}) (input interface{}, output interface{}) {
+	// Return nil if no attributes
+	if attrs == nil {
+		return nil, nil
 	}
 
 	// Extract input from traceloop.entity.input attribute
 	// Path: input -> inputs (make sure it's JSON)
-	if inputVal, ok := rootSpan.Attributes["traceloop.entity.input"]; ok {
+	if inputVal, ok := attrs["traceloop.entity.input"]; ok {
 		if inputStr, ok := inputVal.(string); ok {
 			// Try to parse as JSON
 			var inputMap map[string]interface{}
@@ -277,7 +539,7 @@ func ExtractRootSpanInputOutput(rootSpan *Span) (input string, output string) {
 
 	// Extract output from traceloop.entity.output attribute
 	// Path: output -> outputs -> messages[-1] -> kwargs -> content
-	if outputVal, ok := rootSpan.Attributes["traceloop.entity.output"]; ok {
+	if outputVal, ok := attrs["traceloop.entity.output"]; ok {
 		if outputStr, ok := outputVal.(string); ok {
 			// Try to parse as JSON
 			var outputMap map[string]interface{}
@@ -332,10 +594,132 @@ func ExtractRootSpanInputOutput(rootSpan *Span) (input string, output string) {
 	return input, output
 }
 
+// ExtractRootSpanInputOutput extracts input and output from the root span (parent node)
+// by analyzing the "traceloop.entity.input" and "traceloop.entity.output" attributes
+// Input path: traceloop.entity.input -> inputs (ensure it's JSON)
+// Output path: traceloop.entity.output -> outputs -> messages[-1] -> kwargs -> content
+// For CrewAI workflows: delegates to ExtractCrewAIRootSpanInputOutput
+// Returns nil when attributes are not found
+func ExtractRootSpanInputOutput(rootSpan *Span) (input interface{}, output interface{}) {
+	if rootSpan == nil || rootSpan.Attributes == nil {
+		return nil, nil
+	}
+
+	// Use the generic extraction method
+	return extractSpanInputOutput(rootSpan.Attributes)
+}
+
 // ExtractPromptMessages extracts and orders prompt messages from LLM span attributes
-// Handles attributes in the format: gen_ai.prompt.0.role, gen_ai.prompt.0.content, etc.
-// Also handles tool calls: gen_ai.prompt.{index}.tool_calls.{tool_index}.{field}
+// Handles two formats:
+// 1. OTEL format: gen_ai.input.messages (JSON array)
+// 2. Traceloop format: gen_ai.prompt.{index}.{field}
 func ExtractPromptMessages(attrs map[string]interface{}) []PromptMessage {
+	// First, try OTEL format (gen_ai.input.messages)
+	if messagesJSON, ok := attrs["gen_ai.input.messages"].(string); ok && messagesJSON != "" {
+		messages := parseOTELMessages(messagesJSON)
+		if len(messages) > 0 {
+			return messages
+		}
+	}
+
+	// Fallback to Traceloop format (gen_ai.prompt.*)
+	return extractTraceloopPromptMessages(attrs)
+}
+
+// parseOTELMessages parses OTEL format messages from JSON string
+// Format: [{"role": "user", "parts": [{"type": "text", "content": "..."}, {"type": "tool_call", ...}]}]
+func parseOTELMessages(messagesJSON string) []PromptMessage {
+	if messagesJSON == "" {
+		return nil
+	}
+
+	// Parse JSON array
+	var rawMessages []map[string]interface{}
+	if err := json.Unmarshal([]byte(messagesJSON), &rawMessages); err != nil {
+		return nil
+	}
+
+	messages := make([]PromptMessage, 0, len(rawMessages))
+	for _, rawMsg := range rawMessages {
+		msg := PromptMessage{}
+
+		// Extract role
+		if role, ok := rawMsg["role"].(string); ok {
+			msg.Role = role
+		}
+
+		// Extract parts
+		if parts, ok := rawMsg["parts"].([]interface{}); ok {
+			var contentParts []string
+			var toolCalls []ToolCall
+
+			for _, part := range parts {
+				if partMap, ok := part.(map[string]interface{}); ok {
+					partType, _ := partMap["type"].(string)
+
+					switch partType {
+					case "text":
+						// Extract text content
+						if content, ok := partMap["content"].(string); ok && content != "" {
+							contentParts = append(contentParts, content)
+						}
+
+					case "tool_call":
+						// Extract tool call
+						tc := ToolCall{}
+						if id, ok := partMap["id"].(string); ok {
+							tc.ID = id
+						}
+						if name, ok := partMap["name"].(string); ok {
+							tc.Name = name
+						}
+						// Arguments can be object or string
+						if args, ok := partMap["arguments"]; ok {
+							if argsStr, ok := args.(string); ok {
+								tc.Arguments = argsStr
+							} else {
+								// Convert to JSON string
+								if argsBytes, err := json.Marshal(args); err == nil {
+									tc.Arguments = string(argsBytes)
+								}
+							}
+						}
+						if tc.Name != "" {
+							toolCalls = append(toolCalls, tc)
+						}
+
+					case "tool_call_response":
+						// For tool role messages, extract result as content
+						if result, ok := partMap["result"].(string); ok && result != "" {
+							contentParts = append(contentParts, result)
+						}
+					}
+				}
+			}
+
+			// Combine content parts
+			if len(contentParts) > 0 {
+				msg.Content = strings.Join(contentParts, "\n")
+			}
+
+			// Add tool calls
+			if len(toolCalls) > 0 {
+				msg.ToolCalls = toolCalls
+			}
+		}
+
+		// Only add message if it has a role
+		if msg.Role != "" {
+			messages = append(messages, msg)
+		}
+	}
+
+	return messages
+}
+
+// extractTraceloopPromptMessages extracts prompt messages in Traceloop format
+// Format: gen_ai.prompt.{index}.{field}
+func extractTraceloopPromptMessages(attrs map[string]interface{}) []PromptMessage {
 	// Map to store messages by index
 	messageMap := make(map[int]*PromptMessage)
 	// Map to store tool calls for each message: messageIndex -> toolCallIndex -> ToolCall
@@ -394,15 +778,16 @@ func ExtractPromptMessages(attrs map[string]interface{}) []PromptMessage {
 							}
 
 							// Set the appropriate tool call field
-							if toolField == "id" {
+							switch toolField {
+							case "id":
 								if id, ok := value.(string); ok {
 									toolCallsMap[msgIndex][toolIndex].ID = id
 								}
-							} else if toolField == "name" {
+							case "name":
 								if name, ok := value.(string); ok {
 									toolCallsMap[msgIndex][toolIndex].Name = name
 								}
-							} else if toolField == "arguments" {
+							case "arguments":
 								if args, ok := value.(string); ok {
 									toolCallsMap[msgIndex][toolIndex].Arguments = args
 								}
@@ -453,9 +838,25 @@ func ExtractPromptMessages(attrs map[string]interface{}) []PromptMessage {
 }
 
 // ExtractCompletionMessages extracts and orders completion/output messages from LLM span attributes
-// Handles attributes in the format: gen_ai.completion.0.role, gen_ai.completion.0.content, etc.
-// Also handles tool calls: gen_ai.completion.{index}.tool_calls.{tool_index}.{field}
+// Handles two formats:
+// 1. OTEL format: gen_ai.output.messages (JSON array)
+// 2. Traceloop format: gen_ai.completion.{index}.{field}
 func ExtractCompletionMessages(attrs map[string]interface{}) []PromptMessage {
+	// First, try OTEL format (gen_ai.output.messages)
+	if messagesJSON, ok := attrs["gen_ai.output.messages"].(string); ok && messagesJSON != "" {
+		messages := parseOTELMessages(messagesJSON)
+		if len(messages) > 0 {
+			return messages
+		}
+	}
+
+	// Fallback to Traceloop format (gen_ai.completion.*)
+	return extractTraceloopCompletionMessages(attrs)
+}
+
+// extractTraceloopCompletionMessages extracts completion messages in Traceloop format
+// Format: gen_ai.completion.{index}.{field}
+func extractTraceloopCompletionMessages(attrs map[string]interface{}) []PromptMessage {
 	// Map to store messages by index
 	messageMap := make(map[int]*PromptMessage)
 	// Map to store tool calls for each message: messageIndex -> toolCallIndex -> ToolCall
@@ -514,15 +915,16 @@ func ExtractCompletionMessages(attrs map[string]interface{}) []PromptMessage {
 							}
 
 							// Set the appropriate tool call field
-							if toolField == "id" {
+							switch toolField {
+							case "id":
 								if id, ok := value.(string); ok {
 									toolCallsMap[msgIndex][toolIndex].ID = id
 								}
-							} else if toolField == "name" {
+							case "name":
 								if name, ok := value.(string); ok {
 									toolCallsMap[msgIndex][toolIndex].Name = name
 								}
-							} else if toolField == "arguments" {
+							case "arguments":
 								if args, ok := value.(string); ok {
 									toolCallsMap[msgIndex][toolIndex].Arguments = args
 								}
@@ -573,8 +975,73 @@ func ExtractCompletionMessages(attrs map[string]interface{}) []PromptMessage {
 }
 
 // ExtractToolDefinitions extracts tool/function definitions from LLM span attributes
-// Handles attributes in the format: llm.request.functions.0.name, llm.request.functions.0.description, etc.
+// Handles two formats:
+// 1. OTEL format: gen_ai.tool.definitions (JSON array)
+// 2. Traceloop format: llm.request.functions.{index}.{field}
 func ExtractToolDefinitions(attrs map[string]interface{}) []ToolDefinition {
+	// First, try OTEL format (gen_ai.tool.definitions)
+	if toolsJSON, ok := attrs["gen_ai.tool.definitions"].(string); ok && toolsJSON != "" {
+		tools := parseOTELToolDefinitions(toolsJSON)
+		if len(tools) > 0 {
+			return tools
+		}
+	}
+
+	// Fallback to Traceloop format (llm.request.functions.*)
+	return extractTraceloopToolDefinitions(attrs)
+}
+
+// parseOTELToolDefinitions parses OTEL format tool definitions from JSON string
+// Format: [{"type": "function", "name": "...", "description": "...", "parameters": {...}}]
+func parseOTELToolDefinitions(toolsJSON string) []ToolDefinition {
+	if toolsJSON == "" {
+		return nil
+	}
+
+	// Parse JSON array
+	var rawTools []map[string]interface{}
+	if err := json.Unmarshal([]byte(toolsJSON), &rawTools); err != nil {
+		return nil
+	}
+
+	tools := make([]ToolDefinition, 0, len(rawTools))
+	for _, rawTool := range rawTools {
+		tool := ToolDefinition{}
+
+		// Extract name
+		if name, ok := rawTool["name"].(string); ok {
+			tool.Name = name
+		}
+
+		// Extract description
+		if desc, ok := rawTool["description"].(string); ok {
+			tool.Description = desc
+		}
+
+		// Extract parameters (convert to JSON string)
+		if params, ok := rawTool["parameters"]; ok {
+			if paramsStr, ok := params.(string); ok {
+				tool.Parameters = paramsStr
+			} else {
+				// Convert to JSON string
+				if paramsBytes, err := json.Marshal(params); err == nil {
+					tool.Parameters = string(paramsBytes)
+				}
+			}
+		}
+
+		// Only add tool if it has a name
+		if tool.Name != "" {
+			tools = append(tools, tool)
+		}
+	}
+
+	return tools
+}
+
+// extractTraceloopToolDefinitions extracts tool definitions in Traceloop format
+// Format: llm.request.functions.{index}.{field}
+func extractTraceloopToolDefinitions(attrs map[string]interface{}) []ToolDefinition {
 	// Map to store tools by index
 	toolMap := make(map[int]*ToolDefinition)
 	maxIndex := -1
@@ -646,6 +1113,8 @@ func ExtractToolExecutionDetails(attrs map[string]interface{}, spanStatus string
 		name = entityName
 	} else if toolName, ok := attrs["tool.name"].(string); ok {
 		name = toolName
+	} else if toolID, ok := attrs["tool_name"].(string); ok { // crewai legacy
+		name = toolID
 	} else if funcName, ok := attrs["function.name"].(string); ok {
 		name = funcName
 	} else if genAIName, ok := attrs["gen_ai.tool.name"].(string); ok {
@@ -707,6 +1176,51 @@ func ExtractToolExecutionDetails(attrs map[string]interface{}, spanStatus string
 	return name, input, output, status
 }
 
+// ExtractEmbeddingDocuments extracts documents from embedding span attributes
+// Looks for gen_ai.prompt.N.content attributes and returns them as a slice
+func ExtractEmbeddingDocuments(attrs map[string]interface{}) []string {
+	// Map to store documents by index
+	documentMap := make(map[int]string)
+	maxIndex := -1
+
+	// Iterate through attributes to find gen_ai.prompt.N.content
+	for key, value := range attrs {
+		// Check if it's a gen_ai.prompt.*.content attribute
+		if strings.HasPrefix(key, "gen_ai.prompt.") && strings.HasSuffix(key, ".content") {
+			// Parse the index
+			// Format: gen_ai.prompt.{index}.content
+			parts := strings.Split(key, ".")
+			if len(parts) == 4 {
+				var index int
+				if _, err := fmt.Sscanf(parts[2], "%d", &index); err == nil {
+					// Convert value to string using fmt.Sprint
+					content := fmt.Sprint(value)
+					if content != "" {
+						documentMap[index] = content
+						if index > maxIndex {
+							maxIndex = index
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Convert map to ordered slice
+	if maxIndex < 0 {
+		return nil
+	}
+
+	documents := make([]string, 0, maxIndex+1)
+	for i := 0; i <= maxIndex; i++ {
+		if doc, exists := documentMap[i]; exists {
+			documents = append(documents, doc)
+		}
+	}
+
+	return documents
+}
+
 // DetermineSpanType analyzes a span's attributes to determine its semantic type
 func DetermineSpanType(span Span) SpanType {
 	if span.Attributes == nil {
@@ -739,14 +1253,19 @@ func DetermineSpanType(span Span) SpanType {
 		return SpanTypeLLM
 	}
 
-	// Check for Embedding operations
-	if hasEmbeddingAttributes(span.Attributes) {
-		return SpanTypeEmbedding
-	}
-
 	// Check for Tool/Function calls
 	if hasToolAttributes(span.Attributes) {
 		return SpanTypeTool
+	}
+
+	// Check for Agent orchestration
+	if hasAgentAttributes(span.Attributes) {
+		return SpanTypeAgent
+	}
+
+	// Check for Embedding operations
+	if hasEmbeddingAttributes(span.Attributes) {
+		return SpanTypeEmbedding
 	}
 
 	// Check for Retriever operations
@@ -757,11 +1276,6 @@ func DetermineSpanType(span Span) SpanType {
 	// Check for Rerank operations
 	if hasRerankAttributes(span.Attributes) {
 		return SpanTypeRerank
-	}
-
-	// Check for Agent orchestration
-	if hasAgentAttributes(span.Attributes, span.Name) {
-		return SpanTypeAgent
 	}
 
 	// Check for Task/Workflow operations
@@ -814,32 +1328,25 @@ func determineSpanTypeFromName(name string) SpanType {
 	}
 }
 
-// hasLLMAttributes checks if span has LLM/chat completion attributes
 func hasLLMAttributes(attrs map[string]interface{}) bool {
-	// Check for gen_ai.operation.name with chat/completion
+	// Check for gen_ai.operation.name (as requested)
 	if opName, ok := attrs["gen_ai.operation.name"].(string); ok {
 		if opName == "chat" || opName == "completion" || opName == "text_completion" {
 			return true
 		}
 	}
 
-	// Check for LLM model attributes (but verify it's not an embedding operation)
-	if _, ok := attrs["gen_ai.request.model"].(string); ok {
-		// Check gen_ai.operation.name - if it's embedding, this is not an LLM
-		if opName, ok := attrs["gen_ai.operation.name"].(string); ok {
-			if opName == "embedding" || opName == "embeddings" {
-				return false
-			}
-		}
-		// Don't assume it's LLM just because it has a model - could be undetected embedding
+	// Check for gen_ai.prompt (Starting with this as requested)
+	if _, ok := attrs["gen_ai.prompt"]; ok {
+		return true
 	}
 
-	// Check for response attributes specific to LLM
+	// Check for response attributes specific to LLM (finish reasons, etc.)
 	if _, ok := attrs["gen_ai.response.finish_reasons"]; ok {
 		return true
 	}
 
-	// Traceloop specific: llm.request.type (but exclude embeddings)
+	// Traceloop / Legacy compatibility (excluding embeddings)
 	if reqType, ok := attrs["llm.request.type"].(string); ok {
 		return reqType != "embedding"
 	}
@@ -888,6 +1395,11 @@ func hasToolAttributes(attrs map[string]interface{}) bool {
 		return true
 	}
 
+	// CrewAI specific: function.* namespace
+	if _, ok := attrs["tool_name"].(string); ok {
+		return true
+	}
+
 	// OpenAI specific function call
 	if _, ok := attrs["llm.tool_calls"]; ok {
 		return true
@@ -898,7 +1410,14 @@ func hasToolAttributes(attrs map[string]interface{}) bool {
 
 // hasRetrieverAttributes checks if span has retriever/vector DB attributes
 func hasRetrieverAttributes(attrs map[string]interface{}) bool {
-	// Check for vector database operations
+	// Check for Traceloop vector DB query attributes (db.query.*)
+	for key := range attrs {
+		if strings.HasPrefix(key, "db.query.") {
+			return true
+		}
+	}
+
+	// Check for vector database system
 	if dbSystem, ok := attrs["db.system"].(string); ok {
 		vectorDBs := []string{"pinecone", "weaviate", "qdrant", "milvus", "chroma", "chromadb"}
 		for _, vdb := range vectorDBs {
@@ -913,16 +1432,6 @@ func hasRetrieverAttributes(attrs map[string]interface{}) bool {
 		if opName == "query" || opName == "search" || opName == "retrieve" {
 			return true
 		}
-	}
-
-	// Traceloop specific: retriever namespace
-	if _, ok := attrs["retriever.query"].(string); ok {
-		return true
-	}
-
-	// Check for vector search attributes
-	if _, ok := attrs["vector.query"].(string); ok {
-		return true
 	}
 
 	return false
@@ -944,8 +1453,8 @@ func hasRerankAttributes(attrs map[string]interface{}) bool {
 
 	// Check for reranker model names
 	if model, ok := attrs["gen_ai.request.model"].(string); ok {
-		// Common reranker models
-		if model == "rerank-english-v2.0" || model == "rerank-multilingual-v2.0" {
+		// Common reranker models - check if model name contains these patterns
+		if strings.Contains(model, "rerank-english") || strings.Contains(model, "rerank-multilingual") {
 			return true
 		}
 	}
@@ -954,41 +1463,15 @@ func hasRerankAttributes(attrs map[string]interface{}) bool {
 }
 
 // hasAgentAttributes checks if span has agent orchestration attributes
-func hasAgentAttributes(attrs map[string]interface{}, spanName string) bool {
-	// Check traceloop.span.kind attribute
-	if kind, ok := attrs["traceloop.span.kind"].(string); ok {
-		kindLower := strings.ToLower(kind)
-		if kindLower == "agent" {
-			return true
-		}
+func hasAgentAttributes(attrs map[string]interface{}) bool {
+	val, ok := attrs["gen_ai.agent.name"]
+	if !ok || val == nil {
+		return false
 	}
 
-	// Check the span name suffix (after the last dot)
-	// Example: "my_agent.agent" -> "agent"
-	if spanName != "" {
-		parts := strings.Split(spanName, ".")
-		if len(parts) > 0 {
-			lastPart := strings.ToLower(parts[len(parts)-1])
-			if lastPart == "agent" {
-				return true
-			}
-		}
-	}
-
-	// Check for agent name attribute
-	if _, ok := attrs["agent.name"].(string); ok {
-		return true
-	}
-
-	// Check for workflow/agent type
-	if spanType, ok := attrs["traceloop.entity.type"].(string); ok {
-		spanTypeLower := strings.ToLower(spanType)
-		if spanTypeLower == "agent" || spanTypeLower == "workflow" {
-			return true
-		}
-	}
-
-	return false
+	// Type assert to string and check length
+	strVal, isString := val.(string)
+	return isString && len(strVal) > 0
 }
 
 // hasTaskAttributes checks if span has task/workflow attributes

@@ -34,8 +34,8 @@ type TraceOverview struct {
 	SpanCount       int          `json:"spanCount"`
 	TokenUsage      *TokenUsage  `json:"tokenUsage,omitempty"` // Aggregated token usage from GenAI spans
 	Status          *TraceStatus `json:"status,omitempty"`     // Trace status including error information
-	Input           string       `json:"input,omitempty"`      // Input from root span's traceloop.entity.input
-	Output          string       `json:"output,omitempty"`     // Output from root span's traceloop.entity.output
+	Input           interface{}  `json:"input,omitempty"`      // Input from root span (nil if not found)
+	Output          interface{}  `json:"output,omitempty"`     // Output from root span (nil if not found)
 }
 
 // TokenUsage represents aggregated token usage from GenAI spans
@@ -74,16 +74,15 @@ type Span struct {
 }
 
 // AmpAttributes contains AMP-specific enriched attributes
+// The Data field is passed through as-is from traces-observer-service
+// to avoid duplicating type definitions and tight coupling.
+// The frontend (console) handles type-specific rendering based on the Kind field.
 type AmpAttributes struct {
-	Kind        string                          `json:"kind"`                  // Semantic span type (llm, tool, embedding, etc.)
-	Input       interface{}                     `json:"input,omitempty"`       // Input: []PromptMessage for LLM spans, string for tool spans
-	Output      interface{}                     `json:"output,omitempty"`      // Output: []PromptMessage for LLM spans, string for tool spans
-	Tools       []ToolDefinition                `json:"tools,omitempty"`       // List of available tools/functions (for LLM spans)
-	Name        string                          `json:"name,omitempty"`        // Name of the entity (for tool spans)
-	Status      *traceobserversvc.SpanStatus    `json:"status,omitempty"`      // Error status (for tool spans: Error bool, ErrorType string)
-	Model       string                          `json:"model,omitempty"`       // LLM model name (for LLM spans)
-	Temperature *float64                        `json:"temperature,omitempty"` // LLM temperature (for LLM spans)
-	TokenUsage  *traceobserversvc.LLMTokenUsage `json:"tokenUsage,omitempty"`  // Token usage (for LLM spans)
+	Kind   string                       `json:"kind"`             // Semantic span type (llm, tool, embedding, retriever, etc.)
+	Input  interface{}                  `json:"input,omitempty"`  // Input data (type varies by kind)
+	Output interface{}                  `json:"output,omitempty"` // Output data (type varies by kind)
+	Status *traceobserversvc.SpanStatus `json:"status,omitempty"` // Execution status with error information
+	Data   interface{}                  `json:"data,omitempty"`   // Kind-specific data passed through from traces-observer-service
 }
 
 // PromptMessage represents a single message in a conversation
