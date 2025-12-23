@@ -78,7 +78,6 @@ function hasOverviewContent(span: Span): boolean {
 
 export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
   const [selectedTab, setSelectedTab] = useState<string>("overview");
-
   useEffect(() => {
     if (!span) return;
     
@@ -104,19 +103,31 @@ export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
   const hasOverview = hasOverviewContent(span);
 
   return (
-    <Stack spacing={2} sx={{ height: "100%" }}>
-      <Stack spacing={2} px={1}>
-        <Stack direction="row" spacing={1}>
-          <Typography variant="h4">{span.name}</Typography>{" "}
-          {span.ampAttributes?.kind && (
-            <Chip
-              size="small"
-              variant="outlined"
-              label={span.ampAttributes?.kind.toUpperCase()}
-            />
-          )}
+    <Stack sx={{ height: "100%" }}>
+      <Stack spacing={2}>
+        <Stack spacing={2} px={1}>
+          <Stack direction="row" spacing={1}>
+            <Typography variant="h4">{span.name}</Typography>{" "}
+            {span.ampAttributes?.kind && (
+              <Chip
+                size="small"
+                variant="outlined"
+                label={span.ampAttributes?.kind.toUpperCase()}
+              />
+            )}
+          </Stack>
+          <BasicInfoSection span={span} />
         </Stack>
-        <BasicInfoSection span={span} />
+
+        <Tabs
+          variant="fullWidth"
+          value={selectedTab}
+          onChange={(_event, newValue) => setSelectedTab(newValue)}
+        >
+          <Tab label="Overview" value="overview" />
+          {span?.ampAttributes?.tools && <Tab label="Tools" value="tools" />}
+          {span?.attributes && <Tab label="Attributes" value="attributes" />}
+        </Tabs>
       </Stack>
       <Tabs
         variant="fullWidth"
