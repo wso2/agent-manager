@@ -28,10 +28,7 @@ import {
 import { EnvironmentCard } from "@agent-management-platform/shared-component";
 import { InstrumentationDrawer } from "./InstrumentationDrawer";
 import { NoDataFound } from "@agent-management-platform/views";
-import {
-  globalConfig,
-  type Environment,
-} from "@agent-management-platform/types";
+import { type Environment } from "@agent-management-platform/types";
 
 export const ExternalAgentOverview = () => {
   const { agentId, orgId, projectId } = useParams();
@@ -67,10 +64,7 @@ export const ExternalAgentOverview = () => {
   }, [sortedEnvironmentList, selectedEnvironmentId]);
 
   // Sample instrumentation config - these would come from props or API
-  const instrumentationUrl =
-    globalConfig.instrumentationUrl && globalConfig.instrumentationUrl !== ""
-      ? globalConfig.instrumentationUrl
-      : "http://localhost:21893";
+  const instrumentationUrl = "http://localhost:21893";
   const apiKey = "8e3c1f4a-9b7d-4c2f-92a6-5d8f3b1c27e0";
 
   const handleSetupAgent = (environmentId: string) => {
