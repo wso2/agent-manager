@@ -49,6 +49,7 @@
     "@agent-management-platform/views": "workspace:*",
     "@agent-management-platform/api-client": "workspace:*",
     "@agent-management-platform/types": "workspace:*",
+    "@agent-management-platform/shared-component": "workspace:*",
     "dayjs": "1.11.18",
     "yup": "1.4.0",
     "react-hook-form": "7.53.0",

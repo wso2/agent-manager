@@ -25,7 +25,7 @@ import { EnvBulkImportModal, EnvVariable } from "@agent-management-platform/shar
 
 export const EnvironmentVariable = () => {
     const { control, formState: { errors }, register, setValue } = useFormContext();
-    const { fields, append, remove } = useFieldArray({ control, name: 'env' });
+    const { fields, append, remove, replace } = useFieldArray({ control, name: 'env' });
     const watchedEnvValues = useWatch({ control, name: 'env' });
     const [importModalOpen, setImportModalOpen] = useState(false);
 
@@ -37,36 +37,28 @@ export const EnvironmentVariable = () => {
 
     const isOneEmpty = envValues.some((e) => !e?.key || !e?.value);
 
-    // Handle bulk import - merge imported vars with existing ones
+    // Handle bulk import - merge imported vars with existing ones, remove empty rows
     const handleImport = useCallback((importedVars: EnvVariable[]) => {
-        const existingMap = new Map<string, number>();
+        // Filter out empty rows from existing values
+        const nonEmptyExisting = envValues.filter((env) => env?.key && env?.value);
 
-        // Map existing keys to their indices
-        envValues.forEach((env, index) => {
-            if (env?.key) {
-                existingMap.set(env.key, index);
-            }
+        // Map existing keys to their values for merging
+        const existingMap = new Map<string, string>();
+        nonEmptyExisting.forEach((env) => {
+            existingMap.set(env.key, env.value);
         });
 
-        // Process imported variables
-        const updatedEnv = [...envValues];
-        const newVars: EnvVariable[] = [];
-
+        // Merge: imported vars override existing ones with same key
         importedVars.forEach((imported) => {
-            if (existingMap.has(imported.key)) {
-                // Update existing variable
-                const idx = existingMap.get(imported.key)!;
-                updatedEnv[idx] = { key: imported.key, value: imported.value };
-            } else {
-                // Add new variable
-                newVars.push(imported);
-            }
+            existingMap.set(imported.key, imported.value);
         });
 
-        // Set updated values and append new ones
-        setValue('env', updatedEnv);
-        newVars.forEach((v) => append(v));
-    }, [envValues, setValue, append]);
+        // Convert map back to array
+        const mergedEnv = Array.from(existingMap.entries()).map(([key, value]) => ({ key, value }));
+
+        // Replace all fields with merged result
+        replace(mergedEnv);
+    }, [envValues, replace]);
 
     return (
         <Card variant="outlined">
