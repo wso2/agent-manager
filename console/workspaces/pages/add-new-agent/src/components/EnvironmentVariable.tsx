@@ -16,111 +16,107 @@
  * under the License.
  */
 
+import { useState, useCallback, useMemo } from "react";
 import { Box, Button, Card, CardContent, Typography } from "@wso2/oxygen-ui";
-import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
+import { Plus as Add, FileText } from "@wso2/oxygen-ui-icons-react";
+import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import { EnvVariableEditor } from "@agent-management-platform/views";
-import { CreateAgentFormValues } from "../form/schema";
+import { EnvBulkImportModal, EnvVariable } from "@agent-management-platform/shared-component";
 
-interface EnvironmentVariableProps {
-  formData: CreateAgentFormValues;
-  setFormData: React.Dispatch<React.SetStateAction<CreateAgentFormValues>>;
-}
+export const EnvironmentVariable = () => {
+    const { control, formState: { errors }, register, setValue } = useFormContext();
+    const { fields, append, remove } = useFieldArray({ control, name: 'env' });
+    const watchedEnvValues = useWatch({ control, name: 'env' });
+    const [importModalOpen, setImportModalOpen] = useState(false);
 
-export const EnvironmentVariable = ({
-  formData,
-  setFormData,
-}: EnvironmentVariableProps) => {
-  const envVariables = formData.env || [];
-  const isOneEmpty = envVariables.some((e) => !e?.key || !e?.value);
+    // Memoize envValues to stabilize dependency for useCallback
+    const envValues = useMemo(
+        () => (watchedEnvValues || []) as EnvVariable[],
+        [watchedEnvValues]
+    );
 
-  const handleAdd = () => {
-    setFormData((prev) => ({
-      ...prev,
-      env: [...(prev.env || []), { key: '', value: '' }],
-    }));
-  };
+    const isOneEmpty = envValues.some((e) => !e?.key || !e?.value);
 
-  const handleRemove = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      env: prev.env?.filter((_, i) => i !== index) || [],
-    }));
-  };
+    // Handle bulk import - merge imported vars with existing ones
+    const handleImport = useCallback((importedVars: EnvVariable[]) => {
+        const existingMap = new Map<string, number>();
 
-  const handleChange = (index: number, field: 'key' | 'value', value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      env: prev.env?.map((item, i) =>
-        i === index ? { ...item, [field]: value } : item
-      ) || [],
-    }));
-  };
+        // Map existing keys to their indices
+        envValues.forEach((env, index) => {
+            if (env?.key) {
+                existingMap.set(env.key, index);
+            }
+        });
 
-  const handleInitialEdit = (field: 'key' | 'value', value: string) => {
-    setFormData((prev) => {
-      const envList = prev.env || [];
-      if (envList.length > 0) {
-        return {
-          ...prev,
-          env: envList.map((item, i) =>
-            i === 0 ? { ...item, [field]: value } : item
-          ),
-        };
-      }
+        // Process imported variables
+        const updatedEnv = [...envValues];
+        const newVars: EnvVariable[] = [];
 
-      return {
-        ...prev,
-        env: [
-          {
-            key: field === 'key' ? value : '',
-            value: field === 'value' ? value : '',
-          },
-        ],
-      };
-    });
-  };
+        importedVars.forEach((imported) => {
+            if (existingMap.has(imported.key)) {
+                // Update existing variable
+                const idx = existingMap.get(imported.key)!;
+                updatedEnv[idx] = { key: imported.key, value: imported.value };
+            } else {
+                // Add new variable
+                newVars.push(imported);
+            }
+        });
 
-  return (
-    <Card variant="outlined">
-      <CardContent>
-        <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
-          <Typography variant="h5">
-            Environment Variables (Optional)
-          </Typography>
-        </Box>
-        <Box display="flex" flexDirection="column" py={2} gap={2}>
-          {envVariables.length ? envVariables.map((item, index) => (
-            <EnvVariableEditor
-              key={`env-${index}`}
-              index={index}
-              keyValue={item.key || ''}
-              valueValue={item.value || ''}
-              onKeyChange={(value) => handleChange(index, 'key', value)}
-              onValueChange={(value) => handleChange(index, 'value', value)}
-              onRemove={() => handleRemove(index)}
-            />
-          )) :
-            <EnvVariableEditor
-              key={`env-0`}
-              index={0}
-              keyValue={envVariables?.[0]?.key || ''}
-              valueValue={envVariables?.[0]?.value || ''}
-              onKeyChange={(value) => handleInitialEdit('key', value)}
-              onValueChange={(value) => handleInitialEdit('value', value)}
-              onRemove={() => handleRemove(0)}
-            />
-          }
-        </Box>
-        <Button
-          startIcon={<Add fontSize="small" />}
-          disabled={isOneEmpty}
-          variant="outlined"
-          color="primary"
-          onClick={handleAdd}
-        >
-          Add
-        </Button>
-      </CardContent>
-    </Card>
-  );
+        // Set updated values and append new ones
+        setValue('env', updatedEnv);
+        newVars.forEach((v) => append(v));
+    }, [envValues, setValue, append]);
+
+    const handleModalClose = useCallback(() => setImportModalOpen(false), []);
+
+    return (
+        <Card variant="outlined">
+            <CardContent>
+                <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
+                    <Typography variant="h5">
+                        Environment Variables (Optional)
+                    </Typography>
+                </Box>
+                <Box display="flex" flexDirection="column" py={2} gap={2}>
+                    {fields.map((field, index) => (
+                        <EnvVariableEditor
+                            key={field.id}
+                            fieldName="env"
+                            index={index}
+                            fieldId={field.id}
+                            register={register}
+                            errors={errors}
+                            onRemove={() => remove(index)}
+                        />
+                    ))}
+                </Box>
+                <Box display="flex" gap={1}>
+                    <Button
+                        startIcon={<Add fontSize="small" />}
+                        disabled={isOneEmpty}
+                        variant="outlined"
+                        color="primary"
+                        onClick={() => append({ key: '', value: '' })}
+                    >
+                        Add
+                    </Button>
+                    <Button
+                        startIcon={<FileText fontSize="small" />}
+                        variant="outlined"
+                        color="primary"
+                        onClick={() => setImportModalOpen(true)}
+                    >
+                        Import
+                    </Button>
+                </Box>
+
+                <EnvBulkImportModal
+                    open={importModalOpen}
+                    onClose={handleModalClose}
+                    onImport={handleImport}
+                />
+            </CardContent>
+        </Card>
+    );
 };
