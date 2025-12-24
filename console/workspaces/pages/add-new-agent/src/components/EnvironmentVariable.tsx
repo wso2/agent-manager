@@ -24,7 +24,7 @@ import { EnvVariableEditor } from "@agent-management-platform/views";
 import { EnvBulkImportModal, EnvVariable } from "@agent-management-platform/shared-component";
 
 export const EnvironmentVariable = () => {
-    const { control, formState: { errors }, register, setValue } = useFormContext();
+    const { control, formState: { errors }, register, getValues } = useFormContext();
     const { fields, append, remove, replace } = useFieldArray({ control, name: 'env' });
     const watchedEnvValues = useWatch({ control, name: 'env' });
     const [importModalOpen, setImportModalOpen] = useState(false);
@@ -39,8 +39,11 @@ export const EnvironmentVariable = () => {
 
     // Handle bulk import - merge imported vars with existing ones, remove empty rows
     const handleImport = useCallback((importedVars: EnvVariable[]) => {
+        // Get current values directly from form to avoid stale closure
+        const currentEnv = (getValues('env') || []) as EnvVariable[];
+
         // Filter out empty rows from existing values
-        const nonEmptyExisting = envValues.filter((env) => env?.key && env?.value);
+        const nonEmptyExisting = currentEnv.filter((env) => env?.key && env?.value);
 
         // Map existing keys to their values for merging
         const existingMap = new Map<string, string>();
@@ -58,7 +61,7 @@ export const EnvironmentVariable = () => {
 
         // Replace all fields with merged result
         replace(mergedEnv);
-    }, [envValues, replace]);
+    }, [getValues, replace]);
 
     const handleModalClose = useCallback(() => setImportModalOpen(false), []);
 
