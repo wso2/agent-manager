@@ -16,17 +16,57 @@
  * under the License.
  */
 
+import { useState, useCallback, useMemo } from "react";
 import { Box, Button, Card, CardContent, Typography } from "@wso2/oxygen-ui";
-import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
+import { Plus as Add, FileText } from "@wso2/oxygen-ui-icons-react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import { EnvVariableEditor } from "@agent-management-platform/views";
+import { EnvBulkImportModal, EnvVariable } from "@agent-management-platform/shared-component";
 
 export const EnvironmentVariable = () => {
-    const { control, formState: { errors }, register } = useFormContext();
+    const { control, formState: { errors }, register, setValue } = useFormContext();
     const { fields, append, remove } = useFieldArray({ control, name: 'env' });
-    const envValues = useWatch({ control, name: 'env' }) || [];
+    const watchedEnvValues = useWatch({ control, name: 'env' });
+    const [importModalOpen, setImportModalOpen] = useState(false);
 
-    const isOneEmpty = envValues.some((e: any) => !e?.key || !e?.value);
+    // Memoize envValues to stabilize dependency for useCallback
+    const envValues = useMemo(
+        () => (watchedEnvValues || []) as EnvVariable[],
+        [watchedEnvValues]
+    );
+
+    const isOneEmpty = envValues.some((e) => !e?.key || !e?.value);
+
+    // Handle bulk import - merge imported vars with existing ones
+    const handleImport = useCallback((importedVars: EnvVariable[]) => {
+        const existingMap = new Map<string, number>();
+
+        // Map existing keys to their indices
+        envValues.forEach((env, index) => {
+            if (env?.key) {
+                existingMap.set(env.key, index);
+            }
+        });
+
+        // Process imported variables
+        const updatedEnv = [...envValues];
+        const newVars: EnvVariable[] = [];
+
+        importedVars.forEach((imported) => {
+            if (existingMap.has(imported.key)) {
+                // Update existing variable
+                const idx = existingMap.get(imported.key)!;
+                updatedEnv[idx] = { key: imported.key, value: imported.value };
+            } else {
+                // Add new variable
+                newVars.push(imported);
+            }
+        });
+
+        // Set updated values and append new ones
+        setValue('env', updatedEnv);
+        newVars.forEach((v) => append(v));
+    }, [envValues, setValue, append]);
 
     return (
         <Card variant="outlined">
@@ -37,7 +77,7 @@ export const EnvironmentVariable = () => {
                     </Typography>
                 </Box>
                 <Box display="flex" flexDirection="column" py={2} gap={2}>
-                    {fields.map((field: any, index: number) => (
+                    {fields.map((field, index) => (
                         <EnvVariableEditor
                             key={field.id}
                             fieldName="env"
@@ -49,9 +89,20 @@ export const EnvironmentVariable = () => {
                         />
                     ))}
                 </Box>
-                <Button startIcon={<Add fontSize="small" />} disabled={isOneEmpty} variant="outlined" color="primary" onClick={() => append({ key: '', value: '' })}>
-                    Add
-                </Button>
+                <Box display="flex" gap={1}>
+                    <Button startIcon={<Add fontSize="small" />} disabled={isOneEmpty} variant="outlined" color="primary" onClick={() => append({ key: '', value: '' })}>
+                        Add
+                    </Button>
+                    <Button startIcon={<FileText fontSize="small" />} variant="outlined" color="primary" onClick={() => setImportModalOpen(true)}>
+                        Bulk Import
+                    </Button>
+                </Box>
+
+                <EnvBulkImportModal
+                    open={importModalOpen}
+                    onClose={() => setImportModalOpen(false)}
+                    onImport={handleImport}
+                />
             </CardContent>
         </Card>
     );
