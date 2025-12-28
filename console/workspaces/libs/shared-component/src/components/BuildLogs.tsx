@@ -157,7 +157,7 @@ export function BuildLogs({
               iconElement={FileText}
             />
           )}
-          {buildLogs && buildLogs?.length && <Divider />}
+          {buildLogs && buildLogs?.length > 0 && <Divider />}
           <Stack direction="column" gap={1} overflow="auto" mb={1}>
             {buildLogs?.map((log, index) => (
               <Typography variant="body1" key={index}>

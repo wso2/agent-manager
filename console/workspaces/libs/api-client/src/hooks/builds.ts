@@ -112,5 +112,6 @@ export function useGetBuildLogs(params: GetBuildLogsPathParams) {
     queryKey: ["build-logs", params],
     queryFn: () => getBuildLogs(params, getToken),
     enabled: !!params.orgName && !!params.projName && !!params.agentName && !!params.buildName,
+    refetchInterval: 10000,
   });
 }

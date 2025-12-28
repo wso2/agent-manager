@@ -65,15 +65,24 @@ export const InternalAgentOverview = () => {
     });
   }, [environmentList]);
 
-  const repositoryUrl = useMemo(
-    () =>
-      `${agent?.provisioning?.repository?.url}/tree/${agent?.provisioning?.repository?.branch}/${agent?.provisioning?.repository?.appPath ?? ""}`,
-    [
-      agent?.provisioning?.repository?.url,
-      agent?.provisioning?.repository?.branch,
-      agent?.provisioning?.repository?.appPath,
-    ]
-  );
+  const repositoryUrl = useMemo(() => {
+    const appPath =
+      agent?.provisioning?.repository?.appPath?.startsWith("/")
+        ? agent?.provisioning?.repository?.appPath?.substring(1)
+        : agent?.provisioning?.repository?.appPath;
+    if (
+      agent?.provisioning?.repository?.url &&
+      agent?.provisioning?.repository?.branch &&
+      appPath
+    ) {
+      return `${agent?.provisioning?.repository?.url}/tree/${agent?.provisioning?.repository?.branch}/${appPath}`;
+    }
+    return "";
+  }, [
+    agent?.provisioning?.repository?.url,
+    agent?.provisioning?.repository?.branch,
+    agent?.provisioning?.repository?.appPath,
+  ]);
 
   const loadingBuilds = useMemo(() => {
     return buildList?.builds.filter(
@@ -96,7 +105,7 @@ export const InternalAgentOverview = () => {
           <Typography variant="body2">Created</Typography>
           <AccessTime size={14} />
           <Typography variant="body2">
-            {agent?.createdAt ? dayjs(agent.createdAt).fromNow() : '—'}
+            {agent?.createdAt ? dayjs(agent.createdAt).fromNow() : "—"}
           </Typography>
         </Box>
         <Box display="flex" flexDirection="row" gap={1} alignItems="center">
