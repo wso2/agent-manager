@@ -109,7 +109,7 @@ export function EnvBulkImportModal({
                 <Box display="flex" alignItems="center" gap={1}>
                     <FileText size={20} />
                     <Typography variant="h6">
-                        Bulk Import Environment Variables
+                        Import Environment Variables
                     </Typography>
                 </Box>
             </DialogTitle>
