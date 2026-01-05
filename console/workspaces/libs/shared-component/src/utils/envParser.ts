@@ -21,6 +21,20 @@ export interface EnvVariable {
     value: string;
 }
 
+export interface ParseResult {
+    valid: EnvVariable[];
+    invalid: string[];
+}
+
+// Regex pattern for valid environment variable keys
+// Must start with a letter or underscore, followed by letters, numbers, or underscores
+const ENV_KEY_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+// Validates if a key is a valid environment variable name
+function isValidEnvKey(key: string): boolean {
+    return ENV_KEY_REGEX.test(key);
+}
+
 // Strips surrounding quotes from a value (single or double quotes)
 function stripQuotes(value: string): string {
     const trimmed = value.trim();
@@ -34,9 +48,10 @@ function stripQuotes(value: string): string {
 }
 
 // Parses .env file content into an array of key-value pairs
-export function parseEnvContent(content: string): EnvVariable[] {
+export function parseEnvContent(content: string): ParseResult {
     const lines = content.split(/\r?\n/);
     const envMap = new Map<string, string>();
+    const invalid: string[] = [];
 
     for (const line of lines) {
         const trimmedLine = line.trim();
@@ -61,10 +76,17 @@ export function parseEnvContent(content: string): EnvVariable[] {
             continue;
         }
 
+        // Check if key is valid
+        if (!isValidEnvKey(key)) {
+            invalid.push(key);
+            continue;
+        }
+
         // Use Map to handle duplicates (last value wins)
         envMap.set(key, value);
     }
 
     // Convert Map to array
-    return Array.from(envMap.entries()).map(([key, value]) => ({ key, value }));
+    const valid = Array.from(envMap.entries()).map(([key, value]) => ({ key, value }));
+    return { valid, invalid };
 }

@@ -17,4 +17,4 @@
  */
 
 export { parseEnvContent } from './envParser';
-export type { EnvVariable } from './envParser';
+export type { EnvVariable, ParseResult } from './envParser';
