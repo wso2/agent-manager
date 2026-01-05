@@ -46,8 +46,9 @@ export function EnvBulkImportModal({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Parse content and get variables count
-    const parsedVars = useMemo(() => parseEnvContent(content), [content]);
-    const variablesCount = parsedVars.length;
+    const parseResult = useMemo(() => parseEnvContent(content), [content]);
+    const validCount = parseResult.valid.length;
+    const invalidKeys = parseResult.invalid;
 
     // Handle textarea change
     const handleContentChange = useCallback(
@@ -85,12 +86,12 @@ export function EnvBulkImportModal({
 
     // Handle import button click
     const handleImport = useCallback(() => {
-        if (variablesCount > 0) {
-            onImport(parsedVars);
+        if (validCount > 0) {
+            onImport(parseResult.valid);
             setContent("");
             onClose();
         }
-    }, [variablesCount, parsedVars, onImport, onClose]);
+    }, [validCount, parseResult.valid, onImport, onClose]);
 
     // Handle cancel/close
     const handleClose = useCallback(() => {
@@ -149,7 +150,6 @@ export function EnvBulkImportModal({
                         <input
                             ref={fileInputRef}
                             type="file"
-                            accept=".env,.txt,text/plain"
                             onChange={handleFileUpload}
                             style={{ display: "none" }}
                         />
@@ -166,12 +166,34 @@ export function EnvBulkImportModal({
                     {/* Variables count indicator */}
                     <Typography
                         variant="body2"
-                        color={variablesCount > 0 ? "success.main" : "text.secondary"}
+                        color={validCount > 0 ? "success.main" : "text.secondary"}
                     >
-                        {variablesCount > 0
-                            ? `${variablesCount} variable${variablesCount !== 1 ? "s" : ""} detected`
-                            : "No variables detected"}
+                        {validCount > 0
+                            ? `${validCount} valid variable${validCount !== 1 ? "s" : ""} detected`
+                            : "No valid variables detected"}
                     </Typography>
+
+                    {/* Invalid keys warning */}
+                    {invalidKeys.length > 0 && (
+                        <Box
+                            sx={{
+                                padding: 1.5,
+                                backgroundColor: theme.palette.error.light + '20',
+                                borderRadius: 1,
+                                border: `1px solid ${theme.palette.error.light}`,
+                            }}
+                        >
+                            <Typography variant="body2" color="error.main" fontWeight="medium">
+                                {invalidKeys.length} invalid key{invalidKeys.length !== 1 ? "s" : ""} skipped:
+                            </Typography>
+                            <Typography variant="body2" color="error.main" sx={{ fontFamily: "monospace", mt: 0.5 }}>
+                                {invalidKeys.join(", ")}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                                Keys must start with a letter or underscore, and contain only letters, numbers, or underscores.
+                            </Typography>
+                        </Box>
+                    )}
                 </Box>
             </DialogContent>
 
@@ -180,7 +202,7 @@ export function EnvBulkImportModal({
                 <Button
                     variant="contained"
                     onClick={handleImport}
-                    disabled={variablesCount === 0}
+                    disabled={validCount === 0}
                 >
                     Import
                 </Button>
