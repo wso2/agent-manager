@@ -26,7 +26,7 @@ services:
       dockerfile: Dockerfile.dev
     container_name: agent-manager-service
     ports:
-      - "8080:8080"
+      - "9000:8080"
     environment:
       # Database Configuration
       - DB_HOST=postgres
@@ -44,6 +44,7 @@ services:
       # - OPENCHOREO_API_URL=http://host.docker.internal:8000
       # - OPENSEARCH_URL=http://host.docker.internal:9200
       - OBSERVER_URL=http://host.docker.internal:8085
+      - AMP_VERSION=v0.1.0
     volumes:
       # Mount source code for hot-reloading
       - ../agent-manager-service:/app

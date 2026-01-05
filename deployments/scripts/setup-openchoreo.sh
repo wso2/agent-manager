@@ -50,8 +50,7 @@ else
     --namespace openchoreo-control-plane \
     --create-namespace \
     --values https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.7/install/k3d/single-cluster/values-cp.yaml \
-    --set global.defaultResources.enabled=false \
-    --set security.oidc.authorizationUrl=http://thunder.openchoreo.localhost:8089/oauth2/authorize
+    --set global.defaultResources.enabled=false
 fi
 
 echo "⏳ Waiting for Control Plane pods to be ready (timeout: 10 minutes)..."
@@ -101,6 +100,16 @@ kubectl wait --for=condition=Ready pod --all -n openchoreo-data-plane --timeout=
 echo "✅ OpenChoreo Data Plane ready"
 echo ""
 
+# Install Experimental HTTPRoute CRD required for CORS configurations
+echo "Applying HTTPRoute CRD..."
+HTTP_ROUTE_CRD="https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/refs/tags/v1.4.1/config/crd/experimental/gateway.networking.k8s.io_httproutes.yaml"
+if kubectl apply  --server-side --force-conflicts -f "${HTTP_ROUTE_CRD}" &>/dev/null; then
+    echo "✅ HTTPRoute CRD applied successfully"
+else
+    echo "⚠️  Failed to apply HTTPRoute CRD"
+fi
+
+
 # ============================================================================
 # Step 3: Install OpenChoreo Build Plane
 echo "4️⃣  Installing OpenChoreo Build Plane..."
@@ -148,7 +157,7 @@ echo "5️⃣ Installing Custom Build CI Workflows..."
 if helm status amp-custom-build-ci-workflows -n openchoreo-build-plane &>/dev/null; then
     echo "⏭️  Custom Build CI Workflows already installed, skipping..."
 else
-    helm install amp-custom-build-ci-workflows "${SCRIPT_DIR}/../helm-charts/wso2-amp-build-extension" --namespace openchoreo-build-plane
+    helm install amp-custom-build-ci-workflows "${SCRIPT_DIR}/../helm-charts/wso2-amp-build-extension" --namespace openchoreo-build-plane --set global.agentManagerService.url="http://host.k3d.internal:9000"
     echo "✅ Custom Build CI Workflows installed successfully"
 fi
 echo ""
