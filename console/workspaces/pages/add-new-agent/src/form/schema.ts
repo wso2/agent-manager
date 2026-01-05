@@ -108,7 +108,10 @@ export const addAgentSchema = yup.object({
     .array()
     .of(
       yup.object({
-        key: yup.string().trim(),
+        key: yup.string().trim().matches(
+          /^$|^[A-Za-z_][A-Za-z0-9_]*$/,
+          'Key must start with a letter or underscore, and contain only letters, numbers, or underscores'
+        ),
         value: yup.string().trim(),
       })
     )
