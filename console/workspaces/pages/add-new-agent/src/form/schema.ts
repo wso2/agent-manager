@@ -28,7 +28,7 @@ export interface AddAgentFormValues {
   description?: string;
   repositoryUrl?: string;
   branch?: string;
-  appPath?: string;
+  appPath: string;
   runCommand?: string;
   language?: string;
   languageVersion?: string;
@@ -74,7 +74,29 @@ export const addAgentSchema = yup.object({
     then: (schema) => schema.required('Branch is required'),
     otherwise: (schema) => schema.notRequired(),
   }),
-  appPath: yup.string().trim(),
+  appPath: yup
+    .string()
+    .trim()
+    .required('App path is required')
+    .test(
+      'starts-with-slash',
+      'App path must start with /',
+      (value) => {
+        if (!value) return false; // Empty is not valid
+        return value.startsWith('/');
+      }
+    )
+    .test(
+      'valid-path',
+      'App path must be a valid path (use / for root directory)',
+      (value) => {
+        if (!value) return false;
+        // Must be either "/" or a valid path starting with "/"
+        if (value === '/') return true;
+        // Should not end with slash if not root
+        return !value.endsWith('/');
+      }
+    ),
   runCommand: yup.string().trim().when('deploymentType', {
     is: 'new',
     then: (schema) => schema.required('Start Command is required'),

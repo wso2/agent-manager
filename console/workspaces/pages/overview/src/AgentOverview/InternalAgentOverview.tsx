@@ -67,8 +67,12 @@ export const InternalAgentOverview = () => {
 
   const repositoryUrl = useMemo(() => {
     const { appPath, branch, url } = agent?.provisioning?.repository ?? {};
-    if (appPath && appPath.length > 0) {
-      return `${url}/tree/${branch}/${appPath}`;
+    
+    // If appPath is "/" (root), don't append it to avoid double slashes
+    // Otherwise, remove the leading slash from appPath before appending
+    if (appPath && appPath !== '/') {
+      const normalizedPath = appPath.startsWith('/') ? appPath.substring(1) : appPath;
+      return `${url}/tree/${branch}/${normalizedPath}`;
     }
     return `${url}/tree/${branch}`;
   }, [agent?.provisioning?.repository]);
