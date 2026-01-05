@@ -75,6 +75,11 @@ func validateInternalAgent(payload spec.CreateAgentRequest) error {
 		return fmt.Errorf("invalid language: %w", err)
 	}
 
+	// Validate environment variables if present
+	if err := validateEnvironmentVariables(payload.RuntimeConfigs.Env); err != nil {
+		return fmt.Errorf("invalid environment variables: %w", err)
+	}
+
 	return nil
 }
 
@@ -228,6 +233,42 @@ func validateLanguage(language string, languageVersion *string) error {
 
 	// Language not found
 	return fmt.Errorf("unsupported language '%s'", language)
+}
+
+// validateEnvironmentVariables validates environment variables if present in the payload
+// Environment variables are optional, but if provided, they must follow naming conventions
+func validateEnvironmentVariables(envVars []spec.EnvironmentVariable) error {
+	if len(envVars) == 0 {
+		// Environment variables are optional
+		return nil
+	}
+
+	// Regular expression for valid environment variable names
+	// Must start with letter or underscore, followed by letters, digits, or underscores
+	validKeyPattern := regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+	seenKeys := make(map[string]bool)
+
+	for i, envVar := range envVars {
+		// Validate key is not empty
+		if envVar.Key == "" {
+			return fmt.Errorf("environment variable at index %d has an empty key", i)
+		}
+
+		// Validate key follows naming conventions
+		if !validKeyPattern.MatchString(envVar.Key) {
+			return fmt.Errorf("environment variable key '%s' is invalid. Must start with a letter or underscore and contain only letters, digits, or underscores", envVar.Key)
+		}
+
+		// Check for duplicate keys
+		if seenKeys[envVar.Key] {
+			return fmt.Errorf("duplicate environment variable key '%s'", envVar.Key)
+		}
+		seenKeys[envVar.Key] = true
+
+		// Value can be any string, including empty string, so no validation needed for value
+	}
+
+	return nil
 }
 
 // isVersionMatching checks if a provided version matches against a supported version pattern
