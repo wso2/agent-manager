@@ -61,17 +61,6 @@ export function BuildLogs({
   onClose,
 }: BuildLogsProps) {
   const {
-    data: buildLogs,
-    error,
-    isLoading,
-  } = useGetBuildLogs({
-    orgName,
-    projName,
-    agentName,
-    buildName,
-  });
-
-  const {
     data: build,
     isLoading: isBuildLoading,
     error: buildError,
@@ -81,6 +70,20 @@ export function BuildLogs({
     agentName,
     buildName,
   });
+
+  const {
+    data: buildLogs,
+    error,
+    isLoading,
+  } = useGetBuildLogs(
+    {
+      orgName,
+      projName,
+      agentName,
+      buildName,
+    },
+    build?.status
+  );
 
   const getEmptyStateMessage = () => {
     if (error) {

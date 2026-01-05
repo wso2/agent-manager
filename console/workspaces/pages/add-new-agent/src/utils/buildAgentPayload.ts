@@ -38,7 +38,7 @@ export const buildAgentCreationPayload = (
           repository: {
             url: data.repositoryUrl ?? "",
             branch: data.branch ?? "main",
-            appPath: data.appPath ?? "/",
+            appPath: data.appPath?.trim() || "/",
           },
         },
         agentType: {
