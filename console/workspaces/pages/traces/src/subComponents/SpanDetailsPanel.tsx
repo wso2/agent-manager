@@ -108,7 +108,7 @@ export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
       <Stack spacing={2}>
         <Stack spacing={2} px={1}>
           <Stack direction="row" spacing={1}>
-            <Typography variant="h4">{span.name}</Typography>{" "}
+            <Typography variant="h4" noWrap textOverflow="ellipsis" maxWidth="70%" overflow="hidden">{span.name}</Typography>{" "}
             {span.ampAttributes?.kind && (
               <Chip
                 size="small"
