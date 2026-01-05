@@ -66,23 +66,12 @@ export const InternalAgentOverview = () => {
   }, [environmentList]);
 
   const repositoryUrl = useMemo(() => {
-    const appPath =
-      agent?.provisioning?.repository?.appPath?.startsWith("/")
-        ? agent?.provisioning?.repository?.appPath?.substring(1)
-        : agent?.provisioning?.repository?.appPath;
-    if (
-      agent?.provisioning?.repository?.url &&
-      agent?.provisioning?.repository?.branch &&
-      appPath
-    ) {
-      return `${agent?.provisioning?.repository?.url}/tree/${agent?.provisioning?.repository?.branch}/${appPath}`;
+    const { appPath, branch, url } = agent?.provisioning?.repository ?? {};
+    if (appPath && appPath.length > 0) {
+      return `${url}/tree/${branch}/${appPath}`;
     }
-    return "";
-  }, [
-    agent?.provisioning?.repository?.url,
-    agent?.provisioning?.repository?.branch,
-    agent?.provisioning?.repository?.appPath,
-  ]);
+    return `${url}/tree/${branch}`;
+  }, [agent?.provisioning?.repository]);
 
   const loadingBuilds = useMemo(() => {
     return buildList?.builds.filter(
