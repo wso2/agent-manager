@@ -299,7 +299,7 @@ kubectl port-forward -n wso2-amp svc/amp-console 3000:3000 &
 kubectl port-forward -n wso2-amp svc/amp-api 9000:9000 &
 
 # OTel Collector (port 21893)
-kubectl port-forward -n openchoreo-observability-plane svc/otel-collector 21893:4318 &
+kubectl port-forward -n openchoreo-observability-plane svc/otel-collector 21893:21893 &
 
 ```
 
