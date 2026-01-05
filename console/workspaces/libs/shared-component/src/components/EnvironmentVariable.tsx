@@ -101,7 +101,7 @@ export const EnvironmentVariable = () => {
                     color="primary"
                     onClick={() => setImportModalOpen(true)}
                 >
-                    Bulk Import
+                    Import
                 </Button>
             </Box>
 

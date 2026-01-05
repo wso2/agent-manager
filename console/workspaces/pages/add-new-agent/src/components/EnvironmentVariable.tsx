@@ -89,7 +89,7 @@ export const EnvironmentVariable = () => {
                         Add
                     </Button>
                     <Button startIcon={<FileText fontSize="small" />} variant="outlined" color="primary" onClick={() => setImportModalOpen(true)}>
-                        Bulk Import
+                        Import
                     </Button>
                 </Box>
 
