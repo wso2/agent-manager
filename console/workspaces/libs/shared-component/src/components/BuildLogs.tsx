@@ -48,7 +48,8 @@ export interface BuildLogsProps {
 const InfoLoadingSkeleton = () => (
   <Box display="flex" flexDirection="column" gap={1}>
     <Skeleton variant="rounded" height={24} width={200} />
-    <Skeleton variant="rounded" height={15} width={150} />
+    <Skeleton variant="rounded" height={32} width="100%"/>
+    <Skeleton variant="rectangular" height={300} width="100%" />
   </Box>
 );
 

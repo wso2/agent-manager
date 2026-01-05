@@ -95,19 +95,13 @@ export function DeployCard(props: DeployCardProps) {
         }}
       >
         <CardContent>
-          <Box
-            display="flex"
-            flexGrow={1}
-            pt={2}
-            justifyContent="center"
-            alignItems="center"
-          >
+          <Stack gap={2} alignItems="center">
             <NoDataFound
               message="No Deployment found"
               icon={<Rocket size={32} />}
               disableBackground
             />
-          </Box>
+          </Stack>
         </CardContent>
       </Card>
     );
