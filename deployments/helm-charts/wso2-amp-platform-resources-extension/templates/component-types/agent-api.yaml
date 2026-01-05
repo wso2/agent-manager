@@ -54,6 +54,9 @@ spec:
           template:
             metadata:
               labels: ${metadata.podSelectors}
+              annotations:
+                openchoreo.dev/config-hash: |
+                  ${has(configurations[parameters.containerName].configs.envs) && configurations[parameters.containerName].configs.envs.size() > 0 ? oc_hash(configurations[parameters.containerName].configs.envs.map(e, e.name + "=" + e.value).join(",")) : oc_hash("no-env")}
             spec:
               containers:
                 - name: ${parameters.containerName}

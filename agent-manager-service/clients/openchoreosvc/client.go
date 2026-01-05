@@ -237,32 +237,50 @@ func (k *openChoreoSvcClient) AttachComponentTrait(ctx context.Context, orgName 
 	if err != nil {
 		return fmt.Errorf("failed to get environment for trait attachment: %w", err)
 	}
-	component := &v1alpha1.Component{}
+	
 	key := client.ObjectKey{
 		Name:      agentName,
 		Namespace: orgName,
 	}
-	err = k.retryK8sOperation(ctx, "GetComponentForTraitAttachment", func() error {
-		return k.client.Get(ctx, key, component)
-	})
-	if err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			return utils.ErrAgentNotFound
-		}
-		return fmt.Errorf("failed to get component for trait attachment: %w", err)
-	}
-	// Verify that the component belongs to the specified project
-	if component.Spec.Owner.ProjectName != projName {
-		return fmt.Errorf("component does not belong to the specified project")
-	}
-	otelInstrumentationTrait, err := createOTELInstrumentationTrait(component, openChoreoEnv.UUID)
-	if err != nil {
-		return fmt.Errorf("error creating OTEL instrumentation trait: %w", err)
-	}
-	component.Spec.Traits = append(component.Spec.Traits, *otelInstrumentationTrait)
+	
+	// Retry the entire get-modify-update operation to handle conflicts
 	err = k.retryK8sOperation(ctx, "UpdateComponentWithTrait", func() error {
-		return k.client.Update(ctx, component)
+		// Fetch the latest version of the component on each attempt
+		component := &v1alpha1.Component{}
+		if err := k.client.Get(ctx, key, component); err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				return utils.ErrAgentNotFound
+			}
+			return fmt.Errorf("failed to get component for trait attachment: %w", err)
+		}
+		
+		// Verify that the component belongs to the specified project
+		if component.Spec.Owner.ProjectName != projName {
+			return fmt.Errorf("component does not belong to the specified project")
+		}
+
+		// Check if OTEL instrumentation trait already exists
+		for _, trait := range component.Spec.Traits {
+			if trait.Name == string(TraitTypeOTELInstrumentation) {
+				// Trait already exists, no need to add
+				return nil
+			}
+		}
+		
+		// Create and append the OTEL instrumentation trait
+		otelInstrumentationTrait, err := createOTELInstrumentationTrait(component, openChoreoEnv.UUID)
+		if err != nil {
+			return fmt.Errorf("error creating OTEL instrumentation trait: %w", err)
+		}
+		component.Spec.Traits = append(component.Spec.Traits, *otelInstrumentationTrait)
+		
+		// Attempt to update with the latest resourceVersion
+		if err := k.client.Update(ctx, component); err != nil {
+			return err
+		}
+		return nil
 	})
+	
 	if err != nil {
 		return fmt.Errorf("failed to update component with trait: %w", err)
 	}
@@ -514,14 +532,23 @@ func (k *openChoreoSvcClient) DeployAgentComponent(ctx context.Context, orgName 
 	if !exists {
 		return fmt.Errorf("agent component %s does not exist in open choreo %s", componentName, projName)
 	}
-	componentWorkload, err := k.getComponentWorkload(ctx, orgName, projName, componentName)
-	if err != nil {
-		return fmt.Errorf("failed to get component workload: %w", err)
-	}
-	updateWorkloadSpec(componentWorkload, req)
+	
+	// Retry the entire get-modify-update operation to handle conflicts
 	err = k.retryK8sOperation(ctx, "UpdateWorkload", func() error {
-		return k.client.Update(ctx, componentWorkload)
+		// Fetch the latest version of the workload on each attempt
+		componentWorkload, err := k.getComponentWorkload(ctx, orgName, projName, componentName)
+		if err != nil {
+			return fmt.Errorf("failed to get component workload: %w", err)
+		}
+		updateWorkloadSpec(componentWorkload, req)
+		
+		// Attempt to update with the latest resourceVersion
+		if err := k.client.Update(ctx, componentWorkload); err != nil {
+			return err
+		}
+		return nil
 	})
+	
 	if err != nil {
 		return fmt.Errorf("failed to update workload: %w", err)
 	}
