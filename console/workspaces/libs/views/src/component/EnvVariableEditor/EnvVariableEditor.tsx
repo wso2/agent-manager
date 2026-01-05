@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, IconButton } from '@wso2/oxygen-ui';
+import { Box, IconButton, Stack } from '@wso2/oxygen-ui';
 import { Trash2 as DeleteOutline } from '@wso2/oxygen-ui-icons-react';
 import { FieldErrors, UseFormRegister } from 'react-hook-form';
 import { TextInput } from '../FormElements';
@@ -72,7 +72,7 @@ export function EnvVariableEditor({
   isValueSecret = false,
 }: EnvVariableEditorProps) {
   return (
-    <Box key={fieldId} display="flex" flexDirection="row" gap={2}>
+    <Stack key={fieldId} direction="row" gap={2} alignItems="end">
       <Box flexGrow={1}>
         <TextInput
           label={keyLabel}
@@ -98,9 +98,11 @@ export function EnvVariableEditor({
           }
         />
       </Box>
-      <IconButton size="small" color="primary" onClick={onRemove}>
-        <DeleteOutline fontSize="small" color="error" />
-      </IconButton>
-    </Box>
+      <Box pb={1}>
+        <IconButton size="small" color="error" onClick={onRemove}>
+          <DeleteOutline size={16} />
+        </IconButton>
+      </Box>
+    </Stack>
   );
 }
