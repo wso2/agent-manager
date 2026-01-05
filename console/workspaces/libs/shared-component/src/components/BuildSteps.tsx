@@ -20,8 +20,14 @@ import {
   BuildDetailsResponse,
   BuildStep,
 } from "@agent-management-platform/types";
-import { alpha, CircularProgress, Stack, Typography, useTheme } from "@wso2/oxygen-ui";
-import { Check, Clock, X } from "@wso2/oxygen-ui-icons-react";
+import {
+  alpha,
+  CircularProgress,
+  Stack,
+  Typography,
+  useTheme,
+} from "@wso2/oxygen-ui";
+import { Check, Clock, X, ChevronRight } from "@wso2/oxygen-ui-icons-react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 
@@ -61,8 +67,8 @@ const getDisplayName = (step: BuildStep) => {
   }
 };
 
-function BuildStepItem(props: { step: BuildStep; index: number }) {
-  const { step, index } = props;
+function BuildStepItem(props: { step: BuildStep }) {
+  const { step } = props;
   const theme = useTheme();
   const getColor = () => {
     if (step.status === "Running") {
@@ -90,12 +96,7 @@ function BuildStepItem(props: { step: BuildStep; index: number }) {
       }}
     >
       <Stack color={getColor()}>{getIcon(step)}</Stack>
-      <Typography variant="caption">
-        {index + 1}.
-      </Typography>
-      <Typography variant="body1">
-        {getDisplayName(step)}
-      </Typography>
+      <Typography variant="body1">{getDisplayName(step)}</Typography>
     </Stack>
   );
 }
@@ -103,9 +104,12 @@ function BuildStepItem(props: { step: BuildStep; index: number }) {
 export function BuildSteps(props: BuildStepsProps) {
   const { build } = props;
   return (
-    <Stack spacing={1}>
+    <Stack spacing={1} direction="row" alignItems="center">
       {build.steps?.map((step, index) => (
-        <BuildStepItem step={step} key={`${step.type}-${index}`} index={index} />
+        <>
+          <BuildStepItem step={step} key={`${step.type}-${index}`} />
+          {index < (build.steps?.length ?? 0) - 1 && <ChevronRight size={16} />}
+        </>
       ))}
     </Stack>
   );

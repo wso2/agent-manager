@@ -50,7 +50,7 @@ export const AddNewAgent: React.FC = () => {
       description: "",
       repositoryUrl: "",
       branch: "main",
-      appPath: "",
+      appPath: "/",
       runCommand: "python main.py",
       language: "python",
       languageVersion: "3.11",

@@ -48,7 +48,8 @@ export interface BuildLogsProps {
 const InfoLoadingSkeleton = () => (
   <Box display="flex" flexDirection="column" gap={1}>
     <Skeleton variant="rounded" height={24} width={200} />
-    <Skeleton variant="rounded" height={15} width={150} />
+    <Skeleton variant="rounded" height={32} width="100%"/>
+    <Skeleton variant="rectangular" height={300} width="100%" />
   </Box>
 );
 
@@ -60,17 +61,6 @@ export function BuildLogs({
   onClose,
 }: BuildLogsProps) {
   const {
-    data: buildLogs,
-    error,
-    isLoading,
-  } = useGetBuildLogs({
-    orgName,
-    projName,
-    agentName,
-    buildName,
-  });
-
-  const {
     data: build,
     isLoading: isBuildLoading,
     error: buildError,
@@ -80,6 +70,20 @@ export function BuildLogs({
     agentName,
     buildName,
   });
+
+  const {
+    data: buildLogs,
+    error,
+    isLoading,
+  } = useGetBuildLogs(
+    {
+      orgName,
+      projName,
+      agentName,
+      buildName,
+    },
+    build?.status
+  );
 
   const getEmptyStateMessage = () => {
     if (error) {
@@ -157,7 +161,7 @@ export function BuildLogs({
               iconElement={FileText}
             />
           )}
-          {buildLogs && buildLogs?.length && <Divider />}
+          {buildLogs && buildLogs?.length > 0 && <Divider />}
           <Stack direction="column" gap={1} overflow="auto" mb={1}>
             {buildLogs?.map((log, index) => (
               <Typography variant="body1" key={index}>

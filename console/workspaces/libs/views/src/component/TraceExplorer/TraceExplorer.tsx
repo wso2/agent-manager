@@ -266,6 +266,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
                 spacing={1}
                 flexGrow={1}
                 alignItems="center"
+                maxWidth="100%"
               >
                 <IconButton
                   disabled={!hasChildren}
@@ -297,9 +298,32 @@ export function TraceExplorer(props: TraceExplorerProps) {
                   )}
                 </IconButton>
                 <SpanIcon span={span.span} />
-                <Stack direction="column" p={0.5} alignItems="start">
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Typography variant="h6">{span.span.name}</Typography>
+                <Stack
+                  direction="column"
+                  p={0.5}
+                  alignItems="start"
+                  overflow="hidden"
+                >
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    maxWidth="100%"
+                  >
+                    <Tooltip
+                      title={span.span.name}
+                      disableHoverListener={span.span.name.length < 30}
+                    >
+                      <Typography
+                        variant="h6"
+                        noWrap
+                        textOverflow="ellipsis"
+                        maxWidth="70%"
+                        overflow="hidden"
+                      >
+                        {span.span.name}
+                      </Typography>
+                    </Tooltip>
                     {span.span.ampAttributes?.status?.error && (
                       <Stack
                         justifyContent="center"
@@ -310,17 +334,19 @@ export function TraceExplorer(props: TraceExplorerProps) {
                     )}
                     {(() => {
                       const tokenUsage = getTokenUsage(span.span);
-                      return tokenUsage && (
-                        <Tooltip
-                          title={`${tokenUsage.inputTokens} input tokens, ${tokenUsage.outputTokens} output tokens`}
-                        >
-                          <Chip
-                            icon={<Coins size={16} />}
-                            label={tokenUsage.totalTokens}
-                            size="small"
-                            variant="outlined"
-                          />
-                        </Tooltip>
+                      return (
+                        tokenUsage && (
+                          <Tooltip
+                            title={`${tokenUsage.inputTokens} input tokens, ${tokenUsage.outputTokens} output tokens`}
+                          >
+                            <Chip
+                              icon={<Coins size={16} />}
+                              label={tokenUsage.totalTokens}
+                              size="small"
+                              variant="outlined"
+                            />
+                          </Tooltip>
+                        )
                       );
                     })()}
                     <Chip
@@ -332,8 +358,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
                   </Stack>
                 </Stack>
               </Stack>
-              <Stack direction="row" spacing={1} alignItems="center">
-              </Stack>
+              <Stack direction="row" spacing={1} alignItems="center"></Stack>
             </Stack>
           </ButtonBase>
           {hasChildren && (

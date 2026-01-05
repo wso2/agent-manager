@@ -106,11 +106,18 @@ export function useGetBuild(params: GetBuildPathParams) {
   });
 }
 
-export function useGetBuildLogs(params: GetBuildLogsPathParams) {
+export function useGetBuildLogs(
+  params: GetBuildLogsPathParams,
+  buildStatus?: string
+) {
   const { getToken } = useAuthHooks();
   return useQuery<BuildLogEntry[]>({
     queryKey: ["build-logs", params],
     queryFn: () => getBuildLogs(params, getToken),
     enabled: !!params.orgName && !!params.projName && !!params.agentName && !!params.buildName,
+    refetchInterval:
+      buildStatus === "BuildTriggered" || buildStatus === "BuildRunning"
+        ? POLL_INTERVAL
+        : false,
   });
 }

@@ -65,15 +65,17 @@ export const InternalAgentOverview = () => {
     });
   }, [environmentList]);
 
-  const repositoryUrl = useMemo(
-    () =>
-      `${agent?.provisioning?.repository?.url}/tree/${agent?.provisioning?.repository?.branch}/${agent?.provisioning?.repository?.appPath ?? ""}`,
-    [
-      agent?.provisioning?.repository?.url,
-      agent?.provisioning?.repository?.branch,
-      agent?.provisioning?.repository?.appPath,
-    ]
-  );
+  const repositoryUrl = useMemo(() => {
+    const { appPath, branch, url } = agent?.provisioning?.repository ?? {};
+    
+    // If appPath is "/" (root), don't append it to avoid double slashes
+    // Otherwise, remove the leading slash from appPath before appending
+    if (appPath && appPath !== '/') {
+      const normalizedPath = appPath.startsWith('/') ? appPath.substring(1) : appPath;
+      return `${url}/tree/${branch}/${normalizedPath}`;
+    }
+    return `${url}/tree/${branch}`;
+  }, [agent?.provisioning?.repository]);
 
   const loadingBuilds = useMemo(() => {
     return buildList?.builds.filter(
@@ -96,7 +98,7 @@ export const InternalAgentOverview = () => {
           <Typography variant="body2">Created</Typography>
           <AccessTime size={14} />
           <Typography variant="body2">
-            {agent?.createdAt ? dayjs(agent.createdAt).fromNow() : '—'}
+            {agent?.createdAt ? dayjs(agent.createdAt).fromNow() : "—"}
           </Typography>
         </Box>
         <Box display="flex" flexDirection="row" gap={1} alignItems="center">
