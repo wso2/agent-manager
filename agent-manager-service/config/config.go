@@ -56,7 +56,7 @@ type Config struct {
 	DefaultGatewayPort int
 }
 
-type AgentWorkload  struct {
+type AgentWorkload struct {
 	CORS CORSConfig
 }
 

@@ -479,7 +479,7 @@ func determineReleaseBindingStatus(binding *v1alpha1.ReleaseBinding) string {
 		return DeploymentStatusNotDeployed
 	}
 
-	generation := binding.ObjectMeta.Generation
+	generation := binding.Generation
 
 	// Collect all conditions for the current generation
 	var conditionsForGeneration []metav1.Condition
