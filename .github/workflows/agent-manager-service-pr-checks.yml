@@ -1,4 +1,4 @@
-name: Agent Manager Service PR Checks
+name: Agent Manager API PR Checks
 
 on:
   push:
@@ -16,37 +16,22 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./agent-manager-service
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: ./.github/actions/setup-go
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
         with:
-          go-version: "1.24.2"
-          cache-dependency-path: agent-manager-service/go.sum
-
-      - name: Install golangci-lint
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.1.0
-          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
-
-      - name: Install goimports
-        run: go install golang.org/x/tools/cmd/goimports@latest
-
-      - name: Run lint
-        run: make lint
+          working-directory: agent-manager-service
+          args: --config .github/linters/.golangci.yaml
 
   test:
     name: Test
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./agent-manager-service
-
     services:
       postgres:
         image: postgres:15-alpine
@@ -67,12 +52,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.24.2"
-          cache-dependency-path: agent-manager-service/go.sum
+        uses: ./.github/actions/setup-go
 
       - name: Create test .env file
+        working-directory: ./agent-manager-service
         run: |
           cat > .env << 'EOF'
           DB_HOST=localhost
@@ -81,9 +64,6 @@ jobs:
           DB_PASSWORD=agentmanager
           DB_NAME=agentmanager
           SERVER_PORT=8080
-          API_KEY_VALUE=test-key
-          IS_LOCAL_DEV_ENV=true
-          AMP_VERSION=v0.1.0-rc7
           EOF
 
       - name: Wait for PostgreSQL
@@ -95,50 +75,32 @@ jobs:
         timeout-minutes: 2
 
       - name: Run tests
+        working-directory: ./agent-manager-service
         run: make test
-
-      - name: Upload test logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-logs
-          path: agent-manager-service/localdata/test_output.log
-          if-no-files-found: ignore
 
   build:
     name: Build
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./agent-manager-service
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.24.2"
-          cache-dependency-path: agent-manager-service/go.sum
+        uses: ./.github/actions/setup-go
 
       - name: Build
+        working-directory: ./agent-manager-service
         run: go build -v ./...
 
   codegen-format:
     name: Code Generation & Format Check
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./agent-manager-service
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.24.2"
-          cache-dependency-path: agent-manager-service/go.sum
+        uses: ./.github/actions/setup-go
 
       - name: Install wire
         run: go install github.com/google/wire/cmd/wire@latest
@@ -146,25 +108,33 @@ jobs:
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports@latest
 
+      - name: Install moq
+        run: go install github.com/matryer/moq@latest
+
       - name: Run wire code generation
+        working-directory: ./agent-manager-service
         run: make wire
 
       - name: Run go generate
+        working-directory: ./agent-manager-service
         run: make codegen
 
       - name: Run formatting
+        working-directory: ./agent-manager-service
         run: make fmt
 
       - name: Run go mod tidy
+        working-directory: ./agent-manager-service
         run: go mod tidy
 
       - name: Check for uncommitted changes
+        working-directory: ./agent-manager-service
         run: |
           if [ ! -z "$(git status --porcelain)" ]; then
             echo "Code generation or formatting produced changes:"
             git diff
             git status
             echo ""
-            echo "Please run 'make wire && make codegen && make fmt && go mod tidy' locally and commit the changes."
+            echo "Please run 'make codegenfmt-check' locally and commit the changes."
             exit 1
           fi
