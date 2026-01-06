@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
 	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
@@ -103,6 +104,12 @@ func TestGetTrace(t *testing.T) {
 	t.Run("Getting trace details with valid traceId should return 200", func(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClientWithDetails()
 		openChoreoClient := createMockOpenChoreoClient()
+		// Override to return existing agent for trace retrieval
+		openChoreoClient.GetAgentComponentFunc = func(ctx context.Context, orgName, projectName, agentName string) (*openchoreosvc.AgentComponent, error) {
+			return &openchoreosvc.AgentComponent{
+				UUID: "component-uid-123",
+			}, nil
+		}
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 			TraceObserverClient: traceObserverClient,
@@ -174,6 +181,12 @@ func TestGetTrace(t *testing.T) {
 			},
 		}
 		openChoreoClient := createMockOpenChoreoClient()
+		// Override to return existing agent for trace retrieval
+		openChoreoClient.GetAgentComponentFunc = func(ctx context.Context, orgName, projectName, agentName string) (*openchoreosvc.AgentComponent, error) {
+			return &openchoreosvc.AgentComponent{
+				UUID: "component-uid-123",
+			}, nil
+		}
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 			TraceObserverClient: traceObserverClient,
