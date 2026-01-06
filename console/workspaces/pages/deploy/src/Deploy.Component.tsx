@@ -29,7 +29,7 @@ export const DeployComponent = () => {
   });
 
   return (
-    <Stack direction="row" pb={4} gap={4} width="100%" overflow="scroll">
+    <Stack direction="row" pb={4} gap={4} width="100%" overflow="auto">
       <BuildCard initialEnvironment={environments?.[0]} />
       {environments?.map((env) => (
         <DeployCard key={env.name} currentEnvironment={env} />
