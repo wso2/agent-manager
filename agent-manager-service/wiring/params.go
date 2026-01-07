@@ -31,6 +31,7 @@ type AppParams struct {
 	InfraResourceController controllers.InfraResourceController
 	BuildCIController       controllers.BuildCIController
 	ObservabilityController controllers.ObservabilityController
+	AgentTokenController    controllers.AgentTokenController
 }
 
 // TestClients contains all mock clients needed for testing

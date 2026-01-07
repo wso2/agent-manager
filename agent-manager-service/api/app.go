@@ -32,9 +32,13 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	// Register health check
 	registerHealthCheck(mux)
 
+	// Register JWKS endpoint at root level (no authentication required)
+	registerJWKSRoute(mux, params.AgentTokenController)
+
 	// Create a sub-mux for API v1 routes
 	apiMux := http.NewServeMux()
 	registerAgentRoutes(apiMux, params.AgentController)
+	registerAgentTokenRoutes(apiMux, params.AgentTokenController)
 	registerInfraRoutes(apiMux, params.InfraResourceController)
 	registerObservabilityRoutes(apiMux, params.ObservabilityController)
 

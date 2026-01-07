@@ -136,6 +136,16 @@ func loadEnvs() {
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
 	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 9080))
 
+	// JWT Signing configuration for agent API tokens
+	config.JWTSigning = JWTSigningConfig{
+		PrivateKeyPath:        r.readOptionalString("JWT_SIGNING_PRIVATE_KEY_PATH", "keys/private.pem"),
+		PublicKeyPath:         r.readOptionalString("JWT_SIGNING_PUBLIC_KEY_PATH", "keys/public.pem"),
+		ActiveKeyID:           r.readOptionalString("JWT_SIGNING_ACTIVE_KEY_ID", "key-1"),
+		DefaultExpiryDuration: r.readOptionalString("JWT_SIGNING_DEFAULT_EXPIRY", "8760h"), // 1 year default
+		Issuer:                r.readOptionalString("JWT_SIGNING_ISSUER", "agent-manager-service"),
+		DefaultEnvironment:    r.readOptionalString("JWT_SIGNING_DEFAULT_ENVIRONMENT", "default"),
+	}
+
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)
 
