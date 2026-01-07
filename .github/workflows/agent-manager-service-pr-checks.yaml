@@ -1,4 +1,4 @@
-name: Agent Manager API PR Checks
+name: Agent Manager API
 
 on:
   pull_request:
