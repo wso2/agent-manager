@@ -17,12 +17,14 @@
 package traceobserversvc
 
 import (
+	"errors"
 	"net/http"
 )
 
 // IsNotFound checks if the error is a 404 Not Found error
 func IsNotFound(err error) bool {
-	if httpErr, ok := err.(*HTTPError); ok {
+	httpErr := &HTTPError{}
+	if errors.As(err, &httpErr) {
 		return httpErr.StatusCode == http.StatusNotFound
 	}
 	return false

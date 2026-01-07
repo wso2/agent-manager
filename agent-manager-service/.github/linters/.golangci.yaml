@@ -39,6 +39,9 @@ linters:
         - github.com/wso2-enterprise/agent-manager-service/spec\.PostgresQueryStats
     goheader:
       template-path: .github/copyright_header.tmpl
+      values:
+        regexp:
+          YEAR: "\\d{4}"
   exclusions:
     generated: lax
     rules:
