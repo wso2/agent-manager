@@ -1,0 +1,31 @@
+name: 'Setup Helm Chart'
+description: 'Setup Helm and update chart dependencies'
+inputs:
+  chart-path:
+    description: 'Path to the Helm chart'
+    required: true
+  helm-version:
+    description: 'Helm version to install'
+    required: false
+    default: '3.14.0'
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Helm
+      uses: azure/setup-helm@v4
+      with:
+        version: ${{ inputs.helm-version }}
+
+    - name: Add Helm repositories
+      shell: bash
+      run: |
+        helm repo add bitnami https://charts.bitnami.com/bitnami
+        helm repo update
+
+    - name: Update chart dependencies
+      shell: bash
+      run: |
+        if [ -f "${{ inputs.chart-path }}/Chart.yaml" ]; then
+          echo "Updating dependencies for chart at ${{ inputs.chart-path }}..."
+          helm dependency update "${{ inputs.chart-path }}"
+        fi

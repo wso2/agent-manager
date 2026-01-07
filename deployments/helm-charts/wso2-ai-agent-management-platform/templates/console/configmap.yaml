@@ -11,14 +11,10 @@ data:
   AUTH_BASE_URL: {{ .Values.console.config.auth.baseUrl | quote }}
   SIGN_IN_REDIRECT_URL: {{ .Values.console.config.auth.signInRedirectURL | quote }}
   SIGN_OUT_REDIRECT_URL: {{ .Values.console.config.auth.signOutRedirectURL | quote }}
-
   # Disable authentication flag
   DISABLE_AUTH: {{ .Values.console.config.disableAuth | quote }}
-
   # Backend API URL (auto-configure if empty)
   API_BASE_URL: {{ .Values.console.config.apiBaseUrl | quote }}
-
   # Agent Instrumentation URL
   INSTRUMENTATION_URL: {{ .Values.console.config.instrumentationUrl | quote }}
-
 {{- end }}
