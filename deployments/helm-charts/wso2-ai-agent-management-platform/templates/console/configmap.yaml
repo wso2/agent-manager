@@ -18,6 +18,7 @@ data:
   # Backend API URL (auto-configure if empty)
   API_BASE_URL: {{ .Values.console.config.apiBaseUrl | quote }}
 
-  # Observability API URL (optional)
-  OBS_API_BASE_URL: {{ .Values.console.config.obsApiBaseUrl | quote }}
+  # Agent Instrumentation URL
+  INSTRUMENTATION_URL: {{ .Values.console.config.instrumentationUrl | quote }}
+
 {{- end }}

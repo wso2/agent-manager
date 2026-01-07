@@ -180,7 +180,7 @@ console:
 
     # Backend API URLs (will be auto-configured if empty)
     apiBaseUrl: "http://localhost:9000"
-    obsApiBaseUrl: "http://localhost:9098"
+    instrumentationUrl: "http://localhost:21893"
 
   # Pod-level configurations
   podAnnotations: {}

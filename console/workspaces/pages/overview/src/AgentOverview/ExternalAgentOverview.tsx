@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import { globalConfig, type Environment } from '@agent-management-platform/types';
 import { Box, Typography, Button, Skeleton } from "@wso2/oxygen-ui";
 import { Clock as AccessTime, Settings } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
@@ -28,7 +29,6 @@ import {
 import { EnvironmentCard } from "@agent-management-platform/shared-component";
 import { InstrumentationDrawer } from "./InstrumentationDrawer";
 import { NoDataFound } from "@agent-management-platform/views";
-import { type Environment } from "@agent-management-platform/types";
 
 export const ExternalAgentOverview = () => {
   const { agentId, orgId, projectId } = useParams();
@@ -63,8 +63,8 @@ export const ExternalAgentOverview = () => {
     }
   }, [sortedEnvironmentList, selectedEnvironmentId]);
 
-  // Sample instrumentation config - these would come from props or API
-  const instrumentationUrl = "http://localhost:21893";
+
+  const agentInstrumentationUrl = globalConfig.instrumentationUrl || "http://localhost:21893";
   const apiKey = "8e3c1f4a-9b7d-4c2f-92a6-5d8f3b1c27e0";
 
   const handleSetupAgent = (environmentId: string) => {
@@ -141,7 +141,7 @@ export const ExternalAgentOverview = () => {
         onClose={() => setSearchParams({})}
         traceAttributes={`environment-uid=${selectedEnvironmentId},component-uid=${agent?.uuid}`}
         agentId={agentId ?? ""}
-        instrumentationUrl={instrumentationUrl}
+        instrumentationUrl={agentInstrumentationUrl}
         apiKey={apiKey}
       />
     </>
