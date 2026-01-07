@@ -1,0 +1,215 @@
+name: Helm Charts
+
+on:
+  pull_request:
+    paths:
+      - 'deployments/helm-charts/**'
+      - '.github/workflows/helm-charts-pr-check.yml'
+
+env:
+  HELM_VERSION: "3.19.4"
+  KUBECONFORM_VERSION: "0.7.0"
+
+jobs:
+  detect-changes:
+    name: Detect Changed Charts
+    runs-on: ubuntu-latest
+    outputs:
+      charts: ${{ steps.detect.outputs.charts }}
+      has-changes: ${{ steps.detect.outputs.has-changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed charts
+        id: detect
+        run: |
+          # Get list of changed files
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '^deployments/helm-charts/' || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No Helm chart changes detected"
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+            echo "charts=[]" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          # Extract unique chart names
+          CHARTS=$(echo "$CHANGED_FILES" | grep -oP 'deployments/helm-charts/\K[^/]+' | sort -u | jq -R . | jq -s -c .)
+
+          echo "Detected charts: $CHARTS"
+          echo "has-changes=true" >> $GITHUB_OUTPUT
+          echo "charts=$CHARTS" >> $GITHUB_OUTPUT
+        shell: bash
+
+  helm-lint:
+    name: Helm Lint
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.detect-changes.outputs.charts) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm and dependencies
+        uses: ./.github/actions/setup-helm-chart
+        with:
+          chart-path: deployments/helm-charts/${{ matrix.chart }}
+          helm-version: ${{ env.HELM_VERSION }}
+
+      - name: Lint Helm chart
+        run: |
+          CHART_PATH="deployments/helm-charts/${{ matrix.chart }}"
+          echo "Running Helm lint on ${{ matrix.chart }}..."
+          helm lint "$CHART_PATH" --strict
+        shell: bash
+
+  helm-template:
+    name: Helm Template
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.detect-changes.outputs.charts) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm and dependencies
+        uses: ./.github/actions/setup-helm-chart
+        with:
+          chart-path: deployments/helm-charts/${{ matrix.chart }}
+          helm-version: ${{ env.HELM_VERSION }}
+
+      - name: Template Helm chart with default values
+        run: |
+          CHART_PATH="deployments/helm-charts/${{ matrix.chart }}"
+          echo "Templating ${{ matrix.chart }} with default values..."
+          helm template test-release "$CHART_PATH" > /tmp/templated-manifests-default.yaml
+          echo "Successfully templated with default values"
+        shell: bash
+
+      - name: Template Helm chart with common scenarios
+        run: |
+          CHART_PATH="deployments/helm-charts/${{ matrix.chart }}"
+
+          # Test with different replica counts
+          echo "Testing with 3 replicas..."
+          helm template test-release "$CHART_PATH" \
+            --set replicas=3 > /tmp/templated-manifests-replicas.yaml || true
+
+          # Test with resource limits
+          echo "Testing with resource limits..."
+          helm template test-release "$CHART_PATH" \
+            --set resources.requests.memory=256Mi \
+            --set resources.requests.cpu=100m \
+            --set resources.limits.memory=512Mi \
+            --set resources.limits.cpu=200m > /tmp/templated-manifests-resources.yaml || true
+
+          echo "Successfully templated common scenarios"
+        shell: bash
+
+  kubeconform:
+    name: Kubeconform Validation
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.detect-changes.outputs.charts) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm and dependencies
+        uses: ./.github/actions/setup-helm-chart
+        with:
+          chart-path: deployments/helm-charts/${{ matrix.chart }}
+          helm-version: ${{ env.HELM_VERSION }}
+
+      - name: Install kubeconform
+        run: |
+          curl -L https://github.com/yannh/kubeconform/releases/download/v${{ env.KUBECONFORM_VERSION }}/kubeconform-linux-amd64.tar.gz | \
+            tar -xz -C /usr/local/bin kubeconform
+          kubeconform -v
+        shell: bash
+
+      - name: Validate Kubernetes manifests
+        run: |
+          CHART_PATH="deployments/helm-charts/${{ matrix.chart }}"
+          echo "Validating Kubernetes manifests for ${{ matrix.chart }}..."
+
+          # Template the chart
+          helm template test-release "$CHART_PATH" > /tmp/manifests.yaml
+
+          # Validate with kubeconform
+          # -strict: fail on unknown fields
+          # -ignore-missing-schemas: don't fail on CRDs
+          # -kubernetes-version: validate against specific K8s version
+          kubeconform \
+            -strict \
+            -ignore-missing-schemas \
+            -kubernetes-version 1.33.0 \
+            -summary \
+            /tmp/manifests.yaml
+
+          echo "Kubernetes manifests are valid"
+        shell: bash
+
+  summary:
+    name: PR Check Summary
+    needs: [detect-changes, helm-lint, helm-template, kubeconform]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all jobs status
+        run: |
+          echo "## Helm Charts PR Check Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.detect-changes.outputs.has-changes }}" != "true" ]; then
+            echo "No Helm chart changes detected in this PR." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          echo "### Changed Charts" >> $GITHUB_STEP_SUMMARY
+          echo '${{ needs.detect-changes.outputs.charts }}' | jq -r '.[]' | while read chart; do
+            echo "- \`$chart\`" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Helm Lint | ${{ needs.helm-lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Helm Template | ${{ needs.helm-template.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Kubeconform | ${{ needs.kubeconform.result }} |" >> $GITHUB_STEP_SUMMARY
+
+          # Check if any required job failed
+          FAILED=false
+          if [ "${{ needs.helm-lint.result }}" = "failure" ] || \
+             [ "${{ needs.helm-template.result }}" = "failure" ] || \
+             [ "${{ needs.kubeconform.result }}" = "failure" ]; then
+            FAILED=true
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "$FAILED" = "true" ]; then
+            echo "**Some checks failed. Please review the errors above.**" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "**All checks passed.**" >> $GITHUB_STEP_SUMMARY
+          fi
+        shell: bash
