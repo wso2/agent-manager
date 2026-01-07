@@ -46,7 +46,7 @@ agent-manager-service/
 - **PostgreSQL**: Version 12 or later
 - **Make**: For build automation
 - **air** go install github.com/air-verse/air@latest
-- **moq**   go install github.com/matryer/moq@v0.3.4
+- **moq** go install github.com/matryer/moq@v0.5.3
 
 ## Local Development
 
@@ -66,21 +66,20 @@ go mod download
 ### 3. Set Up Database
 
 ### 4. Configurations
+
 <!-- Update this section when adding new configs-->
+
 The service uses environment variables for configuration. Create a `.env` file in the project root:
 
-
-| **Key**        | **Description**                         |
-|----------------|-----------------------------------------|
-| `SERVER_HOST`  | Host address where the server runs       |
-| `SERVER_PORT`  | Port number for the server               |
-| `DB_HOST`      | Database host address                    |
-| `DB_PORT`      | Database port number                     |
-| `DB_USER`      | Username for database authentication     |
-| `DB_PASSWORD`  | Password for database authentication     |
-| `DB_NAME`      | Name of the database                     |
-
-
+| **Key**       | **Description**                      |
+| ------------- | ------------------------------------ |
+| `SERVER_HOST` | Host address where the server runs   |
+| `SERVER_PORT` | Port number for the server           |
+| `DB_HOST`     | Database host address                |
+| `DB_PORT`     | Database port number                 |
+| `DB_USER`     | Username for database authentication |
+| `DB_PASSWORD` | Password for database authentication |
+| `DB_NAME`     | Name of the database                 |
 
 ### 5. Run Database Migrations
 
@@ -99,6 +98,7 @@ make run
 ```
 
 or run Air directly:
+
 ```bash
 cd agent-management-platform/agent-manager-service
 air
@@ -107,6 +107,7 @@ air
 The service will start on `http://localhost:8910` by default with hot-reloading enabled.
 
 ### 7. Run tests
+
 ```bash
 cd agent-management-platform/agent-manager-service
 make test
@@ -123,6 +124,7 @@ make test
 - **Model generation from the API specification** - `make spec`
 
 ## Scripts
+
 Run make help to see all available commands.
 
 ## API Documentation
@@ -130,5 +132,3 @@ Run make help to see all available commands.
 ### OpenAPI Specification
 
 The API is documented using OpenAPI 3.0 specification in `docs/api_v1_openapi.yaml`.
-
-

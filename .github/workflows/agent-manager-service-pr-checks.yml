@@ -64,6 +64,7 @@ jobs:
           DB_PASSWORD=agentmanager
           DB_NAME=agentmanager
           SERVER_PORT=8080
+          API_KEY_VALUE=test-api-key
           EOF
 
       - name: Wait for PostgreSQL
@@ -73,6 +74,10 @@ jobs:
             sleep 1
           done
         timeout-minutes: 2
+
+      - name: Run database migrations
+        working-directory: ./agent-manager-service
+        run: ENV_FILE_PATH=.env go run main.go --migrate --server=false
 
       - name: Run tests
         working-directory: ./agent-manager-service
