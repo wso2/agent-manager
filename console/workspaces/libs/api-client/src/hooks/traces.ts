@@ -64,7 +64,6 @@ export function useTraceList(
       }
       return res;
     },
-    refetchInterval: 30000, // 30 seconds
     enabled: !!orgName && !!projName && !!agentName && !!envId,
   });
 }

@@ -154,6 +154,7 @@ export const TracesComponent: React.FC = () => {
               onClick={() => {
                 refetch();
               }}
+              sx={{ borderRadius: '50%' }}
             >
               {isRefetching ? (
                 <CircularProgress size={16} />

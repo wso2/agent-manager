@@ -19,7 +19,6 @@
 import { Box, Skeleton } from "@wso2/oxygen-ui";
 import { StatusCard } from "@agent-management-platform/views";
 import {
-  BadgeCent,
   Gauge as Speed,
   Workflow,
 } from "@wso2/oxygen-ui-icons-react";
@@ -112,18 +111,10 @@ export const TracesTopCards: React.FC<TracesTopCardsProps> = ({
 
     const averageDurationSeconds = (averageDuration / 1000).toFixed(2);
 
-    const averageTokens =
-      traces.length > 0
-        ? traces.reduce((sum, trace) => {
-            return sum + (trace.tokenUsage?.totalTokens ?? 0);
-          }, 0) / traces.length
-        : 0;
-
     return {
       latestTraceTime,
       averageDuration,
       averageDurationSeconds,
-      averageTokens,
     };
   }, [traceListResponse?.traces]);
 
@@ -135,7 +126,6 @@ export const TracesTopCards: React.FC<TracesTopCardsProps> = ({
     latestTraceTime,
     averageDuration,
     averageDurationSeconds,
-    averageTokens,
   } = statistics;
 
   return (
@@ -146,7 +136,6 @@ export const TracesTopCards: React.FC<TracesTopCardsProps> = ({
         gridTemplateColumns: {
           xs: "1fr",
           md: "1fr 1fr",
-          lg: "1fr 1fr 1fr",
         },
       }}
     >
@@ -170,15 +159,6 @@ export const TracesTopCards: React.FC<TracesTopCardsProps> = ({
         icon={<Speed />}
         iconVariant={averageDuration < 3000 ? "success" : "warning"}
         tagVariant={averageDuration < 3000 ? "success" : "warning"}
-        minWidth="100%"
-      />
-      <StatusCard
-        title="Average Tokens"
-        value={`${averageTokens.toFixed(2)}`}
-        subtitle={`in last ${timeRangeLabel.toLowerCase()}`}
-        icon={<BadgeCent />}
-        iconVariant="info"
-        tagVariant="info"
         minWidth="100%"
       />
     </Box>
