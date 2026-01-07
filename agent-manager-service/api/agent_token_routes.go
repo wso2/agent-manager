@@ -30,7 +30,6 @@ func registerAgentTokenRoutes(mux *http.ServeMux, ctrl controllers.AgentTokenCon
 }
 
 // registerJWKSRoute registers the JWKS endpoint on the provided mux
-// This should be called on the main mux (not the API sub-mux) since it's at the root level
 func registerJWKSRoute(mux *http.ServeMux, ctrl controllers.AgentTokenController) {
 	// JWKS endpoint - no authentication required for public key retrieval
 	mux.HandleFunc("GET /auth/external/jwks.json", ctrl.GetJWKS)

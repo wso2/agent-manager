@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
@@ -87,13 +88,17 @@ func (c *agentTokenController) GenerateToken(w http.ResponseWriter, r *http.Requ
 	tokenResponse, err := c.tokenService.GenerateToken(ctx, req)
 	if err != nil {
 		log.Error("GenerateToken: failed to generate token", "error", err)
-		// Check for specific error types
-		if isNotFoundError(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, err.Error())
+		// Check for specific error types using errors.Is()
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
 			return
 		}
-		if isValidationError(err) {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		if errors.Is(err, utils.ErrProjectNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			return
+		}
+		if errors.Is(err, utils.ErrAgentNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to generate token")
@@ -125,51 +130,4 @@ func (c *agentTokenController) GetJWKS(w http.ResponseWriter, r *http.Request) {
 	log.Info("GetJWKS: JWKS retrieved successfully", "keyCount", len(jwks.Keys))
 
 	utils.WriteSuccessResponse(w, http.StatusOK, jwks)
-}
-
-// isNotFoundError checks if the error indicates a resource not found
-func isNotFoundError(err error) bool {
-	errMsg := err.Error()
-	return contains(errMsg, "not found") || contains(errMsg, "not exist")
-}
-
-// isValidationError checks if the error indicates a validation failure
-func isValidationError(err error) bool {
-	errMsg := err.Error()
-	return contains(errMsg, "invalid") || contains(errMsg, "must be") || contains(errMsg, "cannot exceed")
-}
-
-// contains checks if the string contains the substring (case-insensitive)
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsIgnoreCase(s, substr))
-}
-
-// containsIgnoreCase is a simple case-insensitive contains check
-func containsIgnoreCase(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if equalIgnoreCase(s[i:i+len(substr)], substr) {
-			return true
-		}
-	}
-	return false
-}
-
-// equalIgnoreCase compares two strings ignoring case
-func equalIgnoreCase(a, b string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := 0; i < len(a); i++ {
-		ca, cb := a[i], b[i]
-		if ca >= 'A' && ca <= 'Z' {
-			ca += 'a' - 'A'
-		}
-		if cb >= 'A' && cb <= 'Z' {
-			cb += 'a' - 'A'
-		}
-		if ca != cb {
-			return false
-		}
-	}
-	return true
 }

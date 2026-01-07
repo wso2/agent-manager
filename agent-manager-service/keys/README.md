@@ -29,8 +29,6 @@ bash scripts/gen_keys.sh
 To rotate keys:
 1. Generate new keys with a different key ID
 2. Update the `JWT_SIGNING_ACTIVE_KEY_ID` environment variable
-3. Keep old keys available for a transition period to verify existing tokens
-4. Remove old keys after all tokens signed with them have expired
 
 ## Configuration
 
