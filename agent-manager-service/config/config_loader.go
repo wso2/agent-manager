@@ -24,8 +24,10 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var config *Config
-var agentWorkloadConfig *AgentWorkload
+var (
+	config              *Config
+	agentWorkloadConfig *AgentWorkload
+)
 
 func GetConfig() *Config {
 	return config

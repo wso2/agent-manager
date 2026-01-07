@@ -176,7 +176,7 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, userIdpId uuid.UU
 	}
 	// Check if agent already exists
 	agent, err := s.OpenChoreoSvcClient.GetAgentComponent(ctx, orgName, projectName, req.Name)
-	if err != nil && err != utils.ErrAgentNotFound {
+	if err != nil && !errors.Is(err, utils.ErrAgentNotFound) {
 		s.logger.Error("Failed to check existing agents", "agentName", req.Name, "orgId", org.ID, "project", projectName, "error", err)
 		return fmt.Errorf("failed to check existing agents: %w", err)
 	}

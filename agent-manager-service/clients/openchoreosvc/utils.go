@@ -436,7 +436,7 @@ func toBuildDetailsResponse(componentWorkflow *v1alpha1.ComponentWorkflowRun) (*
 
 func toDeploymentDetailsResponse(binding *v1alpha1.ReleaseBinding, envRelease *v1alpha1.Release, environmentMap map[string]*models.EnvironmentResponse, promotionTargetEnv *models.PromotionTargetEnvironment) (*models.DeploymentResponse, error) {
 	if binding == nil {
-		return nil, nil
+		return nil, fmt.Errorf("release binding is nil")
 	}
 
 	// Extract deployment status from Release Binding
@@ -479,7 +479,7 @@ func determineReleaseBindingStatus(binding *v1alpha1.ReleaseBinding) string {
 		return DeploymentStatusNotDeployed
 	}
 
-	generation := binding.ObjectMeta.Generation
+	generation := binding.Generation
 
 	// Collect all conditions for the current generation
 	var conditionsForGeneration []metav1.Condition
