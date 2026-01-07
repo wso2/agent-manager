@@ -78,6 +78,14 @@ jobs:
         working-directory: ./agent-manager-service
         run: make test
 
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: agent-manager-service/localdata/test_output.log
+          retention-days: 7
+
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -109,7 +117,7 @@ jobs:
         run: go install golang.org/x/tools/cmd/goimports@latest
 
       - name: Install moq
-        run: go install github.com/matryer/moq@latest
+        run: go install github.com/matryer/moq@v0.5.3
 
       - name: Run wire code generation
         working-directory: ./agent-manager-service

@@ -10,24 +10,16 @@ mkdir -p localdata
 # Record start time
 start_time=$SECONDS
 
-# Save original stdout and stderr
-exec 6>&1 7>&2
+# Run tests with output to both terminal and log file
+go test -v --race ./... 2>&1 | tee localdata/test_output.log
 
-# Redirect both stdout and stderr to log file
-exec > localdata/test_output.log 2>&1
-
-go test -v  --race  ./...
-
-testExitCode=$?
-
-# Restore original stdout and stderr
-exec 1>&6 2>&7 6>&- 7>&-
+testExitCode=${PIPESTATUS[0]}
 
 elapsed=$(( SECONDS - start_time ))
 echo "Test completed in ${elapsed}s"
 
 if [ $testExitCode -ne 0 ]; then
-    echo "FAILED - Check localdata/test_output.log for details"
+    echo "FAILED - Full output saved in localdata/test_output.log"
     exit ${testExitCode}
 fi
-echo "PASSED - Full output in localdata/test_output.log"
+echo "PASSED - Full output saved in localdata/test_output.log"
