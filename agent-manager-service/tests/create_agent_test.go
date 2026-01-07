@@ -93,9 +93,8 @@ func createMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
 			}, nil
 		},
 		GetAgentComponentFunc: func(ctx context.Context, orgName, projectName, agentName string) (*openchoreosvc.AgentComponent, error) {
-			return &openchoreosvc.AgentComponent{
-				UUID: "component-uid-123",
-			}, nil
+			// Return not found error by default to denote that agent is not created yet; can be overridden in tests
+			return nil, utils.ErrAgentNotFound
 		},
 		GetEnvironmentFunc: func(ctx context.Context, orgName, environmentName string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{
