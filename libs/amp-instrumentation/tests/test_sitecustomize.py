@@ -49,9 +49,9 @@ print("CONTINUE_SUCCESS")
     )
 
     # Should exit with success (0) - program continues despite initialization failure
-    assert (
-        result.returncode == 0
-    ), f"Expected exit code 0 (continue running) but got {result.returncode}: {result.stderr}"
+    assert result.returncode == 0, (
+        f"Expected exit code 0 (continue running) but got {result.returncode}: {result.stderr}"
+    )
 
     # Verify program continued execution
     assert "CONTINUE_SUCCESS" in result.stdout

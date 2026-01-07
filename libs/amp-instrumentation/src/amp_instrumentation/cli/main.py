@@ -78,7 +78,7 @@ def run_with_sitecustomize(args: List[str]) -> NoReturn:
 
     if not bootstrap_dir.exists():
         print(
-            f"Error: Package installation is incomplete. Try: pip install --force-reinstall amp-instrumentation",
+            "Error: Package installation is incomplete. Try: pip install --force-reinstall amp-instrumentation",
             file=sys.stderr,
         )
         sys.exit(1)

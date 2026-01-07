@@ -20,7 +20,6 @@ the _bootstrap directory. It initializes WSO2 AMP instrumentation before any use
 """
 
 import logging
-import os
 import sys
 from amp_instrumentation._bootstrap.initialization import (
     configure_logging,

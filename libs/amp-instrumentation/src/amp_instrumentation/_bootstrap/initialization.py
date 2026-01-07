@@ -123,9 +123,7 @@ def initialize_instrumentation() -> None:
             )
 
             _initialized = True
-            logger.info(
-                "Instrumentation initialized successfully."
-            )
+            logger.info("Instrumentation initialized successfully.")
 
         except ConfigurationError as e:
             logger.error(f"Configuration error: {e}")
