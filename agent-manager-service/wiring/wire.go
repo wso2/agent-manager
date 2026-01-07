@@ -54,6 +54,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewBuildCIManager,
 	services.NewInfraResourceManager,
 	services.NewObservabilityManager,
+	services.NewAgentTokenManagerService,
 )
 
 var controllerProviderSet = wire.NewSet(
@@ -61,6 +62,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewBuildCIController,
 	controllers.NewInfraResourceController,
 	controllers.NewObservabilityController,
+	controllers.NewAgentTokenController,
 )
 
 var testClientProviderSet = wire.NewSet(
@@ -101,8 +103,7 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 		loggerProviderSet,
 		serviceProviderSet,
 		controllerProviderSet,
-		ProvideAuthMiddleware,
-		wire.Struct(new(AppParams), "*"),
+		ProvideAuthMiddleware, ProvideJWTSigningConfig, wire.Struct(new(AppParams), "*"),
 	)
 	return &AppParams{}, nil
 }
@@ -113,8 +114,8 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 		testClientProviderSet,
 		loggerProviderSet,
 		serviceProviderSet,
-		controllerProviderSet,
-		wire.Struct(new(AppParams), "*"),
+		controllerProviderSet, configProviderSet,
+		ProvideJWTSigningConfig, wire.Struct(new(AppParams), "*"),
 	)
 	return &AppParams{}, nil
 }

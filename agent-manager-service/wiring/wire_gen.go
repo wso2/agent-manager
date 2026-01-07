@@ -7,10 +7,7 @@
 package wiring
 
 import (
-	"log/slog"
-
 	"github.com/google/wire"
-
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
@@ -19,6 +16,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	"log/slog"
 )
 
 // Injectors from wire.go:
@@ -43,7 +41,8 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	traceObserverClient := traceobserversvc.NewTraceObserverClient()
 	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoSvcClient, logger)
 	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
-	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoSvcClient, cfg.JWTSigning, logger)
+	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
+	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoSvcClient, jwtSigningConfig, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +73,9 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 	traceObserverClient := ProvideTestTraceObserverClient(testClients)
 	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoSvcClient, logger)
 	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
-	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoSvcClient, cfg.JWTSigning, logger)
+	configConfig := ProvideConfigFromPtr(cfg)
+	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
+	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoSvcClient, jwtSigningConfig, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -100,9 +101,9 @@ var repositoryProviderSet = wire.NewSet(repositories.NewAgentRepository, reposit
 
 var clientProviderSet = wire.NewSet(openchoreosvc.NewOpenChoreoSvcClient, observabilitysvc.NewObservabilitySvcClient, traceobserversvc.NewTraceObserverClient)
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewBuildCIManager, services.NewInfraResourceManager, services.NewObservabilityManager)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewBuildCIManager, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService)
 
-var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewBuildCIController, controllers.NewInfraResourceController, controllers.NewObservabilityController)
+var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewBuildCIController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController)
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoSvcClient,
