@@ -55,6 +55,9 @@ type Config struct {
 	DefaultChatAPI     DefaultChatAPIConfig
 	DefaultGatewayPort int
 
+	// JWT Signing configuration for agent API tokens
+	JWTSigning JWTSigningConfig
+
 	KeyManagerConfigurations KeyManagerConfigurations
 	IsOnPremDeployment       bool
 }
@@ -125,4 +128,20 @@ type DbConfigs struct {
 type DefaultChatAPIConfig struct {
 	DefaultHTTPPort int32
 	DefaultBasePath string
+}
+
+// JWTSigningConfig holds configuration for JWT token generation
+type JWTSigningConfig struct {
+	// PrivateKeyPath is the path to the RSA private key file (PEM format)
+	PrivateKeyPath string
+	// PublicKeyPath is the path to the RSA public key file (PEM format)
+	PublicKeyPath string
+	// ActiveKeyID is the key ID (kid) to use for signing tokens
+	ActiveKeyID string
+	// DefaultExpiryDuration is the default token expiry duration (e.g., "8760h" for 1 year)
+	DefaultExpiryDuration string
+	// Issuer is the issuer claim for the JWT
+	Issuer string
+	// DefaultEnvironment is the default environment to use for token claims
+	DefaultEnvironment string
 }

@@ -43,12 +43,18 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	traceObserverClient := traceobserversvc.NewTraceObserverClient()
 	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoSvcClient, logger)
 	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
+	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoSvcClient, cfg.JWTSigning, logger)
+	if err != nil {
+		return nil, err
+	}
+	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	appParams := &AppParams{
 		AuthMiddleware:          middleware,
 		AgentController:         agentController,
 		InfraResourceController: infraResourceController,
 		BuildCIController:       buildCIController,
 		ObservabilityController: observabilityController,
+		AgentTokenController:    agentTokenController,
 	}
 	return appParams, nil
 }
@@ -68,12 +74,18 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 	traceObserverClient := ProvideTestTraceObserverClient(testClients)
 	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoSvcClient, logger)
 	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
+	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoSvcClient, cfg.JWTSigning, logger)
+	if err != nil {
+		return nil, err
+	}
+	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	appParams := &AppParams{
 		AuthMiddleware:          authMiddleware,
 		AgentController:         agentController,
 		InfraResourceController: infraResourceController,
 		BuildCIController:       buildCIController,
 		ObservabilityController: observabilityController,
+		AgentTokenController:    agentTokenController,
 	}
 	return appParams, nil
 }

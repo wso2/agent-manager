@@ -14,3 +14,7 @@ localdata/*
 tmp/*
 
 .kube
+
+# Private keys
+keys/*.pem
+keys/*.key

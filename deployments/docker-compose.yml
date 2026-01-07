@@ -76,7 +76,7 @@ services:
       - AUTH_BASE_URL=null
       - SIGN_IN_REDIRECT_URL=null
       - SIGN_OUT_REDIRECT_URL=null
-      - API_BASE_URL=http://localhost:8080
+      - API_BASE_URL=http://localhost:9000
       - DISABLE_AUTH=true
       - OBS_API_BASE_URL=http://localhost:9098
     volumes:
