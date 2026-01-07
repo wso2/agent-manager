@@ -24,12 +24,6 @@ Or directly:
 bash scripts/gen_keys.sh
 ```
 
-## Security
-
-**IMPORTANT**: 
-- The `private.pem` key must be kept secure and never committed to version control
-- Keys are already excluded via `.gitignore`
-
 ## Key Rotation
 
 To rotate keys:

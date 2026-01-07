@@ -48,3 +48,7 @@ func ProvideConfigFromPtr(config *config.Config) config.Config {
 func ProvideAuthMiddleware(config config.Config) jwtassertion.Middleware {
 	return jwtassertion.JWTAuthMiddleware(config.AuthHeader)
 }
+
+func ProvideJWTSigningConfig(config config.Config) config.JWTSigningConfig {
+	return config.JWTSigning
+}
