@@ -46,7 +46,7 @@ agent-manager-service/
 - **PostgreSQL**: Version 12 or later
 - **Make**: For build automation
 - **air** go install github.com/air-verse/air@latest
-- **moq**   go install github.com/matryer/moq@latest
+- **moq**   go install github.com/matryer/moq@v0.5.3
 
 ## Local Development
 
