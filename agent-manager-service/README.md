@@ -70,26 +70,44 @@ go mod download
 The service uses environment variables for configuration. Create a `.env` file in the project root:
 
 
-| **Key**        | **Description**                         |
-|----------------|-----------------------------------------|
-| `SERVER_HOST`  | Host address where the server runs       |
-| `SERVER_PORT`  | Port number for the server               |
-| `DB_HOST`      | Database host address                    |
-| `DB_PORT`      | Database port number                     |
-| `DB_USER`      | Username for database authentication     |
-| `DB_PASSWORD`  | Password for database authentication     |
-| `DB_NAME`      | Name of the database                     |
+| **Key**                            | **Description**                                           |
+|------------------------------------|-----------------------------------------------------------|
+| `SERVER_HOST`                      | Host address where the server runs                        |
+| `SERVER_PORT`                      | Port number for the server                                |
+| `DB_HOST`                          | Database host address                                     |
+| `DB_PORT`                          | Database port number                                      |
+| `DB_USER`                          | Username for database authentication                      |
+| `DB_PASSWORD`                      | Password for database authentication                      |
+| `DB_NAME`                          | Name of the database                                      |
+| `API_KEY_VALUE`                    | API key for service authentication                        |
+| `JWT_SIGNING_PRIVATE_KEY_PATH`     | Path to RSA private key for JWT signing                   |
+| `JWT_SIGNING_PUBLIC_KEY_PATH`      | Path to RSA public key for JWT verification               |
+| `JWT_SIGNING_ACTIVE_KEY_ID`        | Key ID for active signing key                             |
+| `JWT_SIGNING_DEFAULT_EXPIRY`       | Default token expiry duration (e.g., "8760h" for 1 year)  |
+| `JWT_SIGNING_ISSUER`               | Issuer claim for JWT tokens                               |
+| `JWT_SIGNING_DEFAULT_ENVIRONMENT`  | Default environment for token claims                      |
 
 
 
-### 5. Run Database Migrations
+### 5. Generate JWT Signing Keys
+
+Generate RSA key pairs for JWT token signing:
+
+```bash
+cd agent-management-platform/agent-manager-service
+make gen-keys
+```
+
+This will create `private.pem` and `public.pem` files in the `keys/` directory.
+
+### 6. Run Database Migrations
 
 ```bash
 cd agent-management-platform/agent-manager-service
 ENV_FILE_PATH=.env go run . -migrate
 ```
 
-### 6. Start Development Server
+### 7. Start Development Server
 
 Using Make:
 
@@ -106,13 +124,13 @@ air
 
 The service will start on `http://localhost:8910` by default with hot-reloading enabled.
 
-### 7. Run tests
+### 8. Run tests
 ```bash
 cd agent-management-platform/agent-manager-service
 make test
 ```
 
-### 8. Development Tools
+### 9. Development Tools
 
 - **File Watcher**: `air` provides hot-reloading - watches for file changes and rebuilds/restarts automatically
 - **Code Formatting**: `make fmt` to format code
@@ -130,5 +148,26 @@ Run make help to see all available commands.
 ### OpenAPI Specification
 
 The API is documented using OpenAPI 3.0 specification in `docs/api_v1_openapi.yaml`.
+
+### Agent Token Authentication
+
+The service provides JWT-based authentication for external agents:
+
+- **Token Generation**: `POST /api/v1/orgs/{orgName}/projects/{projName}/agents/{agentName}/token`
+  - Generate a signed JWT token for an agent
+  - Optional parameters: `environment` (query), `expires_in` (body)
+  - Returns a Bearer token with configurable expiry
+
+- **JWKS Endpoint**: `GET /auth/external/jwks.json`
+  - Public endpoint for retrieving JSON Web Key Set
+  - Used by clients to verify JWT signatures
+  - No authentication required
+
+Tokens include claims for:
+- Component UID
+- Environment UID
+- Organization UID
+- Project UID
+- Standard JWT claims (iss, sub, exp, iat, nbf)
 
 
