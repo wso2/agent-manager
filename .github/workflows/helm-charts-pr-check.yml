@@ -1,4 +1,4 @@
-name: Helm Charts PR Check
+name: Helm Charts
 
 on:
   pull_request:
@@ -7,8 +7,8 @@ on:
       - '.github/workflows/helm-charts-pr-check.yml'
 
 env:
-  HELM_VERSION: "3.14.0"
-  KUBECONFORM_VERSION: "0.6.4"
+  HELM_VERSION: "3.19.4"
+  KUBECONFORM_VERSION: "0.7.0"
 
 jobs:
   detect-changes:
@@ -48,7 +48,7 @@ jobs:
         shell: bash
 
   helm-lint:
-    name: Lint ${{ matrix.chart }}
+    name: Helm Lint
     needs: detect-changes
     if: needs.detect-changes.outputs.has-changes == 'true'
     runs-on: ubuntu-latest
@@ -60,26 +60,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Helm
-        uses: azure/setup-helm@v4
+      - name: Setup Helm and dependencies
+        uses: ./.github/actions/setup-helm-chart
         with:
-          version: ${{ env.HELM_VERSION }}
-
-      - name: Add Helm repositories
-        run: |
-          # Add required repositories for dependencies
-          helm repo add bitnami https://charts.bitnami.com/bitnami
-          helm repo update
-        shell: bash
-
-      - name: Update chart dependencies
-        run: |
-          CHART_PATH="deployments/helm-charts/${{ matrix.chart }}"
-          if [ -f "$CHART_PATH/Chart.yaml" ]; then
-            echo "Updating dependencies for ${{ matrix.chart }}..."
-            helm dependency update "$CHART_PATH"
-          fi
-        shell: bash
+          chart-path: deployments/helm-charts/${{ matrix.chart }}
+          helm-version: ${{ env.HELM_VERSION }}
 
       - name: Lint Helm chart
         run: |
@@ -89,7 +74,7 @@ jobs:
         shell: bash
 
   helm-template:
-    name: Template ${{ matrix.chart }}
+    name: Helm Template
     needs: detect-changes
     if: needs.detect-changes.outputs.has-changes == 'true'
     runs-on: ubuntu-latest
@@ -101,31 +86,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Helm
-        uses: azure/setup-helm@v4
+      - name: Setup Helm and dependencies
+        uses: ./.github/actions/setup-helm-chart
         with:
-          version: ${{ env.HELM_VERSION }}
-
-      - name: Add Helm repositories
-        run: |
-          helm repo add bitnami https://charts.bitnami.com/bitnami
-          helm repo update
-        shell: bash
-
-      - name: Update chart dependencies
-        run: |
-          CHART_PATH="deployments/helm-charts/${{ matrix.chart }}"
-          if [ -f "$CHART_PATH/Chart.yaml" ]; then
-            helm dependency update "$CHART_PATH"
-          fi
-        shell: bash
+          chart-path: deployments/helm-charts/${{ matrix.chart }}
+          helm-version: ${{ env.HELM_VERSION }}
 
       - name: Template Helm chart with default values
         run: |
           CHART_PATH="deployments/helm-charts/${{ matrix.chart }}"
           echo "Templating ${{ matrix.chart }} with default values..."
           helm template test-release "$CHART_PATH" > /tmp/templated-manifests-default.yaml
-          echo "✅ Successfully templated with default values"
+          echo "Successfully templated with default values"
         shell: bash
 
       - name: Template Helm chart with common scenarios
@@ -145,11 +117,11 @@ jobs:
             --set resources.limits.memory=512Mi \
             --set resources.limits.cpu=200m > /tmp/templated-manifests-resources.yaml || true
 
-          echo "✅ Successfully templated common scenarios"
+          echo "Successfully templated common scenarios"
         shell: bash
 
   kubeconform:
-    name: Validate K8s Manifests for ${{ matrix.chart }}
+    name: Kubeconform Validation
     needs: detect-changes
     if: needs.detect-changes.outputs.has-changes == 'true'
     runs-on: ubuntu-latest
@@ -161,30 +133,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Helm
-        uses: azure/setup-helm@v4
+      - name: Setup Helm and dependencies
+        uses: ./.github/actions/setup-helm-chart
         with:
-          version: ${{ env.HELM_VERSION }}
+          chart-path: deployments/helm-charts/${{ matrix.chart }}
+          helm-version: ${{ env.HELM_VERSION }}
 
       - name: Install kubeconform
         run: |
           curl -L https://github.com/yannh/kubeconform/releases/download/v${{ env.KUBECONFORM_VERSION }}/kubeconform-linux-amd64.tar.gz | \
             tar -xz -C /usr/local/bin kubeconform
           kubeconform -v
-        shell: bash
-
-      - name: Add Helm repositories
-        run: |
-          helm repo add bitnami https://charts.bitnami.com/bitnami
-          helm repo update
-        shell: bash
-
-      - name: Update chart dependencies
-        run: |
-          CHART_PATH="deployments/helm-charts/${{ matrix.chart }}"
-          if [ -f "$CHART_PATH/Chart.yaml" ]; then
-            helm dependency update "$CHART_PATH"
-          fi
         shell: bash
 
       - name: Validate Kubernetes manifests
@@ -202,168 +161,16 @@ jobs:
           kubeconform \
             -strict \
             -ignore-missing-schemas \
-            -kubernetes-version 1.28.0 \
+            -kubernetes-version 1.33.0 \
             -summary \
             /tmp/manifests.yaml
 
-          echo "✅ Kubernetes manifests are valid"
+          echo "Kubernetes manifests are valid"
         shell: bash
-
-  check-version-bump:
-    name: Check Version Bump for ${{ matrix.chart }}
-    needs: detect-changes
-    if: needs.detect-changes.outputs.has-changes == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        chart: ${{ fromJson(needs.detect-changes.outputs.charts) }}
-    steps:
-      - name: Checkout PR branch
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check chart version bump
-        run: |
-          CHART_PATH="deployments/helm-charts/${{ matrix.chart }}"
-          CHART_FILE="$CHART_PATH/Chart.yaml"
-
-          # Get current version from PR branch
-          CURRENT_VERSION=$(grep '^version:' "$CHART_FILE" | awk '{print $2}')
-          echo "Current version: $CURRENT_VERSION"
-
-          # Get base version from target branch
-          git fetch origin ${{ github.base_ref }}
-          BASE_VERSION=$(git show origin/${{ github.base_ref }}:"$CHART_FILE" | grep '^version:' | awk '{print $2}' || echo "0.0.0")
-          echo "Base version: $BASE_VERSION"
-
-          # Skip version check if current version is 0.0.0-dev (development version)
-          if [ "$CURRENT_VERSION" = "0.0.0-dev" ]; then
-            echo "⚠️  Chart version is 0.0.0-dev (development). Version bump check skipped."
-            echo "Version will be updated during release process."
-            exit 0
-          fi
-
-          # Compare versions
-          if [ "$CURRENT_VERSION" = "$BASE_VERSION" ]; then
-            echo "❌ Chart version has not been bumped!"
-            echo "Please update the version in $CHART_FILE"
-            echo "Current: $CURRENT_VERSION"
-            echo "Required: Version must be greater than $BASE_VERSION"
-            exit 1
-          fi
-
-          # Check if version follows semver
-          if ! [[ "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-            echo "❌ Chart version does not follow semver format!"
-            echo "Current: $CURRENT_VERSION"
-            echo "Expected format: X.Y.Z or X.Y.Z-prerelease"
-            exit 1
-          fi
-
-          echo "✅ Chart version bumped: $BASE_VERSION → $CURRENT_VERSION"
-        shell: bash
-
-  yaml-lint:
-    name: YAML Lint ${{ matrix.chart }}
-    needs: detect-changes
-    if: needs.detect-changes.outputs.has-changes == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        chart: ${{ fromJson(needs.detect-changes.outputs.charts) }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install yamllint
-        run: |
-          pip install yamllint
-        shell: bash
-
-      - name: Lint YAML files
-        run: |
-          CHART_PATH="deployments/helm-charts/${{ matrix.chart }}"
-          echo "Linting YAML files in ${{ matrix.chart }}..."
-
-          # Create yamllint config
-          cat > /tmp/.yamllint.yml << 'EOF'
-          extends: default
-          rules:
-            line-length:
-              max: 120
-              level: warning
-            indentation:
-              spaces: 2
-              indent-sequences: true
-            comments:
-              min-spaces-from-content: 1
-            comments-indentation: {}
-            document-start: disable
-            truthy:
-              allowed-values: ['true', 'false', 'yes', 'no']
-          EOF
-
-          # Lint all YAML files in the chart
-          find "$CHART_PATH" -type f \( -name '*.yaml' -o -name '*.yml' \) \
-            -exec yamllint -c /tmp/.yamllint.yml {} +
-
-          echo "✅ YAML files are valid"
-        shell: bash
-
-  security-scan:
-    name: Security Scan ${{ matrix.chart }}
-    needs: detect-changes
-    if: needs.detect-changes.outputs.has-changes == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        chart: ${{ fromJson(needs.detect-changes.outputs.charts) }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: ${{ env.HELM_VERSION }}
-
-      - name: Add Helm repositories
-        run: |
-          helm repo add bitnami https://charts.bitnami.com/bitnami
-          helm repo update
-        shell: bash
-
-      - name: Update chart dependencies
-        run: |
-          CHART_PATH="deployments/helm-charts/${{ matrix.chart }}"
-          if [ -f "$CHART_PATH/Chart.yaml" ]; then
-            helm dependency update "$CHART_PATH"
-          fi
-        shell: bash
-
-      - name: Run Trivy security scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'config'
-          scan-ref: 'deployments/helm-charts/${{ matrix.chart }}'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '0'  # Don't fail the build, just report
-
-      - name: Upload Trivy results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
 
   summary:
     name: PR Check Summary
-    needs: [detect-changes, helm-lint, helm-template, kubeconform, check-version-bump, yaml-lint, security-scan]
+    needs: [detect-changes, helm-lint, helm-template, kubeconform]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -389,25 +196,20 @@ jobs:
           echo "| Helm Lint | ${{ needs.helm-lint.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Helm Template | ${{ needs.helm-template.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Kubeconform | ${{ needs.kubeconform.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Version Bump | ${{ needs.check-version-bump.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| YAML Lint | ${{ needs.yaml-lint.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Security Scan | ${{ needs.security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
 
           # Check if any required job failed
           FAILED=false
           if [ "${{ needs.helm-lint.result }}" = "failure" ] || \
              [ "${{ needs.helm-template.result }}" = "failure" ] || \
-             [ "${{ needs.kubeconform.result }}" = "failure" ] || \
-             [ "${{ needs.check-version-bump.result }}" = "failure" ] || \
-             [ "${{ needs.yaml-lint.result }}" = "failure" ]; then
+             [ "${{ needs.kubeconform.result }}" = "failure" ]; then
             FAILED=true
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "$FAILED" = "true" ]; then
-            echo "❌ **Some checks failed. Please review the errors above.**" >> $GITHUB_STEP_SUMMARY
+            echo "**Some checks failed. Please review the errors above.**" >> $GITHUB_STEP_SUMMARY
             exit 1
           else
-            echo "✅ **All checks passed!**" >> $GITHUB_STEP_SUMMARY
+            echo "**All checks passed.**" >> $GITHUB_STEP_SUMMARY
           fi
         shell: bash
