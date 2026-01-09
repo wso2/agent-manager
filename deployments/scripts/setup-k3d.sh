@@ -57,7 +57,7 @@ mkdir -p /tmp/k3d-shared
 
 # Create k3d cluster with OpenChoreo configuration
 echo "🚀 Creating k3d cluster with OpenChoreo configuration..."
-k3d cluster create --config ../single-cluster-config.yaml --k3s-arg="--disable=traefik@server:0"
+k3d cluster create --config ../single-cluster-config.yaml
 
 echo ""
 echo "✅ k3d cluster created successfully!"
