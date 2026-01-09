@@ -62,13 +62,11 @@ make build
 
 ### 3. Start Development Server
 
-**Option 1: Using Makefile (Recommended)**
-
 ```bash
 make dev
 ```
 
-Both options will:
+This will:
 - Start all library dependencies in watch mode
 - Launch the Vite dev server at `http://localhost:3000`
 - Automatically rebuild dependencies when you make changes
