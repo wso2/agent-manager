@@ -496,7 +496,8 @@ helm_install_idempotent \
     "${BUILD_CI_NS}" \
     "${TIMEOUT_BUILD_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
-    --values "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/k3d/single-cluster/values-bp.yaml"
+    --values "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/k3d/single-cluster/values-bp.yaml" \
+    --set prePushBuildpackImages=false
 
 # Register Build Plane
 log_info "Registering Build Plane..."
