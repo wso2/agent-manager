@@ -30,7 +30,7 @@
     "clean": "rm -rf dist",
     "copy-assets": "find src -type f \\( -name '*.css' -o -name '*.scss' -o -name '*.less' -o -name '*.woff*' -o -name '*.ttf' -o -name '*.eot' \\) -exec sh -c 'mkdir -p dist/$(dirname {}| sed \"s|^src||\") && cp {} dist/$(dirname {}| sed \"s|^src||\")/$(basename {})' \\;",
     "build": "rushx clean && tsc -project tsconfig.lib.json && rushx copy-assets",
-    "dev": "rushx clean && tsc -project tsconfig.lib.json  --watch && rushx copy-assets"
+    "dev": "rushx clean && rushx copy-assets && tsc -project tsconfig.lib.json --watch"
   },
   "keywords": ["ai", "agents", "page", "react"],
   "author": "",

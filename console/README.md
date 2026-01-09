@@ -39,7 +39,7 @@ From the `console/` directory, install all dependencies for the monorepo:
 
 ```bash
 cd console
-rush install
+make install
 ```
 
 This command will:
@@ -52,29 +52,27 @@ This command will:
 Build all shared libraries first:
 
 ```bash
-rush build --to @agent-management-platform/webapp
+make build-webapp
 ```
 
 Or build all projects:
 ```bash
-rush build
+make build
 ```
 
 ### 3. Start Development Server
 
-Start the webapp development server:
-
 ```bash
-rushx --to @agent-management-platform/webapp dev
+make dev
 ```
 
-Or navigate to the webapp directory and run directly:
-```bash
-cd apps/webapp
-rushx dev
-```
+This will:
+- Start all library dependencies in watch mode
+- Launch the Vite dev server at `http://localhost:3000`
+- Automatically rebuild dependencies when you make changes
+- Hot-reload the webapp when dependencies update
 
-The development server will start on `http://localhost:5173` (or the next available port).
+Press `Ctrl+C` to stop all processes.
 
 ### 4. Environment Configuration
 
@@ -93,6 +91,28 @@ window.APP_CONFIG = {
 ```
 
 ## Available Commands
+
+### Make Commands (Recommended)
+
+```bash
+# Start development mode with hot-reload
+make dev
+
+# Install dependencies
+make install
+
+# Build all projects
+make build
+
+# Clean build outputs
+make clean
+
+# Purge Rush cache
+make purge
+
+# Show all available commands
+make help
+```
 
 ### Rush Commands
 
