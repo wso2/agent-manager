@@ -54,6 +54,14 @@ type Config struct {
 	// Default Chat API configuration
 	DefaultChatAPI     DefaultChatAPIConfig
 	DefaultGatewayPort int
+
+	KeyManagerConfigurations KeyManagerConfigurations
+}
+
+type KeyManagerConfigurations struct {
+	Issuer   string
+	Audience string
+	JWKSUrl  string
 }
 
 type AgentWorkload struct {

@@ -18,21 +18,31 @@ package jwtassertion
 
 import (
 	"context"
+	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"math/big"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 type TokenClaims struct {
-	Sub   uuid.UUID `json:"sub"`
-	Scope string    `json:"scope"`
-	Exp   int       `json:"exp"`
+	Sub      uuid.UUID       `json:"sub"`
+	Scope    string          `json:"scope"`
+	Exp      int64           `json:"exp"`
+	Issuer   string          `json:"iss"`
+	Audience jwt.ClaimStrings `json:"aud"`
+	jwt.RegisteredClaims
 }
 
 type tokenClaimsCtxKey struct{}
@@ -51,6 +61,29 @@ const (
 	scopesKey ctxKeyName = "scopes"
 )
 
+// JWKS represents a JSON Web Key Set
+type JWKS struct {
+	Keys []JSONWebKey `json:"keys"`
+}
+
+// JSONWebKey represents a single key in a JWKS
+type JSONWebKey struct {
+	Kty string   `json:"kty"`
+	Kid string   `json:"kid"`
+	Use string   `json:"use"`
+	N   string   `json:"n"`
+	E   string   `json:"e"`
+	Alg string   `json:"alg"`
+	X5c []string `json:"x5c,omitempty"`
+}
+
+var (
+	jwksCache      *JWKS
+	jwksCacheMutex sync.RWMutex
+	jwksCacheTime  time.Time
+	jwksCacheTTL   = 1 * time.Hour
+)
+
 func JWTAuthMiddleware(header string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -61,10 +94,12 @@ func JWTAuthMiddleware(header string) func(http.Handler) http.Handler {
 			}
 			// replace "Bearer " prefix
 			tokenString = strings.Replace(tokenString, "Bearer ", "", 1)
-			// we don't need to validate the token, just extract the claims
-			claims, err := extractClaimsFromJWT(tokenString)
+
+			// Validate the token using JWKS
+			claims, err := validateJWTWithJWKS(tokenString)
 			if err != nil {
-				utils.WriteErrorResponse(w, http.StatusUnauthorized, fmt.Sprintf("invalid jwt: %v", err))
+				slog.Error("JWT validation failed", "error", err)
+				utils.WriteErrorResponse(w, http.StatusUnauthorized, "invalid jwt")
 				return
 			}
 			ctx := r.Context()
@@ -110,6 +145,183 @@ func HasAllScopes(ctx context.Context, requiredScopes []string) bool {
 	}
 	// all required scopes found
 	return true
+}
+
+// validateJWTWithJWKS validates a JWT token using JWKS and validates issuer and audience
+func validateJWTWithJWKS(tokenString string) (*TokenClaims, error) {
+	cfg := config.GetConfig()
+	if cfg == nil {
+		return nil, fmt.Errorf("configuration not loaded")
+	}
+
+	var claims *TokenClaims
+
+	// If JWKS URL is configured, validate signature with JWKS
+	if cfg.KeyManagerConfigurations.JWKSUrl != "" {
+		// Perform full JWKS validation with signature verification
+		token, err := jwt.ParseWithClaims(tokenString, &TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+			// Verify signing method is RSA
+			if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+
+			// Get the key ID from the token header
+			kid, ok := token.Header["kid"].(string)
+			if !ok {
+				return nil, fmt.Errorf("kid not found in token header")
+			}
+
+			// Fetch JWKS and get the public key
+			jwks, err := fetchJWKS(cfg.KeyManagerConfigurations.JWKSUrl)
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
+			}
+
+			// Find the key with matching kid
+			for _, key := range jwks.Keys {
+				if key.Kid == kid {
+					return convertJWKToPublicKey(&key)
+				}
+			}
+
+			return nil, fmt.Errorf("unable to find key with kid: %s", kid)
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse token: %w", err)
+		}
+
+		if !token.Valid {
+			return nil, fmt.Errorf("token is not valid")
+		}
+
+		validatedClaims, ok := token.Claims.(*TokenClaims)
+		if !ok {
+			return nil, fmt.Errorf("failed to extract claims")
+		}
+		claims = validatedClaims
+	} else {
+		// No JWKS URL configured, skip signature validation
+		extractedClaims, err := extractClaimsFromJWT(tokenString)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract claims: %w", err)
+		}
+		claims = extractedClaims
+		
+	}
+
+	// Validate issuer
+	if err := validateIssuer(claims.Issuer, cfg.KeyManagerConfigurations.Issuer); err != nil {
+		return nil, err
+	}
+
+	// Validate audience
+	if err := validateAudience(claims.Audience, cfg.KeyManagerConfigurations.Audience); err != nil {
+		return nil, err
+	}
+
+	return claims, nil
+}
+
+// validateIssuer validates the issuer claim against allowed issuers
+func validateIssuer(issuer, allowedIssuers string) error {
+	if allowedIssuers == "" {
+		return fmt.Errorf("no allowed issuers configured")
+	}
+	// Split by comma and trim spaces
+	allowedList := strings.Split(allowedIssuers, ",")
+	for _, allowed := range allowedList {
+		if strings.TrimSpace(allowed) == strings.TrimSpace(issuer) {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid issuer: expected one of [%s], got %s", allowedIssuers, issuer)
+}
+
+// validateAudience validates the audience claim against allowed audiences
+func validateAudience(audiences jwt.ClaimStrings, allowedAudiences string) error {
+	if allowedAudiences == "" {
+		return fmt.Errorf("no allowed audiences configured")
+	}
+
+	// Split allowed audiences by comma and trim spaces
+	allowedList := strings.Split(allowedAudiences, ",")
+	allowedMap := make(map[string]struct{})
+	for _, allowed := range allowedList {
+		allowedMap[strings.TrimSpace(allowed)] = struct{}{}
+	}
+
+	// Check if any token audience is in the allowed list
+	for _, aud := range audiences {
+		if _, ok := allowedMap[strings.TrimSpace(aud)]; ok {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid audience: expected one of [%s], got %v", allowedAudiences, audiences)
+}
+
+// fetchJWKS fetches the JWKS from the provided URL with caching
+func fetchJWKS(jwksURL string) (*JWKS, error) {
+	jwksCacheMutex.RLock()
+	if jwksCache != nil && time.Since(jwksCacheTime) < jwksCacheTTL {
+		defer jwksCacheMutex.RUnlock()
+		return jwksCache, nil
+	}
+	jwksCacheMutex.RUnlock()
+
+	// Fetch new JWKS
+	resp, err := http.Get(jwksURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("JWKS endpoint returned status: %d", resp.StatusCode)
+	}
+
+	var jwks JWKS
+	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
+		return nil, fmt.Errorf("failed to decode JWKS: %w", err)
+	}
+
+	// Update cache
+	jwksCacheMutex.Lock()
+	jwksCache = &jwks
+	jwksCacheTime = time.Now()
+	jwksCacheMutex.Unlock()
+
+	return &jwks, nil
+}
+
+// convertJWKToPublicKey converts a JWK to an RSA public key
+func convertJWKToPublicKey(jwk *JSONWebKey) (*rsa.PublicKey, error) {
+	// Decode the modulus (n)
+	nBytes, err := base64.RawURLEncoding.DecodeString(jwk.N)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode modulus: %w", err)
+	}
+
+	// Decode the exponent (e)
+	eBytes, err := base64.RawURLEncoding.DecodeString(jwk.E)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode exponent: %w", err)
+	}
+
+	// Convert bytes to big.Int for modulus
+	n := new(big.Int).SetBytes(nBytes)
+
+	// Convert bytes to int for exponent
+	var e int
+	for _, b := range eBytes {
+		e = e<<8 + int(b)
+	}
+
+	return &rsa.PublicKey{
+		N: n,
+		E: e,
+	}, nil
 }
 
 func extractClaimsFromJWT(tokenString string) (*TokenClaims, error) {

@@ -32,7 +32,7 @@ func NewMockMiddleware(t *testing.T, orgId uuid.UUID, userIdpId uuid.UUID) Middl
 	tokenClaims := &TokenClaims{
 		Sub:   userIdpId,
 		Scope: "scopes",
-		Exp:   int(time.Now().Add(time.Hour).Unix()),
+		Exp:   int64(time.Now().Add(time.Hour).Unix()),
 	}
 
 	return func(next http.Handler) http.Handler {
