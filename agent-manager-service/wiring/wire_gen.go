@@ -7,10 +7,7 @@
 package wiring
 
 import (
-	"log/slog"
-
 	"github.com/google/wire"
-
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
@@ -19,6 +16,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	"log/slog"
 )
 
 // Injectors from wire.go:
@@ -26,8 +24,6 @@ import (
 func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	configConfig := ProvideConfigFromPtr(cfg)
 	middleware := ProvideAuthMiddleware(configConfig)
-	organizationRepository := repositories.NewOrganizationRepository()
-	projectRepository := repositories.NewProjectRepository()
 	agentRepository := repositories.NewAgentRepository()
 	internalAgentRepository := repositories.NewInternalAgentRepository()
 	openChoreoSvcClient, err := openchoreosvc.NewOpenChoreoSvcClient()
@@ -36,11 +32,11 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	}
 	observabilitySvcClient := observabilitysvc.NewObservabilitySvcClient()
 	logger := ProvideLogger()
-	agentManagerService := services.NewAgentManagerService(organizationRepository, projectRepository, agentRepository, internalAgentRepository, openChoreoSvcClient, observabilitySvcClient, logger)
+	agentManagerService := services.NewAgentManagerService(agentRepository, internalAgentRepository, openChoreoSvcClient, observabilitySvcClient, logger)
 	agentController := controllers.NewAgentController(agentManagerService)
-	infraResourceManager := services.NewInfraResourceManager(organizationRepository, projectRepository, agentRepository, openChoreoSvcClient, logger)
+	infraResourceManager := services.NewInfraResourceManager(agentRepository, openChoreoSvcClient, logger)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
-	buildCIManagerService := services.NewBuildCIManager(openChoreoSvcClient, logger, organizationRepository, projectRepository, agentRepository)
+	buildCIManagerService := services.NewBuildCIManager(openChoreoSvcClient, logger, agentRepository)
 	buildCIController := controllers.NewBuildCIController(buildCIManagerService)
 	traceObserverClient := traceobserversvc.NewTraceObserverClient()
 	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoSvcClient, logger)
@@ -56,18 +52,16 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 }
 
 func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware jwtassertion.Middleware, testClients TestClients) (*AppParams, error) {
-	organizationRepository := repositories.NewOrganizationRepository()
-	projectRepository := repositories.NewProjectRepository()
 	agentRepository := repositories.NewAgentRepository()
 	internalAgentRepository := repositories.NewInternalAgentRepository()
 	openChoreoSvcClient := ProvideTestOpenChoreoSvcClient(testClients)
 	observabilitySvcClient := ProvideTestObservabilitySvcClient(testClients)
 	logger := ProvideLogger()
-	agentManagerService := services.NewAgentManagerService(organizationRepository, projectRepository, agentRepository, internalAgentRepository, openChoreoSvcClient, observabilitySvcClient, logger)
+	agentManagerService := services.NewAgentManagerService(agentRepository, internalAgentRepository, openChoreoSvcClient, observabilitySvcClient, logger)
 	agentController := controllers.NewAgentController(agentManagerService)
-	infraResourceManager := services.NewInfraResourceManager(organizationRepository, projectRepository, agentRepository, openChoreoSvcClient, logger)
+	infraResourceManager := services.NewInfraResourceManager(agentRepository, openChoreoSvcClient, logger)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
-	buildCIManagerService := services.NewBuildCIManager(openChoreoSvcClient, logger, organizationRepository, projectRepository, agentRepository)
+	buildCIManagerService := services.NewBuildCIManager(openChoreoSvcClient, logger, agentRepository)
 	buildCIController := controllers.NewBuildCIController(buildCIManagerService)
 	traceObserverClient := ProvideTestTraceObserverClient(testClients)
 	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoSvcClient, logger)
@@ -88,7 +82,7 @@ var configProviderSet = wire.NewSet(
 	ProvideConfigFromPtr,
 )
 
-var repositoryProviderSet = wire.NewSet(repositories.NewOrganizationRepository, repositories.NewAgentRepository, repositories.NewProjectRepository, repositories.NewInternalAgentRepository)
+var repositoryProviderSet = wire.NewSet(repositories.NewAgentRepository, repositories.NewInternalAgentRepository)
 
 var clientProviderSet = wire.NewSet(openchoreosvc.NewOpenChoreoSvcClient, observabilitysvc.NewObservabilitySvcClient, traceobserversvc.NewTraceObserverClient)
 

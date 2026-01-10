@@ -18,22 +18,10 @@ package models
 
 import (
 	"time"
-
-	"github.com/google/uuid"
 )
-
-// DB Model
-type Organization struct {
-	ID                uuid.UUID `gorm:"column:id;primaryKey"`
-	OrgName           string    `gorm:"column:org_name"`
-	OpenChoreoOrgName string    `gorm:"column:open_choreo_org_name"`
-	UserIdpId         uuid.UUID `gorm:"column:user_idp_id"`
-	CreatedAt         time.Time `gorm:"column:created_at"`
-}
 
 // API Response DTO
 type OrganizationResponse struct {
-	UUID        string    `json:"uuid"`
 	Name        string    `json:"name"`
 	DisplayName string    `json:"displayName,omitempty"`
 	Description string    `json:"description,omitempty"`

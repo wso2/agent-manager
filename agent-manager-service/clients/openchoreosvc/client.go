@@ -57,11 +57,13 @@ type OpenChoreoSvcClient interface {
 	ListOrgEnvironments(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error)
 	ListProjects(ctx context.Context, orgName string) ([]*models.ProjectResponse, error)
 	GetOrganization(ctx context.Context, orgName string) (*models.OrganizationResponse, error)
+	ListOrganizations(ctx context.Context) ([]*models.OrganizationResponse, error)
 	GetDeploymentPipelinesForOrganization(ctx context.Context, orgName string) ([]*models.DeploymentPipelineResponse, error)
 	DeleteProject(ctx context.Context, orgName string, projectName string) error
 	GetDeploymentPipeline(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error)
 	CreateProject(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string, projectDescription string) error
 	GetAgentComponent(ctx context.Context, orgName string, projName string, agentName string) (*AgentComponent, error)
+	GetAgentComponents(ctx context.Context, orgName string, projName string) ([]*AgentComponent, error)
 	ListAgentComponents(ctx context.Context, orgName string, projName string) ([]*AgentComponent, error)
 	DeleteAgentComponent(ctx context.Context, orgName string, projName string, agentName string) error
 	DeployAgentComponent(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error
@@ -196,6 +198,32 @@ func (k *openChoreoSvcClient) IsAgentComponentExists(ctx context.Context, orgNam
 
 	return true, nil
 }
+func (k *openChoreoSvcClient) GetAgentComponents(ctx context.Context, orgName string, projName string) ([]*AgentComponent, error) {
+	componentList := &v1alpha1.ComponentList{}
+	key := client.ObjectKey{
+		Namespace: orgName,
+	}
+	err := k.retryK8sOperation(ctx, "ListComponents", func() error {
+		return k.client.List(ctx, componentList, client.InNamespace(key.Namespace))
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list components: %w", err)
+	}
+
+	var agentComponents []*AgentComponent
+	for i := range componentList.Items {
+		component := &componentList.Items[i]
+		if component.Spec.Owner.ProjectName == projName {
+			agentComponents = append(agentComponents, toComponentResponse(component))
+		}
+	}
+	// Sort components by creation time descending
+	sort.SliceStable(agentComponents, func(i, j int) bool {
+		return agentComponents[i].CreatedAt.After(agentComponents[j].CreatedAt)
+	})
+	return agentComponents, nil
+}
+	
 
 func (k *openChoreoSvcClient) GetAgentComponent(ctx context.Context, orgName string, projName string, agentName string) (*AgentComponent, error) {
 	component := &v1alpha1.Component{}
@@ -1031,6 +1059,28 @@ func (k *openChoreoSvcClient) CreateProject(ctx context.Context, orgName string,
 	})
 }
 
+func (k *openChoreoSvcClient) ListOrganizations(ctx context.Context) ([]*models.OrganizationResponse, error) {
+	orgList := &v1alpha1.OrganizationList{}
+	err := k.retryK8sOperation(ctx, "ListOrganizations", func() error {
+		return k.client.List(ctx, orgList, client.InNamespace("default"))
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list organizations: %w", err)
+	}
+
+	var organizations []*models.OrganizationResponse
+	for _, org := range orgList.Items {
+		organizations = append(organizations, &models.OrganizationResponse{
+			Name:        org.Name,
+			Namespace:   org.Name,
+			CreatedAt:   org.CreationTimestamp.Time,
+			DisplayName: org.Annotations[string(AnnotationKeyDisplayName)],
+			Description: org.Annotations[string(AnnotationKeyDescription)],
+		})
+	}
+	return organizations, nil
+}
+
 func (k *openChoreoSvcClient) GetOrganization(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
 	org := &v1alpha1.Organization{}
 	key := client.ObjectKey{
@@ -1048,7 +1098,6 @@ func (k *openChoreoSvcClient) GetOrganization(ctx context.Context, orgName strin
 	}
 
 	orgModel := &models.OrganizationResponse{
-		UUID:        string(org.UID),
 		Name:        org.Name,
 		Namespace:   org.Name,
 		CreatedAt:   org.CreationTimestamp.Time,
