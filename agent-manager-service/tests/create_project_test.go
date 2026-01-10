@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -33,18 +34,32 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/wiring"
 )
 
 var (
-	testCreateProjectOrgId     = uuid.New()
-	testCreateProjectUserIdpId = uuid.New()
 	testCreateProjectOrgName   = fmt.Sprintf("test-org-%s", uuid.New().String()[:5])
 	testCreateProjectName      = fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
 )
 
 func createMockOpenChoreoClientForCreateProject() *clientmocks.OpenChoreoSvcClientMock {
 	return &clientmocks.OpenChoreoSvcClientMock{
+		GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
+			if orgName == "nonexistent-org" {
+				return nil, utils.ErrOrganizationNotFound
+			}
+			return &models.OrganizationResponse{
+				Name:        orgName,
+				DisplayName: orgName,
+				CreatedAt:   time.Now(),
+				Status:      "ACTIVE",
+			}, nil
+		},
+		GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+			// Return not found by default (project doesn't exist yet)
+			return nil, utils.ErrProjectNotFound
+		},
 		GetDeploymentPipelinesForOrganizationFunc: func(ctx context.Context, orgName string) ([]*models.DeploymentPipelineResponse, error) {
 			return []*models.DeploymentPipelineResponse{
 				{
@@ -61,8 +76,7 @@ func createMockOpenChoreoClientForCreateProject() *clientmocks.OpenChoreoSvcClie
 }
 
 func TestCreateProject(t *testing.T) {
-	setUpCreateProjectTest(t)
-	authMiddleware := jwtassertion.NewMockMiddleware(t, testCreateProjectOrgId, testCreateProjectUserIdpId)
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Creating a project with valid data should return 202", func(t *testing.T) {
 		openChoreoClient := createMockOpenChoreoClientForCreateProject()
@@ -184,7 +198,17 @@ func TestCreateProject(t *testing.T) {
 				Description:        stringPtr(""),
 			},
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClientForCreateProject()
+				mock := createMockOpenChoreoClientForCreateProject()
+				// Override to return existing project
+				mock.GetProjectFunc = func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+					return &models.ProjectResponse{
+						Name:        projectName,
+						DisplayName: projectName,
+						OrgName:     orgName,
+						CreatedAt:   time.Now(),
+					}, nil
+				}
+				return mock
 			},
 		},
 		{
@@ -249,13 +273,7 @@ func TestCreateProject(t *testing.T) {
 
 	for _, tt := range validationTests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup test data if needed
-			if tt.name == "return 409 on project already exists" {
-				// Create an existing project
-				existingProjectId := uuid.New()
-				_ = apitestutils.CreateProject(t, existingProjectId, testCreateProjectOrgId, "existing-project")
-			}
-
+			
 			openChoreoClient := tt.setupMock()
 			testClients := wiring.TestClients{
 				OpenChoreoSvcClient: openChoreoClient,
@@ -290,10 +308,6 @@ func TestCreateProject(t *testing.T) {
 			}
 		})
 	}
-}
-
-func setUpCreateProjectTest(t *testing.T) {
-	_ = apitestutils.CreateOrganization(t, testCreateProjectOrgId, testCreateProjectUserIdpId, testCreateProjectOrgName)
 }
 
 // Helper function to create string pointer

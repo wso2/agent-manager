@@ -41,18 +41,28 @@ import (
 )
 
 var (
-	testExternalOrgId        = uuid.New()
-	testExternalProjId       = uuid.New()
-	testExternalUserIdpId    = uuid.New()
 	testExternalOrgName      = fmt.Sprintf("test-org-%s", uuid.New().String()[:5])
 	testExternalProjName     = fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
 	testExternalAgentNameOne = fmt.Sprintf("test-external-agent-%s", uuid.New().String()[:5])
-	testExternalAgentNameTwo = fmt.Sprintf("test-external-agent-%s", uuid.New().String()[:5])
 )
 
 func createMockOpenChoreoClientForExternal() *clientmocks.OpenChoreoSvcClientMock {
 	return &clientmocks.OpenChoreoSvcClientMock{
+		GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
+			if orgName == "nonexistent-org" {
+				return nil, utils.ErrOrganizationNotFound
+			}
+			return &models.OrganizationResponse{
+				Name:        orgName,
+				DisplayName: orgName,
+				CreatedAt:   time.Now(),
+				Status:      "ACTIVE",
+			}, nil
+		},
 		GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+			if projectName == "nonexistent-project" {
+				return nil, utils.ErrProjectNotFound
+			}
 			return &models.ProjectResponse{
 				Name:        projectName,
 				DisplayName: projectName,
@@ -70,8 +80,7 @@ func createMockOpenChoreoClientForExternal() *clientmocks.OpenChoreoSvcClientMoc
 }
 
 func TestCreateExternalAgent(t *testing.T) {
-	setUpExternalTest(t)
-	authMiddleware := jwtassertion.NewMockMiddleware(t, testExternalOrgId, testExternalUserIdpId)
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Creating an external agent should return 202", func(t *testing.T) {
 		openChoreoClient := createMockOpenChoreoClientForExternal()
@@ -372,9 +381,4 @@ func TestCreateExternalAgent(t *testing.T) {
 			}
 		})
 	}
-}
-
-func setUpExternalTest(t *testing.T) {
-	_ = apitestutils.CreateOrganization(t, testExternalOrgId, testExternalUserIdpId, testExternalOrgName)
-	_ = apitestutils.CreateProject(t, testExternalProjId, testExternalOrgId, testExternalProjName)
 }

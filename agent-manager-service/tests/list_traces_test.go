@@ -85,16 +85,11 @@ func createMockTraceObserverClient() *clientmocks.TraceObserverClientMock {
 
 func TestListTraces(t *testing.T) {
 	// Create unique test data for this test suite
-	tracesOrgId := uuid.New()
-	tracesUserIdpId := uuid.New()
-	tracesProjId := uuid.New()
 	tracesOrgName := fmt.Sprintf("traces-org-%s", uuid.New().String()[:5])
 	tracesProjName := fmt.Sprintf("traces-project-%s", uuid.New().String()[:5])
 	tracesAgentName := fmt.Sprintf("traces-agent-%s", uuid.New().String()[:5])
 
-	_ = apitestutils.CreateOrganization(t, tracesOrgId, tracesUserIdpId, tracesOrgName)
-	_ = apitestutils.CreateProject(t, tracesProjId, tracesOrgId, tracesProjName)
-	authMiddleware := jwtassertion.NewMockMiddleware(t, tracesOrgId, tracesUserIdpId)
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Listing traces with default parameters should return 200", func(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
