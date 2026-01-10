@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -29,42 +28,12 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
 
-func CreateOrganization(t *testing.T, orgID uuid.UUID, userIdpID uuid.UUID, orgName string) models.Organization {
-	org := &models.Organization{
-		ID:                orgID,
-		UserIdpId:         userIdpID,
-		OrgName:           orgName,
-		OpenChoreoOrgName: orgName,
-		CreatedAt:         time.Now(),
-	}
-	err := db.DB(context.Background()).Create(org).Error
-	require.NoError(t, err)
-	str, _ := json.MarshalIndent(org, "", "  ")
-	t.Logf("Created Organization: %s", str)
-	return *org
-}
-
-func CreateProject(t *testing.T, projectID uuid.UUID, orgID uuid.UUID, projectName string) models.Project {
-	project := &models.Project{
-		ID:                projectID,
-		OrgID:             orgID,
-		Name:              projectName,
-		CreatedAt:         time.Now(),
-		OpenChoreoProject: projectName,
-	}
-	err := db.DB(context.Background()).Create(project).Error
-	require.NoError(t, err)
-	str, _ := json.MarshalIndent(project, "", "  ")
-	t.Logf("Created Project: %s", str)
-	return *project
-}
-
-func CreateAgent(t *testing.T, agentID uuid.UUID, orgID uuid.UUID, projectID uuid.UUID, agentName string, provisioningType string) models.Agent {
+func CreateAgent(t *testing.T, agentID uuid.UUID, orgName string, projectName string, agentName string, provisioningType string) models.Agent {
 	agent := &models.Agent{
 		ID:               agentID,
 		ProvisioningType: provisioningType,
-		ProjectId:        projectID,
-		OrgID:            orgID,
+		ProjectName:        projectName,
+		OrgName:            orgName,
 		Name:             agentName,
 		DisplayName:      agentName,
 	}

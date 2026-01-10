@@ -48,7 +48,21 @@ var (
 
 func createMockOpenChoreoClientForBuild() *clientmocks.OpenChoreoSvcClientMock {
 	return &clientmocks.OpenChoreoSvcClientMock{
+		GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
+			if orgName == "nonexistent-org" {
+				return nil, utils.ErrOrganizationNotFound
+			}
+			return &models.OrganizationResponse{
+				Name:        orgName,
+				DisplayName: orgName,
+				CreatedAt:   time.Now(),
+				Status:      "ACTIVE",
+			}, nil
+		},
 		GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+			if projectName == "nonexistent-project" {
+				return nil, utils.ErrProjectNotFound
+			}
 			return &models.ProjectResponse{
 				Name:        projectName,
 				DisplayName: projectName,
@@ -76,7 +90,7 @@ func createMockOpenChoreoClientForBuild() *clientmocks.OpenChoreoSvcClientMock {
 
 func TestBuildAgent(t *testing.T) {
 	setUpBuildTest(t)
-	authMiddleware := jwtassertion.NewMockMiddleware(t, buildTestOrgId, buildTestUserIdpId)
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Triggering build with commitId should return 202", func(t *testing.T) {
 		openChoreoClient := createMockOpenChoreoClientForBuild()
@@ -306,7 +320,5 @@ func TestBuildAgent(t *testing.T) {
 }
 
 func setUpBuildTest(t *testing.T) {
-	_ = apitestutils.CreateOrganization(t, buildTestOrgId, buildTestUserIdpId, buildTestOrgName)
-	_ = apitestutils.CreateProject(t, buildTestProjId, buildTestOrgId, buildTestProjName)
-	_ = apitestutils.CreateAgent(t, uuid.New(), buildTestOrgId, buildTestProjId, buildTestAgentName, string(utils.InternalAgent))
+	_ = apitestutils.CreateAgent(t, uuid.New(), buildTestOrgName, buildTestProjName, buildTestAgentName, string(utils.InternalAgent))
 }

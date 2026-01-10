@@ -41,9 +41,6 @@ import (
 )
 
 var (
-	testOrgId        = uuid.New()
-	testProjId       = uuid.New()
-	testUserIdpId    = uuid.New()
 	testOrgName      = fmt.Sprintf("test-org-%s", uuid.New().String()[:5])
 	testProjName     = fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
 	testAgentNameOne = fmt.Sprintf("test-agent-%s", uuid.New().String()[:5])
@@ -52,7 +49,21 @@ var (
 
 func createMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
 	return &clientmocks.OpenChoreoSvcClientMock{
+		GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
+			if orgName == "nonexistent-org" {
+				return nil, utils.ErrOrganizationNotFound
+			}
+			return &models.OrganizationResponse{
+				Name:        orgName,
+				DisplayName: orgName,
+				CreatedAt:   time.Now(),
+				Status:      "ACTIVE",
+			}, nil
+		},
 		GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+			if projectName == "nonexistent-project" {
+				return nil, utils.ErrProjectNotFound
+			}
 			return &models.ProjectResponse{
 				Name:               projectName,
 				DisplayName:        projectName,
@@ -105,8 +116,7 @@ func createMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
 }
 
 func TestCreateAgent(t *testing.T) {
-	setUpTest(t)
-	authMiddleware := jwtassertion.NewMockMiddleware(t, testOrgId, testUserIdpId)
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Creating an agent with default interface should return 202", func(t *testing.T) {
 		openChoreoClient := createMockOpenChoreoClient()
@@ -171,7 +181,7 @@ func TestCreateAgent(t *testing.T) {
 		require.NotZero(t, payload.CreatedAt)
 
 		// Validate service calls
-		require.Len(t, openChoreoClient.GetProjectCalls(), 1)
+		require.Len(t, openChoreoClient.GetProjectCalls(), 2) // Called by CreateAgent and TriggerBuild
 		require.Len(t, openChoreoClient.CreateAgentComponentCalls(), 1)
 		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
 
@@ -250,7 +260,7 @@ func TestCreateAgent(t *testing.T) {
 		require.NotZero(t, payload.CreatedAt)
 
 		// Validate service calls
-		require.Len(t, openChoreoClient.GetProjectCalls(), 1)
+		require.Len(t, openChoreoClient.GetProjectCalls(), 2) // Called by CreateAgent and TriggerBuild
 		require.Len(t, openChoreoClient.CreateAgentComponentCalls(), 1)
 		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
 
@@ -345,7 +355,7 @@ func TestCreateAgent(t *testing.T) {
 		require.NotZero(t, payload.CreatedAt)
 
 		// Validate service calls
-		require.Len(t, openChoreoClient.GetProjectCalls(), 1)
+		require.Len(t, openChoreoClient.GetProjectCalls(), 2) // Called by CreateAgent and TriggerBuild
 		require.Len(t, openChoreoClient.CreateAgentComponentCalls(), 1)
 		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
 
@@ -886,9 +896,4 @@ func TestCreateAgent(t *testing.T) {
 			}
 		})
 	}
-}
-
-func setUpTest(t *testing.T) {
-	_ = apitestutils.CreateOrganization(t, testOrgId, testUserIdpId, testOrgName)
-	_ = apitestutils.CreateProject(t, testProjId, testOrgId, testProjName)
 }

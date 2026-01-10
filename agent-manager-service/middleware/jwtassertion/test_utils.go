@@ -21,16 +21,13 @@ import (
 	"net/http"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // NewMockMiddleware creates a mock JWT middleware for testing
-func NewMockMiddleware(t *testing.T, orgId uuid.UUID, userIdpId uuid.UUID) Middleware {
+func NewMockMiddleware(t *testing.T) Middleware {
 	t.Helper()
 
 	tokenClaims := &TokenClaims{
-		Sub:   userIdpId,
 		Scope: "scopes",
 		Exp:   int64(time.Now().Add(time.Hour).Unix()),
 	}
@@ -39,8 +36,10 @@ func NewMockMiddleware(t *testing.T, orgId uuid.UUID, userIdpId uuid.UUID) Middl
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
-			// Set the context values that GetTokenClaims expects
+			// Set the context values that the middleware expects
 			ctx = context.WithValue(ctx, assertionTokenClaimsKey, tokenClaims)
+			ctx = context.WithValue(ctx, jwtToken, "mock-jwt-token")
+			ctx = context.WithValue(ctx, scopesKey, tokenClaims.Scope)
 
 			r = r.WithContext(ctx)
 			next.ServeHTTP(w, r)

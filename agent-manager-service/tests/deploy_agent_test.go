@@ -41,9 +41,6 @@ import (
 )
 
 var (
-	deployTestOrgId     = uuid.New()
-	deployTestUserIdpId = uuid.New()
-	deployTestProjId    = uuid.New()
 	deployTestOrgName   = fmt.Sprintf("deploy-test-org-%s", uuid.New().String()[:5])
 	deployTestProjName  = fmt.Sprintf("deploy-test-project-%s", uuid.New().String()[:5])
 	deployTestAgentName = fmt.Sprintf("deploy-test-agent-%s", uuid.New().String()[:5])
@@ -51,7 +48,21 @@ var (
 
 func createMockOpenChoreoClientForDeploy() *clientmocks.OpenChoreoSvcClientMock {
 	return &clientmocks.OpenChoreoSvcClientMock{
+		GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
+			if orgName == "nonexistent-org" {
+				return nil, utils.ErrOrganizationNotFound
+			}
+			return &models.OrganizationResponse{
+				Name:        orgName,
+				DisplayName: orgName,
+				CreatedAt:   time.Now(),
+				Status:      "ACTIVE",
+			}, nil
+		},
 		GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+			if projectName == "nonexistent-project" {
+				return nil, utils.ErrProjectNotFound
+			}
 			return &models.ProjectResponse{
 				Name:               projectName,
 				DisplayName:        projectName,
@@ -92,7 +103,7 @@ func createMockOpenChoreoClientForDeploy() *clientmocks.OpenChoreoSvcClientMock 
 
 func TestDeployAgent(t *testing.T) {
 	setUpDeployTest(t)
-	authMiddleware := jwtassertion.NewMockMiddleware(t, deployTestOrgId, deployTestUserIdpId)
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Deploying agent with valid imageId should return 202", func(t *testing.T) {
 		openChoreoClient := createMockOpenChoreoClientForDeploy()
@@ -414,7 +425,5 @@ func TestDeployAgent(t *testing.T) {
 }
 
 func setUpDeployTest(t *testing.T) {
-	_ = apitestutils.CreateOrganization(t, deployTestOrgId, deployTestUserIdpId, deployTestOrgName)
-	_ = apitestutils.CreateProject(t, deployTestProjId, deployTestOrgId, deployTestProjName)
-	_ = apitestutils.CreateAgent(t, uuid.New(), deployTestOrgId, deployTestProjId, deployTestAgentName, string(utils.InternalAgent))
+	_ = apitestutils.CreateAgent(t, uuid.New(), deployTestOrgName, deployTestProjName, deployTestAgentName, string(utils.InternalAgent))
 }
