@@ -36,8 +36,6 @@ type BuildCIManagerService interface {
 
 type buildCIManagerService struct {
 	OpenChoreoSvcClient clients.OpenChoreoSvcClient
-	OrganizationRepo    repositories.OrganizationRepository
-	ProjectRepo         repositories.ProjectRepository
 	AgentRepo           repositories.AgentRepository
 	logger              *slog.Logger
 }
@@ -45,14 +43,10 @@ type buildCIManagerService struct {
 func NewBuildCIManager(
 	openChoreoSvcClient clients.OpenChoreoSvcClient,
 	logger *slog.Logger,
-	orgRepo repositories.OrganizationRepository,
-	projectRepo repositories.ProjectRepository,
 	agentRepo repositories.AgentRepository,
 ) BuildCIManagerService {
 	return &buildCIManagerService{
 		OpenChoreoSvcClient: openChoreoSvcClient,
-		OrganizationRepo:    orgRepo,
-		ProjectRepo:         projectRepo,
 		AgentRepo:           agentRepo,
 		logger:              logger,
 	}
@@ -60,27 +54,19 @@ func NewBuildCIManager(
 
 func (b *buildCIManagerService) HandleBuildCallback(ctx context.Context, orgName string, projectName string, agentName string) (string, error) {
 	// Get organization
-	org, err := b.OrganizationRepo.GetOrganizationByOcName(ctx, orgName)
+	org, err := b.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		if db.IsRecordNotFoundError(err) {
-			b.logger.Error("Organization not found", "organization", orgName)
-			return "", fmt.Errorf("organization not found: %s", orgName)
-		}
 		return "", fmt.Errorf("failed to find organization %s: %w", orgName, err)
 	}
 
 	// Get project
-	project, err := b.ProjectRepo.GetProjectByName(ctx, org.ID, projectName)
+	project, err := b.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
 	if err != nil {
-		if db.IsRecordNotFoundError(err) {
-			b.logger.Error("Project not found", "project", projectName, "organization", orgName)
-			return "", fmt.Errorf("project not found: %s", projectName)
-		}
-		return "", fmt.Errorf("failed to find project %s: %w", projectName, err)
+		return "", err
 	}
 
 	// Get agent from database
-	agent, err := b.AgentRepo.GetAgentByName(ctx, org.ID, project.ID, agentName)
+	agent, err := b.AgentRepo.GetAgentByName(ctx, org.Name, project.Name, agentName)
 	if err != nil {
 		if db.IsRecordNotFoundError(err) {
 			b.logger.Error("Agent not found", "agentName", agentName, "project", projectName, "organization", orgName)
@@ -92,7 +78,7 @@ func (b *buildCIManagerService) HandleBuildCallback(ctx context.Context, orgName
 		return "", fmt.Errorf("agent workload specification is missing for agent: %s", agentName)
 	}
 	// Build Workload CR template with placeholders
-	workloadCR, err := buildWorkloadCRTemplate(agent.AgentDetails.WorkloadSpec, org.OpenChoreoOrgName, projectName, agentName)
+	workloadCR, err := buildWorkloadCRTemplate(agent.AgentDetails.WorkloadSpec, org.Name, projectName, agentName)
 	if err != nil {
 		return "", err
 	}
@@ -100,7 +86,7 @@ func (b *buildCIManagerService) HandleBuildCallback(ctx context.Context, orgName
 	b.logger.Info("Successfully generated workload CR template",
 		"agentName", agentName,
 		"project", projectName,
-		"organization", org.OrgName)
+		"organization", org.Name)
 
 	return workloadCR, nil
 }

@@ -21,8 +21,8 @@ import (
 )
 
 // create table agents
-var migration005 = migration{
-	ID: 5,
+var migration004 = migration{
+	ID: 4,
 	Migrate: func(db *gorm.DB) error {
 		createTable := `CREATE TABLE agents
 (
@@ -31,17 +31,15 @@ var migration005 = migration{
    display_name  VARCHAR(100) NOT NULL,
    provisioning_type    VARCHAR(100) NOT NULL,
    description   TEXT,
-   project_id    UUID NOT NULL,
-   org_id        UUID NOT NULL,
+   project_name   VARCHAR(100) NOT NULL,
+   org_name        VARCHAR(100) NOT NULL,
    created_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
    updated_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
    deleted_at    TIMESTAMPTZ,
-   CONSTRAINT fk_agents_project_id FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-   CONSTRAINT fk_agents_org_id FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE,
    CONSTRAINT provisioning_type_enum check (provisioning_type in ('internal', 'external'))
 )`
 
-		createIndex := `CREATE UNIQUE INDEX uk_agents_name_project_org ON agents(name, project_id, org_id) WHERE deleted_at IS NULL`
+		createIndex := `CREATE UNIQUE INDEX uk_agents_name_project_org ON agents(name, project_name, org_name) WHERE deleted_at IS NULL`
 
 		return db.Transaction(func(tx *gorm.DB) error {
 			if err := runSQL(tx, createTable, createIndex); err != nil {

@@ -24,7 +24,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
@@ -66,11 +65,8 @@ func (c *agentController) GetAgent(w http.ResponseWriter, r *http.Request) {
 	projName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
 
-	// Extract user info from JWT token
-	tokenClaims := jwtassertion.GetTokenClaims(ctx)
-	userIdpId := tokenClaims.Sub
 
-	agent, err := c.agentService.GetAgent(ctx, userIdpId, orgName, projName, agentName)
+	agent, err := c.agentService.GetAgent(ctx,  orgName, projName, agentName)
 	if err != nil {
 		log.Error("GetAgent: failed to get agent", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
@@ -125,11 +121,11 @@ func (c *agentController) ListAgents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract user info from JWT token
-	tokenClaims := jwtassertion.GetTokenClaims(ctx)
-	userIdpId := tokenClaims.Sub
+	
+	
+	
 
-	agents, total, err := c.agentService.ListAgents(ctx, userIdpId, orgName, projName, int32(limit), int32(offset))
+	agents, total, err := c.agentService.ListAgents(ctx,  orgName, projName, int32(limit), int32(offset))
 	if err != nil {
 		log.Error("ListAgents: failed to list agents", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
@@ -163,9 +159,9 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	orgName := r.PathValue(utils.PathParamOrgName)
 	projName := r.PathValue(utils.PathParamProjName)
 
-	// Extract user info from JWT token
-	tokenClaims := jwtassertion.GetTokenClaims(ctx)
-	userIdpId := tokenClaims.Sub
+	
+	
+	
 
 	// Parse and validate request body
 	var payload spec.CreateAgentRequest
@@ -181,7 +177,7 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := c.agentService.CreateAgent(ctx, userIdpId, orgName, projName, &payload)
+	err := c.agentService.CreateAgent(ctx,  orgName, projName, &payload)
 	if err != nil {
 		log.Error("CreateAgent: failed to create agent", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
@@ -220,12 +216,8 @@ func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	orgName := r.PathValue(utils.PathParamOrgName)
 	projName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
-
-	// Extract user info from JWT token
-	tokenClaims := jwtassertion.GetTokenClaims(r.Context())
-	userIdpId := tokenClaims.Sub
-
-	err := c.agentService.DeleteAgent(ctx, userIdpId, orgName, projName, agentName)
+	
+	err := c.agentService.DeleteAgent(ctx,  orgName, projName, agentName)
 	if err != nil {
 		log.Error("DeleteAgent: failed to delete agent", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
@@ -257,11 +249,7 @@ func (c *agentController) BuildAgent(w http.ResponseWriter, r *http.Request) {
 		log.Debug("BuildAgent: commitId not provided, using latest commit")
 	}
 
-	// Extract user info from JWT token
-	tokenClaims := jwtassertion.GetTokenClaims(r.Context())
-	userIdpId := tokenClaims.Sub
-
-	build, err := c.agentService.BuildAgent(ctx, userIdpId, orgName, projName, agentName, commitId)
+	build, err := c.agentService.BuildAgent(ctx,  orgName, projName, agentName, commitId)
 	if err != nil {
 		log.Error("BuildAgent: failed to build agent", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
@@ -292,10 +280,10 @@ func (c *agentController) GetBuildLogs(w http.ResponseWriter, r *http.Request) {
 	agentName := r.PathValue(utils.PathParamAgentName)
 	buildName := r.PathValue(utils.PathParamBuildName)
 
-	// Extract user info from JWT token
-	tokenClaims := jwtassertion.GetTokenClaims(ctx)
-	userIdpId := tokenClaims.Sub
-	buildLogs, err := c.agentService.GetBuildLogs(ctx, userIdpId, orgName, projName, agentName, buildName)
+	
+	
+	
+	buildLogs, err := c.agentService.GetBuildLogs(ctx,  orgName, projName, agentName, buildName)
 	if err != nil {
 		log.Error("GetBuildLogs: failed to get build logs", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
@@ -330,9 +318,9 @@ func (c *agentController) DeployAgent(w http.ResponseWriter, r *http.Request) {
 	projName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
 
-	// Extract user info from JWT token
-	tokenClaims := jwtassertion.GetTokenClaims(ctx)
-	userIdpId := tokenClaims.Sub
+	
+	
+	
 
 	// Parse and validate request body
 	var payload spec.DeployAgentRequest
@@ -348,7 +336,7 @@ func (c *agentController) DeployAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deployedEnv, err := c.agentService.DeployAgent(ctx, userIdpId, orgName, projName, agentName, &payload)
+	deployedEnv, err := c.agentService.DeployAgent(ctx,  orgName, projName, agentName, &payload)
 	if err != nil {
 		log.Error("DeployAgent: failed to deploy agent", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
@@ -410,11 +398,11 @@ func (c *agentController) ListAgentBuilds(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Extract user info from JWT token
-	tokenClaims := jwtassertion.GetTokenClaims(ctx)
-	userIdpId := tokenClaims.Sub
+	
+	
+	
 
-	builds, total, err := c.agentService.ListAgentBuilds(ctx, userIdpId, orgName, projName, agentName, int32(limit), int32(offset))
+	builds, total, err := c.agentService.ListAgentBuilds(ctx,  orgName, projName, agentName, int32(limit), int32(offset))
 	if err != nil {
 		log.Error("ListAgentBuilds: failed to list agent builds", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
@@ -451,9 +439,9 @@ func (c *agentController) GenerateName(w http.ResponseWriter, r *http.Request) {
 	// Extract path parameters
 	orgName := r.PathValue(utils.PathParamOrgName)
 
-	// Extract user info from JWT token
-	tokenClaims := jwtassertion.GetTokenClaims(ctx)
-	userIdpId := tokenClaims.Sub
+	
+	
+	
 
 	// Parse and validate request body
 	var payload spec.ResourceNameRequest
@@ -470,7 +458,7 @@ func (c *agentController) GenerateName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	candidateName, err := c.agentService.GenerateName(ctx, userIdpId, orgName, payload)
+	candidateName, err := c.agentService.GenerateName(ctx,  orgName, payload)
 	if err != nil {
 		log.Error("GenerateAgentName: failed to generate agent name", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
@@ -503,11 +491,11 @@ func (c *agentController) GetBuild(w http.ResponseWriter, r *http.Request) {
 	agentName := r.PathValue(utils.PathParamAgentName)
 	buildName := r.PathValue(utils.PathParamBuildName)
 
-	// Extract user info from JWT token
-	tokenClaims := jwtassertion.GetTokenClaims(ctx)
-	userIdpId := tokenClaims.Sub
+	
+	
+	
 
-	build, err := c.agentService.GetBuild(ctx, userIdpId, orgName, projName, agentName, buildName)
+	build, err := c.agentService.GetBuild(ctx,  orgName, projName, agentName, buildName)
 	if err != nil {
 		log.Error("GetBuild: failed to get build", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
@@ -543,11 +531,11 @@ func (c *agentController) GetAgentDeployments(w http.ResponseWriter, r *http.Req
 	projName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
 
-	// Extract user info from JWT token
-	tokenClaims := jwtassertion.GetTokenClaims(ctx)
-	userIdpId := tokenClaims.Sub
+	
+	
+	
 
-	deployments, err := c.agentService.GetAgentDeployments(ctx, userIdpId, orgName, projName, agentName)
+	deployments, err := c.agentService.GetAgentDeployments(ctx,  orgName, projName, agentName)
 	if err != nil {
 		log.Error("GetAgentDeployments: failed to get deployments", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
@@ -585,11 +573,11 @@ func (c *agentController) GetAgentEndpoints(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Extract user info from JWT token
-	tokenClaims := jwtassertion.GetTokenClaims(ctx)
-	userIdpId := tokenClaims.Sub
+	
+	
+	
 
-	endpoints, err := c.agentService.GetAgentEndpoints(ctx, userIdpId, orgName, projName, agentName, environment)
+	endpoints, err := c.agentService.GetAgentEndpoints(ctx,  orgName, projName, agentName, environment)
 	if err != nil {
 		log.Error("GetAgentEndpoints: failed to get agent endpoints", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
@@ -628,11 +616,11 @@ func (c *agentController) GetAgentConfigurations(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Extract user info from JWT token
-	tokenClaims := jwtassertion.GetTokenClaims(ctx)
-	userIdpId := tokenClaims.Sub
+	
+	
+	
 
-	configurations, err := c.agentService.GetAgentConfigurations(ctx, userIdpId, orgName, projName, agentName, environment)
+	configurations, err := c.agentService.GetAgentConfigurations(ctx,  orgName, projName, agentName, environment)
 	if err != nil {
 		log.Error("GetAgentConfigurations: failed to get configurations", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {

@@ -37,24 +37,22 @@ import (
 )
 
 type AgentManagerService interface {
-	ListAgents(ctx context.Context, userIdpId uuid.UUID, orgName string, projName string, limit int32, offset int32) ([]*models.AgentResponse, int32, error)
-	CreateAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, req *spec.CreateAgentRequest) error
-	BuildAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, commitId string) (*models.BuildResponse, error)
-	DeleteAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string) error
-	DeployAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, req *spec.DeployAgentRequest) (string, error)
-	GetAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string) (*models.AgentResponse, error)
-	ListAgentBuilds(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, limit int32, offset int32) ([]*models.BuildResponse, int32, error)
-	GetBuild(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, buildName string) (*models.BuildDetailsResponse, error)
-	GetAgentDeployments(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string) ([]*models.DeploymentResponse, error)
-	GetAgentEndpoints(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, environmentName string) (map[string]models.EndpointsResponse, error)
-	GetAgentConfigurations(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error)
-	GetBuildLogs(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, buildName string) (*models.BuildLogsResponse, error)
-	GenerateName(ctx context.Context, userIdpId uuid.UUID, orgName string, payload spec.ResourceNameRequest) (string, error)
+	ListAgents(ctx context.Context,  orgName string, projName string, limit int32, offset int32) ([]*models.AgentResponse, int32, error)
+	CreateAgent(ctx context.Context,  orgName string, projectName string, req *spec.CreateAgentRequest) error
+	BuildAgent(ctx context.Context,  orgName string, projectName string, agentName string, commitId string) (*models.BuildResponse, error)
+	DeleteAgent(ctx context.Context,  orgName string, projectName string, agentName string) error
+	DeployAgent(ctx context.Context,  orgName string, projectName string, agentName string, req *spec.DeployAgentRequest) (string, error)
+	GetAgent(ctx context.Context,  orgName string, projectName string, agentName string) (*models.AgentResponse, error)
+	ListAgentBuilds(ctx context.Context,  orgName string, projectName string, agentName string, limit int32, offset int32) ([]*models.BuildResponse, int32, error)
+	GetBuild(ctx context.Context,  orgName string, projectName string, agentName string, buildName string) (*models.BuildDetailsResponse, error)
+	GetAgentDeployments(ctx context.Context,  orgName string, projectName string, agentName string) ([]*models.DeploymentResponse, error)
+	GetAgentEndpoints(ctx context.Context,  orgName string, projectName string, agentName string, environmentName string) (map[string]models.EndpointsResponse, error)
+	GetAgentConfigurations(ctx context.Context,  orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error)
+	GetBuildLogs(ctx context.Context,  orgName string, projectName string, agentName string, buildName string) (*models.BuildLogsResponse, error)
+	GenerateName(ctx context.Context,  orgName string, payload spec.ResourceNameRequest) (string, error)
 }
 
 type agentManagerService struct {
-	OrganizationRepository  repositories.OrganizationRepository
-	ProjectRepository       repositories.ProjectRepository
 	AgentRepository         repositories.AgentRepository
 	InternalAgentRepository repositories.InternalAgentRepository
 	OpenChoreoSvcClient     clients.OpenChoreoSvcClient
@@ -63,8 +61,6 @@ type agentManagerService struct {
 }
 
 func NewAgentManagerService(
-	orgRepo repositories.OrganizationRepository,
-	projRepo repositories.ProjectRepository,
 	agentRepo repositories.AgentRepository,
 	internalAgentRepo repositories.InternalAgentRepository,
 	openChoreoSvcClient clients.OpenChoreoSvcClient,
@@ -72,8 +68,6 @@ func NewAgentManagerService(
 	logger *slog.Logger,
 ) AgentManagerService {
 	return &agentManagerService{
-		OrganizationRepository:  orgRepo,
-		ProjectRepository:       projRepo,
 		AgentRepository:         agentRepo,
 		InternalAgentRepository: internalAgentRepo,
 		OpenChoreoSvcClient:     openChoreoSvcClient,
@@ -82,17 +76,13 @@ func NewAgentManagerService(
 	}
 }
 
-func (s *agentManagerService) GetAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string) (*models.AgentResponse, error) {
-	s.logger.Info("Getting agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "userIdpId", userIdpId)
+func (s *agentManagerService) GetAgent(ctx context.Context,  orgName string, projectName string, agentName string) (*models.AgentResponse, error) {
+	s.logger.Info("Getting agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, )
 	// Validate organization exists
-	_, err := s.OrganizationRepository.GetOrganizationByOrgName(ctx, userIdpId, orgName)
+	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		if db.IsRecordNotFoundError(err) {
-			s.logger.Error("Organization not found", "orgName", orgName, "userIdpId", userIdpId)
-			return nil, utils.ErrOrganizationNotFound
-		}
-		s.logger.Error("Failed to find organization", "orgName", orgName, "userIdpId", userIdpId, "error", err)
-		return nil, fmt.Errorf("failed to find organization %s: %w", orgName, err)
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return nil, err
 	}
 	ocAgentComponent, err := s.OpenChoreoSvcClient.GetAgentComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
@@ -107,30 +97,27 @@ func (s *agentManagerService) GetAgent(ctx context.Context, userIdpId uuid.UUID,
 	return s.convertManagedAgentToAgentResponse(ocAgentComponent), nil
 }
 
-func (s *agentManagerService) ListAgents(ctx context.Context, userIdpId uuid.UUID, orgName string, projName string, limit int32, offset int32) ([]*models.AgentResponse, int32, error) {
-	s.logger.Info("Listing agents", "orgName", orgName, "projectName", projName, "limit", limit, "offset", offset, "userIdpId", userIdpId)
+func (s *agentManagerService) ListAgents(ctx context.Context,  orgName string, projName string, limit int32, offset int32) ([]*models.AgentResponse, int32, error) {
+	s.logger.Info("Listing agents", "orgName", orgName, "projectName", projName, "limit", limit, "offset", offset, )
 	// Validate organization exists
-	org, err := s.OrganizationRepository.GetOrganizationByOrgName(ctx, userIdpId, orgName)
+	_ , err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to find organization", "orgName", orgName, "userIdpId", userIdpId, "error", err)
-		if db.IsRecordNotFoundError(err) {
-			return nil, 0, utils.ErrOrganizationNotFound
-		}
-		return nil, 0, fmt.Errorf("failed to find organization %s: %w", orgName, err)
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return nil, 0, err
 	}
-	project, err := s.ProjectRepository.GetProjectByName(ctx, org.ID, projName)
+	_ , err = s.OpenChoreoSvcClient.GetProject(ctx, projName, orgName)
 	if err != nil {
 		if db.IsRecordNotFoundError(err) {
-			s.logger.Error("Project not found", "projectName", projName, "orgId", org.ID)
+			s.logger.Error("Project not found", "projectName", projName, "org", orgName)
 			return nil, 0, utils.ErrProjectNotFound
 		}
-		s.logger.Error("Failed to find project", "projectName", projName, "orgId", org.ID, "error", err)
+		s.logger.Error("Failed to find project", "projectName", projName, "org", orgName, "error", err)
 		return nil, 0, fmt.Errorf("failed to find project %s: %w", projName, err)
 	}
 	// Fetch all agents from the database
 	agents, err := s.OpenChoreoSvcClient.ListAgentComponents(ctx, orgName, projName)
 	if err != nil {
-		s.logger.Error("Failed to list agents from repository", "orgId", org.ID, "projectId", project.ID, "error", err)
+		s.logger.Error("Failed to list agents from repository", "orgName", orgName,  "projectName", projName, "error", err)
 		return nil, 0, fmt.Errorf("failed to list external agents: %w", err)
 	}
 	var allAgents []*models.AgentResponse
@@ -157,43 +144,40 @@ func (s *agentManagerService) ListAgents(ctx context.Context, userIdpId uuid.UUI
 	return paginatedAgents, total, nil
 }
 
-func (s *agentManagerService) CreateAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, req *spec.CreateAgentRequest) error {
-	s.logger.Info("Creating agent", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "provisioningType", req.Provisioning.Type, "userIdpId", userIdpId)
+func (s *agentManagerService) CreateAgent(ctx context.Context,  orgName string, projectName string, req *spec.CreateAgentRequest) error {
+	s.logger.Info("Creating agent", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "provisioningType", req.Provisioning.Type, )
 	// Validate organization exists
-	org, err := s.OrganizationRepository.GetOrganizationByOrgName(ctx, userIdpId, orgName)
+	org, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to find organization", "orgName", orgName, "userIdpId", userIdpId, "error", err)
-		if db.IsRecordNotFoundError(err) {
-			return utils.ErrOrganizationNotFound
-		}
-		return fmt.Errorf("failed to find organization %s: %w", orgName, err)
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return err
 	}
 	// Validate project exists in OpenChoreo
 	_, err = s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
 	if err != nil {
-		s.logger.Error("Failed to find project", "projectName", projectName, "orgId", org.ID, "error", err)
+		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
 		return err
 	}
 	// Check if agent already exists
 	agent, err := s.OpenChoreoSvcClient.GetAgentComponent(ctx, orgName, projectName, req.Name)
 	if err != nil && !errors.Is(err, utils.ErrAgentNotFound) {
-		s.logger.Error("Failed to check existing agents", "agentName", req.Name, "orgId", org.ID, "project", projectName, "error", err)
+		s.logger.Error("Failed to check existing agents", "agentName", req.Name, "orgName", org.Name, "project", projectName, "error", err)
 		return fmt.Errorf("failed to check existing agents: %w", err)
 	}
 	if agent != nil {
-		s.logger.Warn("Agent already exists", "agentName", req.Name, "orgId", org.ID, "project", projectName)
+		s.logger.Warn("Agent already exists", "agentName", req.Name, "orgName", org.Name, "project", projectName)
 		return utils.ErrAgentAlreadyExists
 	}
-	project, err := s.ProjectRepository.GetProjectByName(ctx, org.ID, projectName)
+	project, err := s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
 	if err != nil {
-		s.logger.Error("Failed to find project", "projectName", projectName, "orgId", org.ID, "error", err)
+		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
 		if db.IsRecordNotFoundError(err) {
 			return utils.ErrProjectNotFound
 		}
 		return err
 	}
 	// Save agent record in database first
-	err = s.saveAgentRecord(ctx, org.ID, project.ID, req)
+	err = s.saveAgentRecord(ctx, org.Name, project.Name, req)
 	if err != nil {
 		s.logger.Error("Failed to save agent record", "agentName", req.Name, "error", err)
 		return err
@@ -202,7 +186,7 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, userIdpId uuid.UU
 	if err != nil {
 		s.logger.Error("OpenChoreo creation failed, initiating rollback", "agentName", req.Name, "error", err)
 		// OpenChoreo creation failed, rollback database record
-		if deleteErr := s.deleteAgentRecord(ctx, org.ID, project.ID, req.Name, false); deleteErr != nil {
+		if deleteErr := s.deleteAgentRecord(ctx, org.Name, project.Name, req.Name, false); deleteErr != nil {
 			s.logger.Error("Critical: Agent exists in database but not in OpenChoreo, manual cleanup required",
 				"agentName", req.Name, "orgName", orgName, "projectName", projectName, "error", deleteErr)
 		}
@@ -213,17 +197,13 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, userIdpId uuid.UU
 	return nil
 }
 
-func (s *agentManagerService) GenerateName(ctx context.Context, userIdpId uuid.UUID, orgName string, payload spec.ResourceNameRequest) (string, error) {
-	s.logger.Info("Generating resource name", "resourceType", payload.ResourceType, "displayName", payload.DisplayName, "orgName", orgName, "userIdpId", userIdpId)
+func (s *agentManagerService) GenerateName(ctx context.Context,  orgName string, payload spec.ResourceNameRequest) (string, error) {
+	s.logger.Info("Generating resource name", "resourceType", payload.ResourceType, "displayName", payload.DisplayName, "orgName", orgName, )
 	// Validate organization exists
-	org, err := s.OrganizationRepository.GetOrganizationByOrgName(ctx, userIdpId, orgName)
+	org, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		if db.IsRecordNotFoundError(err) {
-			s.logger.Error("Organization not found", "orgName", orgName, "userIdpId", userIdpId)
-			return "", utils.ErrOrganizationNotFound
-		}
-		s.logger.Error("Failed to find organization", "orgName", orgName, "userIdpId", userIdpId, "error", err)
-		return "", fmt.Errorf("failed to find organization %s: %w", orgName, err)
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return "", err
 	}
 
 	// Generate candidate name from display name
@@ -233,9 +213,9 @@ func (s *agentManagerService) GenerateName(ctx context.Context, userIdpId uuid.U
 	if payload.ResourceType == string(utils.ResourceTypeAgent) {
 		projectName := utils.StrPointerAsStr(payload.ProjectName, "")
 		// Validates the project name by checking its existence
-		project, err := s.ProjectRepository.GetProjectByName(ctx, org.ID, projectName)
+		project, err := s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
 		if err != nil {
-			s.logger.Error("Failed to find project", "projectName", projectName, "orgId", org.ID, "error", err)
+			s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
 			if db.IsRecordNotFoundError(err) {
 				return "", utils.ErrProjectNotFound
 			}
@@ -243,21 +223,21 @@ func (s *agentManagerService) GenerateName(ctx context.Context, userIdpId uuid.U
 		}
 
 		// Check if candidate name is available
-		_, err = s.AgentRepository.GetAgentByName(ctx, org.ID, project.ID, candidateName)
+		_, err = s.AgentRepository.GetAgentByName(ctx, org.Name, project.Name, candidateName)
 		if err != nil && db.IsRecordNotFoundError(err) {
 			// Name is available, return it
 			s.logger.Info("Generated unique agent name from display name", "agentName", candidateName, "orgName", orgName, "projectName", projectName)
 			return candidateName, nil
 		}
 		if err != nil {
-			s.logger.Error("Failed to check agent name availability", "name", candidateName, "orgId", org.ID, "projectId", project.ID, "error", err)
+			s.logger.Error("Failed to check agent name availability", "name", candidateName, "orgName", org.Name, "projectName", project.Name, "error", err)
 			return "", fmt.Errorf("failed to check agent name availability: %w", err)
 		}
 
 		// Name is taken, generate unique name with suffix
-		uniqueName, err := s.generateUniqueAgentName(ctx, org.ID, project.ID, candidateName)
+		uniqueName, err := s.generateUniqueAgentName(ctx, org.Name, project.Name, candidateName)
 		if err != nil {
-			s.logger.Error("Failed to generate unique agent name", "baseName", candidateName, "orgId", org.ID, "projectId", project.ID, "error", err)
+			s.logger.Error("Failed to generate unique agent name", "baseName", candidateName, "orgName", org.Name, "projectName", project.Name, "error", err)
 			return "", fmt.Errorf("failed to generate unique agent name: %w", err)
 		}
 		s.logger.Info("Generated unique agent name", "agentName", uniqueName, "orgName", orgName, "projectName", projectName)
@@ -265,20 +245,20 @@ func (s *agentManagerService) GenerateName(ctx context.Context, userIdpId uuid.U
 	}
 	if payload.ResourceType == string(utils.ResourceTypeProject) {
 		// Check if candidate name is available
-		_, err = s.ProjectRepository.GetProjectByName(ctx, org.ID, candidateName)
-		if err != nil && db.IsRecordNotFoundError(err) {
+		_, err = s.OpenChoreoSvcClient.GetProject(ctx, candidateName, org.Name)
+		if err != nil && err == utils.ErrProjectNotFound {
 			// Name is available, return it
 			s.logger.Info("Generated unique project name", "projectName", candidateName, "orgName", orgName)
 			return candidateName, nil
 		}
 		if err != nil {
-			s.logger.Error("Failed to check project name availability", "name", candidateName, "orgId", org.ID, "error", err)
+			s.logger.Error("Failed to check project name availability", "name", candidateName, "orgName", org.Name, "error", err)
 			return "", fmt.Errorf("failed to check project name availability: %w", err)
 		}
 		// Name is taken, generate unique name with suffix
-		uniqueName, err := s.generateUniqueProjectName(ctx, org.ID, candidateName)
+		uniqueName, err := s.generateUniqueProjectName(ctx, org.Name, candidateName)
 		if err != nil {
-			s.logger.Error("Failed to generate unique project name", "baseName", candidateName, "orgId", org.ID, "error", err)
+			s.logger.Error("Failed to generate unique project name", "baseName", candidateName, "orgName", org.Name, "error", err)
 			return "", fmt.Errorf("failed to generate unique project name: %w", err)
 		}
 		s.logger.Info("Generated unique project name", "projectName", uniqueName, "orgName", orgName)
@@ -288,16 +268,16 @@ func (s *agentManagerService) GenerateName(ctx context.Context, userIdpId uuid.U
 }
 
 // generateUniqueProjectName creates a unique name by appending a random suffix
-func (s *agentManagerService) generateUniqueProjectName(ctx context.Context, orgId uuid.UUID, baseName string) (string, error) {
+func (s *agentManagerService) generateUniqueProjectName(ctx context.Context, orgName string, baseName string) (string, error) {
 	// Create a name availability checker function that uses the project repository
 	nameChecker := func(name string) (bool, error) {
-		_, err := s.ProjectRepository.GetProjectByName(ctx, orgId, name)
-		if err != nil && db.IsRecordNotFoundError(err) {
+		_, err := s.OpenChoreoSvcClient.GetProject(ctx, name, orgName )
+		if err != nil && err == utils.ErrProjectNotFound {
 			// Name is available
 			return true, nil
 		}
 		if err != nil {
-			s.logger.Error("Failed to check project name availability", "name", name, "orgId", orgId, "error", err)
+			s.logger.Error("Failed to check project name availability", "name", name, "orgName", orgName, "error", err)
 			return false, fmt.Errorf("failed to check project name availability: %w", err)
 		}
 		// Name is taken
@@ -307,7 +287,7 @@ func (s *agentManagerService) generateUniqueProjectName(ctx context.Context, org
 	// Use the common unique name generation logic from utils
 	uniqueName, err := utils.GenerateUniqueNameWithSuffix(baseName, nameChecker)
 	if err != nil {
-		s.logger.Error("Failed to generate unique project name", "baseName", baseName, "orgId", orgId, "error", err)
+		s.logger.Error("Failed to generate unique project name", "baseName", baseName, "orgName", orgName, "error", err)
 		return "", fmt.Errorf("failed to generate unique project name: %w", err)
 	}
 
@@ -315,10 +295,10 @@ func (s *agentManagerService) generateUniqueProjectName(ctx context.Context, org
 }
 
 // generateUniqueAgentName creates a unique name by appending a random suffix
-func (s *agentManagerService) generateUniqueAgentName(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, baseName string) (string, error) {
+func (s *agentManagerService) generateUniqueAgentName(ctx context.Context, orgName string, projectName string, baseName string) (string, error) {
 	// Create a name availability checker function that uses the agent repository
 	nameChecker := func(name string) (bool, error) {
-		_, err := s.AgentRepository.GetAgentByName(ctx, orgId, projectId, name)
+		_, err := s.AgentRepository.GetAgentByName(ctx, orgName, projectName, name)
 		if err != nil && db.IsRecordNotFoundError(err) {
 			// Name is available
 			return true, nil
@@ -339,7 +319,7 @@ func (s *agentManagerService) generateUniqueAgentName(ctx context.Context, orgId
 	return uniqueName, nil
 }
 
-func (s *agentManagerService) saveAgentRecord(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, req *spec.CreateAgentRequest) error {
+func (s *agentManagerService) saveAgentRecord(ctx context.Context, orgName string, projectName string, req *spec.CreateAgentRequest) error {
 	agentId := uuid.New()
 
 	// Execute database operations in a transaction
@@ -353,8 +333,8 @@ func (s *agentManagerService) saveAgentRecord(ctx context.Context, orgId uuid.UU
 			ProvisioningType: req.Provisioning.Type,
 			DisplayName:      req.DisplayName,
 			Description:      utils.StrPointerAsStr(req.Description, ""),
-			ProjectId:        projectId,
-			OrgID:            orgId,
+			ProjectName:        projectName,
+			OrgName:            orgName,
 			CreatedAt:        time.Now(),
 			UpdatedAt:        time.Now(),
 		}
@@ -415,36 +395,33 @@ func (s *agentManagerService) createOpenChoreoAgentComponent(ctx context.Context
 	return nil
 }
 
-func (s *agentManagerService) DeleteAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string) error {
-	s.logger.Info("Deleting agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "userIdpId", userIdpId)
+func (s *agentManagerService) DeleteAgent(ctx context.Context,  orgName string, projectName string, agentName string) error {
+	s.logger.Info("Deleting agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, )
 	// Validate organization exists
-	org, err := s.OrganizationRepository.GetOrganizationByOrgName(ctx, userIdpId, orgName)
+	org, err := s.OpenChoreoSvcClient.GetOrganization(ctx,orgName)
 	if err != nil {
-		s.logger.Error("Failed to find organization", "orgName", orgName, "userIdpId", userIdpId, "error", err)
-		if db.IsRecordNotFoundError(err) {
-			return utils.ErrOrganizationNotFound
-		}
-		return fmt.Errorf("failed to find organization %s: %w", orgName, err)
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return err
 	}
-	project, err := s.ProjectRepository.GetProjectByName(ctx, org.ID, projectName)
+	project, err := s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
 	if err != nil {
-		s.logger.Error("Failed to find project", "projectName", projectName, "orgId", org.ID, "error", err)
+		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
 		if db.IsRecordNotFoundError(err) {
 			return utils.ErrProjectNotFound
 		}
 		return fmt.Errorf("failed to find project %s: %w", projectName, err)
 	}
 	// Check if agent exists in the database
-	_, err = s.AgentRepository.GetAgentByName(ctx, org.ID, project.ID, agentName)
+	_, err = s.AgentRepository.GetAgentByName(ctx, org.Name, project.Name, agentName)
 	if err != nil {
 		// DELETE is idempotent
-		s.logger.Error("Failed to check existing agents", "agentName", agentName, "orgId", org.ID, "projectId", project.ID, "error", err)
+		s.logger.Error("Failed to check existing agents", "agentName", agentName, "orgName", org.Name, "projectName", project.Name, "error", err)
 		if db.IsRecordNotFoundError(err) {
 			return nil
 		}
 		return fmt.Errorf("failed to check existing agents: %w", err)
 	}
-	err = s.handleAgentDeletion(ctx, org.ID, project.ID, orgName, projectName, agentName)
+	err = s.handleAgentDeletion(ctx, org.Name, project.Name, agentName)
 	if err != nil {
 		s.logger.Error("Failed to delete oc agent", "agentName", agentName, "error", err)
 		return err
@@ -452,72 +429,69 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, userIdpId uuid.UU
 	return nil
 }
 
-func (s *agentManagerService) handleAgentDeletion(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, orgName string, projectName string, agentName string) error {
+func (s *agentManagerService) handleAgentDeletion(ctx context.Context, orgName string, projectName string, agentName string) error {
 	// Soft delete agent from database
 	s.logger.Debug("Handling project deletion", "orgName", orgName, "projectName", projectName)
-	if err := s.AgentRepository.SoftDeleteAgentByName(ctx, orgId, projectId, agentName); err != nil {
-		s.logger.Error("Failed to soft delete agent from repository", "agentName", agentName, "orgId", orgId, "projectId", projectId, "error", err)
+	if err := s.AgentRepository.SoftDeleteAgentByName(ctx, orgName, projectName, agentName); err != nil {
+		s.logger.Error("Failed to soft delete agent from repository", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
 		return fmt.Errorf("failed to delete agent %s from repository: %w", projectName, err)
 	}
 	// Delete agent from OpenChoreo
 	err := s.OpenChoreoSvcClient.DeleteAgentComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
 		// Delete agent from OpenChoreo failed, rollback database changes
-		err := s.AgentRepository.RollbackSoftDeleteAgent(ctx, orgId, projectId, agentName)
+		err := s.AgentRepository.RollbackSoftDeleteAgent(ctx, orgName, projectName, agentName)
 		if err != nil {
 			s.logger.Error("Critical: Agent exists in database but not in OpenChoreo, manual cleanup required",
-				"projectId", projectId, "projectName", projectName, "orgName", orgName, "error", err)
+				"projectName", projectName, "orgName", orgName, "error", err)
 		}
 		return fmt.Errorf("failed to delete agent %s from OpenChoreo and database: %w", agentName, err)
 	}
 	s.logger.Debug("Agent deleted from OpenChoreo successfully", "orgName", orgName, "agentName", agentName)
 	// Delete agent from database
-	if err := s.AgentRepository.HardDeleteAgentByName(ctx, orgId, projectId, agentName); err != nil {
+	if err := s.AgentRepository.HardDeleteAgentByName(ctx, orgName, projectName, agentName); err != nil {
 		s.logger.Error("Critical: Agent deleted from OpenChoreo but DB deletion failed, retry required",
-			"projectId", projectId, "projectName", projectName, "orgName", orgName, "error", err)
+			"orgName", orgName, "projectName", projectName, "error", err)
 		return fmt.Errorf("failed to delete agent %s from repository: %w", agentName, err)
 	}
 	return nil
 }
 
-func (s *agentManagerService) deleteAgentRecord(ctx context.Context, orgId uuid.UUID, projectId uuid.UUID, agentName string, isSoftDelete bool) error {
+func (s *agentManagerService) deleteAgentRecord(ctx context.Context, orgName string, projectName string, agentName string, isSoftDelete bool) error {
 	// Delete agent record from the database
 	if isSoftDelete {
-		if err := s.AgentRepository.SoftDeleteAgentByName(ctx, orgId, projectId, agentName); err != nil {
-			s.logger.Error("Failed to soft delete agent record", "agentName", agentName, "orgId", orgId, "projectId", projectId, "error", err)
+		if err := s.AgentRepository.SoftDeleteAgentByName(ctx, orgName, projectName, agentName); err != nil {
+			s.logger.Error("Failed to soft delete agent record", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
 			return fmt.Errorf("failed to delete agent record: agentName %s, error: %w", agentName, err)
 		}
 	} else {
-		if err := s.AgentRepository.HardDeleteAgentByName(ctx, orgId, projectId, agentName); err != nil {
-			s.logger.Error("Failed to hard delete agent record", "agentName", agentName, "orgId", orgId, "projectId", projectId, "error", err)
+		if err := s.AgentRepository.HardDeleteAgentByName(ctx, orgName, projectName, agentName); err != nil {
+			s.logger.Error("Failed to hard delete agent record", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
 			return fmt.Errorf("failed to hard delete agent record: agentName %s, error: %w", agentName, err)
 		}
 	}
-	s.logger.Info("Agent record deleted successfully", "agentName", agentName, "orgId", orgId, "projectId", projectId, "isSoftDelete", isSoftDelete)
+	s.logger.Info("Agent record deleted successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName, "isSoftDelete", isSoftDelete)
 	return nil
 }
 
 // BuildAgent triggers a build for an agent.
-func (s *agentManagerService) BuildAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, commitId string) (*models.BuildResponse, error) {
-	s.logger.Info("Building agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "commitId", commitId, "userIdpId", userIdpId)
+func (s *agentManagerService) BuildAgent(ctx context.Context,  orgName string, projectName string, agentName string, commitId string) (*models.BuildResponse, error) {
+	s.logger.Info("Building agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "commitId", commitId, )
 	// Validate organization exists
-	org, err := s.OrganizationRepository.GetOrganizationByOrgName(ctx, userIdpId, orgName)
+	org, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to find organization", "orgName", orgName, "userIdpId", userIdpId, "error", err)
-		if db.IsRecordNotFoundError(err) {
-			return nil, utils.ErrOrganizationNotFound
-		}
-		return nil, fmt.Errorf("failed to find organization %s: %w", orgName, err)
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return nil, err
 	}
-	project, err := s.ProjectRepository.GetProjectByName(ctx, org.ID, projectName)
+	project, err := s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
 	if err != nil {
-		s.logger.Error("Failed to find project", "projectName", projectName, "orgId", org.ID, "error", err)
+		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
 		if db.IsRecordNotFoundError(err) {
 			return nil, utils.ErrProjectNotFound
 		}
 		return nil, fmt.Errorf("failed to find project %s: %w", projectName, err)
 	}
-	agent, err := s.AgentRepository.GetAgentByName(ctx, org.ID, project.ID, agentName)
+	agent, err := s.AgentRepository.GetAgentByName(ctx, org.Name, project.Name, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent from repository", "agentName", agentName, "error", err)
 		if db.IsRecordNotFoundError(err) {
@@ -538,7 +512,7 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, userIdpId uuid.UUI
 		}
 		return nil, fmt.Errorf("failed to trigger build: agentName %s, error: %w", agentName, err)
 	}
-	err = s.AgentRepository.UpdateAgentTimestamp(ctx, org.ID, project.ID, agentName)
+	err = s.AgentRepository.UpdateAgentTimestamp(ctx, org.Name, project.Name, agentName)
 	if err != nil {
 		s.logger.Error("Failed to update agent timestamp after successfully triggering the build", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
 	}
@@ -547,25 +521,22 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, userIdpId uuid.UUI
 }
 
 // DeployAgent deploys an agent.
-func (s *agentManagerService) DeployAgent(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, req *spec.DeployAgentRequest) (string, error) {
-	s.logger.Info("Deploying agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "imageId", req.ImageId, "userIdpId", userIdpId)
-	org, err := s.OrganizationRepository.GetOrganizationByOrgName(ctx, userIdpId, orgName)
+func (s *agentManagerService) DeployAgent(ctx context.Context,  orgName string, projectName string, agentName string, req *spec.DeployAgentRequest) (string, error) {
+	s.logger.Info("Deploying agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "imageId", req.ImageId, )
+	org, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to find organization", "orgName", orgName, "userIdpId", userIdpId, "error", err)
-		if db.IsRecordNotFoundError(err) {
-			return "", utils.ErrOrganizationNotFound
-		}
-		return "", fmt.Errorf("failed to find organization %s: %w", orgName, err)
+		s.logger.Error("Failed to find organization", "orgName", orgName,  "error", err)
+		return "", err
 	}
-	project, err := s.ProjectRepository.GetProjectByName(ctx, org.ID, projectName)
+	project, err := s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
 	if err != nil {
-		s.logger.Error("Failed to find project", "projectName", projectName, "orgId", org.ID, "error", err)
+		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
 		if db.IsRecordNotFoundError(err) {
 			return "", utils.ErrProjectNotFound
 		}
 		return "", fmt.Errorf("failed to find project %s: %w", projectName, err)
 	}
-	agent, err := s.AgentRepository.GetAgentByName(ctx, org.ID, project.ID, agentName)
+	agent, err := s.AgentRepository.GetAgentByName(ctx, org.Name, project.Name, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent from repository", "agentName", agentName, "error", err)
 		if db.IsRecordNotFoundError(err) {
@@ -605,12 +576,12 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, userIdpId uuid.UU
 		s.logger.Error("Failed to fetch deployment pipeline", "orgName", orgName, "pipelineName", pipelineName, "error", err)
 		return "", fmt.Errorf("failed to fetch deployment pipeline: %w", err)
 	}
-	err = s.AgentRepository.UpdateAgentTimestamp(ctx, org.ID, project.ID, agentName)
+	err = s.AgentRepository.UpdateAgentTimestamp(ctx, org.Name, project.Name, agentName)
 	if err != nil {
-		s.logger.Error("Failed to update agent timestamp after successful deployment", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		s.logger.Error("Failed to update agent timestamp after successful deployment", "agentName", agentName, "orgName", org.Name, "projectName", project.Name, "error", err)
 	}
 	lowestEnv := findLowestEnvironment(pipeline.PromotionPaths)
-	s.logger.Info("Agent deployed successfully to "+lowestEnv, "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", lowestEnv)
+	s.logger.Info("Agent deployed successfully to "+lowestEnv, "agentName", agentName, "orgName", org.Name, "projectName", project.Name, "environment", lowestEnv)
 	return lowestEnv, nil
 }
 
@@ -636,18 +607,14 @@ func findLowestEnvironment(promotionPaths []models.PromotionPath) string {
 	return ""
 }
 
-func (s *agentManagerService) GetBuildLogs(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, buildName string) (*models.BuildLogsResponse, error) {
-	s.logger.Info("Getting build logs", "agentName", agentName, "buildName", buildName, "orgName", orgName, "projectName", projectName, "userIdpId", userIdpId)
+func (s *agentManagerService) GetBuildLogs(ctx context.Context,  orgName string, projectName string, agentName string, buildName string) (*models.BuildLogsResponse, error) {
+	s.logger.Info("Getting build logs", "agentName", agentName, "buildName", buildName, "orgName", orgName, "projectName", projectName, )
 	// Validate organization exists
-	valid, err := s.validateOrganization(ctx, userIdpId, orgName)
+	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to validate organization", "orgName", orgName, "userIdpId", userIdpId, "error", err)
+		s.logger.Error("Failed to validate organization", "orgName", orgName, "error", err)
 		return nil, fmt.Errorf("failed to find organization %s: %w", orgName, err)
 	}
-	if !valid {
-		return nil, utils.ErrOrganizationNotFound
-	}
-
 	// Validates the project name by checking its existence
 	_, err = s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
 	if err != nil {
@@ -687,36 +654,14 @@ func (s *agentManagerService) GetBuildLogs(ctx context.Context, userIdpId uuid.U
 	return buildLogs, nil
 }
 
-func (s *agentManagerService) validateOrganization(ctx context.Context, userIdpID uuid.UUID, orgName string) (bool, error) {
-	orgs, err := s.OrganizationRepository.GetOrganizationsByUserIdpID(ctx, userIdpID)
-	if err != nil {
-		return false, err
-	}
-	if len(orgs) == 0 {
-		s.logger.Warn("No organizations found for user", "userIdpID", userIdpID)
-		return false, nil
-	}
-	for _, org := range orgs {
-		if org.OpenChoreoOrgName == orgName {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (s *agentManagerService) ListAgentBuilds(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, limit int32, offset int32) ([]*models.BuildResponse, int32, error) {
-	s.logger.Info("Listing agent builds", "agentName", agentName, "orgName", orgName, "projectName", projectName, "limit", limit, "offset", offset, "userIdpId", userIdpId)
+func (s *agentManagerService) ListAgentBuilds(ctx context.Context,  orgName string, projectName string, agentName string, limit int32, offset int32) ([]*models.BuildResponse, int32, error) {
+	s.logger.Info("Listing agent builds", "agentName", agentName, "orgName", orgName, "projectName", projectName, "limit", limit, "offset", offset, )
 	// Validate organization exists
-	valid, err := s.validateOrganization(ctx, userIdpId, orgName)
+	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to validate organization", "orgName", orgName, "userIdpId", userIdpId, "error", err)
+		s.logger.Error("Failed to validate organization", "orgName", orgName, "error", err)
 		return nil, 0, fmt.Errorf("failed to find organization %s: %w", orgName, err)
 	}
-	if !valid {
-		s.logger.Warn("Organization not found", "orgName", orgName, "userIdpId", userIdpId)
-		return nil, 0, utils.ErrOrganizationNotFound
-	}
-
 	// Validates the project name by checking its existence
 	_, err = s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
 	if err != nil {
@@ -762,26 +707,23 @@ func (s *agentManagerService) ListAgentBuilds(ctx context.Context, userIdpId uui
 	return paginatedBuilds, total, nil
 }
 
-func (s *agentManagerService) GetBuild(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, buildName string) (*models.BuildDetailsResponse, error) {
-	s.logger.Info("Getting build details", "agentName", agentName, "buildName", buildName, "orgName", orgName, "projectName", projectName, "userIdpId", userIdpId)
+func (s *agentManagerService) GetBuild(ctx context.Context,  orgName string, projectName string, agentName string, buildName string) (*models.BuildDetailsResponse, error) {
+	s.logger.Info("Getting build details", "agentName", agentName, "buildName", buildName, "orgName", orgName, "projectName", projectName, )
 	// Validate organization exists
-	org, err := s.OrganizationRepository.GetOrganizationByOrgName(ctx, userIdpId, orgName)
+	org, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to find organization", "orgName", orgName, "userIdpId", userIdpId, "error", err)
-		if db.IsRecordNotFoundError(err) {
-			return nil, utils.ErrOrganizationNotFound
-		}
-		return nil, fmt.Errorf("failed to find organization %s: %w", orgName, err)
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return nil, err
 	}
-	project, err := s.ProjectRepository.GetProjectByName(ctx, org.ID, projectName)
+	project, err := s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
 	if err != nil {
-		s.logger.Error("Failed to find project", "projectName", projectName, "orgId", org.ID, "error", err)
+		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
 		if db.IsRecordNotFoundError(err) {
 			return nil, utils.ErrProjectNotFound
 		}
 		return nil, fmt.Errorf("failed to find project %s: %w", projectName, err)
 	}
-	agent, err := s.AgentRepository.GetAgentByName(ctx, org.ID, project.ID, agentName)
+	agent, err := s.AgentRepository.GetAgentByName(ctx, org.Name, project.Name, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent from repository", "agentName", agentName, "error", err)
 		if db.IsRecordNotFoundError(err) {
@@ -806,26 +748,23 @@ func (s *agentManagerService) GetBuild(ctx context.Context, userIdpId uuid.UUID,
 	return build, nil
 }
 
-func (s *agentManagerService) GetAgentDeployments(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string) ([]*models.DeploymentResponse, error) {
-	s.logger.Info("Getting agent deployments", "agentName", agentName, "orgName", orgName, "projectName", projectName, "userIdpId", userIdpId)
+func (s *agentManagerService) GetAgentDeployments(ctx context.Context,  orgName string, projectName string, agentName string) ([]*models.DeploymentResponse, error) {
+	s.logger.Info("Getting agent deployments", "agentName", agentName, "orgName", orgName, "projectName", projectName, )
 	// Validate organization exists
-	org, err := s.OrganizationRepository.GetOrganizationByOrgName(ctx, userIdpId, orgName)
+	org, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to find organization", "orgName", orgName, "userIdpId", userIdpId, "error", err)
-		if db.IsRecordNotFoundError(err) {
-			return nil, utils.ErrOrganizationNotFound
-		}
-		return nil, fmt.Errorf("failed to find organization %s: %w", orgName, err)
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return nil, err
 	}
-	project, err := s.ProjectRepository.GetProjectByName(ctx, org.ID, projectName)
+	project, err := s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
 	if err != nil {
-		s.logger.Error("Failed to find project", "projectName", projectName, "orgId", org.ID, "error", err)
+		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
 		if db.IsRecordNotFoundError(err) {
 			return nil, utils.ErrProjectNotFound
 		}
 		return nil, fmt.Errorf("failed to find project %s: %w", projectName, err)
 	}
-	agent, err := s.AgentRepository.GetAgentByName(ctx, org.ID, project.ID, agentName)
+	agent, err := s.AgentRepository.GetAgentByName(ctx, org.Name, project.Name, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent from repository", "agentName", agentName, "error", err)
 		if db.IsRecordNotFoundError(err) {
@@ -853,18 +792,15 @@ func (s *agentManagerService) GetAgentDeployments(ctx context.Context, userIdpId
 	return deployments, nil
 }
 
-func (s *agentManagerService) GetAgentEndpoints(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, environmentName string) (map[string]models.EndpointsResponse, error) {
-	s.logger.Info("Getting agent endpoints", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environmentName, "userIdpId", userIdpId)
+func (s *agentManagerService) GetAgentEndpoints(ctx context.Context,  orgName string, projectName string, agentName string, environmentName string) (map[string]models.EndpointsResponse, error) {
+	s.logger.Info("Getting agent endpoints", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environmentName, )
 	// Validate organization exists
-	org, err := s.OrganizationRepository.GetOrganizationByOrgName(ctx, userIdpId, orgName)
+	org, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to find organization", "orgName", orgName, "userIdpId", userIdpId, "error", err)
-		if db.IsRecordNotFoundError(err) {
-			return nil, utils.ErrOrganizationNotFound
-		}
-		return nil, fmt.Errorf("failed to find organization %s: %w", orgName, err)
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return nil, err
 	}
-	project, err := s.ProjectRepository.GetProjectByName(ctx, org.ID, projectName)
+	project, err := s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find project", "projectName", projectName, "orgName", orgName, "error", err)
 
@@ -873,7 +809,7 @@ func (s *agentManagerService) GetAgentEndpoints(ctx context.Context, userIdpId u
 		}
 		return nil, fmt.Errorf("failed to find project %s: %w", projectName, err)
 	}
-	agent, err := s.AgentRepository.GetAgentByName(ctx, org.ID, project.ID, agentName)
+	agent, err := s.AgentRepository.GetAgentByName(ctx, org.Name, project.Name, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent", "agentName", agentName, "projectName", projectName, "orgName", orgName, "error", err)
 		if db.IsRecordNotFoundError(err) {
@@ -901,17 +837,14 @@ func (s *agentManagerService) GetAgentEndpoints(ctx context.Context, userIdpId u
 	return endpoints, nil
 }
 
-func (s *agentManagerService) GetAgentConfigurations(ctx context.Context, userIdpId uuid.UUID, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error) {
-	s.logger.Info("Getting agent configurations", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment, "userIdpId", userIdpId)
-	org, err := s.OrganizationRepository.GetOrganizationByOrgName(ctx, userIdpId, orgName)
+func (s *agentManagerService) GetAgentConfigurations(ctx context.Context,  orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error) {
+	s.logger.Info("Getting agent configurations", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment, )
+	org, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to find organization", "orgName", orgName, "userIdpId", userIdpId, "error", err)
-		if db.IsRecordNotFoundError(err) {
-			return nil, utils.ErrOrganizationNotFound
-		}
-		return nil, fmt.Errorf("failed to find organization %s: %w", orgName, err)
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return nil, err
 	}
-	project, err := s.ProjectRepository.GetProjectByName(ctx, org.ID, projectName)
+	project, err := s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find project", "projectName", projectName, "orgName", orgName, "error", err)
 		if db.IsRecordNotFoundError(err) {
@@ -919,7 +852,7 @@ func (s *agentManagerService) GetAgentConfigurations(ctx context.Context, userId
 		}
 		return nil, fmt.Errorf("failed to find project %s: %w", projectName, err)
 	}
-	agent, err := s.AgentRepository.GetAgentByName(ctx, org.ID, project.ID, agentName)
+	agent, err := s.AgentRepository.GetAgentByName(ctx, org.Name, project.Name, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent", "agentName", agentName, "projectName", projectName, "orgName", orgName, "error", err)
 		if db.IsRecordNotFoundError(err) {

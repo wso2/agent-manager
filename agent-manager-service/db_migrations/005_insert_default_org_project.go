@@ -20,22 +20,17 @@ import (
 	"gorm.io/gorm"
 )
 
-// create table internal_agents
-var migration007 = migration{
-	ID: 7,
+var migration005 = migration{
+	ID: 5,
 	Migrate: func(db *gorm.DB) error {
-		createTable := `CREATE TABLE internal_agents
-(
-   id            UUID PRIMARY KEY,
-   workload_spec    JSONB,
-   CONSTRAINT fk_internal_agents_id FOREIGN KEY (id) REFERENCES agents(id) ON DELETE CASCADE
-)`
-
+		insertDefaultOrg := `INSERT INTO organizations 
+(id, open_choreo_org_name, user_idp_id, org_name) 
+VALUES 
+('af779290-c22d-4100-aefd-484d81fff60e', 'default', '8f307351-25c5-4fc6-85e0-f51c2d458f06', 'default');
+`
+		
 		return db.Transaction(func(tx *gorm.DB) error {
-			if err := runSQL(tx, createTable); err != nil {
-				return err
-			}
-			return nil
+			return runSQL(tx, insertDefaultOrg)
 		})
 	},
 }
