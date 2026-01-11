@@ -59,8 +59,8 @@ type Config struct {
 }
 
 type KeyManagerConfigurations struct {
-	Issuer   string
-	Audience string
+	Issuer   []string
+	Audience []string
 	JWKSUrl  string
 }
 

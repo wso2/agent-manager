@@ -224,30 +224,28 @@ func validateJWTWithJWKS(tokenString string) (*TokenClaims, error) {
 }
 
 // validateIssuer validates the issuer claim against allowed issuers
-func validateIssuer(issuer, allowedIssuers string) error {
-	if allowedIssuers == "" {
+func validateIssuer(issuer string, allowedIssuers []string) error {
+	if len(allowedIssuers) == 0 {
 		return fmt.Errorf("no allowed issuers configured")
 	}
-	// Split by comma and trim spaces
-	allowedList := strings.Split(allowedIssuers, ",")
-	for _, allowed := range allowedList {
-		if strings.TrimSpace(allowed) == strings.TrimSpace(issuer) {
+	
+	trimmedIssuer := strings.TrimSpace(issuer)
+	for _, allowed := range allowedIssuers {
+		if strings.TrimSpace(allowed) == trimmedIssuer {
 			return nil
 		}
 	}
-	return fmt.Errorf("invalid issuer: expected one of [%s], got %s", allowedIssuers, issuer)
+	return fmt.Errorf("invalid issuer: expected one of %v, got %s", allowedIssuers, issuer)
 }
 
 // validateAudience validates the audience claim against allowed audiences
-func validateAudience(audiences jwt.ClaimStrings, allowedAudiences string) error {
-	if allowedAudiences == "" {
+func validateAudience(audiences jwt.ClaimStrings, allowedAudiences []string) error {
+	if len(allowedAudiences) == 0 {
 		return fmt.Errorf("no allowed audiences configured")
 	}
 
-	// Split allowed audiences by comma and trim spaces
-	allowedList := strings.Split(allowedAudiences, ",")
 	allowedMap := make(map[string]struct{})
-	for _, allowed := range allowedList {
+	for _, allowed := range allowedAudiences {
 		allowedMap[strings.TrimSpace(allowed)] = struct{}{}
 	}
 
@@ -258,7 +256,7 @@ func validateAudience(audiences jwt.ClaimStrings, allowedAudiences string) error
 		}
 	}
 
-	return fmt.Errorf("invalid audience: expected one of [%s], got %v", allowedAudiences, audiences)
+	return fmt.Errorf("invalid audience: expected one of %v, got %v", allowedAudiences, audiences)
 }
 
 // fetchJWKS fetches the JWKS from the provided URL with caching
@@ -271,7 +269,8 @@ func fetchJWKS(jwksURL string) (*JWKS, error) {
 	jwksCacheMutex.RUnlock()
 
 	// Fetch new JWKS
-	resp, err := http.Get(jwksURL)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(jwksURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
 	}
