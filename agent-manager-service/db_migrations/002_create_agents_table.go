@@ -20,20 +20,32 @@ import (
 	"gorm.io/gorm"
 )
 
-// create table organizations
+// create table agents
 var migration002 = migration{
 	ID: 2,
 	Migrate: func(db *gorm.DB) error {
-		createTable := `CREATE TABLE organizations
+		createTable := `CREATE TABLE agents
 (
-    id              UUID PRIMARY KEY,
-    open_choreo_org_name VARCHAR(100) NOT NULL UNIQUE,
-    user_idp_id         UUID NOT NULL,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+   id      UUID PRIMARY KEY,
+   name          VARCHAR(100) NOT NULL,
+   display_name  VARCHAR(100) NOT NULL,
+   provisioning_type    VARCHAR(100) NOT NULL,
+   description   TEXT,
+   project_name   VARCHAR(100) NOT NULL,
+   org_name        VARCHAR(100) NOT NULL,
+   created_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   updated_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   deleted_at    TIMESTAMPTZ,
+   CONSTRAINT provisioning_type_enum check (provisioning_type in ('internal', 'external'))
 )`
 
+		createIndex := `CREATE UNIQUE INDEX uk_agents_name_project_org ON agents(name, project_name, org_name) WHERE deleted_at IS NULL`
+
 		return db.Transaction(func(tx *gorm.DB) error {
-			return runSQL(tx, createTable)
+			if err := runSQL(tx, createTable, createIndex); err != nil {
+				return err
+			}
+			return nil
 		})
 	},
 }
