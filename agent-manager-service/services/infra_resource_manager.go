@@ -229,7 +229,7 @@ func (s *infraResourceManager) DeleteProject(ctx context.Context, orgName string
 
 	// Check agents exist for the project
 	s.logger.Debug("Checking for associated agents", "projectName", projectName)
-	agents, err := s.OpenChoreoSvcClient.GetAgentComponents(ctx, orgName, projectName)
+	agents, err := s.OpenChoreoSvcClient.ListAgentComponents(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to list agents for project", "projectName", projectName, "error", err)
 		return fmt.Errorf("failed to list agents for project %s: %w", projectName, err)
