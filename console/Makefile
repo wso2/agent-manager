@@ -6,7 +6,7 @@ help:
 	@echo ""
 	@echo "  make install     - Install all dependencies"
 	@echo "  make build       - Build all projects"
-	@echo "  make dev         - Start development mode with hot-reload"
+	@echo "  make dev         - Start development"
 	@echo "  make clean       - Clean build outputs"
 	@echo "  make purge       - Purge all Rush build cache"
 	@echo ""
@@ -25,10 +25,9 @@ build-webapp:
 	@echo "Building webapp..."
 	@rush build --to @agent-management-platform/webapp
 
-# Start development with local-dev.sh script
 dev:
-	@echo "Starting development mode..."
-	@./local-dev.sh
+	@echo "Starting development mode"
+	@cd apps/webapp && pnpm run dev
 
 # Clean build outputs
 clean:

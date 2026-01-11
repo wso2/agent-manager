@@ -34,6 +34,22 @@ export default defineConfig({
     alias: {
       // Add alias for better module resolution
       '@': path.resolve(__dirname, './src'),
+
+      // Workspace libraries - resolve to source for hot-reload without separate tsc watchers
+      '@agent-management-platform/auth': path.resolve(__dirname, '../../workspaces/libs/auth/src'),
+      '@agent-management-platform/api-client': path.resolve(__dirname, '../../workspaces/libs/api-client/src'),
+      '@agent-management-platform/shared-component': path.resolve(__dirname, '../../workspaces/libs/shared-component/src'),
+      '@agent-management-platform/types': path.resolve(__dirname, '../../workspaces/libs/types/src'),
+      '@agent-management-platform/views': path.resolve(__dirname, '../../workspaces/libs/views/src'),
+
+      // Workspace pages - resolve to source for hot-reload
+      '@agent-management-platform/add-new-agent': path.resolve(__dirname, '../../workspaces/pages/add-new-agent/src'),
+      '@agent-management-platform/add-new-project': path.resolve(__dirname, '../../workspaces/pages/add-new-project/src'),
+      '@agent-management-platform/build': path.resolve(__dirname, '../../workspaces/pages/build/src'),
+      '@agent-management-platform/deploy': path.resolve(__dirname, '../../workspaces/pages/deploy/src'),
+      '@agent-management-platform/overview': path.resolve(__dirname, '../../workspaces/pages/overview/src'),
+      '@agent-management-platform/test': path.resolve(__dirname, '../../workspaces/pages/test/src'),
+      '@agent-management-platform/traces': path.resolve(__dirname, '../../workspaces/pages/traces/src'),
     },
   },
   server: {
