@@ -199,6 +199,7 @@ func (k *openChoreoSvcClient) IsAgentComponentExists(ctx context.Context, orgNam
 
 	return true, nil
 }
+
 func (k *openChoreoSvcClient) GetAgentComponent(ctx context.Context, orgName string, projName string, agentName string) (*AgentComponent, error) {
 	component := &v1alpha1.Component{}
 	key := client.ObjectKey{

@@ -32,8 +32,8 @@ func CreateAgent(t *testing.T, agentID uuid.UUID, orgName string, projectName st
 	agent := &models.Agent{
 		ID:               agentID,
 		ProvisioningType: provisioningType,
-		ProjectName:        projectName,
-		OrgName:            orgName,
+		ProjectName:      projectName,
+		OrgName:          orgName,
 		Name:             agentName,
 		DisplayName:      agentName,
 	}

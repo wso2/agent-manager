@@ -37,10 +37,10 @@ import (
 )
 
 var (
-	testDeleteProjectOrgName   = fmt.Sprintf("test-org-%s", uuid.New().String()[:5])
-	testDeleteProjectProjName  = fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
-	testProjectWithAgents      = fmt.Sprintf("project-with-agents-%s", uuid.New().String()[:5])
-	testFailingProjectName     = fmt.Sprintf("failing-project-%s", uuid.New().String()[:5])
+	testDeleteProjectOrgName  = fmt.Sprintf("test-org-%s", uuid.New().String()[:5])
+	testDeleteProjectProjName = fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
+	testProjectWithAgents     = fmt.Sprintf("project-with-agents-%s", uuid.New().String()[:5])
+	testFailingProjectName    = fmt.Sprintf("failing-project-%s", uuid.New().String()[:5])
 	projectsWithAgentsName    = fmt.Sprintf("agent-project-%s", uuid.New().String()[:5])
 )
 
@@ -68,7 +68,7 @@ func createMockOpenChoreoClientForProjectDelete() *clientmocks.OpenChoreoSvcClie
 				CreatedAt:   time.Now(),
 			}, nil
 		},
-		GetAgentComponentsFunc: func(ctx context.Context, orgName string, projectName string) ([]*openchoreosvc.AgentComponent, error) {
+		ListAgentComponentsFunc: func(ctx context.Context, orgName string, projectName string) ([]*openchoreosvc.AgentComponent, error) {
 			// Return agents for testProjectWithAgents to test the 409 conflict scenario
 			if projectName == testProjectWithAgents {
 				return []*openchoreosvc.AgentComponent{

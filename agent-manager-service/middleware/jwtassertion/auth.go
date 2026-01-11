@@ -37,10 +37,10 @@ import (
 )
 
 type TokenClaims struct {
-	Sub      uuid.UUID       `json:"sub"`
-	Scope    string          `json:"scope"`
-	Exp      int64           `json:"exp"`
-	Issuer   string          `json:"iss"`
+	Sub      uuid.UUID        `json:"sub"`
+	Scope    string           `json:"scope"`
+	Exp      int64            `json:"exp"`
+	Issuer   string           `json:"iss"`
 	Audience jwt.ClaimStrings `json:"aud"`
 	jwt.RegisteredClaims
 }
@@ -186,7 +186,6 @@ func validateJWTWithJWKS(tokenString string) (*TokenClaims, error) {
 
 			return nil, fmt.Errorf("unable to find key with kid: %s", kid)
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse token: %w", err)
 		}
@@ -207,7 +206,7 @@ func validateJWTWithJWKS(tokenString string) (*TokenClaims, error) {
 			return nil, fmt.Errorf("failed to extract claims: %w", err)
 		}
 		claims = extractedClaims
-		
+
 	}
 
 	// Validate issuer
@@ -228,7 +227,7 @@ func validateIssuer(issuer string, allowedIssuers []string) error {
 	if len(allowedIssuers) == 0 {
 		return fmt.Errorf("no allowed issuers configured")
 	}
-	
+
 	trimmedIssuer := strings.TrimSpace(issuer)
 	for _, allowed := range allowedIssuers {
 		if strings.TrimSpace(allowed) == trimmedIssuer {

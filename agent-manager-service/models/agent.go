@@ -62,8 +62,8 @@ type Agent struct {
 	Name             string         `gorm:"column:name"`
 	DisplayName      string         `gorm:"column:display_name"`
 	Description      string         `gorm:"column:description"`
-	ProjectName        string      `gorm:"column:project_name"`
-	OrgName           string      `gorm:"column:org_name"`
+	ProjectName      string         `gorm:"column:project_name"`
+	OrgName          string         `gorm:"column:org_name"`
 	CreatedAt        time.Time      `gorm:"column:created_at"`
 	UpdatedAt        time.Time      `gorm:"column:updated_at"`
 	DeletedAt        gorm.DeletedAt `gorm:"column:deleted_at"`

@@ -141,7 +141,7 @@ func loadEnvs() {
 		// Comma-separated list of allowed issuers and audiences
 		Issuer:   r.readOptionalStringList("KEY_MANAGER_ISSUER", "Agent Management Platform Local"),
 		Audience: r.readOptionalStringList("KEY_MANAGER_AUDIENCE", "localhost"),
-		JWKSUrl:  r.readOptionalString("KEY_MANAGER_JWKS_URL", ""),
+		JWKSUrl:  r.readRequiredString("KEY_MANAGER_JWKS_URL"),
 	}
 
 	// Validate HTTP server configurations
