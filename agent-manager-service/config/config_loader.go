@@ -139,9 +139,10 @@ func loadEnvs() {
 	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 9080))
 	config.KeyManagerConfigurations = KeyManagerConfigurations{
 		// Comma-separated list of allowed issuers and audiences
-		Issuer:   r.readOptionalStringList("KEY_MANAGER_ISSUER", "Agent Management Platform Local"),
-		Audience: r.readOptionalStringList("KEY_MANAGER_AUDIENCE", "localhost"),
-		JWKSUrl:  r.readRequiredString("KEY_MANAGER_JWKS_URL"),
+		Issuer:        r.readOptionalStringList("KEY_MANAGER_ISSUER", "Agent Management Platform Local"),
+		Audience:      r.readOptionalStringList("KEY_MANAGER_AUDIENCE", "localhost"),
+		JWKSUrl:       r.readOptionalString("KEY_MANAGER_JWKS_URL", ""),
+		DefaultIssuer: r.readOptionalString("KEY_MANAGER_DEFAULT_ISSUER", "Agent Management Platform Local"),
 	}
 
 	// Validate HTTP server configurations

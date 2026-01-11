@@ -59,9 +59,10 @@ type Config struct {
 }
 
 type KeyManagerConfigurations struct {
-	Issuer   []string
-	Audience []string
-	JWKSUrl  string
+	Issuer        []string
+	Audience      []string
+	JWKSUrl       string
+	DefaultIssuer string // Default issuer allowed to skip JWKS signature validation
 }
 
 type AgentWorkload struct {

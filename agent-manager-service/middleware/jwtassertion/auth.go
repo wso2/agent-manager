@@ -37,11 +37,8 @@ import (
 )
 
 type TokenClaims struct {
-	Sub      uuid.UUID        `json:"sub"`
-	Scope    string           `json:"scope"`
-	Exp      int64            `json:"exp"`
-	Issuer   string           `json:"iss"`
-	Audience jwt.ClaimStrings `json:"aud"`
+	Sub   uuid.UUID `json:"sub"`
+	Scope string    `json:"scope"`
 	jwt.RegisteredClaims
 }
 
@@ -200,22 +197,40 @@ func validateJWTWithJWKS(tokenString string) (*TokenClaims, error) {
 		}
 		claims = validatedClaims
 	} else {
-		// No JWKS URL configured, skip signature validation
+		// No JWKS URL configured - extract claims without signature validation
+		// This is only allowed for tokens with the configured DefaultIssuer
 		extractedClaims, err := extractClaimsFromJWT(tokenString)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract claims: %w", err)
 		}
 		claims = extractedClaims
 
+		// Ensures we only skip signature validation for the default issuer
+		if strings.TrimSpace(claims.RegisteredClaims.Issuer) != strings.TrimSpace(cfg.KeyManagerConfigurations.DefaultIssuer) {
+			return nil, fmt.Errorf("JWKS signature validation required for issuer '%s'",
+				claims.RegisteredClaims.Issuer)
+		}
+
+		// Validate expiration using RegisteredClaims.ExpiresAt
+		if claims.RegisteredClaims.ExpiresAt != nil {
+			if !claims.RegisteredClaims.ExpiresAt.After(time.Now()) {
+				return nil, fmt.Errorf("token has expired")
+			}
+		}
+
+		// Validate audience
+		if err := validateAudience(claims.RegisteredClaims.Audience, cfg.KeyManagerConfigurations.Audience); err != nil {
+			return nil, err
+		}
+
+		return claims, nil
 	}
 
-	// Validate issuer
-	if err := validateIssuer(claims.Issuer, cfg.KeyManagerConfigurations.Issuer); err != nil {
+	if err := validateIssuer(claims.RegisteredClaims.Issuer, cfg.KeyManagerConfigurations.Issuer); err != nil {
 		return nil, err
 	}
 
-	// Validate audience
-	if err := validateAudience(claims.Audience, cfg.KeyManagerConfigurations.Audience); err != nil {
+	if err := validateAudience(claims.RegisteredClaims.Audience, cfg.KeyManagerConfigurations.Audience); err != nil {
 		return nil, err
 	}
 
@@ -234,7 +249,7 @@ func validateIssuer(issuer string, allowedIssuers []string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("invalid issuer: expected one of %v, got %s", allowedIssuers, issuer)
+	return fmt.Errorf("invalid issuer: got %s", issuer)
 }
 
 // validateAudience validates the audience claim against allowed audiences
@@ -255,7 +270,7 @@ func validateAudience(audiences jwt.ClaimStrings, allowedAudiences []string) err
 		}
 	}
 
-	return fmt.Errorf("invalid audience: expected one of %v, got %v", allowedAudiences, audiences)
+	return fmt.Errorf("invalid audience: got %v",  audiences)
 }
 
 // fetchJWKS fetches the JWKS from the provided URL with caching

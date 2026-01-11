@@ -21,6 +21,8 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // NewMockMiddleware creates a mock JWT middleware for testing
@@ -29,7 +31,9 @@ func NewMockMiddleware(t *testing.T) Middleware {
 
 	tokenClaims := &TokenClaims{
 		Scope: "scopes",
-		Exp:   int64(time.Now().Add(time.Hour).Unix()),
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		},
 	}
 
 	return func(next http.Handler) http.Handler {
