@@ -43,9 +43,9 @@ type InfraResourceManager interface {
 }
 
 type infraResourceManager struct {
-	AgentRepository        repositories.AgentRepository
-	OpenChoreoSvcClient    clients.OpenChoreoSvcClient
-	logger                 *slog.Logger
+	AgentRepository     repositories.AgentRepository
+	OpenChoreoSvcClient clients.OpenChoreoSvcClient
+	logger              *slog.Logger
 }
 
 func NewInfraResourceManager(
@@ -54,11 +54,12 @@ func NewInfraResourceManager(
 	logger *slog.Logger,
 ) InfraResourceManager {
 	return &infraResourceManager{
-		AgentRepository:        agentRepo,
-		OpenChoreoSvcClient:    openChoreoSvcClient,
-		logger:                 logger,
+		AgentRepository:     agentRepo,
+		OpenChoreoSvcClient: openChoreoSvcClient,
+		logger:              logger,
 	}
 }
+
 func (s *infraResourceManager) ListOrganizations(ctx context.Context, limit int, offset int) ([]*models.OrganizationResponse, int32, error) {
 	s.logger.Debug("ListOrganizations called", "limit", limit, "offset", offset)
 	orgs, err := s.OpenChoreoSvcClient.ListOrganizations(ctx)
@@ -102,7 +103,7 @@ func (s *infraResourceManager) GetOrganization(ctx context.Context, orgName stri
 }
 
 func (s *infraResourceManager) CreateProject(ctx context.Context, orgName string, payload spec.CreateProjectRequest) (*models.ProjectResponse, error) {
-	s.logger.Debug("CreateProject called",  "orgName", orgName, "projectName", payload.Name, "deploymentPipeline", payload.DeploymentPipeline)
+	s.logger.Debug("CreateProject called", "orgName", orgName, "projectName", payload.Name, "deploymentPipeline", payload.DeploymentPipeline)
 
 	// Validate organization exists
 	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
@@ -207,7 +208,7 @@ func (s *infraResourceManager) ListProjects(ctx context.Context, orgName string,
 }
 
 func (s *infraResourceManager) DeleteProject(ctx context.Context, orgName string, projectName string) error {
-	s.logger.Debug("DeleteProject called","orgName", orgName, "projectName", projectName)
+	s.logger.Debug("DeleteProject called", "orgName", orgName, "projectName", projectName)
 
 	// Validate organization exists
 	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
@@ -268,7 +269,7 @@ func (s *infraResourceManager) GetProject(ctx context.Context, orgName string, p
 }
 
 func (s *infraResourceManager) ListOrgDeploymentPipelines(ctx context.Context, orgName string, limit int, offset int) ([]*models.DeploymentPipelineResponse, int, error) {
-	s.logger.Debug("ListOrgDeploymentPipelines called","orgName", orgName)
+	s.logger.Debug("ListOrgDeploymentPipelines called", "orgName", orgName)
 
 	// Validate organization exists
 	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)

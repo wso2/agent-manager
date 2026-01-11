@@ -39,8 +39,8 @@ import (
 )
 
 var (
-	testCreateProjectOrgName   = fmt.Sprintf("test-org-%s", uuid.New().String()[:5])
-	testCreateProjectName      = fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
+	testCreateProjectOrgName = fmt.Sprintf("test-org-%s", uuid.New().String()[:5])
+	testCreateProjectName    = fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
 )
 
 func createMockOpenChoreoClientForCreateProject() *clientmocks.OpenChoreoSvcClientMock {
@@ -273,7 +273,6 @@ func TestCreateProject(t *testing.T) {
 
 	for _, tt := range validationTests {
 		t.Run(tt.name, func(t *testing.T) {
-			
 			openChoreoClient := tt.setupMock()
 			testClients := wiring.TestClients{
 				OpenChoreoSvcClient: openChoreoClient,

@@ -39,9 +39,6 @@ import (
 //			GetAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agentName string) (*openchoreosvc.AgentComponent, error) {
 //				panic("mock out the GetAgentComponent method")
 //			},
-//			GetAgentComponentsFunc: func(ctx context.Context, orgName string, projName string) ([]*openchoreosvc.AgentComponent, error) {
-//				panic("mock out the GetAgentComponents method")
-//			},
 //			GetAgentConfigurationsFunc: func(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error) {
 //				panic("mock out the GetAgentConfigurations method")
 //			},
@@ -120,9 +117,6 @@ type OpenChoreoSvcClientMock struct {
 
 	// GetAgentComponentFunc mocks the GetAgentComponent method.
 	GetAgentComponentFunc func(ctx context.Context, orgName string, projName string, agentName string) (*openchoreosvc.AgentComponent, error)
-
-	// GetAgentComponentsFunc mocks the GetAgentComponents method.
-	GetAgentComponentsFunc func(ctx context.Context, orgName string, projName string) ([]*openchoreosvc.AgentComponent, error)
 
 	// GetAgentConfigurationsFunc mocks the GetAgentConfigurations method.
 	GetAgentConfigurationsFunc func(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error)
@@ -257,15 +251,6 @@ type OpenChoreoSvcClientMock struct {
 			ProjName string
 			// AgentName is the agentName argument value.
 			AgentName string
-		}
-		// GetAgentComponents holds details about calls to the GetAgentComponents method.
-		GetAgentComponents []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
-			// ProjName is the projName argument value.
-			ProjName string
 		}
 		// GetAgentConfigurations holds details about calls to the GetAgentConfigurations method.
 		GetAgentConfigurations []struct {
@@ -440,7 +425,6 @@ type OpenChoreoSvcClientMock struct {
 	lockDeleteProject                         sync.RWMutex
 	lockDeployAgentComponent                  sync.RWMutex
 	lockGetAgentComponent                     sync.RWMutex
-	lockGetAgentComponents                    sync.RWMutex
 	lockGetAgentConfigurations                sync.RWMutex
 	lockGetAgentDeployments                   sync.RWMutex
 	lockGetAgentEndpoints                     sync.RWMutex
@@ -773,46 +757,6 @@ func (mock *OpenChoreoSvcClientMock) GetAgentComponentCalls() []struct {
 	mock.lockGetAgentComponent.RLock()
 	calls = mock.calls.GetAgentComponent
 	mock.lockGetAgentComponent.RUnlock()
-	return calls
-}
-
-// GetAgentComponents calls GetAgentComponentsFunc.
-func (mock *OpenChoreoSvcClientMock) GetAgentComponents(ctx context.Context, orgName string, projName string) ([]*openchoreosvc.AgentComponent, error) {
-	if mock.GetAgentComponentsFunc == nil {
-		panic("OpenChoreoSvcClientMock.GetAgentComponentsFunc: method is nil but OpenChoreoSvcClient.GetAgentComponents was just called")
-	}
-	callInfo := struct {
-		Ctx      context.Context
-		OrgName  string
-		ProjName string
-	}{
-		Ctx:      ctx,
-		OrgName:  orgName,
-		ProjName: projName,
-	}
-	mock.lockGetAgentComponents.Lock()
-	mock.calls.GetAgentComponents = append(mock.calls.GetAgentComponents, callInfo)
-	mock.lockGetAgentComponents.Unlock()
-	return mock.GetAgentComponentsFunc(ctx, orgName, projName)
-}
-
-// GetAgentComponentsCalls gets all the calls that were made to GetAgentComponents.
-// Check the length with:
-//
-//	len(mockedOpenChoreoSvcClient.GetAgentComponentsCalls())
-func (mock *OpenChoreoSvcClientMock) GetAgentComponentsCalls() []struct {
-	Ctx      context.Context
-	OrgName  string
-	ProjName string
-} {
-	var calls []struct {
-		Ctx      context.Context
-		OrgName  string
-		ProjName string
-	}
-	mock.lockGetAgentComponents.RLock()
-	calls = mock.calls.GetAgentComponents
-	mock.lockGetAgentComponents.RUnlock()
 	return calls
 }
 
