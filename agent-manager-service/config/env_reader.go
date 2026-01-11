@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type configReader struct {
@@ -52,6 +53,28 @@ func (c *configReader) readOptionalString(envVarName string, defaultValue string
 		return defaultValue
 	}
 	return v
+}
+// readOptionalStringList reads a comma-separated string from environment and returns a slice
+func (c *configReader) readOptionalStringList(key string, defaultValue string) []string {
+	value := os.Getenv(key)
+	if value == "" {
+		value = defaultValue
+	}
+	
+	if value == "" {
+		return []string{}
+	}
+	
+	// Split by comma and trim whitespace
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
 
 func (c *configReader) readOptionalInt64(envVarName string, defaultValue int64) int64 {

@@ -1064,7 +1064,7 @@ func (k *openChoreoSvcClient) CreateProject(ctx context.Context, orgName string,
 func (k *openChoreoSvcClient) ListOrganizations(ctx context.Context) ([]*models.OrganizationResponse, error) {
 	orgList := &v1alpha1.OrganizationList{}
 	err := k.retryK8sOperation(ctx, "ListOrganizations", func() error {
-		return k.client.List(ctx, orgList, client.InNamespace("default"))
+		return k.client.List(ctx, orgList)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list organizations: %w", err)
