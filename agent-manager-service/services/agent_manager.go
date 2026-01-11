@@ -114,7 +114,7 @@ func (s *agentManagerService) ListAgents(ctx context.Context,  orgName string, p
 		s.logger.Error("Failed to find project", "projectName", projName, "org", orgName, "error", err)
 		return nil, 0, fmt.Errorf("failed to find project %s: %w", projName, err)
 	}
-	// Fetch all agents from the database
+	// Fetch all agents
 	agents, err := s.OpenChoreoSvcClient.ListAgentComponents(ctx, orgName, projName)
 	if err != nil {
 		s.logger.Error("Failed to list agents from repository", "orgName", orgName,  "projectName", projName, "error", err)
