@@ -31,14 +31,14 @@ try:
     # Configure logging for the entire package
     configure_logging()
 
-    # Get logger for this module
-    logger = logging.getLogger(__name__)
+    # Get logger for this module - use explicit name since __name__ is just "sitecustomize"
+    logger = logging.getLogger("amp_instrumentation._bootstrap.sitecustomize")
 
     initialize_instrumentation()
     logger.info("WSO2 AMP instrumentation initialized successfully")
 except Exception as e:
     # Print error directly to stderr to ensure visibility
     print(f"ERROR: Failed to initialize WSO2 AMP instrumentation: {e}", file=sys.stderr)
-    # Also log for debug mode
-    logger = logging.getLogger(__name__)
+    # Use explicit logger name since __name__ is "sitecustomize", not the full module path
+    logger = logging.getLogger("amp_instrumentation._bootstrap.sitecustomize")
     logger.exception(f"Failed to initialize WSO2 AMP instrumentation: {e}")
