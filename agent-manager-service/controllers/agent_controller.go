@@ -438,11 +438,6 @@ func (c *agentController) GenerateName(w http.ResponseWriter, r *http.Request) {
 
 	// Extract path parameters
 	orgName := r.PathValue(utils.PathParamOrgName)
-
-	
-	
-	
-
 	// Parse and validate request body
 	var payload spec.ResourceNameRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {

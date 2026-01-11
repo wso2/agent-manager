@@ -70,7 +70,7 @@ func createMockOpenChoreoClientForBuild() *clientmocks.OpenChoreoSvcClientMock {
 				CreatedAt:   time.Now(),
 			}, nil
 		},
-		IsAgentComponentExistsFunc: func(ctx context.Context, orgName string, projName string, agentName string) (bool, error) {
+		IsAgentComponentExistsFunc: func(ctx context.Context, orgName string, projName string, agentName string, verifyProject bool) (bool, error) {
 			return true, nil
 		},
 		TriggerBuildFunc: func(ctx context.Context, orgName string, projName string, agentName string, commitId string) (*models.BuildResponse, error) {
@@ -246,7 +246,7 @@ func TestBuildAgent(t *testing.T) {
 			wantErrMsg:     "Agent not found",
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
 				mock := createMockOpenChoreoClientForBuild()
-				mock.IsAgentComponentExistsFunc = func(ctx context.Context, orgName string, projName string, agentName string) (bool, error) {
+				mock.IsAgentComponentExistsFunc = func(ctx context.Context, orgName string, projName string, agentName string, verifyProject bool) (bool, error) {
 					return false, nil
 				}
 				return mock

@@ -72,7 +72,7 @@ func createMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
 				CreatedAt:          time.Now(),
 			}, nil
 		},
-		IsAgentComponentExistsFunc: func(ctx context.Context, orgName string, projName string, agentName string) (bool, error) {
+		IsAgentComponentExistsFunc: func(ctx context.Context, orgName string, projName string, agentName string, verifyProject bool) (bool, error) {
 			return false, nil
 		},
 		CreateAgentComponentFunc: func(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error {

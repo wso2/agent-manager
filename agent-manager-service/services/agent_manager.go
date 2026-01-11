@@ -223,17 +223,14 @@ func (s *agentManagerService) GenerateName(ctx context.Context,  orgName string,
 		}
 
 		// Check if candidate name is available
-		_, err = s.AgentRepository.GetAgentByName(ctx, org.Name, project.Name, candidateName)
-		if err != nil && db.IsRecordNotFoundError(err) {
-			// Name is available, return it
-			s.logger.Info("Generated unique agent name from display name", "agentName", candidateName, "orgName", orgName, "projectName", projectName)
+		exists, err := s.OpenChoreoSvcClient.IsAgentComponentExists(ctx, org.Name, project.Name, candidateName, false)
+		if err != nil {
+			return "", fmt.Errorf("failed to check agent existence: %w", err)
+		}
+		if !exists {
 			return candidateName, nil
 		}
-		if err != nil {
-			s.logger.Error("Failed to check agent name availability", "name", candidateName, "orgName", org.Name, "projectName", project.Name, "error", err)
-			return "", fmt.Errorf("failed to check agent name availability: %w", err)
-		}
-
+		
 		// Name is taken, generate unique name with suffix
 		uniqueName, err := s.generateUniqueAgentName(ctx, org.Name, project.Name, candidateName)
 		if err != nil {
@@ -298,13 +295,13 @@ func (s *agentManagerService) generateUniqueProjectName(ctx context.Context, org
 func (s *agentManagerService) generateUniqueAgentName(ctx context.Context, orgName string, projectName string, baseName string) (string, error) {
 	// Create a name availability checker function that uses the agent repository
 	nameChecker := func(name string) (bool, error) {
-		_, err := s.AgentRepository.GetAgentByName(ctx, orgName, projectName, name)
-		if err != nil && db.IsRecordNotFoundError(err) {
-			// Name is available
-			return true, nil
-		}
+		exists, err := s.OpenChoreoSvcClient.IsAgentComponentExists(ctx, orgName, projectName, name, false)
 		if err != nil {
 			return false, fmt.Errorf("failed to check agent name availability: %w", err)
+		}
+		if !exists {
+			// Name is available
+			return true, nil
 		}
 		// Name is taken
 		return false, nil

@@ -18,8 +18,8 @@ import (
 //
 //		// make and configure a mocked openchoreosvc.OpenChoreoSvcClient
 //		mockedOpenChoreoSvcClient := &OpenChoreoSvcClientMock{
-//			AttachComponentTraitFunc: func(ctx context.Context, orgName string, projName string, agentName string) error {
-//				panic("mock out the AttachComponentTrait method")
+//			AttachInstrumentationTraitFunc: func(ctx context.Context, orgName string, projName string, agentName string) error {
+//				panic("mock out the AttachInstrumentationTrait method")
 //			},
 //			CreateAgentComponentFunc: func(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error {
 //				panic("mock out the CreateAgentComponent method")
@@ -72,7 +72,7 @@ import (
 //			GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
 //				panic("mock out the GetProject method")
 //			},
-//			IsAgentComponentExistsFunc: func(ctx context.Context, orgName string, projName string, agentName string) (bool, error) {
+//			IsAgentComponentExistsFunc: func(ctx context.Context, orgName string, projName string, agentName string, verifyProject bool) (bool, error) {
 //				panic("mock out the IsAgentComponentExists method")
 //			},
 //			ListAgentComponentsFunc: func(ctx context.Context, orgName string, projName string) ([]*openchoreosvc.AgentComponent, error) {
@@ -100,8 +100,8 @@ import (
 //
 //	}
 type OpenChoreoSvcClientMock struct {
-	// AttachComponentTraitFunc mocks the AttachComponentTrait method.
-	AttachComponentTraitFunc func(ctx context.Context, orgName string, projName string, agentName string) error
+	// AttachInstrumentationTraitFunc mocks the AttachInstrumentationTrait method.
+	AttachInstrumentationTraitFunc func(ctx context.Context, orgName string, projName string, agentName string) error
 
 	// CreateAgentComponentFunc mocks the CreateAgentComponent method.
 	CreateAgentComponentFunc func(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error
@@ -155,7 +155,7 @@ type OpenChoreoSvcClientMock struct {
 	GetProjectFunc func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error)
 
 	// IsAgentComponentExistsFunc mocks the IsAgentComponentExists method.
-	IsAgentComponentExistsFunc func(ctx context.Context, orgName string, projName string, agentName string) (bool, error)
+	IsAgentComponentExistsFunc func(ctx context.Context, orgName string, projName string, agentName string, verifyProject bool) (bool, error)
 
 	// ListAgentComponentsFunc mocks the ListAgentComponents method.
 	ListAgentComponentsFunc func(ctx context.Context, orgName string, projName string) ([]*openchoreosvc.AgentComponent, error)
@@ -177,8 +177,8 @@ type OpenChoreoSvcClientMock struct {
 
 	// calls tracks calls to the methods.
 	calls struct {
-		// AttachComponentTrait holds details about calls to the AttachComponentTrait method.
-		AttachComponentTrait []struct {
+		// AttachInstrumentationTrait holds details about calls to the AttachInstrumentationTrait method.
+		AttachInstrumentationTrait []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// OrgName is the orgName argument value.
@@ -377,6 +377,8 @@ type OpenChoreoSvcClientMock struct {
 			ProjName string
 			// AgentName is the agentName argument value.
 			AgentName string
+			// VerifyProject is the verifyProject argument value.
+			VerifyProject bool
 		}
 		// ListAgentComponents holds details about calls to the ListAgentComponents method.
 		ListAgentComponents []struct {
@@ -431,7 +433,7 @@ type OpenChoreoSvcClientMock struct {
 			CommitId string
 		}
 	}
-	lockAttachComponentTrait                  sync.RWMutex
+	lockAttachInstrumentationTrait            sync.RWMutex
 	lockCreateAgentComponent                  sync.RWMutex
 	lockCreateProject                         sync.RWMutex
 	lockDeleteAgentComponent                  sync.RWMutex
@@ -458,10 +460,10 @@ type OpenChoreoSvcClientMock struct {
 	lockTriggerBuild                          sync.RWMutex
 }
 
-// AttachComponentTrait calls AttachComponentTraitFunc.
-func (mock *OpenChoreoSvcClientMock) AttachComponentTrait(ctx context.Context, orgName string, projName string, agentName string) error {
-	if mock.AttachComponentTraitFunc == nil {
-		panic("OpenChoreoSvcClientMock.AttachComponentTraitFunc: method is nil but OpenChoreoSvcClient.AttachComponentTrait was just called")
+// AttachInstrumentationTrait calls AttachInstrumentationTraitFunc.
+func (mock *OpenChoreoSvcClientMock) AttachInstrumentationTrait(ctx context.Context, orgName string, projName string, agentName string) error {
+	if mock.AttachInstrumentationTraitFunc == nil {
+		panic("OpenChoreoSvcClientMock.AttachInstrumentationTraitFunc: method is nil but OpenChoreoSvcClient.AttachInstrumentationTrait was just called")
 	}
 	callInfo := struct {
 		Ctx       context.Context
@@ -474,17 +476,17 @@ func (mock *OpenChoreoSvcClientMock) AttachComponentTrait(ctx context.Context, o
 		ProjName:  projName,
 		AgentName: agentName,
 	}
-	mock.lockAttachComponentTrait.Lock()
-	mock.calls.AttachComponentTrait = append(mock.calls.AttachComponentTrait, callInfo)
-	mock.lockAttachComponentTrait.Unlock()
-	return mock.AttachComponentTraitFunc(ctx, orgName, projName, agentName)
+	mock.lockAttachInstrumentationTrait.Lock()
+	mock.calls.AttachInstrumentationTrait = append(mock.calls.AttachInstrumentationTrait, callInfo)
+	mock.lockAttachInstrumentationTrait.Unlock()
+	return mock.AttachInstrumentationTraitFunc(ctx, orgName, projName, agentName)
 }
 
-// AttachComponentTraitCalls gets all the calls that were made to AttachComponentTrait.
+// AttachInstrumentationTraitCalls gets all the calls that were made to AttachInstrumentationTrait.
 // Check the length with:
 //
-//	len(mockedOpenChoreoSvcClient.AttachComponentTraitCalls())
-func (mock *OpenChoreoSvcClientMock) AttachComponentTraitCalls() []struct {
+//	len(mockedOpenChoreoSvcClient.AttachInstrumentationTraitCalls())
+func (mock *OpenChoreoSvcClientMock) AttachInstrumentationTraitCalls() []struct {
 	Ctx       context.Context
 	OrgName   string
 	ProjName  string
@@ -496,9 +498,9 @@ func (mock *OpenChoreoSvcClientMock) AttachComponentTraitCalls() []struct {
 		ProjName  string
 		AgentName string
 	}
-	mock.lockAttachComponentTrait.RLock()
-	calls = mock.calls.AttachComponentTrait
-	mock.lockAttachComponentTrait.RUnlock()
+	mock.lockAttachInstrumentationTrait.RLock()
+	calls = mock.calls.AttachInstrumentationTrait
+	mock.lockAttachInstrumentationTrait.RUnlock()
 	return calls
 }
 
@@ -1235,25 +1237,27 @@ func (mock *OpenChoreoSvcClientMock) GetProjectCalls() []struct {
 }
 
 // IsAgentComponentExists calls IsAgentComponentExistsFunc.
-func (mock *OpenChoreoSvcClientMock) IsAgentComponentExists(ctx context.Context, orgName string, projName string, agentName string) (bool, error) {
+func (mock *OpenChoreoSvcClientMock) IsAgentComponentExists(ctx context.Context, orgName string, projName string, agentName string, verifyProject bool) (bool, error) {
 	if mock.IsAgentComponentExistsFunc == nil {
 		panic("OpenChoreoSvcClientMock.IsAgentComponentExistsFunc: method is nil but OpenChoreoSvcClient.IsAgentComponentExists was just called")
 	}
 	callInfo := struct {
-		Ctx       context.Context
-		OrgName   string
-		ProjName  string
-		AgentName string
+		Ctx           context.Context
+		OrgName       string
+		ProjName      string
+		AgentName     string
+		VerifyProject bool
 	}{
-		Ctx:       ctx,
-		OrgName:   orgName,
-		ProjName:  projName,
-		AgentName: agentName,
+		Ctx:           ctx,
+		OrgName:       orgName,
+		ProjName:      projName,
+		AgentName:     agentName,
+		VerifyProject: verifyProject,
 	}
 	mock.lockIsAgentComponentExists.Lock()
 	mock.calls.IsAgentComponentExists = append(mock.calls.IsAgentComponentExists, callInfo)
 	mock.lockIsAgentComponentExists.Unlock()
-	return mock.IsAgentComponentExistsFunc(ctx, orgName, projName, agentName)
+	return mock.IsAgentComponentExistsFunc(ctx, orgName, projName, agentName, verifyProject)
 }
 
 // IsAgentComponentExistsCalls gets all the calls that were made to IsAgentComponentExists.
@@ -1261,16 +1265,18 @@ func (mock *OpenChoreoSvcClientMock) IsAgentComponentExists(ctx context.Context,
 //
 //	len(mockedOpenChoreoSvcClient.IsAgentComponentExistsCalls())
 func (mock *OpenChoreoSvcClientMock) IsAgentComponentExistsCalls() []struct {
-	Ctx       context.Context
-	OrgName   string
-	ProjName  string
-	AgentName string
+	Ctx           context.Context
+	OrgName       string
+	ProjName      string
+	AgentName     string
+	VerifyProject bool
 } {
 	var calls []struct {
-		Ctx       context.Context
-		OrgName   string
-		ProjName  string
-		AgentName string
+		Ctx           context.Context
+		OrgName       string
+		ProjName      string
+		AgentName     string
+		VerifyProject bool
 	}
 	mock.lockIsAgentComponentExists.RLock()
 	calls = mock.calls.IsAgentComponentExists

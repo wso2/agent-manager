@@ -85,7 +85,7 @@ func createMockOpenChoreoClientForDeploy() *clientmocks.OpenChoreoSvcClientMock 
 				},
 			}, nil
 		},
-		IsAgentComponentExistsFunc: func(ctx context.Context, orgName string, projName string, agentName string) (bool, error) {
+		IsAgentComponentExistsFunc: func(ctx context.Context, orgName string, projName string, agentName string, verifyProject bool) (bool, error) {
 			return true, nil
 		},
 		GetAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agentName string) (*openchoreosvc.AgentComponent, error) {
