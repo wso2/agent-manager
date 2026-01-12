@@ -84,41 +84,34 @@ export function PageLayout({
         <Box display="flex" alignItems="center" gap={2}>
           <Box display="flex" flexDirection="column" gap={2}>
             <FadeIn>
-              <Box display="flex" alignItems="center" justifyContent="start" gap={2}>
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="start"
+                gap={2}
+              >
                 {!disableIcon && (
                   <Avatar
                     variant="rounded"
                     sx={{
                       height: 72,
                       width: 72,
-                      fontSize: "2rem",
-                      "&.MuiAvatar-root":{
-                        bgcolor: 'primary.main',
-                        color: 'background.paper',
-                      }
+                      fontSize: '2rem',
+                      bgcolor: 'primary.main',
                     }}
                   >
                     {title?.substring(0, 1).toUpperCase()}
                   </Avatar>
                 )}
-                <Box
-                  display="flex"
-                  flexDirection="column"
-                  gap={1}
-                >
+                <Box display="flex" flexDirection="column" gap={1}>
                   <Box display="flex" gap={1} alignItems="center">
-                    <Typography
-                      variant={backHref ? 'h3' : 'h2'}
-                    >
+                    <Typography variant={backHref ? 'h3' : 'h2'}>
                       {title}
                     </Typography>
                     {titleTail ? titleTail : <Box />}
                   </Box>
                   {description && (
-                    <Typography
-                      sx={{ maxWidth: '50vw' }}
-                      variant="body2"
-                    >
+                    <Typography sx={{ maxWidth: '50vw' }} variant="body2">
                       {description}
                     </Typography>
                   )}
@@ -129,9 +122,7 @@ export function PageLayout({
         </Box>
         <Box>{actions && <Box>{actions}</Box>}</Box>
       </Box>
-      <Stack pt={2}>
-        {children}
-      </Stack>
+      <Stack pt={2}>{children}</Stack>
     </Box>
   );
 }

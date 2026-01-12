@@ -65,7 +65,7 @@ export function NavigationItemButton({
             height: 44,
           }}
         >
-          {item.icon && <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>}
+          {item.icon && <ListItemIcon sx={{ minWidth: 40, color: item.isActive ? 'primary.main' : 'text.primary' }}>{item.icon}</ListItemIcon>}
           {sidebarOpen && (
             <ListItemText sx={{ textWrap: 'nowrap' }} primary={item.label} />
           )}

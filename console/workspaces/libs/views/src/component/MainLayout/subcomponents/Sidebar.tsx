@@ -97,7 +97,9 @@ function ActionButton({
       >
         {icon && (
           <ListItemIcon sx={{ minWidth: 40 }}>
-            {icon}
+            <Box color={isSelected ? 'primary.main' : 'text.primary'}>
+              {icon}
+            </Box>
             {subIcon && (
               <Box
                 sx={{ position: 'absolute', right: 6, top: 12, opacity: 0.5 }}
@@ -155,11 +157,11 @@ export function Sidebar({
         pt: 1,
         px: 1,
         display: 'flex',
-        borderRight: 1, 
-        borderColor: 'divider' ,
+        borderRight: 1,
+        borderColor: 'divider',
         justifyContent: 'space-between',
         flexDirection: 'column',
-        backgroundColor: "background.paper",
+        backgroundColor: 'background.paper',
         transition: theme.transitions.create('all', {
           duration: theme.transitions.duration.short,
         }),
@@ -175,21 +177,9 @@ export function Sidebar({
       >
         {navigationSections.length === 0 && (
           <Box display="flex" flexDirection="column" gap={1}>
-            <Skeleton
-              variant="rounded"
-              height={44}
-              width="100%"
-            />
-            <Skeleton
-              variant="rounded"
-              height={44}
-              width="100%"
-            />
-            <Skeleton
-              variant="rounded"
-              height={44}
-              width="100%"
-            />
+            <Skeleton variant="rounded" height={44} width="100%" />
+            <Skeleton variant="rounded" height={44} width="100%" />
+            <Skeleton variant="rounded" height={44} width="100%" />
           </Box>
         )}
         {navigationSections.map((navItem) =>
@@ -224,9 +214,7 @@ export function Sidebar({
                 timeout="auto"
                 unmountOnExit
               >
-                <List
-                  key={navItem.title}
-                >
+                <List key={navItem.title}>
                   {navItem.items.map((item, itemIndex) => (
                     <NavigationItemButton
                       subButton
@@ -241,21 +229,20 @@ export function Sidebar({
               </Collapse>
             </Box>
           ) : (
-              <NavigationItemButton
-                key={navItem.label}
-                item={{
-                  label: navItem.label,
-                  icon: navItem.icon,
-                  onClick: navItem.onClick,
-                  href: navItem.href,
-                  isActive: navItem.isActive,
-                  type: 'item',
-                }}
-                sidebarOpen={sidebarOpen}
-                isMobile={isMobile}
-                onNavigationClick={onNavigationClick}
-              />
-       
+            <NavigationItemButton
+              key={navItem.label}
+              item={{
+                label: navItem.label,
+                icon: navItem.icon,
+                onClick: navItem.onClick,
+                href: navItem.href,
+                isActive: navItem.isActive,
+                type: 'item',
+              }}
+              sidebarOpen={sidebarOpen}
+              isMobile={isMobile}
+              onNavigationClick={onNavigationClick}
+            />
           )
         )}
       </Box>

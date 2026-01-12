@@ -20,8 +20,8 @@ import React, { useState, useMemo } from 'react';
 import {
   Table,
   TableContainer,
-  Paper,
   TablePagination,
+  Paper,
 } from '@wso2/oxygen-ui';
 import { TableHeader } from './subcomponents/TableHeader';
 import { TableBody } from './subcomponents/TableBody';
@@ -209,16 +209,8 @@ export const DataListingTable = <T extends Record<string, any>>({
   }
 
   return (
-    <Paper
-      sx={{
-        width: '100%',
-        "& .MuiTableContainer-root": {
-          backgroundColor: 'background.default',
-        },
-        overflow: 'hidden',
-      }}
-    >
-      <TableContainer>
+    <>
+      <TableContainer component={Paper}>
         <Table>
           <TableHeader
             columns={columns}
@@ -251,6 +243,6 @@ export const DataListingTable = <T extends Record<string, any>>({
           onRowsPerPageChange={handleChangeRowsPerPage}
         />
       )}
-    </Paper>
+    </>
   );
 };

@@ -225,11 +225,11 @@ export const AgentsList: React.FC = () => {
                 <Box display="flex" alignItems="center" gap={1}>
                   <Avatar
                     variant="circular"
+
                     sx={{
-                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                      color: theme.palette.primary.main,
-                      height: 32,
-                      width: 32,
+                      height: 42,
+                      width: 42,
+                      fontSize: '1rem',
                     }}
                   >
                     {agentInfo.displayName.substring(0, 1).toUpperCase()}

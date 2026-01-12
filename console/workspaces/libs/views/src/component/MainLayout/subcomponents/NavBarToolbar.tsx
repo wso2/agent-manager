@@ -119,6 +119,7 @@ export function NavBarToolbar({
     <Layout.Navbar>
       <AppBar
         position="static"
+        color="default"
         sx={{ zIndex: theme.zIndex.drawer + 1, borderRadius: 0 }}
       >
         <Box
@@ -196,13 +197,14 @@ export function NavBarToolbar({
                     sx={{
                       height: 40,
                       width: 40,
+                      bgcolor: 'primary.main',
                     }}
                   />
                 ) : (
                   <Avatar
                     variant="circular"
-                    color="primary"
                     sx={{
+                      bgcolor: 'primary.main',
                       height: 40,
                       width: 40,
                     }}

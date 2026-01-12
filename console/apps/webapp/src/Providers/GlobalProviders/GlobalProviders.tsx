@@ -27,7 +27,7 @@ export const GlobalProviders = ({
   children: React.ReactNode;
 }) => {
   return (
-    <OxygenUIThemeProvider radialBackground>
+    <OxygenUIThemeProvider>
       <AuthProvider>
         <ClientProvider>
           <ConfirmationDialogProvider>{children}</ConfirmationDialogProvider>
