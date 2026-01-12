@@ -18,9 +18,6 @@ package models
 
 import (
 	"time"
-
-	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 // API Response DTO
@@ -33,17 +30,4 @@ type ProjectResponse struct {
 	DeploymentPipeline string    `json:"deploymentPipeline,omitempty"`
 	CreatedAt          time.Time `json:"createdAt"`
 	Status             string    `json:"status,omitempty"`
-}
-
-// DB Model
-type Project struct {
-	ID                uuid.UUID      `gorm:"column:id;primaryKey" json:"projectID" binding:"required"`
-	Name              string         `gorm:"column:name" json:"name" binding:"required"`
-	OrgID             uuid.UUID      `gorm:"column:org_id" json:"orgID" binding:"required"`
-	OpenChoreoProject string         `gorm:"column:open_choreo_project" json:"openChoreoProject,omitempty"`
-	DisplayName       string         `gorm:"column:display_name" json:"displayName,omitempty"`
-	Description       string         `gorm:"column:description" json:"description,omitempty"`
-	CreatedAt         time.Time      `gorm:"column:created_at" json:"createdAt"`
-	UpdatedAt         time.Time      `gorm:"column:updated_at" json:"updatedAt"`
-	DeletedAt         gorm.DeletedAt `gorm:"column:deleted_at" json:"deletedAt"`
 }
