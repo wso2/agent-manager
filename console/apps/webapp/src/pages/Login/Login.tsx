@@ -17,14 +17,12 @@
  */
 
 import { useAuthHooks } from "@agent-management-platform/auth";
-import { generatePath, Navigate, useLocation } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { useLocation } from "react-router-dom";
 import { Button, Box, Typography } from "@wso2/oxygen-ui";
 import { useEffect } from "react";
 import { FullPageLoader } from "@agent-management-platform/views";
 
 export function Login() {
-  // eslint-disable-next-line max-len
   const {
     isAuthenticated,
     login,
@@ -34,28 +32,42 @@ export function Login() {
   } = useAuthHooks();
 
   const { state } = useLocation();
-  const from = state?.from?.pathname;
+  const from = state?.from?.pathname || "/";
+
+  // Check if we're handling an OAuth callback
+  const isOAuthCallback = new URLSearchParams(window.location.search).has(
+    "code",
+  );
 
   useEffect(() => {
-    if (!isAuthenticated && !isLoadingIsAuthenticated) {
-        login();    
+    // Only auto-trigger login if:
+    // - Not authenticated
+    // - Not loading
+    // - NOT on OAuth callback (let SDK handle the code exchange)
+    if (!isOAuthCallback && !isAuthenticated && !isLoadingUserInfo) {
+      login();
     }
-  }, [login, isAuthenticated, isLoadingIsAuthenticated]);
+  }, [
+    isAuthenticated,
+    isLoadingIsAuthenticated,
+    isOAuthCallback,
+    isLoadingUserInfo,
+  ]);
 
-  if (isAuthenticated && !isLoadingUserInfo && !isLoadingIsAuthenticated) {
-    return (
-      <Navigate
-        to={
-          from
-            ? from
-            : generatePath(absoluteRouteMap.children.org.path, {
-                orgId: userInfo?.orgHandle ?? "default",
-              })
-        }
-      />
-    );
-  }
-  if (isLoadingIsAuthenticated || isLoadingUserInfo) {
+  // Handle redirect after successful authentication
+  useEffect(() => {
+    if (userInfo) {
+      window.location.href = from;
+    }
+  }, [userInfo]);
+
+  // Show loader while auth is in progress
+  // For OAuth callback: show loader only while not yet authenticated (SDK is processing)
+  if (
+    isLoadingIsAuthenticated ||
+    isLoadingUserInfo ||
+    (isOAuthCallback && !isAuthenticated)
+  ) {
     return <FullPageLoader />;
   }
   return (
