@@ -51,12 +51,13 @@ type KubernetesConfigData struct {
 
 type OpenChoreoSvcClient interface {
 	CreateAgentComponent(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error
-	AttachComponentTrait(ctx context.Context, orgName string, projName string, agentName string) error
+	AttachInstrumentationTrait(ctx context.Context, orgName string, projName string, agentName string) error
 	TriggerBuild(ctx context.Context, orgName string, projName string, agentName string, commitId string) (*models.BuildResponse, error)
 	GetProject(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error)
 	ListOrgEnvironments(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error)
 	ListProjects(ctx context.Context, orgName string) ([]*models.ProjectResponse, error)
 	GetOrganization(ctx context.Context, orgName string) (*models.OrganizationResponse, error)
+	ListOrganizations(ctx context.Context) ([]*models.OrganizationResponse, error)
 	GetDeploymentPipelinesForOrganization(ctx context.Context, orgName string) ([]*models.DeploymentPipelineResponse, error)
 	DeleteProject(ctx context.Context, orgName string, projectName string) error
 	GetDeploymentPipeline(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error)
@@ -69,7 +70,7 @@ type OpenChoreoSvcClient interface {
 	GetComponentWorkflow(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error)
 	GetAgentDeployments(ctx context.Context, orgName string, pipelineName string, projName string, componentName string) ([]*models.DeploymentResponse, error)
 	GetEnvironment(ctx context.Context, orgName string, environmentName string) (*models.EnvironmentResponse, error)
-	IsAgentComponentExists(ctx context.Context, orgName string, projName string, agentName string) (bool, error)
+	IsAgentComponentExists(ctx context.Context, orgName string, projName string, agentName string, verifyProject bool) (bool, error)
 	GetAgentEndpoints(ctx context.Context, orgName string, projName string, agentName string, environment string) (map[string]models.EndpointsResponse, error)
 	GetAgentConfigurations(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error)
 	GetDataplanesForOrganization(ctx context.Context, orgName string) ([]*models.DataPlaneResponse, error)
@@ -173,7 +174,7 @@ func (k *openChoreoSvcClient) ListAgentComponents(ctx context.Context, orgName s
 	return agentComponents, nil
 }
 
-func (k *openChoreoSvcClient) IsAgentComponentExists(ctx context.Context, orgName string, projName string, agentName string) (bool, error) {
+func (k *openChoreoSvcClient) IsAgentComponentExists(ctx context.Context, orgName string, projName string, agentName string, verifyProject bool) (bool, error) {
 	component := &v1alpha1.Component{}
 	key := client.ObjectKey{
 		Name:      agentName,
@@ -189,9 +190,11 @@ func (k *openChoreoSvcClient) IsAgentComponentExists(ctx context.Context, orgNam
 		return false, fmt.Errorf("failed to check component existence: %w", err)
 	}
 
-	// Verify that the component belongs to the specified project
-	if component.Spec.Owner.ProjectName != projName {
-		return false, nil
+	// Optionally verify that the component belongs to the specified project
+	if verifyProject {
+		if component.Spec.Owner.ProjectName != projName {
+			return false, nil
+		}
 	}
 
 	return true, nil
@@ -219,7 +222,7 @@ func (k *openChoreoSvcClient) GetAgentComponent(ctx context.Context, orgName str
 	return toComponentResponse(component), nil
 }
 
-func (k *openChoreoSvcClient) AttachComponentTrait(ctx context.Context, orgName string, projName string, agentName string) error {
+func (k *openChoreoSvcClient) AttachInstrumentationTrait(ctx context.Context, orgName string, projName string, agentName string) error {
 	openChoreoProject, err := k.GetProject(ctx, projName, orgName)
 	if err != nil {
 		return fmt.Errorf("failed to get project for trait attachment: %w", err)
@@ -314,7 +317,7 @@ func (k *openChoreoSvcClient) CreateAgentComponent(ctx context.Context, orgName 
 		}
 		// Add OpenTelemetry instrumentation trait for Python agents
 		if req.AgentType.Type == string(utils.AgentTypeAPI) && req.RuntimeConfigs.Language == string(utils.LanguagePython) {
-			err := k.AttachComponentTrait(ctx, orgName, projName, req.Name)
+			err := k.AttachInstrumentationTrait(ctx, orgName, projName, req.Name)
 			if err != nil {
 				return fmt.Errorf("error attaching OTEL instrumentation trait: %w", err)
 			}
@@ -524,7 +527,7 @@ func (k *openChoreoSvcClient) TriggerBuild(ctx context.Context, orgName string, 
 }
 
 func (k *openChoreoSvcClient) DeployAgentComponent(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error {
-	exists, err := k.IsAgentComponentExists(ctx, orgName, projName, componentName)
+	exists, err := k.IsAgentComponentExists(ctx, orgName, projName, componentName, true)
 	if err != nil {
 		return fmt.Errorf("failed to check agent component existence: %w", err)
 	}
@@ -626,7 +629,7 @@ func (k *openChoreoSvcClient) ListComponentWorkflows(ctx context.Context, orgNam
 }
 
 func (k *openChoreoSvcClient) GetComponentWorkflow(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
-	exists, err := k.IsAgentComponentExists(ctx, orgName, projName, componentName)
+	exists, err := k.IsAgentComponentExists(ctx, orgName, projName, componentName, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check agent component existence: %w", err)
 	}
@@ -662,7 +665,7 @@ func (k *openChoreoSvcClient) GetComponentWorkflow(ctx context.Context, orgName 
 }
 
 func (k *openChoreoSvcClient) GetAgentDeployments(ctx context.Context, orgName string, pipelineName string, projectName string, componentName string) ([]*models.DeploymentResponse, error) {
-	exists, err := k.IsAgentComponentExists(ctx, orgName, projectName, componentName)
+	exists, err := k.IsAgentComponentExists(ctx, orgName, projectName, componentName, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check agent component existence: %w", err)
 	}
@@ -765,7 +768,7 @@ func (k *openChoreoSvcClient) GetAgentDeployments(ctx context.Context, orgName s
 }
 
 func (k *openChoreoSvcClient) GetAgentEndpoints(ctx context.Context, orgName string, projName string, agentName string, environment string) (map[string]models.EndpointsResponse, error) {
-	exists, err := k.IsAgentComponentExists(ctx, orgName, projName, agentName)
+	exists, err := k.IsAgentComponentExists(ctx, orgName, projName, agentName, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check agent component existence: %w", err)
 	}
@@ -912,7 +915,7 @@ func (k *openChoreoSvcClient) GetDeploymentPipeline(ctx context.Context, orgName
 
 func (k *openChoreoSvcClient) GetAgentConfigurations(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error) {
 	// Check if agent component exists
-	exists, err := k.IsAgentComponentExists(ctx, orgName, projectName, agentName)
+	exists, err := k.IsAgentComponentExists(ctx, orgName, projectName, agentName, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check agent component existence: %w", err)
 	}
@@ -1031,6 +1034,28 @@ func (k *openChoreoSvcClient) CreateProject(ctx context.Context, orgName string,
 	})
 }
 
+func (k *openChoreoSvcClient) ListOrganizations(ctx context.Context) ([]*models.OrganizationResponse, error) {
+	orgList := &v1alpha1.OrganizationList{}
+	err := k.retryK8sOperation(ctx, "ListOrganizations", func() error {
+		return k.client.List(ctx, orgList)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list organizations: %w", err)
+	}
+
+	var organizations []*models.OrganizationResponse
+	for _, org := range orgList.Items {
+		organizations = append(organizations, &models.OrganizationResponse{
+			Name:        org.Name,
+			Namespace:   org.Name,
+			CreatedAt:   org.CreationTimestamp.Time,
+			DisplayName: org.Annotations[string(AnnotationKeyDisplayName)],
+			Description: org.Annotations[string(AnnotationKeyDescription)],
+		})
+	}
+	return organizations, nil
+}
+
 func (k *openChoreoSvcClient) GetOrganization(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
 	org := &v1alpha1.Organization{}
 	key := client.ObjectKey{
@@ -1048,7 +1073,6 @@ func (k *openChoreoSvcClient) GetOrganization(ctx context.Context, orgName strin
 	}
 
 	orgModel := &models.OrganizationResponse{
-		UUID:        string(org.UID),
 		Name:        org.Name,
 		Namespace:   org.Name,
 		CreatedAt:   org.CreationTimestamp.Time,

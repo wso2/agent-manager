@@ -137,6 +137,14 @@ func loadEnvs() {
 
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
 	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 9080))
+	config.KeyManagerConfigurations = KeyManagerConfigurations{
+		// Comma-separated list of allowed issuers and audiences
+		Issuer:        r.readOptionalStringList("KEY_MANAGER_ISSUER", "Agent Management Platform Local"),
+		Audience:      r.readOptionalStringList("KEY_MANAGER_AUDIENCE", "localhost"),
+		JWKSUrl:       r.readOptionalString("KEY_MANAGER_JWKS_URL", ""),
+		DefaultIssuer: r.readOptionalString("KEY_MANAGER_DEFAULT_ISSUER", "Agent Management Platform Local"),
+	}
+	config.IsOnPremDeployment = r.readOptionalBool("IS_ON_PREM_DEPLOYMENT", true)
 
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)

@@ -22,25 +22,28 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // NewMockMiddleware creates a mock JWT middleware for testing
-func NewMockMiddleware(t *testing.T, orgId uuid.UUID, userIdpId uuid.UUID) Middleware {
+func NewMockMiddleware(t *testing.T) Middleware {
 	t.Helper()
 
 	tokenClaims := &TokenClaims{
-		Sub:   userIdpId,
 		Scope: "scopes",
-		Exp:   int(time.Now().Add(time.Hour).Unix()),
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		},
 	}
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
-			// Set the context values that GetTokenClaims expects
+			// Set the context values that the middleware expects
 			ctx = context.WithValue(ctx, assertionTokenClaimsKey, tokenClaims)
+			ctx = context.WithValue(ctx, jwtToken, "mock-jwt-token")
+			ctx = context.WithValue(ctx, scopesKey, tokenClaims.Scope)
 
 			r = r.WithContext(ctx)
 			next.ServeHTTP(w, r)

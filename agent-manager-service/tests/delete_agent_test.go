@@ -22,21 +22,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/wiring"
 )
 
 var (
-	testDeleteOrgId       = uuid.New()
-	testDeleteProjId      = uuid.New()
-	testDeleteUserIdpId   = uuid.New()
 	testDeleteOrgName     = fmt.Sprintf("test-org-%s", uuid.New().String()[:5])
 	testDeleteProjName    = fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
 	testDeleteAgentName   = fmt.Sprintf("test-agent-%s", uuid.New().String()[:5])
@@ -46,6 +45,28 @@ var (
 
 func createMockOpenChoreoClientForDelete() *clientmocks.OpenChoreoSvcClientMock {
 	return &clientmocks.OpenChoreoSvcClientMock{
+		GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
+			if orgName == "nonexistent-org" {
+				return nil, utils.ErrOrganizationNotFound
+			}
+			return &models.OrganizationResponse{
+				Name:        orgName,
+				DisplayName: orgName,
+				CreatedAt:   time.Now(),
+				Status:      "ACTIVE",
+			}, nil
+		},
+		GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+			if projectName == "nonexistent-project" {
+				return nil, utils.ErrProjectNotFound
+			}
+			return &models.ProjectResponse{
+				Name:        projectName,
+				DisplayName: projectName,
+				OrgName:     orgName,
+				CreatedAt:   time.Now(),
+			}, nil
+		},
 		DeleteAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agentName string) error {
 			return nil
 		},
@@ -54,7 +75,7 @@ func createMockOpenChoreoClientForDelete() *clientmocks.OpenChoreoSvcClientMock 
 
 func TestDeleteAgent(t *testing.T) {
 	setUpDeleteTest(t)
-	authMiddleware := jwtassertion.NewMockMiddleware(t, testDeleteOrgId, testDeleteUserIdpId)
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Deleting an internal agent should return 204", func(t *testing.T) {
 		openChoreoClient := createMockOpenChoreoClientForDelete()
@@ -173,7 +194,7 @@ func TestDeleteAgent(t *testing.T) {
 			},
 			setupData: func(t *testing.T) {
 				// Create an internal agent that will fail to delete from OpenChoreo
-				_ = apitestutils.CreateAgent(t, uuid.New(), testDeleteOrgId, testDeleteProjId, testFailingAgentName, string(utils.InternalAgent))
+				_ = apitestutils.CreateAgent(t, uuid.New(), testDeleteOrgName, testDeleteProjName, testFailingAgentName, string(utils.InternalAgent))
 			},
 		},
 	}
@@ -209,7 +230,7 @@ func TestDeleteAgent(t *testing.T) {
 }
 
 func TestDeleteAgentIdempotency(t *testing.T) {
-	authMiddleware := jwtassertion.NewMockMiddleware(t, testDeleteOrgId, testDeleteUserIdpId)
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Multiple deletes of same agent should be handled gracefully", func(t *testing.T) {
 		openChoreoClient := createMockOpenChoreoClientForDelete()
@@ -221,7 +242,7 @@ func TestDeleteAgentIdempotency(t *testing.T) {
 
 		// Create an agent to delete
 		agentName := fmt.Sprintf("new-agent-%s", uuid.New().String()[:7])
-		_ = apitestutils.CreateAgent(t, uuid.New(), testDeleteOrgId, testDeleteProjId, agentName, string(utils.InternalAgent))
+		_ = apitestutils.CreateAgent(t, uuid.New(), testDeleteOrgName, testDeleteProjName, agentName, string(utils.InternalAgent))
 
 		// Make multiple delete requests
 		numRequests := 2
@@ -247,8 +268,6 @@ func TestDeleteAgentIdempotency(t *testing.T) {
 }
 
 func setUpDeleteTest(t *testing.T) {
-	_ = apitestutils.CreateOrganization(t, testDeleteOrgId, testDeleteUserIdpId, testDeleteOrgName)
-	_ = apitestutils.CreateProject(t, testDeleteProjId, testDeleteOrgId, testDeleteProjName)
-	_ = apitestutils.CreateAgent(t, uuid.New(), testDeleteOrgId, testDeleteProjId, testDeleteAgentName, string(utils.InternalAgent))
-	_ = apitestutils.CreateAgent(t, uuid.New(), testDeleteOrgId, testDeleteProjId, testExternalAgentName, string(utils.ExternalAgent))
+	_ = apitestutils.CreateAgent(t, uuid.New(), testDeleteOrgName, testDeleteProjName, testDeleteAgentName, string(utils.InternalAgent))
+	_ = apitestutils.CreateAgent(t, uuid.New(), testDeleteOrgName, testDeleteProjName, testExternalAgentName, string(utils.ExternalAgent))
 }

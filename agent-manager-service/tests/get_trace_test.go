@@ -90,16 +90,11 @@ func createMockTraceObserverClientWithDetails() *clientmocks.TraceObserverClient
 
 func TestGetTrace(t *testing.T) {
 	// Create unique test data for this test suite
-	traceDetailsOrgId := uuid.New()
-	traceDetailsUserIdpId := uuid.New()
-	traceDetailsProjId := uuid.New()
 	traceDetailsOrgName := fmt.Sprintf("trace-details-org-%s", uuid.New().String()[:5])
 	traceDetailsProjName := fmt.Sprintf("trace-details-project-%s", uuid.New().String()[:5])
 	traceDetailsAgentName := fmt.Sprintf("trace-details-agent-%s", uuid.New().String()[:5])
 
-	_ = apitestutils.CreateOrganization(t, traceDetailsOrgId, traceDetailsUserIdpId, traceDetailsOrgName)
-	_ = apitestutils.CreateProject(t, traceDetailsProjId, traceDetailsOrgId, traceDetailsProjName)
-	authMiddleware := jwtassertion.NewMockMiddleware(t, traceDetailsOrgId, traceDetailsUserIdpId)
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Getting trace details with valid traceId should return 200", func(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClientWithDetails()

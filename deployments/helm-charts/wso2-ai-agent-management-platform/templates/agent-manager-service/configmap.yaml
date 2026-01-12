@@ -25,4 +25,9 @@ data:
   OTEL_TRACELOOP_TRACE_CONTENT: {{ .Values.agentManagerService.config.otel.traceContent | quote }}
   OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.agentManagerService.config.otel.exporterEndpoint | quote }}
   TRACE_OBSERVER_URL: {{ .Values.agentManagerService.config.traceObserverURL | quote }}
+  KEY_MANAGER_ISSUER: {{ .Values.agentManagerService.config.keyManager.issuer | quote }}                                         
+  KEY_MANAGER_AUDIENCE: {{ .Values.agentManagerService.config.keyManager.audience | quote }}                                   
+  KEY_MANAGER_JWKS_URL: {{ .Values.agentManagerService.config.keyManager.jwksUrl | quote }}                                         
+  KEY_MANAGER_DEFAULT_ISSUER: {{ .Values.agentManagerService.config.keyManager.defaultIssuer | quote }}                    
+  IS_ON_PREM_DEPLOYMENT: {{ .Values.agentManagerService.config.isOnPremDeployment | quote }}
 {{- end }}

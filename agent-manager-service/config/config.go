@@ -54,6 +54,16 @@ type Config struct {
 	// Default Chat API configuration
 	DefaultChatAPI     DefaultChatAPIConfig
 	DefaultGatewayPort int
+
+	KeyManagerConfigurations KeyManagerConfigurations
+	IsOnPremDeployment      bool
+}
+
+type KeyManagerConfigurations struct {
+	Issuer        []string
+	Audience      []string
+	JWKSUrl       string
+	DefaultIssuer string // Default issuer allowed to skip JWKS signature validation
 }
 
 type AgentWorkload struct {

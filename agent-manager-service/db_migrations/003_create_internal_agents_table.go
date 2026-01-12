@@ -21,8 +21,8 @@ import (
 )
 
 // create table internal_agents
-var migration007 = migration{
-	ID: 7,
+var migration003 = migration{
+	ID: 3,
 	Migrate: func(db *gorm.DB) error {
 		createTable := `CREATE TABLE internal_agents
 (

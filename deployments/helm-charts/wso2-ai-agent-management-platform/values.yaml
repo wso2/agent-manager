@@ -109,6 +109,15 @@ agentManagerService:
       traceContent: "true"
       exporterEndpoint: "http://opentelemetry-collector.openchoreo-observability-plane.svc.cluster.local:4318"
 
+    # Key Manager configuration
+    keyManager:
+      issuer: "https://api.asgardeo.io/t/wso2amp/oauth2/token"
+      audience: "u_wYEmecunJ5ZTDZgZtlZ1FKIOMa"
+      jwksUrl: "https://api.asgardeo.io/t/wso2amp/oauth2/jwks"
+      defaultIssuer: "Agent Management Platform Local"
+
+    # On-premise deployment flag
+    isOnPremDeployment: "true"
   agentWorkload:
     cors:
       allowedOrigin: "http://localhost:3000"
