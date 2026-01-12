@@ -38,7 +38,7 @@ agentManagerService:
 
   image:
     repository: ghcr.io/wso2/amp-api
-    tag: "0.0.0-dev"
+    tag: "v0.1.4"
     pullPolicy: IfNotPresent
 
   service:
@@ -147,7 +147,7 @@ console:
 
   image:
     repository: ghcr.io/wso2/amp-console
-    tag: "0.0.0-dev"
+    tag: "v0.1.4"
     pullPolicy: Always
 
   service:
@@ -210,7 +210,7 @@ dbMigration:
 
   image:
     repository: ghcr.io/wso2/amp-api
-    tag: "0.0.0-dev"
+    tag: "v0.1.4"
     pullPolicy: IfNotPresent
 
   resources:
