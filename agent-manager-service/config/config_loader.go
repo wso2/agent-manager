@@ -144,6 +144,7 @@ func loadEnvs() {
 		JWKSUrl:       r.readOptionalString("KEY_MANAGER_JWKS_URL", ""),
 		DefaultIssuer: r.readOptionalString("KEY_MANAGER_DEFAULT_ISSUER", "Agent Management Platform Local"),
 	}
+	config.IsOnPremDeployment = r.readOptionalBool("IS_ON_PREM_DEPLOYMENT", true)
 
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)
