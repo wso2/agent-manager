@@ -258,12 +258,7 @@ export function BuildTable() {
   );
 
   return (
-    <Box
-      display="flex"
-      borderRadius={1}
-      flexDirection="column"
-      bgcolor={"background.paper"}
-    >
+    <>
       <DataListingTable
         data={rows}
         columns={columns}
@@ -283,6 +278,6 @@ export function BuildTable() {
           />
         )}
       </DrawerWrapper>
-    </Box>
+    </>
   );
 }

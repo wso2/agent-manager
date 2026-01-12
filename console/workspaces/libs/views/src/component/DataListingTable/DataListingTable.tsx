@@ -215,6 +215,7 @@ export const DataListingTable = <T extends Record<string, any>>({
         "& .MuiTableContainer-root": {
           backgroundColor: 'background.default',
         },
+        overflow: 'hidden',
       }}
     >
       <TableContainer>

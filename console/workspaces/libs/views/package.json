@@ -33,7 +33,7 @@
     "dev": "rushx clean && rushx copy-assets && tsc -project tsconfig.lib.json --watch",
     "i18n": "formatjs extract 'src/**/*.{ts,tsx,js,jsx}' --out-file 'lang/en.json' --ignore '**/node_modules/**' --ignore '**/*.d.ts' --ignore '**/vite-env.d.ts' --format simple --throws"
   },
-  "keywords": ["ai", "agents", "ui", "components", "mui", "react"],
+  "keywords": ["ai", "agents", "ui", "components", "react"],
   "author": "",
   "license": "Apache-2.0 license",
   "description": "Common UI components library for AI Agent Management Platform",
@@ -46,7 +46,6 @@
     "react-hook-form": "7.65.0",
     "dayjs": "1.11.18",
     "@mui/material": "7.0.0",
-    "@mui/icons-material": "7.0.0",
     "@emotion/react": "11.13.5",
     "@emotion/styled": "11.13.5",
     "@wso2/oxygen-ui": "0.0.1-alpha.9",

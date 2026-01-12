@@ -30,7 +30,6 @@
     "dayjs": "1.11.18",
     "lodash": "4.17.21",
     "@mui/material": "7.0.0",
-    "@mui/icons-material": "7.0.0",
     "@emotion/react": "11.13.5",
     "@emotion/styled": "11.13.5",
     "@fontsource/roboto": "5.2.5",

@@ -17,7 +17,7 @@
  */
 
 import type { Preview } from '@storybook/react';
-import { ThemeProvider, CssBaseline } from '@mui/material';
+import { ThemeProvider, CssBaseline } from '@wso2/oxygen-ui';
 import { aiAgentTheme, aiAgentDarkTheme } from '@agent-management-platform/views';
 import React from 'react';
 

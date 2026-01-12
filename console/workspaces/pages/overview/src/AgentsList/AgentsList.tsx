@@ -445,7 +445,6 @@ export const AgentsList: React.FC = () => {
           )}
 
           {!isLoading && !!data?.agents?.length && (
-            <Box bgcolor="background.paper" borderRadius={1}>
               <DataListingTable
                 data={agentsWithHref}
                 columns={columns}
@@ -461,7 +460,6 @@ export const AgentsList: React.FC = () => {
                 emptyStateTitle="No agents found"
                 emptyStateDescription="Looks like there are no agents matching your search."
               />
-            </Box>
           )}
 
           {!isLoading && !data?.agents?.length && !isRefetching && (
