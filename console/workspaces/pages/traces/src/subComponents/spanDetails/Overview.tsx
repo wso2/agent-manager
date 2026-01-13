@@ -22,12 +22,20 @@ import {
   Card,
   CardContent,
   Chip,
+  Divider,
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
 import { Info } from "@wso2/oxygen-ui-icons-react";
-import { AmpAttributes, PromptMessage, ToolData, AgentData, CrewAITaskData } from "@agent-management-platform/types";
+import {
+  AmpAttributes,
+  PromptMessage,
+  ToolData,
+  AgentData,
+  CrewAITaskData,
+} from "@agent-management-platform/types";
 import { memo, useCallback, useMemo } from "react";
+import { JSONView } from "./JSONView";
 
 interface OverviewProps {
   ampAttributes?: AmpAttributes;
@@ -48,7 +56,7 @@ function formattedMessage(message: string) {
    */
   function recursiveParse(value: any): any {
     // If it's a string, try to parse it as JSON
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       try {
         const parsed = JSON.parse(value);
         // Recursively process the parsed result
@@ -58,14 +66,14 @@ function formattedMessage(message: string) {
         return value;
       }
     }
-    
+
     // If it's an array, recursively process each element
     if (Array.isArray(value)) {
-      return value.map(item => recursiveParse(item));
+      return value.map((item) => recursiveParse(item));
     }
-    
+
     // If it's an object, recursively process each property
-    if (value !== null && typeof value === 'object') {
+    if (value !== null && typeof value === "object") {
       const result: Record<string, any> = {};
       for (const key in value) {
         if (Object.prototype.hasOwnProperty.call(value, key)) {
@@ -74,7 +82,7 @@ function formattedMessage(message: string) {
       }
       return result;
     }
-    
+
     // For primitives (number, boolean, null), return as-is
     return value;
   }
@@ -97,13 +105,13 @@ const MessageList = memo(function MessageList({
     if (!showEmptyMessage) {
       return null;
     }
-    
+
     return (
       <Box data-testid={testId}>
         <Typography variant="h6" sx={{ mb: 2 }}>
           {title}
         </Typography>
-        <Card variant="outlined" sx={{ bgcolor: 'action.hover' }}>
+        <Card variant="outlined" sx={{ bgcolor: "action.hover" }}>
           <CardContent>
             <Typography variant="body2" color="text.secondary">
               No data available
@@ -115,7 +123,8 @@ const MessageList = memo(function MessageList({
   }
 
   return (
-    <Box data-testid={testId}>
+    <Stack pt={2} data-testid={testId}>
+      <Divider sx={{ mb: 2 }} />
       <Typography variant="h6" sx={{ mb: 2 }}>
         {title}
       </Typography>
@@ -138,18 +147,8 @@ const MessageList = memo(function MessageList({
                       />
                     )}
                   </Box>
-                  {message.content && (
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        fontFamily: "monospace",
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {formattedMessage(message.content)}
-                    </Typography>
-                  )}
+
+                  {message.content && <JSONView json={formattedMessage(message.content)} />}
                   {message.toolCalls && message.toolCalls.length > 0 && (
                     <Box>
                       <Stack spacing={1}>
@@ -192,7 +191,7 @@ const MessageList = memo(function MessageList({
           );
         })}
       </Stack>
-    </Box>
+    </Stack>
   );
 });
 
@@ -206,8 +205,12 @@ export function Overview({ ampAttributes }: OverviewProps) {
         return [{ content: input }];
       }
       // Handle string arrays (e.g., for embedding documents)
-      if (Array.isArray(input) && input.length > 0 && typeof input[0] === "string") {
-        return (input as string[]).map(doc => ({ content: doc }));
+      if (
+        Array.isArray(input) &&
+        input.length > 0 &&
+        typeof input[0] === "string"
+      ) {
+        return (input as string[]).map((doc) => ({ content: doc }));
       }
       // Handle PromptMessage arrays
       return input as PromptMessage[];
@@ -228,11 +231,11 @@ export function Overview({ ampAttributes }: OverviewProps) {
   // Extract name from data based on kind
   const name = useMemo(() => {
     const { kind, data } = ampAttributes || {};
-    if (kind === 'tool' && data) {
+    if (kind === "tool" && data) {
       return (data as ToolData).name;
-    } else if (kind === 'agent' && data) {
+    } else if (kind === "agent" && data) {
       return (data as AgentData).name;
-    } else if (kind === 'crewaitask' && data) {
+    } else if (kind === "crewaitask" && data) {
       return (data as CrewAITaskData).name;
     }
     return undefined;
@@ -241,7 +244,7 @@ export function Overview({ ampAttributes }: OverviewProps) {
   // Extract description for CrewAI tasks
   const taskDescription = useMemo(() => {
     const { kind, data } = ampAttributes || {};
-    if (kind === 'crewaitask' && data) {
+    if (kind === "crewaitask" && data) {
       return (data as CrewAITaskData).description;
     }
     return undefined;
@@ -250,7 +253,7 @@ export function Overview({ ampAttributes }: OverviewProps) {
   // Extract system prompt for agent spans
   const systemPrompt = useMemo(() => {
     const { kind, data } = ampAttributes || {};
-    if (kind === 'agent' && data) {
+    if (kind === "agent" && data) {
       return (data as AgentData).systemPrompt;
     }
     return undefined;
@@ -261,7 +264,12 @@ export function Overview({ ampAttributes }: OverviewProps) {
   // Check if this is a span type that should have input/output
   const shouldHaveInputOutput = useMemo(() => {
     const { kind } = ampAttributes || {};
-    return kind === 'llm' || kind === 'tool' || kind === 'agent' || kind === 'embedding';
+    return (
+      kind === "llm" ||
+      kind === "tool" ||
+      kind === "agent" ||
+      kind === "embedding"
+    );
   }, [ampAttributes]);
 
   const getRoleColor = useCallback((role: string) => {
@@ -308,7 +316,7 @@ export function Overview({ ampAttributes }: OverviewProps) {
           <Typography variant="h6">Description</Typography>
           <Card variant="outlined">
             <CardContent>
-              <Typography 
+              <Typography
                 variant="body2"
                 sx={{
                   whiteSpace: "pre-wrap",
@@ -327,7 +335,7 @@ export function Overview({ ampAttributes }: OverviewProps) {
           <Typography variant="h6">System Prompt</Typography>
           <Card variant="outlined">
             <CardContent>
-              <Typography 
+              <Typography
                 variant="body2"
                 sx={{
                   whiteSpace: "pre-wrap",

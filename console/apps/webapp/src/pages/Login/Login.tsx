@@ -143,7 +143,7 @@ export function Login() {
               maxWidth={580}
               display={{ xs: "none", md: "flex" }}
             >
-              <Typography variant="h3">Agent Management Platform</Typography>
+              <Typography variant="h3">WSO2 Agent Manager</Typography>
               <Stack
                 sx={{ flexDirection: "column", alignSelf: "center", gap: 4 }}
               >
@@ -189,7 +189,7 @@ export function Login() {
               size="large"
               startIcon={<LucideLogIn size={24} />}
             >
-              Continue with Asgardeo
+              Continue
             </Button>
 
             <Box component="footer" sx={{ mt: 4 }}>
