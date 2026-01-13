@@ -17,7 +17,7 @@
  */
 
 import { Box, Card, CardContent, Typography } from "@wso2/oxygen-ui";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 import { useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
@@ -27,12 +27,12 @@ import { useGenerateResourceName } from "@agent-management-platform/api-client";
 export const ConnectAgentForm = () => {
   const {
     register,
+    control,
     formState: { errors },
-    watch,
     setValue,
   } = useFormContext();
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
-  const displayName = watch("displayName");
+  const displayName = useWatch({ control, name: "displayName" });
   
   const { mutate: generateName } = useGenerateResourceName({
     orgName: orgId,

@@ -17,7 +17,7 @@
  */
 
 import { Box, Card, CardContent, Typography, FormControl, Select, MenuItem, FormHelperText } from "@wso2/oxygen-ui";
-import { useFormContext, Controller } from "react-hook-form";
+import { useFormContext, Controller, useWatch } from "react-hook-form";
 import { useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
@@ -30,12 +30,11 @@ export const ProjectForm = () => {
     register,
     control,
     formState: { errors },
-    watch,
     setValue,
   } = useFormContext<AddProjectFormValues>();
   const { orgId } = useParams<{ orgId: string }>();
-  const displayName = watch("displayName");
-  
+  const displayName = useWatch({ control, name: "displayName" });
+
   const { mutate: generateName } = useGenerateResourceName({
     orgName: orgId,
   });
