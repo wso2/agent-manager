@@ -2,8 +2,8 @@ apiVersion: v2
 name: wso2-amp-platform-resources-extension
 description: Default platform resources for WSO2 AI Agent Management Platform on OpenChoreo
 type: application
-version: 0.0.0-dev
-appVersion: "0.0.0-dev"
+version: v0.2.0
+appVersion: "v0.2.0"
 
 home: https://github.com/wso2/ai-agent-management-platform
 sources:
