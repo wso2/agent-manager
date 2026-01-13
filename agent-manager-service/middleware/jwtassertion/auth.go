@@ -30,15 +30,14 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 type TokenClaims struct {
-	Sub   uuid.UUID `json:"sub"`
-	Scope string    `json:"scope"`
+	Sub   string `json:"sub"`
+	Scope string `json:"scope"`
 	jwt.RegisteredClaims
 }
 
@@ -270,7 +269,7 @@ func validateAudience(audiences jwt.ClaimStrings, allowedAudiences []string) err
 		}
 	}
 
-	return fmt.Errorf("invalid audience: got %v",  audiences)
+	return fmt.Errorf("invalid audience: got %v", audiences)
 }
 
 // fetchJWKS fetches the JWKS from the provided URL with caching
