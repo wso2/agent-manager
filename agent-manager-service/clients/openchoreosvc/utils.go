@@ -269,7 +269,7 @@ func createAPIManagementTrait(componentName string, basePath string) (*v1alpha1.
 	}
 	traitParametersJSON, err := json.Marshal(traitParameters)
 	if err != nil {
-		return nil, fmt.Errorf("error marshalling OTEL instrumentation trait parameters: %w", err)
+		return nil, fmt.Errorf("error marshalling api management trait parameters: %w", err)
 	}
 
 	return &v1alpha1.ComponentTrait{

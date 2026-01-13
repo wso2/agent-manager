@@ -250,7 +250,8 @@ fi
 echo ""
 
 # Verify ObservabilityPlane
-echo ""echo "🔍 Verifying ObservabilityPlane ..."
+echo ""
+echo "🔍 Verifying ObservabilityPlane ..."
 kubectl get observabilityplane -n default
 kubectl logs -n openchoreo-observability-plane -l app=cluster-agent --tail=10
 echo "✅ OpenChoreo Observability Plane ready"

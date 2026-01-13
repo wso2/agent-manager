@@ -57,6 +57,10 @@ func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, buildName str
 	// so we need to portforward the observer svc and use localhost:port to access the observer service
 	baseURL := config.GetConfig().Observer.URL
 	logsURL := fmt.Sprintf("%s/api/logs/build/%s", baseURL, buildName)
+	token := jwtassertion.GetJWTFromContext(ctx)
+	if token == "" {
+		return nil, fmt.Errorf("observabilitysvc.GetBuildLogs: JWT token not found in context")
+	}
 
 	// Calculate time range: 30 days ago to now
 	endTime := time.Now()
@@ -75,7 +79,7 @@ func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, buildName str
 		Method: http.MethodPost,
 	}
 	req.SetHeader("Accept", "application/json")
-	req.SetHeader("Authorization", fmt.Sprintf("Bearer %s", jwtassertion.GetJWTFromContext(ctx)))
+	req.SetHeader("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.SetJson(requestBody)
 
 	var logsResponse models.BuildLogsResponse
