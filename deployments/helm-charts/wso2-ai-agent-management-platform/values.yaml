@@ -111,9 +111,9 @@ agentManagerService:
 
     # Key Manager configuration
     keyManager:
-      issuer: "https://api.asgardeo.io/t/wso2amp/oauth2/token"
-      audience: "u_wYEmecunJ5ZTDZgZtlZ1FKIOMa"
-      jwksUrl: "https://api.asgardeo.io/t/wso2amp/oauth2/jwks"
+      issuer: "Agent Management Platform Local"
+      audience: "localhost"
+      jwksUrl: ""
       defaultIssuer: "Agent Management Platform Local"
 
     # On-premise deployment flag

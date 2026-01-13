@@ -56,7 +56,7 @@ type Config struct {
 	DefaultGatewayPort int
 
 	KeyManagerConfigurations KeyManagerConfigurations
-	IsOnPremDeployment      bool
+	IsOnPremDeployment       bool
 }
 
 type KeyManagerConfigurations struct {
