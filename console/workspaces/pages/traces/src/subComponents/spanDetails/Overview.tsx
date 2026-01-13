@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { NoDataFound } from "@agent-management-platform/views";
+import { NoDataFound, JSONView } from "@agent-management-platform/views";
 import {
   Box,
   Card,
@@ -35,7 +35,7 @@ import {
   CrewAITaskData,
 } from "@agent-management-platform/types";
 import { memo, useCallback, useMemo } from "react";
-import { JSONView } from "./JSONView";
+import Markdown from "react-markdown";
 
 interface OverviewProps {
   ampAttributes?: AmpAttributes;
@@ -132,7 +132,6 @@ const MessageList = memo(function MessageList({
         {messages.map((message, index) => {
           const messageKey =
             (message as PromptMessage & { id?: string }).id ?? index;
-
           return (
             <Card key={messageKey} variant="outlined">
               <CardContent>
@@ -140,15 +139,42 @@ const MessageList = memo(function MessageList({
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     {message?.role && message.role !== "unknown" && (
                       <Chip
-                        label={message.role}
+                        label={
+                          message.role.charAt(0).toUpperCase() +
+                          message.role.slice(1)
+                        }
                         size="small"
                         color={getRoleColor(message.role)}
                         variant="outlined"
                       />
                     )}
                   </Box>
-
-                  {message.content && <JSONView json={formattedMessage(message.content)} />}
+                  {message.content && !message.role && (
+                    <JSONView json={formattedMessage(message.content)} />
+                  )}
+                  {message.content && message.role && (
+                    <Box
+                      sx={{
+                        fontSize: "0.75rem",
+                        color: "text.secondary",
+                        "& p": { margin: 0 },
+                        "& pre": {
+                          backgroundColor: "action.hover",
+                          padding: 1,
+                          borderRadius: 1,
+                          overflow: "auto",
+                        },
+                        "& code": {
+                          backgroundColor: "action.hover",
+                          padding: "2px 4px",
+                          borderRadius: "4px",
+                          fontFamily: "monospace",
+                        },
+                      }}
+                    >
+                      <Markdown>{message.content}</Markdown>
+                    </Box>
+                  )}
                   {message.toolCalls && message.toolCalls.length > 0 && (
                     <Box>
                       <Stack spacing={1}>

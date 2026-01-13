@@ -1,3 +1,21 @@
+/**
+ * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 import { Stack, Typography, IconButton, Box, Collapse } from "@wso2/oxygen-ui";
 import { ChevronRight, ChevronDown } from "@wso2/oxygen-ui-icons-react";
 import { useState } from "react";
@@ -15,7 +33,8 @@ interface TreeNodeProps {
 function TreeNode({ data, keyName, level = 0 }: TreeNodeProps) {
   const [isExpanded, setIsExpanded] = useState(level < 2); // Auto-expand first 2 levels
 
-  const isObject = data !== null && typeof data === "object" && !Array.isArray(data);
+  const isObject =
+    data !== null && typeof data === "object" && !Array.isArray(data);
   const isArray = Array.isArray(data);
   const isPrimitive = !isObject && !isArray;
 
@@ -30,19 +49,21 @@ function TreeNode({ data, keyName, level = 0 }: TreeNodeProps) {
 
   const getValueColor = (value: unknown) => {
     if (value === null) return "text.disabled";
-    if (typeof value === "string") return "info.light";
-    if (typeof value === "number") return "info.main";
+    if (typeof value === "string") return "text.primary";
+    if (typeof value === "number") return "text.primary";
     if (typeof value === "boolean") return "error.main";
     return "text.primary";
   };
 
   if (isPrimitive) {
     return (
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack direction="row" spacing={1} alignItems="flex-start">
         {keyName && (
           <Typography
             variant="caption"
             fontFamily="monospace"
+            color="text.secondary"
+            fontWeight={600}
           >
             {keyName}:
           </Typography>
@@ -82,13 +103,13 @@ function TreeNode({ data, keyName, level = 0 }: TreeNodeProps) {
             )}
           </IconButton>
         )}
-        {isEmpty && (
-          <Box sx={{ width: "20px", minWidth: "20px" }} />
-        )}
+        {isEmpty && <Box sx={{ width: "20px", minWidth: "20px" }} />}
         {keyName && (
           <Typography
             variant="caption"
             fontFamily="monospace"
+            color="text.secondary"
+            fontWeight={600}
           >
             {keyName}:
           </Typography>
@@ -150,12 +171,12 @@ function TreeNode({ data, keyName, level = 0 }: TreeNodeProps) {
 
 export function JSONView({ json }: JSONViewProps) {
   let parsedJson: unknown;
-  
+
   try {
     parsedJson = JSON.parse(json);
-  } catch (error) {
+  } catch {
     return (
-        <Typography
+      <Typography
         variant="caption"
         sx={{
           fontFamily: "monospace",
@@ -163,14 +184,14 @@ export function JSONView({ json }: JSONViewProps) {
           wordBreak: "break-word",
         }}
       >
-        {(json)}
+        {json}
       </Typography>
     );
   }
 
   return (
-    <Box sx={{ padding: 2, fontFamily: "monospace", fontSize: "14px" }}>
+    <Stack>
       <TreeNode data={parsedJson} />
-    </Box>
+    </Stack>
   );
 }
