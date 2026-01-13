@@ -22,7 +22,6 @@ import {
   Button,
   Box,
   Typography,
-  ParticleBackground,
   Grid,
   Stack,
   Paper,
@@ -116,14 +115,12 @@ export function Login() {
     return (
       <>
         <FullPageLoader />
-        <ParticleBackground />
       </>
     );
   }
 
   return (
     <Box sx={{ height: "100vh", display: "flex", alignItems: "center" }}>
-      <ParticleBackground opacity={0.5} />
       <Grid
         container
         sx={{ flex: 1, justifyContent: "center", alignItems: "center" }}

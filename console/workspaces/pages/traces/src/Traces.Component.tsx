@@ -64,13 +64,30 @@ export const TracesComponent: React.FC = () => {
   const { agentId, orgId, projectId, envId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [timeRange, setTimeRange] = useState<TraceListTimeRange>(
-    TraceListTimeRange.ONE_DAY
+  // Initialize state from URL search params with defaults
+  const timeRange = useMemo(
+    () =>
+      (searchParams.get("timeRange") as TraceListTimeRange) ||
+      TraceListTimeRange.SEVEN_DAYS,
+    [searchParams]
   );
-  const [limit, setLimit] = useState<number>(10);
-  const [offset, setOffset] = useState<number>(0);
-  const [sortOrder, setSortOrder] =
-    useState<GetTraceListPathParams["sortOrder"]>("desc");
+
+  const limit = useMemo(
+    () => parseInt(searchParams.get("limit") || "10", 10),
+    [searchParams]
+  );
+
+  const offset = useMemo(
+    () => parseInt(searchParams.get("offset") || "0", 10),
+    [searchParams]
+  );
+
+  const sortOrder = useMemo(
+    () =>
+      (searchParams.get("sortOrder") as GetTraceListPathParams["sortOrder"]) ||
+      "desc",
+    [searchParams]
+  );
   const {
     data: traceData,
     isLoading,
@@ -110,47 +127,53 @@ export const TracesComponent: React.FC = () => {
 
   const handlePageChange = useCallback(
     (newPage: number) => {
-      setOffset(newPage * rowsPerPage);
+      const next = new URLSearchParams(searchParams);
+      next.set("offset", String(newPage * rowsPerPage));
+      setSearchParams(next);
     },
-    [rowsPerPage]
+    [rowsPerPage, searchParams, setSearchParams]
   );
 
-  const handleRowsPerPageChange = useCallback((newRowsPerPage: number) => {
-    setLimit(newRowsPerPage);
-    setOffset(0); // Reset to first page when changing rows per page
-  }, []);
+  const handleRowsPerPageChange = useCallback(
+    (newRowsPerPage: number) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("limit", String(newRowsPerPage));
+      next.set("offset", "0"); // Reset to first page when changing rows per page
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams]
+  );
 
   return (
     <FadeIn>
       <PageLayout
         title="Traces"
         actions={
-          <Stack direction="row" gap={1}>
-            {setTimeRange && (
-              <Select
-                size="small"
-                variant="outlined"
-                value={timeRange}
-                startAdornment={
-                  <InputAdornment position="start">
-                    <Clock size={16} />
-                  </InputAdornment>
-                }
-                onChange={(e) =>
-                  setTimeRange(e.target.value as TraceListTimeRange)
-                }
-              >
-                {TIME_RANGE_OPTIONS.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            )}
+          <Stack direction="row" gap={1} alignItems="center">
+            <Select
+              size="small"
+              variant="outlined"
+              value={timeRange}
+              startAdornment={
+                <InputAdornment position="start">
+                  <Clock size={16} />
+                </InputAdornment>
+              }
+              onChange={(e) => {
+                const next = new URLSearchParams(searchParams);
+                next.set("timeRange", e.target.value as TraceListTimeRange);
+                setSearchParams(next);
+              }}
+            >
+              {TIME_RANGE_OPTIONS.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
             <IconButton
               size="small"
               disabled={isRefetching}
-              color="primary"
               onClick={() => {
                 refetch();
               }}
@@ -163,9 +186,11 @@ export const TracesComponent: React.FC = () => {
             </IconButton>
             <IconButton
               size="small"
-              onClick={() =>
-                setSortOrder(sortOrder === "desc" ? "asc" : "desc")
-              }
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.set("sortOrder", sortOrder === "desc" ? "asc" : "desc");
+                setSearchParams(next);
+              }}
             >
               {sortOrder === "desc" ? (
                 <SortAsc size={16} />
