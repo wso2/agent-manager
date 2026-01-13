@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
   DrawerContent,
   DrawerHeader,
@@ -58,6 +58,7 @@ const TIME_RANGE_OPTIONS = [
   { value: TraceListTimeRange.ONE_DAY, label: "1 Day" },
   { value: TraceListTimeRange.THREE_DAYS, label: "3 Days" },
   { value: TraceListTimeRange.SEVEN_DAYS, label: "7 Days" },
+  { value: TraceListTimeRange.THIRTY_DAYS, label: "30 Days" },
 ];
 
 export const TracesComponent: React.FC = () => {
