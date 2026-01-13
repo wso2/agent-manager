@@ -55,5 +55,7 @@ export const getTimeRange = (timeRange: TraceListTimeRange) => {
       return { startTime: dayjs().subtract(3, 'days').toISOString(), endTime: dayjs().toISOString() };
     case TraceListTimeRange.SEVEN_DAYS:
       return { startTime: dayjs().subtract(7, 'days').toISOString(), endTime: dayjs().toISOString() };
+    case TraceListTimeRange.THIRTY_DAYS:
+      return { startTime: dayjs().subtract(30, 'days').toISOString(), endTime: dayjs().toISOString() };
   }
 }

@@ -19,8 +19,7 @@
 import { Box, Skeleton } from "@wso2/oxygen-ui";
 import { StatusCard } from "@agent-management-platform/views";
 import {
-  BadgeCent,
-  Gauge as Speed,
+  Gauge,
   Workflow,
 } from "@wso2/oxygen-ui-icons-react";
 import dayjs from "dayjs";
@@ -48,6 +47,7 @@ const getTimeRangeLabel = (timeRange: TraceListTimeRange): string => {
     [TraceListTimeRange.ONE_DAY]: "1 Day",
     [TraceListTimeRange.THREE_DAYS]: "3 Days",
     [TraceListTimeRange.SEVEN_DAYS]: "7 Days",
+    [TraceListTimeRange.THIRTY_DAYS]: "30 Days",
   };
   return labels[timeRange] || "Unknown";
 };
@@ -135,7 +135,6 @@ export const TracesTopCards: React.FC<TracesTopCardsProps> = ({
     latestTraceTime,
     averageDuration,
     averageDurationSeconds,
-    averageTokens,
   } = statistics;
 
   return (
@@ -167,18 +166,9 @@ export const TracesTopCards: React.FC<TracesTopCardsProps> = ({
         title="Average Duration"
         value={`${averageDurationSeconds}s`}
         subtitle={`in last ${timeRangeLabel.toLowerCase()}`}
-        icon={<Speed />}
+        icon={<Gauge />}
         iconVariant={averageDuration < 3000 ? "success" : "warning"}
         tagVariant={averageDuration < 3000 ? "success" : "warning"}
-        minWidth="100%"
-      />
-      <StatusCard
-        title="Average Tokens"
-        value={`${averageTokens.toFixed(2)}`}
-        subtitle={`in last ${timeRangeLabel.toLowerCase()}`}
-        icon={<BadgeCent />}
-        iconVariant="info"
-        tagVariant="info"
         minWidth="100%"
       />
     </Box>

@@ -24,7 +24,6 @@ import {
   ListItemText,
   Typography,
   Divider,
-  useTheme,
 } from '@wso2/oxygen-ui';
 export interface UserMenuItem {
   label: string;
@@ -57,7 +56,6 @@ export function UserMenu({
   onClose,
 
 }: UserMenuProps) {
-  const theme = useTheme();
   return (
     <Menu
       id="user-menu"
@@ -96,7 +94,7 @@ export function UserMenu({
               </ListItemIcon>
             )}
             <ListItemText>
-              <Typography variant="body2" color={theme.palette.text.primary}>{item.label}</Typography>
+              <Typography variant="body2">{item.label}</Typography>
             </ListItemText>
           </MenuItem>
       ]).flat()}

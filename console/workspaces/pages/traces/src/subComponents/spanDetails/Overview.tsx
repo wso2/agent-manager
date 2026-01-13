@@ -42,8 +42,46 @@ interface MessageListProps {
 }
 
 function formattedMessage(message: string) {
+  /**
+   * Recursively parse JSON strings, including nested JSON strings
+   * within the parsed object/array
+   */
+  function recursiveParse(value: any): any {
+    // If it's a string, try to parse it as JSON
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        // Recursively process the parsed result
+        return recursiveParse(parsed);
+      } catch {
+        // If parsing fails, return the original string
+        return value;
+      }
+    }
+    
+    // If it's an array, recursively process each element
+    if (Array.isArray(value)) {
+      return value.map(item => recursiveParse(item));
+    }
+    
+    // If it's an object, recursively process each property
+    if (value !== null && typeof value === 'object') {
+      const result: Record<string, any> = {};
+      for (const key in value) {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+          result[key] = recursiveParse(value[key]);
+        }
+      }
+      return result;
+    }
+    
+    // For primitives (number, boolean, null), return as-is
+    return value;
+  }
+
   try {
-    return JSON.stringify(JSON.parse(message), null, 2);
+    const parsed = recursiveParse(message);
+    return JSON.stringify(parsed, null, 2);
   } catch {
     return message;
   }
@@ -102,8 +140,9 @@ const MessageList = memo(function MessageList({
                   </Box>
                   {message.content && (
                     <Typography
-                      variant="body2"
+                      variant="caption"
                       sx={{
+                        fontFamily: "monospace",
                         whiteSpace: "pre-wrap",
                         wordBreak: "break-word",
                       }}

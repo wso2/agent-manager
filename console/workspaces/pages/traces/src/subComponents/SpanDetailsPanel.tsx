@@ -17,7 +17,14 @@
  */
 
 import { Chip, Stack, Tab, Tabs, Typography } from "@wso2/oxygen-ui";
-import { Span, LLMData, AgentData, ToolDefinition, ToolData, CrewAITaskData } from "@agent-management-platform/types";
+import {
+  Span,
+  LLMData,
+  AgentData,
+  ToolDefinition,
+  ToolData,
+  CrewAITaskData,
+} from "@agent-management-platform/types";
 import { BasicInfoSection } from "./spanDetails/BasicInfoSection";
 import { AttributesSection } from "./spanDetails/AttributesSection";
 import { useEffect, useState } from "react";
@@ -25,7 +32,8 @@ import { ToolsSection } from "./spanDetails/ToolsSection";
 import { FadeIn } from "@agent-management-platform/views";
 import { Overview } from "./spanDetails/Overview";
 
-interface SpanDetailsPanelProps {  span: Span | null;
+interface SpanDetailsPanelProps {
+  span: Span | null;
 }
 
 // Helper function to extract tools from data based on span kind
@@ -63,22 +71,21 @@ function hasOverviewContent(span: Span): boolean {
       return true;
     }
   }
-  
+
   // Check for CrewAI task name or description
-  if (kind === 'crewaitask' && data) {
+  if (kind === "crewaitask" && data) {
     const taskData = data as CrewAITaskData;
     if (taskData.name || taskData.description) {
       return true;
     }
   }
-  
+
   return false;
 }
 
 export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
   const [selectedTab, setSelectedTab] = useState<string>("overview");
-  
-  
+
   useEffect(() => {
     if (!span) return;
 
@@ -108,7 +115,15 @@ export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
       <Stack spacing={2}>
         <Stack spacing={2} px={1}>
           <Stack direction="row" spacing={1}>
-            <Typography variant="h4" noWrap textOverflow="ellipsis" maxWidth="70%" overflow="hidden">{span.name}</Typography>{" "}
+            <Typography
+              variant="h4"
+              noWrap
+              textOverflow="ellipsis"
+              maxWidth="70%"
+              overflow="hidden"
+            >
+              {span.name}
+            </Typography>{" "}
             {span.ampAttributes?.kind && (
               <Chip
                 size="small"
@@ -129,7 +144,15 @@ export function SpanDetailsPanel({ span }: SpanDetailsPanelProps) {
           {span?.attributes && <Tab label="Attributes" value="attributes" />}
         </Tabs>
       </Stack>
-      <Stack spacing={2} px={1} sx={{ overflowY: "auto", flexGrow: 1, boxShadow: "inset 0 4px 8px -4px rgba(0, 0, 0, 0.1)" }}>
+      <Stack
+        spacing={2}
+        px={1}
+        sx={{
+          overflowY: "auto",
+          flexGrow: 1,
+          boxShadow: "inset 0 4px 8px -4px rgba(0, 0, 0, 0.1)",
+        }}
+      >
         {selectedTab === "attributes" && (
           <FadeIn>
             <AttributesSection attributes={span?.attributes} />

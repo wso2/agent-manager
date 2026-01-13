@@ -178,4 +178,5 @@ export enum TraceListTimeRange {
   ONE_DAY = '1d',
   THREE_DAYS = '3d',
   SEVEN_DAYS = '7d',
+  THIRTY_DAYS = '30d',
 }
