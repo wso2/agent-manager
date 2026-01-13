@@ -72,56 +72,14 @@ spec:
                       protocol: TCP
                   resources:
                     requests:
-                      cpu: ${parameters.resources.requests.cpu}
-                      memory: ${parameters.resources.requests.memory}
+                      cpu: ${envOverrides.resources.requests.cpu}
+                      memory: ${envOverrides.resources.requests.memory}
                     limits:
-                      cpu: ${parameters.resources.limits.cpu}
-                      memory: ${parameters.resources.limits.memory}
-                  envFrom: |
-                    ${(has(configurations[parameters.containerName].configs.envs) && configurations[parameters.containerName].configs.envs.size() > 0 ?
-                      [{
-                        "configMapRef": {
-                          "name": oc_generate_name(metadata.name, "env-configs")
-                        }
-                      }] : []) +
-                     (has(configurations[parameters.containerName].secrets.envs) && configurations[parameters.containerName].secrets.envs.size() > 0 ?
-                      [{
-                        "secretRef": {
-                          "name": oc_generate_name(metadata.name, "env-secrets")
-                        }
-                      }] : [])}
-                  volumeMounts: |
-                    ${has(configurations[parameters.containerName].configs.files) && configurations[parameters.containerName].configs.files.size() > 0 || has(configurations[parameters.containerName].secrets.files) && configurations[parameters.containerName].secrets.files.size() > 0 ?
-                      (has(configurations[parameters.containerName].configs.files) && configurations[parameters.containerName].configs.files.size() > 0 ?
-                        configurations[parameters.containerName].configs.files.map(f, {
-                          "name": "file-mount-"+oc_hash(f.mountPath+"/"+f.name),
-                          "mountPath": f.mountPath+"/"+f.name ,
-                          "subPath": f.name
-                        }) : []) +
-                       (has(configurations[parameters.containerName].secrets.files) && configurations[parameters.containerName].secrets.files.size() > 0 ?
-                        configurations[parameters.containerName].secrets.files.map(f, {
-                          "name": "file-mount-"+oc_hash(f.mountPath+"/"+f.name),
-                          "mountPath": f.mountPath+"/"+f.name,
-                          "subPath": f.name
-                        }) : [])
-                    : oc_omit()}
-              volumes: |
-                ${has(configurations[parameters.containerName].configs.files) && configurations[parameters.containerName].configs.files.size() > 0 || has(configurations[parameters.containerName].secrets.files) && configurations[parameters.containerName].secrets.files.size() > 0 ?
-                  (has(configurations[parameters.containerName].configs.files) && configurations[parameters.containerName].configs.files.size() > 0 ?
-                    configurations[parameters.containerName].configs.files.map(f, {
-                      "name": "file-mount-"+oc_hash(f.mountPath+"/"+f.name),
-                      "configMap": {
-                        "name": oc_generate_name(metadata.name, "config", f.name).replace(".", "-")
-                      }
-                    }) : []) +
-                   (has(configurations[parameters.containerName].secrets.files) && configurations[parameters.containerName].secrets.files.size() > 0 ?
-                    configurations[parameters.containerName].secrets.files.map(f, {
-                      "name": "file-mount-"+oc_hash(f.mountPath+"/"+f.name),
-                      "secret": {
-                        "secretName": oc_generate_name(metadata.name, "secret", f.name).replace(".", "-")
-                      }
-                    }) : [])
-                : oc_omit()}
+                      cpu: ${envOverrides.resources.limits.cpu}
+                      memory: ${envOverrides.resources.limits.memory}
+                  envFrom: ${configurations.toContainerEnvFrom(parameters.containerName)}
+                  volumeMounts: ${configurations.toContainerVolumeMounts(parameters.containerName)}
+              volumes: ${configurations.toVolumes()}
 
     - id: service
       template:
@@ -174,12 +132,13 @@ spec:
                 - name: ${metadata.componentName}
                   port: 80
     - id: env-config
-      includeWhen: ${has(configurations[parameters.containerName].configs.envs) && configurations[parameters.containerName].configs.envs.size() > 0}
+      forEach: ${configurations.toConfigEnvsByContainer()}
+      var: envConfig
       template:
         apiVersion: v1
         kind: ConfigMap
         metadata:
-          name: ${oc_generate_name(metadata.name, "env-configs")}
+          name: ${envConfig.resourceName}
           namespace: ${metadata.namespace}
         data: |
-          ${has(configurations[parameters.containerName].configs.envs) ? configurations[parameters.containerName].configs.envs.transformMapEntry(index, env, {env.name: env.value}) : oc_omit()}
+          ${envConfig.envs.transformMapEntry(index, env, {env.name: env.value})}

@@ -1,7 +1,9 @@
+# This is copied from https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.9/install/k3d/single-cluster/config.yaml\
+# Only modification is changing the cluster name to openchoreo-local-v0.9
 apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:
-  name: openchoreo-local-v0.7
+  name: openchoreo-local-v0.9
 image: rancher/k3s:v1.32.9-k3s1
 servers: 1
 agents: 0
@@ -10,21 +12,21 @@ kubeAPI:
 # Single cluster mode exposes all plane port ranges for consistency with multi-cluster setup
 ports:
   # Control Plane uses port range 8xxx
-  # HTTP traffic to OpenChoreo UI and API
+  # HTTP traffic to OpenChoreo UI and API (Traefik LoadBalancer on port 80)
   - port: 8080:80
     nodeFilters:
       - loadbalancer
-  # HTTPS traffic to OpenChoreo UI and API
+  # HTTPS traffic to OpenChoreo UI and API (Traefik LoadBalancer on port 443)
   - port: 8443:443
     nodeFilters:
       - loadbalancer
-  # Data Plane uses port range 9xxx
-  # HTTP traffic to workloads via Envoy Gateway (uses port 9080 to avoid conflict with Traefik)
-  - port: 9080:9080
+  # Data Plane uses port range 19xxx (matches kind and other cluster setups)
+  # HTTP traffic to workloads via Gateway
+  - port: 19080:19080
     nodeFilters:
       - loadbalancer
-  # HTTPS traffic to workloads via Envoy Gateway
-  - port: 9443:9443
+  # HTTPS traffic to workloads via Gateway
+  - port: 19443:19443
     nodeFilters:
       - loadbalancer
   # Build Plane uses port range 10xxx

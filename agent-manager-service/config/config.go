@@ -95,8 +95,6 @@ type CORSConfig struct {
 type ObserverConfig struct {
 	// Observer service URL
 	URL      string
-	Username string
-	Password string `json:"-"`
 }
 
 type TraceObserverConfig struct {

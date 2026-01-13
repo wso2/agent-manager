@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-CLUSTER_NAME="openchoreo-local-v0.7"
+CLUSTER_NAME="openchoreo-local-v0.9"
 CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
 
 echo "=== Setting up k3d Cluster for OpenChoreo ==="
@@ -46,21 +46,41 @@ if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
     kubectl cluster-info --context ${CLUSTER_CONTEXT}
     echo ""
     echo "✅ Using existing cluster"
-    echo "⚠️  If you want to recreate the cluster, delete it first:"
-    echo "   k3d cluster delete ${CLUSTER_NAME}"
-    exit 0
+else
+    # Create /tmp/k3d-shared directory for OpenChoreo
+    echo "📁 Creating shared directory for OpenChoreo..."
+    mkdir -p /tmp/k3d-shared
+
+    # Create k3d cluster with OpenChoreo configuration
+    echo "🚀 Creating k3d cluster with OpenChoreo configuration..."
+    echo "   Setting K3D_FIX_DNS=0 to avoid DNS issues (see k3d-io/k3d#1449)"
+    k3d cluster create --config ../single-cluster-config.yaml
+
+    echo ""
+    echo "✅ k3d cluster created successfully!"
 fi
 
-# Create /tmp/k3d-shared directory for OpenChoreo
-echo "📁 Creating shared directory for OpenChoreo..."
-mkdir -p /tmp/k3d-shared
-
-# Create k3d cluster with OpenChoreo configuration
-echo "🚀 Creating k3d cluster with OpenChoreo configuration..."
-k3d cluster create --config ../single-cluster-config.yaml
-
+# Install cert-manager
 echo ""
-echo "✅ k3d cluster created successfully!"
+echo "🔧 Installing cert-manager..."
+if helm status cert-manager -n cert-manager &>/dev/null; then
+    echo "✅ cert-manager is already installed"
+else
+    echo "📦 Installing cert-manager..."
+    
+    helm upgrade --install cert-manager oci://quay.io/jetstack/charts/cert-manager \
+    --version v1.18.4 \
+    --namespace cert-manager \
+    --create-namespace \
+    --set crds.enabled=true
+    
+    echo ""
+    echo "⏳ Waiting for cert-manager to be ready..."
+    kubectl wait --for=condition=available deployment/cert-manager -n cert-manager --timeout=120s
+    
+    echo ""
+    echo "✅ cert-manager is ready!"
+fi
 echo ""
 echo "📊 Cluster Info:"
 kubectl cluster-info --context ${CLUSTER_CONTEXT}

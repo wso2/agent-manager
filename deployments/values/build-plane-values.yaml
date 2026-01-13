@@ -1,0 +1,18 @@
+# OpenChoreo Build Plane Values
+# Reference: https://openchoreo.dev/docs/getting-started/try-it-out/on-self-hosted-kubernetes/
+
+# External Secrets Operator
+external-secrets:
+  enabled: false
+
+# Registry configuration
+global:
+  defaultResources:
+    registry:
+      # k3d registry endpoint
+      endpoint: host.k3d.internal:10082
+
+# Registry service configuration
+registry:
+  service:
+    type: LoadBalancer

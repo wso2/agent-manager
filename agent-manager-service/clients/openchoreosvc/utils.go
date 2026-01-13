@@ -187,6 +187,10 @@ func createComponentCRForInternalAgents(orgName, projectName string, req *spec.C
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling component workflow parameters: %w", err)
 	}
+	apiManagementTrait, err := createAPIManagementTrait(req.Name, basePath)
+	if err != nil {
+		return nil, fmt.Errorf("error creating API management trait: %w", err)
+	}
 
 	componentCR := &v1alpha1.Component{
 		TypeMeta: metav1.TypeMeta{
@@ -223,6 +227,9 @@ func createComponentCRForInternalAgents(orgName, projectName string, req *spec.C
 			Parameters: &runtime.RawExtension{
 				Raw: parametersJSON,
 			},
+			Traits: []v1alpha1.ComponentTrait{
+				*apiManagementTrait,
+			},
 		},
 	}
 	return componentCR, nil
@@ -246,6 +253,28 @@ func createOTELInstrumentationTrait(ocAgentComponent *v1alpha1.Component, envUUI
 	return &v1alpha1.ComponentTrait{
 		Name:         string(TraitTypeOTELInstrumentation),
 		InstanceName: fmt.Sprintf("%s-%s", ocAgentComponent.Name, string(TraitTypeOTELInstrumentation)),
+		Parameters: &runtime.RawExtension{
+			Raw: traitParametersJSON,
+		},
+	}, nil
+}
+
+func createAPIManagementTrait(componentName string, basePath string) (*v1alpha1.ComponentTrait, error) {
+	traitParameters := map[string]interface{}{
+		"apiName":    fmt.Sprintf("%s-api", componentName),
+		"context":    fmt.Sprintf("/%s-api", componentName),
+		"upstreamPort":       80,                                  // Kubernetes Service is configured to listen on port 80 on component type definition
+		"apiVersion": "v1.0",                              // Default API version
+		"upstreamBasePath": basePath, // Base path from the request
+	}
+	traitParametersJSON, err := json.Marshal(traitParameters)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling OTEL instrumentation trait parameters: %w", err)
+	}
+
+	return &v1alpha1.ComponentTrait{
+		Name:         string(TraitTypeAPIManagement),
+		InstanceName: fmt.Sprintf("%s-api", componentName),
 		Parameters: &runtime.RawExtension{
 			Raw: traitParametersJSON,
 		},

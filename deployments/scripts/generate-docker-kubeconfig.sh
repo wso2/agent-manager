@@ -19,7 +19,7 @@ if ! command -v kubectl &> /dev/null; then
 fi
 
 DOCKER_KUBECONFIG="$HOME/.kube/config-docker"
-CLUSTER_NAME="openchoreo-local-v0.7"
+CLUSTER_NAME="openchoreo-local-v0.9"
 
 echo "🔧 Generating Docker kubeconfig for k3d cluster..."
 

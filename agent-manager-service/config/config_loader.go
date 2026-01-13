@@ -126,8 +126,6 @@ func loadEnvs() {
 	// Observer service configuration - temporarily use localhost for agent-manager-service to access observer service
 	config.Observer = ObserverConfig{
 		URL:      r.readOptionalString("OBSERVER_URL", "http://localhost:8085"),
-		Username: r.readOptionalString("OBSERVER_USERNAME", "dummy"),
-		Password: r.readOptionalString("OBSERVER_PASSWORD", "dummy"),
 	}
 
 	// Trace Observer service configuration - for distributed tracing
@@ -136,7 +134,7 @@ func loadEnvs() {
 	}
 
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
-	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 9080))
+	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 19080))
 	config.KeyManagerConfigurations = KeyManagerConfigurations{
 		// Comma-separated list of allowed issuers and audiences
 		Issuer:        r.readOptionalStringList("KEY_MANAGER_ISSUER", "Agent Management Platform Local"),

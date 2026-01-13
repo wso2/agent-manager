@@ -1,0 +1,35 @@
+# OpenChoreo Control Plane Values
+# Reference: https://openchoreo.dev/docs/getting-started/try-it-out/on-self-hosted-kubernetes/
+
+global:
+  baseDomain: openchoreo.localhost
+  port: ":8080"
+  defaultResources:
+    enabled: false
+
+# Traefik ingress configuration
+traefik:
+  ports:
+    web:
+      exposedPort: 8080
+    websecure:
+      exposedPort: 8443
+
+# Thunder identity provider configuration
+thunder:
+  configuration:
+    server:
+      publicUrl: http://thunder.openchoreo.localhost:8080
+
+    gateClient:
+      hostname: thunder.openchoreo.localhost
+      port: 8080
+      scheme: "http"
+
+    # CORS configuration for Thunder
+    # Add your webapp origins here to allow OAuth flows
+    cors:
+      allowedOrigins:
+        - "http://openchoreo.localhost:8080"
+        - "http://localhost:7007"
+        - "http://localhost:3000" # AMP console

@@ -1,0 +1,18 @@
+# OpenChoreo Data Plane Values
+# Reference: https://openchoreo.dev/docs/getting-started/try-it-out/on-self-hosted-kubernetes/
+
+# Gateway configuration
+gateway:
+  httpPort: 19080
+  httpsPort: 19443
+  envoy:
+    # Required for k3d/Docker Desktop
+    mountTmpVolume: true
+
+# External Secrets Operator
+external-secrets:
+  enabled: true
+
+# API Platform (APIM integration)
+api-platform:
+  enabled: true
