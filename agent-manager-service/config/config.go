@@ -134,8 +134,8 @@ type DefaultChatAPIConfig struct {
 type JWTSigningConfig struct {
 	// PrivateKeyPath is the path to the RSA private key file (PEM format)
 	PrivateKeyPath string
-	// PublicKeyPath is the path to the RSA public key file (PEM format)
-	PublicKeyPath string
+	// PublicKeysConfigPath is the path to the JSON file containing multiple public keys (required)
+	PublicKeysConfigPath string
 	// ActiveKeyID is the key ID (kid) to use for signing tokens
 	ActiveKeyID string
 	// DefaultExpiryDuration is the default token expiry duration (e.g., "8760h" for 1 year)
@@ -144,4 +144,18 @@ type JWTSigningConfig struct {
 	Issuer string
 	// DefaultEnvironment is the default environment to use for token claims
 	DefaultEnvironment string
+}
+
+// PublicKeyConfig represents a single public key configuration in the JSON file
+type PublicKeyConfig struct {
+	Kid           string `json:"kid"`
+	Algorithm     string `json:"algorithm"`
+	PublicKeyPath string `json:"publicKeyPath"`
+	Description   string `json:"description,omitempty"`
+	CreatedAt     string `json:"createdAt,omitempty"`
+}
+
+// PublicKeysConfig represents the structure of the public keys JSON configuration file
+type PublicKeysConfig struct {
+	Keys []PublicKeyConfig `json:"keys"`
 }
