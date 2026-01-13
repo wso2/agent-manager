@@ -1,0 +1,134 @@
+openapi: 3.0.3
+info:
+  title: Customer Support Agent Service
+  description: |
+    A FastAPI service that provides a customer support agent powered by LangGraph.
+    The agent can help with flight status, bookings, and other travel-related inquiries.
+  version: 1.0.0
+  contact:
+    name: API Support
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: http://127.0.0.1:8080
+    description: Local development server (alternative)
+paths:
+  /chat:
+    post:
+      summary: Chat with the customer support agent
+      description: |
+        Sends a question to the customer support agent and receives a response.
+        The agent uses the passenger_id to fetch relevant flight and booking information
+        and maintains conversation state using the thread_id.
+      operationId: chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - thread_id
+                - passenger_id
+                - question
+              properties:
+                thread_id:
+                  type: integer
+                  description: |
+                    Unique identifier for the conversation thread.
+                    Used to maintain conversation state across multiple requests.
+                  example: 123
+                passenger_id:
+                  type: string
+                  description: |
+                    Passenger identifier used to fetch user's flight and booking information.
+                  example: "3442 587242"
+                question:
+                  type: string
+                  description: |
+                    The customer's question or query about their travel arrangements.
+                  example: "What is my flight status?"
+            examples:
+              flightStatus:
+                summary: Check flight status
+                value:
+                  thread_id: 123
+                  passenger_id: "3442 587242"
+                  question: "What is my flight status?"
+              bookingQuery:
+                summary: Check booking details
+                value:
+                  thread_id: 124
+                  passenger_id: "3442 587242"
+                  question: "Can you show me my hotel reservation?"
+              generalInquiry:
+                summary: General travel inquiry
+                value:
+                  thread_id: 125
+                  passenger_id: "3442 587242"
+                  question: "What rental cars are available at my destination?"
+      responses:
+        '200':
+          description: Successful response from the agent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: string
+                    description: The agent's response to the customer's question
+                    example: "Your flight UA1234 is scheduled to depart at 3:30 PM and is currently on time."
+              examples:
+                flightStatusResponse:
+                  summary: Flight status response
+                  value:
+                    results: "Your flight UA1234 is scheduled to depart at 3:30 PM and is currently on time."
+                bookingResponse:
+                  summary: Booking details response
+                  value:
+                    results: "I found your hotel reservation at Grand Plaza Hotel for 3 nights starting December 20th."
+        '400':
+          description: Bad request - missing required fields
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+                    example: "Missing required field: thread_id"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+                    example: "An error occurred while processing your request"
+components:
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - thread_id
+        - passenger_id
+        - question
+      properties:
+        thread_id:
+          type: integer
+          description: Unique identifier for the conversation thread
+        passenger_id:
+          type: string
+          description: Passenger identifier for fetching travel information
+        question:
+          type: string
+          description: Customer's question or query
+    ChatResponse:
+      type: object
+      properties:
+        results:
+          type: string
+          description: Agent's response to the customer's question
