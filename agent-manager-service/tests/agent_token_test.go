@@ -66,7 +66,6 @@ func createMockOpenChoreoClientForToken(agentName string, componentUid string, e
 		},
 		GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
 			return &models.OrganizationResponse{
-				UUID: orgUid,
 				Name: orgName,
 			}, nil
 		},
@@ -75,9 +74,6 @@ func createMockOpenChoreoClientForToken(agentName string, componentUid string, e
 
 func TestGenerateAgentToken(t *testing.T) {
 	// Create unique test data for this test suite
-	tokenOrgId := uuid.New()
-	tokenUserIdpId := uuid.New()
-	tokenProjId := uuid.New()
 	tokenOrgName := fmt.Sprintf("token-org-%s", uuid.New().String()[:5])
 	tokenProjName := fmt.Sprintf("token-project-%s", uuid.New().String()[:5])
 	tokenAgentName := fmt.Sprintf("token-agent-%s", uuid.New().String()[:5])
@@ -86,9 +82,7 @@ func TestGenerateAgentToken(t *testing.T) {
 	tokenOrgUid := uuid.New().String()
 	tokenProjUid := uuid.New().String()
 
-	_ = apitestutils.CreateOrganization(t, tokenOrgId, tokenUserIdpId, tokenOrgName)
-	_ = apitestutils.CreateProject(t, tokenProjId, tokenOrgId, tokenProjName)
-	authMiddleware := jwtassertion.NewMockMiddleware(t, tokenOrgId, tokenUserIdpId)
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Generating a token for an external agent should return 200 with valid token", func(t *testing.T) {
 		openChoreoClient := createMockOpenChoreoClientForToken(tokenAgentName, tokenComponentUid, tokenEnvUid, tokenOrgUid, tokenProjUid)
@@ -155,17 +149,13 @@ func TestGenerateAgentToken(t *testing.T) {
 
 func TestGetJWKS(t *testing.T) {
 	// Create unique test data for this test suite
-	jwksOrgId := uuid.New()
-	jwksUserIdpId := uuid.New()
-	jwksOrgName := fmt.Sprintf("jwks-org-%s", uuid.New().String()[:5])
 	jwksAgentName := fmt.Sprintf("jwks-agent-%s", uuid.New().String()[:5])
 	jwksComponentUid := uuid.New().String()
 	jwksEnvUid := uuid.New().String()
 	jwksOrgUid := uuid.New().String()
 	jwksProjUid := uuid.New().String()
 
-	_ = apitestutils.CreateOrganization(t, jwksOrgId, jwksUserIdpId, jwksOrgName)
-	authMiddleware := jwtassertion.NewMockMiddleware(t, jwksOrgId, jwksUserIdpId)
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Getting JWKS should return 200 with valid JWKS", func(t *testing.T) {
 		openChoreoClient := createMockOpenChoreoClientForToken(jwksAgentName, jwksComponentUid, jwksEnvUid, jwksOrgUid, jwksProjUid)
