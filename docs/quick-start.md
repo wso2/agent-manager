@@ -25,7 +25,7 @@ The quick-start includes a dev container with all required tools pre-installed (
 docker run --rm -it --name amp-quick-start \
   -v /var/run/docker.sock:/var/run/docker.sock \
   --network=host \
-  ghcr.io/wso2/amp-quick-start:v0.0.0-dev
+  ghcr.io/wso2/amp-quick-start:v0.2.1
 ```
 
 ### Step 2: Run Installation Inside Container
