@@ -21,6 +21,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"log/slog"
@@ -107,7 +108,7 @@ func (s *agentTokenManagerService) loadKeys() error {
 	s.keyPairMutex.Lock()
 	defer s.keyPairMutex.Unlock()
 
-	// Load private key
+	// Load private key for signing
 	privateKeyPEM, err := os.ReadFile(s.config.PrivateKeyPath)
 	if err != nil {
 		return fmt.Errorf("failed to read private key file: %w", err)
@@ -134,15 +135,75 @@ func (s *agentTokenManagerService) loadKeys() error {
 		}
 	}
 
-	// Load public key
-	publicKeyPEM, err := os.ReadFile(s.config.PublicKeyPath)
+	// Load public keys from JSON configuration
+	if err := s.loadPublicKeysFromJSON(); err != nil {
+		return fmt.Errorf("failed to load public keys from JSON: %w", err)
+	}
+
+	// Set the active key's private key
+	if keyPair, ok := s.keyPairs[s.activeKeyID]; ok {
+		keyPair.PrivateKey = privateKey
+	} else {
+		return fmt.Errorf("active key ID %s not found in loaded public keys", s.activeKeyID)
+	}
+
+	s.logger.Info("Successfully loaded JWT signing keys", "activeKeyID", s.activeKeyID, "totalKeys", len(s.keyPairs))
+	return nil
+}
+
+// loadPublicKeysFromJSON loads multiple public keys from a JSON configuration file
+func (s *agentTokenManagerService) loadPublicKeysFromJSON() error {
+	configData, err := os.ReadFile(s.config.PublicKeysConfigPath)
 	if err != nil {
-		return fmt.Errorf("failed to read public key file: %w", err)
+		return fmt.Errorf("failed to read public keys config file: %w", err)
+	}
+
+	var keysConfig config.PublicKeysConfig
+	if err := json.Unmarshal(configData, &keysConfig); err != nil {
+		return fmt.Errorf("failed to parse public keys config JSON: %w", err)
+	}
+
+	if len(keysConfig.Keys) == 0 {
+		return fmt.Errorf("no keys found in public keys configuration")
+	}
+
+	// Load each public key
+	for _, keyConfig := range keysConfig.Keys {
+		publicKey, err := s.loadPublicKey(keyConfig.PublicKeyPath)
+		if err != nil {
+			s.logger.Warn("Failed to load public key, skipping",
+				"kid", keyConfig.Kid,
+				"path", keyConfig.PublicKeyPath,
+				"error", err)
+			continue
+		}
+
+		keyPair := &KeyPair{
+			KeyID:      keyConfig.Kid,
+			PublicKey:  publicKey,
+			PrivateKey: nil, // Will be set for active key in loadKeys()
+		}
+		s.keyPairs[keyConfig.Kid] = keyPair
+		s.logger.Info("Loaded public key", "kid", keyConfig.Kid, "description", keyConfig.Description)
+	}
+
+	if len(s.keyPairs) == 0 {
+		return fmt.Errorf("failed to load any public keys from configuration")
+	}
+
+	return nil
+}
+
+// loadPublicKey loads a single RSA public key from a PEM file
+func (s *agentTokenManagerService) loadPublicKey(path string) (*rsa.PublicKey, error) {
+	publicKeyPEM, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read public key file: %w", err)
 	}
 
 	publicKeyBlock, _ := pem.Decode(publicKeyPEM)
 	if publicKeyBlock == nil {
-		return fmt.Errorf("failed to decode public key PEM")
+		return nil, fmt.Errorf("failed to decode public key PEM")
 	}
 
 	var publicKey *rsa.PublicKey
@@ -152,26 +213,17 @@ func (s *agentTokenManagerService) loadKeys() error {
 		// Try PKCS#1 format
 		publicKey, err = x509.ParsePKCS1PublicKey(publicKeyBlock.Bytes)
 		if err != nil {
-			return fmt.Errorf("failed to parse public key: %w", err)
+			return nil, fmt.Errorf("failed to parse public key: %w", err)
 		}
 	} else {
 		var ok bool
 		publicKey, ok = pubKey.(*rsa.PublicKey)
 		if !ok {
-			return fmt.Errorf("public key is not RSA")
+			return nil, fmt.Errorf("public key is not RSA")
 		}
 	}
 
-	// Store the key pair
-	keyPair := &KeyPair{
-		KeyID:      s.config.ActiveKeyID,
-		PrivateKey: privateKey,
-		PublicKey:  publicKey,
-	}
-	s.keyPairs[s.config.ActiveKeyID] = keyPair
-
-	s.logger.Info("Successfully loaded JWT signing keys", "keyID", s.config.ActiveKeyID)
-	return nil
+	return publicKey, nil
 }
 
 // GenerateToken creates a signed JWT token for an agent
