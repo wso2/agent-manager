@@ -202,12 +202,12 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		return nil, fmt.Errorf("failed to get environment: %w", err)
 	}
 
-	// Fetch organization UID
-	organization, err := s.openChoreoClient.GetOrganization(ctx, req.OrgName)
-	if err != nil {
-		s.logger.Error("Failed to get organization", "orgName", req.OrgName, "error", err)
-		return nil, fmt.Errorf("failed to get organization: %w", err)
-	}
+	// // Fetch organization UID
+	// organization, err := s.openChoreoClient.GetOrganization(ctx, req.OrgName)
+	// if err != nil {
+	// 	s.logger.Error("Failed to get organization", "orgName", req.OrgName, "error", err)
+	// 	return nil, fmt.Errorf("failed to get organization: %w", err)
+	// }
 
 	// Fetch project UID
 	project, err := s.openChoreoClient.GetProject(ctx, req.ProjectName, req.OrgName)
@@ -234,10 +234,10 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			NotBefore: jwt.NewNumericDate(now),
 		},
-		ComponentUid:    component.UUID,
-		EnvironmentUid:  environment.UUID,
-		OrganizationUid: organization.UUID,
-		ProjectUid:      project.UUID,
+		ComponentUid:   component.UUID,
+		EnvironmentUid: environment.UUID,
+		// OrganizationUid: organization.UUID,
+		ProjectUid: project.UUID,
 	}
 
 	// Get the active signing key
