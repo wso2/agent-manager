@@ -73,6 +73,7 @@ export function useGenerateResourceName(params: GenerateResourceNamePathParams) 
     ResourceNameRequest
   >({
     mutationFn: (body) => generateResourceName(params, body, getToken),
+    mutationKey: ['generate-resource-name', params],
   });
 }
 
