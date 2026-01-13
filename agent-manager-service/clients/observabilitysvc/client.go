@@ -24,6 +24,7 @@ import (
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
 
@@ -74,6 +75,7 @@ func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, buildName str
 		Method: http.MethodPost,
 	}
 	req.SetHeader("Accept", "application/json")
+	req.SetHeader("Authorization", fmt.Sprintf("Bearer %s", jwtassertion.GetJWTFromContext(ctx)))
 	req.SetJson(requestBody)
 
 	var logsResponse models.BuildLogsResponse
