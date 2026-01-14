@@ -43,7 +43,7 @@ import (
 var (
 	testExternalOrgName      = fmt.Sprintf("test-org-%s", uuid.New().String()[:5])
 	testExternalProjName     = fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
-	testExternalAgentNameOne = fmt.Sprintf("test-external-agent-%s", uuid.New().String()[:5])
+	testExternalAgentNameOne = fmt.Sprintf("non-existent-agent-%s", uuid.New().String()[:5])
 )
 
 func createMockOpenChoreoClientForExternal() *clientmocks.OpenChoreoSvcClientMock {
