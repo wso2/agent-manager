@@ -46,7 +46,7 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
 			}, nil
 		},
 		GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
-			if projectName == "nonexistent-project" {
+			if strings.Contains(projectName, "nonexistent-proj") {
 				return nil, utils.ErrProjectNotFound
 			}
 			return &models.ProjectResponse{
@@ -69,8 +69,8 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
 				Name:        fmt.Sprintf("%s-build-1", agentName),
 				AgentName:   agentName,
 				ProjectName: projName,
-				CommitID:    "abc123def",
-				Status:      "Running",
+				CommitID:    commitId,
+				Status:      "BuildInitiated",
 				StartedAt:   time.Now(),
 			}, nil
 		},
@@ -89,7 +89,7 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
 			}, nil
 		},
 		GetAgentComponentFunc: func(ctx context.Context, orgName, projectName, agentName string) (*openchoreosvc.AgentComponent, error) {
-			if strings.Contains(agentName, "non-existent-agent") {
+			if strings.Contains(agentName, "nonexistent-agent") {
 				return nil, utils.ErrAgentNotFound
 			}
 			return &openchoreosvc.AgentComponent{
@@ -102,6 +102,30 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
 			return &models.EnvironmentResponse{
 				UUID: "environment-uid-123",
 			}, nil
+		},
+		DeleteAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agentName string) error {
+			return nil
+		},
+		ListAgentComponentsFunc: func(ctx context.Context, orgName string, projectName string) ([]*openchoreosvc.AgentComponent, error) {
+			return []*openchoreosvc.AgentComponent{}, nil
+		},
+		DeleteProjectFunc: func(ctx context.Context, orgName string, projectName string) error {
+			return nil
+		},
+		GetDeploymentPipelinesForOrganizationFunc: func(ctx context.Context, orgName string) ([]*models.DeploymentPipelineResponse, error) {
+			return []*models.DeploymentPipelineResponse{
+				{
+					Name:        "default",
+					DisplayName: "Default Pipeline",
+					OrgName:     orgName,
+				},
+			}, nil
+		},
+		CreateProjectFunc: func(ctx context.Context, orgName, projectName, deploymentPipeline, displayName, description string) error {
+			return nil
+		},
+		DeployAgentComponentFunc: func(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error {
+			return nil
 		},
 	}
 }

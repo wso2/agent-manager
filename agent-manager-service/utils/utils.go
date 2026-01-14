@@ -487,6 +487,11 @@ func validateTimes(startTime string, endTime string) error {
 	parsedStartTime, _ := time.Parse(time.RFC3339, startTime)
 	parsedEndTime, _ := time.Parse(time.RFC3339, endTime)
 
+	// Validate that start time is not in the future
+	if parsedStartTime.After(time.Now()) {
+		return fmt.Errorf("startTime cannot be in the future")
+	}
+
 	if parsedEndTime.Before(parsedStartTime) {
 		return fmt.Errorf("endTime (%s) must be after startTime (%s)", parsedEndTime, parsedStartTime)
 	}

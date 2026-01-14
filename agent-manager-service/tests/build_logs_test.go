@@ -191,7 +191,16 @@ func TestGetBuildLogs(t *testing.T) {
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				obsClient := createMockObservabilityClientForBuildLogs()
 				openClient := apitestutils.CreateMockOpenChoreoClient()
-				// Override to return project not found - already handled by default mock
+				openClient.GetComponentWorkflowFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
+					return &models.BuildDetailsResponse{
+						BuildResponse: models.BuildResponse{
+							UUID:        "build-uid-456",
+							Name:        buildName,
+							AgentName:   componentName,
+							ProjectName: projName,
+						},
+					}, nil
+				}
 				return obsClient, openClient
 			},
 		},
@@ -200,7 +209,7 @@ func TestGetBuildLogs(t *testing.T) {
 			authMiddleware: authMiddleware,
 			wantStatus:     404,
 			wantErrMsg:     "Agent not found",
-			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/non-existent-agent/builds/%s/build-logs", buildLogsOrgName, buildLogsProjName, buildLogsBuildName),
+			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/nonexistent-agent/builds/%s/build-logs", buildLogsOrgName, buildLogsProjName, buildLogsBuildName),
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				obsClient := createMockObservabilityClientForBuildLogs()
 				openClient := apitestutils.CreateMockOpenChoreoClient()
@@ -212,7 +221,7 @@ func TestGetBuildLogs(t *testing.T) {
 			authMiddleware: authMiddleware,
 			wantStatus:     404,
 			wantErrMsg:     "Build not found",
-			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/builds/non-existent-build/build-logs", buildLogsOrgName, buildLogsProjName, buildLogsAgentName),
+			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/builds/nonexistent-build/build-logs", buildLogsOrgName, buildLogsProjName, buildLogsAgentName),
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				obsClient := createMockObservabilityClientForBuildLogs()
 				openClient := apitestutils.CreateMockOpenChoreoClient()

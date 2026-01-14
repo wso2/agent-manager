@@ -41,8 +41,8 @@ import (
 var (
 	testOrgName      = fmt.Sprintf("test-org-%s", uuid.New().String()[:5])
 	testProjName     = fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
-	testAgentNameOne = fmt.Sprintf("non-existent-agent-%s", uuid.New().String()[:5])
-	testAgentNameTwo = fmt.Sprintf("non-existent-agent-%s", uuid.New().String()[:5])
+	testAgentNameOne = fmt.Sprintf("nonexistent-agent-%s", uuid.New().String()[:5])
+	testAgentNameTwo = fmt.Sprintf("nonexistent-agent-%s", uuid.New().String()[:5])
 )
 
 func TestCreateAgent(t *testing.T) {
@@ -136,7 +136,7 @@ func TestCreateAgent(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Create the request body for Ballerina agent (no language version or run command)
-		testAgentNameBallerina := fmt.Sprintf("non-existent-agent-%s", uuid.New().String()[:5])
+		testAgentNameBallerina := fmt.Sprintf("nonexistent-agent-%s", uuid.New().String()[:5])
 		reqBody := new(bytes.Buffer)
 		err := json.NewEncoder(reqBody).Encode(map[string]interface{}{
 			"name":        testAgentNameBallerina,
@@ -576,7 +576,7 @@ func TestCreateAgent(t *testing.T) {
 			name:           "return 500 on service error",
 			authMiddleware: authMiddleware,
 			payload: map[string]interface{}{
-				"name":        fmt.Sprintf("non-existent-agent-%s", uuid.New().String()[:5]),
+				"name":        fmt.Sprintf("nonexistent-agent-%s", uuid.New().String()[:5]),
 				"displayName": "Test Agent",
 				"description": "Test description",
 				"provisioning": map[string]interface{}{

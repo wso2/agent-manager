@@ -286,7 +286,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			},
 			wantStatus: 404,
 			wantErrMsg: "Agent not found",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/non-existent-agent/application-logs", logsOrgName, logsProjName),
+			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/nonexistent-agent/application-logs", logsOrgName, logsProjName),
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				obsClient := createMockObservabilityClient()
 				openClient := apitestutils.CreateMockOpenChoreoClient()
@@ -347,7 +347,7 @@ func TestGetApplicationLogs(t *testing.T) {
 				"endTime":         time.Now().Add(-1 * time.Hour).Format(time.RFC3339),
 			},
 			wantStatus: 400,
-			wantErrMsg: "endTime must be after startTime",
+			wantErrMsg: "must be after startTime",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/application-logs", logsOrgName, logsProjName, logsAgentName),
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
