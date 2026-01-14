@@ -2527,7 +2527,7 @@ components:
         expires_in:
           type: string
           description: |
-            Optional token expiry duration in Go duration format (e.g., "720h", "30d").
+            Optional token expiry duration in Go duration format (e.g., "720h" for 30 days, "8760h" for 1 year).
             If not provided, the default expiry from configuration is used.
           example: "720h"
 

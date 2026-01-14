@@ -113,7 +113,7 @@ func (c *agentTokenController) GenerateToken(w http.ResponseWriter, r *http.Requ
 	utils.WriteSuccessResponse(w, http.StatusOK, tokenResponse)
 }
 
-// GetJWKS handles GET /external/auth/jwks.json
+// GetJWKS handles GET /auth/external/jwks.json
 func (c *agentTokenController) GetJWKS(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)

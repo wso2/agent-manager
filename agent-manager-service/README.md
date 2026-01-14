@@ -81,7 +81,7 @@ The service uses environment variables for configuration. Create a `.env` file i
 | `DB_NAME`                          | Name of the database                                      |
 | `API_KEY_VALUE`                    | API key for service authentication                        |
 | `JWT_SIGNING_PRIVATE_KEY_PATH`     | Path to RSA private key for JWT signing                   |
-| `JWT_SIGNING_PUBLIC_KEY_PATH`      | Path to RSA public key for JWT verification               |
+| `JWT_SIGNING_PUBLIC_KEYS_CONFIG`   | Path to JSON config file containing public keys           |
 | `JWT_SIGNING_ACTIVE_KEY_ID`        | Key ID for active signing key                             |
 | `JWT_SIGNING_DEFAULT_EXPIRY`       | Default token expiry duration (e.g., "8760h" for 1 year)  |
 | `JWT_SIGNING_ISSUER`               | Issuer claim for JWT tokens                               |
