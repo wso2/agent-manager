@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -116,7 +117,7 @@ func (s *infraResourceManager) CreateProject(ctx context.Context, orgName string
 		// Project already exists
 		s.logger.Error("Project already exists", "orgName", orgName, "projectName", payload.Name)
 		return nil, utils.ErrProjectAlreadyExists
-	} else if err != utils.ErrProjectNotFound {
+	} else if !errors.Is(err, utils.ErrProjectNotFound) {
 		// Some other error occurred
 		s.logger.Error("Failed to check existing projects", "orgName", orgName, "projectName", payload.Name, "error", err)
 		return nil, fmt.Errorf("failed to check existing projects: %w", err)
@@ -219,7 +220,7 @@ func (s *infraResourceManager) DeleteProject(ctx context.Context, orgName string
 	_, err = s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
 	if err != nil {
 		// DELETE is idempotent
-		if err == utils.ErrProjectNotFound {
+		if errors.Is(err, utils.ErrProjectNotFound) {
 			s.logger.Debug("Project not found, treating as successful delete (idempotent)", "orgName", orgName, "projectName", projectName)
 			return nil
 		}

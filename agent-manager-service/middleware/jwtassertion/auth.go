@@ -205,31 +205,31 @@ func validateJWTWithJWKS(tokenString string) (*TokenClaims, error) {
 		claims = extractedClaims
 
 		// Ensures we only skip signature validation for the default issuer
-		if strings.TrimSpace(claims.RegisteredClaims.Issuer) != strings.TrimSpace(cfg.KeyManagerConfigurations.DefaultIssuer) {
+		if strings.TrimSpace(claims.Issuer) != strings.TrimSpace(cfg.KeyManagerConfigurations.DefaultIssuer) {
 			return nil, fmt.Errorf("JWKS signature validation required for issuer '%s'",
-				claims.RegisteredClaims.Issuer)
+				claims.Issuer)
 		}
 
 		// Validate expiration using RegisteredClaims.ExpiresAt
-		if claims.RegisteredClaims.ExpiresAt != nil {
-			if !claims.RegisteredClaims.ExpiresAt.After(time.Now()) {
+		if claims.ExpiresAt != nil {
+			if !claims.ExpiresAt.After(time.Now()) {
 				return nil, fmt.Errorf("token has expired")
 			}
 		}
 
 		// Validate audience
-		if err := validateAudience(claims.RegisteredClaims.Audience, cfg.KeyManagerConfigurations.Audience); err != nil {
+		if err := validateAudience(claims.Audience, cfg.KeyManagerConfigurations.Audience); err != nil {
 			return nil, err
 		}
 
 		return claims, nil
 	}
 
-	if err := validateIssuer(claims.RegisteredClaims.Issuer, cfg.KeyManagerConfigurations.Issuer); err != nil {
+	if err := validateIssuer(claims.Issuer, cfg.KeyManagerConfigurations.Issuer); err != nil {
 		return nil, err
 	}
 
-	if err := validateAudience(claims.RegisteredClaims.Audience, cfg.KeyManagerConfigurations.Audience); err != nil {
+	if err := validateAudience(claims.Audience, cfg.KeyManagerConfigurations.Audience); err != nil {
 		return nil, err
 	}
 
