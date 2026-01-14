@@ -996,6 +996,369 @@ func (a *DefaultAPIService) DeployAgentExecute(r ApiDeployAgentRequest) (*Deploy
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
+type ApiExportTracesRequest struct {
+	ctx         context.Context
+	ApiService  *DefaultAPIService
+	orgName     string
+	projName    string
+	agentName   string
+	environment *string
+	limit       *int32
+	offset      *int32
+	startTime   *time.Time
+	endTime     *time.Time
+	sortOrder   *string
+}
+
+// Environment name (e.g., Development, Production)
+func (r ApiExportTracesRequest) Environment(environment string) ApiExportTracesRequest {
+	r.environment = &environment
+	return r
+}
+
+// Maximum number of traces to export (capped at 1000)
+func (r ApiExportTracesRequest) Limit(limit int32) ApiExportTracesRequest {
+	r.limit = &limit
+	return r
+}
+
+// Number of traces to skip
+func (r ApiExportTracesRequest) Offset(offset int32) ApiExportTracesRequest {
+	r.offset = &offset
+	return r
+}
+
+// Filter traces starting from this time (RFC3339 format, e.g., 2025-12-20T10:00:00Z). Must be provided together with endTime.
+func (r ApiExportTracesRequest) StartTime(startTime time.Time) ApiExportTracesRequest {
+	r.startTime = &startTime
+	return r
+}
+
+// Filter traces up to this time (RFC3339 format, e.g., 2025-12-20T10:00:00Z). Must be provided together with startTime.
+func (r ApiExportTracesRequest) EndTime(endTime time.Time) ApiExportTracesRequest {
+	r.endTime = &endTime
+	return r
+}
+
+// Sort order for traces
+func (r ApiExportTracesRequest) SortOrder(sortOrder string) ApiExportTracesRequest {
+	r.sortOrder = &sortOrder
+	return r
+}
+
+func (r ApiExportTracesRequest) Execute() (*TraceExportResponse, *http.Response, error) {
+	return r.ApiService.ExportTracesExecute(r)
+}
+
+/*
+ExportTraces Export traces with full span details
+
+Retrieves complete trace objects including all spans and their attributes for the specified agent.
+Designed for exporting trace data for analysis or archival. Returns full trace details with all spans.
+Note: If either startTime or endTime is provided, both must be provided together.
+Both timestamps must be in RFC3339 format (e.g., 2025-12-20T10:00:00Z).
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
+	@return ApiExportTracesRequest
+*/
+func (a *DefaultAPIService) ExportTraces(ctx context.Context, orgName string, projName string, agentName string) ApiExportTracesRequest {
+	return ApiExportTracesRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		projName:   projName,
+		agentName:  agentName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return TraceExportResponse
+func (a *DefaultAPIService) ExportTracesExecute(r ApiExportTracesRequest) (*TraceExportResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodGet
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *TraceExportResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ExportTraces")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/traces/export"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.environment == nil {
+		return localVarReturnValue, nil, reportError("environment is required and must be specified")
+	}
+
+	parameterAddToHeaderOrQuery(localVarQueryParams, "environment", r.environment, "")
+	if r.limit != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")
+	}
+	if r.offset != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "offset", r.offset, "")
+	}
+	if r.startTime != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "startTime", r.startTime, "")
+	}
+	if r.endTime != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "endTime", r.endTime, "")
+	}
+	if r.sortOrder != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "sortOrder", r.sortOrder, "")
+	}
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiFilterAgentRuntimeLogsRequest struct {
+	ctx              context.Context
+	ApiService       *DefaultAPIService
+	agentName        string
+	orgName          string
+	projName         string
+	logFilterRequest *LogFilterRequest
+}
+
+func (r ApiFilterAgentRuntimeLogsRequest) LogFilterRequest(logFilterRequest LogFilterRequest) ApiFilterAgentRuntimeLogsRequest {
+	r.logFilterRequest = &logFilterRequest
+	return r
+}
+
+func (r ApiFilterAgentRuntimeLogsRequest) Execute() (*LogsResponse, *http.Response, error) {
+	return r.ApiService.FilterAgentRuntimeLogsExecute(r)
+}
+
+/*
+FilterAgentRuntimeLogs Get agent runtime logs with filtering
+
+Retrieves filtered runtime logs for an agent with optional time range, log level, and search filtering
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param agentName Unique name of the agent
+	@param orgName Organization name
+	@param projName Project name
+	@return ApiFilterAgentRuntimeLogsRequest
+*/
+func (a *DefaultAPIService) FilterAgentRuntimeLogs(ctx context.Context, agentName string, orgName string, projName string) ApiFilterAgentRuntimeLogsRequest {
+	return ApiFilterAgentRuntimeLogsRequest{
+		ApiService: a,
+		ctx:        ctx,
+		agentName:  agentName,
+		orgName:    orgName,
+		projName:   projName,
+	}
+}
+
+// Execute executes the request
+//
+//	@return LogsResponse
+func (a *DefaultAPIService) FilterAgentRuntimeLogsExecute(r ApiFilterAgentRuntimeLogsRequest) (*LogsResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPost
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *LogsResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.FilterAgentRuntimeLogs")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/runtime-logs"
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.logFilterRequest == nil {
+		return localVarReturnValue, nil, reportError("logFilterRequest is required and must be specified")
+	}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{"application/json"}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	// body params
+	localVarPostBody = r.logFilterRequest
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
 type ApiGenerateAgentTokenRequest struct {
 	ctx          context.Context
 	ApiService   *DefaultAPIService
@@ -2039,7 +2402,7 @@ type ApiGetBuildLogsRequest struct {
 	buildName  string
 }
 
-func (r ApiGetBuildLogsRequest) Execute() (*BuildLogsResponse, *http.Response, error) {
+func (r ApiGetBuildLogsRequest) Execute() (*LogsResponse, *http.Response, error) {
 	return r.ApiService.GetBuildLogsExecute(r)
 }
 
@@ -2066,13 +2429,13 @@ func (a *DefaultAPIService) GetBuildLogs(ctx context.Context, orgName string, pr
 
 // Execute executes the request
 //
-//	@return BuildLogsResponse
-func (a *DefaultAPIService) GetBuildLogsExecute(r ApiGetBuildLogsRequest) (*BuildLogsResponse, *http.Response, error) {
+//	@return LogsResponse
+func (a *DefaultAPIService) GetBuildLogsExecute(r ApiGetBuildLogsRequest) (*LogsResponse, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *BuildLogsResponse
+		localVarReturnValue *LogsResponse
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.GetBuildLogs")

@@ -45,6 +45,7 @@ type AgentController interface {
 	GetBuildLogs(w http.ResponseWriter, r *http.Request)
 	GenerateName(w http.ResponseWriter, r *http.Request)
 	GetAgentMetrics(w http.ResponseWriter, r *http.Request)
+	GetAgentRuntimeLogs(w http.ResponseWriter, r *http.Request)
 }
 
 type agentController struct {
@@ -294,7 +295,52 @@ func (c *agentController) GetBuildLogs(w http.ResponseWriter, r *http.Request) {
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get build logs")
 		return
 	}
-	buildLogsResponse := utils.ConvertToBuildLogsResponse(*buildLogs)
+	buildLogsResponse := utils.ConvertToLogsResponse(*buildLogs)
+	utils.WriteSuccessResponse(w, http.StatusOK, buildLogsResponse)
+}
+
+func (c *agentController) GetAgentRuntimeLogs(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	// Extract path parameters
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+
+	// Parse and validate request body
+	var payload spec.LogFilterRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		log.Error("GetAgentRuntimeLogs: failed to decode request body", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if err := utils.ValidateLogFilterRequest(payload); err != nil {
+		log.Error("GetAgentRuntimeLogs: invalid request payload", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	applicationLogs, err := c.agentService.GetAgentRuntimeLogs(ctx, orgName, projName, agentName, payload)
+	if err != nil {
+		log.Error("GetAgentRuntimeLogs: failed to get build logs", "error", err)
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+			return
+		}
+		if errors.Is(err, utils.ErrProjectNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			return
+		}
+		if errors.Is(err, utils.ErrAgentNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
+			return
+		}
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get build logs")
+		return
+	}
+	buildLogsResponse := utils.ConvertToLogsResponse(*applicationLogs)
 	utils.WriteSuccessResponse(w, http.StatusOK, buildLogsResponse)
 }
 

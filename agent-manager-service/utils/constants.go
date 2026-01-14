@@ -59,5 +59,18 @@ const (
 
 // Log filter constants
 const (
+	DefaultLogLimit     = 100
+	MinLogLimit         = 0
+	MaxLogLimit         = 10000 // openchoreo observability service max limit
 	MaxLogTimeRangeDays = 14    // Maximum time range for log queries in days
+	SortOrderAsc        = "asc"
+	SortOrderDesc       = "desc"
+)
+
+// Valid log levels
+const (
+	LogLevelInfo  = "INFO"
+	LogLevelDebug = "DEBUG"
+	LogLevelWarn  = "WARN"
+	LogLevelError = "ERROR"
 )
