@@ -28,16 +28,16 @@ BUILD_CI_NS="${BUILD_CI_NS:-openchoreo-build-plane}"
 OBSERVABILITY_NS="${OBSERVABILITY_NS:-openchoreo-observability-plane}"
 DEFAULT_NS="${DEFAULT_NS:-default}"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
+# Colors for output (8-bit mode for maximum compatibility)
+RED='\033[1;31m'
+GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+ORANGE='\033[1;33m'
+NC='\033[0m'
 
 # Helper functions
 log_info() {
-    echo -e "${BLUE}ℹ${NC} $1"
+    echo -e "${ORANGE}ℹ${NC} $1"
 }
 
 log_success() {
@@ -54,9 +54,9 @@ log_error() {
 
 log_step() {
     echo ""
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}$1${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${ORANGE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${ORANGE}$1${NC}"
+    echo -e "${ORANGE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
 }
 
