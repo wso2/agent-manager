@@ -50,6 +50,7 @@ type AgentManagerService interface {
 	GetAgentConfigurations(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error)
 	GetBuildLogs(ctx context.Context, orgName string, projectName string, agentName string, buildName string) (*models.BuildLogsResponse, error)
 	GenerateName(ctx context.Context, orgName string, payload spec.ResourceNameRequest) (string, error)
+	GetAgentMetrics(ctx context.Context, orgName string, projectName string, agentName string, payload spec.MetricsFilterRequest) (*spec.MetricsResponse, error)
 }
 
 type agentManagerService struct {
@@ -630,6 +631,43 @@ func (s *agentManagerService) GetBuildLogs(ctx context.Context, orgName string, 
 	}
 	s.logger.Info("Fetched build logs successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName, "buildName", buildName, "logCount", len(buildLogs.Logs))
 	return buildLogs, nil
+}
+
+func (s *agentManagerService) GetAgentMetrics(ctx context.Context, orgName string, projectName string, agentName string, payload spec.MetricsFilterRequest) (*spec.MetricsResponse, error) {
+	s.logger.Info("Getting agent metrics", "agentName", agentName, "orgName", orgName, "projectName", projectName)
+	// Validate organization exists
+	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
+	if err != nil {
+		s.logger.Error("Failed to validate organization", "orgName", orgName, "error", err)
+		return nil, err
+	}
+	// Validates the project name by checking its existence
+	project, err := s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
+	if err != nil {
+		s.logger.Error("Failed to get OpenChoreo project", "projectName", projectName, "orgName", orgName, "error", err)
+		return nil, err
+	}
+	// Fetch environment from open choreo
+	environment, err := s.OpenChoreoSvcClient.GetEnvironment(ctx, orgName, payload.EnvironmentName)
+	if err != nil {
+		s.logger.Error("Failed to fetch environment from OpenChoreo", "environmentName", payload.EnvironmentName, "orgName", orgName, "error", err)
+		return nil, err
+	}
+	// Check if component already exists
+	agent, err := s.OpenChoreoSvcClient.GetAgentComponent(ctx, orgName, projectName, agentName)
+	if err != nil {
+		s.logger.Error("Failed to check component existence", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		return nil, err
+	}
+
+	// Fetch the metrics from Observability service
+	metrics, err := s.ObservabilitySvcClient.GetComponentMetrics(ctx, agent.UUID, environment.UUID, project.UUID, payload)
+	if err != nil {
+		s.logger.Error("Failed to fetch agent metrics from observability service", "agent", agentName, "error", err)
+		return nil, fmt.Errorf("failed to fetch agent metrics: %w", err)
+	}
+	s.logger.Info("Fetched agent metrics successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName)
+	return utils.ConvertToMetricsResponse(metrics), nil
 }
 
 func (s *agentManagerService) ListAgentBuilds(ctx context.Context, orgName string, projectName string, agentName string, limit int32, offset int32) ([]*models.BuildResponse, int32, error) {

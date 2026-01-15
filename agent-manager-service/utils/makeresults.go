@@ -379,6 +379,32 @@ func ConvertToBuildLogsResponse(buildLogs models.BuildLogsResponse) spec.BuildLo
 	return responses
 }
 
+func ConvertToMetricsResponse(metrics *models.MetricsResponse) *spec.MetricsResponse {
+	if metrics == nil {
+		return nil
+	}
+
+	convertDataPoints := func(points []models.TimeValuePoint) []spec.MetricDataPoint {
+		result := make([]spec.MetricDataPoint, len(points))
+		for i, p := range points {
+			result[i] = spec.MetricDataPoint{
+				Time:  p.Time,
+				Value: p.Value,
+			}
+		}
+		return result
+	}
+
+	return &spec.MetricsResponse{
+		CpuUsage:       convertDataPoints(metrics.CpuUsage),
+		CpuRequests:    convertDataPoints(metrics.CpuRequests),
+		CpuLimits:      convertDataPoints(metrics.CpuLimits),
+		Memory:         convertDataPoints(metrics.Memory),
+		MemoryRequests: convertDataPoints(metrics.MemoryRequests),
+		MemoryLimits:   convertDataPoints(metrics.MemoryLimits),
+	}
+}
+
 func ConvertToDataPlaneListResponse(dataPlanes []*models.DataPlaneResponse) []spec.DataPlane {
 	if len(dataPlanes) == 0 {
 		return []spec.DataPlane{}

@@ -74,3 +74,16 @@ type BuildLogsResponse struct {
 	TotalCount int32      `json:"totalCount"`
 	TookMs     float32    `json:"tookMs"`
 }
+type TimeValuePoint struct {
+	Time  string  `json:"time"`
+	Value float64 `json:"value"`
+}
+
+type MetricsResponse struct {
+	CpuUsage       []TimeValuePoint `json:"cpuUsage"`
+	CpuRequests    []TimeValuePoint `json:"cpuRequests"`
+	CpuLimits      []TimeValuePoint `json:"cpuLimits"`
+	Memory         []TimeValuePoint `json:"memory"`
+	MemoryRequests []TimeValuePoint `json:"memoryRequests"`
+	MemoryLimits   []TimeValuePoint `json:"memoryLimits"`
+}
