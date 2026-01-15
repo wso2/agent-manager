@@ -97,6 +97,8 @@ def run_with_sitecustomize(args: List[str]) -> NoReturn:
     try:
         result = subprocess.run(args, env=env)
         sys.exit(result.returncode)
+    except KeyboardInterrupt:
+        sys.exit(130)  # Standard exit code for script terminated by Ctrl+C
     except Exception as e:
         print(f"Error running command: {e}", file=sys.stderr)
         sys.exit(1)
