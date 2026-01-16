@@ -27,6 +27,13 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
+const (
+	// MaxTracesPerRequest is the maximum number of traces that can be requested at once
+	MaxTracesPerRequest = 1000
+	// DefaultTracesLimit is the default number of traces to return when no limit is specified
+	DefaultTracesLimit = 10
+)
+
 type ObservabilityController interface {
 	ListTraces(w http.ResponseWriter, r *http.Request)
 	ExportTraces(w http.ResponseWriter, r *http.Request)
@@ -56,7 +63,7 @@ func (c *observabilityController) ListTraces(w http.ResponseWriter, r *http.Requ
 	// Parse query parameters
 	limitStr := r.URL.Query().Get("limit")
 	if limitStr == "" {
-		limitStr = "10"
+		limitStr = strconv.Itoa(DefaultTracesLimit)
 	}
 	offsetStr := r.URL.Query().Get("offset")
 	if offsetStr == "" {
@@ -164,7 +171,7 @@ func (c *observabilityController) ExportTraces(w http.ResponseWriter, r *http.Re
 	// Parse query parameters
 	limitStr := r.URL.Query().Get("limit")
 	if limitStr == "" {
-		limitStr = "100"
+		limitStr = strconv.Itoa(MaxTracesPerRequest)
 	}
 	offsetStr := r.URL.Query().Get("offset")
 	if offsetStr == "" {
@@ -173,9 +180,9 @@ func (c *observabilityController) ExportTraces(w http.ResponseWriter, r *http.Re
 
 	// Parse and validate pagination parameters
 	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 || limit > 1000 {
+	if err != nil || limit < 1 || limit > MaxTracesPerRequest {
 		log.Error("ExportTraces: invalid limit parameter", "limit", limitStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and 1000")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and "+strconv.Itoa(MaxTracesPerRequest))
 		return
 	}
 

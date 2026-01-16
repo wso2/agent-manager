@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   getTimeRange,
   TraceListResponse,
@@ -102,10 +102,9 @@ export function useTrace(
 export function useExportTraces() {
   const { getToken } = useAuthHooks();
 
-  return useCallback(
-    async (params: ExportTracesPathParams): Promise<TraceExportResponse> => {
+  return useMutation({
+    mutationFn: async (params: ExportTracesPathParams): Promise<TraceExportResponse> => {
       return await exportTraces(params, getToken);
     },
-    [getToken]
-  );
+  });
 }

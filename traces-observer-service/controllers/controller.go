@@ -30,6 +30,15 @@ import (
 // ErrTraceNotFound is returned when a trace is not found
 var ErrTraceNotFound = errors.New("trace not found")
 
+const (
+	// MaxSpansPerRequest is the maximum number of spans that can be fetched in a single query
+	MaxSpansPerRequest = 10000
+	// MaxTracesPerRequest is the maximum number of traces that can be requested at once
+	MaxTracesPerRequest = 1000
+	// DefaultTracesLimit is the default number of traces to return when no limit is specified
+	DefaultTracesLimit = 10
+)
+
 // TracingController provides tracing functionality
 type TracingController struct {
 	osClient *opensearch.Client
@@ -48,7 +57,7 @@ func (s *TracingController) retrieveAndGroupTraces(ctx context.Context, params o
 
 	// Set defaults for limit and offset
 	if params.Limit == 0 {
-		params.Limit = 10
+		params.Limit = DefaultTracesLimit
 	}
 	if params.Offset < 0 {
 		params.Offset = 0
@@ -60,8 +69,8 @@ func (s *TracingController) retrieveAndGroupTraces(ctx context.Context, params o
 
 	// Fetch spans with multiplier to ensure we get complete traces
 	params.Limit = originalLimit * 100
-	if params.Limit > 10000 {
-		params.Limit = 10000
+	if params.Limit > MaxSpansPerRequest {
+		params.Limit = MaxSpansPerRequest
 	}
 	params.Offset = 0
 
@@ -155,7 +164,7 @@ func (s *TracingController) retrieveAndGroupTraces(ctx context.Context, params o
 		// Store trace data as a map with all necessary fields
 		traceData := map[string]interface{}{
 			"traceID":         traceID,
-			"rootSpan":        rootSpan,
+			"rootSpanID":      rootSpan.SpanID,
 			"spans":           traceSpans,
 			"tokenUsage":      tokenUsage,
 			"status":          traceStatus,
@@ -216,7 +225,7 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 	for _, traceData := range allTraces {
 		allOverviews = append(allOverviews, opensearch.TraceOverview{
 			TraceID:         traceData["traceID"].(string),
-			RootSpanID:      traceData["rootSpan"].(*opensearch.Span).SpanID,
+			RootSpanID:      traceData["rootSpanID"].(string), // Use stored ID instead of pointer
 			RootSpanName:    traceData["rootSpanName"].(string),
 			RootSpanKind:    traceData["rootSpanKind"].(string),
 			StartTime:       traceData["startTime"].(string),
@@ -336,8 +345,8 @@ func (s *TracingController) ExportTraces(ctx context.Context, params opensearch.
 		"endTime", params.EndTime)
 
 	// For export, ignore pagination params and set a high limit to get all traces
-	// Cap at 1000 traces for safety to prevent overwhelming the system
-	params.Limit = 1000
+	// Cap at MaxTracesPerRequest for safety to prevent overwhelming the system
+	params.Limit = MaxTracesPerRequest
 	params.Offset = 0
 
 	// Retrieve and group traces using shared function
@@ -369,7 +378,7 @@ func (s *TracingController) ExportTraces(ctx context.Context, params opensearch.
 
 		fullTraces = append(fullTraces, opensearch.FullTrace{
 			TraceID:         traceData["traceID"].(string),
-			RootSpanID:      traceData["rootSpan"].(*opensearch.Span).SpanID,
+			RootSpanID:      traceData["rootSpanID"].(string),
 			RootSpanName:    traceData["rootSpanName"].(string),
 			RootSpanKind:    traceData["rootSpanKind"].(string),
 			StartTime:       traceData["startTime"].(string),

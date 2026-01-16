@@ -252,9 +252,9 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 			h.writeError(w, http.StatusBadRequest, "limit must be a positive integer")
 			return
 		}
-		// Cap at 1000 to prevent excessive data export
-		if parsedLimit > 1000 {
-			parsedLimit = 1000
+		// Cap at MaxTracesPerRequest to prevent excessive data export
+		if parsedLimit > controllers.MaxTracesPerRequest {
+			parsedLimit = controllers.MaxTracesPerRequest
 		}
 		limit = parsedLimit
 	}
@@ -303,7 +303,10 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	// Set content disposition header to suggest filename
 	timestamp := time.Now().Format("20060102-150405")
 	filename := fmt.Sprintf("traces-export-%s.json", timestamp)
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 
 	// Write response
 	h.writeJSON(w, http.StatusOK, result)

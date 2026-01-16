@@ -69,8 +69,7 @@ const TIME_RANGE_OPTIONS = [
 export const TracesComponent: React.FC = () => {
   const { agentId, orgId, projectId, envId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const exportTracesApi = useExportTraces();
-  const [isExporting, setIsExporting] = useState(false);
+  const { mutateAsync: exportTracesAsync, isPending: isExporting } = useExportTraces();
   const [exportError, setExportError] = useState<string | null>(null);
 
   // Initialize state from URL search params with defaults
@@ -160,14 +159,18 @@ export const TracesComponent: React.FC = () => {
     }
 
     try {
-      setIsExporting(true);
       setExportError(null);
 
-      const { startTime, endTime } = getTimeRange(timeRange);
-      
+      const range = getTimeRange(timeRange);
+      if (!range) {
+        setExportError("Invalid time range");
+        return;
+      }
+      const { startTime, endTime } = range;
+
       // Export ALL traces matching the current filters (time range, environment, sort order)
       // Backend caps at 1000 traces for safety
-      const exportData = await exportTracesApi({
+      const exportData = await exportTracesAsync({
         orgName: orgId,
         projName: projectId,
         agentName: agentId,
@@ -182,7 +185,7 @@ export const TracesComponent: React.FC = () => {
       const blob = new Blob([JSON.stringify(exportData, null, 2)], {
         type: "application/json",
       });
-      
+
       // Create download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -190,7 +193,7 @@ export const TracesComponent: React.FC = () => {
       link.download = `traces-export-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
       document.body.appendChild(link);
       link.click();
-      
+
       // Cleanup
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
@@ -199,10 +202,8 @@ export const TracesComponent: React.FC = () => {
       setExportError(
         error instanceof Error ? error.message : "Failed to export traces"
       );
-    } finally {
-      setIsExporting(false);
     }
-  }, [orgId, projectId, agentId, envId, timeRange, sortOrder, exportTracesApi]);
+  }, [orgId, projectId, agentId, envId, timeRange, sortOrder, exportTracesAsync]);
 
   return (
     <FadeIn>

@@ -137,10 +137,16 @@ export async function exportTraces(
   if (!agentName) missingParams.push("agentName");
   if (!projName) missingParams.push("projName");
   if (!orgName) missingParams.push("orgName");
+  if (!environment) missingParams.push("environment");
 
   if (missingParams.length > 0) {
     throw new Error(`Missing required parameters: ${missingParams.join(", ")}`);
   }
+
+  if ((startTime && !endTime) || (!startTime && endTime)) {
+    throw new Error("startTime and endTime must be provided together");
+  }
+
   const token = getToken ? await getToken() : undefined;
 
   const searchParams: Record<string, string> = {};
