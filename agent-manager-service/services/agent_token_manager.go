@@ -59,7 +59,6 @@ type AgentTokenClaims struct {
 	jwt.RegisteredClaims
 	ComponentUid    string `json:"component_uid"`
 	EnvironmentUid  string `json:"environment_uid"`
-	OrganizationUid string `json:"organization_uid,omitempty"`
 	ProjectUid      string `json:"project_uid,omitempty"`
 }
 
@@ -254,13 +253,6 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		return nil, fmt.Errorf("failed to get environment: %w", err)
 	}
 
-	// // Fetch organization UID
-	// organization, err := s.openChoreoClient.GetOrganization(ctx, req.OrgName)
-	// if err != nil {
-	// 	s.logger.Error("Failed to get organization", "orgName", req.OrgName, "error", err)
-	// 	return nil, fmt.Errorf("failed to get organization: %w", err)
-	// }
-
 	// Fetch project UID
 	project, err := s.openChoreoClient.GetProject(ctx, req.ProjectName, req.OrgName)
 	if err != nil {
@@ -288,7 +280,6 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		},
 		ComponentUid:   component.UUID,
 		EnvironmentUid: environment.UUID,
-		// OrganizationUid: organization.UUID,
 		ProjectUid: project.UUID,
 	}
 
