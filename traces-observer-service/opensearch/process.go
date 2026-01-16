@@ -18,7 +18,9 @@ package opensearch
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -164,8 +166,10 @@ func populateLLMAttributes(ampAttrs *AmpAttributes, attrs map[string]interface{}
 	}
 
 	// Extract temperature
-	if temp, ok := attrs["gen_ai.request.temperature"].(float64); ok {
-		llmData.Temperature = &temp
+	if tempRaw, ok := attrs["gen_ai.request.temperature"]; ok {
+		if temp, tempOk := extractFloatValue(tempRaw); tempOk {
+			llmData.Temperature = &temp
+		}
 	}
 
 	// Extract token usage
@@ -235,14 +239,27 @@ func populateRetrieverAttributes(ampAttrs *AmpAttributes, attrs map[string]inter
 
 // populateAgentAttributes extracts and populates agent-specific attributes
 func populateAgentAttributes(ampAttrs *AmpAttributes, attrs map[string]interface{}) {
-	// For standard agent spans, use traceloop.entity attributes
-	if input, ok := attrs["traceloop.entity.input"].(string); ok {
+	// For Otel agent spans, we could also check gen_ai.input.message and gen_ai.output.message
+	if input, ok := attrs["gen_ai.input.messages"].(string); ok {
 		ampAttrs.Input = input
 	}
-	if output, ok := attrs["traceloop.entity.output"].(string); ok {
+
+	if output, ok := attrs["gen_ai.output.messages"].(string); ok {
 		ampAttrs.Output = output
 	}
 
+	// For standard agent spans, use traceloop.entity attributes
+	// Otel attributes take precedence
+	if ampAttrs.Input == nil {
+		if input, ok := attrs["traceloop.entity.input"].(string); ok {
+			ampAttrs.Input = input
+		}
+	}
+	if ampAttrs.Output == nil {
+		if output, ok := attrs["traceloop.entity.output"].(string); ok {
+			ampAttrs.Output = output
+		}
+	}
 	// Set agent-specific data
 	agentData := AgentData{}
 
@@ -262,6 +279,11 @@ func populateAgentAttributes(ampAttrs *AmpAttributes, attrs map[string]interface
 	// Extract framework from gen_ai.system
 	if framework, ok := attrs["gen_ai.system"].(string); ok {
 		agentData.Framework = framework
+	}
+
+	// Extract conversation ID if present
+	if convID, ok := attrs["gen_ai.conversation.id"].(string); ok {
+		agentData.ConversationID = convID
 	}
 
 	// Extract system prompt
@@ -330,13 +352,16 @@ func parseToolsJSON(toolsJSON string) []ToolDefinition {
 	// First, try to parse as array of ToolDefinition objects
 	var toolDefs []ToolDefinition
 	if err := json.Unmarshal([]byte(toolsJSON), &toolDefs); err == nil && len(toolDefs) > 0 {
-		// Successfully parsed as ToolDefinition array
+		slog.Debug("parseToolsJSON: Successfully parsed as ToolDefinition array",
+			"toolCount", len(toolDefs))
 		return toolDefs
 	}
 
 	// If that fails, try to parse as array of strings
 	var toolNames []string
 	if err := json.Unmarshal([]byte(toolsJSON), &toolNames); err == nil {
+		slog.Debug("parseToolsJSON: Successfully parsed as string array",
+			"toolCount", len(toolNames))
 		// Successfully parsed as string array, convert to ToolDefinition
 		result := make([]ToolDefinition, len(toolNames))
 		for i, name := range toolNames {
@@ -346,6 +371,8 @@ func parseToolsJSON(toolsJSON string) []ToolDefinition {
 	}
 
 	// If both fail, return the raw string as a single ToolDefinition
+	slog.Warn("parseToolsJSON: Failed to parse as JSON array, treating as raw string",
+		"toolsJSON", toolsJSON)
 	return []ToolDefinition{{Name: toolsJSON}}
 }
 
@@ -439,38 +466,94 @@ func extractSpanStatus(attrs map[string]interface{}, spanStatus string) *SpanSta
 	return status
 }
 
+// extractIntValue extracts an integer value from an interface{} that could be int, float64, or string
+func extractIntValue(value interface{}) (int, bool) {
+	switch v := value.(type) {
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case float64:
+		return int(v), true
+	case string:
+		// Try to parse string as integer
+		var parsed int
+		if _, err := fmt.Sscanf(v, "%d", &parsed); err == nil {
+			return parsed, true
+		}
+		return 0, false
+	default:
+		return 0, false
+	}
+}
+
+// extractFloatValue extracts a float64 value from an interface{} that could be int, float64, or string
+func extractFloatValue(value interface{}) (float64, bool) {
+	switch v := value.(type) {
+	case float64:
+		return v, true
+	case float32:
+		return float64(v), true
+	case int:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	case string:
+		// Try to parse string as float
+		var parsed float64
+		if _, err := fmt.Sscanf(v, "%f", &parsed); err == nil {
+			return parsed, true
+		}
+		return 0, false
+	default:
+		return 0, false
+	}
+}
+
 // extractTokenUsageFromAttributes extracts token usage from span attributes
 // Supports both standard gen_ai.usage.* and legacy prompt_tokens/completion_tokens attributes
+// Handles int, float64, and string types for token values
 func extractTokenUsageFromAttributes(attrs map[string]interface{}) *LLMTokenUsage {
-	var inputTokens, outputTokens, cacheReadTokens int
+	var inputTokensRaw, outputTokensRaw, cacheReadTokensRaw interface{}
 
-	// Try to extract input tokens (gen_ai.usage.input_tokens or gen_ai.usage.prompt_tokens)
-	if val, ok := attrs["gen_ai.usage.input_tokens"].(float64); ok {
-		inputTokens = int(val)
-	} else if val, ok := attrs["gen_ai.usage.prompt_tokens"].(float64); ok {
-		inputTokens = int(val)
+	// Extract input tokens (gen_ai.usage.input_tokens or gen_ai.usage.prompt_tokens)
+	if val, ok := attrs["gen_ai.usage.input_tokens"]; ok {
+		inputTokensRaw = val
+	} else if val, ok := attrs["gen_ai.usage.prompt_tokens"]; ok {
+		inputTokensRaw = val
 	}
 
-	// Try to extract output tokens (gen_ai.usage.output_tokens or gen_ai.usage.completion_tokens)
-	if val, ok := attrs["gen_ai.usage.output_tokens"].(float64); ok {
-		outputTokens = int(val)
-	} else if val, ok := attrs["gen_ai.usage.completion_tokens"].(float64); ok {
-		outputTokens = int(val)
+	// Extract output tokens (gen_ai.usage.output_tokens or gen_ai.usage.completion_tokens)
+	if val, ok := attrs["gen_ai.usage.output_tokens"]; ok {
+		outputTokensRaw = val
+	} else if val, ok := attrs["gen_ai.usage.completion_tokens"]; ok {
+		outputTokensRaw = val
 	}
 
-	// Try to extract cache read tokens
-	if val, ok := attrs["gen_ai.usage.cache_read_input_tokens"].(float64); ok {
-		cacheReadTokens = int(val)
+	// Extract cache read tokens
+	if val, ok := attrs["gen_ai.usage.cache_read_input_tokens"]; ok {
+		cacheReadTokensRaw = val
 	}
+
+	// Convert all raw values to integers
+	inputTokens, inputOk := extractIntValue(inputTokensRaw)
+	outputTokens, outputOk := extractIntValue(outputTokensRaw)
+	cacheReadTokens, cacheOk := extractIntValue(cacheReadTokensRaw)
 
 	// Only return token usage if we found some tokens
-	if inputTokens > 0 || outputTokens > 0 {
-		return &LLMTokenUsage{
-			InputTokens:          inputTokens,
-			OutputTokens:         outputTokens,
-			CacheReadInputTokens: cacheReadTokens,
-			TotalTokens:          inputTokens + outputTokens,
+	if (inputOk && inputTokens > 0) || (outputOk && outputTokens > 0) {
+		tokenUsage := &LLMTokenUsage{
+			InputTokens:  inputTokens,
+			OutputTokens: outputTokens,
+			TotalTokens:  inputTokens + outputTokens,
 		}
+
+		// Only include cache read tokens if successfully extracted
+		if cacheOk && cacheReadTokens > 0 {
+			tokenUsage.CacheReadInputTokens = cacheReadTokens
+		}
+
+		return tokenUsage
 	}
 
 	return nil
@@ -562,6 +645,8 @@ func extractSpanInputOutput(attrs map[string]interface{}) (input interface{}, ou
 					if combinedBytes, err := json.Marshal(combined); err == nil {
 						input = string(combinedBytes)
 					} else {
+						slog.Warn("extractSpanInputOutput: Failed to marshal combined input/metadata",
+							"error", err)
 						input = inputStr // Fallback to original
 					}
 				} else if hasInputs {
@@ -569,6 +654,8 @@ func extractSpanInputOutput(attrs map[string]interface{}) (input interface{}, ou
 					if nestedBytes, err := json.Marshal(nestedInputs); err == nil {
 						input = string(nestedBytes)
 					} else {
+						slog.Warn("extractSpanInputOutput: Failed to marshal nested inputs",
+							"error", err)
 						input = inputStr // Fallback to original
 					}
 				} else {
@@ -576,6 +663,8 @@ func extractSpanInputOutput(attrs map[string]interface{}) (input interface{}, ou
 					input = inputStr
 				}
 			} else {
+				slog.Debug("extractSpanInputOutput: Input is not valid JSON, using as-is",
+					"inputLength", len(inputStr))
 				// Not valid JSON, return as-is
 				input = inputStr
 			}
@@ -604,12 +693,18 @@ func extractSpanInputOutput(attrs map[string]interface{}) (input interface{}, ou
 										// content is not a string, try to marshal it
 										if contentBytes, err := json.Marshal(kwargs["content"]); err == nil {
 											output = string(contentBytes)
+										} else {
+											slog.Warn("extractSpanInputOutput: Failed to marshal output content",
+												"error", err)
 										}
 									}
 								} else {
 									// No kwargs, return the whole last message as JSON
 									if msgBytes, err := json.Marshal(lastMessage); err == nil {
 										output = string(msgBytes)
+									} else {
+										slog.Warn("extractSpanInputOutput: Failed to marshal last message",
+											"error", err)
 									}
 								}
 							}
@@ -617,12 +712,18 @@ func extractSpanInputOutput(attrs map[string]interface{}) (input interface{}, ou
 							// No messages array or empty, return outputs as JSON
 							if outputsBytes, err := json.Marshal(outputs); err == nil {
 								output = string(outputsBytes)
+							} else {
+								slog.Warn("extractSpanInputOutput: Failed to marshal outputs",
+									"error", err)
 							}
 						}
 					} else {
 						// outputs is not a map, return it as JSON
 						if outputsBytes, err := json.Marshal(outputs); err == nil {
 							output = string(outputsBytes)
+						} else {
+							slog.Warn("extractSpanInputOutput: Failed to marshal outputs (non-map)",
+								"error", err)
 						}
 					}
 				} else {
@@ -630,6 +731,8 @@ func extractSpanInputOutput(attrs map[string]interface{}) (input interface{}, ou
 					output = outputStr
 				}
 			} else {
+				slog.Debug("extractSpanInputOutput: Output is not valid JSON, using as-is",
+					"outputLength", len(outputStr))
 				// Not valid JSON, return as-is
 				output = outputStr
 			}
@@ -661,103 +764,181 @@ func ExtractRootSpanInputOutput(rootSpan *Span) (input interface{}, output inter
 func ExtractPromptMessages(attrs map[string]interface{}) []PromptMessage {
 	// First, try OTEL format (gen_ai.input.messages)
 	if messagesJSON, ok := attrs["gen_ai.input.messages"].(string); ok && messagesJSON != "" {
+		slog.Debug("ExtractPromptMessages: Found OTEL format input messages, parsing")
 		messages := parseOTELMessages(messagesJSON)
 		if len(messages) > 0 {
 			return messages
 		}
+		slog.Warn("ExtractPromptMessages: OTEL format parsing returned no messages, falling back to Traceloop format")
 	}
 
 	// Fallback to Traceloop format (gen_ai.prompt.*)
+	slog.Debug("ExtractPromptMessages: Using Traceloop format extraction")
 	return extractTraceloopPromptMessages(attrs)
 }
 
-// parseOTELMessages parses OTEL format messages from JSON string
-// Format: [{"role": "user", "parts": [{"type": "text", "content": "..."}, {"type": "tool_call", ...}]}]
-func parseOTELMessages(messagesJSON string) []PromptMessage {
-	if messagesJSON == "" {
-		return nil
+// RecursiveJSONParser recursively parses a potentially deeply stringified JSON string
+func RecursiveJSONParser(jsonString string, maxDepth int) (interface{}, error) {
+	if maxDepth <= 0 {
+		slog.Warn("RecursiveJSONParser: Maximum recursion depth exceeded")
+		return nil, errors.New("maximum recursion depth exceeded")
 	}
 
-	// Parse JSON array
-	var rawMessages []map[string]interface{}
-	if err := json.Unmarshal([]byte(messagesJSON), &rawMessages); err != nil {
-		return nil
+	var result interface{}
+	err := json.Unmarshal([]byte(jsonString), &result)
+	if err != nil {
+		slog.Error("RecursiveJSONParser: Failed to unmarshal JSON string",
+			"length", len(jsonString),
+			"error", err)
+		return nil, fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
-	messages := make([]PromptMessage, 0, len(rawMessages))
-	for _, rawMsg := range rawMessages {
-		msg := PromptMessage{}
-
-		// Extract role
-		if role, ok := rawMsg["role"].(string); ok {
-			msg.Role = role
+	if str, ok := result.(string); ok {
+		trimmed := strings.TrimSpace(str)
+		if len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '[') {
+			slog.Debug("RecursiveJSONParser: Detected nested stringified JSON, recursing",
+				"depthRemaining", maxDepth-1)
+			return RecursiveJSONParser(str, maxDepth-1)
 		}
+		return str, nil
+	}
 
-		// Extract parts
-		if parts, ok := rawMsg["parts"].([]interface{}); ok {
-			var contentParts []string
-			var toolCalls []ToolCall
+	return result, nil
+}
 
-			for _, part := range parts {
-				if partMap, ok := part.(map[string]interface{}); ok {
-					partType, _ := partMap["type"].(string)
+// parseOTELMessage parses a single message object into a PromptMessage
+// Returns the parsed message and a boolean indicating success
+func parseOTELMessage(rawMsg map[string]interface{}, messageIndex int) (*PromptMessage, bool) {
+	msg := PromptMessage{}
 
-					switch partType {
-					case "text":
-						// Extract text content
-						if content, ok := partMap["content"].(string); ok && content != "" {
-							contentParts = append(contentParts, content)
-						}
+	// Extract role
+	if role, ok := rawMsg["role"].(string); ok {
+		msg.Role = role
+	}
 
-					case "tool_call":
-						// Extract tool call
-						tc := ToolCall{}
-						if id, ok := partMap["id"].(string); ok {
-							tc.ID = id
-						}
-						if name, ok := partMap["name"].(string); ok {
-							tc.Name = name
-						}
-						// Arguments can be object or string
-						if args, ok := partMap["arguments"]; ok {
-							if argsStr, ok := args.(string); ok {
-								tc.Arguments = argsStr
-							} else {
-								// Convert to JSON string
-								if argsBytes, err := json.Marshal(args); err == nil {
-									tc.Arguments = string(argsBytes)
-								}
-							}
-						}
-						if tc.Name != "" {
-							toolCalls = append(toolCalls, tc)
-						}
+	// Extract content (optional, can be null)
+	if content, ok := rawMsg["content"].(string); ok {
+		msg.Content = content
+	}
 
-					case "tool_call_response":
-						// For tool role messages, extract result as content
-						if result, ok := partMap["result"].(string); ok && result != "" {
-							contentParts = append(contentParts, result)
+	// Extract toolCalls (optional, can be null)
+	if toolCallsRaw, ok := rawMsg["toolCalls"].([]interface{}); ok {
+		msg.ToolCalls = make([]ToolCall, 0, len(toolCallsRaw))
+		for _, tcRaw := range toolCallsRaw {
+			if tcMap, ok := tcRaw.(map[string]interface{}); ok {
+				tc := ToolCall{}
+
+				// Extract ID (optional)
+				if id, ok := tcMap["id"].(string); ok {
+					tc.ID = id
+				}
+
+				// Extract Name (optional)
+				if name, ok := tcMap["name"].(string); ok {
+					tc.Name = name
+				}
+
+				// Extract Arguments - convert to string (optional)
+				if args, ok := tcMap["arguments"]; ok && args != nil {
+					if argsStr, ok := args.(string); ok {
+						// Already a string
+						tc.Arguments = argsStr
+					} else {
+						// Convert object to JSON string
+						argsBytes, err := json.Marshal(args)
+						if err == nil {
+							tc.Arguments = string(argsBytes)
+						} else {
+							slog.Warn("parseOTELMessage: Failed to marshal tool call arguments",
+								"messageIndex", messageIndex,
+								"toolCallName", tc.Name,
+								"error", err)
 						}
 					}
 				}
-			}
 
-			// Combine content parts
-			if len(contentParts) > 0 {
-				msg.Content = strings.Join(contentParts, "\n")
+				msg.ToolCalls = append(msg.ToolCalls, tc)
+			} else {
+				slog.Warn("parseOTELMessage: Invalid tool call format, expected map",
+					"messageIndex", messageIndex)
 			}
-
-			// Add tool calls
-			if len(toolCalls) > 0 {
-				msg.ToolCalls = toolCalls
-			}
-		}
-
-		// Only add message if it has a role
-		if msg.Role != "" {
-			messages = append(messages, msg)
 		}
 	}
+
+	return &msg, true
+}
+
+// parseOTELMessages parses a JSON string to []PromptMessage using recursive parsing
+// Handles both array of messages and single message object
+func parseOTELMessages(jsonString string) []PromptMessage {
+	slog.Debug("parseOTELMessages: Parsing OTEL messages",
+		"stringLength", len(jsonString))
+
+	// First, recursively parse the JSON
+	result, err := RecursiveJSONParser(jsonString, 10)
+	if err != nil {
+		slog.Error("parseOTELMessages: RecursiveJSONParser failed",
+			"error", err)
+		return nil
+	}
+
+	// Use type assertion to convert result to the format we need
+	// RecursiveJSONParser returns interface{} which could be:
+	// - []interface{} (array of messages)
+	// - map[string]interface{} (single message object)
+	var rawMessages []map[string]interface{}
+
+	switch v := result.(type) {
+	case []interface{}:
+		// It's an array - convert each element to map[string]interface{}
+		slog.Debug("parseOTELMessages: Result is an array",
+			"length", len(v))
+		rawMessages = make([]map[string]interface{}, 0, len(v))
+		for i, item := range v {
+			if msgMap, ok := item.(map[string]interface{}); ok {
+				rawMessages = append(rawMessages, msgMap)
+			} else {
+				slog.Warn("parseOTELMessages: Array item is not a map",
+					"index", i,
+					"type", fmt.Sprintf("%T", item))
+			}
+		}
+
+	case map[string]interface{}:
+		// It's a single object - wrap it in an array
+		slog.Debug("parseOTELMessages: Result is a single message object, wrapping in array")
+		rawMessages = []map[string]interface{}{v}
+
+	default:
+		slog.Error("parseOTELMessages: Unexpected result type from RecursiveJSONParser",
+			"type", fmt.Sprintf("%T", result),
+			"value", result)
+		return nil
+	}
+
+	slog.Debug("parseOTELMessages: Successfully extracted raw messages",
+		"messageCount", len(rawMessages))
+
+	// Parse each message using the single message parser
+	messages := make([]PromptMessage, 0, len(rawMessages))
+	skippedCount := 0
+	for i, rawMsg := range rawMessages {
+		if msg, ok := parseOTELMessage(rawMsg, i); ok {
+			messages = append(messages, *msg)
+		} else {
+			skippedCount++
+		}
+	}
+
+	if skippedCount > 0 {
+		slog.Warn("parseOTELMessages: Some messages were skipped",
+			"skippedCount", skippedCount,
+			"totalMessages", len(rawMessages),
+			"parsedMessages", len(messages))
+	}
+
+	slog.Debug("parseOTELMessages: Successfully converted to PromptMessage array",
+		"messageCount", len(messages))
 
 	return messages
 }
@@ -889,13 +1070,20 @@ func extractTraceloopPromptMessages(attrs map[string]interface{}) []PromptMessag
 func ExtractCompletionMessages(attrs map[string]interface{}) []PromptMessage {
 	// First, try OTEL format (gen_ai.output.messages)
 	if messagesJSON, ok := attrs["gen_ai.output.messages"].(string); ok && messagesJSON != "" {
+		slog.Debug("ExtractCompletionMessages: Found OTEL format output messages, parsing",
+			"messageLength", len(messagesJSON))
 		messages := parseOTELMessages(messagesJSON)
+
 		if len(messages) > 0 {
+			slog.Debug("ExtractCompletionMessages: Successfully parsed OTEL format messages",
+				"messageCount", len(messages))
 			return messages
 		}
+		slog.Warn("ExtractCompletionMessages: OTEL format parsing returned no messages, falling back to Traceloop format")
 	}
 
 	// Fallback to Traceloop format (gen_ai.completion.*)
+	slog.Debug("ExtractCompletionMessages: Using Traceloop format extraction")
 	return extractTraceloopCompletionMessages(attrs)
 }
 
@@ -1023,15 +1211,21 @@ func extractTraceloopCompletionMessages(attrs map[string]interface{}) []PromptMe
 // Handles two formats:
 // 1. OTEL format: gen_ai.tool.definitions (JSON array)
 // 2. Traceloop format: llm.request.functions.{index}.{field}
+// 3. Ballerina format: gen_ai.input.tools (JSON array)
 func ExtractToolDefinitions(attrs map[string]interface{}) []ToolDefinition {
 	// First, try OTEL format (gen_ai.tool.definitions)
-	if toolsJSON, ok := attrs["gen_ai.tool.definitions"].(string); ok && toolsJSON != "" {
+	var toolsJSON string
+	if tools, ok := attrs["gen_ai.input.tools"].(string); ok && tools != "" {
+		toolsJSON = tools
+	} else if tools, ok := attrs["gen_ai.tool.definitions"].(string); ok && tools != "" {
+		toolsJSON = tools
+	}
+	if toolsJSON != "" {
 		tools := parseOTELToolDefinitions(toolsJSON)
 		if len(tools) > 0 {
 			return tools
 		}
 	}
-
 	// Fallback to Traceloop format (llm.request.functions.*)
 	return extractTraceloopToolDefinitions(attrs)
 }
@@ -1046,16 +1240,22 @@ func parseOTELToolDefinitions(toolsJSON string) []ToolDefinition {
 	// Parse JSON array
 	var rawTools []map[string]interface{}
 	if err := json.Unmarshal([]byte(toolsJSON), &rawTools); err != nil {
+		slog.Error("parseOTELToolDefinitions: Failed to unmarshal tool definitions JSON",
+			"error", err,
+			"jsonLength", len(toolsJSON))
 		return nil
 	}
 
 	tools := make([]ToolDefinition, 0, len(rawTools))
-	for _, rawTool := range rawTools {
+	for i, rawTool := range rawTools {
 		tool := ToolDefinition{}
 
 		// Extract name
 		if name, ok := rawTool["name"].(string); ok {
 			tool.Name = name
+		} else {
+			slog.Warn("parseOTELToolDefinitions: Tool definition missing name field",
+				"toolIndex", i)
 		}
 
 		// Extract description
@@ -1071,6 +1271,11 @@ func parseOTELToolDefinitions(toolsJSON string) []ToolDefinition {
 				// Convert to JSON string
 				if paramsBytes, err := json.Marshal(params); err == nil {
 					tool.Parameters = string(paramsBytes)
+				} else {
+					slog.Warn("parseOTELToolDefinitions: Failed to marshal tool parameters",
+						"toolIndex", i,
+						"toolName", tool.Name,
+						"error", err)
 				}
 			}
 		}
@@ -1190,6 +1395,8 @@ func ExtractToolExecutionDetails(attrs map[string]interface{}, spanStatus string
 		input = toolArgs
 	} else if funcArgs, ok := attrs["function.arguments"].(string); ok {
 		input = funcArgs
+	} else if genAIArgs, ok := attrs["gen_ai.tool.arguments"].(string); ok { // OTEL standard
+		input = genAIArgs
 	}
 
 	// Extract tool output - prioritize traceloop.entity.output
@@ -1201,6 +1408,8 @@ func ExtractToolExecutionDetails(attrs map[string]interface{}, spanStatus string
 		output = toolResult
 	} else if funcResult, ok := attrs["function.result"].(string); ok {
 		output = funcResult
+	} else if genAIOutput, ok := attrs["gen_ai.tool.output"].(string); ok { // OTEL standard
+		output = genAIOutput
 	}
 
 	// Determine status
@@ -1386,9 +1595,11 @@ func hasLLMAttributes(attrs map[string]interface{}) bool {
 		}
 	}
 
-	// Check for gen_ai.prompt (Starting with this as requested)
-	if _, ok := attrs["gen_ai.prompt"]; ok {
-		return true
+	// Check for gen_ai.prompt.* attributes (Starting with this as requested)
+	for key := range attrs {
+		if strings.HasPrefix(key, "gen_ai.prompt.") {
+			return true
+		}
 	}
 
 	// Check for response attributes specific to LLM (finish reasons, etc.)
