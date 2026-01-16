@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -75,5 +75,23 @@ export type CreateAgentPathParams = OrgProjPathParams;
 export type GetAgentPathParams = AgentPathParams;
 export type DeleteAgentPathParams = AgentPathParams;
 export type ListAgentsQuery = ListQuery;
+
+// Agent Token
+export interface TokenRequest {
+  expires_in?: string; // Go duration format (e.g., "720h" for 30 days, "8760h" for 1 year)
+}
+
+export interface TokenResponse {
+  token: string;
+  expires_at: number; // Unix timestamp
+  issued_at: number; // Unix timestamp
+  token_type: string; // "Bearer"
+}
+
+export interface GenerateAgentTokenPathParams extends AgentPathParams {}
+
+export interface GenerateAgentTokenQuery {
+  environment?: string;
+}
 
 
