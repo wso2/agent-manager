@@ -94,13 +94,14 @@ type RetrieverData struct {
 
 // AgentData contains agent execution span information
 type AgentData struct {
-	Name         string           `json:"name,omitempty"`         // Agent name (from gen_ai.agent.name)
-	Tools        []ToolDefinition `json:"tools,omitempty"`        // Available tools for the agent (from gen_ai.agent.tools)
-	Model        string           `json:"model,omitempty"`        // Model used by the agent (from gen_ai.request.model)
-	Framework    string           `json:"framework,omitempty"`    // Agent framework (from gen_ai.system, e.g., "strands-agents")
-	SystemPrompt string           `json:"systemPrompt,omitempty"` // System prompt for the agent
-	MaxIter      int              `json:"maxIter,omitempty"`      // Maximum iterations for the agent (from crewai.agent.max_iter)
-	TokenUsage   *LLMTokenUsage   `json:"tokenUsage,omitempty"`   // Token usage details (aggregated from agent execution)
+	Name           string           `json:"name,omitempty"`           // Agent name (from gen_ai.agent.name)
+	Tools          []ToolDefinition `json:"tools,omitempty"`          // Available tools for the agent (from gen_ai.agent.tools)
+	Model          string           `json:"model,omitempty"`          // Model used by the agent (from gen_ai.request.model)
+	Framework      string           `json:"framework,omitempty"`      // Agent framework (from gen_ai.system, e.g., "strands-agents")
+	SystemPrompt   string           `json:"systemPrompt,omitempty"`   // System prompt for the agent
+	MaxIter        int              `json:"maxIter,omitempty"`        // Maximum iterations for the agent (from crewai.agent.max_iter)
+	TokenUsage     *LLMTokenUsage   `json:"tokenUsage,omitempty"`     // Token usage details (aggregated from agent execution)
+	ConversationID string           `json:"conversationId,omitempty"` // Conversation ID (from gen_ai.conversation.id)
 }
 
 // CrewAITaskData contains CrewAI task execution span information
