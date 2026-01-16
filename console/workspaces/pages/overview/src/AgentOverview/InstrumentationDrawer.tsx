@@ -106,7 +106,7 @@ export AMP_TRACE_ATTRIBUTES="${traceAttributes}"`}
             code="amp-instrument <run_command>"
             language="bash"
             fieldId="run"
-            description="Look at the code-block in the screenshot, that way we can give a default command but also tell in a comment that user should replace it with what makes sense for them."
+            description="Replace <run_command> with your agent's start command. For example: amp-instrument python app.py"
           />
         </Box>
       </DrawerContent>
