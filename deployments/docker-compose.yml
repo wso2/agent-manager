@@ -40,6 +40,13 @@ services:
       - KUBECONFIG=/app/.kube/config
       - API_KEY_VALUE=abc-def-123
       - IS_LOCAL_DEV_ENV=true
+      # JWT Configuration
+      - JWT_SIGNING_PRIVATE_KEY_PATH=/app/keys/private.pem
+      - JWT_SIGNING_PUBLIC_KEYS_CONFIG=/app/keys/public-keys-config.json
+      - JWT_SIGNING_ACTIVE_KEY_ID=key-1
+      - JWT_SIGNING_DEFAULT_EXPIRY=8760h
+      - JWT_SIGNING_ISSUER=agent-manager-service
+      - JWT_SIGNING_DEFAULT_ENVIRONMENT=default
       # Optional: External Service URLs (add when needed)
       # - OPENCHOREO_API_URL=http://host.docker.internal:8000
       # - OPENSEARCH_URL=http://host.docker.internal:9200

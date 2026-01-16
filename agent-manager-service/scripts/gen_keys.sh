@@ -74,16 +74,23 @@ echo "  Public key: ${PUBLIC_KEY_PATH}"
 
 echo ""
 
+# Generate relative paths for Docker compatibility
+if [ "${KEY_ID}" = "key-1" ]; then
+    RELATIVE_PUBLIC_KEY_PATH="./keys/public.pem"
+else
+    RELATIVE_PUBLIC_KEY_PATH="./keys/public-${KEY_ID}.pem"
+fi
+
 # Check if JSON config exists
 if [ ! -f "${JSON_CONFIG}" ]; then
-    # Create initial JSON config
+    # Create initial JSON config with relative paths
     cat > "${JSON_CONFIG}" <<EOF
 {
   "keys": [
     {
       "kid": "${KEY_ID}",
       "algorithm": "RS256",
-      "publicKeyPath": "${PUBLIC_KEY_PATH}",
+      "publicKeyPath": "${RELATIVE_PUBLIC_KEY_PATH}",
       "description": "Initial JWT signing key",
       "createdAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     }
@@ -101,7 +108,7 @@ else
     echo "   {"
     echo "     \"kid\": \"${KEY_ID}\","
     echo "     \"algorithm\": \"RS256\","
-    echo "     \"publicKeyPath\": \"${PUBLIC_KEY_PATH}\","
+    echo "     \"publicKeyPath\": \"${RELATIVE_PUBLIC_KEY_PATH}\","
     echo "     \"description\": \"Key for rotation\","
     echo "     \"createdAt\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\""
     echo "   }"

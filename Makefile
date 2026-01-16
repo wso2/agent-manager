@@ -64,7 +64,12 @@ setup-k3d:
 setup-openchoreo:
 	@cd deployments/scripts && ./setup-openchoreo.sh $(CURDIR)
 
-setup-platform:
+gen-keys:
+	@echo "🔑 Generating JWT signing keys..."
+	@cd agent-manager-service && make gen-keys
+	@echo "✅ JWT signing keys generated in agent-manager-service/keys/"
+
+setup-platform: gen-keys
 	@cd deployments/scripts && ./setup-platform.sh
 
 # Console local setup with dependency tracking
@@ -104,7 +109,7 @@ setup-kubeconfig-docker:
 	@echo "✅ Docker kubeconfig is ready"
 
 # Daily development commands
-dev-up: setup-console-local setup-kubeconfig-docker
+dev-up: setup-console-local setup-kubeconfig-docker gen-keys
 	@echo "🚀 Starting Agent Manager platform..."
 	@cd deployments && docker compose up -d
 	@echo "✅ Platform is running!"
