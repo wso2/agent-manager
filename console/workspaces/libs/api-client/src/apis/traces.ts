@@ -21,6 +21,8 @@ import {
   GetTracePathParams,
   TraceDetailsResponse,
   TraceListResponse,
+  ExportTracesPathParams,
+  TraceExportResponse,
 } from "@agent-management-platform/types";
 import { httpGET, SERVICE_BASE } from "../utils";
 
@@ -35,7 +37,7 @@ export async function getTrace(
     missingParams.push("agentName");
   }
   if (!traceId) {
-     missingParams.push("traceId");
+    missingParams.push("traceId");
   }
   if (!projName) {
     missingParams.push("projName");
@@ -43,12 +45,12 @@ export async function getTrace(
   if (!orgName) {
     missingParams.push("orgName");
   }
-  
+
   if (missingParams.length > 0) {
     throw new Error(`Missing required parameters: ${missingParams.join(", ")}`);
   }
   const token = getToken ? await getToken() : undefined;
-  
+
   const searchParams: Record<string, string> = {};
   if (environment) {
     searchParams.environment = environment;
@@ -87,7 +89,7 @@ export async function getTraceList(
   if (!agentName) missingParams.push("agentName");
   if (!projName) missingParams.push("projName");
   if (!orgName) missingParams.push("orgName");
-  
+
   if (missingParams.length > 0) {
     throw new Error(`Missing required parameters: ${missingParams.join(", ")}`);
   }
@@ -106,6 +108,54 @@ export async function getTraceList(
   // API path: GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/traces
   const res = await httpGET(
     `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName!)}/projects/${encodeURIComponent(projName!)}/agents/${encodeURIComponent(agentName!)}/traces`,
+    {
+      searchParams: Object.keys(searchParams).length > 0 ? searchParams : undefined,
+      token,
+    }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function exportTraces(
+  params: ExportTracesPathParams,
+  getToken?: () => Promise<string>
+): Promise<TraceExportResponse> {
+  const {
+    agentName,
+    startTime,
+    endTime,
+    projName,
+    orgName,
+    environment,
+    limit,
+    offset,
+    sortOrder,
+  } = params;
+
+  const missingParams: string[] = [];
+  if (!agentName) missingParams.push("agentName");
+  if (!projName) missingParams.push("projName");
+  if (!orgName) missingParams.push("orgName");
+
+  if (missingParams.length > 0) {
+    throw new Error(`Missing required parameters: ${missingParams.join(", ")}`);
+  }
+  const token = getToken ? await getToken() : undefined;
+
+  const searchParams: Record<string, string> = {};
+  if (environment) {
+    searchParams.environment = environment;
+  }
+  if (startTime) searchParams.startTime = startTime;
+  if (endTime) searchParams.endTime = endTime;
+  if (limit !== undefined) searchParams.limit = limit.toString();
+  if (offset !== undefined) searchParams.offset = offset.toString();
+  if (sortOrder) searchParams.sortOrder = sortOrder;
+
+  // API path: GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/traces/export
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName!)}/projects/${encodeURIComponent(projName!)}/agents/${encodeURIComponent(agentName!)}/traces/export`,
     {
       searchParams: Object.keys(searchParams).length > 0 ? searchParams : undefined,
       token,

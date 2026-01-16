@@ -27,5 +27,6 @@ func registerObservabilityRoutes(mux *http.ServeMux, ctrl controllers.Observabil
 	// All routes now use HandleFuncWithValidation which automatically
 	// extracts path parameters from the pattern and validates them
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/traces", ctrl.ListTraces)
+	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/traces/export", ctrl.ExportTraces)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/trace/{traceId}", ctrl.GetTrace)
 }

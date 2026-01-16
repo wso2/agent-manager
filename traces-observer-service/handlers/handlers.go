@@ -19,6 +19,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -215,6 +216,94 @@ func (h *Handler) GetTraceByIdAndService(w http.ResponseWriter, r *http.Request)
 		h.writeError(w, http.StatusInternalServerError, "Failed to retrieve traces")
 		return
 	}
+
+	// Write response
+	h.writeJSON(w, http.StatusOK, result)
+}
+
+// ExportTraces handles GET /api/traces/export with query parameters
+func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
+	// Get logger from context
+	log := logger.GetLogger(r.Context())
+
+	// Parse query parameters
+	query := r.URL.Query()
+
+	componentUid := query.Get("componentUid")
+	if componentUid == "" {
+		h.writeError(w, http.StatusBadRequest, "componentUid is required")
+		return
+	}
+
+	environmentUid := query.Get("environmentUid")
+	if environmentUid == "" {
+		h.writeError(w, http.StatusBadRequest, "environmentUid is required")
+		return
+	}
+
+	startTime := query.Get("startTime")
+	endTime := query.Get("endTime")
+
+	// Parse limit (default: 100 for export)
+	limit := 100
+	if limitStr := query.Get("limit"); limitStr != "" {
+		parsedLimit, err := strconv.Atoi(limitStr)
+		if err != nil || parsedLimit <= 0 {
+			h.writeError(w, http.StatusBadRequest, "limit must be a positive integer")
+			return
+		}
+		// Cap at 1000 to prevent excessive data export
+		if parsedLimit > 1000 {
+			parsedLimit = 1000
+		}
+		limit = parsedLimit
+	}
+
+	// Parse offset for pagination (default: 0)
+	offset := 0
+	if offsetStr := query.Get("offset"); offsetStr != "" {
+		parsedOffset, err := strconv.Atoi(offsetStr)
+		if err != nil || parsedOffset < 0 {
+			h.writeError(w, http.StatusBadRequest, "offset must be a non-negative integer")
+			return
+		}
+		offset = parsedOffset
+	}
+
+	// Parse sortOrder (default: desc for traces - newest first)
+	sortOrder := query.Get("sortOrder")
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
+	if sortOrder != "asc" && sortOrder != "desc" {
+		h.writeError(w, http.StatusBadRequest, "sortOrder must be 'asc' or 'desc'")
+		return
+	}
+
+	// Build query parameters
+	params := opensearch.TraceQueryParams{
+		ComponentUid:   componentUid,
+		EnvironmentUid: environmentUid,
+		StartTime:      startTime,
+		EndTime:        endTime,
+		Limit:          limit,
+		Offset:         offset,
+		SortOrder:      sortOrder,
+	}
+
+	// Execute query
+	ctx := r.Context()
+	result, err := h.controllers.ExportTraces(ctx, params)
+	if err != nil {
+		log.Error("Failed to export traces", "error", err)
+		h.writeError(w, http.StatusInternalServerError, "Failed to export traces")
+		return
+	}
+
+	// Set content disposition header to suggest filename
+	timestamp := time.Now().Format("20060102-150405")
+	filename := fmt.Sprintf("traces-export-%s.json", timestamp)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 
 	// Write response
 	h.writeJSON(w, http.StatusOK, result)

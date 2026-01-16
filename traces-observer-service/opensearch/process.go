@@ -634,7 +634,15 @@ func extractSpanInputOutput(attrs map[string]interface{}) (input interface{}, ou
 			if err := json.Unmarshal([]byte(inputStr), &inputMap); err == nil {
 				// Check if metadata exists
 				metadata, hasMetadata := inputMap["metadata"]
-				nestedInputs, hasInputs := inputMap["inputs"]
+				var nestedInputs string
+				hasInputs := false
+				if v, ok := inputMap["inputs"].(string); ok && v != "" {
+					nestedInputs = v
+					hasInputs = true
+				} else if v, ok := inputMap["input_str"].(string); ok && v != "" {
+					nestedInputs = v
+					hasInputs = true
+				}
 
 				if hasMetadata && hasInputs {
 					// Both inputs and metadata exist, create a combined structure

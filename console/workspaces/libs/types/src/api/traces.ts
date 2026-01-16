@@ -180,3 +180,33 @@ export enum TraceListTimeRange {
   SEVEN_DAYS = '7d',
   THIRTY_DAYS = '30d',
 }
+
+export interface FullTrace {
+  traceId: string;
+  rootSpanName: string;
+  startTime: string;
+  endTime: string;
+  durationInNanos: number;
+  spans: Span[];
+  tokenUsage?: TokenUsage;
+  status?: TraceStatus;
+  input?: string;
+  output?: string;
+}
+
+export interface TraceExportResponse {
+  traces: FullTrace[];
+  totalCount: number;
+}
+
+export type ExportTracesPathParams = {
+  orgName: string | undefined;
+  projName: string | undefined;
+  agentName: string | undefined;
+  environment?: string;
+  startTime?: string;
+  endTime?: string;
+  limit?: number;
+  offset?: number;
+  sortOrder?: 'asc' | 'desc';
+};

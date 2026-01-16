@@ -32,6 +32,7 @@ import (
 // TraceObserverClient is the interface for interacting with the trace observer service
 type TraceObserverClient interface {
 	ListTraces(ctx context.Context, params ListTracesParams) (*TraceOverviewResponse, error)
+	ExportTraces(ctx context.Context, params ListTracesParams) (*TraceExportResponse, error)
 	TraceDetailsById(ctx context.Context, params TraceDetailsByIdParams) (*TraceResponse, error)
 }
 
@@ -96,6 +97,58 @@ func (c *traceObserverClient) ListTraces(ctx context.Context, params ListTracesP
 
 	// Parse response
 	var response TraceOverviewResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &response, nil
+}
+
+// ExportTraces retrieves complete trace objects with all spans from the trace observer service
+func (c *traceObserverClient) ExportTraces(ctx context.Context, params ListTracesParams) (*TraceExportResponse, error) {
+	// Build query parameters
+	queryParams := url.Values{}
+	queryParams.Add("componentUid", params.ComponentUid)
+	if params.EnvironmentUid != "" {
+		queryParams.Add("environmentUid", params.EnvironmentUid)
+	}
+	if params.StartTime != "" {
+		queryParams.Add("startTime", params.StartTime)
+	}
+	if params.EndTime != "" {
+		queryParams.Add("endTime", params.EndTime)
+	}
+	queryParams.Add("limit", strconv.Itoa(params.Limit))
+	queryParams.Add("offset", strconv.Itoa(params.Offset))
+	queryParams.Add("sortOrder", params.SortOrder)
+
+	// Build URL - endpoint is /api/v1/traces/export
+	requestURL := fmt.Sprintf("%s/api/v1/traces/export?%s", c.baseURL, queryParams.Encode())
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Execute request
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, &HTTPError{
+			StatusCode: resp.StatusCode,
+			Message:    string(body),
+		}
+	}
+
+	// Parse response
+	var response TraceExportResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}

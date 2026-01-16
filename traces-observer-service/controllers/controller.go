@@ -42,14 +42,11 @@ func NewTracingController(osClient *opensearch.Client) *TracingController {
 	}
 }
 
-// GetTraceOverviews retrieves unique trace IDs with root span information
-func (s *TracingController) GetTraceOverviews(ctx context.Context, params opensearch.TraceQueryParams) (*opensearch.TraceOverviewResponse, error) {
+// retrieveAndGroupTraces is a shared helper that fetches spans and groups them into traces
+func (s *TracingController) retrieveAndGroupTraces(ctx context.Context, params opensearch.TraceQueryParams) ([]map[string]interface{}, int, error) {
 	log := logger.GetLogger(ctx)
-	log.Info("Getting trace overviews",
-		"component", params.ComponentUid,
-		"environment", params.EnvironmentUid, "startTime", params.StartTime, "endTime", params.EndTime)
 
-	// Set defaults
+	// Set defaults for limit and offset
 	if params.Limit == 0 {
 		params.Limit = 10
 	}
@@ -57,44 +54,74 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 		params.Offset = 0
 	}
 
-	// For trace overview, we need to fetch more spans to ensure we get complete traces
-	// Multiply limit by a factor to get enough spans (each trace typically has multiple spans)
+	// Store original pagination params before modifying
 	originalLimit := params.Limit
 	originalOffset := params.Offset
-	params.Limit = params.Limit * 50 // Fetch more spans to capture complete traces
-	params.Offset = 0                // Start from beginning for grouping
 
-	// Use the existing BuildTraceQuery
+	// Fetch spans with multiplier to ensure we get complete traces
+	params.Limit = originalLimit * 100
+	if params.Limit > 10000 {
+		params.Limit = 10000
+	}
+	params.Offset = 0
+
+	log.Debug("Fetching spans for traces",
+		"originalLimit", originalLimit,
+		"originalOffset", originalOffset,
+		"spanFetchLimit", params.Limit)
+
+	// Build query
 	query := opensearch.BuildTraceQuery(params)
+	log.Info("Built query", "query", query)
 
 	// Generate indices based on time range
 	indices, err := opensearch.GetIndicesForTimeRange(params.StartTime, params.EndTime)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate indices: %w", err)
+		log.Error("Failed to generate indices for time range",
+			"startTime", params.StartTime,
+			"endTime", params.EndTime,
+			"error", err)
+		return nil, 0, fmt.Errorf("failed to generate indices: %w", err)
 	}
-	log.Debug("Searching indices", "indices", indices)
+	log.Debug("Searching indices", "indices", indices, "indexCount", len(indices))
 
 	// Execute search
 	response, err := s.osClient.Search(ctx, indices, query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to search trace overviews: %w", err)
+		log.Error("OpenSearch query failed",
+			"indices", indices,
+			"component", params.ComponentUid,
+			"environment", params.EnvironmentUid,
+			"error", err)
+		return nil, 0, fmt.Errorf("failed to search traces: %w", err)
 	}
 
 	// Parse all spans
 	spans := opensearch.ParseSpans(response)
+	log.Debug("Parsed spans from OpenSearch", "spanCount", len(spans))
 
-	// Group spans by traceId and find root spans
+	if len(spans) == 0 {
+		log.Warn("No spans found for query",
+			"component", params.ComponentUid,
+			"environment", params.EnvironmentUid,
+			"startTime", params.StartTime,
+			"endTime", params.EndTime)
+		return []map[string]interface{}{}, 0, nil
+	}
+
+	// Group spans by traceId
 	traceMap := make(map[string][]opensearch.Span)
 	for _, span := range spans {
 		traceMap[span.TraceID] = append(traceMap[span.TraceID], span)
 	}
+	log.Debug("Grouped spans into traces", "uniqueTraceCount", len(traceMap))
 
-	// Process each trace to find root span
-	allOverviews := []opensearch.TraceOverview{}
+	// Process each trace to extract metadata
+	allTraces := []map[string]interface{}{}
+	skippedTraces := 0
 	for traceID, traceSpans := range traceMap {
 		// Find root span (span with no parentSpanId)
 		var rootSpan *opensearch.Span
-
 		for i := range traceSpans {
 			if traceSpans[i].ParentSpanID == "" {
 				rootSpan = &traceSpans[i]
@@ -104,7 +131,10 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 
 		// Skip this trace if no root span found
 		if rootSpan == nil {
-			logger.GetLogger(ctx).Warn("No root span found for trace", "traceId", traceID)
+			log.Warn("No root span found for trace, skipping",
+				"traceId", traceID,
+				"spanCount", len(traceSpans))
+			skippedTraces++
 			continue
 		}
 
@@ -115,7 +145,6 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 		traceStatus := opensearch.ExtractTraceStatus(traceSpans)
 
 		// Extract input and output from root span
-		// Check if this is a CrewAI workflow span and delegate to CrewAI processor
 		var input, output interface{}
 		if opensearch.IsCrewAISpan(rootSpan.Attributes) {
 			input, output = opensearch.ExtractCrewAIRootSpanInputOutput(rootSpan)
@@ -123,30 +152,94 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 			input, output = opensearch.ExtractRootSpanInputOutput(rootSpan)
 		}
 
-		// Add to overviews
-		allOverviews = append(allOverviews, opensearch.TraceOverview{
-			TraceID:         traceID,
-			RootSpanID:      rootSpan.SpanID,
-			RootSpanName:    rootSpan.Name,
-			RootSpanKind:    string(opensearch.DetermineSpanType(*rootSpan)),
-			StartTime:       rootSpan.StartTime.Format(time.RFC3339Nano),
-			EndTime:         rootSpan.EndTime.Format(time.RFC3339Nano),
-			DurationInNanos: rootSpan.DurationInNanos,
-			SpanCount:       len(traceSpans),
-			TokenUsage:      tokenUsage,
-			Status:          traceStatus,
-			Input:           input,
-			Output:          output,
-		})
+		// Store trace data as a map with all necessary fields
+		traceData := map[string]interface{}{
+			"traceID":         traceID,
+			"rootSpan":        rootSpan,
+			"spans":           traceSpans,
+			"tokenUsage":      tokenUsage,
+			"status":          traceStatus,
+			"input":           input,
+			"output":          output,
+			"rootSpanName":    rootSpan.Name,
+			"rootSpanKind":    string(opensearch.DetermineSpanType(*rootSpan)),
+			"startTime":       rootSpan.StartTime.Format(time.RFC3339Nano),
+			"endTime":         rootSpan.EndTime.Format(time.RFC3339Nano),
+			"durationInNanos": rootSpan.DurationInNanos,
+			"spanCount":       len(traceSpans),
+			"originalLimit":   originalLimit,
+			"originalOffset":  originalOffset,
+		}
+
+		allTraces = append(allTraces, traceData)
+	}
+
+	if skippedTraces > 0 {
+		log.Warn("Skipped traces due to missing root spans",
+			"skippedCount", skippedTraces,
+			"totalTraces", len(traceMap))
 	}
 
 	// Sort by StartTime (descending) for consistent pagination
-	sort.Slice(allOverviews, func(i, j int) bool {
-		return allOverviews[i].StartTime > allOverviews[j].StartTime
+	sort.Slice(allTraces, func(i, j int) bool {
+		return allTraces[i]["startTime"].(string) > allTraces[j]["startTime"].(string)
 	})
+
+	log.Info("Successfully retrieved and grouped traces",
+		"uniqueTraces", len(allTraces),
+		"totalSpans", len(spans),
+		"skippedTraces", skippedTraces,
+		"requestedLimit", originalLimit,
+		"requestedOffset", originalOffset)
+
+	return allTraces, len(spans), nil
+}
+
+// GetTraceOverviews retrieves unique trace IDs with root span information
+func (s *TracingController) GetTraceOverviews(ctx context.Context, params opensearch.TraceQueryParams) (*opensearch.TraceOverviewResponse, error) {
+	log := logger.GetLogger(ctx)
+	log.Info("Getting trace overviews",
+		"component", params.ComponentUid,
+		"environment", params.EnvironmentUid,
+		"startTime", params.StartTime,
+		"endTime", params.EndTime)
+
+	// Retrieve and group traces using shared function
+	// Use 100x multiplier to ensure we discover all traces
+	allTraces, totalSpans, err := s.retrieveAndGroupTraces(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert trace data maps to TraceOverview structs
+	allOverviews := make([]opensearch.TraceOverview, 0, len(allTraces))
+	for _, traceData := range allTraces {
+		allOverviews = append(allOverviews, opensearch.TraceOverview{
+			TraceID:         traceData["traceID"].(string),
+			RootSpanID:      traceData["rootSpan"].(*opensearch.Span).SpanID,
+			RootSpanName:    traceData["rootSpanName"].(string),
+			RootSpanKind:    traceData["rootSpanKind"].(string),
+			StartTime:       traceData["startTime"].(string),
+			EndTime:         traceData["endTime"].(string),
+			DurationInNanos: traceData["durationInNanos"].(int64),
+			SpanCount:       traceData["spanCount"].(int),
+			TokenUsage:      traceData["tokenUsage"].(*opensearch.TokenUsage),
+			Status:          traceData["status"].(*opensearch.TraceStatus),
+			Input:           traceData["input"],
+			Output:          traceData["output"],
+		})
+	}
 
 	// Apply pagination to the trace overviews
 	totalCount := len(allOverviews)
+
+	// Get pagination params from first trace (they're all the same)
+	var originalLimit, originalOffset int
+	if len(allTraces) > 0 {
+		originalLimit = allTraces[0]["originalLimit"].(int)
+		originalOffset = allTraces[0]["originalOffset"].(int)
+	}
+
 	start := originalOffset
 	end := originalOffset + originalLimit
 
@@ -161,7 +254,7 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 
 	log.Info("Retrieved trace overviews",
 		"unique_traces", len(allOverviews),
-		"total_spans", len(spans),
+		"total_spans", totalSpans,
 		"showing_start", start,
 		"showing_end", end,
 		"total_count", totalCount)
@@ -230,6 +323,76 @@ func (s *TracingController) GetTraceByIdAndService(ctx context.Context, params o
 		TotalCount: len(spans),
 		TokenUsage: tokenUsage,
 		Status:     traceStatus,
+	}, nil
+}
+
+// ExportTraces retrieves complete trace objects with all spans for export
+func (s *TracingController) ExportTraces(ctx context.Context, params opensearch.TraceQueryParams) (*opensearch.TraceExportResponse, error) {
+	log := logger.GetLogger(ctx)
+	log.Info("Starting trace export",
+		"component", params.ComponentUid,
+		"environment", params.EnvironmentUid,
+		"startTime", params.StartTime,
+		"endTime", params.EndTime)
+
+	// For export, ignore pagination params and set a high limit to get all traces
+	// Cap at 1000 traces for safety to prevent overwhelming the system
+	params.Limit = 1000
+	params.Offset = 0
+
+	// Retrieve and group traces using shared function
+	allTraces, totalSpans, err := s.retrieveAndGroupTraces(ctx, params)
+	if err != nil {
+		log.Error("Failed to retrieve traces for export",
+			"component", params.ComponentUid,
+			"environment", params.EnvironmentUid,
+			"error", err)
+		return nil, err
+	}
+
+	if len(allTraces) == 0 {
+		log.Warn("No traces found to export",
+			"component", params.ComponentUid,
+			"environment", params.EnvironmentUid,
+			"startTime", params.StartTime,
+			"endTime", params.EndTime)
+	}
+
+	// Convert trace data maps to FullTrace structs
+	fullTraces := make([]opensearch.FullTrace, 0, len(allTraces))
+	for _, traceData := range allTraces {
+		// Get spans and sort by start time for consistent ordering
+		traceSpans := traceData["spans"].([]opensearch.Span)
+		sort.Slice(traceSpans, func(i, j int) bool {
+			return traceSpans[i].StartTime.Before(traceSpans[j].StartTime)
+		})
+
+		fullTraces = append(fullTraces, opensearch.FullTrace{
+			TraceID:         traceData["traceID"].(string),
+			RootSpanID:      traceData["rootSpan"].(*opensearch.Span).SpanID,
+			RootSpanName:    traceData["rootSpanName"].(string),
+			RootSpanKind:    traceData["rootSpanKind"].(string),
+			StartTime:       traceData["startTime"].(string),
+			EndTime:         traceData["endTime"].(string),
+			DurationInNanos: traceData["durationInNanos"].(int64),
+			SpanCount:       traceData["spanCount"].(int),
+			TokenUsage:      traceData["tokenUsage"].(*opensearch.TokenUsage),
+			Status:          traceData["status"].(*opensearch.TraceStatus),
+			Input:           traceData["input"],
+			Output:          traceData["output"],
+			Spans:           traceSpans, // Include all spans with full details
+		})
+	}
+
+	log.Info("Successfully completed trace export",
+		"exportedTraces", len(fullTraces),
+		"totalSpans", totalSpans,
+		"component", params.ComponentUid,
+		"environment", params.EnvironmentUid)
+
+	return &opensearch.TraceExportResponse{
+		Traces:     fullTraces, // Return ALL traces, no pagination
+		TotalCount: len(fullTraces),
 	}, nil
 }
 

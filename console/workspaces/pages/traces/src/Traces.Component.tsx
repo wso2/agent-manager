@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   DrawerContent,
   DrawerHeader,
@@ -28,6 +28,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import {
   GetTraceListPathParams,
   TraceListTimeRange,
+  getTimeRange,
 } from "@agent-management-platform/types";
 import {
   CircularProgress,
@@ -37,6 +38,9 @@ import {
   Select,
   Skeleton,
   Stack,
+  Button,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import {
   Clock,
@@ -44,8 +48,9 @@ import {
   SortAsc,
   SortDesc,
   Workflow,
+  Download,
 } from "@wso2/oxygen-ui-icons-react";
-import { useTraceList } from "@agent-management-platform/api-client";
+import { useTraceList, useExportTraces } from "@agent-management-platform/api-client";
 import { TraceDetails, TracesTable, TracesTopCards } from "./subComponents";
 
 const TIME_RANGE_OPTIONS = [
@@ -64,6 +69,9 @@ const TIME_RANGE_OPTIONS = [
 export const TracesComponent: React.FC = () => {
   const { agentId, orgId, projectId, envId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
+  const exportTracesApi = useExportTraces();
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // Initialize state from URL search params with defaults
   const timeRange = useMemo(
@@ -145,6 +153,57 @@ export const TracesComponent: React.FC = () => {
     [searchParams, setSearchParams]
   );
 
+  const handleExportTraces = useCallback(async () => {
+    if (!orgId || !projectId || !agentId || !envId) {
+      setExportError("Missing required parameters for export");
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+      setExportError(null);
+
+      const { startTime, endTime } = getTimeRange(timeRange);
+      
+      // Export ALL traces matching the current filters (time range, environment, sort order)
+      // Backend caps at 1000 traces for safety
+      const exportData = await exportTracesApi({
+        orgName: orgId,
+        projName: projectId,
+        agentName: agentId,
+        environment: envId,
+        startTime,
+        endTime,
+        sortOrder,
+        // No limit/offset - backend handles fetching all traces
+      });
+
+      // Create a blob from the JSON data
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: "application/json",
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `traces-export-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Export failed:", error);
+      setExportError(
+        error instanceof Error ? error.message : "Failed to export traces"
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }, [orgId, projectId, agentId, envId, timeRange, sortOrder, exportTracesApi]);
+
   return (
     <FadeIn>
       <PageLayout
@@ -199,6 +258,15 @@ export const TracesComponent: React.FC = () => {
                 <SortDesc size={16} />
               )}
             </IconButton>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={isExporting ? <CircularProgress size={16} /> : <Download size={16} />}
+              onClick={handleExportTraces}
+              disabled={isExporting || isLoading || !traceData || traceData.totalCount === 0}
+            >
+              Export
+            </Button>
           </Stack>
         }
         disableIcon
@@ -235,6 +303,16 @@ export const TracesComponent: React.FC = () => {
           </DrawerContent>
         </DrawerWrapper>
       </PageLayout>
+      <Snackbar
+        open={!!exportError}
+        autoHideDuration={6000}
+        onClose={() => setExportError(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert onClose={() => setExportError(null)} severity="error">
+          {exportError}
+        </Alert>
+      </Snackbar>
     </FadeIn>
   );
 };

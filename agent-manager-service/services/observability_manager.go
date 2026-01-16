@@ -53,6 +53,7 @@ type TraceDetailsRequest struct {
 
 type ObservabilityManagerService interface {
 	ListTraces(ctx context.Context, req ListTracesRequest) (*models.TraceOverviewResponse, error)
+	ExportTraces(ctx context.Context, req ListTracesRequest) (*models.TraceExportResponse, error)
 	GetTraceDetails(ctx context.Context, req TraceDetailsRequest) (*models.TraceResponse, error)
 }
 
@@ -154,6 +155,121 @@ func (s *observabilityManagerService) ListTraces(ctx context.Context, req ListTr
 	}
 
 	s.logger.Info("Retrieved traces successfully", "agentName", req.AgentName, "totalCount", response.TotalCount)
+	return response, nil
+}
+
+// ExportTraces retrieves complete trace objects with all spans from the trace observer service
+func (s *observabilityManagerService) ExportTraces(ctx context.Context, req ListTracesRequest) (*models.TraceExportResponse, error) {
+	s.logger.Info("Exporting traces", "agentName", req.AgentName, "limit", req.Limit, "offset", req.Offset)
+
+	// Fetch component to get UID
+	component, err := s.openChoreoClient.GetAgentComponent(ctx, req.OrgName, req.ProjectName, req.AgentName)
+	if err != nil {
+		s.logger.Error("Failed to get agent component", "agentName", req.AgentName, "error", err)
+		return nil, fmt.Errorf("failed to get agent component: %w", err)
+	}
+
+	// Fetch environment to get UID (if specified)
+	environment, err := s.openChoreoClient.GetEnvironment(ctx, req.OrgName, req.Environment)
+	if err != nil {
+		s.logger.Error("Failed to get environment", "environment", req.Environment, "error", err)
+		return nil, fmt.Errorf("failed to get environment: %w", err)
+	}
+
+	// Convert service request to client params
+	clientParams := traceobserversvc.ListTracesParams{
+		ServiceName:    req.AgentName,
+		ComponentUid:   component.UUID,
+		EnvironmentUid: environment.UUID,
+		StartTime:      req.StartTime,
+		EndTime:        req.EndTime,
+		Limit:          req.Limit,
+		Offset:         req.Offset,
+		SortOrder:      req.SortOrder,
+	}
+
+	// Call the trace observer client export endpoint
+	clientResponse, err := s.traceObserverClient.ExportTraces(ctx, clientParams)
+	if err != nil {
+		s.logger.Error("Failed to export traces", "agentName", req.AgentName, "error", err)
+		return nil, fmt.Errorf("failed to export traces: %w", err)
+	}
+
+	s.logger.Info("Successfully exported traces", "agentName", req.AgentName, "traceCount", len(clientResponse.Traces))
+
+	// Convert client response to service model
+	traces := make([]models.FullTrace, len(clientResponse.Traces))
+	for i, trace := range clientResponse.Traces {
+		var tokenUsage *models.TokenUsage
+		if trace.TokenUsage != nil {
+			tokenUsage = &models.TokenUsage{
+				InputTokens:  trace.TokenUsage.InputTokens,
+				OutputTokens: trace.TokenUsage.OutputTokens,
+				TotalTokens:  trace.TokenUsage.TotalTokens,
+			}
+		}
+
+		var traceStatus *models.TraceStatus
+		if trace.Status != nil {
+			traceStatus = &models.TraceStatus{
+				ErrorCount: trace.Status.ErrorCount,
+			}
+		}
+
+		// Convert spans
+		spans := make([]models.Span, len(trace.Spans))
+		for j, span := range trace.Spans {
+			var ampAttrs *models.AmpAttributes
+			if span.AmpAttributes != nil {
+				ampAttrs = &models.AmpAttributes{
+					Kind:   span.AmpAttributes.Kind,
+					Input:  span.AmpAttributes.Input,
+					Output: span.AmpAttributes.Output,
+					Status: span.AmpAttributes.Status,
+					Data:   span.AmpAttributes.Data,
+				}
+			}
+
+			spans[j] = models.Span{
+				TraceID:         span.TraceID,
+				SpanID:          span.SpanID,
+				ParentSpanID:    span.ParentSpanID,
+				Name:            span.Name,
+				Service:         span.Service,
+				Kind:            span.Kind,
+				StartTime:       span.StartTime,
+				EndTime:         span.EndTime,
+				DurationInNanos: span.DurationInNanos,
+				Status:          span.Status,
+				Attributes:      span.Attributes,
+				Resource:        span.Resource,
+				AmpAttributes:   ampAttrs,
+			}
+		}
+
+		traces[i] = models.FullTrace{
+			TraceID:         trace.TraceID,
+			RootSpanID:      trace.RootSpanID,
+			RootSpanName:    trace.RootSpanName,
+			RootSpanKind:    trace.RootSpanKind,
+			StartTime:       trace.StartTime,
+			EndTime:         trace.EndTime,
+			DurationInNanos: trace.DurationInNanos,
+			SpanCount:       trace.SpanCount,
+			TokenUsage:      tokenUsage,
+			Status:          traceStatus,
+			Input:           trace.Input,
+			Output:          trace.Output,
+			Spans:           spans,
+		}
+	}
+
+	response := &models.TraceExportResponse{
+		Traces:     traces,
+		TotalCount: clientResponse.TotalCount,
+	}
+
+	s.logger.Info("Exported traces successfully", "agentName", req.AgentName, "totalCount", response.TotalCount)
 	return response, nil
 }
 

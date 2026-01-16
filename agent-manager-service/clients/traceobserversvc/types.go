@@ -85,6 +85,29 @@ type TraceOverviewResponse struct {
 	TotalCount int             `json:"totalCount"`
 }
 
+// FullTrace represents a complete trace with all spans and metadata
+type FullTrace struct {
+	TraceID         string       `json:"traceId"`
+	RootSpanID      string       `json:"rootSpanId"`
+	RootSpanName    string       `json:"rootSpanName"`
+	RootSpanKind    string       `json:"rootSpanKind"`
+	StartTime       string       `json:"startTime"`
+	EndTime         string       `json:"endTime"`
+	DurationInNanos int64        `json:"durationInNanos"`
+	SpanCount       int          `json:"spanCount"`
+	TokenUsage      *TokenUsage  `json:"tokenUsage,omitempty"`
+	Status          *TraceStatus `json:"status,omitempty"`
+	Input           interface{}  `json:"input,omitempty"`
+	Output          interface{}  `json:"output,omitempty"`
+	Spans           []Span       `json:"spans"` // All spans with full details
+}
+
+// TraceExportResponse represents the response for trace export queries
+type TraceExportResponse struct {
+	Traces     []FullTrace `json:"traces"`
+	TotalCount int         `json:"totalCount"`
+}
+
 // Span represents a single trace span
 type Span struct {
 	TraceID         string                 `json:"traceId"`

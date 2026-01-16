@@ -22,9 +22,12 @@ import {
   TraceListResponse,
   TraceListTimeRange,
   GetTraceListPathParams,
+  ExportTracesPathParams,
+  TraceExportResponse,
 } from "@agent-management-platform/types";
-import { getTrace, getTraceList } from "../apis/traces";
+import { getTrace, getTraceList, exportTraces } from "../apis/traces";
 import { useAuthHooks } from "@agent-management-platform/auth";
+import { useCallback } from "react";
 
 export function useTraceList(
   orgName?: string,
@@ -94,4 +97,15 @@ export function useTrace(
     },
     enabled: !!orgName && !!projName && !!agentName && !!envId && !!traceId,
   });
+}
+
+export function useExportTraces() {
+  const { getToken } = useAuthHooks();
+
+  return useCallback(
+    async (params: ExportTracesPathParams): Promise<TraceExportResponse> => {
+      return await exportTraces(params, getToken);
+    },
+    [getToken]
+  );
 }

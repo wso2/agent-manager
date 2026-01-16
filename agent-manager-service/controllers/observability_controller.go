@@ -29,6 +29,7 @@ import (
 
 type ObservabilityController interface {
 	ListTraces(w http.ResponseWriter, r *http.Request)
+	ExportTraces(w http.ResponseWriter, r *http.Request)
 	GetTrace(w http.ResponseWriter, r *http.Request)
 }
 
@@ -148,6 +149,120 @@ func (c *observabilityController) ListTraces(w http.ResponseWriter, r *http.Requ
 	}
 
 	log.Info("ListTraces: successfully retrieved traces", "serviceName", agentName, "totalCount", response.TotalCount)
+	utils.WriteSuccessResponse(w, http.StatusOK, response)
+}
+
+func (c *observabilityController) ExportTraces(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	// Extract path parameters
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+
+	// Parse query parameters
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr == "" {
+		limitStr = "100"
+	}
+	offsetStr := r.URL.Query().Get("offset")
+	if offsetStr == "" {
+		offsetStr = "0"
+	}
+
+	// Parse and validate pagination parameters
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 || limit > 1000 {
+		log.Error("ExportTraces: invalid limit parameter", "limit", limitStr)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter: must be between 1 and 1000")
+		return
+	}
+
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil || offset < 0 {
+		log.Error("ExportTraces: invalid offset parameter", "offset", offsetStr)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter: must be 0 or greater")
+		return
+	}
+
+	// Required query parameters
+	environment := r.URL.Query().Get("environment")
+	if environment == "" {
+		log.Error("ExportTraces: environment is required")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing parameter: environment is required")
+		return
+	}
+
+	startTime := r.URL.Query().Get("startTime")
+	endTime := r.URL.Query().Get("endTime")
+
+	// Validate time range parameters if provided
+	if startTime != "" || endTime != "" {
+		if startTime == "" {
+			log.Error("ExportTraces: startTime is required")
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing parameter: startTime is required")
+			return
+		}
+		if endTime == "" {
+			log.Error("ExportTraces: endTime is required")
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing parameter: endTime is required")
+			return
+		}
+
+		// Validate RFC3339 format for startTime
+		if _, err := time.Parse(time.RFC3339, startTime); err != nil {
+			log.Error("ExportTraces: invalid startTime format", "startTime", startTime, "error", err)
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid startTime format: must be RFC3339 (e.g., 2025-12-20T10:00:00Z)")
+			return
+		}
+
+		// Validate RFC3339 format for endTime
+		if _, err := time.Parse(time.RFC3339, endTime); err != nil {
+			log.Error("ExportTraces: invalid endTime format", "endTime", endTime, "error", err)
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid endTime format: must be RFC3339 (e.g., 2025-12-20T10:00:00Z)")
+			return
+		}
+	}
+
+	sortOrder := r.URL.Query().Get("sortOrder")
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
+	if sortOrder != "asc" && sortOrder != "desc" {
+		log.Error("ExportTraces: invalid sortOrder parameter", "sortOrder", sortOrder)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid sortOrder parameter: must be 'asc' or 'desc'")
+		return
+	}
+
+	// Build parameters for the service
+	params := services.ListTracesRequest{
+		OrgName:     orgName,
+		ProjectName: projName,
+		AgentName:   agentName,
+		Environment: environment,
+		StartTime:   startTime,
+		EndTime:     endTime,
+		Limit:       limit,
+		Offset:      offset,
+		SortOrder:   sortOrder,
+	}
+
+	// Call the service
+	response, err := c.observabilityService.ExportTraces(ctx, params)
+	if err != nil {
+		log.Error("ExportTraces: failed to export traces", "serviceName", agentName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to export traces")
+		return
+	}
+
+	log.Info("ExportTraces: successfully exported traces", "serviceName", agentName, "totalCount", response.TotalCount)
+
+	// Set content disposition header for download
+	timestamp := time.Now().Format("20060102-150405")
+	filename := "traces-export-" + timestamp + ".json"
+	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 

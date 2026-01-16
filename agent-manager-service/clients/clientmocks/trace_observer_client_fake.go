@@ -42,6 +42,14 @@ type TraceObserverClientMock struct {
 		Ctx    context.Context
 		Params traceobserversvc.TraceDetailsByIdParams
 	}
+
+	// ExportTraces
+	ExportTracesFunc  func(ctx context.Context, params traceobserversvc.ListTracesParams) (*traceobserversvc.TraceExportResponse, error)
+	exportTracesMutex sync.RWMutex
+	exportTracesCalls []struct {
+		Ctx    context.Context
+		Params traceobserversvc.ListTracesParams
+	}
 }
 
 func (m *TraceObserverClientMock) ListTraces(ctx context.Context, params traceobserversvc.ListTracesParams) (*traceobserversvc.TraceOverviewResponse, error) {
@@ -96,4 +104,31 @@ func (m *TraceObserverClientMock) TraceDetailsByIdCalls() []struct {
 	m.traceDetailsByIdMutex.RLock()
 	defer m.traceDetailsByIdMutex.RUnlock()
 	return m.traceDetailsByIdCalls
+}
+
+func (m *TraceObserverClientMock) ExportTraces(ctx context.Context, params traceobserversvc.ListTracesParams) (*traceobserversvc.TraceExportResponse, error) {
+	m.exportTracesMutex.Lock()
+	m.exportTracesCalls = append(m.exportTracesCalls, struct {
+		Ctx    context.Context
+		Params traceobserversvc.ListTracesParams
+	}{
+		Ctx:    ctx,
+		Params: params,
+	})
+	m.exportTracesMutex.Unlock()
+
+	if m.ExportTracesFunc != nil {
+		return m.ExportTracesFunc(ctx, params)
+	}
+
+	return &traceobserversvc.TraceExportResponse{}, nil
+}
+
+func (m *TraceObserverClientMock) ExportTracesCalls() []struct {
+	Ctx    context.Context
+	Params traceobserversvc.ListTracesParams
+} {
+	m.exportTracesMutex.RLock()
+	defer m.exportTracesMutex.RUnlock()
+	return m.exportTracesCalls
 }
