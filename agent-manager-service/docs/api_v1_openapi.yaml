@@ -1193,6 +1193,95 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/token:
+    post:
+      summary: Generate authentication token for an agent
+      description: |
+        Generates a signed JWT token for an external agent to authenticate API requests.
+        The token includes claims for component, environment, organization, and project identifiers.
+      operationId: generateAgentToken
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
+        - name: environment
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Environment name (defaults to configured default if not provided)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+      responses:
+        "200":
+          description: Token generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "400":
+          description: Invalid request (e.g., invalid expiry duration)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent, project, or organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/external/jwks.json:
+    servers:
+      - url: /
+        description: Served from root path (not /api/v1)
+    get:
+      summary: Get JSON Web Key Set (JWKS)
+      description: |
+        Returns the public keys used to verify JWT signatures.
+        This endpoint is public and does not require authentication.
+        Clients can use these keys to verify tokens issued by the service.
+      operationId: getJWKS
+      responses:
+        "200":
+          description: JWKS retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JWKS"
+        "500":
+          description: Failed to retrieve JWKS
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     CreateOrganizationRequest:
@@ -2434,4 +2523,87 @@ components:
         - inputTokens
         - outputTokens
         - totalTokens
+
+    TokenRequest:
+      type: object
+      properties:
+        expires_in:
+          type: string
+          description: |
+            Optional token expiry duration in Go duration format (e.g., "720h" for 30 days, "8760h" for 1 year).
+            If not provided, the default expiry from configuration is used.
+          example: "720h"
+
+    TokenResponse:
+      type: object
+      required:
+        - token
+        - expires_at
+        - issued_at
+        - token_type
+      properties:
+        token:
+          type: string
+          description: The signed JWT token
+          example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImtleS0xIn0..."
+        expires_at:
+          type: integer
+          format: int64
+          description: Unix timestamp when the token expires
+          example: 1735718400
+        issued_at:
+          type: integer
+          format: int64
+          description: Unix timestamp when the token was issued
+          example: 1704182400
+        token_type:
+          type: string
+          description: Type of token (always "Bearer")
+          example: "Bearer"
+
+    JWKS:
+      type: object
+      required:
+        - keys
+      properties:
+        keys:
+          type: array
+          description: Array of JSON Web Keys
+          items:
+            $ref: "#/components/schemas/JWK"
+
+    JWK:
+      type: object
+      required:
+        - kty
+        - alg
+        - use
+        - kid
+        - n
+        - e
+      properties:
+        kty:
+          type: string
+          description: Key type (RSA)
+          example: "RSA"
+        alg:
+          type: string
+          description: Algorithm (RS256)
+          example: "RS256"
+        use:
+          type: string
+          description: Intended use (sig for signature)
+          example: "sig"
+        kid:
+          type: string
+          description: Key ID
+          example: "key-1"
+        n:
+          type: string
+          description: RSA modulus (Base64urlUInt-encoded)
+          example: "xGOr-H7A-PWGfXengPm..."
+        e:
+          type: string
+          description: RSA exponent (Base64urlUInt-encoded)
+          example: "AQAB"
 

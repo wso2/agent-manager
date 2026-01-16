@@ -94,7 +94,14 @@ func NewConfiguration() *Configuration {
 				Description: "No description provided",
 			},
 		},
-		OperationServers: map[string]ServerConfigurations{},
+		OperationServers: map[string]ServerConfigurations{
+			"DefaultAPIService.GetJWKS": {
+				{
+					URL:         "/",
+					Description: "Served from root path (not /api/v1)",
+				},
+			},
+		},
 	}
 	return cfg
 }

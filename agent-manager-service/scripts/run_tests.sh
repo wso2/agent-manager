@@ -1,7 +1,13 @@
 #!/bin/bash
 
 export ENV_FILE_PATH=$(pwd)/.env
+
+# Generate RSA keys if they don't exist
+echo "Checking for RSA keys..."
+bash scripts/gen_keys.sh
+
 echo "Running tests"
+
 echo "Using ENV_FILE_PATH: $ENV_FILE_PATH"
 
 # Create localdata directory if it doesn't exist

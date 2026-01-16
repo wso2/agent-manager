@@ -8,8 +8,12 @@ GO_VERSION := 1.25
 help: ## Display available commands.
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+.PHONY: gen-keys
+gen-keys: ## Generate RSA keys for JWT signing.
+	@bash scripts/gen_keys.sh
+
 .PHONY: run
-run: ## Run development server with hot-reloading.
+run: gen-keys ## Run development server with hot-reloading.
 	air -c .air.toml
 
 .PHONY: wire
@@ -33,7 +37,7 @@ format: ## Format code (alias for fmt).
 	sh scripts/fmt.sh
 
 .PHONY: test
-test: ## Run tests.
+test: gen-keys ## Run tests.
 	bash scripts/run_tests.sh
 
 .PHONY: lint

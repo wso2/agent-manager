@@ -1,0 +1,25 @@
+{
+  "keys": [
+    {
+      "kid": "key-1",
+      "algorithm": "RS256",
+      "publicKeyPath": "/path/to/keys/public.pem",
+      "description": "Current active signing key",
+      "createdAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "kid": "key-2",
+      "algorithm": "RS256",
+      "publicKeyPath": "/path/to/keys/public-key-2.pem",
+      "description": "New key for rotation - ready to be activated",
+      "createdAt": "2026-01-13T00:00:00Z"
+    },
+    {
+      "kid": "key-0",
+      "algorithm": "RS256",
+      "publicKeyPath": "/path/to/keys/public-key-0.pem",
+      "description": "Previous key - kept for token validation until expiry",
+      "createdAt": "2025-01-01T00:00:00Z"
+    }
+  ]
+}

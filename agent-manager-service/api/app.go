@@ -1,4 +1,4 @@
-// Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file except
@@ -32,9 +32,13 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	// Register health check
 	registerHealthCheck(mux)
 
+	// Register JWKS endpoint at root level (no authentication required)
+	registerJWKSRoute(mux, params.AgentTokenController)
+
 	// Create a sub-mux for API v1 routes
 	apiMux := http.NewServeMux()
 	registerAgentRoutes(apiMux, params.AgentController)
+	registerAgentTokenRoutes(apiMux, params.AgentTokenController)
 	registerInfraRoutes(apiMux, params.InfraResourceController)
 	registerObservabilityRoutes(apiMux, params.ObservabilityController)
 

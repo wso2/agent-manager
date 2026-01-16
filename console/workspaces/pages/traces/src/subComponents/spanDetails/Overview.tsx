@@ -287,17 +287,6 @@ export function Overview({ ampAttributes }: OverviewProps) {
 
   const hasContent = inputMessages.length > 0 || outputMessages.length > 0;
 
-  // Check if this is a span type that should have input/output
-  const shouldHaveInputOutput = useMemo(() => {
-    const { kind } = ampAttributes || {};
-    return (
-      kind === "llm" ||
-      kind === "tool" ||
-      kind === "agent" ||
-      kind === "embedding"
-    );
-  }, [ampAttributes]);
-
   const getRoleColor = useCallback((role: string) => {
     switch (role) {
       case "system":
@@ -380,14 +369,14 @@ export function Overview({ ampAttributes }: OverviewProps) {
         messages={inputMessages}
         getRoleColor={getRoleColor}
         data-testid="input-messages"
-        showEmptyMessage={shouldHaveInputOutput && name !== undefined}
+        showEmptyMessage={false}
       />
       <MessageList
         title="Output Messages"
         messages={outputMessages}
         getRoleColor={getRoleColor}
         data-testid="output-messages"
-        showEmptyMessage={shouldHaveInputOutput && name !== undefined}
+        showEmptyMessage={false}
       />
     </Stack>
   );
