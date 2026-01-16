@@ -57,14 +57,15 @@ type GenerateTokenRequest struct {
 // AgentTokenClaims represents the custom claims for agent tokens
 type AgentTokenClaims struct {
 	jwt.RegisteredClaims
-	ComponentUid    string `json:"component_uid"`
-	EnvironmentUid  string `json:"environment_uid"`
-	ProjectUid      string `json:"project_uid,omitempty"`
+	ComponentUid   string `json:"component_uid"`
+	EnvironmentUid string `json:"environment_uid"`
+	ProjectUid     string `json:"project_uid,omitempty"`
 }
 
 // KeyPair holds a private/public RSA key pair with its metadata
 type KeyPair struct {
 	KeyID      string
+	Algorithm  string
 	PrivateKey *rsa.PrivateKey
 	PublicKey  *rsa.PublicKey
 }
@@ -179,6 +180,7 @@ func (s *agentTokenManagerService) loadPublicKeysFromJSON() error {
 
 		keyPair := &KeyPair{
 			KeyID:      keyConfig.Kid,
+			Algorithm:  keyConfig.Algorithm,
 			PublicKey:  publicKey,
 			PrivateKey: nil, // Will be set for active key in loadKeys()
 		}
@@ -280,7 +282,7 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		},
 		ComponentUid:   component.UUID,
 		EnvironmentUid: environment.UUID,
-		ProjectUid: project.UUID,
+		ProjectUid:     project.UUID,
 	}
 
 	// Get the active signing key
@@ -322,8 +324,7 @@ func (s *agentTokenManagerService) parseExpiryDuration(expiresIn string) (time.D
 		// Use default expiry duration from config
 		duration, err := time.ParseDuration(s.config.DefaultExpiryDuration)
 		if err != nil {
-			// Fallback to 1 year if parsing fails
-			return 365 * 24 * time.Hour, nil
+			return 0, fmt.Errorf("invalid default expiry duration in config: %w", err)
 		}
 		return duration, nil
 	}
@@ -357,7 +358,7 @@ func (s *agentTokenManagerService) GetJWKS(ctx context.Context) (*spec.JWKS, err
 	for keyID, keyPair := range s.keyPairs {
 		jwk := spec.JWK{
 			Kty: "RSA",
-			Alg: "RS256",
+			Alg: keyPair.Algorithm,
 			Use: "sig",
 			Kid: keyID,
 			N:   base64.RawURLEncoding.EncodeToString(keyPair.PublicKey.N.Bytes()),

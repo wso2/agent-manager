@@ -166,7 +166,6 @@ The service provides JWT-based authentication for external agents:
 Tokens include claims for:
 - Component UID
 - Environment UID
-- Organization UID
 - Project UID
 - Standard JWT claims (iss, sub, exp, iat, nbf)
 
