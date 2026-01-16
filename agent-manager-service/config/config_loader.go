@@ -1,4 +1,4 @@
-// Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file except
@@ -145,6 +145,16 @@ func loadEnvs() {
 		DefaultIssuer: r.readOptionalString("KEY_MANAGER_DEFAULT_ISSUER", "Agent Management Platform Local"),
 	}
 	config.IsOnPremDeployment = r.readOptionalBool("IS_ON_PREM_DEPLOYMENT", true)
+
+	// JWT Signing configuration for agent API tokens
+	config.JWTSigning = JWTSigningConfig{
+		PrivateKeyPath:        r.readOptionalString("JWT_SIGNING_PRIVATE_KEY_PATH", "keys/private.pem"),
+		PublicKeysConfigPath:  r.readOptionalString("JWT_SIGNING_PUBLIC_KEYS_CONFIG", "keys/public-keys-config.json"),
+		ActiveKeyID:           r.readOptionalString("JWT_SIGNING_ACTIVE_KEY_ID", "key-1"),
+		DefaultExpiryDuration: r.readOptionalString("JWT_SIGNING_DEFAULT_EXPIRY", "8760h"), // 1 year default
+		Issuer:                r.readOptionalString("JWT_SIGNING_ISSUER", "agent-manager-service"),
+		DefaultEnvironment:    r.readOptionalString("JWT_SIGNING_DEFAULT_ENVIRONMENT", "default"),
+	}
 
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)

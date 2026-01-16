@@ -1,4 +1,4 @@
-// Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file except
@@ -31,6 +31,7 @@ type AppParams struct {
 	InfraResourceController controllers.InfraResourceController
 	BuildCIController       controllers.BuildCIController
 	ObservabilityController controllers.ObservabilityController
+	AgentTokenController    controllers.AgentTokenController
 }
 
 // TestClients contains all mock clients needed for testing
@@ -46,4 +47,8 @@ func ProvideConfigFromPtr(config *config.Config) config.Config {
 
 func ProvideAuthMiddleware(config config.Config) jwtassertion.Middleware {
 	return jwtassertion.JWTAuthMiddleware(config.AuthHeader)
+}
+
+func ProvideJWTSigningConfig(config config.Config) config.JWTSigningConfig {
+	return config.JWTSigning
 }

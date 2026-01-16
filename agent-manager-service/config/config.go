@@ -1,4 +1,4 @@
-// Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file except
@@ -54,6 +54,9 @@ type Config struct {
 	// Default Chat API configuration
 	DefaultChatAPI     DefaultChatAPIConfig
 	DefaultGatewayPort int
+
+	// JWT Signing configuration for agent API tokens
+	JWTSigning JWTSigningConfig
 
 	KeyManagerConfigurations KeyManagerConfigurations
 	IsOnPremDeployment       bool
@@ -125,4 +128,34 @@ type DbConfigs struct {
 type DefaultChatAPIConfig struct {
 	DefaultHTTPPort int32
 	DefaultBasePath string
+}
+
+// JWTSigningConfig holds configuration for JWT token generation
+type JWTSigningConfig struct {
+	// PrivateKeyPath is the path to the RSA private key file (PEM format)
+	PrivateKeyPath string
+	// PublicKeysConfigPath is the path to the JSON file containing multiple public keys (required)
+	PublicKeysConfigPath string
+	// ActiveKeyID is the key ID (kid) to use for signing tokens
+	ActiveKeyID string
+	// DefaultExpiryDuration is the default token expiry duration (e.g., "8760h" for 1 year)
+	DefaultExpiryDuration string
+	// Issuer is the issuer claim for the JWT
+	Issuer string
+	// DefaultEnvironment is the default environment to use for token claims
+	DefaultEnvironment string
+}
+
+// PublicKeyConfig represents a single public key configuration in the JSON file
+type PublicKeyConfig struct {
+	Kid           string `json:"kid"`
+	Algorithm     string `json:"algorithm"`
+	PublicKeyPath string `json:"publicKeyPath"`
+	Description   string `json:"description,omitempty"`
+	CreatedAt     string `json:"createdAt,omitempty"`
+}
+
+// PublicKeysConfig represents the structure of the public keys JSON configuration file
+type PublicKeysConfig struct {
+	Keys []PublicKeyConfig `json:"keys"`
 }
