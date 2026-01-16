@@ -31,4 +31,3 @@ var (
 	ErrProjectHasAssociatedAgents = errors.New("project has associated agents")
 	ErrInvalidInput               = errors.New("invalid input")
 )
-

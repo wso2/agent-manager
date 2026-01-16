@@ -96,9 +96,43 @@ Generate RSA key pairs for JWT token signing:
 ```bash
 cd agent-management-platform/agent-manager-service
 make gen-keys
+# or directly:
+./scripts/gen_keys.sh
 ```
 
-This will create `private.pem` and `public.pem` files in the `keys/` directory.
+**Generated Artifacts (default key-1):**
+- `keys/private.pem` - Private signing key
+- `keys/public.pem` - Public verification key
+- `keys/public-keys-config.json` - Public keys configuration with key ID "key-1"
+
+**Key Rotation (generating additional keys):**
+To generate keys with a different key ID for rotation:
+```bash
+./scripts/gen_keys.sh key-2
+```
+
+This produces:
+- `keys/private-key-2.pem` - Private signing key for key-2
+- `keys/public-key-2.pem` - Public verification key for key-2
+- Update the `keys/public-keys-config.json` to include key-2
+
+**Environment Variable Configuration:**
+After generating keys, configure these environment variables in your `.env` file:
+
+```bash
+# Path to the private key file for signing tokens
+JWT_SIGNING_PRIVATE_KEY_PATH=./keys/private.pem
+
+# Active key ID (must match the key ID in public-keys-config.json)
+JWT_SIGNING_ACTIVE_KEY_ID=key-1
+
+# Path to the public keys configuration file
+JWT_SIGNING_PUBLIC_KEYS_CONFIG=./keys/public-keys-config.json
+```
+
+**For key rotation:** When switching to a new key (e.g., key-2), update:
+- `JWT_SIGNING_PRIVATE_KEY_PATH=./keys/private-key-2.pem`
+- `JWT_SIGNING_ACTIVE_KEY_ID=key-2`
 
 ### 6. Run Database Migrations
 
