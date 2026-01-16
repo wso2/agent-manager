@@ -29,4 +29,6 @@ var (
 	ErrProjectAlreadyExists       = errors.New("project already exists")
 	ErrDeploymentPipelineNotFound = errors.New("deployment pipeline not found")
 	ErrProjectHasAssociatedAgents = errors.New("project has associated agents")
+	ErrInvalidInput               = errors.New("invalid input")
 )
+

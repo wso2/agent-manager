@@ -37,6 +37,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/wiring"
 )
 
@@ -100,7 +101,7 @@ func TestGenerateAgentToken(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=Development",
+		tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=default",
 			tokenOrgName, tokenProjName, tokenAgentName)
 		tokenReq := httptest.NewRequest(http.MethodPost, tokenURL, tokenReqBody)
 		tokenReq.Header.Set("Content-Type", "application/json")
@@ -146,25 +147,346 @@ func TestGenerateAgentToken(t *testing.T) {
 		require.Equal(t, tokenComponentUid, claims["component_uid"])
 		require.Equal(t, tokenEnvUid, claims["environment_uid"])
 	})
-}
 
-func TestGetJWKS(t *testing.T) {
-	// Create unique test data for this test suite
-	jwksAgentName := fmt.Sprintf("jwks-agent-%s", uuid.New().String()[:5])
-	jwksComponentUid := uuid.New().String()
-	jwksEnvUid := uuid.New().String()
-	jwksOrgUid := uuid.New().String()
-	jwksProjUid := uuid.New().String()
-
-	authMiddleware := jwtassertion.NewMockMiddleware(t)
-
-	t.Run("Getting JWKS should return 200 with valid JWKS", func(t *testing.T) {
-		openChoreoClient := createMockOpenChoreoClientForToken(jwksAgentName, jwksComponentUid, jwksEnvUid, jwksOrgUid, jwksProjUid)
+	t.Run("Invalid expiry duration - malformed string", func(t *testing.T) {
+		openChoreoClient := createMockOpenChoreoClientForToken(tokenAgentName, tokenComponentUid, tokenEnvUid, tokenOrgUid, tokenProjUid)
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		tokenReqBody := new(bytes.Buffer)
+		err := json.NewEncoder(tokenReqBody).Encode(map[string]interface{}{
+			"expires_in": "invalid-duration",
+		})
+		require.NoError(t, err)
+
+		tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=default",
+			tokenOrgName, tokenProjName, tokenAgentName)
+		tokenReq := httptest.NewRequest(http.MethodPost, tokenURL, tokenReqBody)
+		tokenReq.Header.Set("Content-Type", "application/json")
+
+		tokenRR := httptest.NewRecorder()
+		app.ServeHTTP(tokenRR, tokenReq)
+
+		require.Equal(t, http.StatusBadRequest, tokenRR.Code)
+	})
+
+	t.Run("Invalid expiry duration - zero duration", func(t *testing.T) {
+		openChoreoClient := createMockOpenChoreoClientForToken(tokenAgentName, tokenComponentUid, tokenEnvUid, tokenOrgUid, tokenProjUid)
+		testClients := wiring.TestClients{
+			OpenChoreoSvcClient: openChoreoClient,
+		}
+
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		tokenReqBody := new(bytes.Buffer)
+		err := json.NewEncoder(tokenReqBody).Encode(map[string]interface{}{
+			"expires_in": "0h",
+		})
+		require.NoError(t, err)
+
+		tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=default",
+			tokenOrgName, tokenProjName, tokenAgentName)
+		tokenReq := httptest.NewRequest(http.MethodPost, tokenURL, tokenReqBody)
+		tokenReq.Header.Set("Content-Type", "application/json")
+
+		tokenRR := httptest.NewRecorder()
+		app.ServeHTTP(tokenRR, tokenReq)
+
+		require.Equal(t, http.StatusBadRequest, tokenRR.Code)
+	})
+
+	t.Run("Empty expiry - should use default", func(t *testing.T) {
+		openChoreoClient := createMockOpenChoreoClientForToken(tokenAgentName, tokenComponentUid, tokenEnvUid, tokenOrgUid, tokenProjUid)
+		testClients := wiring.TestClients{
+			OpenChoreoSvcClient: openChoreoClient,
+		}
+
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		tokenReqBody := new(bytes.Buffer)
+		err := json.NewEncoder(tokenReqBody).Encode(map[string]interface{}{})
+		require.NoError(t, err)
+
+		tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=default",
+			tokenOrgName, tokenProjName, tokenAgentName)
+		tokenReq := httptest.NewRequest(http.MethodPost, tokenURL, tokenReqBody)
+		tokenReq.Header.Set("Content-Type", "application/json")
+
+		tokenRR := httptest.NewRecorder()
+		app.ServeHTTP(tokenRR, tokenReq)
+
+		require.Equal(t, http.StatusOK, tokenRR.Code)
+
+		var tokenResponse spec.TokenResponse
+		require.NoError(t, json.NewDecoder(tokenRR.Body).Decode(&tokenResponse))
+		require.NotEmpty(t, tokenResponse.Token)
+	})
+
+	t.Run("Missing agent should return 404", func(t *testing.T) {
+		nonExistentAgent := "non-existent-agent"
+		openChoreoClient := &clientmocks.OpenChoreoSvcClientMock{
+			GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+				return &models.ProjectResponse{
+					UUID:        tokenProjUid,
+					Name:        projectName,
+					DisplayName: projectName,
+					OrgName:     orgName,
+					CreatedAt:   time.Now(),
+				}, nil
+			},
+			GetAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agName string) (*openchoreosvc.AgentComponent, error) {
+				return nil, utils.ErrAgentNotFound
+			},
+			GetEnvironmentFunc: func(ctx context.Context, orgName string, environmentName string) (*models.EnvironmentResponse, error) {
+				return &models.EnvironmentResponse{
+					UUID: tokenEnvUid,
+					Name: environmentName,
+				}, nil
+			},
+			GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
+				return &models.OrganizationResponse{
+					Name: orgName,
+				}, nil
+			},
+		}
+		testClients := wiring.TestClients{
+			OpenChoreoSvcClient: openChoreoClient,
+		}
+
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		tokenReqBody := new(bytes.Buffer)
+		err := json.NewEncoder(tokenReqBody).Encode(map[string]interface{}{
+			"expires_in": "720h",
+		})
+		require.NoError(t, err)
+
+		tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=default",
+			tokenOrgName, tokenProjName, nonExistentAgent)
+		tokenReq := httptest.NewRequest(http.MethodPost, tokenURL, tokenReqBody)
+		tokenReq.Header.Set("Content-Type", "application/json")
+
+		tokenRR := httptest.NewRecorder()
+		app.ServeHTTP(tokenRR, tokenReq)
+
+		require.Equal(t, http.StatusNotFound, tokenRR.Code)
+	})
+
+	t.Run("Missing environment should return 404", func(t *testing.T) {
+		openChoreoClient := &clientmocks.OpenChoreoSvcClientMock{
+			GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+				return &models.ProjectResponse{
+					UUID:        tokenProjUid,
+					Name:        projectName,
+					DisplayName: projectName,
+					OrgName:     orgName,
+					CreatedAt:   time.Now(),
+				}, nil
+			},
+			GetAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agName string) (*openchoreosvc.AgentComponent, error) {
+				return &openchoreosvc.AgentComponent{
+					UUID:        tokenComponentUid,
+					Name:        agName,
+					ProjectName: projName,
+				}, nil
+			},
+			GetEnvironmentFunc: func(ctx context.Context, orgName string, environmentName string) (*models.EnvironmentResponse, error) {
+				return nil, utils.ErrEnvironmentNotFound
+			},
+			GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
+				return &models.OrganizationResponse{
+					Name: orgName,
+				}, nil
+			},
+		}
+		testClients := wiring.TestClients{
+			OpenChoreoSvcClient: openChoreoClient,
+		}
+
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		tokenReqBody := new(bytes.Buffer)
+		err := json.NewEncoder(tokenReqBody).Encode(map[string]interface{}{
+			"expires_in": "720h",
+		})
+		require.NoError(t, err)
+
+		tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=NonExistent",
+			tokenOrgName, tokenProjName, tokenAgentName)
+		tokenReq := httptest.NewRequest(http.MethodPost, tokenURL, tokenReqBody)
+		tokenReq.Header.Set("Content-Type", "application/json")
+
+		tokenRR := httptest.NewRecorder()
+		app.ServeHTTP(tokenRR, tokenReq)
+
+		require.Equal(t, http.StatusNotFound, tokenRR.Code)
+	})
+}
+
+func TestConcurrentTokenGeneration(t *testing.T) {
+	// Create unique test data for concurrent tests
+	concurrentOrgName := fmt.Sprintf("concurrent-org-%s", uuid.New().String()[:5])
+	concurrentProjName := fmt.Sprintf("concurrent-project-%s", uuid.New().String()[:5])
+	concurrentAgentName := fmt.Sprintf("concurrent-agent-%s", uuid.New().String()[:5])
+	concurrentComponentUid := uuid.New().String()
+	concurrentEnvUid := uuid.New().String()
+	concurrentOrgUid := uuid.New().String()
+	concurrentProjUid := uuid.New().String()
+
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
+
+	t.Run("Testing concurrent token generation", func(t *testing.T) {
+		openChoreoClient := createMockOpenChoreoClientForToken(concurrentAgentName, concurrentComponentUid, concurrentEnvUid, concurrentOrgUid, concurrentProjUid)
+		testClients := wiring.TestClients{
+			OpenChoreoSvcClient: openChoreoClient,
+		}
+
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		const numConcurrentRequests = 10
+		type result struct {
+			statusCode int
+			token      string
+			err        error
+		}
+		results := make(chan result, numConcurrentRequests)
+
+		// Launch concurrent token generation requests
+		for i := 0; i < numConcurrentRequests; i++ {
+			go func() {
+				tokenReqBody := new(bytes.Buffer)
+				err := json.NewEncoder(tokenReqBody).Encode(map[string]interface{}{
+					"expires_in": "24h",
+				})
+				if err != nil {
+					results <- result{err: err}
+					return
+				}
+
+				tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=default",
+					concurrentOrgName, concurrentProjName, concurrentAgentName)
+				tokenReq := httptest.NewRequest(http.MethodPost, tokenURL, tokenReqBody)
+				tokenReq.Header.Set("Content-Type", "application/json")
+
+				tokenRR := httptest.NewRecorder()
+				app.ServeHTTP(tokenRR, tokenReq)
+
+				var tokenResponse spec.TokenResponse
+				if tokenRR.Code == http.StatusOK {
+					_ = json.NewDecoder(tokenRR.Body).Decode(&tokenResponse)
+				}
+
+				results <- result{
+					statusCode: tokenRR.Code,
+					token:      tokenResponse.Token,
+				}
+			}()
+		}
+
+		// Collect results
+		successCount := 0
+		tokensReceived := 0
+
+		for i := 0; i < numConcurrentRequests; i++ {
+			res := <-results
+			require.NoError(t, res.err)
+			require.Equal(t, http.StatusOK, res.statusCode)
+			if res.statusCode == http.StatusOK {
+				successCount++
+				require.NotEmpty(t, res.token)
+				tokensReceived++
+			}
+		}
+
+		// All requests should succeed
+		require.Equal(t, numConcurrentRequests, successCount)
+		// All requests should receive a token
+		require.Equal(t, numConcurrentRequests, tokensReceived)
+		t.Logf("Successfully generated %d tokens concurrently", tokensReceived)
+	})
+}
+
+func TestTokenExpiry(t *testing.T) {
+	// Create unique test data for expiry tests
+	expiryOrgName := fmt.Sprintf("expiry-org-%s", uuid.New().String()[:5])
+	expiryProjName := fmt.Sprintf("expiry-project-%s", uuid.New().String()[:5])
+	expiryAgentName := fmt.Sprintf("expiry-agent-%s", uuid.New().String()[:5])
+	expiryComponentUid := uuid.New().String()
+	expiryEnvUid := uuid.New().String()
+	expiryOrgUid := uuid.New().String()
+	expiryProjUid := uuid.New().String()
+
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
+
+	t.Run("Multiple tokens with different expiry durations", func(t *testing.T) {
+		openChoreoClient := createMockOpenChoreoClientForToken(expiryAgentName, expiryComponentUid, expiryEnvUid, expiryOrgUid, expiryProjUid)
+		testClients := wiring.TestClients{
+			OpenChoreoSvcClient: openChoreoClient,
+		}
+
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		testCases := []struct {
+			expiresIn        string
+			expectedDuration time.Duration
+		}{
+			{"1h", 1 * time.Hour},
+			{"720h", 720 * time.Hour},
+		}
+
+		for _, tc := range testCases {
+			t.Run(fmt.Sprintf("expires_in=%s", tc.expiresIn), func(t *testing.T) {
+				tokenReqBody := new(bytes.Buffer)
+				err := json.NewEncoder(tokenReqBody).Encode(map[string]interface{}{
+					"expires_in": tc.expiresIn,
+				})
+				require.NoError(t, err)
+
+				tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=default",
+					expiryOrgName, expiryProjName, expiryAgentName)
+				tokenReq := httptest.NewRequest(http.MethodPost, tokenURL, tokenReqBody)
+				tokenReq.Header.Set("Content-Type", "application/json")
+
+				tokenRR := httptest.NewRecorder()
+				app.ServeHTTP(tokenRR, tokenReq)
+
+				require.Equal(t, http.StatusOK, tokenRR.Code)
+
+				var tokenResponse spec.TokenResponse
+				require.NoError(t, json.NewDecoder(tokenRR.Body).Decode(&tokenResponse))
+
+				// Parse and verify expiry duration
+				parser := jwt.NewParser()
+				token, _, err := parser.ParseUnverified(tokenResponse.Token, jwt.MapClaims{})
+				require.NoError(t, err)
+
+				claims, ok := token.Claims.(jwt.MapClaims)
+				require.True(t, ok)
+
+				expClaim, ok := claims["exp"].(float64)
+				require.True(t, ok)
+				iatClaim, ok := claims["iat"].(float64)
+				require.True(t, ok)
+
+				expiryTime := time.Unix(int64(expClaim), 0)
+				issuedTime := time.Unix(int64(iatClaim), 0)
+				duration := expiryTime.Sub(issuedTime)
+
+				// Verify duration matches expected (allow 5 seconds tolerance)
+				require.InDelta(t, tc.expectedDuration.Seconds(), duration.Seconds(), 5)
+			})
+		}
+	})
+}
+
+func TestGetJWKSAgentManagerService(t *testing.T) {
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
+
+	t.Run("Getting JWKS should return 200 with valid JWKS", func(t *testing.T) {
+		app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{}, authMiddleware)
 
 		// Request JWKS endpoint
 		jwksURL := "/auth/external/jwks.json"
@@ -208,5 +530,24 @@ func TestGetJWKS(t *testing.T) {
 			require.NotEmpty(t, key.E, "RSA exponent should not be empty")
 			require.NotEmpty(t, key.Kid, "Key ID should not be empty")
 		}
+	})
+	t.Run("JWKS endpoint should be accessible without authentication", func(t *testing.T) {
+		// JWKS endpoint should be public, test with normal auth middleware
+		app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{}, authMiddleware)
+
+		// Request JWKS endpoint without auth headers
+		jwksURL := "/auth/external/jwks.json"
+		req := httptest.NewRequest(http.MethodGet, jwksURL, nil)
+		// Note: Not setting any authorization headers
+
+		rr := httptest.NewRecorder()
+		app.ServeHTTP(rr, req)
+
+		// Should still return 200 - JWKS is public
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		var jwksResponse spec.JWKS
+		require.NoError(t, json.NewDecoder(rr.Body).Decode(&jwksResponse))
+		require.NotEmpty(t, jwksResponse.Keys)
 	})
 }

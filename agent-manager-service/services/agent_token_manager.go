@@ -35,6 +35,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // AgentTokenManagerService defines the interface for agent token operations
@@ -265,7 +266,7 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 	// Determine expiry duration
 	expiryDuration, err := s.parseExpiryDuration(req.ExpiresIn)
 	if err != nil {
-		return nil, fmt.Errorf("invalid expiry duration: %w", err)
+		return nil, fmt.Errorf("%w: %v", utils.ErrInvalidInput, err)
 	}
 
 	now := time.Now()

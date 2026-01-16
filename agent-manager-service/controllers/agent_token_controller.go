@@ -106,6 +106,14 @@ func (c *agentTokenController) GenerateToken(w http.ResponseWriter, r *http.Requ
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		}
+		if errors.Is(err, utils.ErrEnvironmentNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
+			return
+		}
+		if errors.Is(err, utils.ErrInvalidInput) {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to generate token")
 		return
 	}
