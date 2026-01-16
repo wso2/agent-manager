@@ -34,15 +34,15 @@ import (
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 )
 
 // AgentTokenManagerService defines the interface for agent token operations
 type AgentTokenManagerService interface {
 	// GenerateToken creates a signed JWT token for an agent
-	GenerateToken(ctx context.Context, req GenerateTokenRequest) (*models.TokenResponse, error)
+	GenerateToken(ctx context.Context, req GenerateTokenRequest) (*spec.TokenResponse, error)
 	// GetJWKS returns the JSON Web Key Set for token verification
-	GetJWKS(ctx context.Context) (*models.JWKS, error)
+	GetJWKS(ctx context.Context) (*spec.JWKS, error)
 }
 
 // GenerateTokenRequest contains the parameters for token generation
@@ -226,7 +226,7 @@ func (s *agentTokenManagerService) loadPublicKey(path string) (*rsa.PublicKey, e
 }
 
 // GenerateToken creates a signed JWT token for an agent
-func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req GenerateTokenRequest) (*models.TokenResponse, error) {
+func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req GenerateTokenRequest) (*spec.TokenResponse, error) {
 	s.logger.Info("Generating token for agent",
 		"agentName", req.AgentName,
 		"orgName", req.OrgName,
@@ -308,7 +308,7 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		"keyID", keyPair.KeyID,
 	)
 
-	return &models.TokenResponse{
+	return &spec.TokenResponse{
 		Token:     signedToken,
 		ExpiresAt: expiresAt.Unix(),
 		IssuedAt:  now.Unix(),
@@ -348,14 +348,14 @@ func (s *agentTokenManagerService) parseExpiryDuration(expiresIn string) (time.D
 }
 
 // GetJWKS returns the JSON Web Key Set containing all public keys
-func (s *agentTokenManagerService) GetJWKS(ctx context.Context) (*models.JWKS, error) {
+func (s *agentTokenManagerService) GetJWKS(ctx context.Context) (*spec.JWKS, error) {
 	s.keyPairMutex.RLock()
 	defer s.keyPairMutex.RUnlock()
 
-	keys := make([]models.JWK, 0, len(s.keyPairs))
+	keys := make([]spec.JWK, 0, len(s.keyPairs))
 
 	for keyID, keyPair := range s.keyPairs {
-		jwk := models.JWK{
+		jwk := spec.JWK{
 			Kty: "RSA",
 			Alg: "RS256",
 			Use: "sig",
@@ -366,7 +366,7 @@ func (s *agentTokenManagerService) GetJWKS(ctx context.Context) (*models.JWKS, e
 		keys = append(keys, jwk)
 	}
 
-	return &models.JWKS{
+	return &spec.JWKS{
 		Keys: keys,
 	}, nil
 }

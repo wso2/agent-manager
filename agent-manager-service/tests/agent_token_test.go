@@ -35,6 +35,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/wiring"
 )
@@ -115,7 +116,7 @@ func TestGenerateAgentToken(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("token response body: %s", string(b))
 
-		var tokenResponse models.TokenResponse
+		var tokenResponse spec.TokenResponse
 		require.NoError(t, json.Unmarshal(b, &tokenResponse))
 
 		// Validate response fields
@@ -180,7 +181,7 @@ func TestGetJWKS(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("jwks response body: %s", string(b))
 
-		var jwksResponse models.JWKS
+		var jwksResponse spec.JWKS
 		require.NoError(t, json.Unmarshal(b, &jwksResponse))
 
 		// Validate JWKS structure
