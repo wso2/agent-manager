@@ -30,17 +30,11 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 )
 
 var configProviderSet = wire.NewSet(
 	ProvideConfigFromPtr,
-)
-
-var repositoryProviderSet = wire.NewSet(
-	repositories.NewAgentRepository,
-	repositories.NewInternalAgentRepository,
 )
 
 var clientProviderSet = wire.NewSet(
@@ -51,7 +45,6 @@ var clientProviderSet = wire.NewSet(
 
 var serviceProviderSet = wire.NewSet(
 	services.NewAgentManagerService,
-	services.NewBuildCIManager,
 	services.NewInfraResourceManager,
 	services.NewObservabilityManager,
 	services.NewAgentTokenManagerService,
@@ -59,7 +52,6 @@ var serviceProviderSet = wire.NewSet(
 
 var controllerProviderSet = wire.NewSet(
 	controllers.NewAgentController,
-	controllers.NewBuildCIController,
 	controllers.NewInfraResourceController,
 	controllers.NewObservabilityController,
 	controllers.NewAgentTokenController,
@@ -98,7 +90,6 @@ func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.Tr
 func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	wire.Build(
 		configProviderSet,
-		repositoryProviderSet,
 		clientProviderSet,
 		loggerProviderSet,
 		serviceProviderSet,
@@ -110,7 +101,6 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 
 func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware jwtassertion.Middleware, testClients TestClients) (*AppParams, error) {
 	wire.Build(
-		repositoryProviderSet,
 		testClientProviderSet,
 		loggerProviderSet,
 		serviceProviderSet,
