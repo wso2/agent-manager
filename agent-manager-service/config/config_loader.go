@@ -105,9 +105,6 @@ func loadEnvs() {
 		DefaultBasePath: r.readOptionalString("DEFAULT_CHAT_API_BASE_PATH", "/"),
 	}
 
-	config.APIKeyHeader = r.readOptionalString("API_KEY_HEADER", "X-API-KEY")
-	config.APIKeyValue = r.readRequiredString("API_KEY_VALUE")
-
 	// OpenTelemetry configuration
 	// Use Version from ldflags or environment variable override
 	config.PackageVersion = r.readOptionalString("AMP_VERSION", Version)
