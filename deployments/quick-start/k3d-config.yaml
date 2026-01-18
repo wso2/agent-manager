@@ -25,6 +25,15 @@ ports:
   - port: 21893:21893
     nodeFilters:
       - loadbalancer
+  # Control Plane uses port range 8xxx
+  # HTTP traffic to OpenChoreo UI and API (Traefik LoadBalancer on port 80)
+  - port: 8080:80
+    nodeFilters:
+      - loadbalancer
+  # HTTPS traffic to OpenChoreo UI and API (Traefik LoadBalancer on port 443)
+  - port: 8443:443
+    nodeFilters:
+      - loadbalancer
   # Build Plane uses port range 10xxx
   # Container Registry for storing built images
   - port: 10082:5000
