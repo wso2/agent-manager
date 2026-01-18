@@ -35,8 +35,6 @@ type Config struct {
 	DbOperationTimeoutSeconds int
 	HealthCheckTimeoutSeconds int
 
-	APIKeyHeader string
-	APIKeyValue  string
 	// CORSAllowedOrigin is the single allowed origin for CORS; use "*" to allow all
 	CORSAllowedOrigin string
 

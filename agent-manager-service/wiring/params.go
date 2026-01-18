@@ -29,7 +29,6 @@ type AppParams struct {
 	AuthMiddleware          jwtassertion.Middleware
 	AgentController         controllers.AgentController
 	InfraResourceController controllers.InfraResourceController
-	BuildCIController       controllers.BuildCIController
 	ObservabilityController controllers.ObservabilityController
 	AgentTokenController    controllers.AgentTokenController
 }

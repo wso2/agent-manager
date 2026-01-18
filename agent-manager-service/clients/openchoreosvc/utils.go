@@ -86,21 +86,87 @@ func getInputInterfaceConfig(req *spec.CreateAgentRequest) (int32, string) {
 	return req.InputInterface.Port, req.InputInterface.BasePath
 }
 
-func getComponentWorkflowParametersForGoogleBuildPack(req *spec.CreateAgentRequest) map[string]interface{} {
+func buildEnvironmentVariablesArray(req *spec.CreateAgentRequest) []map[string]interface{} {
+	// Initialize as empty slice to ensure JSON serializes to [] instead of null
+	environmentVariables := make([]map[string]interface{}, 0)
+	if req.RuntimeConfigs != nil && len(req.RuntimeConfigs.Env) > 0 {
+		for _, env := range req.RuntimeConfigs.Env {
+			environmentVariables = append(environmentVariables, map[string]interface{}{
+				"name":  env.Key,
+				"value": env.Value,
+			})
+		}
+	}
+	return environmentVariables
+}
+
+func buildEndpointsArray(req *spec.CreateAgentRequest) ([]map[string]interface{}, error) {
+	// Initialize as empty slice to ensure JSON serializes to [] instead of null
+	endpoints := make([]map[string]interface{}, 0)
+
+	// Handle Chat API - use embedded schema content
+	if req.AgentType.Type == string(utils.AgentTypeAPI) &&
+		utils.StrPointerAsStr(req.AgentType.SubType, "") == string(utils.AgentSubTypeChatAPI) {
+		schemaContent, err := GetDefaultChatAPISchema()
+		if err != nil {
+			return nil, fmt.Errorf("failed to read Chat API schema: %w", err)
+		}
+		endpoints = []map[string]interface{}{
+			{
+				"name":          fmt.Sprintf("%s-endpoint", req.Name),
+				"port":          config.GetConfig().DefaultChatAPI.DefaultHTTPPort,
+				"type":          string(utils.InputInterfaceTypeHTTP),
+				"schemaType":    string(v1alpha1.EndpointTypeREST),
+				"schemaContent": schemaContent,
+			},
+		}
+	}
+
+	// Handle Custom API - use schema path from request
+	if req.AgentType.Type == string(utils.AgentTypeAPI) &&
+		utils.StrPointerAsStr(req.AgentType.SubType, "") == string(utils.AgentSubTypeCustomAPI) {
+		endpoints = []map[string]interface{}{
+			{
+				"name":           fmt.Sprintf("%s-endpoint", req.Name),
+				"port":           req.InputInterface.Port,
+				"type":           req.InputInterface.Type,
+				"schemaType":    string(v1alpha1.EndpointTypeREST),
+				"schemaFilePath": req.InputInterface.Schema.Path,
+			},
+		}
+	}
+
+	return endpoints, nil
+}
+
+func getComponentWorkflowParametersForGoogleBuildPack(req *spec.CreateAgentRequest) (map[string]interface{}, error) {
+	environmentVariables := buildEnvironmentVariablesArray(req)
+	endpoints, err := buildEndpointsArray(req)
+	if err != nil {
+		return nil, err
+	}
+
 	return map[string]interface{}{
 		"buildpackConfigs": map[string]interface{}{
 			"googleEntryPoint":   req.RuntimeConfigs.RunCommand,
 			"languageVersion":    req.RuntimeConfigs.LanguageVersion,
 			"languageVersionKey": getLanguageVersionEnvVariable(req.RuntimeConfigs.Language),
 		},
-		"schemaFilePath": req.InputInterface.Schema.Path,
-	}
+		"endpoints":            endpoints,
+		"environmentVariables": environmentVariables,
+	}, nil
 }
 
-func getComponentWorkflowParametersForBallerinaBuildPack(req *spec.CreateAgentRequest) map[string]interface{} {
-	return map[string]interface{}{
-		"schemaFilePath": req.InputInterface.Schema.Path,
+func getComponentWorkflowParametersForBallerinaBuildPack(req *spec.CreateAgentRequest) (map[string]interface{}, error) {
+	environmentVariables := buildEnvironmentVariablesArray(req)
+	endpoints, err := buildEndpointsArray(req)
+	if err != nil {
+		return nil, err
 	}
+	return map[string]interface{}{
+		"endpoints":            endpoints,
+		"environmentVariables": environmentVariables,
+	}, nil
 }
 
 func createComponentCRForExternalAgents(orgName, projectName string, req *spec.CreateAgentRequest) (*v1alpha1.Component, error) {
@@ -173,10 +239,17 @@ func createComponentCRForInternalAgents(orgName, projectName string, req *spec.C
 	}
 
 	var componentWorkflowParameters map[string]interface{}
+	var err error
 	if isGoogleBuildpack(req.RuntimeConfigs.Language) {
-		componentWorkflowParameters = getComponentWorkflowParametersForGoogleBuildPack(req)
+		componentWorkflowParameters, err = getComponentWorkflowParametersForGoogleBuildPack(req)
+		if err != nil {
+			return nil, fmt.Errorf("error getting component workflow parameters: %w", err)
+		}
 	} else {
-		componentWorkflowParameters = getComponentWorkflowParametersForBallerinaBuildPack(req)
+		componentWorkflowParameters, err = getComponentWorkflowParametersForBallerinaBuildPack(req)
+		if err != nil {
+			return nil, fmt.Errorf("error getting component workflow parameters: %w", err)
+		}
 	}
 
 	parametersJSON, err := json.Marshal(parameters)
