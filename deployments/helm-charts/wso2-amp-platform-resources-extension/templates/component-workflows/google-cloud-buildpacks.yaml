@@ -16,7 +16,7 @@ spec:
         port: "integer | description='Port number'"
         type: "string | description='Endpoint type (e.g., HTTP, gRPC)' | default='HTTP'"
         schemaType: "string | description='Schema type (e.g., REST)' | default='REST'"
-        schemaFilePath: "string | description='Path to schema file relative to repo root (optional)' | default=''"
+        schemaFilePath: "string | description='Path to schema file relative to app path (optional)' | default=''"
         schemaContent: "string | description='Inline schema content (optional)' | default=''"
       EnvironmentVariable:
         name: "string | description='Environment variable name'"

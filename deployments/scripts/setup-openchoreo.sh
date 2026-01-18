@@ -86,15 +86,16 @@ spec:
     name: openchoreo-selfsigned-issuer
     kind: ClusterIssuer
   dnsNames:
-    - "*.openchoreoapis.localhost"
+    - "localhost"
 EOF
 echo "✅ Gateway TLS Certificate created"
 echo ""
 
 # Registering the Data Plane with the control plane
 echo "4️⃣  Registering Data Plane..."
-CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
-kubectl apply -f - <<EOF
+CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
+if [ -n "$CA_CERT" ]; then
+    kubectl apply -f - <<EOF
 apiVersion: openchoreo.dev/v1alpha1
 kind: DataPlane
 metadata:
@@ -108,11 +109,14 @@ spec:
 $(echo "$CA_CERT" | sed 's/^/        /')
   gateway:
     organizationVirtualHost: "openchoreoapis.internal"
-    publicVirtualHost: "openchoreoapis.localhost"
+    publicVirtualHost: "localhost"
   secretStoreRef:
     name: default
 EOF
-echo "✅ Data Plane registered successfully"
+    echo "✅ Data Plane registered successfully"
+else
+    echo "⚠️  CA certificate not found; skipping DataPlane registration"
+fi
 echo ""
 
 
@@ -150,8 +154,9 @@ fi
 
 # Registering the Build Plane with the control plane
 echo "5️⃣  Registering Build Plane..."
-BP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-build-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
-kubectl apply -f - <<EOF
+BP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-build-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
+if [ -n "$BP_CA_CERT" ]; then
+    kubectl apply -f - <<EOF
 apiVersion: openchoreo.dev/v1alpha1
 kind: BuildPlane
 metadata:
@@ -164,7 +169,10 @@ spec:
       value: |
 $(echo "$BP_CA_CERT" | sed 's/^/        /')
 EOF
-echo "✅ Build Plane registered successfully"
+    echo "✅ Build Plane registered successfully"
+else
+    echo "⚠️  CA certificate not found; skipping BuildPlane registration"
+fi
 echo ""
 
 # Verify BuildPlane
@@ -213,8 +221,9 @@ fi
 
 # Registering the Observability Plane with the control plane
 echo "5️⃣  Registering Observability Plane..."
-OP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-observability-plane -o jsonpath='{.data.ca\.crt}' | base64 -d)
-kubectl apply -f - <<EOF
+OP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-observability-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
+if [ -n "$OP_CA_CERT" ]; then
+    kubectl apply -f - <<EOF
 apiVersion: openchoreo.dev/v1alpha1
 kind: ObservabilityPlane
 metadata:
@@ -228,6 +237,10 @@ spec:
 $(echo "$OP_CA_CERT" | sed 's/^/        /')
   observerURL: http://observer.openchoreo-observability-plane.svc.cluster.local:8080
 EOF
+    echo "✅ Observability Plane registered successfully"
+else
+    echo "⚠️  CA certificate not found; skipping ObservabilityPlane registration"
+fi
 
 echo "7️⃣  Configuring observability integration..."
  # Configure DataPlane observer

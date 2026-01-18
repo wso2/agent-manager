@@ -83,7 +83,7 @@ helm install openchoreo-build-plane \
 helm install openchoreo-data-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
   --version 0.9.0 \
-  --namespace openchoreo-build-plane \
+  --namespace openchoreo-data-plane \
   --create-namespace \
   --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/single-cluster/values-dp.yaml
 ```

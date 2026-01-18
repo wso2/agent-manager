@@ -19,6 +19,12 @@ if ! command -v kubectl &> /dev/null; then
     exit 1
 fi
 
+if ! command -v helm &> /dev/null; then
+    echo "❌ helm is not installed. Please install it first:"
+    echo "   brew install helm"
+    exit 1
+fi
+
 # Check if cluster already exists
 if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
     echo "✅ k3d cluster '${CLUSTER_NAME}' already exists"
@@ -53,7 +59,6 @@ else
 
     # Create k3d cluster with OpenChoreo configuration
     echo "🚀 Creating k3d cluster with OpenChoreo configuration..."
-    echo "   Setting K3D_FIX_DNS=0 to avoid DNS issues (see k3d-io/k3d#1449)"
     k3d cluster create --config ../single-cluster-config.yaml
 
     echo ""

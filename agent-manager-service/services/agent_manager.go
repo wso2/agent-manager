@@ -152,11 +152,6 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		s.logger.Warn("Agent already exists", "agentName", req.Name, "orgName", org.Name, "project", projectName)
 		return utils.ErrAgentAlreadyExists
 	}
-	_, err = s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
-	if err != nil {
-		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
-		return err
-	}
 	err = s.createOpenChoreoAgentComponent(ctx, orgName, projectName, req)
 	if err != nil {
 		s.logger.Error("OpenChoreo creation failed, initiating rollback", "agentName", req.Name, "error", err)
@@ -474,7 +469,7 @@ func (s *agentManagerService) GetBuildLogs(ctx context.Context, orgName string, 
 	// Check if component already exists
 	_, err = s.OpenChoreoSvcClient.GetAgentComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
-		s.logger.Error("Failed to fetcj component", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		s.logger.Error("Failed to fetch component", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
 		return nil, err
 	}
 

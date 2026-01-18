@@ -18,7 +18,6 @@ set -euo pipefail
 CLUSTER_NAME="amp-local"
 CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
 OPENCHOREO_VERSION="0.9.0"
-OC_RELEASE="release-v0.9"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K3D_CONFIG="${SCRIPT_DIR}/k3d-config.yaml"
 
@@ -290,7 +289,7 @@ check_docker_permissions() {
 }
 
 # Check prerequisites
-log_step "Step 1/7: Verifying prerequisites"
+log_step "Step 1/8: Verifying prerequisites"
 
 # Check Docker access first
 if ! check_docker_permissions; then
@@ -324,7 +323,7 @@ log_success "All prerequisites verified"
 # Step 2: Setup k3d Cluster
 # ============================================================================
 
-log_step "Step 2/7: Setting up k3d cluster"
+log_step "Step 2/8: Setting up k3d cluster"
 
 # Check if cluster already exists
 if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
@@ -491,7 +490,7 @@ spec:
     name: openchoreo-selfsigned-issuer
     kind: ClusterIssuer
   dnsNames:
-    - "*.openchoreoapis.localhost"
+    - "localhost"
 EOF
 then
     log_success "TLS certificate created successfully"

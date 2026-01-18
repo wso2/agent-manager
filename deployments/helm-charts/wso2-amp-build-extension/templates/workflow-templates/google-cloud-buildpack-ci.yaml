@@ -239,8 +239,7 @@ spec:
             set -e
 
             # Install jq
-            wget -qO /usr/local/bin/jq https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64
-            chmod +x /usr/local/bin/jq
+            apk add --no-cache jq
 
             # Variables
             IMAGE={{ "{{" }}inputs.parameters.image{{ "}}" }}
@@ -271,13 +270,13 @@ spec:
             # Environment variables
             if [ -n "$ENV_VARS" ] && [ "$ENV_VARS" != "null" ] && [ "$ENV_VARS" != "[]" ]; then
               echo "      env:" >> "$OUT"
-              echo "$ENV_VARS" | jq -r '.[] | "        - key: \(.name)\n          value: \"\(.value | tostring)\""' >> "$OUT"
+              echo "$ENV_VARS" | jq -r '.[] | "        - key: \(.name)\n          value: \(.value | tostring | @json)"' >> "$OUT"
             fi
 
             # Endpoints
             if [ -n "$ENDPOINTS" ] && [ "$ENDPOINTS" != "null" ] && [ "$ENDPOINTS" != "[]" ]; then
               echo "  endpoints:" >> "$OUT"
-              echo "$ENDPOINTS" | jq -c '.[]' | while read -r ep; do
+              while read -r ep; do
                 NAME=$(echo "$ep" | jq -r '.name')
                 TYPE=$(echo "$ep" | jq -r '.type // "HTTP"')
                 PORT=$(echo "$ep" | jq -r '.port')
@@ -300,7 +299,7 @@ spec:
                   echo "        content: |" >> "$OUT"
                   sed 's/^/          /' "$SOURCE_PATH/$SCHEMA_FILE" >> "$OUT"
                 fi
-              done
+              done < <(echo "$ENDPOINTS" | jq -c '.[]')
             fi
 
             echo "Workload CR saved to $OUT"
