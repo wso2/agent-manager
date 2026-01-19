@@ -18,3 +18,12 @@ security:
     # Internal cluster URL for backend token validation
     jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
     issuer: "thunder"
+
+opentelemetry-collector:
+  enabled: true
+  configMap:
+    # @schema
+    # type: string
+    # description: Name of the ConfigMap for OpenTelemetry Collector configuration
+    # default: amp-opentelemetry-collector-config
+    existingName: amp-opentelemetry-collector-config

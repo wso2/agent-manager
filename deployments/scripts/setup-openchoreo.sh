@@ -204,13 +204,38 @@ echo ""
 
 # ============================================================================
 # Step 4: Install OpenChoreo  Observability Plane
-echo "7️⃣  Installing/Upgrading OpenChoreo Observability Plane..."
-helm upgrade --install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
---version 0.9.0 \
---namespace openchoreo-observability-plane \
---create-namespace \
---values "${SCRIPT_DIR}/../values/observability-plane-values.yaml" \
---timeout 10m
+echo "7️⃣  Installing OpenChoreo Observability Plane..."
+if helm status openchoreo-observability-plane -n openchoreo-observability-plane &>/dev/null; then
+    echo "⏭️  Observability Plane already installed, skipping..."
+else
+    echo "   This may take up to 15 minutes..."
+    kubectl create namespace openchoreo-observability-plane --dry-run=client -o yaml | kubectl apply -f -
+
+    kubectl apply -f $1/deployments/values/oc-collector-configmap.yaml -n openchoreo-observability-plane
+
+    helm install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
+        --version 0.9.0 \
+        --namespace openchoreo-observability-plane \
+        --create-namespace \
+    --values "${SCRIPT_DIR}/../values/observability-plane-values.yaml" \
+    --timeout 15m
+fi
+
+echo "✅ OpenSearch ready"
+
+if helm status wso2-amp-observability-extension -n openchoreo-observability-plane &>/dev/null; then
+    echo "⏭️  WSO2 AMP Observability Extension already installed, skipping..."
+else
+    echo "Building and loading Traces Observer Service Docker image into k3d cluster..."
+    make -C $1/traces-observer-service docker-load-k3d
+    sleep 10        
+    echo "   Traces Observer Service to the Observability Plane for tracing ingestion..."
+    helm install wso2-amp-observability-extension $1/deployments/helm-charts/wso2-amp-observability-extension \
+        --create-namespace \
+        --namespace openchoreo-observability-plane \
+        --timeout=10m \
+        --set tracesObserver.developmentMode=true
+fi
 
 # Registering the Observability Plane with the control plane
 echo "5️⃣  Registering Observability Plane..."
