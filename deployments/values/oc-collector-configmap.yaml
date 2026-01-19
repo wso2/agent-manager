@@ -12,7 +12,7 @@ data:
             endpoint: 0.0.0.0:4317
           http:
             endpoint: 0.0.0.0:4318
-
+            include_metadata: true
     exporters:
       opensearch:
         http:
@@ -37,6 +37,14 @@ data:
         endpoint: ${env:MY_POD_IP}:13133
   
     processors:
+      resource:
+        attributes:
+          - key: openchoreo.dev/component-uid
+            from_context: metadata.x-user-component
+            action: upsert
+          - key: openchoreo.dev/environment-uid
+            from_context: metadata.x-user-environment
+            action: upsert
       k8sattributes:
         auth_type: "serviceAccount"
         passthrough: false
@@ -62,5 +70,5 @@ data:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [k8sattributes]
+          processors: [k8sattributes, resource]
           exporters: [opensearch]
