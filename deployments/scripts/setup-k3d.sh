@@ -94,12 +94,13 @@ fi
 # Install cert-manager
 echo ""
 echo "🔧 Installing cert-manager..."
-if helm status cert-manager -n cert-manager &>/dev/null; then
+if helm status cert-manager -n cert-manager --kube-context ${CLUSTER_CONTEXT} &>/dev/null; then
     echo "✅ cert-manager is already installed"
 else
     echo "📦 Installing cert-manager..."
     
     helm upgrade --install cert-manager oci://quay.io/jetstack/charts/cert-manager \
+    --kube-context ${CLUSTER_CONTEXT} \
     --version v1.18.4 \
     --namespace cert-manager \
     --create-namespace \
@@ -107,7 +108,7 @@ else
     
     echo ""
     echo "⏳ Waiting for cert-manager to be ready..."
-    kubectl wait --for=condition=available deployment/cert-manager -n cert-manager --timeout=120s
+    kubectl wait --for=condition=available deployment/cert-manager -n cert-manager --context ${CLUSTER_CONTEXT} --timeout=120s
     
     echo ""
     echo "✅ cert-manager is ready!"
