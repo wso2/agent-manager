@@ -280,7 +280,7 @@ func (s *agentManagerService) generateUniqueAgentName(ctx context.Context, orgNa
 
 // createOpenChoreoAgentComponent handles the creation of a managed agent
 func (s *agentManagerService) createOpenChoreoAgentComponent(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
-	// Create agent component in Open Choreo
+	// Create agent component in OpenChoreo
 	s.logger.Debug("Creating agent component in OpenChoreo", "agentName", req.Name, "orgName", orgName, "projectName", projectName)
 	if err := s.OpenChoreoSvcClient.CreateAgentComponent(ctx, orgName, projectName, req); err != nil {
 		s.logger.Error("Failed to create agent component in OpenChoreo", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "error", err)
@@ -292,7 +292,7 @@ func (s *agentManagerService) createOpenChoreoAgentComponent(ctx context.Context
 	}
 	// For internal agents, trigger build after creation
 	s.logger.Debug("Agent component created, triggering build", "agentName", req.Name, "orgName", orgName, "projectName", projectName)
-	// Trigger build in Open Choreo with the latest commit
+	// Trigger build in OpenChoreo with the latest commit
 	build, err := s.OpenChoreoSvcClient.TriggerBuild(ctx, orgName, projectName, req.Name, "")
 	if err != nil {
 		// Clean up the component if build trigger fails
@@ -323,10 +323,11 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 	_, err = s.OpenChoreoSvcClient.GetAgentComponent(ctx, org.Name, project.Name, agentName)
 	if err != nil {
 		// DELETE is idempotent
-		s.logger.Error("Failed to fetch agent", "agentName", agentName, "orgName", org.Name, "projectName", project.Name, "error", err)
 		if errors.Is(err, utils.ErrAgentNotFound) {
+			s.logger.Debug("Agent not found in OpenChoreo; delete is idempotent", "agentName", agentName, "orgName", org.Name, "projectName", project.Name)
 			return nil
 		}
+		s.logger.Error("Failed to fetch agent", "agentName", agentName, "orgName", org.Name, "projectName", project.Name, "error", err)
 		return err
 	}
 	err = s.OpenChoreoSvcClient.DeleteAgentComponent(ctx, orgName, projectName, agentName)
@@ -354,13 +355,13 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, orgName string, pr
 	}
 	agent, err := s.OpenChoreoSvcClient.GetAgentComponent(ctx, org.Name, project.Name, agentName)
 	if err != nil {
-		s.logger.Error("Failed to fetch agent from open choreo", "agentName", agentName, "error", err)
+		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "error", err)
 		return nil, err
 	}
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
 		return nil, fmt.Errorf("build operation is not supported for agent type: '%s'", agent.Provisioning.Type)
 	}
-	// Trigger build in Open Choreo
+	// Trigger build in OpenChoreo
 	s.logger.Debug("Triggering build in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "commitId", commitId)
 	build, err := s.OpenChoreoSvcClient.TriggerBuild(ctx, orgName, projectName, agentName, commitId)
 	if err != nil {
@@ -389,7 +390,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 	}
 	agent, err := s.OpenChoreoSvcClient.GetAgentComponent(ctx, org.Name, project.Name, agentName)
 	if err != nil {
-		s.logger.Error("Failed to fetch agent from open choreo", "agentName", agentName, "error", err)
+		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "error", err)
 		return "", err
 	}
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
@@ -402,7 +403,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		Env:     req.Env,
 	}
 
-	// Deploy agent component in Open Choreo
+	// Deploy agent component in OpenChoreo
 	s.logger.Debug("Deploying agent component in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "imageId", req.ImageId)
 	if err := s.OpenChoreoSvcClient.DeployAgentComponent(ctx, orgName, projectName, agentName, deployReq); err != nil {
 		s.logger.Error("Failed to deploy agent component in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
@@ -520,7 +521,7 @@ func (s *agentManagerService) ListAgentBuilds(ctx context.Context, orgName strin
 		return nil, 0, fmt.Errorf("failed to check component existence: %w", err)
 	}
 
-	// Fetch all builds from Open Choreo first
+	// Fetch all builds from OpenChoreo first
 	allBuilds, err := s.OpenChoreoSvcClient.ListComponentWorkflows(ctx, orgName, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to list builds from OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
@@ -562,13 +563,13 @@ func (s *agentManagerService) GetBuild(ctx context.Context, orgName string, proj
 	}
 	agent, err := s.OpenChoreoSvcClient.GetAgentComponent(ctx, org.Name, project.Name, agentName)
 	if err != nil {
-		s.logger.Error("Failed to fetch agent from open choreo", "agentName", agentName, "error", err)
+		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "error", err)
 		return nil, err
 	}
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
 		return nil, fmt.Errorf("build operation is not supported for agent type: '%s'", agent.Provisioning.Type)
 	}
-	// Fetch the build from Open Choreo
+	// Fetch the build from OpenChoreo
 	build, err := s.OpenChoreoSvcClient.GetComponentWorkflow(ctx, orgName, projectName, agentName, buildName)
 	if err != nil {
 		s.logger.Error("Failed to get build from OpenChoreo", "buildName", buildName, "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
@@ -597,7 +598,7 @@ func (s *agentManagerService) GetAgentDeployments(ctx context.Context, orgName s
 	}
 	agent, err := s.OpenChoreoSvcClient.GetAgentComponent(ctx, org.Name, project.Name, agentName)
 	if err != nil {
-		s.logger.Error("Failed to fetch agent from open choreo", "agentName", agentName, "error", err)
+		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "error", err)
 		return nil, err
 	}
 	if agent.Provisioning.Type != string(utils.InternalAgent) {

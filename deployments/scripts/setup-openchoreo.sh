@@ -189,7 +189,7 @@ echo "5️⃣ Installing Custom Build CI Workflows..."
 if helm status amp-custom-build-ci-workflows -n openchoreo-build-plane &>/dev/null; then
     echo "⏭️  Custom Build CI Workflows already installed, skipping..."
 else
-    helm install amp-custom-build-ci-workflows "${SCRIPT_DIR}/../helm-charts/wso2-amp-build-extension" --namespace openchoreo-build-plane --set global.agentManagerService.url="http://host.docker.internal:9000"
+    helm install amp-custom-build-ci-workflows "${SCRIPT_DIR}/../helm-charts/wso2-amp-build-extension" --namespace openchoreo-build-plane"
     echo "✅ Custom Build CI Workflows installed successfully"
 fi
 echo ""

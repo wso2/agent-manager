@@ -532,7 +532,7 @@ func (k *openChoreoSvcClient) DeployAgentComponent(ctx context.Context, orgName 
 		return fmt.Errorf("failed to check agent component existence: %w", err)
 	}
 	if !exists {
-		return fmt.Errorf("agent component %s does not exist in open choreo %s", componentName, projName)
+		return fmt.Errorf("agent component %s does not exist in OpenChoreo %s", componentName, projName)
 	}
 
 	// Retry the entire get-modify-update operation to handle conflicts

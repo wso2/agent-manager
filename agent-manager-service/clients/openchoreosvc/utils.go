@@ -100,9 +100,9 @@ func buildEnvironmentVariablesArray(req *spec.CreateAgentRequest) []map[string]i
 	return environmentVariables
 }
 
-func buildEndpointsArray(req *spec.CreateAgentRequest) ([]map[string]interface{}, error) {
+func buildEndpointsArray(req *spec.CreateAgentRequest) ([]ComponentEndpoint, error) {
 	// Initialize as empty slice to ensure JSON serializes to [] instead of null
-	endpoints := make([]map[string]interface{}, 0)
+	endpoints := make([]ComponentEndpoint, 0)
 
 	// Handle Chat API - use embedded schema content
 	if req.AgentType.Type == string(utils.AgentTypeAPI) &&
@@ -111,13 +111,13 @@ func buildEndpointsArray(req *spec.CreateAgentRequest) ([]map[string]interface{}
 		if err != nil {
 			return nil, fmt.Errorf("failed to read Chat API schema: %w", err)
 		}
-		endpoints = []map[string]interface{}{
+		endpoints = []ComponentEndpoint{
 			{
-				"name":          fmt.Sprintf("%s-endpoint", req.Name),
-				"port":          config.GetConfig().DefaultChatAPI.DefaultHTTPPort,
-				"type":          string(utils.InputInterfaceTypeHTTP),
-				"schemaType":    string(v1alpha1.EndpointTypeREST),
-				"schemaContent": schemaContent,
+				Name:          fmt.Sprintf("%s-endpoint", req.Name),
+				Port:          config.GetConfig().DefaultChatAPI.DefaultHTTPPort,
+				Type:          string(utils.InputInterfaceTypeHTTP),
+				SchemaType:    string(v1alpha1.EndpointTypeREST),
+				SchemaContent: schemaContent,
 			},
 		}
 	}
@@ -125,13 +125,13 @@ func buildEndpointsArray(req *spec.CreateAgentRequest) ([]map[string]interface{}
 	// Handle Custom API - use schema path from request
 	if req.AgentType.Type == string(utils.AgentTypeAPI) &&
 		utils.StrPointerAsStr(req.AgentType.SubType, "") == string(utils.AgentSubTypeCustomAPI) {
-		endpoints = []map[string]interface{}{
+		endpoints = []ComponentEndpoint{
 			{
-				"name":           fmt.Sprintf("%s-endpoint", req.Name),
-				"port":           req.InputInterface.Port,
-				"type":           req.InputInterface.Type,
-				"schemaType":    string(v1alpha1.EndpointTypeREST),
-				"schemaFilePath": req.InputInterface.Schema.Path,
+				Name:           fmt.Sprintf("%s-endpoint", req.Name),
+				Port:           req.InputInterface.Port,
+				Type:           req.InputInterface.Type,
+				SchemaType:     string(v1alpha1.EndpointTypeREST),
+				SchemaFilePath: req.InputInterface.Schema.Path,
 			},
 		}
 	}
