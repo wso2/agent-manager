@@ -153,6 +153,89 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /traces/export:
+    get:
+      tags:
+        - traces
+      summary: Export traces with full span details
+      description: Retrieves complete trace objects including all spans and their attributes for the specified time range. Designed for exporting trace data for analysis or archival.
+      operationId: exportTraces
+      parameters:
+        - name: startTime
+          in: query
+          required: true
+          description: Start time for the trace query (ISO 8601 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2025-12-16T06:58:02.433Z"
+        - name: endTime
+          in: query
+          required: true
+          description: End time for the trace query (ISO 8601 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2025-12-18T06:58:02.433Z"
+        - name: componentUid
+          in: query
+          required: true
+          description: The component (agent/service) unique identifier
+          schema:
+            type: string
+            example: "default-component"
+        - name: environmentUid
+          in: query
+          required: true
+          description: The environment unique identifier
+          schema:
+            type: string
+            example: "default-environment"
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of traces to export (capped at 1000)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+            example: 50
+        - name: offset
+          in: query
+          required: false
+          description: Number of traces to skip for pagination
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            example: 0
+      responses:
+        '200':
+          description: Successful response with complete trace data
+          headers:
+            Content-Disposition:
+              description: Suggests a filename for the downloaded export
+              schema:
+                type: string
+                example: "attachment; filename=traces-export-20260116-120000.json"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraceExportResponse'
+        '400':
+          description: Bad request - missing or invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   schemas:
     Span:
@@ -294,6 +377,115 @@ components:
           type: integer
           description: Total number of traces found
           example: 42
+
+    FullTrace:
+      type: object
+      required:
+        - traceId
+        - rootSpanId
+        - rootSpanName
+        - startTime
+        - endTime
+        - spans
+      properties:
+        traceId:
+          type: string
+          description: Unique identifier for the trace
+          example: "3cae024cf613a5f37843e9c6eefa3020"
+        rootSpanId:
+          type: string
+          description: Identifier of the root span
+          example: "root123"
+        rootSpanName:
+          type: string
+          description: Name of the root span
+          example: "POST /api/orders"
+        rootSpanKind:
+          type: string
+          description: Semantic kind of the root span (llm, tool, agent, etc.)
+          example: "agent"
+        startTime:
+          type: string
+          format: date-time
+          description: Start timestamp of the trace (ISO 8601 format)
+          example: "2025-12-17T10:30:00.000Z"
+        endTime:
+          type: string
+          format: date-time
+          description: End timestamp of the trace (ISO 8601 format)
+          example: "2025-12-17T10:30:02.500Z"
+        durationInNanos:
+          type: integer
+          format: int64
+          description: Total trace duration in nanoseconds
+          example: 2500000000
+        spanCount:
+          type: integer
+          description: Number of spans in this trace
+          example: 15
+        tokenUsage:
+          $ref: '#/components/schemas/TokenUsage'
+        status:
+          $ref: '#/components/schemas/TraceStatus'
+        input:
+          description: Input data from the root span
+          oneOf:
+            - type: string
+            - type: object
+            - type: array
+          nullable: true
+        output:
+          description: Output data from the root span
+          oneOf:
+            - type: string
+            - type: object
+            - type: array
+          nullable: true
+        spans:
+          type: array
+          items:
+            $ref: '#/components/schemas/Span'
+          description: All spans in the trace with complete details
+
+    TraceExportResponse:
+      type: object
+      required:
+        - traces
+        - totalCount
+      properties:
+        traces:
+          type: array
+          items:
+            $ref: '#/components/schemas/FullTrace'
+          description: List of complete trace objects with all span details
+        totalCount:
+          type: integer
+          description: Total number of traces available for export
+          example: 150
+
+    TokenUsage:
+      type: object
+      properties:
+        inputTokens:
+          type: integer
+          description: Total input tokens used
+          example: 1500
+        outputTokens:
+          type: integer
+          description: Total output tokens generated
+          example: 500
+        totalTokens:
+          type: integer
+          description: Total tokens (input + output)
+          example: 2000
+
+    TraceStatus:
+      type: object
+      properties:
+        errorCount:
+          type: integer
+          description: Number of spans with errors (0 means no errors)
+          example: 0
 
     ErrorResponse:
       type: object

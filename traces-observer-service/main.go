@@ -90,6 +90,7 @@ func main() {
 	// Setup routes
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/traces", handler.GetTraceOverviews)
+	mux.HandleFunc("/api/v1/traces/export", handler.ExportTraces)
 	mux.HandleFunc("/api/v1/trace", handler.GetTraceByIdAndService)
 	mux.HandleFunc("/health", handler.Health)
 
