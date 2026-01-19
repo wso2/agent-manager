@@ -422,6 +422,34 @@ else
 fi
 
 # ============================================================================
+# Step 2.5: Ensure CoreDNS has host.k3d.internal entry
+# ============================================================================
+
+log_info "Ensuring CoreDNS has host.k3d.internal entry..."
+
+# Wait for CoreDNS to be ready
+kubectl wait --for=condition=available deployment/coredns -n kube-system --context "${CLUSTER_CONTEXT}" --timeout=60s
+
+# Get the gateway IP for the k3d network
+GATEWAY_IP=$(docker network inspect "k3d-${CLUSTER_NAME}" -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || true)
+if [[ -z "$GATEWAY_IP" ]]; then
+    log_warning "Could not determine gateway IP for host.k3d.internal"
+else
+    # Ensure host.k3d.internal is in CoreDNS NodeHosts
+    CURRENT_HOSTS=$(kubectl get cm coredns -n kube-system --context "${CLUSTER_CONTEXT}" -o jsonpath='{.data.NodeHosts}')
+    if echo "$CURRENT_HOSTS" | grep -q "host.k3d.internal"; then
+        log_success "CoreDNS already has host.k3d.internal entry"
+    else
+        log_info "Adding host.k3d.internal ($GATEWAY_IP) to CoreDNS..."
+        kubectl patch configmap coredns -n kube-system --context "${CLUSTER_CONTEXT}" --type merge \
+            -p "{\"data\":{\"NodeHosts\":\"${CURRENT_HOSTS}\n${GATEWAY_IP} host.k3d.internal\n\"}}"
+        kubectl rollout restart deployment coredns -n kube-system --context "${CLUSTER_CONTEXT}"
+        kubectl rollout status deployment/coredns -n kube-system --context "${CLUSTER_CONTEXT}" --timeout=60s
+        log_success "CoreDNS updated with host.k3d.internal"
+    fi
+fi
+
+# ============================================================================
 # Step 3: Install Cert Manager
 # ============================================================================
 
