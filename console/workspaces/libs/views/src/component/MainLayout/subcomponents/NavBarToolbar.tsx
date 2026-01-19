@@ -74,7 +74,7 @@ export function Logo() {
           fontWeight={600}
           sx={{ letterSpacing: 0.05 }}
         >
-          Agent Management Platform
+          Agent Manager
         </Typography>
       </Box>
     </Box>

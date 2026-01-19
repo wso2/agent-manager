@@ -16,18 +16,26 @@
  * under the License.
  */
 
-import { NoDataFound } from "@agent-management-platform/views";
+import { NoDataFound, JSONView } from "@agent-management-platform/views";
 import {
   Box,
   Card,
   CardContent,
   Chip,
+  Divider,
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
 import { Info } from "@wso2/oxygen-ui-icons-react";
-import { AmpAttributes, PromptMessage, ToolData, AgentData, CrewAITaskData } from "@agent-management-platform/types";
+import {
+  AmpAttributes,
+  PromptMessage,
+  ToolData,
+  AgentData,
+  CrewAITaskData,
+} from "@agent-management-platform/types";
 import { memo, useCallback, useMemo } from "react";
+import Markdown from "react-markdown";
 
 interface OverviewProps {
   ampAttributes?: AmpAttributes;
@@ -48,7 +56,7 @@ function formattedMessage(message: string) {
    */
   function recursiveParse(value: any): any {
     // If it's a string, try to parse it as JSON
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       try {
         const parsed = JSON.parse(value);
         // Recursively process the parsed result
@@ -58,14 +66,14 @@ function formattedMessage(message: string) {
         return value;
       }
     }
-    
+
     // If it's an array, recursively process each element
     if (Array.isArray(value)) {
-      return value.map(item => recursiveParse(item));
+      return value.map((item) => recursiveParse(item));
     }
-    
+
     // If it's an object, recursively process each property
-    if (value !== null && typeof value === 'object') {
+    if (value !== null && typeof value === "object") {
       const result: Record<string, any> = {};
       for (const key in value) {
         if (Object.prototype.hasOwnProperty.call(value, key)) {
@@ -74,7 +82,7 @@ function formattedMessage(message: string) {
       }
       return result;
     }
-    
+
     // For primitives (number, boolean, null), return as-is
     return value;
   }
@@ -103,7 +111,7 @@ const MessageList = memo(function MessageList({
         <Typography variant="h6" sx={{ mb: 2 }}>
           {title}
         </Typography>
-        <Card variant="outlined" sx={{ bgcolor: 'action.hover' }}>
+        <Card variant="outlined" sx={{ bgcolor: "action.hover" }}>
           <CardContent>
             <Typography variant="body2" color="text.secondary">
               No data available
@@ -115,7 +123,8 @@ const MessageList = memo(function MessageList({
   }
 
   return (
-    <Box data-testid={testId}>
+    <Stack pt={2} data-testid={testId}>
+      <Divider sx={{ mb: 2 }} />
       <Typography variant="h6" sx={{ mb: 2 }}>
         {title}
       </Typography>
@@ -123,7 +132,6 @@ const MessageList = memo(function MessageList({
         {messages.map((message, index) => {
           const messageKey =
             (message as PromptMessage & { id?: string }).id ?? index;
-
           return (
             <Card key={messageKey} variant="outlined">
               <CardContent>
@@ -131,24 +139,41 @@ const MessageList = memo(function MessageList({
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     {message?.role && message.role !== "unknown" && (
                       <Chip
-                        label={message.role}
+                        label={
+                          message.role.charAt(0).toUpperCase() +
+                          message.role.slice(1)
+                        }
                         size="small"
                         color={getRoleColor(message.role)}
                         variant="outlined"
                       />
                     )}
                   </Box>
-                  {message.content && (
-                    <Typography
-                      variant="caption"
+                  {message.content && !message.role && (
+                    <JSONView json={formattedMessage(message.content)} />
+                  )}
+                  {message.content && message.role && (
+                    <Box
                       sx={{
-                        fontFamily: "monospace",
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
+                        fontSize: "0.75rem",
+                        color: "text.secondary",
+                        "& p": { margin: 0 },
+                        "& pre": {
+                          backgroundColor: "action.hover",
+                          padding: 1,
+                          borderRadius: 1,
+                          overflow: "auto",
+                        },
+                        "& code": {
+                          backgroundColor: "action.hover",
+                          padding: "2px 4px",
+                          borderRadius: "4px",
+                          fontFamily: "monospace",
+                        },
                       }}
                     >
-                      {formattedMessage(message.content)}
-                    </Typography>
+                      <Markdown>{message.content}</Markdown>
+                    </Box>
                   )}
                   {message.toolCalls && message.toolCalls.length > 0 && (
                     <Box>
@@ -192,7 +217,7 @@ const MessageList = memo(function MessageList({
           );
         })}
       </Stack>
-    </Box>
+    </Stack>
   );
 });
 
@@ -206,8 +231,12 @@ export function Overview({ ampAttributes }: OverviewProps) {
         return [{ content: input }];
       }
       // Handle string arrays (e.g., for embedding documents)
-      if (Array.isArray(input) && input.length > 0 && typeof input[0] === "string") {
-        return (input as string[]).map(doc => ({ content: doc }));
+      if (
+        Array.isArray(input) &&
+        input.length > 0 &&
+        typeof input[0] === "string"
+      ) {
+        return (input as string[]).map((doc) => ({ content: doc }));
       }
       // Handle PromptMessage arrays
       return input as PromptMessage[];
@@ -228,11 +257,11 @@ export function Overview({ ampAttributes }: OverviewProps) {
   // Extract name from data based on kind
   const name = useMemo(() => {
     const { kind, data } = ampAttributes || {};
-    if (kind === 'tool' && data) {
+    if (kind === "tool" && data) {
       return (data as ToolData).name;
-    } else if (kind === 'agent' && data) {
+    } else if (kind === "agent" && data) {
       return (data as AgentData).name;
-    } else if (kind === 'crewaitask' && data) {
+    } else if (kind === "crewaitask" && data) {
       return (data as CrewAITaskData).name;
     }
     return undefined;
@@ -241,7 +270,7 @@ export function Overview({ ampAttributes }: OverviewProps) {
   // Extract description for CrewAI tasks
   const taskDescription = useMemo(() => {
     const { kind, data } = ampAttributes || {};
-    if (kind === 'crewaitask' && data) {
+    if (kind === "crewaitask" && data) {
       return (data as CrewAITaskData).description;
     }
     return undefined;
@@ -250,7 +279,7 @@ export function Overview({ ampAttributes }: OverviewProps) {
   // Extract system prompt for agent spans
   const systemPrompt = useMemo(() => {
     const { kind, data } = ampAttributes || {};
-    if (kind === 'agent' && data) {
+    if (kind === "agent" && data) {
       return (data as AgentData).systemPrompt;
     }
     return undefined;

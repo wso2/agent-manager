@@ -20,6 +20,7 @@
   "dependencies": {
     "react": "19.1.1",
     "react-dom": "19.1.1",
+    "react-markdown": "10.1.0",
     "@agent-management-platform/auth": "workspace:*",
     "@agent-management-platform/types": "workspace:*",
     "@agent-management-platform/eslint-config": "workspace:*",

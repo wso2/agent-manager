@@ -16,7 +16,13 @@
  * under the License.
  */
 
-import { Span, LLMData, AgentData, EmbeddingData, RetrieverData } from "@agent-management-platform/types";
+import {
+  Span,
+  LLMData,
+  AgentData,
+  EmbeddingData,
+  RetrieverData,
+} from "@agent-management-platform/types";
 import { Chip, Stack, Tooltip } from "@wso2/oxygen-ui";
 import {
   Brain,
@@ -48,29 +54,31 @@ export function BasicInfoSection({ span }: BasicInfoSectionProps) {
   const { kind, data } = span.ampAttributes || {};
   let model: string | undefined;
   let vendor: string | undefined;
-  let tokenUsage: { inputTokens: number; outputTokens: number; totalTokens: number } | undefined;
+  let tokenUsage:
+    | { inputTokens: number; outputTokens: number; totalTokens: number }
+    | undefined;
   let temperature: number | undefined;
   let framework: string | undefined;
   let vectorDB: string | undefined;
   let topK: number | undefined;
 
-  if (kind === 'llm' && data) {
+  if (kind === "llm" && data) {
     const llmData = data as LLMData;
     model = llmData.model;
     vendor = llmData.vendor;
     tokenUsage = llmData.tokenUsage;
     temperature = llmData.temperature;
-  } else if (kind === 'agent' && data) {
+  } else if (kind === "agent" && data) {
     const agentData = data as AgentData;
     model = agentData.model;
     framework = agentData.framework;
     tokenUsage = agentData.tokenUsage;
-  } else if (kind === 'embedding' && data) {
+  } else if (kind === "embedding" && data) {
     const embeddingData = data as EmbeddingData;
     model = embeddingData.model;
     vendor = embeddingData.vendor;
     tokenUsage = embeddingData.tokenUsage;
-  } else if (kind === 'retriever' && data) {
+  } else if (kind === "retriever" && data) {
     const retrieverData = data as RetrieverData;
     vectorDB = retrieverData.vectorDB;
     topK = retrieverData.topK;
@@ -168,7 +176,7 @@ export function BasicInfoSection({ span }: BasicInfoSectionProps) {
           />
         </Tooltip>
       )}
-      {temperature && (
+      {!!temperature && (
         <Tooltip title={"Temperature"}>
           <Chip
             icon={<Thermometer size={16} />}

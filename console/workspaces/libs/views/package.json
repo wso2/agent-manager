@@ -42,6 +42,7 @@
     "@fontsource/roboto": "5.2.5",
     "react-dom": "19.1.1",
     "react-router-dom": "6.28.0",
+    "react-markdown": "10.1.0",
     "react-intl": "7.1.11",
     "react-hook-form": "7.65.0",
     "dayjs": "1.11.18",

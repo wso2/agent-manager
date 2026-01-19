@@ -47,6 +47,14 @@ function defineCustomThemes(monaco: Monaco) {
     rules: [],
     colors: {
       "editor.background": "#00000000", // Transparent
+      "editor.findMatchBackground": "#fa7b3f", // Darker color for current match with opacity
+      "editor.findMatchHighlightBackground": "#fa7b3f", // Darker color for other matches with opacity
+      "editor.findMatchBorder": "#ffffff", // White border for current match
+      "editor.findMatchHighlightBorder": "#fa7b3f", // Semi-transparent white border for other matches
+      "editor.selectionBackground": "#fa7b3f", // Darker selection color with high opacity
+      "editor.selectionForeground": "#ffffff", // White text for selected content
+      "editor.inactiveSelectionBackground": "#fa7b3f", // Selection when editor is not focused
+      "editor.selectionHighlightBackground": "#fa7b3f", // Background for matching selections
     },
   });
 
@@ -56,7 +64,15 @@ function defineCustomThemes(monaco: Monaco) {
     inherit: true,
     rules: [],
     colors: {
-      "editor.background": "#00000000", // Transparent
+      // "editor.background": "#00000000", // Transparent
+      "editor.findMatchBackground": "#fa7b3f", // Darker color for current match with opacity
+      "editor.findMatchHighlightBackground": "#fa7b3f", // Darker color for other matches with opacity
+      "editor.findMatchBorder": "#fa7b3f", // Black border for current match
+      "editor.findMatchHighlightBorder": "#fa7b3f", // Semi-transparent black border for other matches
+      "editor.selectionBackground": "#fa7b3f", // Darker selection color with high opacity
+      "editor.selectionForeground": "#ffffff", // White text for selected content
+      "editor.inactiveSelectionBackground": "#fa7b3f", // Selection when editor is not focused
+      "editor.selectionHighlightBackground": "#fa7b3f", // Background for matching selections
     },
   });
 }
@@ -302,6 +318,7 @@ export function AttributesSection({ attributes }: AttributesSectionProps) {
         onMount={handleEditorMount}
         options={{
           readOnly: true,
+          contextmenu: false,
           minimap: {
             enabled: false,
           },
