@@ -24,7 +24,9 @@ import (
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 )
 
 // Build log constants
@@ -35,6 +37,7 @@ const (
 
 type ObservabilitySvcClient interface {
 	GetBuildLogs(ctx context.Context, buildName string) (*models.BuildLogsResponse, error)
+	GetComponentMetrics(ctx context.Context, agentComponentId string, envId string, projectId string, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error)
 }
 
 type observabilitySvcClient struct {
@@ -82,4 +85,37 @@ func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, buildName str
 	}
 
 	return &logsResponse, nil
+}
+
+func (o *observabilitySvcClient) GetComponentMetrics(ctx context.Context, agentComponentId string, envId string, projectId string, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error) {
+	baseURL := config.GetConfig().Observer.URL
+	metricsURL := fmt.Sprintf("%s/api/metrics/component/usage", baseURL)
+	token := jwtassertion.GetJWTFromContext(ctx)
+	if token == "" {
+		return nil, fmt.Errorf("observabilitysvc.GetComponentMetrics: JWT token not found in context")
+	}
+
+	requestBody := map[string]interface{}{
+		"componentId":   agentComponentId,
+		"startTime":     payload.StartTime,
+		"endTime":       payload.EndTime,
+		"environmentId": envId,
+		"projectId":     projectId,
+	}
+
+	req := &requests.HttpRequest{
+		Name:   "observabilitysvc.GetComponentMetrics",
+		URL:    metricsURL,
+		Method: http.MethodPost,
+	}
+	req.SetHeader("Accept", "application/json")
+	req.SetHeader("Authorization", fmt.Sprintf("Bearer %s", token))
+	req.SetJson(requestBody)
+
+	var metricsResponse models.MetricsResponse
+	if err := requests.SendRequest(ctx, o.httpClient, req).ScanResponse(&metricsResponse, http.StatusOK); err != nil {
+		return nil, fmt.Errorf("observabilitysvc.GetComponentMetrics: %w", err)
+	}
+
+	return &metricsResponse, nil
 }

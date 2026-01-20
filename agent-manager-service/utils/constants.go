@@ -56,3 +56,8 @@ const (
 	DefaultOffset = 0
 	MinOffset     = 0
 )
+
+// Log filter constants
+const (
+	MaxLogTimeRangeDays = 14    // Maximum time range for log queries in days
+)
