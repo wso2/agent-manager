@@ -2458,17 +2458,9 @@ components:
           $ref: "#/components/schemas/TraceStatus"
         input:
           description: Input data from the root span
-          oneOf:
-            - type: string
-            - type: object
-            - type: array
           nullable: true
         output:
           description: Output data from the root span
-          oneOf:
-            - type: string
-            - type: object
-            - type: array
           nullable: true
         spans:
           type: array
