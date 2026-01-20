@@ -716,7 +716,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BuildLogsResponse"
+                $ref: "#/components/schemas/LogsResponse"
         "404":
           description: Build not found
           content:
@@ -961,6 +961,61 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MetricsResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/runtime-logs:
+    post:
+      summary: Get agent runtime logs with filtering
+      description: Retrieves filtered runtime logs for an agent with optional time range, log level, and search filtering
+      operationId: filterAgentRuntimeLogs
+      parameters:
+        - name: agentName
+          in: path
+          description: Unique name of the agent
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          description: Organization name
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          description: Project name
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogFilterRequest"
+      responses:
+        "200":
+          description: A detailed list of filtered application logs for the specified agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogsResponse"
         "400":
           description: Invalid request parameters
           content:
@@ -1697,7 +1752,7 @@ components:
         - timestamp
         - log
         - logLevel
-    BuildLogsResponse:
+    LogsResponse:
       type: object
       properties:
         logs:
@@ -2403,17 +2458,9 @@ components:
           $ref: "#/components/schemas/TraceStatus"
         input:
           description: Input data from the root span
-          oneOf:
-            - type: string
-            - type: object
-            - type: array
           nullable: true
         output:
           description: Output data from the root span
-          oneOf:
-            - type: string
-            - type: object
-            - type: array
           nullable: true
         spans:
           type: array
@@ -2797,6 +2844,44 @@ components:
       required:
         - time
         - value
+
+    LogFilterRequest:
+      type: object
+      description: Request body for filtering and retrieving application logs
+      required:
+        - environmentName
+        - startTime
+        - endTime
+      properties:
+        environmentName:
+          type: string
+          description: Environment name
+        startTime:
+          type: string
+          format: string
+          description: Start time for log filtering (RFC3339 format). Must be provided with endTime.
+        endTime:
+          type: string
+          format: string
+          description: End time for log filtering (RFC3339 format). Must be provided with startTime.
+        limit:
+          type: integer
+          description: Maximum number of log entries to return
+          minimum: 1
+          maximum: 10000
+        sortOrder:
+          type: string
+          description: Sort order of the logs
+          enum: [asc, desc]
+        logLevels:
+          type: array
+          description: Array of log levels to filter by
+          items:
+            type: string
+            enum: [DEBUG, INFO, WARN, ERROR]
+        searchPhrase:
+          type: string
+          description: Search phrase to filter logs by content
 
     ToolDefinition:
       type: object

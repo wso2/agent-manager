@@ -69,7 +69,7 @@ type LogEntry struct {
 	Labels        map[string]string `json:"labels"`
 }
 
-type BuildLogsResponse struct {
+type LogsResponse struct {
 	Logs       []LogEntry `json:"logs"`
 	TotalCount int32      `json:"totalCount"`
 	TookMs     float32    `json:"tookMs"`

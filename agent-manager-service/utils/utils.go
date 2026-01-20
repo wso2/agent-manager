@@ -427,6 +427,44 @@ func ValidateMetricsFilterRequest(payload spec.MetricsFilterRequest) error {
 	return nil
 }
 
+func ValidateLogFilterRequest(payload spec.LogFilterRequest) error {
+	// Validate required fields
+	if payload.EnvironmentName == "" {
+		return fmt.Errorf("environment is required")
+	}
+
+	validateTimesErr := validateTimes(payload.StartTime, payload.EndTime)
+	if validateTimesErr != nil {
+		return validateTimesErr
+	}
+
+	// Validate optional limit if provided
+	if payload.Limit != nil {
+		if *payload.Limit < MinLogLimit || *payload.Limit > MaxLogLimit {
+			return fmt.Errorf("limit must be between %d and %d", MinLogLimit, MaxLogLimit)
+		}
+	}
+
+	// Validate optional sortOrder if provided
+	if payload.SortOrder != nil {
+		sortOrder := *payload.SortOrder
+		if sortOrder != SortOrderAsc && sortOrder != SortOrderDesc {
+			return fmt.Errorf("sortOrder must be '%s' or '%s'", SortOrderAsc, SortOrderDesc)
+		}
+	}
+
+	// Validate optional logLevels if provided
+	if len(payload.LogLevels) > 0 {
+		for _, level := range payload.LogLevels {
+			if !isValidLogLevel(level) {
+				return fmt.Errorf("invalid log level '%s': must be one of INFO, DEBUG, WARN, ERROR", level)
+			}
+		}
+	}
+
+	return nil
+}
+
 func validateTimes(startTime string, endTime string) error {
 	if startTime == "" {
 		return fmt.Errorf("Required field startTime not found")
@@ -449,6 +487,11 @@ func validateTimes(startTime string, endTime string) error {
 	parsedStartTime, _ := time.Parse(time.RFC3339, startTime)
 	parsedEndTime, _ := time.Parse(time.RFC3339, endTime)
 
+	// Validate that start time is not in the future
+	if parsedStartTime.After(time.Now()) {
+		return fmt.Errorf("startTime cannot be in the future")
+	}
+
 	if parsedEndTime.Before(parsedStartTime) {
 		return fmt.Errorf("endTime (%s) must be after startTime (%s)", parsedEndTime, parsedStartTime)
 	}
@@ -460,4 +503,9 @@ func validateTimes(startTime string, endTime string) error {
 	}
 
 	return nil
+}
+
+// isValidLogLevel checks if the given log level is valid
+func isValidLogLevel(level string) bool {
+	return level == LogLevelInfo || level == LogLevelDebug || level == LogLevelWarn || level == LogLevelError
 }

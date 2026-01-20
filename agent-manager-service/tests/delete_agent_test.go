@@ -22,14 +22,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/wiring"
@@ -43,42 +41,12 @@ var (
 	testFailingAgentName  = fmt.Sprintf("failing-agent-%s", uuid.New().String()[:5])
 )
 
-func createMockOpenChoreoClientForDelete() *clientmocks.OpenChoreoSvcClientMock {
-	return &clientmocks.OpenChoreoSvcClientMock{
-		GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
-			if orgName == "nonexistent-org" {
-				return nil, utils.ErrOrganizationNotFound
-			}
-			return &models.OrganizationResponse{
-				Name:        orgName,
-				DisplayName: orgName,
-				CreatedAt:   time.Now(),
-				Status:      "ACTIVE",
-			}, nil
-		},
-		GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
-			if projectName == "nonexistent-project" {
-				return nil, utils.ErrProjectNotFound
-			}
-			return &models.ProjectResponse{
-				Name:        projectName,
-				DisplayName: projectName,
-				OrgName:     orgName,
-				CreatedAt:   time.Now(),
-			}, nil
-		},
-		DeleteAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agentName string) error {
-			return nil
-		},
-	}
-}
-
 func TestDeleteAgent(t *testing.T) {
 	setUpDeleteTest(t)
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Deleting an internal agent should return 204", func(t *testing.T) {
-		openChoreoClient := createMockOpenChoreoClientForDelete()
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 		}
@@ -106,7 +74,7 @@ func TestDeleteAgent(t *testing.T) {
 	})
 
 	t.Run("Deleting an external agent should return 204", func(t *testing.T) {
-		openChoreoClient := createMockOpenChoreoClientForDelete()
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 		}
@@ -143,7 +111,7 @@ func TestDeleteAgent(t *testing.T) {
 			wantErrMsg:     "Organization not found",
 			url:            fmt.Sprintf("/api/v1/orgs/nonexistent-org/projects/%s/agents/%s", testDeleteProjName, testDeleteAgentName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClientForDelete()
+				return apitestutils.CreateMockOpenChoreoClient()
 			},
 			setupData: func(t *testing.T) {
 				// No data setup needed
@@ -156,7 +124,7 @@ func TestDeleteAgent(t *testing.T) {
 			wantErrMsg:     "Project not found",
 			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/nonexistent-project/agents/%s", testDeleteOrgName, testDeleteAgentName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClientForDelete()
+				return apitestutils.CreateMockOpenChoreoClient()
 			},
 			setupData: func(t *testing.T) {
 				// No data setup needed
@@ -173,7 +141,7 @@ func TestDeleteAgent(t *testing.T) {
 			wantErrMsg: "missing header: Authorization",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s", testDeleteOrgName, testDeleteProjName, testDeleteAgentName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClientForDelete()
+				return apitestutils.CreateMockOpenChoreoClient()
 			},
 			setupData: func(t *testing.T) {
 				// No data setup needed
@@ -186,7 +154,7 @@ func TestDeleteAgent(t *testing.T) {
 			wantErrMsg:     "Failed to delete agent",
 			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s", testDeleteOrgName, testDeleteProjName, testFailingAgentName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				mock := createMockOpenChoreoClientForDelete()
+				mock := apitestutils.CreateMockOpenChoreoClient()
 				mock.DeleteAgentComponentFunc = func(ctx context.Context, orgName string, projName string, agentName string) error {
 					return fmt.Errorf("OpenChoreo service error")
 				}
@@ -233,7 +201,7 @@ func TestDeleteAgentIdempotency(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Multiple deletes of same agent should be handled gracefully", func(t *testing.T) {
-		openChoreoClient := createMockOpenChoreoClientForDelete()
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 		}

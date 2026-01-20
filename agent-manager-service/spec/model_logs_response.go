@@ -14,38 +14,38 @@ import (
 	"encoding/json"
 )
 
-// checks if the BuildLogsResponse type satisfies the MappedNullable interface at compile time
-var _ MappedNullable = &BuildLogsResponse{}
+// checks if the LogsResponse type satisfies the MappedNullable interface at compile time
+var _ MappedNullable = &LogsResponse{}
 
-// BuildLogsResponse struct for BuildLogsResponse
-type BuildLogsResponse struct {
+// LogsResponse struct for LogsResponse
+type LogsResponse struct {
 	Logs       []LogEntry `json:"logs"`
 	TotalCount int32      `json:"totalCount"`
 	TookMs     float32    `json:"tookMs"`
 }
 
-// NewBuildLogsResponse instantiates a new BuildLogsResponse object
+// NewLogsResponse instantiates a new LogsResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewBuildLogsResponse(logs []LogEntry, totalCount int32, tookMs float32) *BuildLogsResponse {
-	this := BuildLogsResponse{}
+func NewLogsResponse(logs []LogEntry, totalCount int32, tookMs float32) *LogsResponse {
+	this := LogsResponse{}
 	this.Logs = logs
 	this.TotalCount = totalCount
 	this.TookMs = tookMs
 	return &this
 }
 
-// NewBuildLogsResponseWithDefaults instantiates a new BuildLogsResponse object
+// NewLogsResponseWithDefaults instantiates a new LogsResponse object
 // This constructor will only assign default values to properties that have it defined,
 // but it doesn't guarantee that properties required by API are set
-func NewBuildLogsResponseWithDefaults() *BuildLogsResponse {
-	this := BuildLogsResponse{}
+func NewLogsResponseWithDefaults() *LogsResponse {
+	this := LogsResponse{}
 	return &this
 }
 
 // GetLogs returns the Logs field value
-func (o *BuildLogsResponse) GetLogs() []LogEntry {
+func (o *LogsResponse) GetLogs() []LogEntry {
 	if o == nil {
 		var ret []LogEntry
 		return ret
@@ -56,7 +56,7 @@ func (o *BuildLogsResponse) GetLogs() []LogEntry {
 
 // GetLogsOk returns a tuple with the Logs field value
 // and a boolean to check if the value has been set.
-func (o *BuildLogsResponse) GetLogsOk() ([]LogEntry, bool) {
+func (o *LogsResponse) GetLogsOk() ([]LogEntry, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -64,12 +64,12 @@ func (o *BuildLogsResponse) GetLogsOk() ([]LogEntry, bool) {
 }
 
 // SetLogs sets field value
-func (o *BuildLogsResponse) SetLogs(v []LogEntry) {
+func (o *LogsResponse) SetLogs(v []LogEntry) {
 	o.Logs = v
 }
 
 // GetTotalCount returns the TotalCount field value
-func (o *BuildLogsResponse) GetTotalCount() int32 {
+func (o *LogsResponse) GetTotalCount() int32 {
 	if o == nil {
 		var ret int32
 		return ret
@@ -80,7 +80,7 @@ func (o *BuildLogsResponse) GetTotalCount() int32 {
 
 // GetTotalCountOk returns a tuple with the TotalCount field value
 // and a boolean to check if the value has been set.
-func (o *BuildLogsResponse) GetTotalCountOk() (*int32, bool) {
+func (o *LogsResponse) GetTotalCountOk() (*int32, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -88,12 +88,12 @@ func (o *BuildLogsResponse) GetTotalCountOk() (*int32, bool) {
 }
 
 // SetTotalCount sets field value
-func (o *BuildLogsResponse) SetTotalCount(v int32) {
+func (o *LogsResponse) SetTotalCount(v int32) {
 	o.TotalCount = v
 }
 
 // GetTookMs returns the TookMs field value
-func (o *BuildLogsResponse) GetTookMs() float32 {
+func (o *LogsResponse) GetTookMs() float32 {
 	if o == nil {
 		var ret float32
 		return ret
@@ -104,7 +104,7 @@ func (o *BuildLogsResponse) GetTookMs() float32 {
 
 // GetTookMsOk returns a tuple with the TookMs field value
 // and a boolean to check if the value has been set.
-func (o *BuildLogsResponse) GetTookMsOk() (*float32, bool) {
+func (o *LogsResponse) GetTookMsOk() (*float32, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -112,11 +112,11 @@ func (o *BuildLogsResponse) GetTookMsOk() (*float32, bool) {
 }
 
 // SetTookMs sets field value
-func (o *BuildLogsResponse) SetTookMs(v float32) {
+func (o *LogsResponse) SetTookMs(v float32) {
 	o.TookMs = v
 }
 
-func (o BuildLogsResponse) MarshalJSON() ([]byte, error) {
+func (o LogsResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
 		return []byte{}, err
@@ -124,7 +124,7 @@ func (o BuildLogsResponse) MarshalJSON() ([]byte, error) {
 	return json.Marshal(toSerialize)
 }
 
-func (o BuildLogsResponse) ToMap() (map[string]interface{}, error) {
+func (o LogsResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["logs"] = o.Logs
 	toSerialize["totalCount"] = o.TotalCount
@@ -132,38 +132,38 @@ func (o BuildLogsResponse) ToMap() (map[string]interface{}, error) {
 	return toSerialize, nil
 }
 
-type NullableBuildLogsResponse struct {
-	value *BuildLogsResponse
+type NullableLogsResponse struct {
+	value *LogsResponse
 	isSet bool
 }
 
-func (v NullableBuildLogsResponse) Get() *BuildLogsResponse {
+func (v NullableLogsResponse) Get() *LogsResponse {
 	return v.value
 }
 
-func (v *NullableBuildLogsResponse) Set(val *BuildLogsResponse) {
+func (v *NullableLogsResponse) Set(val *LogsResponse) {
 	v.value = val
 	v.isSet = true
 }
 
-func (v NullableBuildLogsResponse) IsSet() bool {
+func (v NullableLogsResponse) IsSet() bool {
 	return v.isSet
 }
 
-func (v *NullableBuildLogsResponse) Unset() {
+func (v *NullableLogsResponse) Unset() {
 	v.value = nil
 	v.isSet = false
 }
 
-func NewNullableBuildLogsResponse(val *BuildLogsResponse) *NullableBuildLogsResponse {
-	return &NullableBuildLogsResponse{value: val, isSet: true}
+func NewNullableLogsResponse(val *LogsResponse) *NullableLogsResponse {
+	return &NullableLogsResponse{value: val, isSet: true}
 }
 
-func (v NullableBuildLogsResponse) MarshalJSON() ([]byte, error) {
+func (v NullableLogsResponse) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v.value)
 }
 
-func (v *NullableBuildLogsResponse) UnmarshalJSON(src []byte) error {
+func (v *NullableLogsResponse) UnmarshalJSON(src []byte) error {
 	v.isSet = true
 	return json.Unmarshal(src, &v.value)
 }

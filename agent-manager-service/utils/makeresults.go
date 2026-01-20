@@ -361,7 +361,7 @@ func ConvertToProjectListResponse(projects []*models.ProjectResponse) []spec.Pro
 	return responses
 }
 
-func ConvertToBuildLogsResponse(buildLogs models.BuildLogsResponse) spec.BuildLogsResponse {
+func ConvertToLogsResponse(buildLogs models.LogsResponse) spec.LogsResponse {
 	logEntries := make([]spec.LogEntry, len(buildLogs.Logs))
 	for i, logEntry := range buildLogs.Logs {
 		logEntries[i] = spec.LogEntry{
@@ -370,7 +370,7 @@ func ConvertToBuildLogsResponse(buildLogs models.BuildLogsResponse) spec.BuildLo
 			LogLevel:  logEntry.LogLevel,
 		}
 	}
-	responses := spec.BuildLogsResponse{
+	responses := spec.LogsResponse{
 		Logs:       logEntries,
 		TotalCount: buildLogs.TotalCount,
 		TookMs:     buildLogs.TookMs,

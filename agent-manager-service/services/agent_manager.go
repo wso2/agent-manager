@@ -48,9 +48,10 @@ type AgentManagerService interface {
 	GetAgentDeployments(ctx context.Context, orgName string, projectName string, agentName string) ([]*models.DeploymentResponse, error)
 	GetAgentEndpoints(ctx context.Context, orgName string, projectName string, agentName string, environmentName string) (map[string]models.EndpointsResponse, error)
 	GetAgentConfigurations(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error)
-	GetBuildLogs(ctx context.Context, orgName string, projectName string, agentName string, buildName string) (*models.BuildLogsResponse, error)
+	GetBuildLogs(ctx context.Context, orgName string, projectName string, agentName string, buildName string) (*models.LogsResponse, error)
 	GenerateName(ctx context.Context, orgName string, payload spec.ResourceNameRequest) (string, error)
 	GetAgentMetrics(ctx context.Context, orgName string, projectName string, agentName string, payload spec.MetricsFilterRequest) (*spec.MetricsResponse, error)
+	GetAgentRuntimeLogs(ctx context.Context, orgName string, projectName string, agentName string, payload spec.LogFilterRequest) (*models.LogsResponse, error)
 }
 
 type agentManagerService struct {
@@ -234,7 +235,7 @@ func (s *agentManagerService) GenerateName(ctx context.Context, orgName string, 
 	if payload.ResourceType == string(utils.ResourceTypeProject) {
 		// Check if candidate name is available
 		_, err = s.OpenChoreoSvcClient.GetProject(ctx, candidateName, org.Name)
-		if err != nil && err == utils.ErrProjectNotFound {
+		if err != nil && errors.Is(err, utils.ErrProjectNotFound) {
 			// Name is available, return it
 			s.logger.Info("Generated unique project name", "projectName", candidateName, "orgName", orgName)
 			return candidateName, nil
@@ -260,7 +261,7 @@ func (s *agentManagerService) generateUniqueProjectName(ctx context.Context, org
 	// Create a name availability checker function that uses the project repository
 	nameChecker := func(name string) (bool, error) {
 		_, err := s.OpenChoreoSvcClient.GetProject(ctx, name, orgName)
-		if err != nil && err == utils.ErrProjectNotFound {
+		if err != nil && errors.Is(err, utils.ErrProjectNotFound) {
 			// Name is available
 			return true, nil
 		}
@@ -586,13 +587,13 @@ func findLowestEnvironment(promotionPaths []models.PromotionPath) string {
 	return ""
 }
 
-func (s *agentManagerService) GetBuildLogs(ctx context.Context, orgName string, projectName string, agentName string, buildName string) (*models.BuildLogsResponse, error) {
+func (s *agentManagerService) GetBuildLogs(ctx context.Context, orgName string, projectName string, agentName string, buildName string) (*models.LogsResponse, error) {
 	s.logger.Info("Getting build logs", "agentName", agentName, "buildName", buildName, "orgName", orgName, "projectName", projectName)
 	// Validate organization exists
 	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to validate organization", "orgName", orgName, "error", err)
-		return nil, fmt.Errorf("failed to find organization %s: %w", orgName, err)
+		return nil, err
 	}
 	// Validates the project name by checking its existence
 	_, err = s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
@@ -604,23 +605,15 @@ func (s *agentManagerService) GetBuildLogs(ctx context.Context, orgName string, 
 	// Check if component already exists
 	_, err = s.OpenChoreoSvcClient.GetAgentComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
-		if errors.Is(err, utils.ErrAgentNotFound) {
-			s.logger.Warn("Agent component not found in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName)
-			return nil, utils.ErrAgentNotFound
-		}
 		s.logger.Error("Failed to check component existence", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, fmt.Errorf("failed to check component existence: %w", err)
+		return nil, err
 	}
 
 	// Check if build exists
 	build, err := s.OpenChoreoSvcClient.GetComponentWorkflow(ctx, orgName, projectName, agentName, buildName)
 	if err != nil {
-		if errors.Is(err, utils.ErrBuildNotFound) {
-			s.logger.Warn("Build not found", "buildName", buildName, "agentName", agentName, "orgName", orgName, "projectName", projectName)
-			return nil, utils.ErrBuildNotFound
-		}
 		s.logger.Error("Failed to get build", "buildName", buildName, "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, fmt.Errorf("failed to get build %s for agent %s: %w", buildName, agentName, err)
+		return nil, err
 	}
 
 	// Fetch the build logs from Observability service
@@ -631,6 +624,47 @@ func (s *agentManagerService) GetBuildLogs(ctx context.Context, orgName string, 
 	}
 	s.logger.Info("Fetched build logs successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName, "buildName", buildName, "logCount", len(buildLogs.Logs))
 	return buildLogs, nil
+}
+
+func (s *agentManagerService) GetAgentRuntimeLogs(ctx context.Context, orgName string, projectName string, agentName string, payload spec.LogFilterRequest) (*models.LogsResponse, error) {
+	s.logger.Info("Getting application logs", "agentName", agentName, "orgName", orgName, "projectName", projectName)
+	// Validate organization exists
+	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
+	if err != nil {
+		s.logger.Error("Failed to validate organization", "orgName", orgName, "error", err)
+		return nil, err
+	}
+	// Validates the project name by checking its existence
+	_, err = s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
+	if err != nil {
+		s.logger.Error("Failed to get OpenChoreo project", "projectName", projectName, "orgName", orgName, "error", err)
+		return nil, err
+	}
+
+	// Check if component already exists
+	agent, err := s.OpenChoreoSvcClient.GetAgentComponent(ctx, orgName, projectName, agentName)
+	if err != nil {
+		s.logger.Error("Failed to check component existence", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		return nil, err
+	}
+	if agent.Provisioning.Type != string(utils.InternalAgent) {
+		return nil, fmt.Errorf("runtime logs are not supported for agent type: '%s'", agent.Provisioning.Type)
+	}
+	// Fetch environment from open choreo
+	environment, err := s.OpenChoreoSvcClient.GetEnvironment(ctx, orgName, payload.EnvironmentName)
+	if err != nil {
+		s.logger.Error("Failed to fetch environment from OpenChoreo", "environmentName", payload.EnvironmentName, "orgName", orgName, "error", err)
+		return nil, err
+	}
+
+	// Fetch the run time logs from Observability service
+	applicationLogs, err := s.ObservabilitySvcClient.GetComponentLogs(ctx, agent.UUID, environment.UUID, payload)
+	if err != nil {
+		s.logger.Error("Failed to fetch application logs from observability service", "agent", agentName, "error", err)
+		return nil, fmt.Errorf("failed to fetch application logs: %w", err)
+	}
+	s.logger.Info("Fetched application logs successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName, "logCount", len(applicationLogs.Logs))
+	return applicationLogs, nil
 }
 
 func (s *agentManagerService) GetAgentMetrics(ctx context.Context, orgName string, projectName string, agentName string, payload spec.MetricsFilterRequest) (*spec.MetricsResponse, error) {

@@ -43,43 +43,14 @@ var (
 	testCreateProjectName    = fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
 )
 
-func createMockOpenChoreoClientForCreateProject() *clientmocks.OpenChoreoSvcClientMock {
-	return &clientmocks.OpenChoreoSvcClientMock{
-		GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
-			if orgName == "nonexistent-org" {
-				return nil, utils.ErrOrganizationNotFound
-			}
-			return &models.OrganizationResponse{
-				Name:        orgName,
-				DisplayName: orgName,
-				CreatedAt:   time.Now(),
-				Status:      "ACTIVE",
-			}, nil
-		},
-		GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
-			// Return not found by default (project doesn't exist yet)
-			return nil, utils.ErrProjectNotFound
-		},
-		GetDeploymentPipelinesForOrganizationFunc: func(ctx context.Context, orgName string) ([]*models.DeploymentPipelineResponse, error) {
-			return []*models.DeploymentPipelineResponse{
-				{
-					Name:        "default",
-					DisplayName: "Default Pipeline",
-					OrgName:     orgName,
-				},
-			}, nil
-		},
-		CreateProjectFunc: func(ctx context.Context, orgName, projectName, deploymentPipeline, displayName, description string) error {
-			return nil
-		},
-	}
-}
-
 func TestCreateProject(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Creating a project with valid data should return 202", func(t *testing.T) {
-		openChoreoClient := createMockOpenChoreoClientForCreateProject()
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+		openChoreoClient.GetProjectFunc = func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+			return nil, utils.ErrProjectNotFound
+		}
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 		}
@@ -152,7 +123,11 @@ func TestCreateProject(t *testing.T) {
 				DeploymentPipeline: "default",
 			},
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClientForCreateProject()
+				mock := apitestutils.CreateMockOpenChoreoClient()
+				mock.GetProjectFunc = func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+					return nil, utils.ErrProjectNotFound
+				}
+				return mock
 			},
 		},
 		{
@@ -167,7 +142,11 @@ func TestCreateProject(t *testing.T) {
 				// Missing DeploymentPipeline
 			},
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClientForCreateProject()
+				mock := apitestutils.CreateMockOpenChoreoClient()
+				mock.GetProjectFunc = func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+					return nil, utils.ErrProjectNotFound
+				}
+				return mock
 			},
 		},
 		{
@@ -182,7 +161,11 @@ func TestCreateProject(t *testing.T) {
 				DeploymentPipeline: "default",
 			},
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClientForCreateProject()
+				mock := apitestutils.CreateMockOpenChoreoClient()
+				mock.GetProjectFunc = func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+					return nil, utils.ErrProjectNotFound
+				}
+				return mock
 			},
 		},
 		{
@@ -198,7 +181,7 @@ func TestCreateProject(t *testing.T) {
 				Description:        stringPtr(""),
 			},
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				mock := createMockOpenChoreoClientForCreateProject()
+				mock := apitestutils.CreateMockOpenChoreoClient()
 				// Override to return existing project
 				mock.GetProjectFunc = func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
 					return &models.ProjectResponse{
@@ -229,7 +212,11 @@ func TestCreateProject(t *testing.T) {
 				Description:        stringPtr(""),
 			},
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClientForCreateProject()
+				mock := apitestutils.CreateMockOpenChoreoClient()
+				mock.GetProjectFunc = func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+					return nil, utils.ErrProjectNotFound
+				}
+				return mock
 			},
 		},
 		{
@@ -245,7 +232,10 @@ func TestCreateProject(t *testing.T) {
 				Description:        stringPtr(""),
 			},
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				mock := createMockOpenChoreoClientForCreateProject()
+				mock := apitestutils.CreateMockOpenChoreoClient()
+				mock.GetProjectFunc = func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+					return nil, utils.ErrProjectNotFound
+				}
 				return mock
 			},
 		},
@@ -262,7 +252,10 @@ func TestCreateProject(t *testing.T) {
 				Description:        stringPtr(""),
 			},
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				mock := createMockOpenChoreoClientForCreateProject()
+				mock := apitestutils.CreateMockOpenChoreoClient()
+				mock.GetProjectFunc = func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
+					return nil, utils.ErrProjectNotFound
+				}
 				mock.CreateProjectFunc = func(ctx context.Context, orgName, projectName, deploymentPipeline, displayName, description string) error {
 					return fmt.Errorf("OpenChoreo service error")
 				}

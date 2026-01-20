@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
 	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
@@ -93,13 +92,7 @@ func TestListTraces(t *testing.T) {
 
 	t.Run("Listing traces with default parameters should return 200", func(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
-		openChoreoClient := createMockOpenChoreoClient()
-		// Override to return existing agent for trace retrieval
-		openChoreoClient.GetAgentComponentFunc = func(ctx context.Context, orgName, projectName, agentName string) (*openchoreosvc.AgentComponent, error) {
-			return &openchoreosvc.AgentComponent{
-				UUID: "component-uid-123",
-			}, nil
-		}
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 			TraceObserverClient: traceObserverClient,
@@ -150,13 +143,7 @@ func TestListTraces(t *testing.T) {
 
 	t.Run("Listing traces with custom pagination should return 200", func(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
-		openChoreoClient := createMockOpenChoreoClient()
-		// Override to return existing agent for trace retrieval
-		openChoreoClient.GetAgentComponentFunc = func(ctx context.Context, orgName, projectName, agentName string) (*openchoreosvc.AgentComponent, error) {
-			return &openchoreosvc.AgentComponent{
-				UUID: "component-uid-123",
-			}, nil
-		}
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 			TraceObserverClient: traceObserverClient,
@@ -188,13 +175,7 @@ func TestListTraces(t *testing.T) {
 
 	t.Run("Listing traces with time range should return 200", func(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
-		openChoreoClient := createMockOpenChoreoClient()
-		// Override to return existing agent for trace retrieval
-		openChoreoClient.GetAgentComponentFunc = func(ctx context.Context, orgName, projectName, agentName string) (*openchoreosvc.AgentComponent, error) {
-			return &openchoreosvc.AgentComponent{
-				UUID: "component-uid-123",
-			}, nil
-		}
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 			TraceObserverClient: traceObserverClient,
@@ -224,7 +205,7 @@ func TestListTraces(t *testing.T) {
 
 	t.Run("Listing traces with only startTime should return 400", func(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
-		openChoreoClient := createMockOpenChoreoClient()
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 			TraceObserverClient: traceObserverClient,
@@ -254,7 +235,7 @@ func TestListTraces(t *testing.T) {
 
 	t.Run("Listing traces with only endTime should return 400", func(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
-		openChoreoClient := createMockOpenChoreoClient()
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 			TraceObserverClient: traceObserverClient,
@@ -284,7 +265,7 @@ func TestListTraces(t *testing.T) {
 
 	t.Run("Listing traces with invalid date format should return 400", func(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
-		openChoreoClient := createMockOpenChoreoClient()
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 			TraceObserverClient: traceObserverClient,
@@ -314,7 +295,7 @@ func TestListTraces(t *testing.T) {
 
 	t.Run("Listing traces with invalid limit should return 400", func(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
-		openChoreoClient := createMockOpenChoreoClient()
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 			TraceObserverClient: traceObserverClient,
@@ -339,7 +320,7 @@ func TestListTraces(t *testing.T) {
 
 	t.Run("Listing traces with invalid sortOrder should return 400", func(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
-		openChoreoClient := createMockOpenChoreoClient()
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 			TraceObserverClient: traceObserverClient,
@@ -364,7 +345,7 @@ func TestListTraces(t *testing.T) {
 
 	t.Run("Listing traces without environment parameter should return 400", func(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
-		openChoreoClient := createMockOpenChoreoClient()
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 			TraceObserverClient: traceObserverClient,
