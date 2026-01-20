@@ -1,0 +1,9 @@
+name: Setup Go
+description: Sets up Go environment
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-go@v6.1.0
+      with:
+        go-version-file: agent-manager-service/go.mod
+        cache-dependency-path: agent-manager-service/go.sum
