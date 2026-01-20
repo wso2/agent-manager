@@ -1,0 +1,83 @@
+title: "[Design Proposal] "
+labels: ["design-proposal"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem are we solving? Be specific about the technical limitation or user pain point.
+      placeholder: |
+        Describe the problem, who is affected, and the impact.
+    validations:
+      required: true
+
+  - type: textarea
+    id: existing-solutions
+    attributes:
+      label: Existing Solutions
+      description: How is this solved elsewhere? Include links to relevant implementations, docs, or design proposals.
+      placeholder: |
+        - **[Tool/Platform A]**: How they approach it
+        - **[Tool/Platform B]**: Their solution
+        - **Current workaround**: What users do today (if applicable)
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: Technical approach and design details.
+      placeholder: |
+        ### Overview
+        High-level description.
+
+        ### Design
+        - Architecture changes
+        - API surface (endpoints, schemas, protocols)
+        - Data model changes
+        - Component interactions
+
+        ### Out of Scope
+        What this proposal explicitly does not cover.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What other approaches were evaluated?
+      placeholder: |
+        | Approach | Trade-offs | Why not |
+        |----------|------------|---------|
+        | Option A |            |         |
+        | Option B |            |         |
+    validations:
+      required: false
+
+  - type: textarea
+    id: open-questions
+    attributes:
+      label: Open Questions
+      description: Unresolved technical decisions that need input.
+      placeholder: |
+        - [ ] Question 1
+        - [ ] Question 2
+    validations:
+      required: false
+
+  - type: textarea
+    id: milestones
+    attributes:
+      label: Milestones
+      description: Implementation phases aligned with release milestones.
+      placeholder: |
+        | Phase | Scope                  | Target      |
+        |-------|------------------------|-------------|
+        | 1     | Core implementation    | Milestone X |
+        | 2     | Integration + polish   | Milestone Y |
+
+        **Dependencies**: List any blockers or prerequisite work.
+    validations:
+      required: true
