@@ -23,6 +23,7 @@ export interface DrawerWrapperProps extends Omit<DrawerProps, "children"> {
   children: ReactNode;
   minWidth?: number | string;
   maxWidth?: number | string;
+  disableScroll?: boolean;
 }
 
 export function DrawerWrapper({
@@ -30,6 +31,7 @@ export function DrawerWrapper({
   minWidth = 700,
   maxWidth = 1000,
   sx,
+  disableScroll = false,
   ...drawerProps
 }: DrawerWrapperProps) {
   const theme = useTheme();
@@ -47,6 +49,7 @@ export function DrawerWrapper({
             px: 2,
             py: 1,
             overflow: "visible",
+            overflowY: disableScroll ? "visible" : "auto",
             backgroundColor: "background.paper",
             borderRadius: 0,
           },

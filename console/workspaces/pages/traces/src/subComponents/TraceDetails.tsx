@@ -85,7 +85,7 @@ export function TraceDetails({ traceId }: TraceDetailsProps) {
 
   return (
     <FadeIn>
-      <Stack direction="row" height="calc(100vh - 64px)">
+      <Stack direction="row" height="calc(100vh - 72px)">
         <Box sx={{ width: "45%" }} pr={1} overflow="auto">
           {traceId && (
             <TraceExplorer
