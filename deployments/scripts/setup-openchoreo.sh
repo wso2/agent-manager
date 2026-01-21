@@ -289,6 +289,61 @@ echo "✅ OpenChoreo Observability Plane ready"
 echo ""
 
 # ============================================================================
+# Step 5: Install Gateway Operator
+echo "8️⃣  Installing Gateway Operator..."
+if helm status gateway-operator -n openchoreo-data-plane &>/dev/null; then
+    echo "⏭️  Gateway Operator already installed, skipping..."
+else
+    helm install gateway-operator oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator \
+        --version 0.2.0 \
+        --namespace openchoreo-data-plane \
+        --create-namespace \
+        --set logging.level=debug \
+        --set gateway.helm.chartVersion=0.3.0
+    echo "✅ Gateway Operator installed successfully"
+fi
+echo ""
+
+# Apply Gateway Operator Configuration
+echo "9️⃣  Applying Gateway Operator Configuration..."
+kubectl apply -f "${SCRIPT_DIR}/../values/api-platform-operator-full-config.yaml"
+echo "✅ Gateway configuration applied"
+echo ""
+
+# Apply Gateway and API Resources
+echo "🔟 Applying Gateway and API Resources..."
+kubectl apply -f "${SCRIPT_DIR}/../values/obs-gateway.yaml"
+
+echo "⏳ Waiting for Gateway to be ready..."
+if kubectl wait --for=condition=Programmed gateway/obs-gateway -n openchoreo-data-plane --timeout=180s; then
+    echo "✅ Gateway is programmed"
+else
+    echo "⚠️  Gateway did not become ready in time"
+fi
+
+echo ""
+echo "Gateway status:"
+kubectl get gateway obs-gateway -n openchoreo-data-plane -o yaml
+echo ""
+
+kubectl apply -f "${SCRIPT_DIR}/../values/otel-collector-rest-api.yaml"
+
+echo "⏳ Waiting for RestApi to be programmed..."
+if kubectl wait --for=condition=Programmed restapi/traces-api-secure -n openchoreo-data-plane --timeout=120s; then
+    echo "✅ RestApi is programmed"
+else
+    echo "⚠️  RestApi did not become ready in time"
+fi
+
+echo ""
+echo "RestApi status:"
+kubectl get restapi traces-api-secure -n openchoreo-data-plane -o yaml
+echo ""
+
+echo "✅ Gateway and API resources applied"
+echo ""
+
+# ============================================================================
 # VERIFICATION
 # ============================================================================
 
