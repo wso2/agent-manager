@@ -39,7 +39,14 @@ echo ""
 # CORE COMPONENTS (Required)
 # ============================================================================
 
-# Step 1: Install OpenChoreo Control Plane
+# Step 1: Apply Thunder bootstrap ConfigMap (required before Control Plane installation)
+echo "1️⃣  Applying Thunder bootstrap ConfigMap..."
+kubectl create namespace openchoreo-control-plane --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f "${SCRIPT_DIR}/../config-maps/amp-thunder-bootstrap.yaml"
+echo "✅ Thunder bootstrap ConfigMap applied"
+echo ""
+
+# Step 2: Install OpenChoreo Control Plane
 echo "2️⃣  Installing OpenChoreo Control Plane..."
 if helm status openchoreo-control-plane -n openchoreo-control-plane &>/dev/null; then
     echo "⏭️  Control Plane already installed, skipping..."

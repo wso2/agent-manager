@@ -141,6 +141,13 @@ func loadEnvs() {
 	}
 	config.IsOnPremDeployment = r.readOptionalBool("IS_ON_PREM_DEPLOYMENT", true)
 
+	// IDP OAuth2 client credentials for service-to-service auth
+	config.IDP = IDPConfig{
+		TokenURL:     r.readOptionalString("IDP_TOKEN_URL", "http://thunder.openchoreo.localhost:8080/oauth2/token"),
+		ClientID:     r.readOptionalString("IDP_CLIENT_ID", "amp-api-client"),
+		ClientSecret: r.readOptionalString("IDP_CLIENT_SECRET", "amp-api-client-secret"),
+	}
+
 	// JWT Signing configuration for agent API tokens
 	config.JWTSigning = JWTSigningConfig{
 		PrivateKeyPath:        r.readOptionalString("JWT_SIGNING_PRIVATE_KEY_PATH", "keys/private.pem"),

@@ -23,8 +23,8 @@ import (
 	"time"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/idp"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
 
@@ -39,27 +39,28 @@ type ObservabilitySvcClient interface {
 }
 
 type observabilitySvcClient struct {
-	httpClient requests.HttpClient
+	httpClient    requests.HttpClient
+	tokenProvider idp.TokenProvider
 }
 
 func NewObservabilitySvcClient() ObservabilitySvcClient {
-	httpClient := &http.Client{
-		Timeout: time.Second * 15,
-	}
+	cfg := config.GetConfig()
 	return &observabilitySvcClient{
-		httpClient: httpClient,
+		httpClient: &http.Client{
+			Timeout: time.Second * 15,
+		},
+		tokenProvider: idp.NewTokenProvider(cfg.IDP),
 	}
 }
 
 // GetBuildLogs retrieves build logs for a specific agent build from the observer service
 func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, buildName string) (*models.BuildLogsResponse, error) {
-	// temporary use config to get observer URL since the observer url in dataplane is cluster svc name which is not accessible outside the cluster,
-	// so we need to portforward the observer svc and use localhost:port to access the observer service
 	baseURL := config.GetConfig().Observer.URL
 	logsURL := fmt.Sprintf("%s/api/logs/build/%s", baseURL, buildName)
-	token := jwtassertion.GetJWTFromContext(ctx)
-	if token == "" {
-		return nil, fmt.Errorf("observabilitysvc.GetBuildLogs: JWT token not found in context")
+
+	token, err := o.tokenProvider.GetToken(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("observabilitysvc.GetBuildLogs: failed to get token: %w", err)
 	}
 
 	// Calculate time range: 30 days ago to now

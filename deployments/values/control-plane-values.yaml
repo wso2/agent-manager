@@ -33,3 +33,10 @@ thunder:
         - "http://openchoreo.localhost:8080"
         - "http://localhost:7007"
         - "http://localhost:3000" # AMP console
+
+  bootstrap:
+    enabled: true
+    configMap:
+      name: amp-thunder-bootstrap
+      files:
+        - 50-amp-api-client.sh
