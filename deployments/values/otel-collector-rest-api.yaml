@@ -1,0 +1,25 @@
+apiVersion: gateway.api-platform.wso2.com/v1alpha1
+kind: RestApi
+metadata:
+  name: traces-api-secure
+  namespace: openchoreo-data-plane
+spec:
+  displayName: traces-api-secure
+  version: v1.0
+  context: /otel
+  upstream:
+    main:
+      url: http://opentelemetry-collector.openchoreo-observability-plane.svc.cluster.local:4318
+  policies:
+    - name: jwt-auth
+      version: v0.1.0
+      params:
+        issuers:
+          - agent-manager-service
+        claimMappings:
+          sub: x-user-id
+          component_uid: x-user-component
+          environment_uid: x-user-environment
+  operations:
+    - method: POST
+      path: /v1/traces
