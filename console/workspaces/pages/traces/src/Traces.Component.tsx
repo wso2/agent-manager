@@ -291,6 +291,7 @@ export const TracesComponent: React.FC = () => {
         </Stack>
         <DrawerWrapper
           open={!!selectedTrace}
+          disableScroll
           onClose={() => setSearchParams(new URLSearchParams())}
           minWidth={"80vw"}
         >
