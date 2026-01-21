@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -65,7 +65,7 @@ export const ExternalAgentOverview = () => {
 
 
   const agentInstrumentationUrl = globalConfig.instrumentationUrl || "http://localhost:21893";
-  const apiKey = "8e3c1f4a-9b7d-4c2f-92a6-5d8f3b1c27e0";
+  const apiKey = "ey***";
 
   const handleSetupAgent = (environmentId: string) => {
     setSelectedEnvironmentId(environmentId);
@@ -141,6 +141,10 @@ export const ExternalAgentOverview = () => {
         onClose={() => setSearchParams({})}
         traceAttributes={`environment-uid=${selectedEnvironmentId},component-uid=${agent?.uuid}`}
         agentId={agentId ?? ""}
+        orgName={orgId ?? "default"}
+        projName={projectId ?? "default"}
+        agentName={agentId ?? ""}
+        environment={sortedEnvironmentList?.find((env: Environment) => env.uuid === selectedEnvironmentId)?.name}
         instrumentationUrl={agentInstrumentationUrl}
         apiKey={apiKey}
       />
