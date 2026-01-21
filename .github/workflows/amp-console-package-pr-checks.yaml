@@ -21,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20.14.0"
+          node-version: "20.19.0"
 
       - name: Install Rush dependencies
         run: node common/scripts/install-run-rush.js install
@@ -42,7 +42,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20.14.0"
+          node-version: "20.19.0"
 
       - name: Install Rush dependencies
         run: node common/scripts/install-run-rush.js install

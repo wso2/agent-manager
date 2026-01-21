@@ -17,14 +17,13 @@
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { ThemeProvider, CssBaseline } from '@wso2/oxygen-ui';
+import { ThemeProvider, CssBaseline, OxygenTheme } from '@wso2/oxygen-ui';
 import { describe, it, expect, vi } from 'vitest';
 import { MainLayout } from './MainLayout';
-import { aiAgentTheme } from '../../theme';
 
 const renderWithTheme = (component: React.ReactElement) => {
   return render(
-    <ThemeProvider theme={aiAgentTheme}>
+    <ThemeProvider theme={OxygenTheme}>
       <CssBaseline />
       {component}
     </ThemeProvider>
