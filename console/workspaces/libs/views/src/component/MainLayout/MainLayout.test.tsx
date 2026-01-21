@@ -17,8 +17,7 @@
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { ThemeProvider } from '@wso2/oxygen-ui';
-import { CssBaseline } from '@wso2/oxygen-ui';
+import { ThemeProvider, CssBaseline } from '@wso2/oxygen-ui';
 import { describe, it, expect, vi } from 'vitest';
 import { MainLayout } from './MainLayout';
 import { aiAgentTheme } from '../../theme';

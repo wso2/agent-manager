@@ -27,7 +27,6 @@ import {
 } from "@agent-management-platform/types";
 import { getTrace, getTraceList, exportTraces } from "../apis/traces";
 import { useAuthHooks } from "@agent-management-platform/auth";
-import { useCallback } from "react";
 
 export function useTraceList(
   orgName?: string,

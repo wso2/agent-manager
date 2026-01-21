@@ -61,6 +61,7 @@ export const ComponentCustom: StoryComponent = {
 };
 
 // Project Level Stories
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const metaProject: Meta<typeof OverviewProject> = {
   title: 'Pages/Overview/Project',
   component: OverviewProject,
@@ -95,6 +96,7 @@ export const ProjectCustom: StoryObj<typeof metaProject> = {
 };
 
 // Organization Level Stories
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const metaOrganization: Meta<typeof OverviewOrganization> = {
   title: 'Pages/Overview/Organization',
   component: OverviewOrganization,

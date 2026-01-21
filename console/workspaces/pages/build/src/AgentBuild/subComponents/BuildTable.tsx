@@ -24,6 +24,7 @@ import {
   CircularProgress,
   Typography,
   useTheme,
+  type Theme,
 } from "@wso2/oxygen-ui";
 import {
   DataListingTable,
@@ -81,7 +82,7 @@ const getStatusIcon = (status: StatusConfig) => {
   }
 };
 // Generic helper functions for common use cases
-export const renderStatusChip = (status: StatusConfig, theme?: any) => (
+export const renderStatusChip = (status: StatusConfig, theme?: Theme) => (
   <Box display="flex" alignItems="center" gap={theme?.spacing(1) || 1}>
     <Chip
       variant="outlined"

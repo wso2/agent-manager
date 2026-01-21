@@ -515,7 +515,8 @@ export const aiAgentTheme = createTheme(themeOptions);
 //             return {
 //               boxShadow: 'none',
 //               color: theme.palette.primary.contrastText,
-//               background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+//               background: `linear-gradient(45deg, ${theme.palette.primary.main}, ` +
+//                 `${theme.palette.secondary.main})`,
 //               transition: 'opacity 0.3s ease-in-out',
 //               '&:hover': {
 //                 boxShadow: 'none',
@@ -525,8 +526,10 @@ export const aiAgentTheme = createTheme(themeOptions);
 //                 opacity: 0.6,
 //                 color: alpha(theme.palette.primary.contrastText, 0.6),
 //                 background: isDark
-//                   ? `linear-gradient(45deg, ${theme.palette.primary.dark}, ${theme.palette.secondary.dark})`
-//                   : `linear-gradient(45deg, ${theme.palette.primary.light}, ${theme.palette.secondary.light})`,
+//                   ? `linear-gradient(45deg, ${theme.palette.primary.dark}, ` +
+//                     `${theme.palette.secondary.dark})`
+//                   : `linear-gradient(45deg, ${theme.palette.primary.light}, ` +
+//                     `${theme.palette.secondary.light})`,
 //               },
 //             };
 //           }
