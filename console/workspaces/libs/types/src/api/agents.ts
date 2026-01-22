@@ -88,7 +88,7 @@ export interface TokenResponse {
   token_type: string; // "Bearer"
 }
 
-export interface GenerateAgentTokenPathParams extends AgentPathParams {}
+export type GenerateAgentTokenPathParams = AgentPathParams;
 
 export interface GenerateAgentTokenQuery {
   environment?: string;
