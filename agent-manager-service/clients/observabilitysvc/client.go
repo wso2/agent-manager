@@ -22,8 +22,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/idp"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"

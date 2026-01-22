@@ -467,11 +467,11 @@ func ValidateLogFilterRequest(payload spec.LogFilterRequest) error {
 
 func validateTimes(startTime string, endTime string) error {
 	if startTime == "" {
-		return fmt.Errorf("Required field startTime not found")
+		return fmt.Errorf("required field startTime not found")
 	}
 
 	if endTime == "" {
-		return fmt.Errorf("Required field endTime not found")
+		return fmt.Errorf("required field endTime not found")
 	}
 
 	// Validate time format

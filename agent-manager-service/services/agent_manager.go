@@ -49,9 +49,9 @@ type AgentManagerService interface {
 }
 
 type agentManagerService struct {
-	OpenChoreoSvcClient     clients.OpenChoreoSvcClient
-	ObservabilitySvcClient  observabilitysvc.ObservabilitySvcClient
-	logger                  *slog.Logger
+	OpenChoreoSvcClient    clients.OpenChoreoSvcClient
+	ObservabilitySvcClient observabilitysvc.ObservabilitySvcClient
+	logger                 *slog.Logger
 }
 
 func NewAgentManagerService(
@@ -60,9 +60,9 @@ func NewAgentManagerService(
 	logger *slog.Logger,
 ) AgentManagerService {
 	return &agentManagerService{
-		OpenChoreoSvcClient:     openChoreoSvcClient,
-		ObservabilitySvcClient:  observabilitySvcClient,
-		logger:                  logger,
+		OpenChoreoSvcClient:    openChoreoSvcClient,
+		ObservabilitySvcClient: observabilitySvcClient,
+		logger:                 logger,
 	}
 }
 

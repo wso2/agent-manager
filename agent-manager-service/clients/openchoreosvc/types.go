@@ -29,7 +29,7 @@ type TraitType string
 
 const (
 	TraitTypeOTELInstrumentation TraitType = "python-otel-instrumentation-trait"
-	TraitTypeAPIManagement	 TraitType = "api-configuration"
+	TraitTypeAPIManagement       TraitType = "api-configuration"
 )
 
 type ComponentWorkflow string
