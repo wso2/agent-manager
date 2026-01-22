@@ -288,7 +288,7 @@ check_docker_permissions() {
 }
 
 # Check prerequisites
-log_step "Step 1/8: Verifying prerequisites"
+log_step "Step 1/9: Verifying prerequisites"
 
 # Check Docker access first
 if ! check_docker_permissions; then
@@ -322,7 +322,7 @@ log_success "All prerequisites verified"
 # Step 2: Setup k3d Cluster
 # ============================================================================
 
-log_step "Step 2/8: Setting up k3d cluster"
+log_step "Step 2/9: Setting up k3d cluster"
 
 # Check if cluster already exists
 if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
@@ -452,7 +452,7 @@ fi
 # Step 3: Install Cert Manager
 # ============================================================================
 
-log_step "Step 3/8: Installing Cert Manager"
+log_step "Step 3/9: Installing Cert Manager"
 
 helm_install_idempotent \
     "cert-manager" \
@@ -465,10 +465,29 @@ helm_install_idempotent \
 wait_for_pods "cert-manager" 300
 
 # ============================================================================
-# Step 4: Install OpenChoreo Control Plane
+# Step 4: Install AMP Thunder Extension
 # ============================================================================
 
-log_step "Step 4/8: Installing OpenChoreo Control Plane"
+log_step "Step 4/9: Installing WSO2 AMP Thunder Extension"
+
+log_info "Installing WSO2 AMP Thunder Extension..."
+if ! install_amp_thunder_extension; then
+    log_warning "AMP Thunder Extension installation failed (non-fatal)"
+    echo "The installation will continue but thunder extension features may not work."
+    echo ""
+    echo "Troubleshooting steps:"
+    echo "  1. Check Helm release: helm list -n amp-thunder"
+    echo "  2. Check pod status: kubectl get pods -n amp-thunder"
+else
+    log_success "AMP Thunder Extension installed successfully"
+fi
+echo ""
+
+# ============================================================================
+# Step 5: Install OpenChoreo Control Plane
+# ============================================================================
+
+log_step "Step 5/9: Installing OpenChoreo Control Plane"
 
 helm_install_idempotent \
     "openchoreo-control-plane" \
@@ -481,10 +500,10 @@ helm_install_idempotent \
 wait_for_pods "openchoreo-control-plane" "${TIMEOUT_CONTROL_PLANE}"
 
 # ============================================================================
-# Step 5: Install OpenChoreo Data Plane
+# Step 6: Install OpenChoreo Data Plane
 # ============================================================================
 
-log_step "Step 5/8: Installing OpenChoreo Data Plane"
+log_step "Step 6/9: Installing OpenChoreo Data Plane"
 
 helm_install_idempotent \
     "openchoreo-data-plane" \
@@ -566,10 +585,10 @@ fi
 wait_for_pods "openchoreo-data-plane" "${TIMEOUT_DATA_PLANE}"
 
 # ============================================================================
-# Step 6: Install OpenChoreo Build Plane
+# Step 7: Install OpenChoreo Build Plane
 # ============================================================================
 
-log_step "Step 6/8: Installing OpenChoreo Build Plane"
+log_step "Step 7/9: Installing OpenChoreo Build Plane"
 
 helm_install_idempotent \
     "openchoreo-build-plane" \
@@ -617,10 +636,10 @@ fi
 wait_for_deployments "openchoreo-build-plane" "${TIMEOUT_BUILD_PLANE}"
 
 # ============================================================================
-# Step 7: Install OpenChoreo Observability Plane
+# Step 8: Install OpenChoreo Observability Plane
 # ============================================================================
 
-log_step "Step 7/8: Installing OpenChoreo Observability Plane"
+log_step "Step 8/9: Installing OpenChoreo Observability Plane"
 
 # Create namespace (idempotent)
 log_info "Ensuring OpenChoreo Observability Plane namespace exists..."
@@ -722,10 +741,10 @@ else
 fi
 
 # ============================================================================
-# Step 8: Install Agent Management Platform
+# Step 9: Install Agent Management Platform
 # ============================================================================
 
-log_step "Step 8/8: Installing Agent Management Platform"
+log_step "Step 9/9: Installing Agent Management Platform"
 
 # Verify prerequisites
 if ! verify_amp_prerequisites; then
