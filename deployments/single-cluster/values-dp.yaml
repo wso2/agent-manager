@@ -14,4 +14,4 @@ external-secrets:
 
 # API Platform (APIM integration)
 api-platform:
-  enabled: true
+  enabled: false
