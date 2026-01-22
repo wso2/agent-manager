@@ -39,7 +39,7 @@ body:
     attributes:
       label: Proposed Solution
       description: Technical approach and design details.
-      placeholder: |
+      value: |
         ### Overview
         High-level description.
 
