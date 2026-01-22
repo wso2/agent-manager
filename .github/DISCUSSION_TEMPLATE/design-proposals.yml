@@ -12,6 +12,17 @@ body:
       required: true
 
   - type: textarea
+    id: user-stories
+    attributes:
+      label: User Stories
+      description: Define the user stories that this proposal addresses. Use the format "As a [role], I want [goal] so that [benefit]".
+      placeholder: |
+        - As a [role], I want [goal] so that [benefit].
+        - As a [role], I want [goal] so that [benefit].
+    validations:
+      required: false
+
+  - type: textarea
     id: existing-solutions
     attributes:
       label: Existing Solutions
