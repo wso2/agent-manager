@@ -741,10 +741,81 @@ else
 fi
 
 # ============================================================================
-# Step 9: Install Agent Management Platform
+# Step 9: Install Gateway Operator
 # ============================================================================
 
-log_step "Step 9/9: Installing Agent Management Platform"
+
+log_step "Step 9/10: Installing Gateway Operator"
+log_info "Installing Gateway Operator..."
+helm_install_idempotent \
+    "gateway-operator" \
+    "oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator" \
+    "openchoreo-data-plane" \
+    "600" \
+    --version "0.2.0" \
+    --set "logging.level=debug" \
+    --set "gateway.helm.chartVersion=0.3.0"
+
+log_success "Gateway Operator installed"
+
+# Apply Gateway Operator Configuration
+log_info "Applying Gateway Operator Configuration..."
+GATEWAY_CONFIG_FILE="https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/values/api-platform-operator-full-config.yaml"
+
+if kubectl apply -f "${GATEWAY_CONFIG_FILE}" &>/dev/null; then
+    log_success "Gateway Operator configuration applied successfully"
+else
+    log_error "Failed to apply Gateway Operator configuration"
+    log_info "Attempting to download and apply locally..."
+    if curl -sSL "${GATEWAY_CONFIG_FILE}" | kubectl apply -f - &>/dev/null; then
+        log_success "Gateway Operator configuration applied successfully"
+    else
+        log_warning "Failed to apply Gateway Operator configuration (non-fatal)"
+    fi
+fi
+
+# Apply Gateway and API Resources
+log_info "Applying Gateway and API Resources..."
+
+# Apply Gateway
+GATEWAY_FILE="https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/values/obs-gateway.yaml"
+if kubectl apply -f "${GATEWAY_FILE}" &>/dev/null; then
+    log_success "Gateway resource applied"
+else
+    log_warning "Failed to apply Gateway resource (non-fatal)"
+fi
+
+# Wait for Gateway to be ready
+log_info "Waiting for Gateway to be programmed..."
+if kubectl wait --for=condition=Programmed gateway/obs-gateway -n openchoreo-data-plane --timeout=180s 2>/dev/null; then
+    log_success "Gateway is programmed"
+else
+    log_warning "Gateway did not become ready in time (non-fatal)"
+fi
+
+# Apply RestApi
+RESTAPI_FILE="https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml"
+if kubectl apply -f "${RESTAPI_FILE}" &>/dev/null; then
+    log_success "RestApi resource applied"
+else
+    log_warning "Failed to apply RestApi resource (non-fatal)"
+fi
+
+# Wait for RestApi to be ready
+log_info "Waiting for RestApi to be programmed..."
+if kubectl wait --for=condition=Programmed restapi/traces-api-secure -n openchoreo-data-plane --timeout=120s 2>/dev/null; then
+    log_success "RestApi is programmed"
+else
+    log_warning "RestApi did not become ready in time (non-fatal)"
+fi
+
+log_success "Gateway Operator setup complete"
+
+# ============================================================================
+# Step 10: Install Agent Management Platform
+# ============================================================================
+
+log_step "Step 10/10: Installing Agent Management Platform"
 
 # Verify prerequisites
 if ! verify_amp_prerequisites; then
@@ -830,6 +901,7 @@ log_success "OpenChoreo and Agent Management Platform are ready!"
 echo ""
 log_info "Cluster: ${CLUSTER_CONTEXT}"
 log_info "Agent Management Platform Console: http://localhost:3000"
+log_info "Observability Gateway (for traces): http://localhost:22893/otel"
 echo ""
 echo ""
 log_info "To check status: kubectl get pods -A"
