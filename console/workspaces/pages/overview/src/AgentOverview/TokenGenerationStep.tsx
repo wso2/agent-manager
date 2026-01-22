@@ -65,7 +65,8 @@ export const TokenGenerationStep = ({
       setGeneratedToken(result.token);
       onTokenGenerated(result.token);
     } catch (err) {
-      console.error("Failed to generate token:", err);
+      // eslint-disable-next-line no-console
+      console.error(err);
       setError("Failed to generate token. Please try again.");
     }
   };
