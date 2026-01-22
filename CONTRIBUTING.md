@@ -1,93 +1,94 @@
-# Contributing to WSO2 AI Agent Management Platform
+# Contributing Guidelines
 
-Thank you for your interest in contributing to the WSO2 AI Agent Management Platform! We welcome contributions from the community.
+This document establishes guidelines for using GitHub Discussions and Issues for technical conversations about the AI Agent Management Platform.
 
-## Ways to Contribute
+## Repository
 
-- **Report Issues** - Found a bug? [Open an issue](https://github.com/wso2/ai-agent-management-platform/issues)
-- **Submit Pull Requests** - Fix bugs, add features, or improve documentation
-- **Join Discussions** - Participate in [GitHub Discussions](https://github.com/wso2/ai-agent-management-platform/discussions) for technical conversations and feature requests
-- **Improve Documentation** - Help make our docs clearer and more comprehensive
+| Repository | Visibility | Purpose |
+|------------|------------|---------|
+| [wso2/ai-agent-management-platform](https://github.com/wso2/ai-agent-management-platform) | **Public** | Open source version, default location for discussions and issues |
 
-## Contribution Workflow
+### Contribution Policy
 
-### 1. Find or Create an Issue
+- **All welcome**: Discussions and issues from the community are encouraged
+- **Open collaboration**: Feature ideas, bug reports, and design proposals are all welcome
+- **Security issues**: Please report security vulnerabilities to security@wso2.com as per the [WSO2 Security Reporting Guidelines](https://security.docs.wso2.com/en/latest/security-reporting/report-security-issues/)
 
-- Check [existing issues](https://github.com/wso2/ai-agent-management-platform/issues) for something to work on
-- For new features, open a [Discussion](https://github.com/wso2/ai-agent-management-platform/discussions/categories/ideas) first to gather feedback
-- For bugs, create an issue with reproduction steps
+## Discussion Categories
 
-### 2. Fork and Clone
+| Category | Purpose | Example Topics |
+|----------|---------|----------------|
+| **Announcements** | Official updates from maintainers | Releases, roadmap updates, breaking changes |
+| **General** | Open-ended conversations | Community introductions, general questions |
+| **Ideas** | Feature suggestions and brainstorming | New capabilities, integration ideas |
+| **Q&A** | Technical questions with answers | Implementation help, troubleshooting |
+| **Show and Tell** | Share projects and integrations | Agent implementations, use cases |
+| **Design Proposals** | Technical design discussions | Architecture changes, system design, new features requiring review |
 
-1. Fork the repository on GitHub
-2. Clone your fork locally
-3. Add the upstream remote for syncing
+## When to Use Discussions vs Issues
 
-### 3. Create a Branch
+| Use Discussions For | Use Issues For |
+|---------------------|----------------|
+| Open-ended questions | Bug reports with reproduction steps |
+| Feature ideas and brainstorming | Concrete feature requests with clear scope |
+| Design proposals and RFCs | Actionable tasks and work items |
+| Community engagement | Pull request discussions |
+| Troubleshooting help | Security vulnerabilities (private) |
 
-- Use descriptive branch names: `feature/your-feature-name` or `fix/issue-description`
-- Always sync with upstream before starting work
+## Guidelines
 
-### 4. Make Your Changes
+### Starting a Discussion
 
-- Write tests for new functionality
-- Update documentation if needed
+1. **Search first** - Check existing discussions to avoid duplicates
+2. **Choose the right category** - Use the category table above
+3. **Use a clear title** - Be specific and descriptive
+4. **Provide context** - Include relevant details, code snippets, or diagrams
 
-### 5. Submit a Pull Request
+### Promoting Discussions to Issues
 
-- Sync with upstream and rebase before pushing
-- Create a PR against the `main` branch
-- Fill out the PR template with relevant details
+When a discussion results in actionable work:
+1. Summarize the outcome in a final comment
+2. Create a linked GitHub Issue for implementation
+3. Reference the discussion in the issue for context
 
-## Pull Request Guidelines
+## Feature Lifecycle
 
-### Before Submitting
+Features progress through distinct stages from initial concept to implementation:
 
-- [ ] Code builds without errors
-- [ ] All tests pass
-- [ ] Documentation is updated (if applicable)
-- [ ] Commit messages are clear and descriptive
+### 1. Idea Stage
 
-### PR Description
+High-level discussions about capabilities we want to explore start in the **Ideas** category. These are similar to epics—broad in scope with no imposed structure. Ideas allow open brainstorming before committing to specific solutions.
 
-Include in your PR description:
-- **What** - Brief summary of changes
-- **Why** - Motivation and context
-- **Testing** - How you tested the changes
-- Link to related issue(s)
+### 2. Design Proposal Stage
 
-### Review Process
+When an idea is refined into a well-scoped feature, create a discussion in the **Design Proposals** category. Proposals must follow the standard template:
 
-1. Maintainers will review your PR
-2. Address any feedback through additional commits
-3. Once approved, a maintainer will merge your PR
+| Section | Description |
+|---------|-------------|
+| **Problem** | Describe the problem, who is affected, and the impact |
+| **User Stories** | Define user stories using the format "As a [role], I want [goal] so that [benefit]" |
+| **Existing Solutions** | How is this solved elsewhere? Include current workarounds and links to relevant implementations, docs, or design proposals |
+| **Proposed Solution** | Technical approach and design details |
+| **Alternatives Considered** | What other approaches were evaluated? |
+| **Open Questions** | Unresolved technical decisions that need input (if any) |
+| **Milestone Plan** | Implementation phases aligned with release milestones |
 
-## Reporting Issues
+#### Proposal Labels
 
-When reporting bugs, please include:
+Use these labels to track design proposal status:
 
-- Clear, descriptive title
-- Steps to reproduce the issue
-- Expected vs actual behavior
-- Environment details (OS, versions, etc.)
-- Relevant logs or error messages
+| Label | Description |
+|-------|-------------|
+| `Proposal/Draft` | Initial proposal, still being written |
+| `Proposal/Review` | Ready for team review and feedback |
+| `Proposal/Approved` | Design accepted, ready for implementation |
+| `Proposal/Rejected` | Proposal declined |
+| `Proposal/Implemented` | Design fully implemented |
 
-## Community Guidelines
+### 3. Implementation Tracking
 
-- Be respectful and inclusive
-- Focus on constructive feedback
-- Help others learn and grow
-
-## Getting Help
-
-- **Questions?** Start a [Q&A Discussion](https://github.com/wso2/ai-agent-management-platform/discussions/categories/q-a)
-- **Feature requests?** Open an [Ideas Discussion](https://github.com/wso2/ai-agent-management-platform/discussions/categories/ideas)
-- **Security issues?** Please report privately to <security@wso2.com>
-
-## License
-
-By contributing to the WSO2 AI Agent Management Platform, you agree that your contributions will be licensed under the [Apache License 2.0](LICENSE).
-
----
-
-Thank you for contributing to the WSO2 AI Agent Management Platform!
+Once a design proposal is approved:
+1. Create GitHub Issues for implementation tasks
+2. Link issues back to the design proposal discussion
+3. Assign issues to appropriate milestones
+4. Track progress through milestone completion
