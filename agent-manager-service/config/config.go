@@ -66,7 +66,7 @@ type Config struct {
 type IDPConfig struct {
 	TokenURL     string
 	ClientID     string
-	ClientSecret string
+	ClientSecret string `json:"-"`
 }
 
 type KeyManagerConfigurations struct {

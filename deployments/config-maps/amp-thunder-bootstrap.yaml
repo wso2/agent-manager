@@ -97,13 +97,11 @@ data:
     AMP_CONSOLE_CLIENT_SECRET="amp-console-client-secret"
     REDIRECT_URI="http://localhost:3000/login"
 
-    log_info "Checking if application 'Backstage' already exists..."
+    log_info "Checking if application 'AMP Console' already exists..."
     existing_apps=$(curl -k -s --max-time 10 "${THUNDER_API_BASE}/applications")
 
     # Extract application ID if it exists
-    app_id=$(echo "$existing_apps" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
-
-
+    app_id=$(echo "$existing_apps" | grep -o "\"client_id\":\"${AMP_CONSOLE_CLIENT_ID}\"[^}]*\"id\":\"[^\"]*\"\|\"id\":\"[^\"]*\"[^}]*\"client_id\":\"${AMP_CONSOLE_CLIENT_ID}\"" |  grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)    
 
     # Define the application payload
     APP_PAYLOAD='{
@@ -166,8 +164,8 @@ data:
       ]
     }'
 
-    if echo "$existing_apps" | grep -q '"name":"Backstage"'; then
-      log_info "Application 'Backstage' already exists (id: $app_id), updating..."
+    if echo "$existing_apps" | grep -q "\"client_id\":\"${AMP_CONSOLE_CLIENT_ID}\""; then
+      log_info "Application 'AMP Console' already exists (id: $app_id), updating..."
       curl -k --location -X PUT "${THUNDER_API_BASE}/applications/$app_id" \
         --header 'Content-Type: application/json' \
         --data "$APP_PAYLOAD" \

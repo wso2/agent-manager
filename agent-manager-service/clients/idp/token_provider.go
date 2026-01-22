@@ -131,6 +131,9 @@ func (p *tokenProvider) fetchToken(ctx context.Context) (string, int64, error) {
 	if tokenResp.AccessToken == "" {
 		return "", 0, fmt.Errorf("empty access token in response")
 	}
+	if tokenResp.ExpiresIn <= 0 {                                                                                                               
+        return "", 0, fmt.Errorf("invalid expires_in value: %d (must be positive)", tokenResp.ExpiresIn)                                          
+    }
 
 	return tokenResp.AccessToken, tokenResp.ExpiresIn, nil
 }
