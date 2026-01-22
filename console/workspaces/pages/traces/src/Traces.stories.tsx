@@ -61,6 +61,7 @@ export const ComponentCustom: StoryComponent = {
 };
 
 // Project Level Stories
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const metaProject: Meta<typeof TracesProject> = {
   title: 'Pages/Traces/Project',
   component: TracesProject,
@@ -95,6 +96,7 @@ export const ProjectCustom: StoryObj<typeof metaProject> = {
 };
 
 // Organization Level Stories
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const metaOrganization: Meta<typeof TracesOrganization> = {
   title: 'Pages/Traces/Organization',
   component: TracesOrganization,

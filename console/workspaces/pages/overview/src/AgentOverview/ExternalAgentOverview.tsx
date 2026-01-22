@@ -144,7 +144,10 @@ export const ExternalAgentOverview = () => {
         orgName={orgId ?? "default"}
         projName={projectId ?? "default"}
         agentName={agentId ?? ""}
-        environment={sortedEnvironmentList?.find((env: Environment) => env.uuid === selectedEnvironmentId)?.name}
+        environment={
+          sortedEnvironmentList?.find((env: Environment) =>
+            env.uuid === selectedEnvironmentId)?.name
+        }
         instrumentationUrl={agentInstrumentationUrl}
         apiKey={apiKey}
       />

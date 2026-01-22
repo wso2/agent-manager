@@ -90,7 +90,7 @@ export async function getAgentBuilds(
   return res.json();
 }
 
-// eslint-disable-next-line max-len
+ 
 export async function getBuild(
   params: GetBuildPathParams,
   getToken?: () => Promise<string>

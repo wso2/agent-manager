@@ -198,6 +198,7 @@ export const TracesComponent: React.FC = () => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error("Export failed:", error);
       setExportError(
         error instanceof Error ? error.message : "Failed to export traces"
