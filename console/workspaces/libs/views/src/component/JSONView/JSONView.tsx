@@ -131,7 +131,7 @@ function TreeNode({ data, keyName, level = 0 }: TreeNodeProps) {
             {entries.length} {isArray ? "items" : "properties"}
           </Typography>
         )}
-        {!isExpanded && (
+        {(isEmpty || !isExpanded) && (
           <Typography
             variant="caption"
             fontFamily="monospace"
@@ -144,7 +144,7 @@ function TreeNode({ data, keyName, level = 0 }: TreeNodeProps) {
 
       <Collapse in={isExpanded && !isEmpty} timeout="auto" unmountOnExit>
         <Box sx={{ pl: 4 }}>
-          <Stack direction="column" spacing={0.5}>
+          <Stack direction="column" spacing={0.5} pl={1}>
             {entries.map(([key, value]) => (
               <TreeNode
                 key={String(key)}
@@ -154,16 +154,15 @@ function TreeNode({ data, keyName, level = 0 }: TreeNodeProps) {
               />
             ))}
           </Stack>
-        </Box>
 
-        <Typography
-          variant="caption"
-          fontFamily="monospace"
-          sx={{ marginLeft: "20px" }}
-          color="text.primary"
-        >
-          {closeBracket}
-        </Typography>
+          <Typography
+            variant="caption"
+            fontFamily="monospace"
+            color="text.primary"
+          >
+            {closeBracket}
+          </Typography>
+        </Box>
       </Collapse>
     </Stack>
   );

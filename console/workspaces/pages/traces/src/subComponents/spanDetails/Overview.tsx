@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { NoDataFound, JSONView } from "@agent-management-platform/views";
+import { NoDataFound, JSONView, MarkdownView } from "@agent-management-platform/views";
 import {
   Box,
   Card,
@@ -35,7 +35,6 @@ import {
   CrewAITaskData,
 } from "@agent-management-platform/types";
 import { memo, useCallback, useMemo } from "react";
-import Markdown from "react-markdown";
 
 interface OverviewProps {
   ampAttributes?: AmpAttributes;
@@ -153,27 +152,7 @@ const MessageList = memo(function MessageList({
                     <JSONView json={formattedMessage(message.content)} />
                   )}
                   {message.content && message.role && (
-                    <Box
-                      sx={{
-                        fontSize: "0.75rem",
-                        color: "text.secondary",
-                        "& p": { margin: 0 },
-                        "& pre": {
-                          backgroundColor: "action.hover",
-                          padding: 1,
-                          borderRadius: 1,
-                          overflow: "auto",
-                        },
-                        "& code": {
-                          backgroundColor: "action.hover",
-                          padding: "2px 4px",
-                          borderRadius: "4px",
-                          fontFamily: "monospace",
-                        },
-                      }}
-                    >
-                      <Markdown>{message.content}</Markdown>
-                    </Box>
+                    <MarkdownView content={message.content} />
                   )}
                   {message.toolCalls && message.toolCalls.length > 0 && (
                     <Box>

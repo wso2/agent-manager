@@ -17,7 +17,8 @@
  */
 
 import { useGetAgent } from "@agent-management-platform/api-client";
-import { Box, Card, CardContent, Typography } from "@wso2/oxygen-ui";
+import { MarkdownView } from "@agent-management-platform/views";
+import { Box, Card, CardContent, Stack, Typography } from "@wso2/oxygen-ui";
 import { useParams } from "react-router-dom";
 
 interface ChatMessageProps {
@@ -61,6 +62,7 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
           }}
         >
           <CardContent>
+            <Stack spacing={1}>
             {role !== "user" && (
               <Typography variant="caption">{agent?.displayName}</Typography>
             )}
@@ -69,12 +71,33 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
                 You
               </Typography>
             )}
-            <Typography
-              variant="h6"
-              color={role === "user" ? "primary.contrastText" : "text.primary"}
+            <Box
+              sx={{
+                "& .MuiTypography-root": {
+                  color:
+                    role === "user" ? "primary.contrastText" : "text.primary",
+                },
+                "& p": {
+                  color:
+                    role === "user" ? "primary.contrastText" : "text.secondary",
+                },
+                "& code": {
+                  backgroundColor:
+                    role === "user"
+                      ? "rgba(255, 255, 255, 0.2)"
+                      : "action.hover",
+                },
+                "& pre": {
+                  backgroundColor:
+                    role === "user"
+                      ? "rgba(255, 255, 255, 0.2)"
+                      : "action.hover",
+                },
+              }}
             >
-              {content}
-            </Typography>
+              <MarkdownView content={content} />
+              </Box>
+            </Stack>
           </CardContent>
         </Card>
       </Box>
