@@ -2,17 +2,10 @@
 
 This document establishes guidelines for using GitHub Discussions and Issues for technical conversations about the AI Agent Management Platform.
 
-## Repository
+## Getting Started
 
-| Repository | Visibility | Purpose |
-|------------|------------|---------|
-| [wso2/ai-agent-management-platform](https://github.com/wso2/ai-agent-management-platform) | **Public** | Open source version, default location for discussions and issues |
-
-### Contribution Policy
-
-- **All welcome**: Discussions and issues from the community are encouraged
-- **Open collaboration**: Feature ideas, bug reports, and design proposals are all welcome
-- **Security issues**: Please report security vulnerabilities to security@wso2.com as per the [WSO2 Security Reporting Guidelines](https://security.docs.wso2.com/en/latest/security-reporting/report-security-issues/)
+- Discussions, issues, feature ideas, bug reports, and design proposals from the community are welcome
+- For security vulnerabilities, please report to security@wso2.com as per the [WSO2 Security Reporting Guidelines](https://security.docs.wso2.com/en/latest/security-reporting/report-security-issues/)
 
 ## Discussion Categories
 
