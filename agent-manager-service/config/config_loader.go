@@ -143,7 +143,7 @@ func loadEnvs() {
 
 	// IDP OAuth2 client credentials for service-to-service auth
 	config.IDP = IDPConfig{
-		TokenURL:     r.readOptionalString("IDP_TOKEN_URL", "http://thunder.openchoreo.localhost:8080/oauth2/token"),
+		TokenURL:     r.readOptionalString("IDP_TOKEN_URL", "http://thunder.amp.localhost:8080/oauth2/token"),
 		ClientID:     r.readOptionalString("IDP_CLIENT_ID", "amp-api-client"),
 		ClientSecret: r.readOptionalString("IDP_CLIENT_SECRET", "amp-api-client-secret"),
 	}

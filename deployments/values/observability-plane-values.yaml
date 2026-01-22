@@ -15,5 +15,6 @@ external-secrets:
 # OIDC security configuration (Thunder integration)
 security:
   oidc:
-    # Thunder JWKS endpoint for token validation
-    jwksUrl: "http://thunder-service.openchoreo-control-plane.svc.cluster.local:8090/oauth2/jwks"
+    # Internal cluster URL for backend token validation
+    jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
+    issuer: "thunder"

@@ -30,6 +30,20 @@ echo "🔧 Setting kubectl context to $CLUSTER_CONTEXT..."
 kubectl config use-context $CLUSTER_CONTEXT
 
 echo ""
+echo "1️⃣  Installing/Upgrading WSO2 AMP Thunder Extension..."
+helm upgrade --install amp-thunder-extension "${SCRIPT_DIR}/../helm-charts/wso2-amp-thunder-extension" --namespace amp-thunder --create-namespace
+echo "✅ AMP Thunder Extension installed/upgraded successfully"
+
+echo "⏳ Waiting for AMP Thunder Extension pods to be ready (timeout: 5 minutes)..."
+kubectl wait -n amp-thunder --for=condition=available --timeout=300s deployment --all
+# Wait for jobs only if any exist
+if kubectl get jobs -n amp-thunder --no-headers 2>/dev/null | grep -q .; then
+    kubectl wait -n amp-thunder --for=condition=complete --timeout=300s job --all
+fi
+echo "✅ AMP Thunder Extension ready"
+echo ""
+
+echo ""
 echo "📦 Installing OpenChoreo core components..."
 echo "   Reference: https://openchoreo.dev/docs/getting-started/try-it-out/on-self-hosted-kubernetes/"
 echo "   This may take several minutes..."
@@ -39,45 +53,33 @@ echo ""
 # CORE COMPONENTS (Required)
 # ============================================================================
 
-# Step 1: Apply Thunder bootstrap ConfigMap (required before Control Plane installation)
-echo "1️⃣  Applying Thunder bootstrap ConfigMap..."
-kubectl create namespace openchoreo-control-plane --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -f "${SCRIPT_DIR}/../config-maps/amp-thunder-bootstrap.yaml"
-echo "✅ Thunder bootstrap ConfigMap applied"
-echo ""
-
-# Step 2: Install OpenChoreo Control Plane
-echo "2️⃣  Installing OpenChoreo Control Plane..."
-if helm status openchoreo-control-plane -n openchoreo-control-plane &>/dev/null; then
-    echo "⏭️  Control Plane already installed, skipping..."
-else
-    echo "   This may take up to 10 minutes..."
-    helm upgrade --install openchoreo-control-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
-    --version 0.9.0 \
-    --namespace openchoreo-control-plane \
-    --create-namespace \
-    --values "${SCRIPT_DIR}/../values/control-plane-values.yaml"
-fi
+# Step 1: Install OpenChoreo Control Plane
+echo "2️⃣  Installing/Upgrading OpenChoreo Control Plane..."
+echo "   This may take up to 10 minutes..."
+helm upgrade --install openchoreo-control-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
+--version 0.9.0 \
+--namespace openchoreo-control-plane \
+--create-namespace \
+--values "${SCRIPT_DIR}/../values/control-plane-values.yaml"
 
 echo "⏳ Waiting for Control Plane pods to be ready (timeout: 5 minutes)..."
 kubectl wait -n openchoreo-control-plane --for=condition=available --timeout=300s deployment --all
-kubectl wait -n openchoreo-control-plane --for=condition=complete  job --all
+# Wait for jobs only if any exist
+if kubectl get jobs -n openchoreo-control-plane --no-headers 2>/dev/null | grep -q .; then
+    kubectl wait -n openchoreo-control-plane --for=condition=complete --timeout=300s job --all
+fi
 echo "✅ OpenChoreo Control Plane ready"
 echo ""
 
 # ============================================================================
 # Step 2: Install OpenChoreo Data Plane
-echo "3️⃣  Installing OpenChoreo Data Plane..."
-if helm status openchoreo-data-plane -n openchoreo-data-plane &>/dev/null; then
-    echo "⏭️  Data Plane already installed, skipping..."
-else
-    echo "   This may take up to 10 minutes..."
-    helm upgrade --install openchoreo-data-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
-    --version 0.9.0 \
-    --namespace openchoreo-data-plane \
-    --create-namespace \
-    --values "${SCRIPT_DIR}/../values/data-plane-values.yaml"
-fi
+echo "3️⃣  Installing/Upgrading OpenChoreo Data Plane..."
+echo "   This may take up to 10 minutes..."
+helm upgrade --install openchoreo-data-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
+--version 0.9.0 \
+--namespace openchoreo-data-plane \
+--create-namespace \
+--values "${SCRIPT_DIR}/../values/data-plane-values.yaml"
 
 # Create Certificate for Gateway TLS
 echo "📜 Creating Certificate for Gateway TLS..."
@@ -148,16 +150,12 @@ echo ""
 
 # ============================================================================
 # Step 3: Install OpenChoreo Build Plane
-echo "4️⃣  Installing OpenChoreo Build Plane..."
-if helm status openchoreo-build-plane -n openchoreo-build-plane &>/dev/null; then
-    echo "⏭️  Build Plane already installed, skipping..."
-else
-    helm upgrade --install openchoreo-build-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane \
-    --version 0.9.0 \
-    --namespace openchoreo-build-plane \
-    --create-namespace \
-    --values "${SCRIPT_DIR}/../values/build-plane-values.yaml"
-fi
+echo "4️⃣  Installing/Upgrading OpenChoreo Build Plane..."
+helm upgrade --install openchoreo-build-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane \
+--version 0.9.0 \
+--namespace openchoreo-build-plane \
+--create-namespace \
+--values "${SCRIPT_DIR}/../values/build-plane-values.yaml"
 
 # Registering the Build Plane with the control plane
 echo "5️⃣  Registering Build Plane..."
@@ -192,39 +190,27 @@ echo ""
 
 # ============================================================================
 # Install Custom Build CI Workflows
-echo "5️⃣ Installing Custom Build CI Workflows..."
-if helm status amp-custom-build-ci-workflows -n openchoreo-build-plane &>/dev/null; then
-    echo "⏭️  Custom Build CI Workflows already installed, skipping..."
-else
-    helm install amp-custom-build-ci-workflows "${SCRIPT_DIR}/../helm-charts/wso2-amp-build-extension" --namespace openchoreo-build-plane
-    echo "✅ Custom Build CI Workflows installed successfully"
-fi
+echo "5️⃣ Installing/Upgrading Custom Build CI Workflows..."
+helm upgrade --install amp-custom-build-ci-workflows "${SCRIPT_DIR}/../helm-charts/wso2-amp-build-extension" --namespace openchoreo-build-plane
+echo "✅ Custom Build CI Workflows installed/upgraded successfully"
 echo ""
 
 # Install Default Platform Resources
-echo "6️⃣ Installing Default Platform Resources..."
-if helm status amp-default-platform-resources &>/dev/null; then
-    echo "⏭️  Platform Resources already installed, skipping..."
-else
-    echo "   Creating default Organization, Project, Environment, and DeploymentPipeline..."
-    helm install amp-default-platform-resources "${SCRIPT_DIR}/../helm-charts/wso2-amp-platform-resources-extension" --namespace default
-    echo "✅ Default Platform Resources installed successfully"
-fi
+echo "6️⃣ Installing/Upgrading Default Platform Resources..."
+echo "   Creating default Organization, Project, Environment, and DeploymentPipeline..."
+helm upgrade --install amp-default-platform-resources "${SCRIPT_DIR}/../helm-charts/wso2-amp-platform-resources-extension" --namespace default
+echo "✅ Default Platform Resources installed/upgraded successfully"
 echo ""
 
 # ============================================================================
 # Step 4: Install OpenChoreo  Observability Plane
-echo "7️⃣  Installing OpenChoreo Observability Plane..."
-if helm status openchoreo-observability-plane -n openchoreo-observability-plane &>/dev/null; then
-    echo "⏭️  Observability Plane already installed, skipping..."
-else
-    helm upgrade --install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-    --version 0.9.0 \
-    --namespace openchoreo-observability-plane \
-    --create-namespace \
-    --values "${SCRIPT_DIR}/../values/observability-plane-values.yaml" \
-    --timeout 10m
-fi
+echo "7️⃣  Installing/Upgrading OpenChoreo Observability Plane..."
+helm upgrade --install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
+--version 0.9.0 \
+--namespace openchoreo-observability-plane \
+--create-namespace \
+--values "${SCRIPT_DIR}/../values/observability-plane-values.yaml" \
+--timeout 10m
 
 # Registering the Observability Plane with the control plane
 echo "5️⃣  Registering Observability Plane..."
