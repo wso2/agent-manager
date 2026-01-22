@@ -1,0 +1,124 @@
+name: Agent Manager API
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "agent-manager-service/**"
+      - ".github/workflows/agent-manager-service-pr-checks.yaml"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          working-directory: agent-manager-service
+          args: --config .github/linters/.golangci.yaml
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: agentmanager
+          POSTGRES_PASSWORD: agentmanager
+          POSTGRES_DB: agentmanager
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Create test .env file
+        working-directory: ./agent-manager-service
+        run: |
+          cat > .env << 'EOF'
+          DB_HOST=localhost
+          DB_PORT=5432
+          DB_USER=agentmanager
+          DB_PASSWORD=agentmanager
+          DB_NAME=agentmanager
+          SERVER_PORT=8080
+          API_KEY_VALUE=test-api-key
+          EOF
+
+      - name: Wait for PostgreSQL
+        run: |
+          until pg_isready -h localhost -p 5432 -U agentmanager; do
+            echo "Waiting for postgres..."
+            sleep 1
+          done
+        timeout-minutes: 2
+
+      - name: Run database migrations
+        working-directory: ./agent-manager-service
+        run: ENV_FILE_PATH=.env go run main.go --migrate --server=false
+
+      - name: Run tests
+        working-directory: ./agent-manager-service
+        run: make test
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: agent-manager-service/localdata/test_output.log
+          retention-days: 7
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Build
+        working-directory: ./agent-manager-service
+        run: go build -v ./...
+
+  codegen-format:
+    name: Code Generation & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Install wire
+        run: go install github.com/google/wire/cmd/wire@v0.7.0
+
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@latest
+
+      - name: Install moq
+        run: go install github.com/matryer/moq@v0.5.3
+
+      - name: Run code generation and format check
+        working-directory: ./agent-manager-service
+        run: make codegenfmt-check

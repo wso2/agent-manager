@@ -361,7 +361,7 @@ func ConvertToProjectListResponse(projects []*models.ProjectResponse) []spec.Pro
 	return responses
 }
 
-func ConvertToBuildLogsResponse(buildLogs models.BuildLogsResponse) spec.BuildLogsResponse {
+func ConvertToLogsResponse(buildLogs models.LogsResponse) spec.LogsResponse {
 	logEntries := make([]spec.LogEntry, len(buildLogs.Logs))
 	for i, logEntry := range buildLogs.Logs {
 		logEntries[i] = spec.LogEntry{
@@ -370,13 +370,39 @@ func ConvertToBuildLogsResponse(buildLogs models.BuildLogsResponse) spec.BuildLo
 			LogLevel:  logEntry.LogLevel,
 		}
 	}
-	responses := spec.BuildLogsResponse{
+	responses := spec.LogsResponse{
 		Logs:       logEntries,
 		TotalCount: buildLogs.TotalCount,
 		TookMs:     buildLogs.TookMs,
 	}
 
 	return responses
+}
+
+func ConvertToMetricsResponse(metrics *models.MetricsResponse) *spec.MetricsResponse {
+	if metrics == nil {
+		return nil
+	}
+
+	convertDataPoints := func(points []models.TimeValuePoint) []spec.MetricDataPoint {
+		result := make([]spec.MetricDataPoint, len(points))
+		for i, p := range points {
+			result[i] = spec.MetricDataPoint{
+				Time:  p.Time,
+				Value: p.Value,
+			}
+		}
+		return result
+	}
+
+	return &spec.MetricsResponse{
+		CpuUsage:       convertDataPoints(metrics.CpuUsage),
+		CpuRequests:    convertDataPoints(metrics.CpuRequests),
+		CpuLimits:      convertDataPoints(metrics.CpuLimits),
+		Memory:         convertDataPoints(metrics.Memory),
+		MemoryRequests: convertDataPoints(metrics.MemoryRequests),
+		MemoryLimits:   convertDataPoints(metrics.MemoryLimits),
+	}
 }
 
 func ConvertToDataPlaneListResponse(dataPlanes []*models.DataPlaneResponse) []spec.DataPlane {

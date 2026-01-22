@@ -101,7 +101,7 @@ type CORSConfig struct {
 
 type ObserverConfig struct {
 	// Observer service URL
-	URL      string
+	URL string
 }
 
 type TraceObserverConfig struct {

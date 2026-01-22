@@ -7,8 +7,6 @@ metadata:
     {{- include "agent-management-platform.agentManagerService.labels" . | nindent 4 }}
 data:
   OBSERVER_URL: {{ .Values.agentManagerService.config.observerURL | quote }}
-  OBSERVER_USERNAME: {{ .Values.agentManagerService.config.observerUsername | quote }}
-  OBSERVER_PASSWORD: {{ .Values.agentManagerService.config.observerPassword | quote }}
   SERVER_HOST: {{ .Values.agentManagerService.config.serverHost | quote }}
   SERVER_PORT: {{ .Values.agentManagerService.service.targetPort | quote }}
   LOG_LEVEL: {{ .Values.agentManagerService.config.logLevel | quote }}

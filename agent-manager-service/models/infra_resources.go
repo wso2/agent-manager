@@ -69,8 +69,21 @@ type LogEntry struct {
 	Labels        map[string]string `json:"labels"`
 }
 
-type BuildLogsResponse struct {
+type LogsResponse struct {
 	Logs       []LogEntry `json:"logs"`
 	TotalCount int32      `json:"totalCount"`
 	TookMs     float32    `json:"tookMs"`
+}
+type TimeValuePoint struct {
+	Time  string  `json:"time"`
+	Value float64 `json:"value"`
+}
+
+type MetricsResponse struct {
+	CpuUsage       []TimeValuePoint `json:"cpuUsage"`
+	CpuRequests    []TimeValuePoint `json:"cpuRequests"`
+	CpuLimits      []TimeValuePoint `json:"cpuLimits"`
+	Memory         []TimeValuePoint `json:"memory"`
+	MemoryRequests []TimeValuePoint `json:"memoryRequests"`
+	MemoryLimits   []TimeValuePoint `json:"memoryLimits"`
 }

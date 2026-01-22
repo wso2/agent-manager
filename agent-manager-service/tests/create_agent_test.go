@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -33,7 +32,6 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
@@ -43,83 +41,15 @@ import (
 var (
 	testOrgName      = fmt.Sprintf("test-org-%s", uuid.New().String()[:5])
 	testProjName     = fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
-	testAgentNameOne = fmt.Sprintf("test-agent-%s", uuid.New().String()[:5])
-	testAgentNameTwo = fmt.Sprintf("test-agent-%s", uuid.New().String()[:5])
+	testAgentNameOne = fmt.Sprintf("nonexistent-agent-%s", uuid.New().String()[:5])
+	testAgentNameTwo = fmt.Sprintf("nonexistent-agent-%s", uuid.New().String()[:5])
 )
-
-func createMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
-	return &clientmocks.OpenChoreoSvcClientMock{
-		GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
-			if orgName == "nonexistent-org" {
-				return nil, utils.ErrOrganizationNotFound
-			}
-			return &models.OrganizationResponse{
-				Name:        orgName,
-				DisplayName: orgName,
-				CreatedAt:   time.Now(),
-				Status:      "ACTIVE",
-			}, nil
-		},
-		GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
-			if projectName == "nonexistent-project" {
-				return nil, utils.ErrProjectNotFound
-			}
-			return &models.ProjectResponse{
-				Name:               projectName,
-				DisplayName:        projectName,
-				OrgName:            orgName,
-				DeploymentPipeline: "test-pipeline",
-				CreatedAt:          time.Now(),
-			}, nil
-		},
-		IsAgentComponentExistsFunc: func(ctx context.Context, orgName string, projName string, agentName string, verifyProject bool) (bool, error) {
-			return false, nil
-		},
-		CreateAgentComponentFunc: func(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error {
-			return nil
-		},
-		TriggerBuildFunc: func(ctx context.Context, orgName string, projName string, agentName string, commitId string) (*models.BuildResponse, error) {
-			return &models.BuildResponse{
-				UUID:        uuid.New().String(),
-				Name:        fmt.Sprintf("%s-build-1", agentName),
-				AgentName:   agentName,
-				ProjectName: projName,
-				CommitID:    "abc123def",
-				Status:      "Running",
-				StartedAt:   time.Now(),
-			}, nil
-		},
-		GetDeploymentPipelineFunc: func(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error) {
-			return &models.DeploymentPipelineResponse{
-				Name:        deploymentPipelineName,
-				DisplayName: deploymentPipelineName,
-				Description: "Test deployment pipeline",
-				OrgName:     orgName,
-				CreatedAt:   time.Now(),
-				PromotionPaths: []models.PromotionPath{
-					{
-						SourceEnvironmentRef: "Development",
-					},
-				},
-			}, nil
-		},
-		GetAgentComponentFunc: func(ctx context.Context, orgName, projectName, agentName string) (*openchoreosvc.AgentComponent, error) {
-			// Return not found error by default to denote that agent is not created yet; can be overridden in tests
-			return nil, utils.ErrAgentNotFound
-		},
-		GetEnvironmentFunc: func(ctx context.Context, orgName, environmentName string) (*models.EnvironmentResponse, error) {
-			return &models.EnvironmentResponse{
-				UUID: "environment-uid-123",
-			}, nil
-		},
-	}
-}
 
 func TestCreateAgent(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Creating an agent with default interface should return 202", func(t *testing.T) {
-		openChoreoClient := createMockOpenChoreoClient()
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 		}
@@ -198,7 +128,7 @@ func TestCreateAgent(t *testing.T) {
 	})
 
 	t.Run("Creating an agent with ballerina language should return 202", func(t *testing.T) {
-		openChoreoClient := createMockOpenChoreoClient()
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 		}
@@ -206,7 +136,7 @@ func TestCreateAgent(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Create the request body for Ballerina agent (no language version or run command)
-		testAgentNameBallerina := fmt.Sprintf("test-agent-%s", uuid.New().String()[:5])
+		testAgentNameBallerina := fmt.Sprintf("nonexistent-agent-%s", uuid.New().String()[:5])
 		reqBody := new(bytes.Buffer)
 		err := json.NewEncoder(reqBody).Encode(map[string]interface{}{
 			"name":        testAgentNameBallerina,
@@ -282,7 +212,7 @@ func TestCreateAgent(t *testing.T) {
 	})
 
 	t.Run("Creating an agent with custom interface should return 202", func(t *testing.T) {
-		openChoreoClient := createMockOpenChoreoClient()
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient: openChoreoClient,
 		}
@@ -424,7 +354,7 @@ func TestCreateAgent(t *testing.T) {
 			wantErrMsg: "invalid agent name: agent name cannot be empty",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClient()
+				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
 		{
@@ -459,7 +389,7 @@ func TestCreateAgent(t *testing.T) {
 			wantErrMsg: "invalid agent name: agent name must contain only lowercase alphanumeric characters or '-'",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClient()
+				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
 		{
@@ -489,7 +419,7 @@ func TestCreateAgent(t *testing.T) {
 			wantErrMsg: "invalid repository details: repository details are required for internal agents",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClient()
+				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
 		{
@@ -524,7 +454,7 @@ func TestCreateAgent(t *testing.T) {
 			wantErrMsg: "invalid repository details: invalid GitHub repository format (expected: https://github.com/owner/repo)",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClient()
+				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
 		{
@@ -559,7 +489,7 @@ func TestCreateAgent(t *testing.T) {
 			wantErrMsg: "Organization not found",
 			url:        fmt.Sprintf("/api/v1/orgs/nonexistent-org/projects/%s/agents", testProjName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				mock := createMockOpenChoreoClient()
+				mock := apitestutils.CreateMockOpenChoreoClient()
 				return mock
 			},
 		},
@@ -595,7 +525,7 @@ func TestCreateAgent(t *testing.T) {
 			wantErrMsg: "Project not found",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/nonexistent-project/agents", testOrgName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				mock := createMockOpenChoreoClient()
+				mock := apitestutils.CreateMockOpenChoreoClient()
 				return mock
 			},
 		},
@@ -631,7 +561,7 @@ func TestCreateAgent(t *testing.T) {
 			wantErrMsg: "Agent already exists",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				mock := createMockOpenChoreoClient()
+				mock := apitestutils.CreateMockOpenChoreoClient()
 				mock.GetAgentComponentFunc = func(ctx context.Context, orgName string, projName string, agentName string) (*openchoreosvc.AgentComponent, error) {
 					// Return an existing agent component
 					return &openchoreosvc.AgentComponent{
@@ -646,7 +576,7 @@ func TestCreateAgent(t *testing.T) {
 			name:           "return 500 on service error",
 			authMiddleware: authMiddleware,
 			payload: map[string]interface{}{
-				"name":        fmt.Sprintf("test-agent-%s", uuid.New().String()[:5]),
+				"name":        fmt.Sprintf("nonexistent-agent-%s", uuid.New().String()[:5]),
 				"displayName": "Test Agent",
 				"description": "Test description",
 				"provisioning": map[string]interface{}{
@@ -674,7 +604,7 @@ func TestCreateAgent(t *testing.T) {
 			wantErrMsg: "Failed to create agent",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				mock := createMockOpenChoreoClient()
+				mock := apitestutils.CreateMockOpenChoreoClient()
 				mock.CreateAgentComponentFunc = func(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error {
 					return fmt.Errorf("internal service error")
 				}
@@ -717,7 +647,7 @@ func TestCreateAgent(t *testing.T) {
 			wantErrMsg: "missing header: Authorization",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClient()
+				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
 		{
@@ -752,7 +682,7 @@ func TestCreateAgent(t *testing.T) {
 			wantErrMsg: "invalid language: unsupported language 'rust'",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClient()
+				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
 		{
@@ -787,7 +717,7 @@ func TestCreateAgent(t *testing.T) {
 			wantErrMsg: "invalid language: unsupported language version '2.7' for language 'python'",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClient()
+				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
 		{
@@ -822,7 +752,7 @@ func TestCreateAgent(t *testing.T) {
 			wantErrMsg: "language cannot be empty",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClient()
+				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
 		{
@@ -857,7 +787,7 @@ func TestCreateAgent(t *testing.T) {
 			wantErrMsg: "invalid language: language version cannot be empty",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
-				return createMockOpenChoreoClient()
+				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
 	}

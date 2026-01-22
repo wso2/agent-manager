@@ -40,4 +40,6 @@ func registerAgentRoutes(mux *http.ServeMux, ctrl controllers.AgentController) {
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments", ctrl.GetAgentDeployments)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/endpoints", ctrl.GetAgentEndpoints)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations", ctrl.GetAgentConfigurations)
+	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/metrics", ctrl.GetAgentMetrics)
+	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/runtime-logs", ctrl.GetAgentRuntimeLogs)
 }

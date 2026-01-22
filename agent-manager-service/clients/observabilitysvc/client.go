@@ -25,7 +25,9 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/idp"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 )
 
 // Build log constants
@@ -34,8 +36,12 @@ const (
 	BuildLogTypeBuild = "BUILD"
 )
 
+//go:generate moq -rm -fmt goimports -skip-ensure -pkg clientmocks -out ../clientmocks/observability_client_fake.go . ObservabilitySvcClient:ObservabilitySvcClientMock
+
 type ObservabilitySvcClient interface {
-	GetBuildLogs(ctx context.Context, buildName string) (*models.BuildLogsResponse, error)
+	GetBuildLogs(ctx context.Context, buildName string) (*models.LogsResponse, error)
+	GetComponentMetrics(ctx context.Context, agentComponentId string, envId string, projectId string, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error)
+	GetComponentLogs(ctx context.Context, agentComponentId string, envId string, payload spec.LogFilterRequest) (*models.LogsResponse, error)
 }
 
 type observabilitySvcClient struct {
@@ -54,7 +60,9 @@ func NewObservabilitySvcClient() ObservabilitySvcClient {
 }
 
 // GetBuildLogs retrieves build logs for a specific agent build from the observer service
-func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, buildName string) (*models.BuildLogsResponse, error) {
+func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, buildName string) (*models.LogsResponse, error) {
+	// temporary use config to get observer URL since the observer url in dataplane is cluster svc name which is not accessible outside the cluster,
+	// so we need to portforward the observer svc and use localhost:port to access the observer service
 	baseURL := config.GetConfig().Observer.URL
 	logsURL := fmt.Sprintf("%s/api/logs/build/%s", baseURL, buildName)
 
@@ -83,9 +91,79 @@ func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, buildName str
 	req.SetHeader("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.SetJson(requestBody)
 
-	var logsResponse models.BuildLogsResponse
+	var logsResponse models.LogsResponse
 	if err := requests.SendRequest(ctx, o.httpClient, req).ScanResponse(&logsResponse, http.StatusOK); err != nil {
 		return nil, fmt.Errorf("observabilitysvc.GetBuildLogs: %w", err)
+	}
+
+	return &logsResponse, nil
+}
+
+func (o *observabilitySvcClient) GetComponentMetrics(ctx context.Context, agentComponentId string, envId string, projectId string, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error) {
+	baseURL := config.GetConfig().Observer.URL
+	metricsURL := fmt.Sprintf("%s/api/metrics/component/usage", baseURL)
+	token := jwtassertion.GetJWTFromContext(ctx)
+	if token == "" {
+		return nil, fmt.Errorf("observabilitysvc.GetComponentMetrics: JWT token not found in context")
+	}
+
+	requestBody := map[string]interface{}{
+		"componentId":   agentComponentId,
+		"startTime":     payload.StartTime,
+		"endTime":       payload.EndTime,
+		"environmentId": envId,
+		"projectId":     projectId,
+	}
+
+	req := &requests.HttpRequest{
+		Name:   "observabilitysvc.GetComponentMetrics",
+		URL:    metricsURL,
+		Method: http.MethodPost,
+	}
+	req.SetHeader("Accept", "application/json")
+	req.SetHeader("Authorization", fmt.Sprintf("Bearer %s", token))
+	req.SetJson(requestBody)
+
+	var metricsResponse models.MetricsResponse
+	if err := requests.SendRequest(ctx, o.httpClient, req).ScanResponse(&metricsResponse, http.StatusOK); err != nil {
+		return nil, fmt.Errorf("observabilitysvc.GetComponentMetrics: %w", err)
+	}
+
+	return &metricsResponse, nil
+}
+
+func (o *observabilitySvcClient) GetComponentLogs(ctx context.Context, agentComponentId string, envId string, payload spec.LogFilterRequest) (*models.LogsResponse, error) {
+	baseURL := config.GetConfig().Observer.URL
+	logsURL := fmt.Sprintf("%s/api/logs/component/%s", baseURL, agentComponentId)
+	token := jwtassertion.GetJWTFromContext(ctx)
+	if token == "" {
+		return nil, fmt.Errorf("observabilitysvc.GetComponentLogs: JWT token not found in context")
+	}
+
+	requestBody := map[string]interface{}{
+		"startTime":     payload.StartTime,
+		"endTime":       payload.EndTime,
+		"searchPhrase":  payload.SearchPhrase,
+		"logLevels":     payload.LogLevels,
+		"limit":         payload.Limit,
+		"sortOrder":     payload.SortOrder,
+		"componentId":   agentComponentId,
+		"environmentId": envId,
+		"logType":       "RUNTIME",
+	}
+
+	req := &requests.HttpRequest{
+		Name:   "observabilitysvc.GetApplicationLogs",
+		URL:    logsURL,
+		Method: http.MethodPost,
+	}
+	req.SetHeader("Accept", "application/json")
+	req.SetHeader("Authorization", fmt.Sprintf("Bearer %s", token))
+	req.SetJson(requestBody)
+
+	var logsResponse models.LogsResponse
+	if err := requests.SendRequest(ctx, o.httpClient, req).ScanResponse(&logsResponse, http.StatusOK); err != nil {
+		return nil, fmt.Errorf("observabilitysvc.GetApplicationLogs: %w", err)
 	}
 
 	return &logsResponse, nil

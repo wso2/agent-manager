@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -17,7 +17,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createAgent, deleteAgent, getAgent, listAgents } from "../apis";
+import { createAgent, deleteAgent, getAgent, listAgents, generateAgentToken } from "../apis";
 import {
   AgentListResponse,
   AgentResponse,
@@ -27,6 +27,10 @@ import {
   GetAgentPathParams,
   ListAgentsPathParams,
   ListAgentsQuery,
+  GenerateAgentTokenPathParams,
+  GenerateAgentTokenQuery,
+  TokenRequest,
+  TokenResponse,
 } from "@agent-management-platform/types";
 import { useAuthHooks } from "@agent-management-platform/auth";
 
@@ -75,4 +79,15 @@ export function useDeleteAgent() {
             queryClient.invalidateQueries({ queryKey: ['agents'] });
         },
     });
+}
+
+export function useGenerateAgentToken() {
+  const { getToken } = useAuthHooks();
+  return useMutation<
+    TokenResponse,
+    unknown,
+    { params: GenerateAgentTokenPathParams; body?: TokenRequest; query?: GenerateAgentTokenQuery }
+  >({
+    mutationFn: ({ params, body, query }) => generateAgentToken(params, body, query, getToken),
+  });
 }
