@@ -111,7 +111,7 @@ func TestCreateAgent(t *testing.T) {
 		require.NotZero(t, payload.CreatedAt)
 
 		// Validate service calls
-		require.Len(t, openChoreoClient.GetProjectCalls(), 2) // Called by CreateAgent and TriggerBuild
+		require.Len(t, openChoreoClient.GetProjectCalls(), 1)
 		require.Len(t, openChoreoClient.CreateAgentComponentCalls(), 1)
 		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
 
@@ -190,7 +190,7 @@ func TestCreateAgent(t *testing.T) {
 		require.NotZero(t, payload.CreatedAt)
 
 		// Validate service calls
-		require.Len(t, openChoreoClient.GetProjectCalls(), 2) // Called by CreateAgent and TriggerBuild
+		require.Len(t, openChoreoClient.GetProjectCalls(), 1)
 		require.Len(t, openChoreoClient.CreateAgentComponentCalls(), 1)
 		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
 
@@ -285,7 +285,7 @@ func TestCreateAgent(t *testing.T) {
 		require.NotZero(t, payload.CreatedAt)
 
 		// Validate service calls
-		require.Len(t, openChoreoClient.GetProjectCalls(), 2) // Called by CreateAgent and TriggerBuild
+		require.Len(t, openChoreoClient.GetProjectCalls(), 1)
 		require.Len(t, openChoreoClient.CreateAgentComponentCalls(), 1)
 		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
 

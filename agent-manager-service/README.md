@@ -79,7 +79,6 @@ The service uses environment variables for configuration. Create a `.env` file i
 | `DB_USER`                          | Username for database authentication                      |
 | `DB_PASSWORD`                      | Password for database authentication                      |
 | `DB_NAME`                          | Name of the database                                      |
-| `API_KEY_VALUE`                    | API key for service authentication                        |
 | `JWT_SIGNING_PRIVATE_KEY_PATH`     | Path to RSA private key for JWT signing                   |
 | `JWT_SIGNING_PUBLIC_KEYS_CONFIG`   | Path to JSON config file containing public keys           |
 | `JWT_SIGNING_ACTIVE_KEY_ID`        | Key ID for active signing key                             |

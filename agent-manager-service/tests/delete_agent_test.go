@@ -42,7 +42,6 @@ var (
 )
 
 func TestDeleteAgent(t *testing.T) {
-	setUpDeleteTest(t)
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Deleting an internal agent should return 204", func(t *testing.T) {
@@ -102,7 +101,6 @@ func TestDeleteAgent(t *testing.T) {
 		wantErrMsg     string
 		url            string
 		setupMock      func() *clientmocks.OpenChoreoSvcClientMock
-		setupData      func(t *testing.T) // Function to set up test data if needed
 	}{
 		{
 			name:           "return 404 on organization not found",
@@ -113,9 +111,6 @@ func TestDeleteAgent(t *testing.T) {
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
-			setupData: func(t *testing.T) {
-				// No data setup needed
-			},
 		},
 		{
 			name:           "return 404 on project not found",
@@ -125,9 +120,6 @@ func TestDeleteAgent(t *testing.T) {
 			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/nonexistent-project/agents/%s", testDeleteOrgName, testDeleteAgentName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
-			},
-			setupData: func(t *testing.T) {
-				// No data setup needed
 			},
 		},
 		{
@@ -143,9 +135,6 @@ func TestDeleteAgent(t *testing.T) {
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
-			setupData: func(t *testing.T) {
-				// No data setup needed
-			},
 		},
 		{
 			name:           "return 500 on OpenChoreo delete failure for internal agent",
@@ -160,10 +149,6 @@ func TestDeleteAgent(t *testing.T) {
 				}
 				return mock
 			},
-			setupData: func(t *testing.T) {
-				// Create an internal agent that will fail to delete from OpenChoreo
-				_ = apitestutils.CreateAgent(t, uuid.New(), testDeleteOrgName, testDeleteProjName, testFailingAgentName, string(utils.InternalAgent))
-			},
 		},
 	}
 
@@ -175,9 +160,6 @@ func TestDeleteAgent(t *testing.T) {
 			}
 
 			app := apitestutils.MakeAppClientWithDeps(t, testClients, tt.authMiddleware)
-
-			// Setup test data if needed
-			tt.setupData(t)
 
 			// Send the delete request
 			req := httptest.NewRequest(http.MethodDelete, tt.url, nil)
@@ -210,7 +192,6 @@ func TestDeleteAgentIdempotency(t *testing.T) {
 
 		// Create an agent to delete
 		agentName := fmt.Sprintf("new-agent-%s", uuid.New().String()[:7])
-		_ = apitestutils.CreateAgent(t, uuid.New(), testDeleteOrgName, testDeleteProjName, agentName, string(utils.InternalAgent))
 
 		// Make multiple delete requests
 		numRequests := 2
@@ -233,9 +214,4 @@ func TestDeleteAgentIdempotency(t *testing.T) {
 		// OpenChoreo delete should be called at least once (but may be called multiple times due to race conditions)
 		require.GreaterOrEqual(t, len(openChoreoClient.DeleteAgentComponentCalls()), 1)
 	})
-}
-
-func setUpDeleteTest(t *testing.T) {
-	_ = apitestutils.CreateAgent(t, uuid.New(), testDeleteOrgName, testDeleteProjName, testDeleteAgentName, string(utils.InternalAgent))
-	_ = apitestutils.CreateAgent(t, uuid.New(), testDeleteOrgName, testDeleteProjName, testExternalAgentName, string(utils.ExternalAgent))
 }

@@ -21,7 +21,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
@@ -33,11 +32,6 @@ func WithPathParamValidation(handler http.HandlerFunc, requiredParams ...string)
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Validate each required parameter
 		for _, paramName := range requiredParams {
-			if config.GetConfig().IsOnPremDeployment && paramName == utils.PathParamOrgName {
-				// Skip validation and set default for orgName in on-prem deployments
-				r.SetPathValue(utils.PathParamOrgName, DefaultOrgName)
-				continue
-			}
 			value := r.PathValue(paramName)
 			if strings.TrimSpace(value) == "" {
 				utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing required path parameter: "+paramName)
