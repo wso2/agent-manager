@@ -20,6 +20,7 @@ spec:
           sub: x-user-id
           component_uid: x-user-component
           environment_uid: x-user-environment
+          project_uid: x-user-project
   operations:
     - method: POST
       path: /v1/traces

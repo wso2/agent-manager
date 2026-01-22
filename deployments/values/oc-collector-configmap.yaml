@@ -45,6 +45,9 @@ data:
           - key: openchoreo.dev/environment-uid
             from_context: metadata.x-user-environment
             action: upsert
+          - key: openchoreo.dev/project-uid
+            from_context: metadata.x-user-project
+            action: upsert
       k8sattributes:
         auth_type: "serviceAccount"
         passthrough: false
