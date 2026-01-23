@@ -16,32 +16,3 @@ external-secrets:
 # API Platform (APIM integration)
 api-platform:
   enabled: false
-  gateway:
-    helm:
-      chartName: "oci://ghcr.io/wso2/api-platform/helm-charts/gateway"
-    values:
-      gateway:
-        config:
-          policy_configurations:
-            jwtauth_v010:
-              keymanagers:
-                - name: AgentManagerService
-                  issuer: https://agent-manager-service.amp.com
-                  jwks:
-                    remote:
-                      uri: http://host.docker.internal:9000/auth/external/jwks.json
-                      skipTlsVerify: true
-              jwkscachettl: "5m"
-              jwksfetchtimeout: "5s"
-              jwksfetchretrycount: 3
-              jwksfetchretryinterval: "2s"
-              allowedalgorithms:
-                - RS256
-                - ES256
-              leeway: "30s"
-              authheaderscheme: ""
-              headername: x-amp-api-key
-              onfailurestatuscode: 401
-              errormessageformat: json
-              errormessage: "Authentication failed."
-              validateissuer: true
