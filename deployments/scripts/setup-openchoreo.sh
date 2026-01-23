@@ -31,6 +31,8 @@ kubectl config use-context $CLUSTER_CONTEXT
 
 echo ""
 echo "1️⃣  Installing/Upgrading WSO2 AMP Thunder Extension..."
+echo "📦 Updating Helm dependencies..."
+helm dependency update "${SCRIPT_DIR}/../helm-charts/wso2-amp-thunder-extension"
 helm upgrade --install amp-thunder-extension "${SCRIPT_DIR}/../helm-charts/wso2-amp-thunder-extension" --namespace amp-thunder --create-namespace
 echo "✅ AMP Thunder Extension installed/upgraded successfully"
 
