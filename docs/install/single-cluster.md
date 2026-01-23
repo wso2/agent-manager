@@ -59,7 +59,7 @@ helm install openchoreo-control-plane \
   --version 0.9.0 \
   --namespace openchoreo-control-plane \
   --create-namespace \
-  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/single-cluster/values-cp.yaml
+  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.3.0-rc7/deployments/single-cluster/values-cp.yaml
 ```
 
 #### Install OpenChoreo Build Plane
@@ -72,7 +72,7 @@ helm install openchoreo-build-plane \
   --version 0.9.0 \
   --namespace openchoreo-build-plane \
   --create-namespace \
-  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/single-cluster/values-bp.yaml
+  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.3.0-rc7/deployments/single-cluster/values-bp.yaml
 ```
 
 #### Install OpenChoreo Data Plane
@@ -85,7 +85,7 @@ helm install openchoreo-data-plane \
   --version 0.9.0 \
   --namespace openchoreo-data-plane \
   --create-namespace \
-  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/single-cluster/values-dp.yaml
+  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.3.0-rc7/deployments/single-cluster/values-dp.yaml
 ```
 
 #### Install OpenChoreo Observability Plane
@@ -99,7 +99,7 @@ kubectl create namespace openchoreo-observability-plane
 Create the opentelemetry collector config map
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/values/oc-collector-configmap.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.3.0-rc7/deployments/values/oc-collector-configmap.yaml
 ```
 
 Install the Openchoreo observability plane to the same namespace.
@@ -110,7 +110,7 @@ helm install openchoreo-observability-plane \
   --version 0.9.0 \
   --namespace openchoreo-observability-plane \
   --create-namespace \
-  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/single-cluster/values-op.yaml
+  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.3.0-rc7/deployments/single-cluster/values-op.yaml
 ```
 
 Follow the [OpenChoreo Single Cluster Setup](https://openchoreo.dev/docs/v0.9.x/getting-started/try-it-out/on-self-hosted-kubernetes/) guide to install cert-manager, create the Gateway TLS certificate, and register the BuildPlane, DataPlane, and Observability Plane with the Control Plane.
@@ -156,8 +156,8 @@ The Agent Management Platform installation consists of four main components:
 Set the following environment variables before installation:
 
 ```bash
-# Version (default: 0.0.0-dev)
-export VERSION="0.0.0-dev"
+# Version (default: 0.3.0-rc7)
+export VERSION="0.3.0-rc7"
 
 # Helm chart registry
 export HELM_CHART_REGISTRY="ghcr.io/wso2"
@@ -182,7 +182,7 @@ The core platform includes:
 ```bash
 # Set configuration variables
 export HELM_CHART_REGISTRY="ghcr.io/wso2"
-export VERSION="0.0.0-dev"  # Use your desired version
+export VERSION="0.3.0-rc7"  # Use your desired version
 export AMP_NS="wso2-amp"
 
 # Install the platform Helm chart
