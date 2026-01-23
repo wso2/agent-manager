@@ -96,21 +96,24 @@ def initialize_instrumentation() -> None:
             # Validate and read required configuration
             otel_endpoint = _get_required_env_var(env_vars.AMP_OTEL_ENDPOINT)
             api_key = _get_required_env_var(env_vars.AMP_AGENT_API_KEY)
-            resource_attributes = _get_required_env_var(env_vars.AMP_TRACE_ATTRIBUTES)
+            resource_attributes = os.getenv(env_vars.AMP_TRACE_ATTRIBUTES)
 
             # Get trace content setting (default: true)
             trace_content = os.getenv(env_vars.AMP_TRACE_CONTENT, "true")
-            transformed_resource_attributes = transform_resource_attributes(
-                resource_attributes
-            )
 
             # Set Traceloop environment variables
             os.environ[env_vars.TRACELOOP_TRACE_CONTENT] = trace_content
             os.environ[env_vars.TRACELOOP_METRICS_ENABLED] = "false"
             os.environ[env_vars.OTEL_EXPORTER_OTLP_INSECURE] = "true"
-            os.environ[env_vars.OTEL_RESOURCE_ATTRIBUTES] = (
-                transformed_resource_attributes
-            )
+
+            # Only set resource attributes if provided
+            if resource_attributes:
+                transformed_resource_attributes = transform_resource_attributes(
+                    resource_attributes
+                )
+                os.environ[env_vars.OTEL_RESOURCE_ATTRIBUTES] = (
+                    transformed_resource_attributes
+                )
 
             # Import and initialize Traceloop
             from traceloop.sdk import Traceloop
@@ -119,7 +122,7 @@ def initialize_instrumentation() -> None:
             Traceloop.init(
                 telemetry_enabled=False,
                 api_endpoint=otel_endpoint,
-                headers={"x-api-key": api_key},
+                headers={"x-amp-api-key": api_key},
             )
 
             _initialized = True
