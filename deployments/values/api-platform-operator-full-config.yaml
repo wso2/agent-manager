@@ -317,7 +317,7 @@ data:
                 remote:
                   uri: http://host.docker.internal:9000/auth/external/jwks.json
                   skipTlsVerify: true
-            headername: x-api-key
+            headername: x-amp-api-key
             authheaderscheme: ""
             onfailurestatuscode: 401
             errormessageformat: json
