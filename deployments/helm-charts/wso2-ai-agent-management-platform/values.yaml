@@ -116,6 +116,12 @@ agentManagerService:
 
     # On-premise deployment flag
     isOnPremDeployment: "true"
+
+    # OIDC configuration for Thunder integration
+    oidc:
+      tokenUrl: "http://thunder.amp.localhost:8080/oauth2/token"
+      clientId: "amp-api-client"
+      clientSecret: "amp-api-client-secret"
   agentWorkload:
     cors:
       allowedOrigin: "http://localhost:3000"
