@@ -28,4 +28,7 @@ data:
   KEY_MANAGER_JWKS_URL: {{ .Values.agentManagerService.config.keyManager.jwksUrl | quote }}                                         
   KEY_MANAGER_DEFAULT_ISSUER: {{ .Values.agentManagerService.config.keyManager.defaultIssuer | quote }}                    
   IS_ON_PREM_DEPLOYMENT: {{ .Values.agentManagerService.config.isOnPremDeployment | quote }}
+  IDP_TOKEN_URL: {{ .Values.agentManagerService.config.oidc.tokenUrl | quote }}
+  IDP_CLIENT_ID: {{ .Values.agentManagerService.config.oidc.clientId | quote }}
+  IDP_CLIENT_SECRET: {{ .Values.agentManagerService.config.oidc.clientSecret | quote }}
 {{- end }}
