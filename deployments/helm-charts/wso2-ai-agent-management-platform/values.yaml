@@ -119,7 +119,7 @@ agentManagerService:
 
     # OIDC configuration for Thunder integration
     oidc:
-      tokenUrl: "http://thunder.amp.localhost:8080/oauth2/token"
+      tokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"
       clientId: "amp-api-client"
       clientSecret: "amp-api-client-secret"
     # JWT Signing configuration
