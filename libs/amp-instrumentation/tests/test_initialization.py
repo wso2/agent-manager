@@ -68,4 +68,4 @@ class TestInitializeInstrumentation:
         # Verify Traceloop was initialized
         assert mock_traceloop.initialized is True
         assert mock_traceloop.init_kwargs["api_endpoint"] == "https://otel.example.com"
-        assert mock_traceloop.init_kwargs["headers"]["x-api-key"] == "test-key"
+        assert mock_traceloop.init_kwargs["headers"]["x-amp-api-key"] == "test-key"

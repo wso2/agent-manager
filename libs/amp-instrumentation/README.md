@@ -31,7 +31,12 @@ First, register your agent at the [WSO2 AI Agent Management Platform](https://gi
 ```bash
 export AMP_OTEL_ENDPOINT="https://amp-otel-endpoint.com" # AMP OTEL endpoint
 export AMP_AGENT_API_KEY="your-agent-api-key" # Agent-specific key generated after registration
-export AMP_TRACE_ATTRIBUTES="trace-attributes-set" # Custom key-value pairs for trace metadata
+```
+
+Optionally, you can set custom trace attributes:
+
+```bash
+export AMP_TRACE_ATTRIBUTES="environment-uid=env,component-uid=comp" # Optional: Custom key-value pairs for trace metadata
 ```
 
 ### 3. Run Your Application

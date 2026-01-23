@@ -28,3 +28,5 @@ htmlcov/
 # Development
 *.log
 .DS_Store
+
+.venv
