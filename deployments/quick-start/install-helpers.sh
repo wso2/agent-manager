@@ -19,6 +19,7 @@ AMP_CHART_NAME="wso2-ai-agent-management-platform"
 BUILD_CI_CHART_NAME="wso2-amp-build-extension"
 OBSERVABILITY_CHART_NAME="wso2-amp-observability-extension"
 PLATFORM_RESOURCES_CHART_NAME="wso2-amp-platform-resources-extension"
+THUNDER_EXTENSION_CHART_NAME="wso2-amp-thunder-extension"
 
 # Namespace definitions
 AMP_NS="${AMP_NS:-wso2-amp}"
@@ -26,6 +27,7 @@ BUILD_CI_NS="${BUILD_CI_NS:-openchoreo-build-plane}"
 OBSERVABILITY_NS="${OBSERVABILITY_NS:-openchoreo-observability-plane}"
 DEFAULT_NS="${DEFAULT_NS:-default}"
 DATA_PLANE_NS="${DATA_PLANE_NS:-openchoreo-data-plane}"
+THUNDER_NS="${THUNDER_NS:-amp-thunder}"
 
 # Helm arguments arrays (initialize if not set)
 if [[ -z "${AMP_HELM_ARGS+x}" ]]; then
@@ -39,6 +41,9 @@ if [[ -z "${OBSERVABILITY_HELM_ARGS+x}" ]]; then
 fi
 if [[ -z "${PLATFORM_RESOURCES_HELM_ARGS+x}" ]]; then
     PLATFORM_RESOURCES_HELM_ARGS=()
+fi
+if [[ -z "${THUNDER_HELM_ARGS+x}" ]]; then
+    THUNDER_HELM_ARGS=()
 fi
 
 # Timeouts (in seconds)
@@ -218,6 +223,22 @@ install_observability_extension() {
             kubectl get pods -n "${OBSERVABILITY_NS}" -l app.kubernetes.io/component=traces-observer 2>&1 || true
             return 1
         fi
+    fi
+
+    return 0
+}
+
+# Install AMP Thunder Extension
+install_amp_thunder_extension() {
+    local chart_ref="oci://${HELM_CHART_REGISTRY}/${THUNDER_EXTENSION_CHART_NAME}"
+    local chart_version="${VERSION}"
+    local release_name="amp-thunder-extension"
+
+    # Install Helm chart
+    if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${THUNDER_NS}" "${TIMEOUT_AMP_INSTALL}" \
+        --version "${chart_version}" \
+        "${THUNDER_HELM_ARGS[@]}"; then
+        return 1
     fi
 
     return 0

@@ -1,0 +1,34 @@
+# OpenChoreo Control Plane Values
+# Reference: https://openchoreo.dev/docs/getting-started/try-it-out/on-self-hosted-kubernetes/
+
+global:
+  baseDomain: openchoreo.localhost
+  port: ":8080"
+  defaultResources:
+    enabled: false
+
+# Traefik ingress configuration
+traefik:
+  ports:
+    web:
+      exposedPort: 8080
+    websecure:
+      exposedPort: 8443
+
+# Backstage configuration
+backstage:
+  enabled: false
+# Thunder identity provider configuration
+thunder:
+  enabled: false
+
+security:
+  enabled: true
+  oidc:
+    issuer: "thunder"
+    # Internal cluster URLs for backend validation
+    wellKnownEndpoint: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/.well-known/openid-configuration"
+    jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
+    # Public URLs for browser OAuth flows
+    authorizationUrl: "http://thunder.amp.localhost:8080/oauth2/authorize"
+    tokenUrl: "http://thunder.amp.localhost:8080/oauth2/token"

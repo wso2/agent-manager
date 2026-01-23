@@ -96,11 +96,15 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
 				UUID:        "component-uid-123",
 				Name:        agentName,
 				ProjectName: projectName,
+				Provisioning: openchoreosvc.Provisioning{
+					Type: "internal",
+				},
 			}, nil
 		},
 		GetEnvironmentFunc: func(ctx context.Context, orgName, environmentName string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{
 				UUID: "environment-uid-123",
+				Name: environmentName,
 			}, nil
 		},
 		DeleteAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agentName string) error {

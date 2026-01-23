@@ -1,0 +1,181 @@
+# Thunder subchart configuration
+thunder:
+  deployment:
+    replicaCount: 1
+    strategy:
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 0
+    securityContext:
+      # Read-only root filesystem. Must be false for SQLite
+      readOnlyRootFilesystem: false
+      enableRunAsUser: true
+      fsGroup: 802
+      runAsUser: 802
+      seccompProfile:
+        enabled: true
+        type: RuntimeDefault
+    terminationGracePeriodSeconds: 10
+    image:
+      registry: ghcr.io/asgardeo
+      repository: thunder
+      tag: "0.15.0"
+      pullPolicy: Always
+    container:
+      port: 8090
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  persistence:
+    enabled: false
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 1Gi
+    annotations: {}
+  service:
+    port: 8090
+  serviceAccount:
+    name: thunder-service-account
+    create: true
+  hpa:
+    enabled: false
+  pdb:
+    minAvailable: "50%"
+  ingress:
+    className: traefik
+    hostname: "thunder.amp.localhost"
+    paths:
+      - path: /
+        pathType: Prefix
+  configuration:
+    server:
+      port: 8090
+      httpOnly: true
+      publicUrl: "http://thunder.amp.localhost:8080"
+    gateClient:
+      hostname: "thunder.amp.localhost"
+      port: 8080
+      scheme: "http"
+      loginPath: "/gate/signin"
+      errorPath: "/gate/error"
+    crypto:
+      encryption:
+        key: "file://repository/resources/security/crypto.key"
+    database:
+      identity:
+        type: sqlite
+        sqlitePath: "repository/database/thunderdb.db"
+        sqliteOptions: "_journal_mode=WAL&_busy_timeout=5000"
+      runtime:
+        type: sqlite
+        sqlitePath: "repository/database/runtimedb.db"
+        sqliteOptions: "_journal_mode=WAL&_busy_timeout=5000"
+      user:
+        type: sqlite
+        sqlitePath: "repository/database/userdb.db"
+        sqliteOptions: "_journal_mode=WAL&_busy_timeout=5000"
+    cache:
+      disabled: false
+      type: "inmemory"
+      size: 1000
+      ttl: 3600
+      evictionPolicy: "LRU"
+      cleanupInterval: 300
+    jwt:
+      issuer: "thunder"
+      validityPeriod: 3600
+      audience: "application"
+    oauth:
+      refreshToken:
+        renewOnGrant: false
+        validityPeriod: 86400
+      authorizationCode:
+        validityPeriod: 600
+    flow:
+      defaultAuthFlowHandle: "auth_flow_config_basic"
+      maxVersionHistory: 3
+      autoInferRegistration: true
+    cors:
+      allowedOrigins:
+        - "http://localhost:3000"
+  setup:
+    enabled: true
+    backoffLimit: 3
+    ttlSecondsAfterFinished: 86400
+    preserveJob: true
+    debug: false
+    resources:
+      limits:
+        cpu: 500m
+        memory: 256Mi
+      requests:
+        cpu: 250m
+        memory: 128Mi
+  bootstrap:
+    enabled: true
+    configMap:
+      name: amp-thunder-bootstrap
+      files:
+        - 50-amp-api-client.sh
+        - 51-user-schema-and-users.sh
+        - 52-amp-console-app.sh
+    # AMP API Client configuration
+    ampApiClient:
+      clientId: "amp-api-client"
+      clientSecret: "amp-api-client-secret"
+      name: "AMP API Client"
+      description: "Client application for AMP API access"
+      authFlowGraphId: "auth_flow_config_basic"
+      grantTypes:
+        - "client_credentials"
+      tokenEndpointAuthMethod: "client_secret_post"
+      pkceRequired: false
+      publicClient: false
+      accessTokenValidityPeriod: 3600
+    # AMP Console Client configuration
+    ampConsoleClient:
+      clientId: "amp-console-client"
+      clientSecret: "amp-console-client-secret"
+      name: "AMP Console"
+      description: "AMP Console Application"
+      authFlowGraphId: "auth_flow_config_basic"
+      redirectUris:
+        - "http://localhost:3000/login"
+      grantTypes:
+        - "authorization_code"
+        - "client_credentials"
+      responseTypes:
+        - "code"
+      allowed_user_types:
+        - "engineer"
+      tokenEndpointAuthMethod: "client_secret_post"
+      pkceRequired: false
+      publicClient: false
+      tokenIssuer: "thunder"
+      accessTokenValidityPeriod: 3600
+      idTokenValidityPeriod: 3600
+      userAttributes:
+        - "given_name"
+        - "family_name"
+        - "username"
+        - "groups"
+    # Default Organization unit configuration
+    organizationUnit:
+      name: "Default"
+      handle: "default"
+      description: "Default organizational unit"
+    # User schema configuration
+    userSchema:
+      name: "engineer"
+      allowSelfRegistration: true
+    # Default admin user configuration
+    defaultUsers:
+      - username: "amp-admin@wso2.com"
+        password: "Amp-Admin@wso2.com"
+        givenName: "Admin"
+        familyName: "User"
+        groups: ["platformEngineer"]

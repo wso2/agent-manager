@@ -43,7 +43,6 @@ var (
 )
 
 func TestDeleteProject(t *testing.T) {
-	setUpDeleteProjectTest(t)
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Deleting an empty project should return 204", func(t *testing.T) {
@@ -136,7 +135,6 @@ func TestDeleteProject(t *testing.T) {
 		wantErrMsg     string
 		url            string
 		setupMock      func() *clientmocks.OpenChoreoSvcClientMock
-		setupData      func(t *testing.T) // Function to set up test data if needed
 	}{
 		{
 			name:           "return 404 on organization not found",
@@ -146,9 +144,6 @@ func TestDeleteProject(t *testing.T) {
 			url:            fmt.Sprintf("/api/v1/orgs/nonexistent-org/projects/%s", testDeleteProjectProjName),
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
-			},
-			setupData: func(t *testing.T) {
-				// No data setup needed
 			},
 		},
 		{
@@ -164,9 +159,6 @@ func TestDeleteProject(t *testing.T) {
 			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
-			setupData: func(t *testing.T) {
-				// No data setup needed
-			},
 		},
 		{
 			name:           "return 500 on OpenChoreo delete failure",
@@ -181,8 +173,6 @@ func TestDeleteProject(t *testing.T) {
 				}
 				return mock
 			},
-			setupData: func(t *testing.T) {
-			},
 		},
 	}
 
@@ -194,9 +184,6 @@ func TestDeleteProject(t *testing.T) {
 			}
 
 			app := apitestutils.MakeAppClientWithDeps(t, testClients, tt.authMiddleware)
-
-			// Setup test data if needed
-			tt.setupData(t)
 
 			// Send the delete request
 			req := httptest.NewRequest(http.MethodDelete, tt.url, nil)
@@ -251,8 +238,4 @@ func TestDeleteProjectIdempotency(t *testing.T) {
 		// OpenChoreo delete should be called at least once (but may be called multiple times due to race conditions)
 		require.GreaterOrEqual(t, len(openChoreoClient.DeleteProjectCalls()), 1)
 	})
-}
-
-func setUpDeleteProjectTest(t *testing.T) {
-	_ = apitestutils.CreateAgent(t, uuid.New(), testDeleteProjectOrgName, projectsWithAgentsName, "test-agent-1", string(utils.InternalAgent))
 }

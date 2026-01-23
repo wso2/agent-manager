@@ -532,7 +532,7 @@ func (k *openChoreoSvcClient) DeployAgentComponent(ctx context.Context, orgName 
 		return fmt.Errorf("failed to check agent component existence: %w", err)
 	}
 	if !exists {
-		return fmt.Errorf("agent component %s does not exist in open choreo %s", componentName, projName)
+		return fmt.Errorf("agent component %s does not exist in OpenChoreo %s", componentName, projName)
 	}
 
 	// Retry the entire get-modify-update operation to handle conflicts
@@ -629,20 +629,12 @@ func (k *openChoreoSvcClient) ListComponentWorkflows(ctx context.Context, orgNam
 }
 
 func (k *openChoreoSvcClient) GetComponentWorkflow(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
-	exists, err := k.IsAgentComponentExists(ctx, orgName, projName, componentName, true)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check agent component existence: %w", err)
-	}
-	if !exists {
-		return nil, fmt.Errorf("agent component %s does not exist in open choreo %s", componentName, projName)
-	}
-
 	componentWorkflow := &v1alpha1.ComponentWorkflowRun{}
 	key := client.ObjectKey{
 		Name:      buildName,
 		Namespace: orgName,
 	}
-	err = k.retryK8sOperation(ctx, "GetBuild", func() error {
+	err := k.retryK8sOperation(ctx, "GetBuild", func() error {
 		return k.client.Get(ctx, key, componentWorkflow)
 	})
 	if err != nil {
@@ -665,14 +657,6 @@ func (k *openChoreoSvcClient) GetComponentWorkflow(ctx context.Context, orgName 
 }
 
 func (k *openChoreoSvcClient) GetAgentDeployments(ctx context.Context, orgName string, pipelineName string, projectName string, componentName string) ([]*models.DeploymentResponse, error) {
-	exists, err := k.IsAgentComponentExists(ctx, orgName, projectName, componentName, true)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check agent component existence: %w", err)
-	}
-	if !exists {
-		return nil, fmt.Errorf("agent component %s does not exist in open choreo %s", componentName, projectName)
-	}
-
 	pipeline, err := k.GetDeploymentPipeline(ctx, orgName, pipelineName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get deployment pipeline for project %s: %w", pipelineName, err)
@@ -768,13 +752,6 @@ func (k *openChoreoSvcClient) GetAgentDeployments(ctx context.Context, orgName s
 }
 
 func (k *openChoreoSvcClient) GetAgentEndpoints(ctx context.Context, orgName string, projName string, agentName string, environment string) (map[string]models.EndpointsResponse, error) {
-	exists, err := k.IsAgentComponentExists(ctx, orgName, projName, agentName, true)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check agent component existence: %w", err)
-	}
-	if !exists {
-		return nil, fmt.Errorf("agent component %s does not exist in open choreo %s", agentName, projName)
-	}
 	componentWorkload, err := k.getComponentWorkload(ctx, orgName, projName, agentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get component workload: %w", err)
@@ -914,15 +891,6 @@ func (k *openChoreoSvcClient) GetDeploymentPipeline(ctx context.Context, orgName
 }
 
 func (k *openChoreoSvcClient) GetAgentConfigurations(ctx context.Context, orgName string, projectName string, agentName string, environment string) ([]models.EnvVars, error) {
-	// Check if agent component exists
-	exists, err := k.IsAgentComponentExists(ctx, orgName, projectName, agentName, true)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check agent component existence: %w", err)
-	}
-	if !exists {
-		return nil, fmt.Errorf("agent component %s does not exist in open choreo %s", agentName, projectName)
-	}
-
 	// Get the workload to extract base environment variables
 	componentWorkload, err := k.getComponentWorkload(ctx, orgName, projectName, agentName)
 	if err != nil {

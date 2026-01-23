@@ -24,7 +24,7 @@ docker --version  # If using k3d
 
 ### OpenChoreo Cluster Requirements
 
-The Agent Management Platform requires an **OpenChoreo cluster (v0.7.0)** with the following components installed:
+The Agent Management Platform requires an **OpenChoreo cluster (v0.9.0)** with the following components installed:
 
 - **OpenChoreo Control Plane** - Core orchestration and management
 - **OpenChoreo Data Plane** - Runtime environment for agents
@@ -36,14 +36,18 @@ The Agent Management Platform requires an **OpenChoreo cluster (v0.7.0)** with t
 If you need to install OpenChoreo components, this repository provides custom values files optimized for single-cluster setups:
 
 - **Control Plane**: `deployments/single-cluster/values-cp.yaml`
+- **Build Plane**: `deployments/single-cluster/values-bp.yaml`
+- **Data Plane**: `deployments/single-cluster/values-dp.yaml`
 - **Observability Plane**: `deployments/single-cluster/values-op.yaml`
 
 These values files configure:
+
 - Development mode settings for local development
 - Single-cluster installation mode (non-HA)
 - Standalone OpenSearch (instead of operator-managed cluster)
 - Traefik ingress configuration for k3d
 - Cluster gateway configuration
+- Enable API Platform
 
 #### Install OpenChoreo Control Plane
 
@@ -52,15 +56,41 @@ These values files configure:
 # Install Control Plane
 helm install openchoreo-control-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
-  --version 0.7.0 \
+  --version 0.9.0 \
   --namespace openchoreo-control-plane \
   --create-namespace \
   --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/single-cluster/values-cp.yaml
 ```
 
+#### Install OpenChoreo Build Plane
+
+```bash
+
+# Install Build Plane
+helm install openchoreo-build-plane \
+  oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane \
+  --version 0.9.0 \
+  --namespace openchoreo-build-plane \
+  --create-namespace \
+  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/single-cluster/values-bp.yaml
+```
+
+#### Install OpenChoreo Data Plane
+
+```bash
+
+# Install Data Plane
+helm install openchoreo-data-plane \
+  oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
+  --version 0.9.0 \
+  --namespace openchoreo-data-plane \
+  --create-namespace \
+  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/single-cluster/values-dp.yaml
+```
+
 #### Install OpenChoreo Observability Plane
 
-Create namespace *openchoreo-observability-plane*
+Create namespace _openchoreo-observability-plane_
 
 ```bash
 kubectl create namespace openchoreo-observability-plane
@@ -71,21 +101,24 @@ Create the opentelemetry collector config map
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/values/oc-collector-configmap.yaml
 ```
+
 Install the Openchoreo observability plane to the same namespace.
 
 ```bash
 helm install openchoreo-observability-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-  --version 0.7.0 \
+  --version 0.9.0 \
   --namespace openchoreo-observability-plane \
   --create-namespace \
   --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/single-cluster/values-op.yaml
 ```
-Follow [OpenChoreo Single Cluster Setup](https://openchoreo.dev/docs/v0.7.x/getting-started/single-cluster/) to install the rest of the OpenChoreo components for single cluster.
+
+Follow the [OpenChoreo Single Cluster Setup](https://openchoreo.dev/docs/v0.9.x/getting-started/try-it-out/on-self-hosted-kubernetes/) guide to install cert-manager, create the Gateway TLS certificate, and register the BuildPlane, DataPlane, and Observability Plane with the Control Plane.
 
 ### Permissions
 
 Ensure you have sufficient permissions to:
+
 - Create namespaces
 - Deploy Helm charts
 - Create and manage Kubernetes resources
@@ -139,6 +172,7 @@ export DEFAULT_NS="default"
 ### Step 1: Install Agent Management Platform
 
 The core platform includes:
+
 - PostgreSQL database
 - Agent Manager Service (API)
 - Console (Web UI)
@@ -179,6 +213,7 @@ kubectl wait --for=condition=Available \
 ### Step 2: Install Platform Resources Extension
 
 The Platform Resources Extension creates default resources:
+
 - Default Organization
 - Default Project
 - Environment
@@ -232,11 +267,11 @@ Configure the DataPlane and BuildPlane to use the observability observer:
 ```bash
 # Configure DataPlane observer
 kubectl patch dataplane default -n default --type merge \
-  -p '{"spec":{"observer":{"url":"http://observer.openchoreo-observability-plane:8080","authentication":{"basicAuth":{"username":"dummy","password":"dummy"}}}, "gateway": {"publicVirtualHost": "localhost"}}}'
+  -p '{"spec":{"observabilityPlaneRef":"default"}}'
 
 # Configure BuildPlane observer
 kubectl patch buildplane default -n default --type merge \
-  -p '{"spec":{"observer":{"url":"http://observer.openchoreo-observability-plane:8080","authentication":{"basicAuth":{"username":"dummy","password":"dummy"}}}}}'
+  -p '{"spec":{"observabilityPlaneRef":"default"}}'
 ```
 
 ### Step 5: Install Build Extension
@@ -256,7 +291,6 @@ helm install build-workflow-extensions \
 ```
 
 **Note:** This extension is non-fatal if installation fails. The platform will function, but build CI features may not work.
-
 
 ## Verification
 
@@ -327,7 +361,7 @@ agentManagerService:
 
 console:
   replicaCount: 2
-  
+
 postgresql:
   auth:
     password: "my-secure-password"
@@ -349,4 +383,4 @@ helm install amp \
 
 - [Quick Start Guide](../quick-start.md) - Complete setup with k3d and OpenChoreo
 - [Main README](../../README.md) - Project overview and architecture
-- [OpenChoreo Documentation](https://openchoreo.dev/docs/v0.7.x/) - OpenChoreo setup and configuration
+- [OpenChoreo Documentation](https://openchoreo.dev/docs/v0.9.x/) - OpenChoreo setup and configuration

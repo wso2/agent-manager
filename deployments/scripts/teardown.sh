@@ -1,5 +1,5 @@
 #!/bin/bash
-CLUSTER_NAME="openchoreo-local-v0.7"
+CLUSTER_NAME="openchoreo-local-v0.9"
 
 set -e
 

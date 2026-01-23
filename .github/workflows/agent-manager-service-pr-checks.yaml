@@ -52,14 +52,16 @@ jobs:
       - name: Create test .env file
         working-directory: ./agent-manager-service
         run: |
-          cat > .env << 'EOF'
+          cat > .env << EOF
           DB_HOST=localhost
           DB_PORT=5432
           DB_USER=agentmanager
           DB_PASSWORD=agentmanager
           DB_NAME=agentmanager
           SERVER_PORT=8080
-          API_KEY_VALUE=test-api-key
+          JWT_SIGNING_ACTIVE_KEY_ID=key-1
+          JWT_SIGNING_PRIVATE_KEY_PATH=$(pwd)/keys/private.pem
+          JWT_SIGNING_PUBLIC_KEYS_CONFIG=$(pwd)/keys/public-keys-config.json
           EOF
 
       - name: Wait for PostgreSQL

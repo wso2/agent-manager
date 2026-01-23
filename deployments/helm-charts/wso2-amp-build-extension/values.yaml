@@ -11,13 +11,3 @@ global:
     # For local registry: "host.k3d.internal:10082"
     # For external registry with baseDomain: automatically uses "registry.<baseDomain>"
     endpoint: "host.k3d.internal:10082"
-  # -- Agent Manager Service configuration
-  agentManagerService:
-    # -- The base URL of the agent manager service
-    # Use host.k3d.internal for k3d or host.docker.internal for Docker Desktop/Kind to access host machine
-    url: "http://amp-api.wso2-amp.svc.cluster.local:9000"
-    apiKeyHeader: "X-API-Key"
-    # -- API Key for agent manager authentication
-    # Provide it during installation with:
-    # helm install custom-build-ci-workflows <path> --namespace <ns> --set global.agentManagerService.apiKey=your-secret-key
-    apiKey: "abc-def-123"

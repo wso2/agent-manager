@@ -31,7 +31,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
@@ -130,7 +129,7 @@ func TestGetApplicationLogs(t *testing.T) {
 		require.NoError(t, err)
 
 		// Send the request
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/application-logs", logsOrgName, logsProjName, logsAgentName)
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName)
 		req := httptest.NewRequest(http.MethodPost, url, reqBody)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -170,11 +169,6 @@ func TestGetApplicationLogs(t *testing.T) {
 	t.Run("Getting application logs with log level filter should return 200", func(t *testing.T) {
 		observabilityClient := createMockObservabilityClient()
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
-		openChoreoClient.GetAgentComponentFunc = func(ctx context.Context, orgName, projectName, agentName string) (*openchoreosvc.AgentComponent, error) {
-			return &openchoreosvc.AgentComponent{
-				UUID: "component-uid-123",
-			}, nil
-		}
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient:    openChoreoClient,
 			ObservabilitySvcClient: observabilityClient,
@@ -195,7 +189,7 @@ func TestGetApplicationLogs(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/application-logs", logsOrgName, logsProjName, logsAgentName)
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName)
 		req := httptest.NewRequest(http.MethodPost, url, reqBody)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -213,11 +207,6 @@ func TestGetApplicationLogs(t *testing.T) {
 	t.Run("Getting application logs with search phrase should return 200", func(t *testing.T) {
 		observabilityClient := createMockObservabilityClient()
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
-		openChoreoClient.GetAgentComponentFunc = func(ctx context.Context, orgName, projectName, agentName string) (*openchoreosvc.AgentComponent, error) {
-			return &openchoreosvc.AgentComponent{
-				UUID: "component-uid-123",
-			}, nil
-		}
 		testClients := wiring.TestClients{
 			OpenChoreoSvcClient:    openChoreoClient,
 			ObservabilitySvcClient: observabilityClient,
@@ -238,7 +227,7 @@ func TestGetApplicationLogs(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/application-logs", logsOrgName, logsProjName, logsAgentName)
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName)
 		req := httptest.NewRequest(http.MethodPost, url, reqBody)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -271,7 +260,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			},
 			wantStatus: 400,
 			wantErrMsg: "environment is required",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/application-logs", logsOrgName, logsProjName, logsAgentName),
+			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
@@ -286,7 +275,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			},
 			wantStatus: 404,
 			wantErrMsg: "Agent not found",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/nonexistent-agent/application-logs", logsOrgName, logsProjName),
+			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/nonexistent-agent/runtime-logs", logsOrgName, logsProjName),
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				obsClient := createMockObservabilityClient()
 				openClient := apitestutils.CreateMockOpenChoreoClient()
@@ -303,7 +292,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			},
 			wantStatus: 400,
 			wantErrMsg: "environment",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/application-logs", logsOrgName, logsProjName, logsAgentName),
+			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
@@ -318,7 +307,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			},
 			wantStatus: 400,
 			wantErrMsg: "startTime",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/application-logs", logsOrgName, logsProjName, logsAgentName),
+			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
@@ -333,7 +322,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			},
 			wantStatus: 400,
 			wantErrMsg: "endTime",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/application-logs", logsOrgName, logsProjName, logsAgentName),
+			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
@@ -348,7 +337,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			},
 			wantStatus: 400,
 			wantErrMsg: "must be after startTime",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/application-logs", logsOrgName, logsProjName, logsAgentName),
+			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
@@ -363,7 +352,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			},
 			wantStatus: 400,
 			wantErrMsg: "startTime cannot be in the future",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/application-logs", logsOrgName, logsProjName, logsAgentName),
+			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
@@ -378,7 +367,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			},
 			wantStatus: 400,
 			wantErrMsg: "time range cannot exceed",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/application-logs", logsOrgName, logsProjName, logsAgentName),
+			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
@@ -394,7 +383,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			},
 			wantStatus: 400,
 			wantErrMsg: "limit must be between",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/application-logs", logsOrgName, logsProjName, logsAgentName),
+			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
@@ -410,7 +399,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			},
 			wantStatus: 400,
 			wantErrMsg: "limit must be between",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/application-logs", logsOrgName, logsProjName, logsAgentName),
+			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
@@ -426,7 +415,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			},
 			wantStatus: 400,
 			wantErrMsg: "sortOrder must be",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/application-logs", logsOrgName, logsProjName, logsAgentName),
+			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
@@ -445,7 +434,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			},
 			wantStatus: 401,
 			wantErrMsg: "missing header: Authorization",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/application-logs", logsOrgName, logsProjName, logsAgentName),
+			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},

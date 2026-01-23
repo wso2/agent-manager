@@ -211,91 +211,77 @@ spec:
             valueFrom:
               path: /mnt/vol/workload-cr.yaml
       container:
-        image: ghcr.io/openchoreo/podman-runner:v1.0
+        image: alpine:3.20
         command: [sh, -c]
         args:
           - |-
             set -e
 
-            #####################################################################
-            # 1. Initialize variables
-            #####################################################################
+            # Install jq
+            apk add --no-cache jq
+
+            # Variables
             IMAGE={{ "{{" }}inputs.parameters.image{{ "}}" }}
             PROJECT_NAME={{ "{{" }}workflow.parameters.project-name{{ "}}" }}
             COMPONENT_NAME={{ "{{" }}workflow.parameters.component-name{{ "}}" }}
-            SCHEMA_FILE_PATH={{ "{{" }}workflow.parameters.schema-file-path{{ "}}" }}
-            ORG_NAME=$(echo {{ "{{" }}workflow.namespace{{ "}}" }} | sed 's/^openchoreo-ci-//')
+            ORG_NAME={{ "{{" }}workflow.namespace{{ "}}" }}
+            # Strip 'openchoreo-ci-' prefix to get the actual org name
+            ORG_NAME=${ORG_NAME#openchoreo-ci-}
+            ENDPOINTS='{{ "{{" }}workflow.parameters.endpoints{{ "}}" }}'
+            ENV_VARS='{{ "{{" }}workflow.parameters.environment-variables{{ "}}" }}'
+            SOURCE_PATH="/mnt/vol/source/{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
+            OUT="/mnt/vol/workload-cr.yaml"
 
-            WORKDIR=/mnt/vol/source
-            APP_PATH="{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
-            SOURCE_PATH="$WORKDIR/$APP_PATH"
+            # Base workload
+            echo "apiVersion: openchoreo.dev/v1alpha1" > "$OUT"
+            echo "kind: Workload" >> "$OUT"
+            echo "metadata:" >> "$OUT"
+            echo "  name: ${COMPONENT_NAME}-workload" >> "$OUT"
+            echo "  namespace: ${ORG_NAME}" >> "$OUT"
+            echo "spec:" >> "$OUT"
+            echo "  owner:" >> "$OUT"
+            echo "    projectName: ${PROJECT_NAME}" >> "$OUT"
+            echo "    componentName: ${COMPONENT_NAME}" >> "$OUT"
+            echo "  containers:" >> "$OUT"
+            echo "    main:" >> "$OUT"
+            echo "      image: ${IMAGE}" >> "$OUT"
 
-
-            #####################################################################
-            # 2. Prepare callback payload
-            #####################################################################
-            CALLBACK_PAYLOAD=$(cat <<EOF
-            {
-              "agentName": "$COMPONENT_NAME",
-              "projectName": "$PROJECT_NAME",
-              "orgName": "$ORG_NAME"
-            }
-            EOF
-            )
-
-            #####################################################################
-            # 3. Make API call to agent-manager service
-            #####################################################################
-            AGENT_MANAGER_BASE_URL="{{ .Values.global.agentManagerService.url }}"
-            CALLBACK_ENDPOINT="$AGENT_MANAGER_BASE_URL/internal/builds/callback"
-            AUTH_HEADER="{{ .Values.global.agentManagerService.apiKeyHeader }}"
-            API_KEY="{{ .Values.global.agentManagerService.apiKey }}"
-
-            echo "Calling build callback API with payload:"
-            echo "$CALLBACK_PAYLOAD"
-            echo "Endpoint: $CALLBACK_ENDPOINT"
-
-            # 1. Call API to get workload CR template
-            WORKLOAD_CR=$(curl -X POST \
-              -H "Content-Type: application/json" \
-              -H "$AUTH_HEADER: $API_KEY" \
-              -d "$CALLBACK_PAYLOAD" \
-              "$CALLBACK_ENDPOINT" \
-              --max-time 30 \
-              --retry 3 \
-              --retry-delay 5 \
-              --fail-with-body)
-
-            # Check if WORKLOAD_CR is empty
-            if [ -z "$WORKLOAD_CR" ]; then
-              echo "Error: Received empty response from build callback API"
-              exit 1
+            # Environment variables
+            if [ -n "$ENV_VARS" ] && [ "$ENV_VARS" != "null" ] && [ "$ENV_VARS" != "[]" ]; then
+              echo "      env:" >> "$OUT"
+              echo "$ENV_VARS" | jq -r '.[] | "        - key: \(.name)\n          value: \(.value | tostring | @json)"' >> "$OUT"
             fi
 
-            # 2. Replace IMAGE placeholder
-            WORKLOAD_CR=$(echo "$WORKLOAD_CR" | sed "s|IMAGE_TAG|$IMAGE|g")
+            # Endpoints
+            if [ -n "$ENDPOINTS" ] && [ "$ENDPOINTS" != "null" ] && [ "$ENDPOINTS" != "[]" ]; then
+              echo "  endpoints:" >> "$OUT"
+              while read -r ep; do    
+                NAME=$(echo "$ep" | jq -r '.name')
+                TYPE=$(echo "$ep" | jq -r '.type // "HTTP"')
+                PORT=$(echo "$ep" | jq -r '.port')
+                SCHEMA_TYPE=$(echo "$ep" | jq -r '.schemaType // "REST"')
+                SCHEMA_FILE=$(echo "$ep" | jq -r '.schemaFilePath // empty')
+                SCHEMA_CONTENT=$(echo "$ep" | jq -r '.schemaContent // empty')
 
-            # 3. Replace OpenAPI spec content if provided
-            if [ -n "$SCHEMA_FILE_PATH" ] && [ -f "$SOURCE_PATH/$SCHEMA_FILE_PATH" ]; then
-              echo "Replacing schema content in Workload CR"
-              # Replace SCHEMA_CONTENT with | block scalar and indented content
-              SCHEMA_CONTENT=$(cat "$SOURCE_PATH/$SCHEMA_FILE_PATH" | sed 's/^/          /')
-              WORKLOAD_CR=$(echo "$WORKLOAD_CR" | awk -v schema="$SCHEMA_CONTENT" '
-                {
-                  if ($0 ~ /content: SCHEMA_CONTENT/) {
-                    # Replace SCHEMA_CONTENT with block scalar marker (pipe literal)
-                    sub(/SCHEMA_CONTENT/, "|")
-                    print
-                    print schema
-                  } else {
-                    print
-                  }
-                }
-              ')
+                echo "    ${NAME}:" >> "$OUT"
+                echo "      type: ${TYPE}" >> "$OUT"
+                echo "      port: ${PORT}" >> "$OUT"
+
+                if [ -n "$SCHEMA_CONTENT" ]; then
+                  echo "      schema:" >> "$OUT"
+                  echo "        type: ${SCHEMA_TYPE}" >> "$OUT"
+                  echo "        content: |" >> "$OUT"
+                  echo "$SCHEMA_CONTENT" | sed 's/^/          /' >> "$OUT"
+                elif [ -n "$SCHEMA_FILE" ] && [ -f "$SOURCE_PATH/$SCHEMA_FILE" ]; then
+                  echo "      schema:" >> "$OUT"
+                  echo "        type: ${SCHEMA_TYPE}" >> "$OUT"
+                  echo "        content: |" >> "$OUT"
+                  sed 's/^/          /' "$SOURCE_PATH/$SCHEMA_FILE" >> "$OUT"
+                fi
+              done < <(echo "$ENDPOINTS" | jq -c '.[]') 
             fi
 
-            # 4. Save final CR (printf to handle newlines properly)
-            printf "%s\n" "$WORKLOAD_CR" > /mnt/vol/workload-cr.yaml
+            echo "Workload CR saved to $OUT"
         volumeMounts:
           - name: workspace
             mountPath: /mnt/vol

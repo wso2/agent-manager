@@ -23,6 +23,9 @@ import (
 //			GetComponentLogsFunc: func(ctx context.Context, agentComponentId string, envId string, payload spec.LogFilterRequest) (*models.LogsResponse, error) {
 //				panic("mock out the GetComponentLogs method")
 //			},
+//			GetComponentMetricsFunc: func(ctx context.Context, agentComponentId string, envId string, projectId string, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error) {
+//				panic("mock out the GetComponentMetrics method")
+//			},
 //		}
 //
 //		// use mockedObservabilitySvcClient in code that requires observabilitysvc.ObservabilitySvcClient
@@ -35,6 +38,9 @@ type ObservabilitySvcClientMock struct {
 
 	// GetComponentLogsFunc mocks the GetComponentLogs method.
 	GetComponentLogsFunc func(ctx context.Context, agentComponentId string, envId string, payload spec.LogFilterRequest) (*models.LogsResponse, error)
+
+	// GetComponentMetricsFunc mocks the GetComponentMetrics method.
+	GetComponentMetricsFunc func(ctx context.Context, agentComponentId string, envId string, projectId string, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -56,9 +62,23 @@ type ObservabilitySvcClientMock struct {
 			// Payload is the payload argument value.
 			Payload spec.LogFilterRequest
 		}
+		// GetComponentMetrics holds details about calls to the GetComponentMetrics method.
+		GetComponentMetrics []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// AgentComponentId is the agentComponentId argument value.
+			AgentComponentId string
+			// EnvId is the envId argument value.
+			EnvId string
+			// ProjectId is the projectId argument value.
+			ProjectId string
+			// Payload is the payload argument value.
+			Payload spec.MetricsFilterRequest
+		}
 	}
-	lockGetBuildLogs     sync.RWMutex
-	lockGetComponentLogs sync.RWMutex
+	lockGetBuildLogs        sync.RWMutex
+	lockGetComponentLogs    sync.RWMutex
+	lockGetComponentMetrics sync.RWMutex
 }
 
 // GetBuildLogs calls GetBuildLogsFunc.
@@ -138,5 +158,53 @@ func (mock *ObservabilitySvcClientMock) GetComponentLogsCalls() []struct {
 	mock.lockGetComponentLogs.RLock()
 	calls = mock.calls.GetComponentLogs
 	mock.lockGetComponentLogs.RUnlock()
+	return calls
+}
+
+// GetComponentMetrics calls GetComponentMetricsFunc.
+func (mock *ObservabilitySvcClientMock) GetComponentMetrics(ctx context.Context, agentComponentId string, envId string, projectId string, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error) {
+	if mock.GetComponentMetricsFunc == nil {
+		panic("ObservabilitySvcClientMock.GetComponentMetricsFunc: method is nil but ObservabilitySvcClient.GetComponentMetrics was just called")
+	}
+	callInfo := struct {
+		Ctx              context.Context
+		AgentComponentId string
+		EnvId            string
+		ProjectId        string
+		Payload          spec.MetricsFilterRequest
+	}{
+		Ctx:              ctx,
+		AgentComponentId: agentComponentId,
+		EnvId:            envId,
+		ProjectId:        projectId,
+		Payload:          payload,
+	}
+	mock.lockGetComponentMetrics.Lock()
+	mock.calls.GetComponentMetrics = append(mock.calls.GetComponentMetrics, callInfo)
+	mock.lockGetComponentMetrics.Unlock()
+	return mock.GetComponentMetricsFunc(ctx, agentComponentId, envId, projectId, payload)
+}
+
+// GetComponentMetricsCalls gets all the calls that were made to GetComponentMetrics.
+// Check the length with:
+//
+//	len(mockedObservabilitySvcClient.GetComponentMetricsCalls())
+func (mock *ObservabilitySvcClientMock) GetComponentMetricsCalls() []struct {
+	Ctx              context.Context
+	AgentComponentId string
+	EnvId            string
+	ProjectId        string
+	Payload          spec.MetricsFilterRequest
+} {
+	var calls []struct {
+		Ctx              context.Context
+		AgentComponentId string
+		EnvId            string
+		ProjectId        string
+		Payload          spec.MetricsFilterRequest
+	}
+	mock.lockGetComponentMetrics.RLock()
+	calls = mock.calls.GetComponentMetrics
+	mock.lockGetComponentMetrics.RUnlock()
 	return calls
 }

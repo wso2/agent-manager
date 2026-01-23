@@ -1,29 +1,33 @@
 # Helm values for OpenChoreo Control Plane in k3d single-cluster setup
-# Note: devMode adds :8080 to URLs (k3d port mapping), disables HTTPS
-
 global:
   baseDomain: openchoreo.localhost
-  devMode: true
-  # Use k3d's built-in Traefik ingress class
-  ingressClassName: traefik
+  port: ":8080"
   defaultResources:
     enabled: false
 
-# Disable helm chart's Traefik (use k3d's built-in Traefik instead)
+# Traefik ingress configuration
 traefik:
-  enabled: true
+  ports:
+    web:
+      exposedPort: 8080
+    websecure:
+      exposedPort: 8443
 
-# Common security configuration
+# Backstage configuration
+backstage:
+  enabled: false
+
+# Thunder identity provider configuration
+thunder:
+  enabled: false
+
 security:
-  oidc:
-    authorizationUrl: http://thunder.openchoreo.localhost:8089/oauth2/authorize
-
-# Enable cluster gateway for agent-based data plane communication
-clusterGateway:
   enabled: true
-
-# Controller Manager cluster gateway configuration
-# Enables controllers to communicate with data/build planes via cluster gateway
-controllerManager:
-  clusterGateway:
-    enabled: true
+  oidc:
+    issuer: "thunder"
+    # Internal cluster URLs for backend validation
+    wellKnownEndpoint: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/.well-known/openid-configuration"
+    jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
+    # Public URLs for browser OAuth flows
+    authorizationUrl: "http://thunder.amp.localhost:8080/oauth2/authorize"
+    tokenUrl: "http://thunder.amp.localhost:8080/oauth2/token"

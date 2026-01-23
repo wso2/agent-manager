@@ -1,0 +1,23 @@
+apiVersion: v2
+name: wso2-amp-thunder-extension
+description: A Helm chart to add Thunder Identity Provider functionality for the Agent Management Platform.
+type: application
+version: 0.0.0-dev
+appVersion: "0.0.0-dev"
+
+keywords:
+  - wso2
+  - ai
+  - agent-management
+  - ai-agents
+  - identity-provider
+
+maintainers:
+  - name: WSO2
+    url: https://wso2.com
+
+dependencies:
+  - name: thunder
+    condition: thunder.enabled
+    repository: oci://ghcr.io/asgardeo/helm-charts
+    version: "0.18.0"

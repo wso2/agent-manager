@@ -10,13 +10,13 @@ if ! command -v kubectl &> /dev/null; then
 fi
 
 # Check if cluster is running
-if ! kubectl cluster-info --context k3d-openchoreo-local-v0.7 &> /dev/null; then
-    echo "❌ k3d cluster 'openchoreo-local-v0.7' is not running"
+if ! kubectl cluster-info --context k3d-openchoreo-local-v0.9 &> /dev/null; then
+    echo "❌ k3d cluster 'openchoreo-local-v0.9' is not running"
     exit 1
 fi
 
 echo "🔧 Setting kubectl context..."
-kubectl config use-context k3d-openchoreo-local-v0.7
+kubectl config use-context k3d-openchoreo-local-v0.9
 
 echo ""
 echo "🌐 Starting port forwarding for OpenChoreo services..."

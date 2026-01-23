@@ -10,6 +10,18 @@ metadata:
 spec:
   # Schema definition for component workflows
   schema:
+    types:
+      Endpoint:
+        name: "string | description='Endpoint name'"
+        port: "integer | description='Port number'"
+        type: "string | description='Endpoint type (e.g., HTTP, gRPC)' | default='HTTP'"
+        schemaType: "string | description='Schema type (e.g., REST)' | default='REST'"
+        schemaFilePath: "string | description='Path to schema file relative to app path (optional)' | default=''"
+        schemaContent: "string | description='Inline schema content (optional)' | default=''"
+      EnvironmentVariable:
+        name: "string | description='Environment variable name'"
+        value: "string | description='Environment variable value'"
+
     # System parameters - Required structured parameters for component builds
     # These fields are necessary for build-specific platform features (webhooks, auto-build, UI actions)
     # Platform Engineers can customize defaults, enums, and descriptions, but must maintain the field structure
@@ -24,22 +36,23 @@ spec:
 
     # Developer-configurable parameters - PE-defined schema for additional build configuration
     parameters:
-      schemaFilePath: string | default="" description="Path to the OpenAPI schema file within the repository"
+      endpoints: "[]Endpoint | description='List of endpoints exposed'"
+      environmentVariables: "[]EnvironmentVariable | description='List of environment variables'"
 
   # Rendered workflow resource for ComponentWorkflowRun executions
   runTemplate:
     apiVersion: argoproj.io/v1alpha1
     kind: Workflow
     metadata:
-      name: ${ctx.componentWorkflowRunName}
-      namespace: openchoreo-ci-${ctx.orgName}
+      name: ${metadata.workflowRunName}
+      namespace: openchoreo-ci-${metadata.orgName}
     spec:
       arguments:
         parameters:
           - name: component-name
-            value: ${ctx.componentName}
+            value: ${metadata.componentName}
           - name: project-name
-            value: ${ctx.projectName}
+            value: ${metadata.projectName}
           # Parameters from system parameters (developer-facing)
           - name: git-repo
             value: ${systemParameters.repository.url}
@@ -51,12 +64,14 @@ spec:
             value: ${systemParameters.repository.appPath}
           # PE-controlled hardcoded parameters
           - name: image-name
-            value: ${ctx.projectName}-${ctx.componentName}-image
+            value: ${metadata.projectName}-${metadata.componentName}-image
           - name: image-tag
             value: v1
           # Parameters from developer-configurable parameters
-          - name: schema-file-path
-            value: ${parameters.schemaFilePath}
+          - name: endpoints
+            value: ${parameters.endpoints}
+          - name: environment-variables
+            value: ${parameters.environmentVariables}
       serviceAccountName: workflow-sa
       workflowTemplateRef:
         clusterScope: true

@@ -266,7 +266,7 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 	// Determine expiry duration
 	expiryDuration, err := s.parseExpiryDuration(req.ExpiresIn)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", utils.ErrInvalidInput, err)
+		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
 	}
 
 	now := time.Now()

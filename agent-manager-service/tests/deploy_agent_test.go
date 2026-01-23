@@ -44,7 +44,6 @@ var (
 )
 
 func TestDeployAgent(t *testing.T) {
-	setUpDeployTest(t)
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Deploying agent with valid imageId should return 202", func(t *testing.T) {
@@ -394,8 +393,4 @@ func TestDeployAgent(t *testing.T) {
 			}
 		})
 	}
-}
-
-func setUpDeployTest(t *testing.T) {
-	_ = apitestutils.CreateAgent(t, uuid.New(), deployTestOrgName, deployTestProjName, deployTestAgentName, string(utils.InternalAgent))
 }

@@ -17,8 +17,7 @@ set -euo pipefail
 # Configuration
 CLUSTER_NAME="amp-local"
 CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
-OPENCHOREO_VERSION="0.7.0"
-OC_RELEASE="release-v0.7"
+OPENCHOREO_VERSION="0.9.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K3D_CONFIG="${SCRIPT_DIR}/k3d-config.yaml"
 
@@ -289,7 +288,7 @@ check_docker_permissions() {
 }
 
 # Check prerequisites
-log_step "Step 1/7: Verifying prerequisites"
+log_step "Step 1/9: Verifying prerequisites"
 
 # Check Docker access first
 if ! check_docker_permissions; then
@@ -323,7 +322,7 @@ log_success "All prerequisites verified"
 # Step 2: Setup k3d Cluster
 # ============================================================================
 
-log_step "Step 2/7: Setting up k3d cluster"
+log_step "Step 2/9: Setting up k3d cluster"
 
 # Check if cluster already exists
 if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
@@ -422,10 +421,73 @@ else
 fi
 
 # ============================================================================
-# Step 3: Install OpenChoreo Control Plane
+# Step 2.5: Ensure CoreDNS has host.k3d.internal entry
 # ============================================================================
 
-log_step "Step 3/7: Installing OpenChoreo Control Plane"
+log_info "Ensuring CoreDNS has host.k3d.internal entry..."
+
+# Wait for CoreDNS to be ready
+kubectl wait --for=condition=available deployment/coredns -n kube-system --context "${CLUSTER_CONTEXT}" --timeout=60s
+
+# Get the gateway IP for the k3d network
+GATEWAY_IP=$(docker network inspect "k3d-${CLUSTER_NAME}" -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || true)
+if [[ -z "$GATEWAY_IP" ]]; then
+    log_warning "Could not determine gateway IP for host.k3d.internal"
+else
+    # Ensure host.k3d.internal is in CoreDNS NodeHosts
+    CURRENT_HOSTS=$(kubectl get cm coredns -n kube-system --context "${CLUSTER_CONTEXT}" -o jsonpath='{.data.NodeHosts}')
+    if echo "$CURRENT_HOSTS" | grep -q "host.k3d.internal"; then
+        log_success "CoreDNS already has host.k3d.internal entry"
+    else
+        log_info "Adding host.k3d.internal ($GATEWAY_IP) to CoreDNS..."
+        kubectl patch configmap coredns -n kube-system --context "${CLUSTER_CONTEXT}" --type merge \
+            -p "{\"data\":{\"NodeHosts\":\"${CURRENT_HOSTS}\n${GATEWAY_IP} host.k3d.internal\n\"}}"
+        kubectl rollout restart deployment coredns -n kube-system --context "${CLUSTER_CONTEXT}"
+        kubectl rollout status deployment/coredns -n kube-system --context "${CLUSTER_CONTEXT}" --timeout=60s
+        log_success "CoreDNS updated with host.k3d.internal"
+    fi
+fi
+
+# ============================================================================
+# Step 3: Install Cert Manager
+# ============================================================================
+
+log_step "Step 3/9: Installing Cert Manager"
+
+helm_install_idempotent \
+    "cert-manager" \
+    "oci://quay.io/jetstack/charts/cert-manager" \
+    "cert-manager" \
+    300 \
+    --version v1.18.4 \
+    --set crds.enabled=true
+
+wait_for_pods "cert-manager" 300
+
+# ============================================================================
+# Step 4: Install AMP Thunder Extension
+# ============================================================================
+
+log_step "Step 4/9: Installing WSO2 AMP Thunder Extension"
+
+log_info "Installing WSO2 AMP Thunder Extension..."
+if ! install_amp_thunder_extension; then
+    log_warning "AMP Thunder Extension installation failed (non-fatal)"
+    echo "The installation will continue but thunder extension features may not work."
+    echo ""
+    echo "Troubleshooting steps:"
+    echo "  1. Check Helm release: helm list -n amp-thunder"
+    echo "  2. Check pod status: kubectl get pods -n amp-thunder"
+else
+    log_success "AMP Thunder Extension installed successfully"
+fi
+echo ""
+
+# ============================================================================
+# Step 5: Install OpenChoreo Control Plane
+# ============================================================================
+
+log_step "Step 5/9: Installing OpenChoreo Control Plane"
 
 helm_install_idempotent \
     "openchoreo-control-plane" \
@@ -438,10 +500,10 @@ helm_install_idempotent \
 wait_for_pods "openchoreo-control-plane" "${TIMEOUT_CONTROL_PLANE}"
 
 # ============================================================================
-# Step 4: Install OpenChoreo Data Plane
+# Step 6: Install OpenChoreo Data Plane
 # ============================================================================
 
-log_step "Step 4/7: Installing OpenChoreo Data Plane"
+log_step "Step 6/9: Installing OpenChoreo Data Plane"
 
 helm_install_idempotent \
     "openchoreo-data-plane" \
@@ -449,7 +511,7 @@ helm_install_idempotent \
     "${DATA_PLANE_NS}" \
     "${TIMEOUT_DATA_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
-    --values "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/k3d/single-cluster/values-dp.yaml"
+    --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/single-cluster/values-dp.yaml"
 
 
 log_info "Applying HTTPRoute CRD..."
@@ -460,43 +522,73 @@ else
     log_error "Failed to apply HTTPRoute CRD"
 fi
 
-# Register Data Plane
-log_info "Registering Data Plane..."
-if curl -s "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/add-data-plane.sh" | \
-    bash -s -- --enable-agent --control-plane-context "${CLUSTER_CONTEXT}" --name default; then
-    log_success "Data Plane registered successfully"
+# Create TLS Certificate for OpenChoreo Gateway
+log_info "Creating TLS certificate for OpenChoreo Gateway..."
+if kubectl apply -f - <<EOF
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: openchoreo-gateway-tls
+  namespace: openchoreo-data-plane
+spec:
+  secretName: openchoreo-gateway-tls
+  issuerRef:
+    name: openchoreo-selfsigned-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - "localhost"
+EOF
+then
+    log_success "TLS certificate created successfully"
 else
-    log_warning "Data Plane registration script failed (non-fatal)"
+    log_warning "Failed to create TLS certificate (non-fatal)"
+fi
+
+# Register Data Plane with Control Plane
+log_info "Registering Data Plane with Control Plane..."
+CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
+
+if [ -n "$CA_CERT" ]; then
+    if kubectl apply -f - <<EOF
+apiVersion: openchoreo.dev/v1alpha1
+kind: DataPlane
+metadata:
+  name: default
+  namespace: default
+spec:
+  planeID: "default-dataplane"
+  clusterAgent:
+    clientCA:
+      value: |
+$(echo "$CA_CERT" | sed 's/^/        /')
+  gateway:
+    organizationVirtualHost: "openchoreoapis.internal"
+    publicVirtualHost: "localhost"
+  secretStoreRef:
+    name: default
+EOF
+    then
+        log_success "Data Plane registered with Control Plane successfully"
+    else
+        log_warning "Failed to register Data Plane (non-fatal)"
+    fi
+else
+    log_warning "CA certificate not found, skipping Data Plane registration"
 fi
 
 # Verify DataPlane resource
 if kubectl get dataplane default -n default &>/dev/null; then
     log_success "DataPlane resource 'default' exists"
-
-    log_info "Configuring DataPlane gateway..."
-    if kubectl patch dataplane default  --type merge -p '{"spec": {"gateway": {"publicVirtualHost": "localhost"}}}' &>/dev/null; then
-        log_success "DataPlane gateway configured successfully"
-    else
-        log_warning "DataPlane gateway configuration failed (non-fatal)"
-    fi
-
-    AGENT_ENABLED=$(kubectl get dataplane default -n default -o jsonpath='{.spec.agent.enabled}' 2>/dev/null || echo "false")
-    if [ "$AGENT_ENABLED" = "true" ]; then
-        log_success "Agent mode is enabled"
-    else
-        log_warning "Agent mode is not enabled (expected: true, got: $AGENT_ENABLED)"
-    fi
 else
     log_warning "DataPlane resource not found"
 fi
-
 wait_for_pods "openchoreo-data-plane" "${TIMEOUT_DATA_PLANE}"
 
 # ============================================================================
-# Step 5: Install OpenChoreo Build Plane
+# Step 7: Install OpenChoreo Build Plane
 # ============================================================================
 
-log_step "Step 5/7: Installing OpenChoreo Build Plane"
+log_step "Step 7/9: Installing OpenChoreo Build Plane"
 
 helm_install_idempotent \
     "openchoreo-build-plane" \
@@ -504,27 +596,39 @@ helm_install_idempotent \
     "${BUILD_CI_NS}" \
     "${TIMEOUT_BUILD_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
-    --values "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/k3d/single-cluster/values-bp.yaml" \
-    --set prePushBuildpackImages=false
+    --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/single-cluster/values-bp.yaml" \
 
-# Register Build Plane
-log_info "Registering Build Plane..."
-if curl -s "https://raw.githubusercontent.com/openchoreo/openchoreo/${OC_RELEASE}/install/add-build-plane.sh" | \
-    bash -s -- --enable-agent --control-plane-context "${CLUSTER_CONTEXT}" --name default; then
-    log_success "Build Plane registered successfully"
+
+# Register Build Plane with Control Plane
+log_info "Registering Build Plane with Control Plane..."
+BP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-build-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
+
+if [ -n "$BP_CA_CERT" ]; then
+    if kubectl apply -f - <<EOF
+apiVersion: openchoreo.dev/v1alpha1
+kind: BuildPlane
+metadata:
+  name: default
+  namespace: default
+spec:
+  planeID: "default-buildplane"
+  clusterAgent:
+    clientCA:
+      value: |
+$(echo "$BP_CA_CERT" | sed 's/^/        /')
+EOF
+    then
+        log_success "Build Plane registered with Control Plane successfully"
+    else
+        log_warning "Failed to register Build Plane (non-fatal)"
+    fi
 else
-    log_warning "Build Plane registration script failed (non-fatal)"
+    log_warning "Build Plane CA certificate not found, skipping Build Plane registration"
 fi
 
 # Verify BuildPlane resource
 if kubectl get buildplane default -n default &>/dev/null; then
     log_success "BuildPlane resource 'default' exists"
-    AGENT_ENABLED=$(kubectl get buildplane default -n default -o jsonpath='{.spec.agent.enabled}' 2>/dev/null || echo "false")
-    if [ "$AGENT_ENABLED" = "true" ]; then
-        log_success "Agent mode is enabled"
-    else
-        log_warning "Agent mode is not enabled (expected: true, got: $AGENT_ENABLED)"
-    fi
 else
     log_warning "BuildPlane resource not found"
 fi
@@ -532,10 +636,10 @@ fi
 wait_for_deployments "openchoreo-build-plane" "${TIMEOUT_BUILD_PLANE}"
 
 # ============================================================================
-# Step 6: Install OpenChoreo Observability Plane
+# Step 8: Install OpenChoreo Observability Plane
 # ============================================================================
 
-log_step "Step 6/7: Installing OpenChoreo Observability Plane"
+log_step "Step 8/9: Installing OpenChoreo Observability Plane"
 
 # Create namespace (idempotent)
 log_info "Ensuring OpenChoreo Observability Plane namespace exists..."
@@ -576,21 +680,49 @@ helm_install_idempotent \
     --version "${OPENCHOREO_VERSION}" \
     --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/single-cluster/values-op.yaml"
 
+
+# Register Observability Plane with Control Plane
+log_info "Registering Observability Plane with Control Plane..."
+OP_CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-observability-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
+
+if [ -n "$OP_CA_CERT" ]; then
+    if kubectl apply -f - <<EOF
+apiVersion: openchoreo.dev/v1alpha1
+kind: ObservabilityPlane
+metadata:
+  name: default
+  namespace: default
+spec:
+  planeID: "default-observabilityplane"
+  clusterAgent:
+    clientCA:
+      value: |
+$(echo "$OP_CA_CERT" | sed 's/^/        /')
+  observerURL: http://observer.openchoreo-observability-plane.svc.cluster.local:8080
+EOF
+    then
+        log_success "Observability Plane registered with Control Plane successfully"
+    else
+        log_warning "Failed to register Observability Plane (non-fatal)"
+    fi
+else
+    log_warning "Observability Plane CA certificate not found, skipping Observability Plane registration"
+fi
+
 wait_for_deployments "openchoreo-observability-plane" "${TIMEOUT_OBSERVABILITY_PLANE}"
 wait_for_statefulsets "openchoreo-observability-plane" "${TIMEOUT_OBSERVABILITY_PLANE}"
 
 log_success "OpenSearch ready"
-
 # Configure observability integration
 log_info "Configuring observability integration..."
 
 # Configure DataPlane observer
 if kubectl get dataplane default -n default &>/dev/null; then
     if kubectl patch dataplane default -n default --type merge \
-        -p '{"spec":{"observer":{"url":"http://observer.openchoreo-observability-plane:8080","authentication":{"basicAuth":{"username":"dummy","password":"dummy"}}}}}' &>/dev/null; then
-        log_success "DataPlane observer configured"
+        -p '{"spec":{"observabilityPlaneRef":"default"}}' &>/dev/null; then
+        log_success "DataPlane observability plane reference configured"
     else
-        log_warning "DataPlane observer configuration failed (non-fatal)"
+        log_warning "DataPlane observability plane configuration failed (non-fatal)"
     fi
 else
     log_warning "DataPlane resource not found yet (will use default observer)"
@@ -599,20 +731,20 @@ fi
 # Configure BuildPlane observer
 if kubectl get buildplane default -n default &>/dev/null; then
     if kubectl patch buildplane default -n default --type merge \
-        -p '{"spec":{"observer":{"url":"http://observer.openchoreo-observability-plane:8080","authentication":{"basicAuth":{"username":"dummy","password":"dummy"}}}}}' &>/dev/null; then
-        log_success "BuildPlane observer configured"
+        -p '{"spec":{"observabilityPlaneRef":"default"}}' &>/dev/null; then
+        log_success "BuildPlane observability plane reference configured"
     else
-        log_warning "BuildPlane observer configuration failed (non-fatal)"
+        log_warning "BuildPlane observability plane configuration failed (non-fatal)"
     fi
 else
     log_warning "BuildPlane resource not found yet (will use default observer)"
 fi
 
 # ============================================================================
-# Step 7: Install Agent Management Platform
+# Step 9: Install Agent Management Platform
 # ============================================================================
 
-log_step "Step 7/7: Installing Agent Management Platform"
+log_step "Step 9/9: Installing Agent Management Platform"
 
 # Verify prerequisites
 if ! verify_amp_prerequisites; then

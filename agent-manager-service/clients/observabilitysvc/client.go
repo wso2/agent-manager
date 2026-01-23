@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/idp"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
@@ -44,15 +45,17 @@ type ObservabilitySvcClient interface {
 }
 
 type observabilitySvcClient struct {
-	httpClient requests.HttpClient
+	httpClient    requests.HttpClient
+	tokenProvider idp.TokenProvider
 }
 
 func NewObservabilitySvcClient() ObservabilitySvcClient {
-	httpClient := &http.Client{
-		Timeout: time.Second * 15,
-	}
+	cfg := config.GetConfig()
 	return &observabilitySvcClient{
-		httpClient: httpClient,
+		httpClient: &http.Client{
+			Timeout: time.Second * 15,
+		},
+		tokenProvider: idp.NewTokenProvider(cfg.IDP),
 	}
 }
 
@@ -62,6 +65,11 @@ func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, buildName str
 	// so we need to portforward the observer svc and use localhost:port to access the observer service
 	baseURL := config.GetConfig().Observer.URL
 	logsURL := fmt.Sprintf("%s/api/logs/build/%s", baseURL, buildName)
+
+	token, err := o.tokenProvider.GetToken(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("observabilitysvc.GetBuildLogs: failed to get token: %w", err)
+	}
 
 	// Calculate time range: 30 days ago to now
 	endTime := time.Now()
@@ -80,6 +88,7 @@ func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, buildName str
 		Method: http.MethodPost,
 	}
 	req.SetHeader("Accept", "application/json")
+	req.SetHeader("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.SetJson(requestBody)
 
 	var logsResponse models.LogsResponse

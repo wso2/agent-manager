@@ -105,9 +105,6 @@ func loadEnvs() {
 		DefaultBasePath: r.readOptionalString("DEFAULT_CHAT_API_BASE_PATH", "/"),
 	}
 
-	config.APIKeyHeader = r.readOptionalString("API_KEY_HEADER", "X-API-KEY")
-	config.APIKeyValue = r.readRequiredString("API_KEY_VALUE")
-
 	// OpenTelemetry configuration
 	// Use Version from ldflags or environment variable override
 	config.PackageVersion = r.readOptionalString("AMP_VERSION", Version)
@@ -134,7 +131,7 @@ func loadEnvs() {
 	}
 
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
-	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 9080))
+	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 19080))
 	config.KeyManagerConfigurations = KeyManagerConfigurations{
 		// Comma-separated list of allowed issuers and audiences
 		Issuer:        r.readOptionalStringList("KEY_MANAGER_ISSUER", "Agent Management Platform Local"),
@@ -143,6 +140,13 @@ func loadEnvs() {
 		DefaultIssuer: r.readOptionalString("KEY_MANAGER_DEFAULT_ISSUER", "Agent Management Platform Local"),
 	}
 	config.IsOnPremDeployment = r.readOptionalBool("IS_ON_PREM_DEPLOYMENT", true)
+
+	// IDP OAuth2 client credentials for service-to-service auth
+	config.IDP = IDPConfig{
+		TokenURL:     r.readOptionalString("IDP_TOKEN_URL", "http://thunder.amp.localhost:8080/oauth2/token"),
+		ClientID:     r.readOptionalString("IDP_CLIENT_ID", "amp-api-client"),
+		ClientSecret: r.readOptionalString("IDP_CLIENT_SECRET", "amp-api-client-secret"),
+	}
 
 	// JWT Signing configuration for agent API tokens
 	config.JWTSigning = JWTSigningConfig{

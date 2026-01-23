@@ -35,8 +35,6 @@ type Config struct {
 	DbOperationTimeoutSeconds int
 	HealthCheckTimeoutSeconds int
 
-	APIKeyHeader string
-	APIKeyValue  string
 	// CORSAllowedOrigin is the single allowed origin for CORS; use "*" to allow all
 	CORSAllowedOrigin string
 
@@ -60,6 +58,15 @@ type Config struct {
 
 	KeyManagerConfigurations KeyManagerConfigurations
 	IsOnPremDeployment       bool
+
+	// IDP OAuth2 client credentials for service-to-service auth
+	IDP IDPConfig
+}
+
+type IDPConfig struct {
+	TokenURL     string
+	ClientID     string
+	ClientSecret string `json:"-"`
 }
 
 type KeyManagerConfigurations struct {

@@ -50,17 +50,7 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	apiHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(apiHandler)
 	apiHandler = middleware.RecovererOnPanic()(apiHandler)
 
-	// Create a mux for internal API routes
-	internalApiMux := http.NewServeMux()
-	registerInternalRoutes(internalApiMux, params.BuildCIController)
-	internalApiHandler := http.Handler(internalApiMux)
-	internalApiHandler = middleware.APIKeyMiddleware()(internalApiHandler) // Add API key middleware for internal routes
-	internalApiHandler = middleware.AddCorrelationID()(internalApiHandler)
-	internalApiHandler = logger.RequestLogger()(internalApiHandler)
-	internalApiHandler = middleware.RecovererOnPanic()(internalApiHandler)
-
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", apiHandler))
-	mux.Handle("/internal/", http.StripPrefix("/internal", internalApiHandler))
 
 	return mux
 }

@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 )
 
 // HttpRequest represents a retryable HTTP request.
@@ -63,6 +64,16 @@ func (r *HttpRequest) SetJson(body any) *HttpRequest {
 	}
 	r.body = v
 	r.SetHeader("Content-Type", "application/json")
+	return r
+}
+
+func (r *HttpRequest) SetFormData(data map[string]string) *HttpRequest {
+	form := url.Values{}
+	for k, v := range data {
+		form.Set(k, v)
+	}
+	r.body = []byte(form.Encode())
+	r.SetHeader("Content-Type", "application/x-www-form-urlencoded")
 	return r
 }
 

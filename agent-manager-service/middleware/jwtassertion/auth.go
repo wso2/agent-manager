@@ -287,7 +287,7 @@ func fetchJWKS(jwksURL string) (*JWKS, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("JWKS endpoint returned status: %d", resp.StatusCode)

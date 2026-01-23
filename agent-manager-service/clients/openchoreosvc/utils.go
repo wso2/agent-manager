@@ -86,21 +86,87 @@ func getInputInterfaceConfig(req *spec.CreateAgentRequest) (int32, string) {
 	return req.InputInterface.Port, req.InputInterface.BasePath
 }
 
-func getComponentWorkflowParametersForGoogleBuildPack(req *spec.CreateAgentRequest) map[string]interface{} {
+func buildEnvironmentVariablesArray(req *spec.CreateAgentRequest) []map[string]interface{} {
+	// Initialize as empty slice to ensure JSON serializes to [] instead of null
+	environmentVariables := make([]map[string]interface{}, 0)
+	if req.RuntimeConfigs != nil && len(req.RuntimeConfigs.Env) > 0 {
+		for _, env := range req.RuntimeConfigs.Env {
+			environmentVariables = append(environmentVariables, map[string]interface{}{
+				"name":  env.Key,
+				"value": env.Value,
+			})
+		}
+	}
+	return environmentVariables
+}
+
+func buildEndpointsArray(req *spec.CreateAgentRequest) ([]ComponentEndpoint, error) {
+	// Initialize as empty slice to ensure JSON serializes to [] instead of null
+	endpoints := make([]ComponentEndpoint, 0)
+
+	// Handle Chat API - use embedded schema content
+	if req.AgentType.Type == string(utils.AgentTypeAPI) &&
+		utils.StrPointerAsStr(req.AgentType.SubType, "") == string(utils.AgentSubTypeChatAPI) {
+		schemaContent, err := GetDefaultChatAPISchema()
+		if err != nil {
+			return nil, fmt.Errorf("failed to read Chat API schema: %w", err)
+		}
+		endpoints = []ComponentEndpoint{
+			{
+				Name:          fmt.Sprintf("%s-endpoint", req.Name),
+				Port:          config.GetConfig().DefaultChatAPI.DefaultHTTPPort,
+				Type:          string(utils.InputInterfaceTypeHTTP),
+				SchemaType:    string(v1alpha1.EndpointTypeREST),
+				SchemaContent: schemaContent,
+			},
+		}
+	}
+
+	// Handle Custom API - use schema path from request
+	if req.AgentType.Type == string(utils.AgentTypeAPI) &&
+		utils.StrPointerAsStr(req.AgentType.SubType, "") == string(utils.AgentSubTypeCustomAPI) {
+		endpoints = []ComponentEndpoint{
+			{
+				Name:           fmt.Sprintf("%s-endpoint", req.Name),
+				Port:           req.InputInterface.Port,
+				Type:           req.InputInterface.Type,
+				SchemaType:     string(v1alpha1.EndpointTypeREST),
+				SchemaFilePath: req.InputInterface.Schema.Path,
+			},
+		}
+	}
+
+	return endpoints, nil
+}
+
+func getComponentWorkflowParametersForGoogleBuildPack(req *spec.CreateAgentRequest) (map[string]interface{}, error) {
+	environmentVariables := buildEnvironmentVariablesArray(req)
+	endpoints, err := buildEndpointsArray(req)
+	if err != nil {
+		return nil, err
+	}
+
 	return map[string]interface{}{
 		"buildpackConfigs": map[string]interface{}{
 			"googleEntryPoint":   req.RuntimeConfigs.RunCommand,
 			"languageVersion":    req.RuntimeConfigs.LanguageVersion,
 			"languageVersionKey": getLanguageVersionEnvVariable(req.RuntimeConfigs.Language),
 		},
-		"schemaFilePath": req.InputInterface.Schema.Path,
-	}
+		"endpoints":            endpoints,
+		"environmentVariables": environmentVariables,
+	}, nil
 }
 
-func getComponentWorkflowParametersForBallerinaBuildPack(req *spec.CreateAgentRequest) map[string]interface{} {
-	return map[string]interface{}{
-		"schemaFilePath": req.InputInterface.Schema.Path,
+func getComponentWorkflowParametersForBallerinaBuildPack(req *spec.CreateAgentRequest) (map[string]interface{}, error) {
+	environmentVariables := buildEnvironmentVariablesArray(req)
+	endpoints, err := buildEndpointsArray(req)
+	if err != nil {
+		return nil, err
 	}
+	return map[string]interface{}{
+		"endpoints":            endpoints,
+		"environmentVariables": environmentVariables,
+	}, nil
 }
 
 func createComponentCRForExternalAgents(orgName, projectName string, req *spec.CreateAgentRequest) (*v1alpha1.Component, error) {
@@ -173,10 +239,17 @@ func createComponentCRForInternalAgents(orgName, projectName string, req *spec.C
 	}
 
 	var componentWorkflowParameters map[string]interface{}
+	var err error
 	if isGoogleBuildpack(req.RuntimeConfigs.Language) {
-		componentWorkflowParameters = getComponentWorkflowParametersForGoogleBuildPack(req)
+		componentWorkflowParameters, err = getComponentWorkflowParametersForGoogleBuildPack(req)
+		if err != nil {
+			return nil, fmt.Errorf("error getting component workflow parameters: %w", err)
+		}
 	} else {
-		componentWorkflowParameters = getComponentWorkflowParametersForBallerinaBuildPack(req)
+		componentWorkflowParameters, err = getComponentWorkflowParametersForBallerinaBuildPack(req)
+		if err != nil {
+			return nil, fmt.Errorf("error getting component workflow parameters: %w", err)
+		}
 	}
 
 	parametersJSON, err := json.Marshal(parameters)
@@ -186,6 +259,10 @@ func createComponentCRForInternalAgents(orgName, projectName string, req *spec.C
 	componentWorkflowParametersJSON, err := json.Marshal(componentWorkflowParameters)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling component workflow parameters: %w", err)
+	}
+	apiManagementTrait, err := createAPIManagementTrait(req.Name, basePath)
+	if err != nil {
+		return nil, fmt.Errorf("error creating API management trait: %w", err)
 	}
 
 	componentCR := &v1alpha1.Component{
@@ -223,6 +300,9 @@ func createComponentCRForInternalAgents(orgName, projectName string, req *spec.C
 			Parameters: &runtime.RawExtension{
 				Raw: parametersJSON,
 			},
+			Traits: []v1alpha1.ComponentTrait{
+				*apiManagementTrait,
+			},
 		},
 	}
 	return componentCR, nil
@@ -246,6 +326,28 @@ func createOTELInstrumentationTrait(ocAgentComponent *v1alpha1.Component, envUUI
 	return &v1alpha1.ComponentTrait{
 		Name:         string(TraitTypeOTELInstrumentation),
 		InstanceName: fmt.Sprintf("%s-%s", ocAgentComponent.Name, string(TraitTypeOTELInstrumentation)),
+		Parameters: &runtime.RawExtension{
+			Raw: traitParametersJSON,
+		},
+	}, nil
+}
+
+func createAPIManagementTrait(componentName string, basePath string) (*v1alpha1.ComponentTrait, error) {
+	traitParameters := map[string]interface{}{
+		"apiName":          componentName,
+		"context":          componentName,
+		"upstreamPort":     80,       // Kubernetes Service is configured to listen on port 80 on component type definition
+		"apiVersion":       "v1.0",   // Default API version
+		"upstreamBasePath": basePath, // Base path from the request
+	}
+	traitParametersJSON, err := json.Marshal(traitParameters)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling api management trait parameters: %w", err)
+	}
+
+	return &v1alpha1.ComponentTrait{
+		Name:         string(TraitTypeAPIManagement),
+		InstanceName: fmt.Sprintf("%s-api", componentName),
 		Parameters: &runtime.RawExtension{
 			Raw: traitParametersJSON,
 		},

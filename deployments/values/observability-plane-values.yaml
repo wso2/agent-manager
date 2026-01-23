@@ -1,0 +1,20 @@
+# OpenChoreo Observability Plane Values
+# Reference: https://openchoreo.dev/docs/getting-started/try-it-out/on-self-hosted-kubernetes/
+
+# OpenSearch configuration
+openSearch:
+  enabled: true
+
+openSearchCluster:
+  enabled: false
+
+# External Secrets Operator
+external-secrets:
+  enabled: false
+
+# OIDC security configuration (Thunder integration)
+security:
+  oidc:
+    # Internal cluster URL for backend token validation
+    jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
+    issuer: "thunder"

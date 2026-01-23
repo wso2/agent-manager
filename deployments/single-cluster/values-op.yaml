@@ -1,39 +1,26 @@
 # Helm values for OpenChoreo Observability Plane in k3d single-cluster setup
 
-global:
-  # Single-cluster non-HA mode uses standalone OpenSearch instead of operator
-  installationMode: singleCluster
-
-# Use standalone OpenSearch (not operator-managed cluster)
+# OpenSearch configuration
 openSearch:
   enabled: true
-  service:
-    type: LoadBalancer
 
-# Disable OpenSearch operator cluster (using standalone instead)
 openSearchCluster:
   enabled: false
 
-# Observer API - REST API for querying logs and metrics
-observer:
-  service:
-    type: LoadBalancer
-
-# OpenSearch Dashboards - UI for visualizing logs and data
-openSearchDashboards:
-  service:
-    type: LoadBalancer
-
-# Disable External Secrets since it's already in the Data Plane (single cluster)
+# External Secrets Operator
 external-secrets:
   enabled: false
+
+# OIDC security configuration (Thunder integration)
+security:
+  oidc:
+    # Thunder JWKS endpoint for token validation
+    jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
+    issuer: "thunder"
 
 opentelemetryCollector:
   configMap:
     existingName: amp-opentelemetry-collector-config
-
-fakeSecretStore:
-  enabled: false
 
 prometheus:
   prometheusSpec:

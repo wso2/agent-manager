@@ -25,7 +25,6 @@ import (
 
 	clients "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
@@ -44,18 +43,15 @@ type InfraResourceManager interface {
 }
 
 type infraResourceManager struct {
-	AgentRepository     repositories.AgentRepository
 	OpenChoreoSvcClient clients.OpenChoreoSvcClient
 	logger              *slog.Logger
 }
 
 func NewInfraResourceManager(
-	agentRepo repositories.AgentRepository,
 	openChoreoSvcClient clients.OpenChoreoSvcClient,
 	logger *slog.Logger,
 ) InfraResourceManager {
 	return &infraResourceManager{
-		AgentRepository:     agentRepo,
 		OpenChoreoSvcClient: openChoreoSvcClient,
 		logger:              logger,
 	}

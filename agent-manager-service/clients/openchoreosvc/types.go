@@ -29,6 +29,7 @@ type TraitType string
 
 const (
 	TraitTypeOTELInstrumentation TraitType = "python-otel-instrumentation-trait"
+	TraitTypeAPIManagement       TraitType = "api-configuration"
 )
 
 type ComponentWorkflow string
@@ -63,4 +64,14 @@ type Repository struct {
 	RepoURL string `json:"repoURL"`
 	Branch  string `json:"branch,omitempty"`
 	AppPath string `json:"appPath,omitempty"`
+}
+
+// ComponentEndpoint represents an endpoint configuration for a component
+type ComponentEndpoint struct {
+	Name           string `json:"name"`
+	Port           int32  `json:"port"`
+	Type           string `json:"type"`
+	SchemaType     string `json:"schemaType"`
+	SchemaContent  string `json:"schemaContent,omitempty"`
+	SchemaFilePath string `json:"schemaFilePath,omitempty"`
 }

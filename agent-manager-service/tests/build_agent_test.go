@@ -46,7 +46,6 @@ var (
 )
 
 func TestBuildAgent(t *testing.T) {
-	setUpBuildTest(t)
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
 
 	t.Run("Triggering build with commitId should return 202", func(t *testing.T) {
@@ -290,8 +289,4 @@ func TestBuildAgent(t *testing.T) {
 			}
 		})
 	}
-}
-
-func setUpBuildTest(t *testing.T) {
-	_ = apitestutils.CreateAgent(t, uuid.New(), buildTestOrgName, buildTestProjName, buildTestAgentName, string(utils.InternalAgent))
 }

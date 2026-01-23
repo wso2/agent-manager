@@ -1,0 +1,17 @@
+# Helm values for OpenChoreo Data Plane in k3d single-cluster setup
+
+# Gateway configuration
+gateway:
+  httpPort: 19080
+  httpsPort: 19443
+  envoy:
+    # Required for k3d/Docker Desktop
+    mountTmpVolume: true
+
+# External Secrets Operator
+external-secrets:
+  enabled: true
+
+# API Platform (APIM integration)
+api-platform:
+  enabled: true
