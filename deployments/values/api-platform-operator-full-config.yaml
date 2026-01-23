@@ -475,12 +475,12 @@ data:
           pullPolicy: Always
         imagePullSecrets: []
         service:
-          type: ClusterIP
+          type: LoadBalancer
           annotations: {}
           labels: {}
           ports:
-            http: 8080
-            https: 8443
+            http: 22893
+            https: 22894
             admin: 9901
         deployment:
           enabled: true

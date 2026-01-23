@@ -25,8 +25,12 @@ ports:
   - port: 21893:21893
     nodeFilters:
       - loadbalancer
-  # Observability Gateway (LoadBalancer service on port 22893)
+  # Observability Gateway HTTP (LoadBalancer service on port 22893)
   - port: 22893:22893
+    nodeFilters:
+      - loadbalancer
+  # Observability Gateway HTTPS (LoadBalancer service on port 22894)
+  - port: 22894:22894
     nodeFilters:
       - loadbalancer
   # Control Plane uses port range 8xxx
