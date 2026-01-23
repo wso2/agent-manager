@@ -122,6 +122,15 @@ agentManagerService:
       tokenUrl: "http://thunder.amp.localhost:8080/oauth2/token"
       clientId: "amp-api-client"
       clientSecret: "amp-api-client-secret"
+    # JWT Signing configuration
+    jwtSigning:
+      privateKeyPath: "/app/keys/private.pem"
+      publicKeysConfig: "/app/keys/public-keys-config.json"
+      activeKeyId: "key-1"
+      defaultExpiry: "8760h"
+      issuer: "agent-manager-service"
+      defaultEnvironment: "default"
+
   agentWorkload:
     cors:
       allowedOrigin: "http://localhost:3000"
