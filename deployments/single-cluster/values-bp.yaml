@@ -10,6 +10,10 @@ global:
     registry:
       # k3d registry endpoint
       endpoint: host.k3d.internal:10082
+    # Disable buildpack cache pre-population to reduce installation time
+    # First agent build will pull buildpacks on-demand
+    buildpackCache:
+      enabled: false
 
 # Registry service configuration
 registry:
