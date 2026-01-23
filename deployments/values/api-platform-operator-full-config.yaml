@@ -134,11 +134,11 @@ data:
                 [%START_TIME%] "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% "%REQ(X-FORWARDED-FOR)%" "%REQ(USER-AGENT)%" "%REQ(X-REQUEST-ID)%" "%REQ(:AUTHORITY)%" "%UPSTREAM_HOST%"
 
             # Listener port for incoming HTTP traffic (Envoy proxy port)
-            listener_port: 8080
+            listener_port: 22893
 
             # HTTPS listener configuration
             https_enabled: true  # Enable/disable HTTPS listener
-            https_port: 8443      # HTTPS listener port
+            https_port: 22894      # HTTPS listener port
 
             # Downstream TLS configuration (for HTTPS listener)
             downstream_tls:
