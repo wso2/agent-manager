@@ -18,7 +18,7 @@ security:
     jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
     issuer: "thunder"
 
-opentelemetryCollector:
+opentelemetry-collector:
   configMap:
     existingName: amp-opentelemetry-collector-config
 
