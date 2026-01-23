@@ -9,3 +9,4 @@ spec:
     scope: Cluster
   configRef:
     name: obs-gateway-config
+    
