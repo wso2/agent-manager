@@ -206,13 +206,38 @@ echo ""
 
 # ============================================================================
 # Step 4: Install OpenChoreo  Observability Plane
-echo "7️⃣  Installing/Upgrading OpenChoreo Observability Plane..."
-helm upgrade --install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
---version 0.9.0 \
---namespace openchoreo-observability-plane \
---create-namespace \
---values "${SCRIPT_DIR}/../values/observability-plane-values.yaml" \
---timeout 10m
+echo "7️⃣  Installing OpenChoreo Observability Plane..."
+if helm status openchoreo-observability-plane -n openchoreo-observability-plane &>/dev/null; then
+    echo "⏭️  Observability Plane already installed, skipping..."
+else
+    echo "   This may take up to 15 minutes..."
+    kubectl create namespace openchoreo-observability-plane --dry-run=client -o yaml | kubectl apply -f -
+
+    kubectl apply -f $1/deployments/values/oc-collector-configmap.yaml -n openchoreo-observability-plane
+
+    helm install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
+        --version 0.9.0 \
+        --namespace openchoreo-observability-plane \
+        --create-namespace \
+    --values "${SCRIPT_DIR}/../values/observability-plane-values.yaml" \
+    --timeout 15m
+fi
+
+echo "✅ OpenSearch ready"
+
+if helm status wso2-amp-observability-extension -n openchoreo-observability-plane &>/dev/null; then
+    echo "⏭️  WSO2 AMP Observability Extension already installed, skipping..."
+else
+    echo "Building and loading Traces Observer Service Docker image into k3d cluster..."
+    make -C $1/traces-observer-service docker-load-k3d
+    sleep 10        
+    echo "   Traces Observer Service to the Observability Plane for tracing ingestion..."
+    helm install wso2-amp-observability-extension $1/deployments/helm-charts/wso2-amp-observability-extension \
+        --create-namespace \
+        --namespace openchoreo-observability-plane \
+        --timeout=10m \
+        --set tracesObserver.developmentMode=true
+fi
 
 # Registering the Observability Plane with the control plane
 echo "5️⃣  Registering Observability Plane..."
@@ -263,6 +288,66 @@ echo "🔍 Verifying ObservabilityPlane ..."
 kubectl get observabilityplane -n default
 kubectl logs -n openchoreo-observability-plane -l app=cluster-agent --tail=10
 echo "✅ OpenChoreo Observability Plane ready"
+echo ""
+
+# ============================================================================
+# Step 5: Install Gateway Operator
+echo "8️⃣  Installing Gateway Operator..."
+if helm status gateway-operator -n openchoreo-data-plane &>/dev/null; then
+    echo "⏭️  Gateway Operator already installed, skipping..."
+else
+    helm install gateway-operator oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator \
+        --version 0.2.0 \
+        --namespace openchoreo-data-plane \
+        --create-namespace \
+        --set logging.level=debug \
+        --set gateway.helm.chartVersion=0.3.0
+    echo "✅ Gateway Operator installed successfully"
+fi
+echo ""
+
+# Apply Gateway Operator Configuration
+echo "9️⃣  Applying Gateway Operator Configuration..."
+# Create local config from template for development
+echo "   Creating local development config..."
+cp "${SCRIPT_DIR}/../values/api-platform-operator-full-config.yaml" "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
+# Update JWKS URI for local development
+sed -i '' 's|http://agent-manager-service.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json|http://host.docker.internal:9000/auth/external/jwks.json|g' "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
+kubectl apply -f "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
+echo "✅ Gateway configuration applied"
+echo ""
+
+# Apply Gateway and API Resources
+echo "🔟 Applying Gateway and API Resources..."
+kubectl apply -f "${SCRIPT_DIR}/../values/obs-gateway.yaml"
+
+echo "⏳ Waiting for Gateway to be ready..."
+if kubectl wait --for=condition=Programmed gateway/obs-gateway -n openchoreo-data-plane --timeout=180s; then
+    echo "✅ Gateway is programmed"
+else
+    echo "⚠️  Gateway did not become ready in time"
+fi
+
+echo ""
+echo "Gateway status:"
+kubectl get gateway obs-gateway -n openchoreo-data-plane -o yaml
+echo ""
+
+kubectl apply -f "${SCRIPT_DIR}/../values/otel-collector-rest-api.yaml"
+
+echo "⏳ Waiting for RestApi to be programmed..."
+if kubectl wait --for=condition=Programmed restapi/traces-api-secure -n openchoreo-data-plane --timeout=120s; then
+    echo "✅ RestApi is programmed"
+else
+    echo "⚠️  RestApi did not become ready in time"
+fi
+
+echo ""
+echo "RestApi status:"
+kubectl get restapi traces-api-secure -n openchoreo-data-plane -o yaml
+echo ""
+
+echo "✅ Gateway and API resources applied"
 echo ""
 
 # ============================================================================
