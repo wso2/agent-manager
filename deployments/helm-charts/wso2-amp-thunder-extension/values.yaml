@@ -46,7 +46,7 @@ thunder:
   pdb:
     minAvailable: "50%"
   ingress:
-    className: traefik
+    className: openchoreo-traefik
     hostname: "thunder.amp.localhost"
     paths:
       - path: /
