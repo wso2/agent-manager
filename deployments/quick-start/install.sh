@@ -288,7 +288,7 @@ check_docker_permissions() {
 }
 
 # Check prerequisites
-log_step "Step 1/9: Verifying prerequisites"
+log_step "Step 1/10: Verifying prerequisites"
 
 # Check Docker access first
 if ! check_docker_permissions; then
@@ -322,7 +322,7 @@ log_success "All prerequisites verified"
 # Step 2: Setup k3d Cluster
 # ============================================================================
 
-log_step "Step 2/9: Setting up k3d cluster"
+log_step "Step 2/10: Setting up k3d cluster"
 
 # Check if cluster already exists
 if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
@@ -452,7 +452,7 @@ fi
 # Step 3: Install Cert Manager
 # ============================================================================
 
-log_step "Step 3/9: Installing Cert Manager"
+log_step "Step 3/10: Installing Cert Manager"
 
 helm_install_idempotent \
     "cert-manager" \
@@ -468,7 +468,7 @@ wait_for_pods "cert-manager" 300
 # Step 4: Install AMP Thunder Extension
 # ============================================================================
 
-log_step "Step 4/9: Installing WSO2 AMP Thunder Extension"
+log_step "Step 4/10: Installing WSO2 AMP Thunder Extension"
 
 log_info "Installing WSO2 AMP Thunder Extension..."
 if ! install_amp_thunder_extension; then
@@ -487,7 +487,7 @@ echo ""
 # Step 5: Install OpenChoreo Control Plane
 # ============================================================================
 
-log_step "Step 5/9: Installing OpenChoreo Control Plane"
+log_step "Step 5/10: Installing OpenChoreo Control Plane"
 
 helm_install_idempotent \
     "openchoreo-control-plane" \
@@ -503,7 +503,7 @@ wait_for_pods "openchoreo-control-plane" "${TIMEOUT_CONTROL_PLANE}"
 # Step 6: Install OpenChoreo Data Plane
 # ============================================================================
 
-log_step "Step 6/9: Installing OpenChoreo Data Plane"
+log_step "Step 6/10: Installing OpenChoreo Data Plane"
 
 helm_install_idempotent \
     "openchoreo-data-plane" \
@@ -588,7 +588,7 @@ wait_for_pods "openchoreo-data-plane" "${TIMEOUT_DATA_PLANE}"
 # Step 7: Install OpenChoreo Build Plane
 # ============================================================================
 
-log_step "Step 7/9: Installing OpenChoreo Build Plane"
+log_step "Step 7/10: Installing OpenChoreo Build Plane"
 
 helm_install_idempotent \
     "openchoreo-build-plane" \
@@ -639,7 +639,7 @@ wait_for_deployments "openchoreo-build-plane" "${TIMEOUT_BUILD_PLANE}"
 # Step 8: Install OpenChoreo Observability Plane
 # ============================================================================
 
-log_step "Step 8/9: Installing OpenChoreo Observability Plane"
+log_step "Step 8/10: Installing OpenChoreo Observability Plane"
 
 # Create namespace (idempotent)
 log_info "Ensuring OpenChoreo Observability Plane namespace exists..."
@@ -741,10 +741,81 @@ else
 fi
 
 # ============================================================================
-# Step 9: Install Agent Management Platform
+# Step 9: Install Gateway Operator
 # ============================================================================
 
-log_step "Step 9/9: Installing Agent Management Platform"
+
+log_step "Step 9/10: Installing Gateway Operator"
+log_info "Installing Gateway Operator..."
+helm_install_idempotent \
+    "gateway-operator" \
+    "oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator" \
+    "openchoreo-data-plane" \
+    "600" \
+    --version "0.2.0" \
+    --set "logging.level=debug" \
+    --set "gateway.helm.chartVersion=0.3.0"
+
+log_success "Gateway Operator installed"
+
+# Apply Gateway Operator Configuration
+log_info "Applying Gateway Operator Configuration..."
+GATEWAY_CONFIG_FILE="https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/values/api-platform-operator-full-config.yaml"
+
+if kubectl apply -f "${GATEWAY_CONFIG_FILE}" &>/dev/null; then
+    log_success "Gateway Operator configuration applied successfully"
+else
+    log_error "Failed to apply Gateway Operator configuration"
+    log_info "Attempting to download and apply locally..."
+    if curl -sSL "${GATEWAY_CONFIG_FILE}" | kubectl apply -f - &>/dev/null; then
+        log_success "Gateway Operator configuration applied successfully"
+    else
+        log_warning "Failed to apply Gateway Operator configuration (non-fatal)"
+    fi
+fi
+
+# Apply Gateway and API Resources
+log_info "Applying Gateway and API Resources..."
+
+# Apply Gateway
+GATEWAY_FILE="https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/values/obs-gateway.yaml"
+if kubectl apply -f "${GATEWAY_FILE}" &>/dev/null; then
+    log_success "Gateway resource applied"
+else
+    log_warning "Failed to apply Gateway resource (non-fatal)"
+fi
+
+# Wait for Gateway to be ready
+log_info "Waiting for Gateway to be programmed..."
+if kubectl wait --for=condition=Programmed gateway/obs-gateway -n openchoreo-data-plane --timeout=180s 2>/dev/null; then
+    log_success "Gateway is programmed"
+else
+    log_warning "Gateway did not become ready in time (non-fatal)"
+fi
+
+# Apply RestApi
+RESTAPI_FILE="https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml"
+if kubectl apply -f "${RESTAPI_FILE}" &>/dev/null; then
+    log_success "RestApi resource applied"
+else
+    log_warning "Failed to apply RestApi resource (non-fatal)"
+fi
+
+# Wait for RestApi to be ready
+log_info "Waiting for RestApi to be programmed..."
+if kubectl wait --for=condition=Programmed restapi/traces-api-secure -n openchoreo-data-plane --timeout=120s 2>/dev/null; then
+    log_success "RestApi is programmed"
+else
+    log_warning "RestApi did not become ready in time (non-fatal)"
+fi
+
+log_success "Gateway Operator setup complete"
+
+# ============================================================================
+# Step 10: Install Agent Management Platform
+# ============================================================================
+
+log_step "Step 10/10: Installing Agent Management Platform"
 
 # Verify prerequisites
 if ! verify_amp_prerequisites; then
@@ -830,6 +901,7 @@ log_success "OpenChoreo and Agent Management Platform are ready!"
 echo ""
 log_info "Cluster: ${CLUSTER_CONTEXT}"
 log_info "Agent Management Platform Console: http://localhost:3000"
+log_info "Observability Gateway (for traces): http://localhost:22893/otel"
 echo ""
 echo ""
 log_info "To check status: kubectl get pods -A"

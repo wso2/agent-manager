@@ -64,7 +64,7 @@ export const ExternalAgentOverview = () => {
   }, [sortedEnvironmentList, selectedEnvironmentId]);
 
 
-  const agentInstrumentationUrl = globalConfig.instrumentationUrl || "http://localhost:21893";
+  const agentInstrumentationUrl = globalConfig.instrumentationUrl || "http://localhost:22893/otel";
   const apiKey = "ey***";
 
   const handleSetupAgent = (environmentId: string) => {

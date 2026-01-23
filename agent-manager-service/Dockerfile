@@ -26,20 +26,27 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
 
 FROM alpine:3.21
 
-# Install runtime dependencies for HTTPS and timezone support
-RUN apk add --no-cache ca-certificates tzdata
+# Install runtime dependencies for HTTPS, timezone support, bash and openssl for key generation
+RUN apk add --no-cache ca-certificates tzdata bash openssl
 
 # Create a non-root user/group (UID:GID = 1000:1000)
 RUN addgroup -g 1000 app && adduser -D -u 1000 -G app app
 
-# Create directory for schema files
-RUN mkdir -p /app/clients/openchoreosvc && chown -R 1000:1000 /app
+# Create directory for schema files and keys
+RUN mkdir -p /app/clients/openchoreosvc /app/keys && chown -R 1000:1000 /app
 
 # Copy binary with ownership set
 COPY --from=builder --chown=1000:1000 /go/bin/agent-manager-service /go/bin/agent-manager-service
 
 # Copy the default OpenAPI schema file
 COPY --from=builder --chown=1000:1000 /app/clients/openchoreosvc/default-openapi-schema.yaml /app/clients/openchoreosvc/default-openapi-schema.yaml
+
+# Copy scripts for runtime key generation
+COPY --from=builder --chown=1000:1000 /app/scripts/gen_keys.sh /app/scripts/gen_keys.sh
+
+# Copy entrypoint script
+COPY --from=builder --chown=1000:1000 /app/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh /app/scripts/gen_keys.sh
 
 # Drop root privileges
 USER 1000:1000
@@ -52,4 +59,4 @@ ENV GODEBUG=x509negativeserial=1
 # Expose application port
 EXPOSE 8080
 
-ENTRYPOINT ["/go/bin/agent-manager-service"]
+ENTRYPOINT ["/app/entrypoint.sh"]

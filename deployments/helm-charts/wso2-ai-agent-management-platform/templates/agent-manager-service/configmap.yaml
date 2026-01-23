@@ -31,4 +31,10 @@ data:
   IDP_TOKEN_URL: {{ .Values.agentManagerService.config.oidc.tokenUrl | quote }}
   IDP_CLIENT_ID: {{ .Values.agentManagerService.config.oidc.clientId | quote }}
   IDP_CLIENT_SECRET: {{ .Values.agentManagerService.config.oidc.clientSecret | quote }}
+  JWT_SIGNING_PRIVATE_KEY_PATH: {{ .Values.agentManagerService.config.jwtSigning.privateKeyPath | default "/app/keys/private.pem" | quote }}
+  JWT_SIGNING_PUBLIC_KEYS_CONFIG: {{ .Values.agentManagerService.config.jwtSigning.publicKeysConfig | default "/app/keys/public-keys-config.json" | quote }}
+  JWT_SIGNING_ACTIVE_KEY_ID: {{ .Values.agentManagerService.config.jwtSigning.activeKeyId | default "key-1" | quote }}
+  JWT_SIGNING_DEFAULT_EXPIRY: {{ .Values.agentManagerService.config.jwtSigning.defaultExpiry | default "8760h" | quote }}
+  JWT_SIGNING_ISSUER: {{ .Values.agentManagerService.config.jwtSigning.issuer | default "agent-manager-service" | quote }}
+  JWT_SIGNING_DEFAULT_ENVIRONMENT: {{ .Values.agentManagerService.config.jwtSigning.defaultEnvironment | default "default" | quote }}
 {{- end }}
