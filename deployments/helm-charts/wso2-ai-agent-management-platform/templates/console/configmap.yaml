@@ -11,6 +11,8 @@ data:
   AUTH_BASE_URL: {{ .Values.console.config.auth.baseUrl | quote }}
   SIGN_IN_REDIRECT_URL: {{ .Values.console.config.auth.signInRedirectURL | quote }}
   SIGN_OUT_REDIRECT_URL: {{ .Values.console.config.auth.signOutRedirectURL | quote }}
+  VALIDATE_ID_TOKEN: {{ .Values.console.config.auth.validateIDToken | quote }}
+  CLOCK_TOLERANCE: {{ .Values.console.config.auth.clockTolerance | quote }}
   # Disable authentication flag
   DISABLE_AUTH: {{ .Values.console.config.disableAuth | quote }}
   # Backend API URL (auto-configure if empty)
