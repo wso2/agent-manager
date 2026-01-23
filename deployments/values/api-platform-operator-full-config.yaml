@@ -315,7 +315,7 @@ data:
               issuer: agent-manager-service
               jwks:
                 remote:
-                  uri: http://agent-manager-service.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json
+                  uri: http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json
                   skipTlsVerify: true
             headername: x-amp-api-key
             authheaderscheme: ""
