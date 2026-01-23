@@ -47,14 +47,18 @@ def configure_logging() -> None:
 
         # Configure the package root logger so all child loggers inherit
         amp_logger = logging.getLogger("amp_instrumentation")
-        if not amp_logger.hasHandlers():
+        if len(amp_logger.handlers) == 0:
             amp_logger.addHandler(handler)
             amp_logger.setLevel(logging.DEBUG)
+        # Prevent propagation to root logger (always set, even if handlers exist)
+        amp_logger.propagate = False
     else:
         # Use NullHandler by default
         amp_logger = logging.getLogger("amp_instrumentation")
-        if not amp_logger.hasHandlers():
+        if len(amp_logger.handlers) == 0:
             amp_logger.addHandler(logging.NullHandler())
+        # Prevent propagation to root logger (always set, even if handlers exist)
+        amp_logger.propagate = False
 
 
 class ConfigurationError(Exception):
