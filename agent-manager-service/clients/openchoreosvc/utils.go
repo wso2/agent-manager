@@ -260,11 +260,6 @@ func createComponentCRForInternalAgents(orgName, projectName string, req *spec.C
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling component workflow parameters: %w", err)
 	}
-	apiManagementTrait, err := createAPIManagementTrait(req.Name, basePath)
-	if err != nil {
-		return nil, fmt.Errorf("error creating API management trait: %w", err)
-	}
-
 	componentCR := &v1alpha1.Component{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Component",
@@ -299,9 +294,6 @@ func createComponentCRForInternalAgents(orgName, projectName string, req *spec.C
 			AutoDeploy: true,
 			Parameters: &runtime.RawExtension{
 				Raw: parametersJSON,
-			},
-			Traits: []v1alpha1.ComponentTrait{
-				*apiManagementTrait,
 			},
 		},
 	}
