@@ -139,7 +139,6 @@ export const ExternalAgentOverview = () => {
       <InstrumentationDrawer
         open={isInstrumentationDrawerOpen}
         onClose={() => setSearchParams({})}
-        traceAttributes={`environment-uid=${selectedEnvironmentId},component-uid=${agent?.uuid}`}
         agentId={agentId ?? ""}
         orgName={orgId ?? "default"}
         projName={projectId ?? "default"}
