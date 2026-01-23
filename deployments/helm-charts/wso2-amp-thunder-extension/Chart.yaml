@@ -2,8 +2,8 @@ apiVersion: v2
 name: wso2-amp-thunder-extension
 description: A Helm chart to add Thunder Identity Provider functionality for the Agent Management Platform.
 type: application
-version: 0.0.0-dev
-appVersion: "0.0.0-dev"
+version: v0.3.0-rc4
+appVersion: "v0.3.0-rc4"
 
 keywords:
   - wso2
