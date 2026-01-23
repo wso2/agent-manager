@@ -334,8 +334,8 @@ func createOTELInstrumentationTrait(ocAgentComponent *v1alpha1.Component, envUUI
 
 func createAPIManagementTrait(componentName string, basePath string) (*v1alpha1.ComponentTrait, error) {
 	traitParameters := map[string]interface{}{
-		"apiName":          fmt.Sprintf("%s-api", componentName),
-		"context":          fmt.Sprintf("/%s-api", componentName),
+		"apiName":          componentName,
+		"context":          componentName,
 		"upstreamPort":     80,       // Kubernetes Service is configured to listen on port 80 on component type definition
 		"apiVersion":       "v1.0",   // Default API version
 		"upstreamBasePath": basePath, // Base path from the request

@@ -31,7 +31,7 @@ thunder:
         cpu: 100m
         memory: 128Mi
   persistence:
-    enabled: true
+    enabled: false
     storageClass: ""
     accessMode: ReadWriteOnce
     size: 1Gi
@@ -121,8 +121,8 @@ thunder:
       name: amp-thunder-bootstrap
       files:
         - 50-amp-api-client.sh
-        - 51-amp-console-app.sh
-        - 52-user-schema-and-users.sh
+        - 51-user-schema-and-users.sh
+        - 52-amp-console-app.sh
     # AMP API Client configuration
     ampApiClient:
       clientId: "amp-api-client"

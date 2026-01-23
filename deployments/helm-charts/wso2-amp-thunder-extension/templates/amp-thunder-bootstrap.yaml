@@ -74,89 +74,8 @@ data:
 
       log_info "Application '{{ .Values.thunder.bootstrap.ampApiClient.name }}' created successfully"
     fi
-
-  51-amp-console-app.sh: |
-    #!/bin/bash
-    set -e
-
-    log_info "Checking if application '{{ .Values.thunder.bootstrap.ampConsoleClient.name }}' already exists..."
-    existing_apps=$(curl {{ $curlInsecure }} -s --max-time 10 "{{ $thunderUrl }}/applications")
-
-    # Extract application ID by matching client_id in JSON response
-    # Handles both {"client_id":"...","id":"..."} and {"id":"...","client_id":"..."} field orderings
-    app_id=$(echo "$existing_apps" \
-      | grep -o '"client_id":"{{ .Values.thunder.bootstrap.ampConsoleClient.clientId }}"[^}]*"id":"[^"]*"\|"id":"[^"]*"[^}]*"client_id":"{{ .Values.thunder.bootstrap.ampConsoleClient.clientId }}"' \
-      | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
-
-    # Define the application payload
-    APP_PAYLOAD='{
-      "name": "{{ .Values.thunder.bootstrap.ampConsoleClient.name }}",
-      "description": "{{ .Values.thunder.bootstrap.ampConsoleClient.description }}",
-      "auth_flow_graph_id": "{{ .Values.thunder.bootstrap.ampConsoleClient.authFlowGraphId }}",
-      "inbound_auth_config": [
-        {
-          "type": "oauth2",
-          "config": {
-            "client_id": "{{ .Values.thunder.bootstrap.ampConsoleClient.clientId }}",
-            "client_secret": "{{ .Values.thunder.bootstrap.ampConsoleClient.clientSecret }}",
-            "redirect_uris": {{ .Values.thunder.bootstrap.ampConsoleClient.redirectUris | toJson }},
-            "grant_types": {{ .Values.thunder.bootstrap.ampConsoleClient.grantTypes | toJson }},
-            "response_types": {{ .Values.thunder.bootstrap.ampConsoleClient.responseTypes | toJson }},
-            "token_endpoint_auth_method": "{{ .Values.thunder.bootstrap.ampConsoleClient.tokenEndpointAuthMethod }}",
-            "pkce_required": {{ .Values.thunder.bootstrap.ampConsoleClient.pkceRequired }},
-            "public_client": {{ .Values.thunder.bootstrap.ampConsoleClient.publicClient }},
-            "token": {
-              "issuer": "{{ .Values.thunder.bootstrap.ampConsoleClient.tokenIssuer }}",
-              "access_token": {
-                "validity_period": {{ .Values.thunder.bootstrap.ampConsoleClient.accessTokenValidityPeriod }},
-                "user_attributes": {{ .Values.thunder.bootstrap.ampConsoleClient.userAttributes | toJson }}
-              },
-              "id_token": {
-                "validity_period": {{ .Values.thunder.bootstrap.ampConsoleClient.idTokenValidityPeriod }},
-                "user_attributes": {{ .Values.thunder.bootstrap.ampConsoleClient.userAttributes | toJson }},
-                "scope_claims": {
-                  "groups": [
-                    "groups"
-                  ],
-                  "profile": [
-                    "username",
-                    "given_name",
-                    "family_name",
-                    "picture"
-                  ]
-                }
-              }
-            }
-          }
-        }
-      ],
-      "allowed_user_types": {{ .Values.thunder.bootstrap.ampConsoleClient.allowed_user_types | toJson }},
-    }'
-
-    if echo "$existing_apps" | grep -q '"client_id":"{{ .Values.thunder.bootstrap.ampConsoleClient.clientId }}"'; then
-      log_info "Application '{{ .Values.thunder.bootstrap.ampConsoleClient.name }}' already exists (id: $app_id), updating..."
-      curl {{ $curlInsecure }} --location -X PUT "{{ $thunderUrl }}/applications/$app_id" \
-        --header 'Content-Type: application/json' \
-        --data "$APP_PAYLOAD" \
-        --fail-with-body \
-        --max-time 30 \
-        --retry 3 \
-        --retry-delay 5
-
-      log_info "Application '{{ .Values.thunder.bootstrap.ampConsoleClient.name }}' updated successfully"
-    else
-      log_info "Application '{{ .Values.thunder.bootstrap.ampConsoleClient.name }}' does not exist, creating..."
-      curl {{ $curlInsecure }} --location "{{ $thunderUrl }}/applications" \
-        --header 'Content-Type: application/json' \
-        --data "$APP_PAYLOAD" \
-        --fail-with-body \
-        --max-time 30 \
-        --retry 3 \
-        --retry-delay 5
-
-      log_info "Application '{{ .Values.thunder.bootstrap.ampConsoleClient.name }}' created successfully"
-    fi
-  52-user-schema-and-users.sh: |
+  
+  51-user-schema-and-users.sh: |
     #!/bin/bash
     set -e
 
@@ -264,3 +183,85 @@ data:
     fi
     {{- end }}
     {{- end }}
+
+  52-amp-console-app.sh: |
+    #!/bin/bash
+    set -e
+
+    log_info "Checking if application '{{ .Values.thunder.bootstrap.ampConsoleClient.name }}' already exists..."
+    existing_apps=$(curl {{ $curlInsecure }} -s --max-time 10 "{{ $thunderUrl }}/applications")
+
+    # Extract application ID by matching client_id in JSON response
+    # Handles both {"client_id":"...","id":"..."} and {"id":"...","client_id":"..."} field orderings
+    app_id=$(echo "$existing_apps" \
+      | grep -o '"client_id":"{{ .Values.thunder.bootstrap.ampConsoleClient.clientId }}"[^}]*"id":"[^"]*"\|"id":"[^"]*"[^}]*"client_id":"{{ .Values.thunder.bootstrap.ampConsoleClient.clientId }}"' \
+      | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+    # Define the application payload
+    APP_PAYLOAD='{
+      "name": "{{ .Values.thunder.bootstrap.ampConsoleClient.name }}",
+      "description": "{{ .Values.thunder.bootstrap.ampConsoleClient.description }}",
+      "auth_flow_graph_id": "{{ .Values.thunder.bootstrap.ampConsoleClient.authFlowGraphId }}",
+      "inbound_auth_config": [
+        {
+          "type": "oauth2",
+          "config": {
+            "client_id": "{{ .Values.thunder.bootstrap.ampConsoleClient.clientId }}",
+            "client_secret": "{{ .Values.thunder.bootstrap.ampConsoleClient.clientSecret }}",
+            "redirect_uris": {{ .Values.thunder.bootstrap.ampConsoleClient.redirectUris | toJson }},
+            "grant_types": {{ .Values.thunder.bootstrap.ampConsoleClient.grantTypes | toJson }},
+            "response_types": {{ .Values.thunder.bootstrap.ampConsoleClient.responseTypes | toJson }},
+            "token_endpoint_auth_method": "{{ .Values.thunder.bootstrap.ampConsoleClient.tokenEndpointAuthMethod }}",
+            "pkce_required": {{ .Values.thunder.bootstrap.ampConsoleClient.pkceRequired }},
+            "public_client": {{ .Values.thunder.bootstrap.ampConsoleClient.publicClient }},
+            "token": {
+              "issuer": "{{ .Values.thunder.bootstrap.ampConsoleClient.tokenIssuer }}",
+              "access_token": {
+                "validity_period": {{ .Values.thunder.bootstrap.ampConsoleClient.accessTokenValidityPeriod }},
+                "user_attributes": {{ .Values.thunder.bootstrap.ampConsoleClient.userAttributes | toJson }}
+              },
+              "id_token": {
+                "validity_period": {{ .Values.thunder.bootstrap.ampConsoleClient.idTokenValidityPeriod }},
+                "user_attributes": {{ .Values.thunder.bootstrap.ampConsoleClient.userAttributes | toJson }},
+                "scope_claims": {
+                  "groups": [
+                    "groups"
+                  ],
+                  "profile": [
+                    "username",
+                    "given_name",
+                    "family_name",
+                    "picture"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ],
+      "allowed_user_types": {{ .Values.thunder.bootstrap.ampConsoleClient.allowed_user_types | toJson }}
+    }'
+
+    if echo "$existing_apps" | grep -q '"client_id":"{{ .Values.thunder.bootstrap.ampConsoleClient.clientId }}"'; then
+      log_info "Application '{{ .Values.thunder.bootstrap.ampConsoleClient.name }}' already exists (id: $app_id), updating..."
+      curl {{ $curlInsecure }} --location -X PUT "{{ $thunderUrl }}/applications/$app_id" \
+        --header 'Content-Type: application/json' \
+        --data "$APP_PAYLOAD" \
+        --fail-with-body \
+        --max-time 30 \
+        --retry 3 \
+        --retry-delay 5
+
+      log_info "Application '{{ .Values.thunder.bootstrap.ampConsoleClient.name }}' updated successfully"
+    else
+      log_info "Application '{{ .Values.thunder.bootstrap.ampConsoleClient.name }}' does not exist, creating..."
+      curl {{ $curlInsecure }} --location "{{ $thunderUrl }}/applications" \
+        --header 'Content-Type: application/json' \
+        --data "$APP_PAYLOAD" \
+        --fail-with-body \
+        --max-time 30 \
+        --retry 3 \
+        --retry-delay 5
+
+      log_info "Application '{{ .Values.thunder.bootstrap.ampConsoleClient.name }}' created successfully"
+    fi
