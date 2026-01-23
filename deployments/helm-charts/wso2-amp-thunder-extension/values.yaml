@@ -147,14 +147,14 @@ thunder:
         - "http://localhost:3000/login"
       grantTypes:
         - "authorization_code"
-        - "client_credentials"
+        - "refresh_token"
       responseTypes:
         - "code"
       allowed_user_types:
         - "engineer"
-      tokenEndpointAuthMethod: "client_secret_post"
-      pkceRequired: false
-      publicClient: false
+      tokenEndpointAuthMethod: "none"
+      pkceRequired: true
+      publicClient: true
       tokenIssuer: "thunder"
       accessTokenValidityPeriod: 3600
       idTokenValidityPeriod: 3600

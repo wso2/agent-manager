@@ -23,7 +23,14 @@ window.__RUNTIME_CONFIG__ = {
     clientID: '$AUTH_CLIENT_ID',
     baseUrl: '$AUTH_BASE_URL',
     scope: ['openid', 'profile'],
-    storage: 'sessionStorage'
+    storage: 'sessionStorage',
+    // Disable strict ID token validation for providers with non-standard issuers 
+    // (e.g., Thunder uses "thunder" instead of a URL)
+    // Set VALIDATE_ID_TOKEN=true for providers that comply with OIDC standards (e.g., Asgardeo)
+    validateIDToken: '$VALIDATE_ID_TOKEN' !== 'true',
+    // Clock tolerance (in seconds) to handle time skew between client and server
+    // Prevents token validation failures due to minor time differences
+    clockTolerance: 300
   },
   disableAuth: '$DISABLE_AUTH' === 'true',
   apiBaseUrl: '$API_BASE_URL',

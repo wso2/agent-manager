@@ -24,6 +24,10 @@ fi
 ACTOR="${GITHUB_ACTOR:-github-actions}"
 echo "$GITHUB_TOKEN" | helm registry login -u "$ACTOR" --password-stdin "${HELM_REGISTRY#oci://}"
 
+# Update dependencies
+echo "Updating Helm chart dependencies..."
+helm dependency update "$CHART_DIR"
+
 # Package and push
 # Capture the output from helm package which prints the created filename
 # Format: "Successfully packaged chart and saved it to: chart-name-version.tgz"

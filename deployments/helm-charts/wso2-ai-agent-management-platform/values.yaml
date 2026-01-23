@@ -181,6 +181,8 @@ console:
       signInRedirectURL: ""
       signOutRedirectURL: ""
       existingSecret: ""
+      validateIDToken: "false"
+      clockTolerance: 300
 
     # Disable auth for development
     disableAuth: "true"

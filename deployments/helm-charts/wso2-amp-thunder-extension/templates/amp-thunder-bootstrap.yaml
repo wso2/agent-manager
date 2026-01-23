@@ -207,38 +207,16 @@ data:
           "type": "oauth2",
           "config": {
             "client_id": "{{ .Values.thunder.bootstrap.ampConsoleClient.clientId }}",
-            "client_secret": "{{ .Values.thunder.bootstrap.ampConsoleClient.clientSecret }}",
             "redirect_uris": {{ .Values.thunder.bootstrap.ampConsoleClient.redirectUris | toJson }},
             "grant_types": {{ .Values.thunder.bootstrap.ampConsoleClient.grantTypes | toJson }},
             "response_types": {{ .Values.thunder.bootstrap.ampConsoleClient.responseTypes | toJson }},
             "token_endpoint_auth_method": "{{ .Values.thunder.bootstrap.ampConsoleClient.tokenEndpointAuthMethod }}",
             "pkce_required": {{ .Values.thunder.bootstrap.ampConsoleClient.pkceRequired }},
-            "public_client": {{ .Values.thunder.bootstrap.ampConsoleClient.publicClient }},
-            "token": {
-              "issuer": "{{ .Values.thunder.bootstrap.ampConsoleClient.tokenIssuer }}",
-              "access_token": {
-                "validity_period": {{ .Values.thunder.bootstrap.ampConsoleClient.accessTokenValidityPeriod }},
-                "user_attributes": {{ .Values.thunder.bootstrap.ampConsoleClient.userAttributes | toJson }}
-              },
-              "id_token": {
-                "validity_period": {{ .Values.thunder.bootstrap.ampConsoleClient.idTokenValidityPeriod }},
-                "user_attributes": {{ .Values.thunder.bootstrap.ampConsoleClient.userAttributes | toJson }},
-                "scope_claims": {
-                  "groups": [
-                    "groups"
-                  ],
-                  "profile": [
-                    "username",
-                    "given_name",
-                    "family_name",
-                    "picture"
-                  ]
-                }
-              }
-            }
+            "public_client": {{ .Values.thunder.bootstrap.ampConsoleClient.publicClient }}
           }
         }
       ],
+      "user_attributes": {{ .Values.thunder.bootstrap.ampConsoleClient.userAttributes | toJson }},
       "allowed_user_types": {{ .Values.thunder.bootstrap.ampConsoleClient.allowed_user_types | toJson }}
     }'
 

@@ -58,4 +58,7 @@ service/bin/
 .make/
 .kube/
 
+# Helm
+charts/
+
 .env
