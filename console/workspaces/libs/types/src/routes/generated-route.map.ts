@@ -89,6 +89,11 @@ export const generatedRouteMap =  {
                               "children": {}
                             }
                           }
+                        },
+                        "logs": {
+                          "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/logs",
+                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/logs/*",
+                          "children": {}
                         }
                       }
                     }

@@ -109,6 +109,11 @@ export const rootRouteMap: AppRoute = {
                                                     },
                                                 },
                                             },
+                                            logs: {
+                                                path: 'logs',
+                                                index: true,
+                                                children: {},
+                                            },
                                         },
                                     },
                                 }

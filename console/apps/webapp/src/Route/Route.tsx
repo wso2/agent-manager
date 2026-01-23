@@ -31,6 +31,7 @@ import {
   LazyDeploymentComponent,
   LazyTestComponent,
   LazyTracesComponent,
+  LazyLogsComponent,
 } from "../pages";
 import { LoadingFallback } from "../components/LoadingFallback";
 import { relativeRouteMap } from "@agent-management-platform/types";
@@ -122,10 +123,24 @@ export function RootRouter() {
                   <Route
                     path={
                       relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.observability.path +
+                        "/" +
+                        relativeRouteMap.children.org.children.projects.children
                         .agents.children.environment.children.observability
-                        .path + "/*"
+                        .children.traces.path
                     }
                     element={<LazyTracesComponent />}
+                  />
+                  <Route
+                    path={
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.observability.path +
+                        "/" +
+                        relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.observability
+                        .children.logs.path
+                    }
+                    element={<LazyLogsComponent />}
                   />
                 </Route>
               </Route>
