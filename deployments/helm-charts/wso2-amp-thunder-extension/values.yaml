@@ -150,6 +150,8 @@ thunder:
         - "client_credentials"
       responseTypes:
         - "code"
+      allowed_user_types:
+        - "engineer"
       tokenEndpointAuthMethod: "client_secret_post"
       pkceRequired: false
       publicClient: false

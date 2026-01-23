@@ -129,7 +129,8 @@ data:
             }
           }
         }
-      ]
+      ],
+      "allowed_user_types": {{ .Values.thunder.bootstrap.ampConsoleClient.allowed_user_types | toJson }},
     }'
 
     if echo "$existing_apps" | grep -q '"client_id":"{{ .Values.thunder.bootstrap.ampConsoleClient.clientId }}"'; then
