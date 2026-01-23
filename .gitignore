@@ -59,3 +59,6 @@ service/bin/
 .kube/
 
 .env
+
+# Local development configurations
+deployments/values/api-platform-operator-local-config.yaml
