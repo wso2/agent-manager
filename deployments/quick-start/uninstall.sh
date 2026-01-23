@@ -175,6 +175,18 @@ else
     log_info "Observability Extension not found, skipping..."
 fi
 
+# Uninstall Thunder Extension
+if helm status "amp-thunder-extension" -n "amp-thunder" &>/dev/null 2>&1; then
+    log_info "Uninstalling AMP Thunder Extension..."
+    if helm uninstall "amp-thunder-extension" -n "amp-thunder" &>/dev/null; then
+        log_success "AMP Thunder Extension uninstalled"
+    else
+        log_warning "Failed to uninstall AMP Thunder Extension (non-fatal)"
+    fi
+else
+    log_info "AMP Thunder Extension not found, skipping..."
+fi
+
 # Uninstall main Agent Management Platform
 if helm status "amp" -n "${AMP_NS}" &>/dev/null 2>&1; then
     log_info "Uninstalling Agent Management Platform..."
@@ -280,6 +292,18 @@ if [ "${AMP_ONLY}" = false ]; then
     else
         log_info "OpenChoreo Control Plane not found, skipping..."
     fi
+
+    # Uninstall Cert Manager
+    if helm status "cert-manager" -n "cert-manager" &>/dev/null 2>&1; then
+        log_info "Uninstalling Cert Manager..."
+        if helm uninstall "cert-manager" -n "cert-manager" &>/dev/null; then
+            log_success "Cert Manager uninstalled"
+        else
+            log_warning "Failed to uninstall Cert Manager (non-fatal)"
+        fi
+    else
+        log_info "Cert Manager not found, skipping..."
+    fi
 else
     log_step "Step 3/5: Skipping OpenChoreo Uninstallation (--amp-only mode)"
     log_info "OpenChoreo resources are preserved"
@@ -305,9 +329,23 @@ else
     log_info "Namespace ${AMP_NS} not found, skipping..."
 fi
 
+# Delete AMP Thunder namespace
+if kubectl get namespace "amp-thunder" &>/dev/null 2>&1; then
+    log_info "Deleting namespace amp-thunder..."
+    if kubectl delete namespace "amp-thunder" --timeout=60s &>/dev/null; then
+        log_success "Namespace amp-thunder deleted"
+    else
+        log_warning "Failed to delete namespace amp-thunder (may contain finalizers)"
+        log_info "Attempting force delete..."
+        kubectl delete namespace "amp-thunder" --force --grace-period=0 &>/dev/null || true
+    fi
+else
+    log_info "Namespace amp-thunder not found, skipping..."
+fi
+
 # Delete OpenChoreo namespaces only if not in --amp-only mode
 if [ "${AMP_ONLY}" = false ]; then
-    for ns in "openchoreo-control-plane" "openchoreo-data-plane" "openchoreo-build-plane" "openchoreo-observability-plane"; do
+    for ns in "openchoreo-control-plane" "openchoreo-data-plane" "openchoreo-build-plane" "openchoreo-observability-plane" "cert-manager"; do
         if kubectl get namespace "${ns}" &>/dev/null 2>&1; then
             # Check if namespace has no pods (simplified check)
             POD_COUNT=$(kubectl get pods -n "${ns}" --no-headers 2>/dev/null | wc -l || echo "0")
