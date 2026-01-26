@@ -332,8 +332,14 @@ kubectl port-forward -n wso2-amp svc/amp-console 3000:3000 &
 # Agent Manager API (port 8080)
 kubectl port-forward -n wso2-amp svc/amp-api 9000:9000 &
 
-# OTel Collector (port 21893)
-kubectl port-forward -n openchoreo-observability-plane svc/otel-collector 21893:21893 &
+# Port forward Observability Gateway
+echo "🌐 Forwarding Observability Gateway HTTP (22893)..."
+kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 22893:22893 &
+
+# Port forward Observability Gateway
+echo "🌐 Forwarding Observability Gateway HTTPS (22894)..."
+kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 22894:22894 &
+
 
 ```
 
@@ -343,7 +349,23 @@ After port forwarding is set up:
 
 - **Console**: http://localhost:3000
 - **API**: http://localhost:9000
-- **OpenTelemetry Collector**: http://localhost:21893
+- **Observabliity Gateway**: http://localhost:22893/otel
+- **Observability Gateway (HTTPS)** https://localhost:22894/otel
+
+### Handling Self-Signed Certificate Issues (HTTPS)
+
+If you need to use the HTTPS endpoint for OTEL exporters and encounter self-signed certificate issues, you can extract and use the certificate authority (CA) certificate from the cluster:
+
+```bash
+# Extract the CA certificate from the Kubernetes secret
+kubectl get secret obs-gateway-gateway-controller-tls \
+  -n openchoreo-data-plane \
+  -o jsonpath='{.data.ca\.crt}' | base64 --decode > ca.crt
+
+# Export the certificate path for OTEL exporters (use absolute path to the ca.crt file)
+export OTEL_EXPORTER_OTLP_CERTIFICATE=$(pwd)/ca.crt
+```
+
 
 ## Custom Configuration
 
