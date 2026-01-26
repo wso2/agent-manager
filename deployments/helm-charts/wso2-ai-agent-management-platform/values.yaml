@@ -204,7 +204,7 @@ console:
 
     # Backend API URLs (will be auto-configured if empty)
     apiBaseUrl: "http://localhost:9000"
-    instrumentationUrl: "http://localhost:21893"
+    instrumentationUrl: "http://localhost:22893/otel"
 
   # Pod-level configurations
   podAnnotations: {}
