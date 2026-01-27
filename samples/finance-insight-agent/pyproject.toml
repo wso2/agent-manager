@@ -1,0 +1,23 @@
+[project]
+name = "finance-insight-service"
+version = "0.1.0"
+description = "Finance Insight Service - research agent"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "crewai[tools]>=0.83.0",
+  "crewai-tools>=0.28.0",
+  "openinference-instrumentation-crewai>=0.1.0",
+  "flask>=3.0.0",
+  "flask-cors>=4.0.0",
+  "numpy>=1.26.4",
+  "openai>=1.40.0",
+  "pandas>=2.2.2",
+  "python-dotenv>=1.0.1",
+]
+
+[project.scripts]
+finance_insight_api = "finance_insight_service.api_server:main"
+
+[tool.uv]
+package = true
