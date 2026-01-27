@@ -30,22 +30,6 @@ echo "🔧 Setting kubectl context to $CLUSTER_CONTEXT..."
 kubectl config use-context $CLUSTER_CONTEXT
 
 echo ""
-echo "1️⃣  Installing/Upgrading WSO2 AMP Thunder Extension..."
-echo "📦 Updating Helm dependencies..."
-helm dependency update "${SCRIPT_DIR}/../helm-charts/wso2-amp-thunder-extension"
-helm upgrade --install amp-thunder-extension "${SCRIPT_DIR}/../helm-charts/wso2-amp-thunder-extension" --namespace amp-thunder --create-namespace
-echo "✅ AMP Thunder Extension installed/upgraded successfully"
-
-echo "⏳ Waiting for AMP Thunder Extension pods to be ready (timeout: 5 minutes)..."
-kubectl wait -n amp-thunder --for=condition=available --timeout=300s deployment --all
-# Wait for jobs only if any exist
-if kubectl get jobs -n amp-thunder --no-headers 2>/dev/null | grep -q .; then
-    kubectl wait -n amp-thunder --for=condition=complete --timeout=300s job --all
-fi
-echo "✅ AMP Thunder Extension ready"
-echo ""
-
-echo ""
 echo "📦 Installing OpenChoreo core components..."
 echo "   Reference: https://openchoreo.dev/docs/getting-started/try-it-out/on-self-hosted-kubernetes/"
 echo "   This may take several minutes..."
@@ -56,13 +40,13 @@ echo ""
 # ============================================================================
 
 # Step 1: Install OpenChoreo Control Plane
-echo "2️⃣  Installing/Upgrading OpenChoreo Control Plane..."
+echo "1️⃣  Installing/Upgrading OpenChoreo Control Plane..."
 echo "   This may take up to 10 minutes..."
 helm upgrade --install openchoreo-control-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
 --version 0.9.0 \
 --namespace openchoreo-control-plane \
 --create-namespace \
---values "${SCRIPT_DIR}/../values/control-plane-values.yaml"
+--values "${SCRIPT_DIR}/../single-cluster/values-cp.yaml"
 
 echo "⏳ Waiting for Control Plane pods to be ready (timeout: 5 minutes)..."
 kubectl wait -n openchoreo-control-plane --for=condition=available --timeout=300s deployment --all
@@ -75,13 +59,13 @@ echo ""
 
 # ============================================================================
 # Step 2: Install OpenChoreo Data Plane
-echo "3️⃣  Installing/Upgrading OpenChoreo Data Plane..."
+echo "2️⃣  Installing/Upgrading OpenChoreo Data Plane..."
 echo "   This may take up to 10 minutes..."
 helm upgrade --install openchoreo-data-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
 --version 0.9.0 \
 --namespace openchoreo-data-plane \
 --create-namespace \
---values "${SCRIPT_DIR}/../values/data-plane-values.yaml"
+--values "${SCRIPT_DIR}/../single-cluster/values-dp.yaml"
 
 # Create Certificate for Gateway TLS
 echo "📜 Creating Certificate for Gateway TLS..."
@@ -103,7 +87,7 @@ echo "✅ Gateway TLS Certificate created"
 echo ""
 
 # Registering the Data Plane with the control plane
-echo "4️⃣  Registering Data Plane..."
+echo "3️⃣  Registering Data Plane..."
 CA_CERT=$(kubectl get secret cluster-agent-tls -n openchoreo-data-plane -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d || echo "")
 if [ -n "$CA_CERT" ]; then
     kubectl apply -f - <<EOF
@@ -157,7 +141,7 @@ helm upgrade --install openchoreo-build-plane oci://ghcr.io/openchoreo/helm-char
 --version 0.9.0 \
 --namespace openchoreo-build-plane \
 --create-namespace \
---values "${SCRIPT_DIR}/../values/build-plane-values.yaml"
+--values "${SCRIPT_DIR}/../single-cluster/values-bp.yaml"
 
 # Registering the Build Plane with the control plane
 echo "5️⃣  Registering Build Plane..."
@@ -192,13 +176,13 @@ echo ""
 
 # ============================================================================
 # Install Custom Build CI Workflows
-echo "5️⃣ Installing/Upgrading Custom Build CI Workflows..."
+echo "6️⃣ Installing/Upgrading Custom Build CI Workflows..."
 helm upgrade --install amp-custom-build-ci-workflows "${SCRIPT_DIR}/../helm-charts/wso2-amp-build-extension" --namespace openchoreo-build-plane
 echo "✅ Custom Build CI Workflows installed/upgraded successfully"
 echo ""
 
 # Install Default Platform Resources
-echo "6️⃣ Installing/Upgrading Default Platform Resources..."
+echo "7️⃣ Installing/Upgrading Default Platform Resources..."
 echo "   Creating default Organization, Project, Environment, and DeploymentPipeline..."
 helm upgrade --install amp-default-platform-resources "${SCRIPT_DIR}/../helm-charts/wso2-amp-platform-resources-extension" --namespace default
 echo "✅ Default Platform Resources installed/upgraded successfully"
@@ -206,7 +190,7 @@ echo ""
 
 # ============================================================================
 # Step 4: Install OpenChoreo  Observability Plane
-echo "7️⃣  Installing OpenChoreo Observability Plane..."
+echo "8️⃣  Installing OpenChoreo Observability Plane..."
 if helm status openchoreo-observability-plane -n openchoreo-observability-plane &>/dev/null; then
     echo "⏭️  Observability Plane already installed, skipping..."
 else
@@ -219,7 +203,7 @@ else
         --version 0.9.0 \
         --namespace openchoreo-observability-plane \
         --create-namespace \
-    --values "${SCRIPT_DIR}/../values/observability-plane-values.yaml" \
+    --values "${SCRIPT_DIR}/../single-cluster/values-op.yaml" \
     --timeout 15m
 fi
 
@@ -292,7 +276,7 @@ echo ""
 
 # ============================================================================
 # Step 5: Install Gateway Operator
-echo "8️⃣  Installing Gateway Operator..."
+echo "9️⃣  Installing Gateway Operator..."
 if helm status gateway-operator -n openchoreo-data-plane &>/dev/null; then
     echo "⏭️  Gateway Operator already installed, skipping..."
 else
@@ -307,7 +291,7 @@ fi
 echo ""
 
 # Apply Gateway Operator Configuration
-echo "9️⃣  Applying Gateway Operator Configuration..."
+echo "🔟 Applying Gateway Operator Configuration..."
 # Create local config from template for development
 echo "   Creating local development config..."
 cp "${SCRIPT_DIR}/../values/api-platform-operator-full-config.yaml" "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
@@ -318,7 +302,7 @@ echo "✅ Gateway configuration applied"
 echo ""
 
 # Apply Gateway and API Resources
-echo "🔟 Applying Gateway and API Resources..."
+echo "1️⃣1️⃣ Applying Gateway and API Resources..."
 kubectl apply -f "${SCRIPT_DIR}/../values/obs-gateway.yaml"
 
 echo "⏳ Waiting for Gateway to be ready..."

@@ -38,7 +38,6 @@ services:
       - SERVER_PORT=8080
       # Kubernetes Configuration
       - KUBECONFIG=/app/.kube/config
-      - API_KEY_VALUE=abc-def-123
       - IS_LOCAL_DEV_ENV=true
       # JWT Configuration
       - JWT_SIGNING_PRIVATE_KEY_PATH=/app/keys/private.pem
@@ -52,12 +51,17 @@ services:
       # - OPENSEARCH_URL=http://host.docker.internal:9200
       - OBSERVER_URL=http://host.docker.internal:8085
       - TRACE_OBSERVER_URL=http://host.docker.internal:9098
+      - IDP_TOKEN_URL=http://host.docker.internal:8090/oauth2/token
+      - IDP_CLIENT_ID=amp-api-client
+      - IDP_CLIENT_SECRET=amp-api-client-secret
       - AMP_VERSION=v0.1.0
     volumes:
       # Mount source code for hot-reloading
       - ../agent-manager-service:/app
       # Mount Docker-specific kubeconfig
       - ~/.kube/config-docker:/app/.kube/config:ro
+      # Use container-specific keys (not host) so paths are correct
+      - agent_manager_keys:/app/keys
       # Exclude vendor and tmp directories from mount
       - /app/vendor
       - /app/tmp
@@ -102,6 +106,7 @@ volumes:
   postgres_data:
   console_node_modules:
   console_common_temp:
+  agent_manager_keys:
 
 networks:
   agent-manager:
