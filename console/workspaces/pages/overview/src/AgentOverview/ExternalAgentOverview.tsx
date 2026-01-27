@@ -149,6 +149,8 @@ export const ExternalAgentOverview = () => {
         }
         instrumentationUrl={agentInstrumentationUrl}
         apiKey={apiKey}
+        componentUid={agent?.uuid}
+        environmentUid={selectedEnvironmentId}
       />
     </>
   );
