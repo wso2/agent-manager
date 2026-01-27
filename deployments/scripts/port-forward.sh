@@ -44,9 +44,13 @@ kubectl port-forward -n openchoreo-observability-plane svc/opentelemetry-collect
 echo "🔍 Forwarding Traces Observer Service (9098)..."
 kubectl port-forward -n openchoreo-observability-plane svc/amp-traces-observer 9098:9098 &
 
-#Port forward Observer Service API
+# Port forward Observer Service API
 echo "🔍 Forwarding Observer Service API (8085)..."
 kubectl port-forward -n openchoreo-observability-plane svc/observer 8085:8080 &
+
+# Port forward Thunder (IDP)
+echo "🔑 Forwarding Thunder IDP Service (8090)..."
+kubectl port-forward -n amp-thunder svc/amp-thunder-extension-service 8090:8090 &
 
 # Port forward Observability Gateway
 echo "🌐 Forwarding Observability Gateway (22893)..."
@@ -55,12 +59,12 @@ kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 228
 
 echo ""
 echo "✅ Port forwarding active:"
-echo "   Observer Service API: http://localhost:8085"
-echo "   OpenSearch:           http://localhost:9200"
-echo "   OpenTelemetry Collector:        http://localhost:21893"
-echo "   Traces Observer Service:      http://localhost:9098"
-echo "   Observability Gateway:       http://localhost:22893"
-echo "   OpenSearch Dashboard: http://localhost:5601"
+echo "   Thunder IDP Service:        http://localhost:8090"
+echo "   Observer Service API:       http://localhost:8085"
+echo "   Traces Observer Service:    http://localhost:9098"
+echo "   OpenSearch:                 http://localhost:9200"
+echo "   OpenTelemetry Collector:    http://localhost:21893"
+echo "   Observability Gateway:      http://localhost:22893"
 
 echo ""
 echo "💡 Keep this terminal open. Press Ctrl+C to stop."

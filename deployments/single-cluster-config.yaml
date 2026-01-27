@@ -13,11 +13,11 @@ kubeAPI:
 ports:
   # Control Plane uses port range 8xxx
   # HTTP traffic to OpenChoreo UI and API (Traefik LoadBalancer on port 80)
-  - port: 8080:80
+  - port: 8080:8080
     nodeFilters:
       - loadbalancer
   # HTTPS traffic to OpenChoreo UI and API (Traefik LoadBalancer on port 443)
-  - port: 8443:443
+  - port: 8443:8443
     nodeFilters:
       - loadbalancer
   # Data Plane uses port range 19xxx (matches kind and other cluster setups)
@@ -57,7 +57,7 @@ options:
       # Add host.k3d.internal to API server TLS certificate SANs.
       # This allows consistent DataPlane configuration across single and multi-cluster setups
       # where Control Plane pods can access the API server via host.k3d.internal:6550
-      - arg: "--tls-san=host.k3d.internal"
+      - arg: "--tls-san=host.k3d.internal --disable=traefik"
         nodeFilters:
           - server:*
       # Configure kubelet eviction thresholds to prevent resource exhaustion

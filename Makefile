@@ -5,9 +5,10 @@ help:
 	@echo "Agent Manager Platform - Development Commands"
 	@echo ""
 	@echo "🚀 Setup (run once):"
-	@echo "  make setup                   - Complete setup (Colima + k3d + OpenChoreo + Platform)"
+	@echo "  make setup                   - Complete setup (Colima + k3d + Thunder + OpenChoreo + Platform)"
 	@echo "  make setup-colima            - Start Colima VM"
 	@echo "  make setup-k3d              - Create k3d cluster"
+	@echo "  make setup-thunder          - Setup Thunder"
 	@echo "  make setup-openchoreo        - Install OpenChoreo on k3d"
 	@echo "  make setup-platform          - Build images and start core platform services"
 	@echo "  make setup-console-local     - Install console deps (only if changed)"
@@ -41,7 +42,7 @@ help:
 	@echo ""
 
 # Complete setup
-setup: setup-colima setup-k3d setup-openchoreo setup-kubeconfig-docker setup-platform setup-console-local
+setup: setup-colima setup-k3d setup-thunder setup-openchoreo setup-kubeconfig-docker setup-platform setup-console-local
 	@echo ""
 	@echo "✅ Complete setup finished!"
 	@echo ""
@@ -60,6 +61,9 @@ setup-colima:
 
 setup-k3d:
 	@cd deployments/scripts && ./setup-k3d.sh
+
+setup-thunder:
+	@cd deployments/scripts && ./setup-amp-thunder.sh
 
 setup-openchoreo:
 	@cd deployments/scripts && ./setup-openchoreo.sh $(CURDIR)

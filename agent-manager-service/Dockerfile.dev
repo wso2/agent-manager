@@ -1,7 +1,8 @@
 FROM golang:1.25-alpine
 
-# Install Air for hot-reloading
-RUN go install github.com/air-verse/air@latest
+# Install Air for hot-reloading and bash/openssl for key generation
+RUN apk add --no-cache bash openssl && \
+    go install github.com/air-verse/air@latest
 
 WORKDIR /app
 
@@ -15,5 +16,5 @@ RUN go mod download
 # Expose the application port
 EXPOSE 8080
 
-# Run Air for hot-reloading
-CMD ["air", "-c", ".air.toml"]
+# Run key generation script then start Air for hot-reloading
+CMD ["/bin/sh", "-c", "bash /app/scripts/gen_keys.sh && air -c .air.toml"]
