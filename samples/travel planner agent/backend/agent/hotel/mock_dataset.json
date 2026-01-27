@@ -1,0 +1,1778 @@
+{
+  "hotels": [
+    {
+      "hotelId": "g293962-d14106301",
+      "hotelName": "Marino Beach Colombo",
+      "description": "It boasts of 300 spacious and luxurious rooms, designed with true urban elegance. BOOK A ROOM. No pre payment required ...",
+      "address": "Marino Beach Colombo, 590 Marine Drive, Bambalapitiya, Colombo 00300, Sri Lanka",
+      "city": "Colombo, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/31/19/bb/d7/hotel-image.jpg"
+      ],
+      "rating": 5.0,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Infinity Pool",
+        "Rooftop Lounge",
+        "Fitness Center",
+        "Spa & Wellness Center",
+        "Free Parking",
+        "Airport Shuttle (Paid)",
+        "24-hour Front Desk",
+        "Restaurant",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Hotel"
+      ],
+      "location": {
+        "latitude": 6.8999171,
+        "longitude": 79.8514974,
+        "landmark": "590 Marine Drive, Bambalapitiya, Colombo 00300, Sri Lanka",
+        "distanceFromCenter": 3.6
+      },
+      "contactInfo": {
+        "phone": "+94 11 201 2345",
+        "email": "reservations@marinobeach.lk",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g293962-d14106301-Reviews-Marino_Beach_Colombo-Colombo_Western_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "15:00",
+        "checkOutTime": "11:00",
+        "cancellationPolicy": "Free cancellation up to 48 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 75.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g293962-d12720953",
+      "hotelName": "Shangri-La Colombo",
+      "description": "Our well-situated luxury Shangri-La Colombo offers exquisite rooms, suites and extensive dining choices with heartfelt and thoughtful service.",
+      "address": "Shangri-La Colombo, 1 Galle Face, Colombo 00200, Sri Lanka",
+      "city": "Colombo, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/1c/d5/1f/06/swimming-pool.jpg"
+      ],
+      "rating": 4.5,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Outdoor Pool",
+        "Spa & Wellness Center",
+        "Fitness Center",
+        "Multiple Restaurants",
+        "Bar/Lounge",
+        "Free Parking",
+        "Concierge",
+        "Business Center",
+        "Airport Shuttle (Paid)"
+      ],
+      "propertyType": [
+        "Luxury Hotel"
+      ],
+      "location": {
+        "latitude": 6.9284136,
+        "longitude": 79.8444518,
+        "landmark": "1 Galle Face, Colombo 00200, Sri Lanka",
+        "distanceFromCenter": 1.2
+      },
+      "contactInfo": {
+        "phone": "+94 11 788 8288",
+        "email": "slcb.reservations@shangri-la.com",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g293962-d12720953-Reviews-Shangri_La_Colombo-Colombo_Western_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "15:00",
+        "checkOutTime": "12:00",
+        "cancellationPolicy": "Free cancellation up to 72 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 159.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g293962-d597086",
+      "hotelName": "Cinnamon Grand Colombo",
+      "description": "One of the elegant 5-star Colombo hotels located in the heart of the city, Cinnamon Grand is perfectly suited for business and leisure travellers seeking a ...",
+      "address": "Cinnamon Grand Colombo, 77 Galle Road, Colombo 00300, Sri Lanka",
+      "city": "Colombo, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/2f/88/85/fd/caption.jpg"
+      ],
+      "rating": 4.0,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Outdoor Pool",
+        "Spa & Wellness Center",
+        "Fitness Center",
+        "Multiple Restaurants",
+        "Bar/Lounge",
+        "Free Parking",
+        "Business Center",
+        "Concierge",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Hotel"
+      ],
+      "location": {
+        "latitude": 6.9180899,
+        "longitude": 79.8484918,
+        "landmark": "77 Galle Road, Colombo 00300, Sri Lanka",
+        "distanceFromCenter": 2.0
+      },
+      "contactInfo": {
+        "phone": "+94 11 249 1000",
+        "email": "reservations@cinnamonhotels.com",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g293962-d597086-Reviews-Cinnamon_Grand_Colombo-Colombo_Western_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "14:00",
+        "checkOutTime": "12:00",
+        "cancellationPolicy": "Free cancellation up to 48 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 122.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g293962-d306379",
+      "hotelName": "Hilton Colombo",
+      "description": "Located in the center of Colombo's Business District, Hilton Colombo hotel features ten speciality restaurants and bars. Plan your stay at Hilton Colombo ...",
+      "address": "Hilton Colombo, 2 Sir Chittampalam A. Gardiner Mawatha, Colombo 00200, Sri Lanka",
+      "city": "Colombo, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/2b/1b/55/1d/caption.jpg"
+      ],
+      "rating": 3.5,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Outdoor Pool",
+        "Fitness Center",
+        "Spa Services",
+        "Multiple Restaurants",
+        "Bar/Lounge",
+        "Free Parking",
+        "Business Center",
+        "Concierge",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Hotel"
+      ],
+      "location": {
+        "latitude": 6.9206513,
+        "longitude": 79.8562814,
+        "landmark": "2 Sir Chittampalam A. Gardiner Mawatha, Colombo 00200, Sri Lanka",
+        "distanceFromCenter": 1.1
+      },
+      "contactInfo": {
+        "phone": "+94 11 249 2492",
+        "email": "cmbhi.reservations@hilton.com",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g293962-d306379-Reviews-Hilton_Colombo-Colombo_Western_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "15:00",
+        "checkOutTime": "12:00",
+        "cancellationPolicy": "Free cancellation up to 72 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 127.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g293962-d5279732",
+      "hotelName": "Radisson Hotel Colombo",
+      "description": "No information is available for this page.",
+      "address": "Radisson Hotel Colombo, 36-38 Clifford Place, Colombo 00400, Sri Lanka",
+      "city": "Colombo, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/2d/f2/16/85/exterior.jpg"
+      ],
+      "rating": 3.0,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Rooftop Pool",
+        "Fitness Center",
+        "Restaurant",
+        "Bar/Lounge",
+        "Free Parking",
+        "Airport Shuttle (Paid)",
+        "24-hour Front Desk",
+        "Laundry Service",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Hotel"
+      ],
+      "location": {
+        "latitude": 6.8825129,
+        "longitude": 79.855923,
+        "landmark": "36-38 Clifford Place, Colombo 00400, Sri Lanka",
+        "distanceFromCenter": 4.9
+      },
+      "contactInfo": {
+        "phone": "+94 11 255 5570",
+        "email": "reservations.colombo@radisson.com",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g293962-d5279732-Reviews-Radisson_Hotel_Colombo-Colombo_Western_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "14:00",
+        "checkOutTime": "12:00",
+        "cancellationPolicy": "Free cancellation up to 48 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 103.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g297896-d10954536",
+      "hotelName": "Radisson Blu Resort, Galle",
+      "description": "Radisson Blu Resort, Galle is located at 523C, Colombo Road, Gintota, Galle, Sri Lanka. Is Radisson Blu Resort, Galle a smoke-free ...",
+      "address": "523C Colombo Road, Gintota, Galle 80000, Sri Lanka",
+      "city": "Galle, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/10/ca/e1/c4/amari-galle-sri-lanka.jpg"
+      ],
+      "rating": 5.0,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Beachfront",
+        "Outdoor Pool",
+        "Spa & Wellness Center",
+        "Fitness Center",
+        "Restaurant",
+        "Bar/Lounge",
+        "Free Parking",
+        "Kids' Club",
+        "Airport Shuttle (Paid)"
+      ],
+      "propertyType": [
+        "Resort"
+      ],
+      "location": {
+        "latitude": 6.0559,
+        "longitude": 80.1893,
+        "landmark": "Gintota, Galle 80000, Sri Lanka",
+        "distanceFromCenter": 3.2
+      },
+      "contactInfo": {
+        "phone": "+94 91 221 9000",
+        "email": "reservations.galle@radissonblu.com",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g297896-d10954536-Reviews-Radisson_Blu_Resort_Galle-Galle_Galle_District_Southern_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "15:00",
+        "checkOutTime": "12:00",
+        "cancellationPolicy": "Free cancellation up to 72 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 297.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g297896-d556080",
+      "hotelName": "Galle Fort Hotel",
+      "description": "Located inside the UNESCO World Heritage Galle Fort, the historic Galle Fort Hotel is housed in a Dutch mansion that dates back 300 years.",
+      "address": "Galle Fort Hotel, 28 Church Street, Galle Fort, Galle 80000, Sri Lanka",
+      "city": "Galle, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/2c/21/e4/50/cover-image.jpg"
+      ],
+      "rating": 4.5,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Boutique Heritage Property",
+        "Outdoor Pool",
+        "Restaurant",
+        "Bar/Lounge",
+        "Concierge",
+        "Airport Shuttle (Paid)",
+        "Laundry Service",
+        "Air Conditioning",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Boutique Hotel",
+        "Heritage Hotel"
+      ],
+      "location": {
+        "latitude": 6.0266218,
+        "longitude": 80.2176886,
+        "landmark": "Galle Fort, Galle 80000, Sri Lanka",
+        "distanceFromCenter": 0.4
+      },
+      "contactInfo": {
+        "phone": "+94 91 223 2274",
+        "email": "reservations@galleforthotel.com",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g297896-d556080-Reviews-Galle_Fort_Hotel-Galle_Galle_District_Southern_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "14:00",
+        "checkOutTime": "11:00",
+        "cancellationPolicy": "Free cancellation up to 48 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 0.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g293962-d2038179",
+      "hotelName": "Galle Face Hotel",
+      "description": "Sri Lanka's iconic landmark, The Galle Face Hotel, is situated in the heart of Colombo, along the seafront and facing the famous Galle Face Green.",
+      "address": "Galle Face Hotel, 2 Galle Road, Colombo 00300, Sri Lanka",
+      "city": "Colombo, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/0d/0c/0c/e9/hotel-exterior.jpg"
+      ],
+      "rating": 4.0,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Beachfront",
+        "Outdoor Pool",
+        "Spa Services",
+        "Fitness Center",
+        "Restaurant",
+        "Bar/Lounge",
+        "Free Parking",
+        "Concierge",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Heritage Hotel"
+      ],
+      "location": {
+        "latitude": 6.9201212,
+        "longitude": 79.8461345,
+        "landmark": "2 Galle Road, Colombo 00300, Sri Lanka",
+        "distanceFromCenter": 1.8
+      },
+      "contactInfo": {
+        "phone": "+94 11 254 1010",
+        "email": "reservations@gallefacehotel.com",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g293962-d2038179-Reviews-Galle_Face_Hotel-Colombo_Western_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "14:00",
+        "checkOutTime": "12:00",
+        "cancellationPolicy": "Free cancellation up to 48 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 117.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g297896-d14033359",
+      "hotelName": "Le Grand Galle",
+      "description": "Nestled on Sri Lanka's southern coast, Le Grand Galle brings together the attentive care of Japanese tradition and the warmth of Sri Lankan hospitality.",
+      "address": "Le Grand Galle, 30 Park Road, Kaluwella, Galle 80000, Sri Lanka",
+      "city": "Galle, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/16/b2/af/d1/imag1589-largejpg.jpg"
+      ],
+      "rating": 3.5,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Ocean View Rooms",
+        "Outdoor Pool",
+        "Spa & Wellness Center",
+        "Fitness Center",
+        "Restaurant",
+        "Bar/Lounge",
+        "Free Parking",
+        "Airport Shuttle (Paid)",
+        "24-hour Front Desk"
+      ],
+      "propertyType": [
+        "Hotel"
+      ],
+      "location": {
+        "latitude": 6.0315874,
+        "longitude": 80.2123199,
+        "landmark": "Kaluwella, Galle 80000, Sri Lanka",
+        "distanceFromCenter": 1.6
+      },
+      "contactInfo": {
+        "phone": "+94 91 222 4000",
+        "email": "reservations@legrandgalle.lk",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g297896-d14033359-Reviews-Le_Grand_Galle-Galle_Galle_District_Southern_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "15:00",
+        "checkOutTime": "12:00",
+        "cancellationPolicy": "Free cancellation up to 72 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 0.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g297896-d11789132",
+      "hotelName": "The Bartizan Galle Fort",
+      "description": "The Bartizan is a Colonial building, renovated into a modern, stylish boutique hotel located in the UNESCO site Galle Fort, Sri Lanka.",
+      "address": "The Bartizan, 77 Pedlar Street, Galle Fort, Galle 80000, Sri Lanka",
+      "city": "Galle, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/16/81/10/f2/the-bartizan-galle-fort.jpg"
+      ],
+      "rating": 3.0,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Boutique Property",
+        "Restaurant",
+        "Bar/Lounge",
+        "Concierge",
+        "Airport Shuttle (Paid)",
+        "Laundry Service",
+        "Air Conditioning",
+        "Daily Housekeeping",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Boutique Hotel"
+      ],
+      "location": {
+        "latitude": 6.0242,
+        "longitude": 80.2168,
+        "landmark": "Galle Fort, Galle 80000, Sri Lanka",
+        "distanceFromCenter": 0.2
+      },
+      "contactInfo": {
+        "phone": "+94 91 222 1077",
+        "email": "reservations@bartizan.lk",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g297896-d11789132-Reviews-The_Bartizan_Galle_Fort-Galle_Galle_District_Southern_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "14:00",
+        "checkOutTime": "11:00",
+        "cancellationPolicy": "Free cancellation up to 48 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 0.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g304138-d797403",
+      "hotelName": "Cinnamon Citadel Kandy",
+      "description": "Each of our 115 rooms is designed with your comfort in mind. Wake up to stunning views of the Mahaweli river and the rolling green hills of Kandy.",
+      "address": "Cinnamon Citadel Kandy, 124 Srimath Kudaratwatte Mawatha, Kandy 20000, Sri Lanka",
+      "city": "Kandy, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/32/0b/66/39/terrace-dinning.jpg"
+      ],
+      "rating": 5.0,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "River View",
+        "Outdoor Pool",
+        "Spa Services",
+        "Fitness Center",
+        "Restaurant",
+        "Bar/Lounge",
+        "Free Parking",
+        "Airport Shuttle (Paid)",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Hotel"
+      ],
+      "location": {
+        "latitude": 7.3057606,
+        "longitude": 80.623794,
+        "landmark": "124 Srimath Kudaratwatte Mawatha, Kandy 20000, Sri Lanka",
+        "distanceFromCenter": 5.4
+      },
+      "contactInfo": {
+        "phone": "+94 81 223 4367",
+        "email": "reservations@cinnamonhotels.com",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g304138-d797403-Reviews-Cinnamon_Citadel_Kandy-Kandy_Kandy_District_Central_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "14:00",
+        "checkOutTime": "12:00",
+        "cancellationPolicy": "Free cancellation up to 48 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 150.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g304138-d32865997",
+      "hotelName": "Kandy Myst By Cinnamon",
+      "description": "Enjoy an unforgettable stay at Kandy Myst by Cinnamon, one of the Upscale hotels in Kandy, Sri Lanka. Enjoy modern amenities and warm hospitality.",
+      "address": "Kandy Myst by Cinnamon, Katugastota Road, Kandy 20000, Sri Lanka",
+      "city": "Kandy, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/31/10/dd/ec/by-day-kandy-myst-by.jpg"
+      ],
+      "rating": 4.5,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Outdoor Pool",
+        "Fitness Center",
+        "Restaurant",
+        "Bar/Lounge",
+        "Free Parking",
+        "Concierge",
+        "Laundry Service",
+        "Air Conditioning",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Upscale Hotel"
+      ],
+      "location": {
+        "latitude": 7.2945,
+        "longitude": 80.6369,
+        "landmark": "Kandy 20000, Sri Lanka",
+        "distanceFromCenter": 3.1
+      },
+      "contactInfo": {
+        "phone": "+94 81 203 0400",
+        "email": "reservations@cinnamonhotels.com",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g304138-d32865997-Reviews-Kandy_Myst_By_Cinnamon-Kandy_Kandy_District_Central_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "14:00",
+        "checkOutTime": "12:00",
+        "cancellationPolicy": "Free cancellation up to 48 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 140.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g12239236-d10521858",
+      "hotelName": "Santani Wellness Kandy",
+      "description": "Experience superior relaxation and rejuvenation at Santani Wellness Kandy, the best wellness retreat in the world. Book now and unwind in luxury!",
+      "address": "Santani Wellness Kandy, Aratenna Estate Road, Werapitiya 20908, Sri Lanka",
+      "city": "Werapitiya, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/27/51/5a/5b/santani-wellness-resort.jpg"
+      ],
+      "rating": 4.0,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Wellness Retreat",
+        "Spa & Hydrotherapy",
+        "Yoga Pavilion",
+        "Infinity Pool",
+        "Organic Cuisine",
+        "Airport Transfers (Paid)",
+        "Meditation Spaces",
+        "Hiking Trails",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Wellness Resort",
+        "Retreat"
+      ],
+      "location": {
+        "latitude": 7.3052,
+        "longitude": 80.7538,
+        "landmark": "Werapitiya 20908, Sri Lanka",
+        "distanceFromCenter": 26.0
+      },
+      "contactInfo": {
+        "phone": "+94 81 203 1800",
+        "email": "reservations@santani.com",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g12239236-d10521858-Reviews-Santani_Wellness_Kandy-Werapitiya_Kandy_District_Central_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "14:00",
+        "checkOutTime": "12:00",
+        "cancellationPolicy": "Free cancellation up to 7 days before check-in; thereafter charges may apply."
+      },
+      "lowestPrice": 571.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g304138-d7729062",
+      "hotelName": "Radisson Hotel Kandy",
+      "description": "No information is available for this page.",
+      "address": "Radisson Hotel Kandy, 31 Saranankara Road, Kandy 20000, Sri Lanka",
+      "city": "Kandy, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/2d/f4/cb/18/exterior.jpg"
+      ],
+      "rating": 3.5,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Rooftop Pool",
+        "Fitness Center",
+        "Restaurant",
+        "Bar/Lounge",
+        "Free Parking",
+        "Airport Shuttle (Paid)",
+        "24-hour Front Desk",
+        "Laundry Service",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Hotel"
+      ],
+      "location": {
+        "latitude": 7.2883057,
+        "longitude": 80.6427629,
+        "landmark": "31 Saranankara Road, Kandy 20000, Sri Lanka",
+        "distanceFromCenter": 1.6
+      },
+      "contactInfo": {
+        "phone": "+94 81 203 0700",
+        "email": "reservations.kandy@radisson.com",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g304138-d7729062-Reviews-Radisson_Hotel_Kandy-Kandy_Kandy_District_Central_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "14:00",
+        "checkOutTime": "12:00",
+        "cancellationPolicy": "Free cancellation up to 48 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 262.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g12220047-d480276",
+      "hotelName": "Amaya Hills Kandy",
+      "description": "Immerse yourself in luxury at Amaya Hills, one of the best 5-star luxury hotels in Kandy. Enjoy stunning mountain views, world-class amenities, ...",
+      "address": "Amaya Hills Kandy, Heerassagala Road, Kandy 20000, Sri Lanka",
+      "city": "Heerassagala, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-s/03/35/e0/95/amaya-hills.jpg"
+      ],
+      "rating": 3.0,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Mountain Views",
+        "Outdoor Pool",
+        "Spa & Wellness Center",
+        "Fitness Center",
+        "Restaurant",
+        "Bar/Lounge",
+        "Free Parking",
+        "Airport Shuttle (Paid)",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Resort",
+        "Hotel"
+      ],
+      "location": {
+        "latitude": 7.258972,
+        "longitude": 80.6191176,
+        "landmark": "Heerassagala Road, Kandy 20000, Sri Lanka",
+        "distanceFromCenter": 7.8
+      },
+      "contactInfo": {
+        "phone": "+94 81 447 4022",
+        "email": "reservations@amayaresorts.com",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g12220047-d480276-Reviews-Amaya_Hills_Kandy-Heerassagala_Kandy_Kandy_District_Central_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "14:00",
+        "checkOutTime": "12:00",
+        "cancellationPolicy": "Free cancellation up to 72 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 106.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g608524-d1568245",
+      "hotelName": "Nuwara Eliya Golf Club",
+      "description": "The Nuwara Eliya Golf Club, founded in 1889, is one of the oldest golf clubs in Asia and probably the world. It is an institution, rich in tradition, history ...",
+      "address": "Nuwara Eliya Golf Club, Golf Club Road, Nuwara Eliya 22200, Sri Lanka",
+      "city": "Nuwara Eliya, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/2d/b9/06/62/golf-course.jpg"
+      ],
+      "rating": 5.0,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Golf Course Access",
+        "Restaurant",
+        "Bar/Lounge",
+        "Free Parking",
+        "Gardens",
+        "Heritage Property",
+        "Meeting Rooms",
+        "Daily Housekeeping",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Club",
+        "Heritage Property"
+      ],
+      "location": {
+        "latitude": 6.9711367,
+        "longitude": 80.7666695,
+        "landmark": "Golf Club Road, Nuwara Eliya 22200, Sri Lanka",
+        "distanceFromCenter": 1.0
+      },
+      "contactInfo": {
+        "phone": "+94 52 222 2270",
+        "email": "reservations@nuwaraeliyagolfclub.lk",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g608524-d1568245-Reviews-Nuwara_Eliya_Golf_Club-Nuwara_Eliya_Central_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "14:00",
+        "checkOutTime": "11:00",
+        "cancellationPolicy": "Free cancellation up to 48 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 52.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g608524-d579206",
+      "hotelName": "The Grand Hotel Nuwara Eliya - Heritage Grand",
+      "description": "An excellent stay at a grand hotel.\" The Grand Hotel, Grand Hotel Road, Nuwara Eliya, Sri Lanka. Telephone: +94522222881. Email: reservations@grandhotel.lk ...",
+      "address": "The Grand Hotel, Grand Hotel Road, Nuwara Eliya 22200, Sri Lanka",
+      "city": "Nuwara Eliya, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/2d/58/77/95/grand-hotel-nuwara-eliya.jpg"
+      ],
+      "rating": 4.5,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Heritage Hotel",
+        "Restaurant",
+        "Bar/Lounge",
+        "Spa Services",
+        "Fitness Center",
+        "Free Parking",
+        "Tea Lounge",
+        "Garden",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Heritage Hotel"
+      ],
+      "location": {
+        "latitude": 6.9694,
+        "longitude": 80.7686,
+        "landmark": "Grand Hotel Road, Nuwara Eliya 22200, Sri Lanka",
+        "distanceFromCenter": 0.8
+      },
+      "contactInfo": {
+        "phone": "+94 52 222 2281",
+        "email": "reservations@grandhotel.lk",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g608524-d579206-Reviews-The_Grand_Hotel_Nuwara_Eliya_Heritage_Grand-Nuwara_Eliya_Central_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "14:00",
+        "checkOutTime": "12:00",
+        "cancellationPolicy": "Free cancellation up to 72 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 184.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g608524-d3459790",
+      "hotelName": "Heaven Seven Hotel Nuwara Eliya",
+      "description": "Surrounded by lush greenery, Heaven Seven Hotels is located in the peaceful Nuwara Eliya. Free WiFi is available at all areas and guestrooms come fitted with a ...",
+      "address": "Heaven Seven Hotel, Haddon Hill Road, Nuwara Eliya 22200, Sri Lanka",
+      "city": "Nuwara Eliya, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/1c/a6/e8/31/heaven-seven-hotel-nuwara.jpg"
+      ],
+      "rating": 4.0,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Free Parking",
+        "Restaurant",
+        "Bar/Lounge",
+        "Airport Shuttle (Paid)",
+        "Family Rooms",
+        "Daily Housekeeping",
+        "Laundry Service",
+        "Garden",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Hotel"
+      ],
+      "location": {
+        "latitude": 6.9613657,
+        "longitude": 80.7649538,
+        "landmark": "Haddon Hill Road, Nuwara Eliya 22200, Sri Lanka",
+        "distanceFromCenter": 1.3
+      },
+      "contactInfo": {
+        "phone": "+94 52 223 1933",
+        "email": "reservations@heavenseven.lk",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g608524-d3459790-Reviews-Heaven_Seven_Hotel_Nuwara_Eliya-Nuwara_Eliya_Central_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "14:00",
+        "checkOutTime": "11:00",
+        "cancellationPolicy": "Free cancellation up to 48 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 61.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g608524-d24088600",
+      "hotelName": "W15 Lake Gregory Nuwara Eliya",
+      "description": "Set beside the gentle waters of Gregory Lake, W15 Lake Gregory is a quiet hill country retreat shaped by mist, water and surrounding forest.",
+      "address": "W15 Lake Gregory, Lake Gregory Road, Nuwara Eliya 22200, Sri Lanka",
+      "city": "Nuwara Eliya, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/23/a1/ba/19/w15-lake-gregory.jpg"
+      ],
+      "rating": 3.5,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Lakefront",
+        "Restaurant",
+        "Bar/Lounge",
+        "Free Parking",
+        "Airport Shuttle (Paid)",
+        "Daily Housekeeping",
+        "Garden",
+        "Fireplace Lounge",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Boutique Hotel"
+      ],
+      "location": {
+        "latitude": 6.9498,
+        "longitude": 80.7854,
+        "landmark": "Lake Gregory, Nuwara Eliya 22200, Sri Lanka",
+        "distanceFromCenter": 2.1
+      },
+      "contactInfo": {
+        "phone": "+94 52 222 8787",
+        "email": "reservations@w15.lk",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g608524-d24088600-Reviews-W15_Lake_Gregory_Nuwara_Eliya-Nuwara_Eliya_Central_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "14:00",
+        "checkOutTime": "12:00",
+        "cancellationPolicy": "Free cancellation up to 72 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 230.0,
+      "isAvailable": true
+    },
+    {
+      "hotelId": "g608524-d7649280",
+      "hotelName": "Hill Cottage Nuwara Eliya",
+      "description": "Property amenities ... Free parking ... Free High Speed Internet (WiFi) ... Restaurant ... Hiking ... Horseback riding ... Babysitting ... Children's television networks.",
+      "address": "Hill Cottage, 19/23 Grand Hotel Road, Nuwara Eliya 22200, Sri Lanka",
+      "city": "Nuwara Eliya, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/1b/e0/35/5a/hill-cottage.jpg"
+      ],
+      "rating": 3.0,
+      "reviewCount": 1,
+      "amenities": [
+        "Free WiFi",
+        "Free Parking",
+        "Restaurant",
+        "Hiking",
+        "Horseback Riding (Nearby)",
+        "Family Rooms",
+        "Babysitting (Paid)",
+        "Daily Housekeeping",
+        "Garden",
+        "Room Service"
+      ],
+      "propertyType": [
+        "Cottage",
+        "Guesthouse"
+      ],
+      "location": {
+        "latitude": 6.9905919,
+        "longitude": 80.7484737,
+        "landmark": "Grand Hotel Road, Nuwara Eliya 22200, Sri Lanka",
+        "distanceFromCenter": 1.7
+      },
+      "contactInfo": {
+        "phone": "+94 52 223 4590",
+        "email": "reservations@hillcottage.lk",
+        "website": "https://www.tripadvisor.com/Hotel_Review-g608524-d7649280-Reviews-Hill_Cottage_Nuwara_Eliya-Nuwara_Eliya_Central_Province.html"
+      },
+      "checkInOutPolicy": {
+        "checkInTime": "14:00",
+        "checkOutTime": "11:00",
+        "cancellationPolicy": "Free cancellation up to 48 hours before check-in; thereafter one night may be charged."
+      },
+      "lowestPrice": 71.0,
+      "isAvailable": true
+    }
+  ],
+  "rooms": [
+    {
+      "roomId": "g293962-d14106301_BookingCom",
+      "hotelId": "g293962-d14106301",
+      "roomType": "Standard Room",
+      "roomName": "Booking.com Rate",
+      "description": "Rate via Booking.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 75.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d14106301/rooms/standard_king_01.jpg",
+        "https://images.travelplanner.dev/mock/hotels/g293962-d14106301/rooms/standard_bath_01.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "City View",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe",
+        "Tea/Coffee Maker"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 30,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d14106301_Vio",
+      "hotelId": "g293962-d14106301",
+      "roomType": "Standard Room",
+      "roomName": "Vio.com Rate",
+      "description": "Rate via Vio.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 85.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d14106301/rooms/standard_twin_01.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe",
+        "Tea/Coffee Maker"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 2,
+        "doubleBeds": 0,
+        "kingBeds": 0,
+        "queenBeds": 0
+      },
+      "roomSize": 30,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d14106301_Agoda",
+      "hotelId": "g293962-d14106301",
+      "roomType": "Standard Room",
+      "roomName": "Agoda.com Rate",
+      "description": "Rate via Agoda.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 85.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d14106301/rooms/standard_king_02.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "City View",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe",
+        "Tea/Coffee Maker"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 30,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d14106301_PreferredHotels1",
+      "hotelId": "g293962-d14106301",
+      "roomType": "Standard Room",
+      "roomName": "Preferred Hotels Rate",
+      "description": "Rate via Preferred Hotels",
+      "maxOccupancy": 2,
+      "pricePerNight": 95.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d14106301/rooms/standard_corner_01.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "Ocean Glimpse",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe",
+        "Tea/Coffee Maker"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 32,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d14106301_CtripTA",
+      "hotelId": "g293962-d14106301",
+      "roomType": "Standard Room",
+      "roomName": "Trip.com Rate",
+      "description": "Rate via Trip.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 97.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d14106301/rooms/standard_king_03.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe",
+        "Tea/Coffee Maker"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 30,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d12720953_BookingCom",
+      "hotelId": "g293962-d12720953",
+      "roomType": "Deluxe Room",
+      "roomName": "Booking.com Rate",
+      "description": "Rate via Booking.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 159.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d12720953/rooms/deluxe_king_01.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "Sea View",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe",
+        "Tea/Coffee Maker"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 40,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d12720953_Agoda",
+      "hotelId": "g293962-d12720953",
+      "roomType": "Deluxe Room",
+      "roomName": "Agoda.com Rate",
+      "description": "Rate via Agoda.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 159.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d12720953/rooms/deluxe_twin_01.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "City View",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 2,
+        "doubleBeds": 0,
+        "kingBeds": 0,
+        "queenBeds": 0
+      },
+      "roomSize": 40,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d12720953_Vio",
+      "hotelId": "g293962-d12720953",
+      "roomType": "Deluxe Room",
+      "roomName": "Vio.com Rate",
+      "description": "Rate via Vio.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 203.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d12720953/rooms/deluxe_king_02.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "Sea View",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe",
+        "Tea/Coffee Maker"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 42,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d12720953_CtripTA",
+      "hotelId": "g293962-d12720953",
+      "roomType": "Deluxe Room",
+      "roomName": "Trip.com Rate",
+      "description": "Rate via Trip.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 159.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d12720953/rooms/deluxe_king_03.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "City View",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 40,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d597086_BookingCom",
+      "hotelId": "g293962-d597086",
+      "roomType": "Superior Room",
+      "roomName": "Booking.com Rate",
+      "description": "Rate via Booking.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 134.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d597086/rooms/superior_king_01.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe",
+        "Tea/Coffee Maker"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 34,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d597086_SabreHotels",
+      "hotelId": "g293962-d597086",
+      "roomType": "Superior Room",
+      "roomName": "Official Site Rate",
+      "description": "Rate via Official Site",
+      "maxOccupancy": 2,
+      "pricePerNight": 138.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d597086/rooms/superior_twin_01.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 2,
+        "doubleBeds": 0,
+        "kingBeds": 0,
+        "queenBeds": 0
+      },
+      "roomSize": 34,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d597086_Vio",
+      "hotelId": "g293962-d597086",
+      "roomType": "Superior Room",
+      "roomName": "Vio.com Rate",
+      "description": "Rate via Vio.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 122.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d597086/rooms/superior_king_02.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe",
+        "Tea/Coffee Maker"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 34,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d597086_Agoda",
+      "hotelId": "g293962-d597086",
+      "roomType": "Superior Room",
+      "roomName": "Agoda.com Rate",
+      "description": "Rate via Agoda.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 154.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d597086/rooms/superior_king_03.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 34,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d597086_CtripTA",
+      "hotelId": "g293962-d597086",
+      "roomType": "Superior Room",
+      "roomName": "Trip.com Rate",
+      "description": "Rate via Trip.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 140.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d597086/rooms/superior_twin_02.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 2,
+        "doubleBeds": 0,
+        "kingBeds": 0,
+        "queenBeds": 0
+      },
+      "roomSize": 34,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d306379_BookingCom",
+      "hotelId": "g293962-d306379",
+      "roomType": "Executive Room",
+      "roomName": "Booking.com Rate",
+      "description": "Rate via Booking.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 140.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d306379/rooms/executive_king_01.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "City View",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe",
+        "Work Desk"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 38,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d306379_Vio",
+      "hotelId": "g293962-d306379",
+      "roomType": "Executive Room",
+      "roomName": "Vio.com Rate",
+      "description": "Rate via Vio.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 127.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d306379/rooms/executive_twin_01.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "City View",
+        "Flat-screen TV",
+        "Safe",
+        "Work Desk"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 2,
+        "doubleBeds": 0,
+        "kingBeds": 0,
+        "queenBeds": 0
+      },
+      "roomSize": 38,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d306379_HiltonAPAC",
+      "hotelId": "g293962-d306379",
+      "roomType": "Executive Room",
+      "roomName": "Hilton Rate",
+      "description": "Rate via Hilton",
+      "maxOccupancy": 2,
+      "pricePerNight": 140.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d306379/rooms/executive_king_02.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "City View",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe",
+        "Work Desk"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 40,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d306379_Agoda",
+      "hotelId": "g293962-d306379",
+      "roomType": "Executive Room",
+      "roomName": "Agoda.com Rate",
+      "description": "Rate via Agoda.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 140.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d306379/rooms/executive_king_03.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "Flat-screen TV",
+        "Safe",
+        "Work Desk"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 38,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d306379_CtripTA",
+      "hotelId": "g293962-d306379",
+      "roomType": "Executive Room",
+      "roomName": "Trip.com Rate",
+      "description": "Rate via Trip.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 140.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d306379/rooms/executive_twin_02.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "Flat-screen TV",
+        "Safe",
+        "Work Desk"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 2,
+        "doubleBeds": 0,
+        "kingBeds": 0,
+        "queenBeds": 0
+      },
+      "roomSize": 38,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d5279732_BookingCom",
+      "hotelId": "g293962-d5279732",
+      "roomType": "Standard Room",
+      "roomName": "Booking.com Rate",
+      "description": "Rate via Booking.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 103.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d5279732/rooms/standard_king_01.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "City View",
+        "Flat-screen TV",
+        "Safe",
+        "Work Desk"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 28,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g297896-d10954536_BookingCom",
+      "hotelId": "g297896-d10954536",
+      "roomType": "Superior Room",
+      "roomName": "Booking.com Rate",
+      "description": "Rate via Booking.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 297.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g297896-d10954536/rooms/superior_ocean_01.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "Ocean View",
+        "Balcony",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 45,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g293962-d2038179_Agoda",
+      "hotelId": "g293962-d2038179",
+      "roomType": "Classic Room",
+      "roomName": "Agoda.com Rate",
+      "description": "Rate via Agoda.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 117.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g293962-d2038179/rooms/classic_heritage_01.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "Heritage Decor",
+        "Flat-screen TV",
+        "Safe",
+        "Tea/Coffee Maker"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 0,
+        "queenBeds": 1
+      },
+      "roomSize": 32,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g304138-d797403_BookingCom",
+      "hotelId": "g304138-d797403",
+      "roomType": "Superior Room",
+      "roomName": "Booking.com Rate",
+      "description": "Rate via Booking.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 150.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g304138-d797403/rooms/superior_river_01.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "River View",
+        "Flat-screen TV",
+        "Minibar",
+        "Safe"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 0,
+        "queenBeds": 1
+      },
+      "roomSize": 36,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g304138-d32865997_CtripTA",
+      "hotelId": "g304138-d32865997",
+      "roomType": "Standard Room",
+      "roomName": "Trip.com Rate",
+      "description": "Rate via Trip.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 140.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g304138-d32865997/rooms/standard_king_01.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "Flat-screen TV",
+        "Safe",
+        "Work Desk"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 30,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g12239236-d10521858_CtripTA",
+      "hotelId": "g12239236-d10521858",
+      "roomType": "Wellness Chalet",
+      "roomName": "Trip.com Rate",
+      "description": "Rate via Trip.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 571.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g12239236-d10521858/rooms/wellness_chalet_01.jpg"
+      ],
+      "amenities": [
+        "Air Conditioning",
+        "Private Bathroom",
+        "Valley View",
+        "Wellness Amenities",
+        "In-room Safe",
+        "Yoga Mats",
+        "Tea/Coffee Maker"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 1,
+        "queenBeds": 0
+      },
+      "roomSize": 35,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g608524-d1568245_Vio",
+      "hotelId": "g608524-d1568245",
+      "roomType": "Standard Room",
+      "roomName": "Vio.com Rate",
+      "description": "Rate via Vio.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 52.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g608524-d1568245/rooms/standard_classic_01.jpg"
+      ],
+      "amenities": [
+        "Private Bathroom",
+        "Garden View",
+        "Daily Housekeeping",
+        "Wardrobe/Closet",
+        "Free Toiletries"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 2,
+        "doubleBeds": 0,
+        "kingBeds": 0,
+        "queenBeds": 0
+      },
+      "roomSize": 24,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g608524-d24088600_Agoda",
+      "hotelId": "g608524-d24088600",
+      "roomType": "Lake View Room",
+      "roomName": "Agoda.com Rate",
+      "description": "Rate via Agoda.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 230.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g608524-d24088600/rooms/lakeview_01.jpg"
+      ],
+      "amenities": [
+        "Private Bathroom",
+        "Lake View",
+        "Heating (Cool Climate)",
+        "Flat-screen TV",
+        "Safe",
+        "Tea/Coffee Maker"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 0,
+        "doubleBeds": 0,
+        "kingBeds": 0,
+        "queenBeds": 1
+      },
+      "roomSize": 28,
+      "availableCount": 1
+    },
+    {
+      "roomId": "g608524-d7649280_Agoda",
+      "hotelId": "g608524-d7649280",
+      "roomType": "Standard Room",
+      "roomName": "Agoda.com Rate",
+      "description": "Rate via Agoda.com",
+      "maxOccupancy": 2,
+      "pricePerNight": 71.0,
+      "images": [
+        "https://images.travelplanner.dev/mock/hotels/g608524-d7649280/rooms/standard_cozy_01.jpg"
+      ],
+      "amenities": [
+        "Private Bathroom",
+        "Heating (Cool Climate)",
+        "Flat-screen TV",
+        "Safe",
+        "Wardrobe/Closet"
+      ],
+      "bedConfiguration": {
+        "singleBeds": 2,
+        "doubleBeds": 0,
+        "kingBeds": 0,
+        "queenBeds": 0
+      },
+      "roomSize": 22,
+      "availableCount": 1
+    }
+  ],
+  "nearby_attractions": [
+    {
+      "hotelId": "g293962-d14106301",
+      "attractions": [
+        {
+          "name": "Marino Mall",
+          "category": "Shopping",
+          "distance": 0.1,
+          "location": {
+            "latitude": 6.8997,
+            "longitude": 79.8516,
+            "landmark": "Marino Mall, Marine Drive, Colombo 00300, Sri Lanka",
+            "distanceFromCenter": null
+          }
+        },
+        {
+          "name": "Gangaramaya Temple",
+          "category": "Cultural Landmark",
+          "distance": 3.7,
+          "location": {
+            "latitude": 6.9167,
+            "longitude": 79.857,
+            "landmark": "Gangaramaya Temple, Colombo 00200, Sri Lanka",
+            "distanceFromCenter": null
+          }
+        },
+        {
+          "name": "Independence Memorial Hall",
+          "category": "Cultural Landmark",
+          "distance": 4.2,
+          "location": {
+            "latitude": 6.9022,
+            "longitude": 79.869,
+            "landmark": "Independence Square, Colombo 00700, Sri Lanka",
+            "distanceFromCenter": null
+          }
+        }
+      ]
+    }
+  ],
+  "reviews": [
+    {
+      "hotelId": "g293962-d14106301",
+      "reviewId": "mock_rev_0001",
+      "author": "Nimal P.",
+      "rating": 4,
+      "title": "Excellent rooftop views and great location",
+      "comment": "Clean rooms, solid breakfast, and the rooftop pool had a great sunset view. Check-in was smooth.",
+      "createdAt": "2025-12-14"
+    },
+    {
+      "hotelId": "g293962-d2038179",
+      "reviewId": "mock_rev_0002",
+      "author": "Samantha J.",
+      "rating": 5,
+      "title": "Classic Colombo experience",
+      "comment": "Heritage charm, oceanfront vibes, and a memorable evening at the terrace. Rooms were comfortable and staff were attentive.",
+      "createdAt": "2025-11-03"
+    }
+  ],
+  "bookings": []
+}

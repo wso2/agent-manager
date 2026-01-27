@@ -1,0 +1,11 @@
+fastapi==0.115.0
+uvicorn==0.30.6
+langgraph==0.2.34
+langchain==0.3.7
+langchain-openai==0.2.6
+pydantic==2.9.2
+requests==2.32.3
+pinecone-client==3.2.2
+python-dotenv==1.0.1
+psycopg[binary]==3.2.3
+PyJWT[crypto]==2.9.0
