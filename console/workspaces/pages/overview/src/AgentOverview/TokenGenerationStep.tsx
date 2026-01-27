@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Box, Typography, Button, Select, MenuItem, CircularProgress } from "@wso2/oxygen-ui";
 import { CodeBlock } from "@agent-management-platform/shared-component";
 import { useGenerateAgentToken } from "@agent-management-platform/api-client";
@@ -47,31 +47,27 @@ export const TokenGenerationStep = ({
   onTokenGenerated,
 }: TokenGenerationStepProps) => {
   const [duration, setDuration] = useState<string>("8760h"); // Default to 1 year
-  const [generatedToken, setGeneratedToken] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
-  const generateTokenMutation = useGenerateAgentToken();
+  const { data, isFetching, error, refetch } = useGenerateAgentToken(
+    {
+      agentName,
+      projName,
+      orgName,
+    },
+    {
+      expires_in: duration,
+    },
+    environment ? { environment } : undefined
+  );
 
-  const handleGenerateToken = async () => {
-    setError(null);
-    
-    try {
-      const result = await generateTokenMutation.mutateAsync({
-        params: { orgName, projName, agentName },
-        body: { expires_in: duration },
-        query: environment ? { environment } : undefined,
-      });
-      
-      setGeneratedToken(result.token);
-      onTokenGenerated(result.token);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error(err);
-      setError("Failed to generate token. Please try again.");
+  // Call the callback when token is generated
+  useEffect(() => {
+    if (data?.token) {
+      onTokenGenerated(data.token);
     }
-  };
+  }, [data?.token, onTokenGenerated]);
 
-  const displayToken = generatedToken || "ey***";
+  const displayToken = data?.token || "ey***";
   const codeSnippet = `API Key="${displayToken}"`;
 
   return (
@@ -107,7 +103,7 @@ export const TokenGenerationStep = ({
             value={duration}
             onChange={(e) => setDuration(e.target.value as string)}
             size="small"
-            disabled={!!generatedToken || generateTokenMutation.isPending}
+            disabled={ isFetching}
             sx={{ minWidth: 100 }}
           >
             {DURATION_OPTIONS.map((option) => (
@@ -119,12 +115,12 @@ export const TokenGenerationStep = ({
 
           <Button
             variant="contained"
-            onClick={handleGenerateToken}
-            disabled={!!generatedToken || generateTokenMutation.isPending}
-            startIcon={generateTokenMutation.isPending ? <CircularProgress size={16} /> : undefined}
+            onClick={()=>refetch()}
+            disabled={ isFetching}
+            startIcon={isFetching ? <CircularProgress size={16} /> : undefined}
             size="small"
           >
-            {generateTokenMutation.isPending ? "Generating..." : generatedToken ? "Generated" : "Generate"}
+            {isFetching ? "Generating..." : data?.token ? "Generated" : "Generate"}
           </Button>
         </Box>
       </Box>
@@ -132,14 +128,14 @@ export const TokenGenerationStep = ({
       <Box display="flex" flexDirection="column" gap={1}>
         {error && (
           <Typography variant="body2" color="error">
-            {error}
+            Failed to generate token. Please try again.
           </Typography>
         )}
 
         <CodeBlock code={codeSnippet} language="bash" fieldId="api-key" />
 
         <Typography variant="body2" color="textSecondary">
-          {generatedToken
+          {data?.token
             ? "Token generated successfully. Copy it now as you won't be able to see it again."
             : "Generate a token to authenticate your traces."}
         </Typography>

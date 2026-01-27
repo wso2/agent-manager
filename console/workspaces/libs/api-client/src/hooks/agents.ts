@@ -81,13 +81,17 @@ export function useDeleteAgent() {
     });
 }
 
-export function useGenerateAgentToken() {
+
+export function useGenerateAgentToken(
+  params: GenerateAgentTokenPathParams,
+  body?: TokenRequest,
+  query?: GenerateAgentTokenQuery,
+  enabled: boolean = true
+) {
   const { getToken } = useAuthHooks();
-  return useMutation<
-    TokenResponse,
-    unknown,
-    { params: GenerateAgentTokenPathParams; body?: TokenRequest; query?: GenerateAgentTokenQuery }
-  >({
-    mutationFn: ({ params, body, query }) => generateAgentToken(params, body, query, getToken),
+  return useQuery<TokenResponse>({
+    queryKey: ['agent-token', params.agentName, params.projName, params.orgName, body?.expires_in, query?.environment],
+    queryFn: () => generateAgentToken(params, body, query, getToken),
+    enabled: enabled
   });
 }
