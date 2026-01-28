@@ -34,6 +34,7 @@ type AgentController interface {
 	ListAgents(w http.ResponseWriter, r *http.Request)
 	GetAgent(w http.ResponseWriter, r *http.Request)
 	CreateAgent(w http.ResponseWriter, r *http.Request)
+	UpdateAgent(w http.ResponseWriter, r *http.Request)
 	DeleteAgent(w http.ResponseWriter, r *http.Request)
 	BuildAgent(w http.ResponseWriter, r *http.Request)
 	DeployAgent(w http.ResponseWriter, r *http.Request)
@@ -200,6 +201,56 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusAccepted, response)
+}
+
+func (c *agentController) UpdateAgent(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	// Extract path parameters
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+
+	// Parse and validate request body
+	var payload spec.UpdateAgentRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		log.Error("UpdateAgent: failed to decode request body", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if err := utils.ValidateAgentUpdatePayload(payload); err != nil {
+		log.Error("UpdateAgent: invalid agent payload", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	agent, err := c.agentService.UpdateAgent(ctx, orgName, projName, agentName, &payload)
+	if err != nil {
+		log.Error("UpdateAgent: failed to update agent", "error", err)
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+			return
+		}
+		if errors.Is(err, utils.ErrProjectNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			return
+		}
+		if errors.Is(err, utils.ErrAgentNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
+			return
+		}
+		if errors.Is(err, utils.ErrImmutableFieldChange) {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update agent")
+		return
+	}
+
+	agentResponse := utils.ConvertToAgentResponse(agent)
+	utils.WriteSuccessResponse(w, http.StatusOK, agentResponse)
 }
 
 func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {

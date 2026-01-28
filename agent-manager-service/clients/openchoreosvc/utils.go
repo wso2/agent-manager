@@ -34,6 +34,16 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
+func normalizePath(path string) string {
+	// Remove trailing slash if exists
+	path = strings.TrimSuffix(path, "/")
+	// Ensure path starts with /
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return path
+}
+
 func getLanguageVersionEnvVariable(language string) string {
 	for _, buildpack := range utils.Buildpacks {
 		if buildpack.Language == language {
@@ -131,7 +141,7 @@ func buildEndpointsArray(req *spec.CreateAgentRequest) ([]ComponentEndpoint, err
 				Port:           req.InputInterface.Port,
 				Type:           req.InputInterface.Type,
 				SchemaType:     string(v1alpha1.EndpointTypeREST),
-				SchemaFilePath: req.InputInterface.Schema.Path,
+				SchemaFilePath: normalizePath(req.InputInterface.Schema.Path),
 			},
 		}
 	}
@@ -284,7 +294,7 @@ func createComponentCRForInternalAgents(orgName, projectName string, req *spec.C
 						Revision: v1alpha1.RepositoryRevisionValues{
 							Branch: req.Provisioning.Repository.Branch,
 						},
-						AppPath: req.Provisioning.Repository.AppPath,
+						AppPath: normalizePath(req.Provisioning.Repository.AppPath),
 					},
 				},
 				Parameters: &runtime.RawExtension{
@@ -298,6 +308,120 @@ func createComponentCRForInternalAgents(orgName, projectName string, req *spec.C
 		},
 	}
 	return componentCR, nil
+}
+
+// convertUpdateToCreateRequest converts UpdateAgentRequest to CreateAgentRequest for reuse of existing functions
+func convertUpdateToCreateRequest(req *spec.UpdateAgentRequest) *spec.CreateAgentRequest {
+	return &spec.CreateAgentRequest{
+		Name:           req.Name,
+		DisplayName:    req.DisplayName,
+		Provisioning:   req.Provisioning,
+		Description:    req.Description,
+		AgentType:      req.AgentType,
+		RuntimeConfigs: req.RuntimeConfigs,
+		InputInterface: req.InputInterface,
+	}
+}
+
+func updateComponentCRForExternalAgents(existing *v1alpha1.Component, req *spec.UpdateAgentRequest) error {
+	// Update annotations
+	if existing.Annotations == nil {
+		existing.Annotations = make(map[string]string)
+	}
+	existing.Annotations[string(AnnotationKeyDisplayName)] = req.DisplayName
+	existing.Annotations[string(AnnotationKeyDescription)] = utils.StrPointerAsStr(req.Description, "")
+
+	return nil
+}
+
+func updateComponentCRForInternalAgents(existing *v1alpha1.Component, req *spec.UpdateAgentRequest) error {
+	// Convert to CreateAgentRequest to reuse existing functions
+	createReq := convertUpdateToCreateRequest(req)
+
+	// Update annotations
+	if existing.Annotations == nil {
+		existing.Annotations = make(map[string]string)
+	}
+	existing.Annotations[string(AnnotationKeyDisplayName)] = req.DisplayName
+	existing.Annotations[string(AnnotationKeyDescription)] = utils.StrPointerAsStr(req.Description, "")
+
+	// Update labels
+	if existing.Labels == nil {
+		existing.Labels = make(map[string]string)
+	}
+	existing.Labels[string(LabelKeyAgentSubType)] = utils.StrPointerAsStr(req.AgentType.SubType, "")
+	if req.RuntimeConfigs != nil {
+		existing.Labels[string(LabelKeyAgentLanguage)] = req.RuntimeConfigs.Language
+		existing.Labels[string(LabelKeyAgentLanguageVersion)] = utils.StrPointerAsStr(req.RuntimeConfigs.LanguageVersion, "")
+	}
+
+	// Update workflow parameters (repository info)
+	if req.Provisioning.Repository != nil && existing.Spec.Workflow != nil {
+		existing.Spec.Workflow.SystemParameters.Repository.URL = req.Provisioning.Repository.Url
+		existing.Spec.Workflow.SystemParameters.Repository.Revision.Branch = req.Provisioning.Repository.Branch
+		existing.Spec.Workflow.SystemParameters.Repository.AppPath = normalizePath(req.Provisioning.Repository.AppPath)
+	}
+
+	// Update component parameters (port, basePath, etc.) for internal agents
+	if req.RuntimeConfigs != nil {
+		containerPort, basePath := getInputInterfaceConfig(createReq)
+
+		parameters := map[string]interface{}{
+			"exposed":  true,
+			"replicas": DefaultReplicaCount,
+			"port":     containerPort,
+			"resources": map[string]interface{}{
+				"requests": map[string]string{
+					"cpu":    DefaultCPURequest,
+					"memory": DefaultMemoryRequest,
+				},
+				"limits": map[string]string{
+					"cpu":    DefaultCPULimit,
+					"memory": DefaultMemoryLimit,
+				},
+			},
+			"basePath": basePath,
+			"cors": map[string]interface{}{
+				"allowOrigin":  strings.Split(config.GetAgentWorkloadConfig().CORS.AllowOrigin, ","),
+				"allowMethods": strings.Split(config.GetAgentWorkloadConfig().CORS.AllowMethods, ","),
+				"allowHeaders": strings.Split(config.GetAgentWorkloadConfig().CORS.AllowHeaders, ","),
+			},
+		}
+
+		parametersJSON, err := json.Marshal(parameters)
+		if err != nil {
+			return fmt.Errorf("error marshalling component parameters: %w", err)
+		}
+		existing.Spec.Parameters = &runtime.RawExtension{
+			Raw: parametersJSON,
+		}
+
+		// Update workflow parameters - reuse existing functions
+		var componentWorkflowParameters map[string]interface{}
+		if isGoogleBuildpack(req.RuntimeConfigs.Language) {
+			componentWorkflowParameters, err = getComponentWorkflowParametersForGoogleBuildPack(createReq)
+			if err != nil {
+				return fmt.Errorf("error getting component workflow parameters: %w", err)
+			}
+		} else {
+			componentWorkflowParameters, err = getComponentWorkflowParametersForBallerinaBuildPack(createReq)
+			if err != nil {
+				return fmt.Errorf("error getting component workflow parameters: %w", err)
+			}
+		}
+
+		componentWorkflowParametersJSON, err := json.Marshal(componentWorkflowParameters)
+		if err != nil {
+			return fmt.Errorf("error marshalling component workflow parameters: %w", err)
+		}
+		if existing.Spec.Workflow != nil {
+			existing.Spec.Workflow.Parameters = &runtime.RawExtension{
+				Raw: componentWorkflowParametersJSON,
+			}
+		}
+	}
+
+	return nil
 }
 
 func createOTELInstrumentationTrait(ocAgentComponent *v1alpha1.Component, envUUID string) (*v1alpha1.ComponentTrait, error) {
