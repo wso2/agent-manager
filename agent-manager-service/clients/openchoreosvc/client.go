@@ -61,7 +61,7 @@ type OpenChoreoSvcClient interface {
 	ListOrganizations(ctx context.Context) ([]*models.OrganizationResponse, error)
 	GetDeploymentPipelinesForOrganization(ctx context.Context, orgName string) ([]*models.DeploymentPipelineResponse, error)
 	DeleteProject(ctx context.Context, orgName string, projectName string) error
-	UpdateProject(ctx context.Context, orgName string, projectName string, displayName string, description string) error
+	UpdateProject(ctx context.Context, orgName string, projectName string, payload spec.UpdateProjectRequest) error
 	GetDeploymentPipeline(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error)
 	CreateProject(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string, projectDescription string) error
 	GetAgentComponent(ctx context.Context, orgName string, projName string, agentName string) (*AgentComponent, error)
@@ -1047,7 +1047,7 @@ func (k *openChoreoSvcClient) CreateProject(ctx context.Context, orgName string,
 	})
 }
 
-func (k *openChoreoSvcClient) UpdateProject(ctx context.Context, orgName string, projectName string, displayName string, description string) error {
+func (k *openChoreoSvcClient) UpdateProject(ctx context.Context, orgName string, projectName string, payload spec.UpdateProjectRequest) error {
 	key := client.ObjectKey{
 		Name:      projectName,
 		Namespace: orgName,
@@ -1068,8 +1068,9 @@ func (k *openChoreoSvcClient) UpdateProject(ctx context.Context, orgName string,
 		if project.Annotations == nil {
 			project.Annotations = make(map[string]string)
 		}
-		project.Annotations[string(AnnotationKeyDisplayName)] = displayName
-		project.Annotations[string(AnnotationKeyDescription)] = description
+		project.Annotations[string(AnnotationKeyDisplayName)] = payload.DisplayName
+		project.Annotations[string(AnnotationKeyDescription)] = utils.StrPointerAsStr(payload.Description, "")
+		project.Spec.DeploymentPipelineRef = payload.DeploymentPipeline
 
 		return k.client.Update(ctx, project)
 	})

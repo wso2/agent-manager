@@ -181,8 +181,30 @@ func (s *infraResourceManager) UpdateProject(ctx context.Context, orgName string
 		return nil, fmt.Errorf("%w: project name cannot be changed", utils.ErrImmutableFieldChange)
 	}
 
+	// Validate deployment pipeline exists if it's being changed
+	if payload.DeploymentPipeline != existingProject.DeploymentPipeline {
+		deploymentPipelines, err := s.OpenChoreoSvcClient.GetDeploymentPipelinesForOrganization(ctx, orgName)
+		if err != nil {
+			s.logger.Error("Failed to get deployment pipelines from OpenChoreo", "orgName", orgName, "error", err)
+			return nil, fmt.Errorf("failed to get deployment pipelines for organization %s: %w", orgName, err)
+		}
+
+		// Check if deployment pipeline exists
+		pipelineExists := false
+		for _, pipeline := range deploymentPipelines {
+			if pipeline.Name == payload.DeploymentPipeline {
+				pipelineExists = true
+				break
+			}
+		}
+		if !pipelineExists {
+			s.logger.Warn("Deployment pipeline not found", "orgName", orgName, "requestedPipeline", payload.DeploymentPipeline)
+			return nil, utils.ErrDeploymentPipelineNotFound
+		}
+	}
+
 	// Update project in OpenChoreo
-	if err := s.OpenChoreoSvcClient.UpdateProject(ctx, orgName, projectName, payload.DisplayName, utils.StrPointerAsStr(payload.Description, "")); err != nil {
+	if err := s.OpenChoreoSvcClient.UpdateProject(ctx, orgName, projectName, payload); err != nil {
 		s.logger.Error("Failed to update project in OpenChoreo", "projectName", projectName, "orgName", orgName, "error", err)
 		return nil, fmt.Errorf("failed to update project: %w", err)
 	}

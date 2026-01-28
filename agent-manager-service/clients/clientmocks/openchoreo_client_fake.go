@@ -93,7 +93,7 @@ import (
 //			UpdateAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agentName string, req *spec.UpdateAgentRequest) error {
 //				panic("mock out the UpdateAgentComponent method")
 //			},
-//			UpdateProjectFunc: func(ctx context.Context, orgName string, projectName string, displayName string, description string) error {
+//			UpdateProjectFunc: func(ctx context.Context, orgName string, projectName string, payload spec.UpdateProjectRequest) error {
 //				panic("mock out the UpdateProject method")
 //			},
 //		}
@@ -179,7 +179,7 @@ type OpenChoreoSvcClientMock struct {
 	UpdateAgentComponentFunc func(ctx context.Context, orgName string, projName string, agentName string, req *spec.UpdateAgentRequest) error
 
 	// UpdateProjectFunc mocks the UpdateProject method.
-	UpdateProjectFunc func(ctx context.Context, orgName string, projectName string, displayName string, description string) error
+	UpdateProjectFunc func(ctx context.Context, orgName string, projectName string, payload spec.UpdateProjectRequest) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -450,10 +450,8 @@ type OpenChoreoSvcClientMock struct {
 			OrgName string
 			// ProjectName is the projectName argument value.
 			ProjectName string
-			// DisplayName is the displayName argument value.
-			DisplayName string
-			// Description is the description argument value.
-			Description string
+			// Payload is the payload argument value.
+			Payload spec.UpdateProjectRequest
 		}
 	}
 	lockAttachInstrumentationTrait            sync.RWMutex
@@ -1553,7 +1551,7 @@ func (mock *OpenChoreoSvcClientMock) UpdateAgentComponentCalls() []struct {
 }
 
 // UpdateProject calls UpdateProjectFunc.
-func (mock *OpenChoreoSvcClientMock) UpdateProject(ctx context.Context, orgName string, projectName string, displayName string, description string) error {
+func (mock *OpenChoreoSvcClientMock) UpdateProject(ctx context.Context, orgName string, projectName string, payload spec.UpdateProjectRequest) error {
 	if mock.UpdateProjectFunc == nil {
 		panic("OpenChoreoSvcClientMock.UpdateProjectFunc: method is nil but OpenChoreoSvcClient.UpdateProject was just called")
 	}
@@ -1561,19 +1559,17 @@ func (mock *OpenChoreoSvcClientMock) UpdateProject(ctx context.Context, orgName 
 		Ctx         context.Context
 		OrgName     string
 		ProjectName string
-		DisplayName string
-		Description string
+		Payload     spec.UpdateProjectRequest
 	}{
 		Ctx:         ctx,
 		OrgName:     orgName,
 		ProjectName: projectName,
-		DisplayName: displayName,
-		Description: description,
+		Payload:     payload,
 	}
 	mock.lockUpdateProject.Lock()
 	mock.calls.UpdateProject = append(mock.calls.UpdateProject, callInfo)
 	mock.lockUpdateProject.Unlock()
-	return mock.UpdateProjectFunc(ctx, orgName, projectName, displayName, description)
+	return mock.UpdateProjectFunc(ctx, orgName, projectName, payload)
 }
 
 // UpdateProjectCalls gets all the calls that were made to UpdateProject.
@@ -1584,15 +1580,13 @@ func (mock *OpenChoreoSvcClientMock) UpdateProjectCalls() []struct {
 	Ctx         context.Context
 	OrgName     string
 	ProjectName string
-	DisplayName string
-	Description string
+	Payload     spec.UpdateProjectRequest
 } {
 	var calls []struct {
 		Ctx         context.Context
 		OrgName     string
 		ProjectName string
-		DisplayName string
-		Description string
+		Payload     spec.UpdateProjectRequest
 	}
 	mock.lockUpdateProject.RLock()
 	calls = mock.calls.UpdateProject
