@@ -52,6 +52,17 @@ const config: Config = {
       'classic',
       {
         docs: {
+          lastVersion: 'current',
+          versions: {
+            current: {
+              label: 'Next',
+              banner: 'unreleased',
+            },
+            'v0.3.x': {
+              label: 'v0.3.x',
+              banner: 'none',
+            },
+          },
           sidebarPath: './sidebars.ts',
           showLastUpdateAuthor: true,
           showLastUpdateTime: true,
@@ -103,6 +114,11 @@ const config: Config = {
           label: 'Documentation',
         },
         {to: '/blog', label: 'Blog', position: 'left'},
+        {
+          type: 'docsVersionDropdown',
+          position: 'right',
+          dropdownActiveClassDisabled: true,
+        },
         {
           href: 'https://github.com/wso2/ai-agent-management-platform',
           position: 'right',
