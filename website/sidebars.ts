@@ -19,6 +19,23 @@ const sidebars: SidebarsConfig = {
       id: 'intro',
       label: 'Introduction',
     },
+    {
+      type: 'category',
+      label: 'Overview',
+      collapsed: false,
+      items: [
+        'overview/what-is-amp',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Get Started',
+      collapsed: false,
+      items: [
+        'getting-started/quick-start',
+        'getting-started/single-cluster-installation',
+      ],
+    },
     // More sections will be added as documentation is migrated
   ],
 };
