@@ -260,7 +260,7 @@ spec:
                 TYPE=$(echo "$ep" | jq -r '.type // "HTTP"')
                 PORT=$(echo "$ep" | jq -r '.port')
                 SCHEMA_TYPE=$(echo "$ep" | jq -r '.schemaType // "REST"')
-                SCHEMA_FILE=$(echo "$ep" | jq -r '.schemaFilePath // empty')
+                SCHEMA_FILE_PATH=$(echo "$ep" | jq -r '.schemaFilePath // empty')
                 SCHEMA_CONTENT=$(echo "$ep" | jq -r '.schemaContent // empty')
 
                 echo "    ${NAME}:" >> "$OUT"
@@ -272,11 +272,11 @@ spec:
                   echo "        type: ${SCHEMA_TYPE}" >> "$OUT"
                   echo "        content: |" >> "$OUT"
                   echo "$SCHEMA_CONTENT" | sed 's/^/          /' >> "$OUT"
-                elif [ -n "$SCHEMA_FILE" ] && [ -f "$SOURCE_PATH/$SCHEMA_FILE" ]; then
+                elif [ -n "$SCHEMA_FILE_PATH" ] && [ -f "$SOURCE_PATH$SCHEMA_FILE_PATH" ]; then
                   echo "      schema:" >> "$OUT"
                   echo "        type: ${SCHEMA_TYPE}" >> "$OUT"
                   echo "        content: |" >> "$OUT"
-                  sed 's/^/          /' "$SOURCE_PATH/$SCHEMA_FILE" >> "$OUT"
+                  sed 's/^/          /' "$SOURCE_PATH$SCHEMA_FILE_PATH" >> "$OUT"
                 fi
               done < <(echo "$ENDPOINTS" | jq -c '.[]') 
             fi
