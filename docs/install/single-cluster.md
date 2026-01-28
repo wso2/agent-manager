@@ -167,6 +167,7 @@ export AMP_NS="wso2-amp"
 export BUILD_CI_NS="openchoreo-build-plane"
 export OBSERVABILITY_NS="openchoreo-observability-plane"
 export DEFAULT_NS="default"
+export DATA_PLANE_NS="openchoreo-data-plane"
 ```
 
 ### Step 1: Install Agent Management Platform
@@ -292,6 +293,54 @@ helm install build-workflow-extensions \
 
 **Note:** This extension is non-fatal if installation fails. The platform will function, but build CI features may not work.
 
+### Step 6: Install and Configure Gateway Operator
+
+The Gateway Operator manages API Gateway resources and enables secure trace ingestion.
+
+**Install the Gateway Operator:**
+
+
+```bash
+# Install Gateway Operator
+helm install gateway-operator \
+  oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator \
+  --version 0.2.0 \
+  --namespace ${DATA_PLANE_NS} \
+  --create-namespace \
+  --set logging.level=debug \
+  --set gateway.helm.chartVersion=0.3.0
+
+# Wait for Gateway Operator deployment
+kubectl wait --for=condition=Available \
+  deployment -l app.kubernetes.io/name=gateway-operator \
+  -n ${DATA_PLANE_NS} --timeout=300s
+
+# Configure the Gateway Operator
+
+# Apply the Gateway Operator configuration for API authentication and rate limiting
+kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.3.0/deployments/values/api-platform-operator-full-config.yaml
+```
+
+**Note:** For local development, you may need to update the JWKS URI in the configuration to use `http://host.docker.internal:9000/auth/external/jwks.json` instead of the cluster-internal service URL.
+
+**Create Gateway and API Resources:**
+
+```bash
+# Apply Observability Gateway
+kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.3.0/deployments/values/obs-gateway.yaml
+
+# Wait for Gateway to be programmed
+kubectl wait --for=condition=Programmed \
+  gateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
+
+# Apply OTEL Collector RestApi
+kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.3.0/deployments/values/otel-collector-rest-api.yaml
+
+# Wait for RestApi to be programmed
+kubectl wait --for=condition=Programmed \
+  restapi/traces-api-secure -n ${DATA_PLANE_NS} --timeout=120s
+```
+
 ## Verification
 
 Verify all components are installed and running:
@@ -305,6 +354,13 @@ kubectl get pods -n openchoreo-observability-plane | grep -E "amp-traces-observe
 
 # Check Build CI pods (if installed)
 kubectl get pods -n openchoreo-build-plane | grep build-workflow
+
+# Check Gateway Operator
+kubectl get pods -n openchoreo-data-plane -l app.kubernetes.io/name=gateway-operator
+
+# Check Gateway and API resources
+kubectl get gateway obs-gateway -n openchoreo-data-plane
+kubectl get restapi traces-api-secure -n openchoreo-data-plane
 
 # Check Helm releases
 helm list -n wso2-amp
@@ -332,8 +388,14 @@ kubectl port-forward -n wso2-amp svc/amp-console 3000:3000 &
 # Agent Manager API (port 8080)
 kubectl port-forward -n wso2-amp svc/amp-api 9000:9000 &
 
-# OTel Collector (port 21893)
-kubectl port-forward -n openchoreo-observability-plane svc/otel-collector 21893:21893 &
+# Port forward Observability Gateway
+echo "🌐 Forwarding Observability Gateway HTTP (22893)..."
+kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 22893:22893 &
+
+# Port forward Observability Gateway
+echo "🌐 Forwarding Observability Gateway HTTPS (22894)..."
+kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 22894:22894 &
+
 
 ```
 
@@ -343,7 +405,23 @@ After port forwarding is set up:
 
 - **Console**: http://localhost:3000
 - **API**: http://localhost:9000
-- **OpenTelemetry Collector**: http://localhost:21893
+- **Observabliity Gateway**: http://localhost:22893/otel
+- **Observability Gateway (HTTPS)** https://localhost:22894/otel
+
+### Handling Self-Signed Certificate Issues (HTTPS)
+
+If you need to use the HTTPS endpoint for OTEL exporters and encounter self-signed certificate issues, you can extract and use the certificate authority (CA) certificate from the cluster:
+
+```bash
+# Extract the CA certificate from the Kubernetes secret
+kubectl get secret obs-gateway-gateway-controller-tls \
+  -n openchoreo-data-plane \
+  -o jsonpath='{.data.ca\.crt}' | base64 --decode > ca.crt
+
+# Export the certificate path for OTEL exporters (use absolute path to the ca.crt file)
+export OTEL_EXPORTER_OTLP_CERTIFICATE=$(pwd)/ca.crt
+```
+
 
 ## Custom Configuration
 

@@ -296,7 +296,7 @@ echo "🔟 Applying Gateway Operator Configuration..."
 echo "   Creating local development config..."
 cp "${SCRIPT_DIR}/../values/api-platform-operator-full-config.yaml" "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
 # Update JWKS URI for local development
-sed -i '' 's|http://agent-manager-service.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json|http://host.docker.internal:9000/auth/external/jwks.json|g' "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
+sed -i '' 's|http://amp-api.wso2-amp.svc.cluster.local:9000/auth/external/jwks.json|http://host.docker.internal:9000/auth/external/jwks.json|g' "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
 kubectl apply -f "${SCRIPT_DIR}/../values/api-platform-operator-local-config.yaml"
 echo "✅ Gateway configuration applied"
 echo ""
