@@ -1,3 +1,19 @@
+# Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+#
+# WSO2 LLC. licenses this file to you under the Apache License,
+# Version 2.0 (the "License"); you may not use this file except
+# in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 """
 Tests for the evaluation runners (BenchmarkRunner and LiveRunner).
 
@@ -15,9 +31,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from amp_eval import register, get_registry
-from amp_eval.runner import LiveRunner, BenchmarkRunner, RunResult
-from amp_eval.trace import EvalTrace, TraceMetrics, TokenUsage
+from amp_evaluation import register, get_registry
+from amp_evaluation.runner import LiveRunner, RunResult
+from amp_evaluation.trace import EvalTrace, TraceMetrics, TokenUsage
 
 
 # ============================================================================
@@ -32,10 +48,10 @@ def test_env_vars():
     original_env = {}
     required_vars = {
         'AGENT_UID': 'test-agent',
-        'PROJECT_UID': 'test-project',
         'ENVIRONMENT_UID': 'test-env',
         'PUBLISH_RESULTS': 'false',  # Disable platform publishing
-        'TRACE_STORAGE_TYPE': 'service',  # Not opensearch
+        'TRACE_LOADER_MODE': 'file',  # Use file mode for tests
+        'TRACE_FILE_PATH': '/tmp/test_traces.json',
     }
     
     for key, value in required_vars.items():

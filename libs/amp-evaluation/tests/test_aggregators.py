@@ -1,3 +1,19 @@
+# Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+#
+# WSO2 LLC. licenses this file to you under the Apache License,
+# Version 2.0 (the "License"); you may not use this file except
+# in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 """
 Unit tests for built-in aggregation functions.
 
@@ -14,11 +30,11 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
-from amp_eval.aggregators.base import (
+from amp_evaluation.aggregators.base import (
     AggregationType, Aggregation, normalize_aggregations
 )
-from amp_eval.aggregators.aggregation import ResultAggregator, AggregatedResults
-from amp_eval.models import EvalResult
+from amp_evaluation.aggregators.aggregation import ResultAggregator, AggregatedResults
+from amp_evaluation.models import EvalResult
 
 
 class TestAggregationTypes:
@@ -290,7 +306,7 @@ class TestNormalizeAggregations:
     
     def test_normalize_none_to_default(self):
         """Test that None gets normalized to DEFAULT_AGGREGATIONS."""
-        from amp_eval.aggregators.base import DEFAULT_AGGREGATIONS
+        from amp_evaluation.aggregators.base import DEFAULT_AGGREGATIONS
         
         normalized = normalize_aggregations(None)
         

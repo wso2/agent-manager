@@ -1,3 +1,19 @@
+# Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+#
+# WSO2 LLC. licenses this file to you under the Apache License,
+# Version 2.0 (the "License"); you may not use this file except
+# in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 """
 Integration tests for the complete evaluation pipeline.
 
@@ -10,17 +26,15 @@ Tests end-to-end flow:
 import pytest
 import sys
 from pathlib import Path
-from datetime import datetime
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
-from amp_eval.registry import EvaluatorRegistry
-from amp_eval.models import Trace, EvalResult, EvalContext
-from amp_eval.aggregators.aggregation import AggregationType, Aggregation
-from amp_eval.aggregators.aggregation import ResultAggregator
-from amp_eval.runner import BaseRunner, BenchmarkRunner
-from amp_eval.evaluators.base import BaseEvaluator
+from amp_evaluation.registry import EvaluatorRegistry
+from amp_evaluation.models import Trace, EvalResult, EvalContext
+from amp_evaluation.aggregators.aggregation import AggregationType, Aggregation
+from amp_evaluation.aggregators.aggregation import ResultAggregator
+from amp_evaluation.evaluators.base import BaseEvaluator
 
 
 class TestEvaluatorIntegration:
@@ -235,7 +249,7 @@ class TestEvaluatorIntegration:
         ]
         
         # Get evaluator and run
-        from amp_eval.models import EvalContext
+        from amp_evaluation.models import EvalContext
         evaluator = self.registry.get("class-eval-integration")
         results = [evaluator.evaluate(EvalContext(trace=trace, is_benchmark=False)) for trace in traces]
         

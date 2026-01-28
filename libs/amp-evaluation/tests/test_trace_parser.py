@@ -1,3 +1,19 @@
+# Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+#
+# WSO2 LLC. licenses this file to you under the Apache License,
+# Version 2.0 (the "License"); you may not use this file except
+# in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 """
 Unit tests for trace parsing utilities.
 
@@ -7,38 +23,24 @@ import pytest
 import sys
 import json
 from pathlib import Path
-from datetime import datetime
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 # Import from new trace module
-from amp_eval.trace import (
+from amp_evaluation.trace import (
     # Core trace
-    EvalTrace,
-    
-    # Span types
-    LLMSpan, ToolSpan, RetrieverSpan, AgentSpan,
-    
-    # Metrics
-    TraceMetrics, TokenUsage, LLMMetrics, ToolMetrics,
-    
-    # Supporting types
-    Message, ToolCall, RetrievedDoc,
-    
-    # Parser
-    parse_trace_for_evaluation,
+    TokenUsage, Message, ToolCall, parse_trace_for_evaluation,
     parse_traces_for_evaluation,
     
     # OTEL models from fetcher
     OTELTrace,
     OTELSpan,
-    OTELTokenUsage,
     OTELTraceStatus,
 )
 
 # Also import the internal parse function from fetcher to convert real OTEL JSON
-from amp_eval.trace.fetcher import _parse_trace
+from amp_evaluation.trace.fetcher import _parse_trace
 
 
 # Helper function to convert test dicts to OTEL Trace objects
