@@ -67,11 +67,11 @@ func TestCreateAgent(t *testing.T) {
 				"repository": map[string]interface{}{
 					"url":     "https://github.com/test/test-repo",
 					"branch":  "main",
-					"appPath": "agent-sample",
+					"appPath": "/agent-sample",
 				},
 			},
 			"agentType": map[string]interface{}{
-				"type":    "api",
+				"type":    "agent-api",
 				"subType": "chat-api",
 			},
 			"runtimeConfigs": map[string]interface{}{
@@ -147,7 +147,7 @@ func TestCreateAgent(t *testing.T) {
 				"repository": map[string]interface{}{
 					"url":     "https://github.com/test/test-ballerina-repo",
 					"branch":  "main",
-					"appPath": "ballerina-agent",
+					"appPath": "/ballerina-agent",
 				},
 			},
 			"runtimeConfigs": map[string]interface{}{
@@ -155,7 +155,7 @@ func TestCreateAgent(t *testing.T) {
 				// No languageVersion or runCommand for Ballerina
 			},
 			"agentType": map[string]interface{}{
-				"type":    "api",
+				"type":    "agent-api",
 				"subType": "chat-api",
 			},
 			"inputInterface": map[string]interface{}{
@@ -230,7 +230,7 @@ func TestCreateAgent(t *testing.T) {
 				"repository": map[string]interface{}{
 					"url":     "https://github.com/test/test-repo",
 					"branch":  "main",
-					"appPath": "agent-sample",
+					"appPath": "/agent-sample",
 				},
 			},
 			"runtimeConfigs": map[string]interface{}{
@@ -245,7 +245,7 @@ func TestCreateAgent(t *testing.T) {
 				},
 			},
 			"agentType": map[string]interface{}{
-				"type":    "api",
+				"type":    "agent-api",
 				"subType": "custom-api",
 			},
 			"inputInterface": map[string]interface{}{
@@ -253,7 +253,7 @@ func TestCreateAgent(t *testing.T) {
 				"port":     5000,
 				"basePath": "/reading-list",
 				"schema": map[string]interface{}{
-					"path": "openapi.yaml",
+					"path": "/openapi.yaml",
 				},
 			},
 		})
@@ -334,7 +334,7 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "agent-sample",
+						"appPath": "/agent-sample",
 					},
 				},
 				"runtimeConfigs": map[string]interface{}{
@@ -343,7 +343,7 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -369,7 +369,7 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "agent-sample",
+						"appPath": "/agent-sample",
 					},
 				},
 				"runtimeConfigs": map[string]interface{}{
@@ -378,7 +378,7 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -408,7 +408,7 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -434,7 +434,7 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/invalid",
 						"branch":  "main",
-						"appPath": "sample-agent",
+						"appPath": "/sample-agent",
 					},
 				},
 				"runtimeConfigs": map[string]interface{}{
@@ -443,7 +443,7 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -469,7 +469,7 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "sample-agent",
+						"appPath": "/sample-agent",
 					},
 				},
 				"runtimeConfigs": map[string]interface{}{
@@ -478,7 +478,7 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -505,7 +505,7 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "sample-agent",
+						"appPath": "/sample-agent",
 					},
 				},
 				"runtimeConfigs": map[string]interface{}{
@@ -514,7 +514,7 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -541,7 +541,7 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "sample-agent",
+						"appPath": "/sample-agent",
 					},
 				},
 				"runtimeConfigs": map[string]interface{}{
@@ -550,7 +550,7 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -584,7 +584,7 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "sample-agent",
+						"appPath": "/sample-agent",
 					},
 				},
 				"runtimeConfigs": map[string]interface{}{
@@ -593,7 +593,7 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -627,7 +627,7 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "sample-agent",
+						"appPath": "/sample-agent",
 					},
 				},
 				"runtimeConfigs": map[string]interface{}{
@@ -636,7 +636,7 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "3.11",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -662,7 +662,7 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "agent-sample",
+						"appPath": "/agent-sample",
 					},
 				},
 				"runtimeConfigs": map[string]interface{}{
@@ -671,7 +671,7 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "1.70",
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -697,7 +697,7 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "agent-sample",
+						"appPath": "/agent-sample",
 					},
 				},
 				"runtimeConfigs": map[string]interface{}{
@@ -706,7 +706,7 @@ func TestCreateAgent(t *testing.T) {
 					"languageVersion": "2.7", // Invalid version for python
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -732,7 +732,7 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "agent-sample",
+						"appPath": "/agent-sample",
 					},
 				},
 				"runtimeConfigs": map[string]interface{}{
@@ -741,7 +741,7 @@ func TestCreateAgent(t *testing.T) {
 					// Missing "language" field
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
@@ -767,7 +767,7 @@ func TestCreateAgent(t *testing.T) {
 					"repository": map[string]interface{}{
 						"url":     "https://github.com/test/test-repo",
 						"branch":  "main",
-						"appPath": "agent-sample",
+						"appPath": "/agent-sample",
 					},
 				},
 				"runtimeConfigs": map[string]interface{}{
@@ -776,7 +776,7 @@ func TestCreateAgent(t *testing.T) {
 					// Missing "languageVersion" field
 				},
 				"agentType": map[string]interface{}{
-					"type":    "api",
+					"type":    "agent-api",
 					"subType": "chat-api",
 				},
 				"inputInterface": map[string]interface{}{
