@@ -79,7 +79,7 @@ export const buildAgentCreationPayload = (
         type: "external",
       },
       agentType: {
-        type: "api",
+        type: "agent-api",
         subType: "custom-api",
       },
     },

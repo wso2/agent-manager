@@ -1845,6 +1845,8 @@ components:
         appPath:
           type: string
           description: Path within the repository where the source code resides
+          pattern: "^/.*"
+          example: "/my-agent"
     BuildResponse:
       type: object
       properties:
@@ -2027,6 +2029,8 @@ components:
             path:
               type: string
               description: Path to OpenAPI schema file
+              pattern: "^/.*"
+              example: "/openapi.yaml"
           required:
             - path
         basePath:

@@ -467,42 +467,41 @@ func (k *openChoreoSvcClient) DeleteAgentComponent(ctx context.Context, orgName 
 }
 
 func (k *openChoreoSvcClient) UpdateAgentComponent(ctx context.Context, orgName string, projName string, agentName string, req *spec.UpdateAgentRequest) error {
-	component := &v1alpha1.Component{}
 	key := client.ObjectKey{
 		Name:      agentName,
 		Namespace: orgName,
 	}
 
-	// Get the existing component
-	err := k.retryK8sOperation(ctx, "GetComponent", func() error {
-		return k.client.Get(ctx, key, component)
-	})
-	if err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			return utils.ErrAgentNotFound
+	// Retry the entire get-modify-update operation to handle conflicts
+	err := k.retryK8sOperation(ctx, "UpdateComponent", func() error {
+		// Fetch the latest version of the component on each attempt
+		component := &v1alpha1.Component{}
+		if err := k.client.Get(ctx, key, component); err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				return utils.ErrAgentNotFound
+			}
+			return fmt.Errorf("failed to get component for update: %w", err)
 		}
-		return fmt.Errorf("failed to get component for update: %w", err)
-	}
 
-	// Verify that the component belongs to the specified project
-	if component.Spec.Owner.ProjectName != projName {
-		return fmt.Errorf("component does not belong to the specified project")
-	}
-
-	// Update component based on provisioning type
-	if req.Provisioning.Type == string(utils.ExternalAgent) {
-		if err := updateComponentCRForExternalAgents(component, req); err != nil {
-			return fmt.Errorf("failed to update component CR for external agents: %w", err)
+		// Verify that the component belongs to the specified project
+		if component.Spec.Owner.ProjectName != projName {
+			return fmt.Errorf("component does not belong to the specified project")
 		}
-	} else {
-		if err := updateComponentCRForInternalAgents(component, req); err != nil {
-			return fmt.Errorf("failed to update component CR for internal agents: %w", err)
-		}
-	}
 
-	// Apply the update
-	err = k.retryK8sOperation(ctx, "UpdateComponent", func() error {
-		return k.client.Update(ctx, component)
+		// Update component based on provisioning type
+		if req.Provisioning.Type == string(utils.ExternalAgent) {
+			if err := updateComponentCRForExternalAgents(component, req); err != nil {
+				return fmt.Errorf("failed to update component CR for external agents: %w", err)
+			}
+		} else {
+			if err := updateComponentCRForInternalAgents(component, req); err != nil {
+				return fmt.Errorf("failed to update component CR for internal agents: %w", err)
+			}
+		}
+		if err := k.client.Update(ctx, component); err != nil {
+			return err
+		}
+		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update component: %w", err)
@@ -1049,32 +1048,29 @@ func (k *openChoreoSvcClient) CreateProject(ctx context.Context, orgName string,
 }
 
 func (k *openChoreoSvcClient) UpdateProject(ctx context.Context, orgName string, projectName string, displayName string, description string) error {
-	project := &v1alpha1.Project{}
 	key := client.ObjectKey{
 		Name:      projectName,
 		Namespace: orgName,
 	}
 
-	// Get the existing project
-	err := k.retryK8sOperation(ctx, "GetProject", func() error {
-		return k.client.Get(ctx, key, project)
-	})
-	if err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			return utils.ErrProjectNotFound
-		}
-		return fmt.Errorf("failed to get project for update: %w", err)
-	}
-
-	// Update annotations for display name and description
-	if project.Annotations == nil {
-		project.Annotations = make(map[string]string)
-	}
-	project.Annotations[string(AnnotationKeyDisplayName)] = displayName
-	project.Annotations[string(AnnotationKeyDescription)] = description
-
-	// Apply the update
+	// Retry the entire get-modify-update operation to handle conflicts
 	return k.retryK8sOperation(ctx, "UpdateProject", func() error {
+		// Fetch the latest version of the project on each attempt
+		project := &v1alpha1.Project{}
+		if err := k.client.Get(ctx, key, project); err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				return utils.ErrProjectNotFound
+			}
+			return fmt.Errorf("failed to get project for update: %w", err)
+		}
+
+		// Update annotations for display name and description
+		if project.Annotations == nil {
+			project.Annotations = make(map[string]string)
+		}
+		project.Annotations[string(AnnotationKeyDisplayName)] = displayName
+		project.Annotations[string(AnnotationKeyDescription)] = description
+
 		return k.client.Update(ctx, project)
 	})
 }
