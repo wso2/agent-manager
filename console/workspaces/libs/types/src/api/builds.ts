@@ -63,18 +63,6 @@ export interface BuildsListResponse extends PaginationMeta {
   builds: BuildResponse[];
 }
 
-export type LogLevel = "INFO" | "WARN" | "ERROR" | "DEBUG";
-
-export interface BuildLogEntry {
-  timestamp: string; // ISO date-time
-  log: string;
-  logLevel: LogLevel;
-}
-
-export interface BuildLogsResponse {
-  logs: BuildLogEntry[];
-}
-
 export type BuildStepType =
   | "BuildInitiated"
   | "BuildTriggered"
@@ -101,6 +89,12 @@ export interface BuildDetailsResponse extends BuildResponse {
 export type BuildAgentPathParams = AgentPathParams;
 export type GetAgentBuildsPathParams = AgentPathParams;
 export type GetBuildPathParams = BuildPathParams;
-export type GetBuildLogsPathParams = BuildPathParams;
 
 export type GetAgentBuildsQuery = ListQuery;
+
+// Re-export log types for convenience
+export type {
+  BuildLogEntry,
+  BuildLogsResponse,
+  GetBuildLogsPathParams,
+} from "./logs";

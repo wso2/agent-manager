@@ -22,3 +22,5 @@ export * from './deployments';
 export * from './traces';
 export * from './organizations';
 export * from './projects';
+export * from './metrics';
+export * from './runtime-logs';
