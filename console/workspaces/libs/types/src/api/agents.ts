@@ -72,6 +72,7 @@ export interface AgentResponse {
   provisioning: Provisioning;
   agentType?: AgentType;
   runtimeConfigs?: RuntimeConfiguration;
+  inputInterface?: InputInterface;
   uuid?: string;
 }
 

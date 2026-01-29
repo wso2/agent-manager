@@ -40,6 +40,7 @@ import {
   RefreshCcw,
   Search as SearchRounded,
   User,
+  Edit,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   PageLayout,
@@ -65,6 +66,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { AgentTypeSummery } from "./subComponents/AgentTypeSummery";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
+import { EditProjectDrawer } from "../ProjectList/EditProjectDrawer";
 
 dayjs.extend(relativeTime);
 
@@ -101,6 +103,7 @@ export const AgentsList: React.FC = () => {
   const theme = useTheme();
   const [search, setSearch] = useState("");
   const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
+  const [editProjectDrawerOpen, setEditProjectDrawerOpen] = useState(false);
 
   // Detect touch device for alternative interaction pattern
   const isTouchDevice =
@@ -363,33 +366,45 @@ export const AgentsList: React.FC = () => {
   }
 
   return (
-    <PageLayout
-      title={project?.displayName ?? "Agents"}
-      description={
-        project?.description ??
-        "Manage and monitor all your AI agents across environments"
-      }
-      titleTail={
-        <Box
-          display="flex"
-          alignItems="center"
-          minWidth={32}
-          justifyContent="center"
-        >
-          {isRefetching ? (
-            <CircularProgress size={18} color="primary" />
-          ) : (
-            <IconButton
-              size="small"
-              color="primary"
-              onClick={() => refetchAgents()}
-            >
-              <RefreshCcw size={18} />
-            </IconButton>
-          )}
-        </Box>
-      }
-    >
+    <>
+      <PageLayout
+        title={project?.displayName ?? "Agents"}
+        description={
+          project?.description ??
+          "Manage and monitor all your AI agents across environments"
+        }
+        titleTail={
+          <Box
+            display="flex"
+            alignItems="center"
+            minWidth={32}
+            justifyContent="center"
+            gap={1}
+          >
+            <Tooltip title="Edit Project">
+              <IconButton
+                color="primary"
+                size="small"
+                onClick={() => setEditProjectDrawerOpen(true)}
+                disabled={!project}
+              >
+                <Edit size={18} />
+              </IconButton>
+            </Tooltip>
+            {isRefetching ? (
+              <CircularProgress size={18} color="primary" />
+            ) : (
+              <IconButton
+                size="small"
+                color="primary"
+                onClick={() => refetchAgents()}
+              >
+                <RefreshCcw size={18} />
+              </IconButton>
+            )}
+          </Box>
+        }
+      >
       <Box
         display="flex"
         justifyContent="space-between"
@@ -495,6 +510,16 @@ export const AgentsList: React.FC = () => {
         </Box>
       </Box>
     </PageLayout>
+
+      {project && (
+        <EditProjectDrawer
+          open={editProjectDrawerOpen}
+          onClose={() => setEditProjectDrawerOpen(false)}
+          project={project}
+          orgId={orgId || 'default'}
+        />
+      )}
+    </>
   );
 };
 
