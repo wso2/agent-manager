@@ -148,9 +148,7 @@ Access the console at [http://localhost:3000](http://localhost:3000)
 
 ## Next Steps
 
-- [Configure HTTPS for traces ingestion](../operations/https-configuration)
-- [Deploy your first agent](../user-guide/agent-development)
-- [Set up observability](../operations/observability)
+Your Agent Management Platform is now ready!
 
 ## Troubleshooting
 

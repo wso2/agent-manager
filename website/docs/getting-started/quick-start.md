@@ -73,6 +73,4 @@ After installation completes, use the following endpoints to access the platform
 
 ## Next Steps
 
-- [Install on existing OpenChoreo cluster](./single-cluster-installation)
-- Learn about [Platform Architecture](../overview/architecture)
-- Explore [Agent Development Guide](../user-guide/agent-development)
+- [Install on existing OpenChoreo cluster](/docs/getting-started/single-cluster-installation)
