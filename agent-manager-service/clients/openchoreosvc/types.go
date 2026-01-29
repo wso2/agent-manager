@@ -16,7 +16,11 @@
 
 package openchoreosvc
 
-import "time"
+import (
+	"time"
+
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+)
 
 type ComponentType string
 
@@ -40,16 +44,23 @@ const (
 )
 
 type AgentComponent struct {
-	UUID         string       `json:"uuid"`
-	Name         string       `json:"name"`
-	DisplayName  string       `json:"displayName,omitempty"`
-	Description  string       `json:"description,omitempty"`
-	ProjectName  string       `json:"projectName"`
-	CreatedAt    time.Time    `json:"createdAt"`
-	Status       string       `json:"status,omitempty"`
-	Provisioning Provisioning `json:"provisioning"`
-	Type         AgentType    `json:"agentType,omitempty"`
-	Language     string       `json:"language,omitempty"`
+	UUID           string                 `json:"uuid"`
+	Name           string                 `json:"name"`
+	DisplayName    string                 `json:"displayName,omitempty"`
+	Description    string                 `json:"description,omitempty"`
+	ProjectName    string                 `json:"projectName"`
+	CreatedAt      time.Time              `json:"createdAt"`
+	Status         string                 `json:"status,omitempty"`
+	Provisioning   Provisioning           `json:"provisioning"`
+	Type           AgentType              `json:"agentType,omitempty"`
+	RuntimeConfigs *RuntimeConfigs        `json:"runtimeConfigs,omitempty"`
+	InputInterface *models.InputInterface `json:"inputInterface,omitempty"`
+}
+
+type RuntimeConfigs struct {
+	Language        string `json:"language,omitempty"`
+	LanguageVersion string `json:"languageVersion,omitempty"`
+	RunCommand      string `json:"runCommand,omitempty"`
 }
 
 type AgentType struct {

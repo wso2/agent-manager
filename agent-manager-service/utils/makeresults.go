@@ -44,7 +44,7 @@ func ConvertToAgentResponse(component *models.AgentResponse) spec.AgentResponse 
 }
 
 func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentResponse {
-	return spec.AgentResponse{
+	response := spec.AgentResponse{
 		Uuid:        component.UUID,
 		Name:        component.Name,
 		DisplayName: component.DisplayName,
@@ -60,14 +60,20 @@ func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentR
 				AppPath: component.Provisioning.Repository.AppPath,
 			},
 		},
-		RuntimeConfigs: &spec.RuntimeConfiguration{
-			Language: component.Language,
-		},
 		AgentType: spec.AgentType{
 			Type:    component.Type.Type,
 			SubType: &component.Type.SubType,
 		},
+		InputInterface: convertToInputInterface(component.InputInterface),
 	}
+	if component.RuntimeConfigs != nil {
+		response.RuntimeConfigs = &spec.RuntimeConfiguration{
+			Language:        component.RuntimeConfigs.Language,
+			LanguageVersion: &component.RuntimeConfigs.LanguageVersion,
+			RunCommand:      &component.RuntimeConfigs.RunCommand,
+		}
+	}
+	return response
 }
 
 func convertToExternalAgentResponse(component *models.AgentResponse) spec.AgentResponse {

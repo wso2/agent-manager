@@ -46,21 +46,22 @@ func normalizePath(path string) string {
 
 // extractBuildParametersFromWorkflow extracts language, languageVersion, runCommand and inputInterface
 // from the workflow parameters raw JSON
-func extractBuildParametersFromWorkflow(parametersRaw []byte) (language, languageVersion, runCommand string, inputInterface *models.InputInterface) {
+func extractBuildParametersFromWorkflow(parametersRaw []byte) (string, string, string, *models.InputInterface, error) {
 	if len(parametersRaw) == 0 {
-		return
+		return "", "", "", nil, fmt.Errorf("workflow parameters are empty")
 	}
 
 	var workflowParams ComponentWorkflowParameters
 	if err := json.Unmarshal(parametersRaw, &workflowParams); err != nil {
-		return
+		return "", "", "", nil, fmt.Errorf("failed to unmarshal workflow parameters: %w", err)
 	}
 
-	language = workflowParams.BuildpackConfigs.Language
-	languageVersion = workflowParams.BuildpackConfigs.LanguageVersion
-	runCommand = workflowParams.BuildpackConfigs.GoogleEntryPoint
+	language := workflowParams.BuildpackConfigs.Language
+	languageVersion := workflowParams.BuildpackConfigs.LanguageVersion
+	runCommand := workflowParams.BuildpackConfigs.GoogleEntryPoint
 
 	// Extract inputInterface from endpoints
+	var inputInterface *models.InputInterface
 	if len(workflowParams.Endpoints) > 0 {
 		endpoint := workflowParams.Endpoints[0]
 		inputInterface = &models.InputInterface{
@@ -74,7 +75,7 @@ func extractBuildParametersFromWorkflow(parametersRaw []byte) (language, languag
 		}
 	}
 
-	return
+	return language, languageVersion, runCommand, inputInterface, nil
 }
 
 func getLanguageVersionEnvVariable(language string) string {
@@ -540,7 +541,7 @@ func createComponentWorkflowRunCR(orgName, projName, componentName string, syste
 	}
 }
 
-func toComponentResponse(component *v1alpha1.Component) *AgentComponent {
+func toComponentResponse(component *v1alpha1.Component) (*AgentComponent, error) {
 	response := &AgentComponent{
 		Name:        component.Name,
 		UUID:        string(component.UID),
@@ -553,22 +554,38 @@ func toComponentResponse(component *v1alpha1.Component) *AgentComponent {
 			Type:    strings.Split(string(component.Spec.ComponentType), "/")[1], // e.g., deployment/agent-api -> agent-api
 			SubType: component.Labels[string(LabelKeyAgentSubType)],
 		},
-		Language:    component.Labels[string(LabelKeyAgentLanguage)],
 		CreatedAt:   component.CreationTimestamp.Time,
 		Status:      "", // Todo: set status
 		Description: component.Annotations[string(AnnotationKeyDescription)],
 	}
 
-	// Only populate repository info if workflow exists (internal agents)
+	// Only populate repository info, runtime configs, and input interface if workflow exists (internal agents)
 	if component.Spec.Workflow != nil {
 		response.Provisioning.Repository = Repository{
 			RepoURL: component.Spec.Workflow.SystemParameters.Repository.URL,
 			Branch:  component.Spec.Workflow.SystemParameters.Repository.Revision.Branch,
 			AppPath: component.Spec.Workflow.SystemParameters.Repository.AppPath,
 		}
+
+		// Extract runtime configs and input interface from workflow parameters
+		var parametersRaw []byte
+		if component.Spec.Workflow.Parameters != nil {
+			parametersRaw = component.Spec.Workflow.Parameters.Raw
+		}
+		language, languageVersion, runCommand, inputInterface, err := extractBuildParametersFromWorkflow(parametersRaw)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract build parameters: %w", err)
+		}
+
+		response.RuntimeConfigs = &RuntimeConfigs{
+			Language:        language,
+			LanguageVersion: languageVersion,
+			RunCommand:      runCommand,
+		}
+		response.InputInterface = inputInterface
 	}
 
-	return response
+	return response, nil
 }
 
 func updateWorkloadSpec(existingWorkload *v1alpha1.Workload, req *spec.DeployAgentRequest) {
@@ -661,7 +678,10 @@ func toBuildDetailsResponse(componentWorkflow *v1alpha1.ComponentWorkflowRun) (*
 	if componentWorkflow.Spec.Workflow.Parameters != nil {
 		parametersRaw = componentWorkflow.Spec.Workflow.Parameters.Raw
 	}
-	language, languageVersion, runCommand, inputInterface := extractBuildParametersFromWorkflow(parametersRaw)
+	language, languageVersion, runCommand, inputInterface, err := extractBuildParametersFromWorkflow(parametersRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract build parameters: %w", err)
+	}
 
 	buildResp := &models.BuildDetailsResponse{
 		BuildResponse: models.BuildResponse{

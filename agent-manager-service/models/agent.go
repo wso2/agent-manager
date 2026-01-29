@@ -25,16 +25,24 @@ import (
 
 // API Response DTO
 type AgentResponse struct {
-	UUID         string       `json:"uuid"`
-	Name         string       `json:"name"`
-	DisplayName  string       `json:"displayName,omitempty"`
-	Description  string       `json:"description,omitempty"`
-	ProjectName  string       `json:"projectName"`
-	CreatedAt    time.Time    `json:"createdAt"`
-	Status       string       `json:"status,omitempty"`
-	Provisioning Provisioning `json:"provisioning,omitempty"`
-	Type         AgentType    `json:"type,omitempty"`
-	Language     string       `json:"language,omitempty"`
+	UUID           string          `json:"uuid"`
+	Name           string          `json:"name"`
+	DisplayName    string          `json:"displayName,omitempty"`
+	Description    string          `json:"description,omitempty"`
+	ProjectName    string          `json:"projectName"`
+	CreatedAt      time.Time       `json:"createdAt"`
+	Status         string          `json:"status,omitempty"`
+	Provisioning   Provisioning    `json:"provisioning,omitempty"`
+	Type           AgentType       `json:"type,omitempty"`
+	RuntimeConfigs *RuntimeConfigs `json:"runtimeConfigs,omitempty"`
+	InputInterface *InputInterface `json:"inputInterface,omitempty"`
+}
+
+// RuntimeConfigs contains runtime configuration for an agent (excluding env)
+type RuntimeConfigs struct {
+	Language        string `json:"language,omitempty"`
+	LanguageVersion string `json:"languageVersion,omitempty"`
+	RunCommand      string `json:"runCommand,omitempty"`
 }
 
 type AgentType struct {

@@ -849,8 +849,14 @@ func (s *agentManagerService) convertToAgentListItem(agent *clients.AgentCompone
 			Type:    agent.Type.Type,
 			SubType: agent.Type.SubType,
 		},
-		Language:  agent.Language,
 		CreatedAt: agent.CreatedAt,
+	}
+	if agent.RuntimeConfigs != nil {
+		response.RuntimeConfigs = &models.RuntimeConfigs{
+			Language:        agent.RuntimeConfigs.Language,
+			LanguageVersion: agent.RuntimeConfigs.LanguageVersion,
+			RunCommand:      agent.RuntimeConfigs.RunCommand,
+		}
 	}
 	return response
 }
@@ -875,7 +881,7 @@ func (s *agentManagerService) convertExternalAgentToAgentResponse(ocAgentCompone
 
 // convertToManagedAgentResponse converts an OpenChoreo AgentComponent to AgentResponse for managed agents
 func (s *agentManagerService) convertManagedAgentToAgentResponse(ocAgentComponent *clients.AgentComponent) *models.AgentResponse {
-	return &models.AgentResponse{
+	response := &models.AgentResponse{
 		UUID:        ocAgentComponent.UUID,
 		Name:        ocAgentComponent.Name,
 		DisplayName: ocAgentComponent.DisplayName,
@@ -893,9 +899,17 @@ func (s *agentManagerService) convertManagedAgentToAgentResponse(ocAgentComponen
 			Type:    ocAgentComponent.Type.Type,
 			SubType: ocAgentComponent.Type.SubType,
 		},
-		Language:  ocAgentComponent.Language,
-		CreatedAt: ocAgentComponent.CreatedAt,
+		CreatedAt:      ocAgentComponent.CreatedAt,
+		InputInterface: ocAgentComponent.InputInterface,
 	}
+	if ocAgentComponent.RuntimeConfigs != nil {
+		response.RuntimeConfigs = &models.RuntimeConfigs{
+			Language:        ocAgentComponent.RuntimeConfigs.Language,
+			LanguageVersion: ocAgentComponent.RuntimeConfigs.LanguageVersion,
+			RunCommand:      ocAgentComponent.RuntimeConfigs.RunCommand,
+		}
+	}
+	return response
 }
 
 // buildWorkloadSpec constructs the workload specification from the create agent request

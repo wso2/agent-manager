@@ -1749,6 +1749,8 @@ components:
           $ref: "#/components/schemas/AgentType"
         runtimeConfigs:
           $ref: "#/components/schemas/RuntimeConfiguration"
+        inputInterface:
+          $ref: "#/components/schemas/InputInterface"
       required:
         - uuid
         - name

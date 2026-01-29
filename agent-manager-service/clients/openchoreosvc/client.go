@@ -19,6 +19,7 @@ package openchoreosvc
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"sort"
 	"time"
@@ -166,7 +167,12 @@ func (k *openChoreoSvcClient) ListAgentComponents(ctx context.Context, orgName s
 	for i := range componentList.Items {
 		component := &componentList.Items[i]
 		if component.Spec.Owner.ProjectName == projName {
-			agentComponents = append(agentComponents, toComponentResponse(component))
+			agentComponent, err := toComponentResponse(component)
+			if err != nil {
+				slog.Error("failed to convert component", "component", component.Name, "projectName", projName, "error", err)
+				continue
+			}
+			agentComponents = append(agentComponents, agentComponent)
 		}
 	}
 	// Sort components by creation time descending
@@ -221,7 +227,7 @@ func (k *openChoreoSvcClient) GetAgentComponent(ctx context.Context, orgName str
 	if component.Spec.Owner.ProjectName != projName {
 		return nil, fmt.Errorf("component does not belong to the specified project")
 	}
-	return toComponentResponse(component), nil
+	return toComponentResponse(component)
 }
 
 func (k *openChoreoSvcClient) AttachInstrumentationTrait(ctx context.Context, orgName string, projName string, agentName string) error {
@@ -565,7 +571,10 @@ func (k *openChoreoSvcClient) TriggerBuild(ctx context.Context, orgName string, 
 	if component.Spec.Workflow.Parameters != nil {
 		parametersRaw = component.Spec.Workflow.Parameters.Raw
 	}
-	language, languageVersion, runCommand, _ := extractBuildParametersFromWorkflow(parametersRaw)
+	language, languageVersion, runCommand, _, err := extractBuildParametersFromWorkflow(parametersRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract build parameters: %w", err)
+	}
 
 	return &models.BuildResponse{
 		UUID:        string(componentWorkflowRunCR.UID),
@@ -672,7 +681,10 @@ func (k *openChoreoSvcClient) ListComponentWorkflowRuns(ctx context.Context, org
 		if workflowRun.Spec.Workflow.Parameters != nil {
 			parametersRaw = workflowRun.Spec.Workflow.Parameters.Raw
 		}
-		language, languageVersion, runCommand, _ := extractBuildParametersFromWorkflow(parametersRaw)
+		language, languageVersion, runCommand, _, err := extractBuildParametersFromWorkflow(parametersRaw)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract build parameters for %s: %w", workflowRun.Name, err)
+		}
 
 		buildResponses = append(buildResponses, &models.BuildResponse{
 			Name:        workflowRun.Name,
