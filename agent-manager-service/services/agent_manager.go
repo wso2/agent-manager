@@ -33,6 +33,7 @@ import (
 type AgentManagerService interface {
 	ListAgents(ctx context.Context, orgName string, projName string, limit int32, offset int32) ([]*models.AgentResponse, int32, error)
 	CreateAgent(ctx context.Context, orgName string, projectName string, req *spec.CreateAgentRequest) error
+	UpdateAgent(ctx context.Context, orgName string, projectName string, agentName string, req *spec.UpdateAgentRequest) (*models.AgentResponse, error)
 	BuildAgent(ctx context.Context, orgName string, projectName string, agentName string, commitId string) (*models.BuildResponse, error)
 	DeleteAgent(ctx context.Context, orgName string, projectName string, agentName string) error
 	DeployAgent(ctx context.Context, orgName string, projectName string, agentName string, req *spec.DeployAgentRequest) (string, error)
@@ -162,6 +163,69 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 
 	s.logger.Info("Agent created successfully", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "provisioningType", req.Provisioning.Type)
 	return nil
+}
+
+func (s *agentManagerService) UpdateAgent(ctx context.Context, orgName string, projectName string, agentName string, req *spec.UpdateAgentRequest) (*models.AgentResponse, error) {
+	s.logger.Info("Updating agent", "agentName", agentName, "orgName", orgName, "projectName", projectName)
+
+	// Validate organization exists
+	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
+	if err != nil {
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return nil, err
+	}
+
+	// Validate project exists
+	_, err = s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
+	if err != nil {
+		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
+		return nil, err
+	}
+
+	// Fetch existing agent to validate immutable fields
+	existingAgent, err := s.OpenChoreoSvcClient.GetAgentComponent(ctx, orgName, projectName, agentName)
+	if err != nil {
+		s.logger.Error("Failed to fetch existing agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		return nil, err
+	}
+
+	// Check immutable fields - name cannot be changed
+	if req.Name != existingAgent.Name {
+		s.logger.Error("Cannot change agent name", "existingName", existingAgent.Name, "requestedName", req.Name)
+		return nil, fmt.Errorf("%w: agent name cannot be changed", utils.ErrImmutableFieldChange)
+	}
+
+	// Check immutable fields - agentType cannot be changed
+	if req.AgentType.Type != existingAgent.Type.Type {
+		s.logger.Error("Cannot change agent type", "existingType", existingAgent.Type.Type, "requestedType", req.AgentType.Type)
+		return nil, fmt.Errorf("%w: agent type cannot be changed", utils.ErrImmutableFieldChange)
+	}
+
+	// Check immutable fields - provisioning type cannot be changed
+	if req.Provisioning.Type != existingAgent.Provisioning.Type {
+		s.logger.Error("Cannot change provisioning type", "existingType", existingAgent.Provisioning.Type, "requestedType", req.Provisioning.Type)
+		return nil, fmt.Errorf("%w: provisioning type cannot be changed", utils.ErrImmutableFieldChange)
+	}
+
+	// Update agent component in OpenChoreo
+	if err := s.OpenChoreoSvcClient.UpdateAgentComponent(ctx, orgName, projectName, agentName, req); err != nil {
+		s.logger.Error("Failed to update agent component in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		return nil, fmt.Errorf("failed to update agent component: %w", err)
+	}
+
+	// Fetch updated agent
+	updatedAgent, err := s.OpenChoreoSvcClient.GetAgentComponent(ctx, orgName, projectName, agentName)
+	if err != nil {
+		s.logger.Error("Failed to fetch updated agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		return nil, err
+	}
+
+	s.logger.Info("Agent updated successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName)
+
+	if updatedAgent.Provisioning.Type == string(utils.ExternalAgent) {
+		return s.convertExternalAgentToAgentResponse(updatedAgent), nil
+	}
+	return s.convertManagedAgentToAgentResponse(updatedAgent), nil
 }
 
 func (s *agentManagerService) GenerateName(ctx context.Context, orgName string, payload spec.ResourceNameRequest) (string, error) {

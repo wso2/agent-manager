@@ -291,6 +291,51 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    put:
+      summary: Update project
+      operationId: updateProject
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProjectRequest"
+      responses:
+        "200":
+          description: Project updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     delete:
       summary: Delete a project
       operationId: deleteProject
@@ -446,6 +491,56 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AgentResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      summary: Update agent
+      operationId: updateAgent
+      parameters:
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAgentRequest"
+      responses:
+        "200":
+          description: Agent updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Agent not found
           content:
@@ -1583,6 +1678,52 @@ components:
           $ref: "#/components/schemas/RuntimeConfiguration"
         inputInterface:
           $ref: "#/components/schemas/InputInterface"
+
+    UpdateAgentRequest:
+      type: object
+      required:
+        - name
+        - displayName
+        - provisioning
+        - agentType
+      properties:
+        name:
+          type: string
+          description: Unique name of the agent
+        displayName:
+          type: string
+          description: Display name of the agent
+        provisioning:
+          $ref: "#/components/schemas/Provisioning"
+        description:
+          type: string
+          description: Description of the agent
+        agentType:
+          $ref: "#/components/schemas/AgentType"
+        runtimeConfigs:
+          $ref: "#/components/schemas/RuntimeConfiguration"
+        inputInterface:
+          $ref: "#/components/schemas/InputInterface"
+
+    UpdateProjectRequest:
+      type: object
+      required:
+        - name
+        - displayName
+        - deploymentPipeline
+      properties:
+        name:
+          type: string
+          description: Name of the project
+        displayName:
+          type: string
+          description: Display name of the project
+        description:
+          type: string
+          description: Description of the project
+        deploymentPipeline:
+          type: string
+
     AgentResponse:
       type: object
       properties:
@@ -1704,6 +1845,8 @@ components:
         appPath:
           type: string
           description: Path within the repository where the source code resides
+          pattern: "^/.*"
+          example: "/my-agent"
     BuildResponse:
       type: object
       properties:
@@ -1886,6 +2029,8 @@ components:
             path:
               type: string
               description: Path to OpenAPI schema file
+              pattern: "^/.*"
+              example: "/openapi.yaml"
           required:
             - path
         basePath:

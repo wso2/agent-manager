@@ -90,6 +90,12 @@ import (
 //			TriggerBuildFunc: func(ctx context.Context, orgName string, projName string, agentName string, commitId string) (*models.BuildResponse, error) {
 //				panic("mock out the TriggerBuild method")
 //			},
+//			UpdateAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agentName string, req *spec.UpdateAgentRequest) error {
+//				panic("mock out the UpdateAgentComponent method")
+//			},
+//			UpdateProjectFunc: func(ctx context.Context, orgName string, projectName string, payload spec.UpdateProjectRequest) error {
+//				panic("mock out the UpdateProject method")
+//			},
 //		}
 //
 //		// use mockedOpenChoreoSvcClient in code that requires openchoreosvc.OpenChoreoSvcClient
@@ -168,6 +174,12 @@ type OpenChoreoSvcClientMock struct {
 
 	// TriggerBuildFunc mocks the TriggerBuild method.
 	TriggerBuildFunc func(ctx context.Context, orgName string, projName string, agentName string, commitId string) (*models.BuildResponse, error)
+
+	// UpdateAgentComponentFunc mocks the UpdateAgentComponent method.
+	UpdateAgentComponentFunc func(ctx context.Context, orgName string, projName string, agentName string, req *spec.UpdateAgentRequest) error
+
+	// UpdateProjectFunc mocks the UpdateProject method.
+	UpdateProjectFunc func(ctx context.Context, orgName string, projectName string, payload spec.UpdateProjectRequest) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -417,6 +429,30 @@ type OpenChoreoSvcClientMock struct {
 			// CommitId is the commitId argument value.
 			CommitId string
 		}
+		// UpdateAgentComponent holds details about calls to the UpdateAgentComponent method.
+		UpdateAgentComponent []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OrgName is the orgName argument value.
+			OrgName string
+			// ProjName is the projName argument value.
+			ProjName string
+			// AgentName is the agentName argument value.
+			AgentName string
+			// Req is the req argument value.
+			Req *spec.UpdateAgentRequest
+		}
+		// UpdateProject holds details about calls to the UpdateProject method.
+		UpdateProject []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OrgName is the orgName argument value.
+			OrgName string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// Payload is the payload argument value.
+			Payload spec.UpdateProjectRequest
+		}
 	}
 	lockAttachInstrumentationTrait            sync.RWMutex
 	lockCreateAgentComponent                  sync.RWMutex
@@ -442,6 +478,8 @@ type OpenChoreoSvcClientMock struct {
 	lockListOrganizations                     sync.RWMutex
 	lockListProjects                          sync.RWMutex
 	lockTriggerBuild                          sync.RWMutex
+	lockUpdateAgentComponent                  sync.RWMutex
+	lockUpdateProject                         sync.RWMutex
 }
 
 // AttachInstrumentationTrait calls AttachInstrumentationTraitFunc.
@@ -1461,5 +1499,97 @@ func (mock *OpenChoreoSvcClientMock) TriggerBuildCalls() []struct {
 	mock.lockTriggerBuild.RLock()
 	calls = mock.calls.TriggerBuild
 	mock.lockTriggerBuild.RUnlock()
+	return calls
+}
+
+// UpdateAgentComponent calls UpdateAgentComponentFunc.
+func (mock *OpenChoreoSvcClientMock) UpdateAgentComponent(ctx context.Context, orgName string, projName string, agentName string, req *spec.UpdateAgentRequest) error {
+	if mock.UpdateAgentComponentFunc == nil {
+		panic("OpenChoreoSvcClientMock.UpdateAgentComponentFunc: method is nil but OpenChoreoSvcClient.UpdateAgentComponent was just called")
+	}
+	callInfo := struct {
+		Ctx       context.Context
+		OrgName   string
+		ProjName  string
+		AgentName string
+		Req       *spec.UpdateAgentRequest
+	}{
+		Ctx:       ctx,
+		OrgName:   orgName,
+		ProjName:  projName,
+		AgentName: agentName,
+		Req:       req,
+	}
+	mock.lockUpdateAgentComponent.Lock()
+	mock.calls.UpdateAgentComponent = append(mock.calls.UpdateAgentComponent, callInfo)
+	mock.lockUpdateAgentComponent.Unlock()
+	return mock.UpdateAgentComponentFunc(ctx, orgName, projName, agentName, req)
+}
+
+// UpdateAgentComponentCalls gets all the calls that were made to UpdateAgentComponent.
+// Check the length with:
+//
+//	len(mockedOpenChoreoSvcClient.UpdateAgentComponentCalls())
+func (mock *OpenChoreoSvcClientMock) UpdateAgentComponentCalls() []struct {
+	Ctx       context.Context
+	OrgName   string
+	ProjName  string
+	AgentName string
+	Req       *spec.UpdateAgentRequest
+} {
+	var calls []struct {
+		Ctx       context.Context
+		OrgName   string
+		ProjName  string
+		AgentName string
+		Req       *spec.UpdateAgentRequest
+	}
+	mock.lockUpdateAgentComponent.RLock()
+	calls = mock.calls.UpdateAgentComponent
+	mock.lockUpdateAgentComponent.RUnlock()
+	return calls
+}
+
+// UpdateProject calls UpdateProjectFunc.
+func (mock *OpenChoreoSvcClientMock) UpdateProject(ctx context.Context, orgName string, projectName string, payload spec.UpdateProjectRequest) error {
+	if mock.UpdateProjectFunc == nil {
+		panic("OpenChoreoSvcClientMock.UpdateProjectFunc: method is nil but OpenChoreoSvcClient.UpdateProject was just called")
+	}
+	callInfo := struct {
+		Ctx         context.Context
+		OrgName     string
+		ProjectName string
+		Payload     spec.UpdateProjectRequest
+	}{
+		Ctx:         ctx,
+		OrgName:     orgName,
+		ProjectName: projectName,
+		Payload:     payload,
+	}
+	mock.lockUpdateProject.Lock()
+	mock.calls.UpdateProject = append(mock.calls.UpdateProject, callInfo)
+	mock.lockUpdateProject.Unlock()
+	return mock.UpdateProjectFunc(ctx, orgName, projectName, payload)
+}
+
+// UpdateProjectCalls gets all the calls that were made to UpdateProject.
+// Check the length with:
+//
+//	len(mockedOpenChoreoSvcClient.UpdateProjectCalls())
+func (mock *OpenChoreoSvcClientMock) UpdateProjectCalls() []struct {
+	Ctx         context.Context
+	OrgName     string
+	ProjectName string
+	Payload     spec.UpdateProjectRequest
+} {
+	var calls []struct {
+		Ctx         context.Context
+		OrgName     string
+		ProjectName string
+		Payload     spec.UpdateProjectRequest
+	}
+	mock.lockUpdateProject.RLock()
+	calls = mock.calls.UpdateProject
+	mock.lockUpdateProject.RUnlock()
 	return calls
 }

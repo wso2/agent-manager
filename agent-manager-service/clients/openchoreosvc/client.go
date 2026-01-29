@@ -51,6 +51,7 @@ type KubernetesConfigData struct {
 
 type OpenChoreoSvcClient interface {
 	CreateAgentComponent(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error
+	UpdateAgentComponent(ctx context.Context, orgName string, projName string, agentName string, req *spec.UpdateAgentRequest) error
 	AttachInstrumentationTrait(ctx context.Context, orgName string, projName string, agentName string) error
 	TriggerBuild(ctx context.Context, orgName string, projName string, agentName string, commitId string) (*models.BuildResponse, error)
 	GetProject(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error)
@@ -60,6 +61,7 @@ type OpenChoreoSvcClient interface {
 	ListOrganizations(ctx context.Context) ([]*models.OrganizationResponse, error)
 	GetDeploymentPipelinesForOrganization(ctx context.Context, orgName string) ([]*models.DeploymentPipelineResponse, error)
 	DeleteProject(ctx context.Context, orgName string, projectName string) error
+	UpdateProject(ctx context.Context, orgName string, projectName string, payload spec.UpdateProjectRequest) error
 	GetDeploymentPipeline(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error)
 	CreateProject(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string, projectDescription string) error
 	GetAgentComponent(ctx context.Context, orgName string, projName string, agentName string) (*AgentComponent, error)
@@ -460,6 +462,49 @@ func (k *openChoreoSvcClient) DeleteAgentComponent(ctx context.Context, orgName 
 	})
 	if err != nil {
 		return fmt.Errorf("failed to delete component: %w", err)
+	}
+	return nil
+}
+
+func (k *openChoreoSvcClient) UpdateAgentComponent(ctx context.Context, orgName string, projName string, agentName string, req *spec.UpdateAgentRequest) error {
+	key := client.ObjectKey{
+		Name:      agentName,
+		Namespace: orgName,
+	}
+
+	// Retry the entire get-modify-update operation to handle conflicts
+	err := k.retryK8sOperation(ctx, "UpdateComponent", func() error {
+		// Fetch the latest version of the component on each attempt
+		component := &v1alpha1.Component{}
+		if err := k.client.Get(ctx, key, component); err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				return utils.ErrAgentNotFound
+			}
+			return fmt.Errorf("failed to get component for update: %w", err)
+		}
+
+		// Verify that the component belongs to the specified project
+		if component.Spec.Owner.ProjectName != projName {
+			return fmt.Errorf("component does not belong to the specified project")
+		}
+
+		// Update component based on provisioning type
+		if req.Provisioning.Type == string(utils.ExternalAgent) {
+			if err := updateComponentCRForExternalAgents(component, req); err != nil {
+				return fmt.Errorf("failed to update component CR for external agents: %w", err)
+			}
+		} else {
+			if err := updateComponentCRForInternalAgents(component, req); err != nil {
+				return fmt.Errorf("failed to update component CR for internal agents: %w", err)
+			}
+		}
+		if err := k.client.Update(ctx, component); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update component: %w", err)
 	}
 	return nil
 }
@@ -999,6 +1044,35 @@ func (k *openChoreoSvcClient) CreateProject(ctx context.Context, orgName string,
 	}
 	return k.retryK8sOperation(ctx, "CreateProject", func() error {
 		return k.client.Create(ctx, project)
+	})
+}
+
+func (k *openChoreoSvcClient) UpdateProject(ctx context.Context, orgName string, projectName string, payload spec.UpdateProjectRequest) error {
+	key := client.ObjectKey{
+		Name:      projectName,
+		Namespace: orgName,
+	}
+
+	// Retry the entire get-modify-update operation to handle conflicts
+	return k.retryK8sOperation(ctx, "UpdateProject", func() error {
+		// Fetch the latest version of the project on each attempt
+		project := &v1alpha1.Project{}
+		if err := k.client.Get(ctx, key, project); err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				return utils.ErrProjectNotFound
+			}
+			return fmt.Errorf("failed to get project for update: %w", err)
+		}
+
+		// Update annotations for display name and description
+		if project.Annotations == nil {
+			project.Annotations = make(map[string]string)
+		}
+		project.Annotations[string(AnnotationKeyDisplayName)] = payload.DisplayName
+		project.Annotations[string(AnnotationKeyDescription)] = utils.StrPointerAsStr(payload.Description, "")
+		project.Spec.DeploymentPipelineRef = payload.DeploymentPipeline
+
+		return k.client.Update(ctx, project)
 	})
 }
 

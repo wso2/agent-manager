@@ -28,6 +28,78 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 )
 
+func ValidateAgentUpdatePayload(payload spec.UpdateAgentRequest) error {
+	// Validate agent name
+	if err := ValidateResourceName(payload.Name, "agent"); err != nil {
+		return fmt.Errorf("invalid agent name: %w", err)
+	}
+	if err := ValidateResourceDisplayName(payload.DisplayName, "agent"); err != nil {
+		return fmt.Errorf("invalid agent display name: %w", err)
+	}
+	// Validate agent provisioning
+	if err := validateAgentProvisioning(payload.Provisioning); err != nil {
+		return fmt.Errorf("invalid agent provisioning: %w", err)
+	}
+	// Validate agent type and subtype
+	if err := validateAgentType(payload.AgentType); err != nil {
+		return fmt.Errorf("invalid agent type or subtype: %w", err)
+	}
+	// Additional validations for internal agents
+	if payload.Provisioning.Type == string(InternalAgent) {
+		if err := validateInternalAgentUpdate(payload); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateInternalAgentUpdate performs validations specific to internal agents for update
+func validateInternalAgentUpdate(payload spec.UpdateAgentRequest) error {
+	// Validate Agent Type
+	if err := validateAgentSubType(payload.AgentType); err != nil {
+		return fmt.Errorf("invalid agent subtype: %w", err)
+	}
+	// Validate API input interface for API agents
+	if payload.AgentType.Type == string(AgentTypeAPI) {
+		if err := validateInputInterface(payload.AgentType, payload.InputInterface); err != nil {
+			return fmt.Errorf("invalid inputInterface: %w", err)
+		}
+	}
+
+	// Validate runtime configurations
+	if payload.RuntimeConfigs == nil {
+		return fmt.Errorf("runtimeConfigs is required for internal agents")
+	}
+
+	if err := validateLanguage(payload.RuntimeConfigs.Language, payload.RuntimeConfigs.LanguageVersion); err != nil {
+		return fmt.Errorf("invalid language: %w", err)
+	}
+
+	// Validate environment variables if present
+	if err := validateEnvironmentVariables(payload.RuntimeConfigs.Env); err != nil {
+		return fmt.Errorf("invalid environment variables: %w", err)
+	}
+
+	return nil
+}
+
+func ValidateProjectUpdatePayload(payload spec.UpdateProjectRequest) error {
+	if err := ValidateResourceName(payload.Name, "project"); err != nil {
+		return fmt.Errorf("invalid project name: %w", err)
+	}
+
+	if err := ValidateResourceDisplayName(payload.DisplayName, "project"); err != nil {
+		return fmt.Errorf("invalid project display name: %w", err)
+	}
+
+	if payload.DeploymentPipeline == "" {
+		return fmt.Errorf("deployment pipeline cannot be empty")
+	}
+
+	return nil
+}
+
 func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
 	// Validate agent name
 	if err := ValidateResourceName(payload.Name, "agent"); err != nil {
@@ -174,6 +246,9 @@ func validateRepoDetails(repo *spec.RepositoryConfig) error {
 	if repo.Branch == "" {
 		return fmt.Errorf("repository branch cannot be empty")
 	}
+	if repo.AppPath == "" || !strings.HasPrefix(repo.AppPath, "/") {
+		return fmt.Errorf("repository appPath is required and must start with /")
+	}
 	return nil
 }
 
@@ -186,8 +261,8 @@ func validateInputInterface(agentType spec.AgentType, inputInterface *spec.Input
 		return fmt.Errorf("unsupported inputInterface type: %s", inputInterface.Type)
 	}
 	if StrPointerAsStr(agentType.SubType, "") == string(AgentSubTypeCustomAPI) {
-		if inputInterface.Schema.Path == "" {
-			return fmt.Errorf("inputInterface.schema.path is required")
+		if inputInterface.Schema.Path == "" || !strings.HasPrefix(inputInterface.Schema.Path, "/") {
+			return fmt.Errorf("inputInterface.schema.path is required and must start with /")
 		}
 		if inputInterface.Port <= 0 || inputInterface.Port > 65535 {
 			return fmt.Errorf("inputInterface.port must be a valid port number (1-65535)")

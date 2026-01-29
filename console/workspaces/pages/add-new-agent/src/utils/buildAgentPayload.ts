@@ -42,7 +42,7 @@ export const buildAgentCreationPayload = (
           },
         },
         agentType: {
-          type: "api",
+          type: "agent-api",
           subType: data.interfaceType === "CUSTOM" ? "custom-api" : "chat-api",
         },
         runtimeConfigs: {
@@ -79,7 +79,7 @@ export const buildAgentCreationPayload = (
         type: "external",
       },
       agentType: {
-        type: "api",
+        type: "agent-api",
         subType: "custom-api",
       },
     },
