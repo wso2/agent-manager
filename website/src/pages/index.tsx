@@ -162,8 +162,7 @@ function BuiltOnSection() {
                   <Heading as="h3" className="text--center">OpenTelemetry Compatible</Heading>
                   <p>
                     Fully compatible with OpenTelemetry standards for instrumentation, enabling 
-                    seamless integration with your existing observability stack. Capture traces, 
-                    metrics, and logs across popular AI frameworks including LangChain, LlamaIndex, 
+                    seamless integration to capture traces, across popular AI frameworks including LangChain, LlamaIndex, 
                     and more.
                   </p>
                 </div>
