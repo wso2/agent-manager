@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Agent Manager Service is a core component of the Agent Management Platform that handles agent deployment, management, and governing.=
+The Agent Manager Service is a core component of the Agent Manager that handles agent deployment, management, and governing.=
 
 ## Folder Structure
 

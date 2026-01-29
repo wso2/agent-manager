@@ -1,6 +1,6 @@
 # Contributing Guidelines
 
-This document establishes guidelines for using GitHub Discussions and Issues for technical conversations about the AI Agent Management Platform.
+This document establishes guidelines for using GitHub Discussions and Issues for technical conversations about the Agent Manager.
 
 ## Getting Started
 

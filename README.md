@@ -1,4 +1,4 @@
-# WSO2 AI Agent Management Platform
+# WSO2 Agent Manager
 
 [![Platform Release](https://img.shields.io/github/v/release/wso2/ai-agent-management-platform?filter=amp/*&label=platform&color=orange)](https://github.com/wso2/ai-agent-management-platform/releases?q=amp)
 [![Python Instrumentation](https://img.shields.io/github/v/release/wso2/ai-agent-management-platform?filter=amp-instrumentation/*&label=python-instrumentation&color=blue)](https://github.com/wso2/ai-agent-management-platform/releases?q=amp-instrumentation)
@@ -7,7 +7,7 @@ An open control plane designed for enterprises to deploy, manage, and govern AI 
 
 ## Overview
 
-WSO2 AI Agent Management Platform provides a comprehensive platform for enterprise AI agent management. It enables organizations to deploy AI agents (both internally hosted and externally deployed), monitor their behavior through full-stack observability, and enforce governance policies at scale.
+WSO2 Agent Manager provides a comprehensive platform for enterprise AI agent management. It enables organizations to deploy AI agents (both internally hosted and externally deployed), monitor their behavior through full-stack observability, and enforce governance policies at scale.
 
 Built on [OpenChoreo](https://github.com/openchoreo/openchoreo) for internal agent deployments, the platform leverages OpenTelemetry for extensible instrumentation across multiple AI frameworks.
 
@@ -32,7 +32,7 @@ Built on [OpenChoreo](https://github.com/openchoreo/openchoreo) for internal age
 
 ## Helm Charts
 
-Deploy WSO2 AI Agent Management Platform on Kubernetes using our Helm charts:
+Deploy WSO2 Agent Manager on Kubernetes using our Helm charts:
 
 | Chart | Description |
 |-------|-------------|
