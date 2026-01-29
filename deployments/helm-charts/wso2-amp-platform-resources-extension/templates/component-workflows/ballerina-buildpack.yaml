@@ -36,6 +36,8 @@ spec:
 
     # Developer-configurable parameters - PE-defined schema for additional build configuration
     parameters:
+      buildpackConfigs:
+        language: string | default="" description="Programming language for the buildpack"
       endpoints: "[]Endpoint | description='List of endpoints exposed'"
       environmentVariables: "[]EnvironmentVariable | description='List of environment variables'"
 
@@ -64,7 +66,7 @@ spec:
             value: ${systemParameters.repository.appPath}
           # PE-controlled hardcoded parameters
           - name: image-name
-            value: ${metadata.projectName}-${metadata.componentName}-image
+            value: ${metadata.workflowRunName}-image
           - name: image-tag
             value: v1
           # Parameters from developer-configurable parameters
@@ -72,6 +74,8 @@ spec:
             value: ${parameters.endpoints}
           - name: environment-variables
             value: ${parameters.environmentVariables}
+          - name: language
+            value: ${parameters.buildpackConfigs.language}
       serviceAccountName: workflow-sa
       workflowTemplateRef:
         clusterScope: true

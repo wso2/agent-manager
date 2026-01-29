@@ -38,6 +38,7 @@ spec:
     parameters:
       buildpackConfigs:
         googleEntryPoint: string | default="" description="Google Cloud Buildpacks entry point"
+        language: string | default="" description="Programming language for the buildpack"
         languageVersion: string | default="" description="Language version for the buildpack"
         languageVersionKey: string | default="" description="Language version key for the buildpack"
       endpoints: "[]Endpoint | description='List of endpoints exposed'"
@@ -68,12 +69,14 @@ spec:
             value: ${systemParameters.repository.appPath}
           # PE-controlled hardcoded parameters
           - name: image-name
-            value: ${metadata.projectName}-${metadata.componentName}-image
+            value: ${metadata.workflowRunName}-image
           - name: image-tag
             value: v1
           # Parameters from developer-configurable parameters
           - name: google-entry-point
             value: ${parameters.buildpackConfigs.googleEntryPoint}
+          - name: language
+            value: ${parameters.buildpackConfigs.language}
           - name: language-version
             value: ${parameters.buildpackConfigs.languageVersion}
           - name: language-version-key

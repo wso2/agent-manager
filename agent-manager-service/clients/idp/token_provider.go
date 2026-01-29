@@ -73,6 +73,7 @@ func (p *tokenProvider) GetToken(ctx context.Context) (string, error) {
 		p.mu.RUnlock()
 		return token, nil
 	}
+	slog.Debug("idp: cached access token is expired or missing")
 	p.mu.RUnlock()
 
 	// Token is expired or not present, acquire write lock and fetch new token
@@ -83,6 +84,7 @@ func (p *tokenProvider) GetToken(ctx context.Context) (string, error) {
 	if p.isTokenValid() {
 		return p.accessToken, nil
 	}
+	slog.Debug("idp: access token expired or missing, fetching new token")
 
 	// Fetch new token
 	token, expiresIn, err := p.fetchToken(ctx)
@@ -104,6 +106,7 @@ func (p *tokenProvider) GetToken(ctx context.Context) (string, error) {
 // Must be called with at least a read lock held
 func (p *tokenProvider) isTokenValid() bool {
 	if p.accessToken == "" {
+		slog.Debug("idp: no cached access token found")
 		return false
 	}
 	// Consider token invalid if it expires within the buffer period

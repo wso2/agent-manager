@@ -82,7 +82,7 @@ func TestBuildAgent(t *testing.T) {
 		// Validate response fields
 		require.Equal(t, buildTestAgentName, build.AgentName)
 		require.Equal(t, buildTestProjName, build.ProjectName)
-		require.Equal(t, commitId, build.CommitID)
+		require.Equal(t, commitId, build.BuildParameters.CommitID)
 		require.Equal(t, "BuildInitiated", build.Status)
 		require.NotEmpty(t, build.Name)
 		require.NotEmpty(t, build.UUID)

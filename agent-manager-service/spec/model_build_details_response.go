@@ -20,36 +20,35 @@ var _ MappedNullable = &BuildDetailsResponse{}
 
 // BuildDetailsResponse struct for BuildDetailsResponse
 type BuildDetailsResponse struct {
-	BuildId     *string    `json:"buildId,omitempty"`
-	BuildName   string     `json:"buildName"`
-	ProjectName string     `json:"projectName"`
-	AgentName   string     `json:"agentName"`
-	CommitId    string     `json:"commitId"`
-	StartedAt   time.Time  `json:"startedAt"`
-	EndedAt     *time.Time `json:"endedAt,omitempty"`
-	ImageId     *string    `json:"imageId,omitempty"`
-	Status      *string    `json:"status,omitempty"`
-	Branch      string     `json:"branch"`
+	BuildId         *string         `json:"buildId,omitempty"`
+	BuildName       string          `json:"buildName"`
+	ProjectName     string          `json:"projectName"`
+	AgentName       string          `json:"agentName"`
+	StartedAt       time.Time       `json:"startedAt"`
+	EndedAt         *time.Time      `json:"endedAt,omitempty"`
+	ImageId         *string         `json:"imageId,omitempty"`
+	Status          *string         `json:"status,omitempty"`
+	BuildParameters BuildParameters `json:"buildParameters"`
 	// Build completion percentage (0-100)
 	Percent *float32 `json:"percent,omitempty"`
 	// Array of build steps with their status
 	Steps []BuildStep `json:"steps,omitempty"`
 	// Build duration in seconds
-	DurationSeconds *int32 `json:"durationSeconds,omitempty"`
+	DurationSeconds *int32          `json:"durationSeconds,omitempty"`
+	InputInterface  *InputInterface `json:"inputInterface,omitempty"`
 }
 
 // NewBuildDetailsResponse instantiates a new BuildDetailsResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewBuildDetailsResponse(buildName string, projectName string, agentName string, commitId string, startedAt time.Time, branch string) *BuildDetailsResponse {
+func NewBuildDetailsResponse(buildName string, projectName string, agentName string, startedAt time.Time, buildParameters BuildParameters) *BuildDetailsResponse {
 	this := BuildDetailsResponse{}
 	this.BuildName = buildName
 	this.ProjectName = projectName
 	this.AgentName = agentName
-	this.CommitId = commitId
 	this.StartedAt = startedAt
-	this.Branch = branch
+	this.BuildParameters = buildParameters
 	return &this
 }
 
@@ -163,30 +162,6 @@ func (o *BuildDetailsResponse) GetAgentNameOk() (*string, bool) {
 // SetAgentName sets field value
 func (o *BuildDetailsResponse) SetAgentName(v string) {
 	o.AgentName = v
-}
-
-// GetCommitId returns the CommitId field value
-func (o *BuildDetailsResponse) GetCommitId() string {
-	if o == nil {
-		var ret string
-		return ret
-	}
-
-	return o.CommitId
-}
-
-// GetCommitIdOk returns a tuple with the CommitId field value
-// and a boolean to check if the value has been set.
-func (o *BuildDetailsResponse) GetCommitIdOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.CommitId, true
-}
-
-// SetCommitId sets field value
-func (o *BuildDetailsResponse) SetCommitId(v string) {
-	o.CommitId = v
 }
 
 // GetStartedAt returns the StartedAt field value
@@ -309,28 +284,28 @@ func (o *BuildDetailsResponse) SetStatus(v string) {
 	o.Status = &v
 }
 
-// GetBranch returns the Branch field value
-func (o *BuildDetailsResponse) GetBranch() string {
+// GetBuildParameters returns the BuildParameters field value
+func (o *BuildDetailsResponse) GetBuildParameters() BuildParameters {
 	if o == nil {
-		var ret string
+		var ret BuildParameters
 		return ret
 	}
 
-	return o.Branch
+	return o.BuildParameters
 }
 
-// GetBranchOk returns a tuple with the Branch field value
+// GetBuildParametersOk returns a tuple with the BuildParameters field value
 // and a boolean to check if the value has been set.
-func (o *BuildDetailsResponse) GetBranchOk() (*string, bool) {
+func (o *BuildDetailsResponse) GetBuildParametersOk() (*BuildParameters, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.Branch, true
+	return &o.BuildParameters, true
 }
 
-// SetBranch sets field value
-func (o *BuildDetailsResponse) SetBranch(v string) {
-	o.Branch = v
+// SetBuildParameters sets field value
+func (o *BuildDetailsResponse) SetBuildParameters(v BuildParameters) {
+	o.BuildParameters = v
 }
 
 // GetPercent returns the Percent field value if set, zero value otherwise.
@@ -429,6 +404,38 @@ func (o *BuildDetailsResponse) SetDurationSeconds(v int32) {
 	o.DurationSeconds = &v
 }
 
+// GetInputInterface returns the InputInterface field value if set, zero value otherwise.
+func (o *BuildDetailsResponse) GetInputInterface() InputInterface {
+	if o == nil || IsNil(o.InputInterface) {
+		var ret InputInterface
+		return ret
+	}
+	return *o.InputInterface
+}
+
+// GetInputInterfaceOk returns a tuple with the InputInterface field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *BuildDetailsResponse) GetInputInterfaceOk() (*InputInterface, bool) {
+	if o == nil || IsNil(o.InputInterface) {
+		return nil, false
+	}
+	return o.InputInterface, true
+}
+
+// HasInputInterface returns a boolean if a field has been set.
+func (o *BuildDetailsResponse) HasInputInterface() bool {
+	if o != nil && !IsNil(o.InputInterface) {
+		return true
+	}
+
+	return false
+}
+
+// SetInputInterface gets a reference to the given InputInterface and assigns it to the InputInterface field.
+func (o *BuildDetailsResponse) SetInputInterface(v InputInterface) {
+	o.InputInterface = &v
+}
+
 func (o BuildDetailsResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -445,7 +452,6 @@ func (o BuildDetailsResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["buildName"] = o.BuildName
 	toSerialize["projectName"] = o.ProjectName
 	toSerialize["agentName"] = o.AgentName
-	toSerialize["commitId"] = o.CommitId
 	toSerialize["startedAt"] = o.StartedAt
 	if !IsNil(o.EndedAt) {
 		toSerialize["endedAt"] = o.EndedAt
@@ -456,7 +462,7 @@ func (o BuildDetailsResponse) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Status) {
 		toSerialize["status"] = o.Status
 	}
-	toSerialize["branch"] = o.Branch
+	toSerialize["buildParameters"] = o.BuildParameters
 	if !IsNil(o.Percent) {
 		toSerialize["percent"] = o.Percent
 	}
@@ -465,6 +471,9 @@ func (o BuildDetailsResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.DurationSeconds) {
 		toSerialize["durationSeconds"] = o.DurationSeconds
+	}
+	if !IsNil(o.InputInterface) {
+		toSerialize["inputInterface"] = o.InputInterface
 	}
 	return toSerialize, nil
 }

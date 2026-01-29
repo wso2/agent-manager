@@ -69,9 +69,11 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoSvcClientMock {
 				Name:        fmt.Sprintf("%s-build-1", agentName),
 				AgentName:   agentName,
 				ProjectName: projName,
-				CommitID:    commitId,
 				Status:      "BuildInitiated",
 				StartedAt:   time.Now(),
+				BuildParameters: models.BuildParameters{
+					CommitID: commitId,
+				},
 			}, nil
 		},
 		GetDeploymentPipelineFunc: func(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error) {

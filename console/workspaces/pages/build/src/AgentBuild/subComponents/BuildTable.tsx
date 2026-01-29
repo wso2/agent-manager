@@ -109,9 +109,9 @@ export function BuildTable() {
     () =>
       builds?.builds.sort(
         (a, b) =>
-          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
       ),
-    [builds]
+    [builds],
   );
 
   const rows = useMemo(
@@ -121,15 +121,15 @@ export function BuildTable() {
           ({
             id: build.buildName,
             actions: build.buildName,
-            branch: build.branch,
-            commit: build.commitId,
+            branch: build.buildParameters.branch,
+            commit: build.buildParameters.commitId,
             startedAt: build.startedAt,
             status: build.status as BuildStatus,
             title: build.buildName,
             imageId: build.imageId ?? "busybox",
-          }) as BuildRow
+          }) as BuildRow,
       ) ?? [],
-    [orderedBuilds]
+    [orderedBuilds],
   );
 
   const handleBuildClick = useCallback(
@@ -139,7 +139,7 @@ export function BuildTable() {
       next.set("panel", panel);
       setSearchParams(next);
     },
-    [searchParams, setSearchParams]
+    [searchParams, setSearchParams],
   );
 
   const clearSelectedBuild = useCallback(() => {
@@ -191,7 +191,7 @@ export function BuildTable() {
               color: BUILD_STATUS_COLOR_MAP[value as BuildStatus],
               label: value as string,
             },
-            theme
+            theme,
           ),
       },
       {
@@ -220,7 +220,7 @@ export function BuildTable() {
               to={`${generatePath(
                 absoluteRouteMap.children.org.children.projects.children.agents
                   .children.deployment.path,
-                { orgId, projectId, agentId }
+                { orgId, projectId, agentId },
               )}?deployPanel=open&selectedBuild=${row.id}`}
               size="small"
               startIcon={
@@ -240,7 +240,7 @@ export function BuildTable() {
         ),
       },
     ],
-    [theme, handleBuildClick, orgId, projectId, agentId]
+    [theme, handleBuildClick, orgId, projectId, agentId],
   );
 
   // Define initial state for sorting - most recent builds first
@@ -255,7 +255,7 @@ export function BuildTable() {
         ],
       },
     }),
-    []
+    [],
   );
 
   return (

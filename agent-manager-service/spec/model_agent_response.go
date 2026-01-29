@@ -31,6 +31,7 @@ type AgentResponse struct {
 	Provisioning   Provisioning          `json:"provisioning"`
 	AgentType      AgentType             `json:"agentType"`
 	RuntimeConfigs *RuntimeConfiguration `json:"runtimeConfigs,omitempty"`
+	InputInterface *InputInterface       `json:"inputInterface,omitempty"`
 }
 
 // NewAgentResponse instantiates a new AgentResponse object
@@ -314,6 +315,38 @@ func (o *AgentResponse) SetRuntimeConfigs(v RuntimeConfiguration) {
 	o.RuntimeConfigs = &v
 }
 
+// GetInputInterface returns the InputInterface field value if set, zero value otherwise.
+func (o *AgentResponse) GetInputInterface() InputInterface {
+	if o == nil || IsNil(o.InputInterface) {
+		var ret InputInterface
+		return ret
+	}
+	return *o.InputInterface
+}
+
+// GetInputInterfaceOk returns a tuple with the InputInterface field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *AgentResponse) GetInputInterfaceOk() (*InputInterface, bool) {
+	if o == nil || IsNil(o.InputInterface) {
+		return nil, false
+	}
+	return o.InputInterface, true
+}
+
+// HasInputInterface returns a boolean if a field has been set.
+func (o *AgentResponse) HasInputInterface() bool {
+	if o != nil && !IsNil(o.InputInterface) {
+		return true
+	}
+
+	return false
+}
+
+// SetInputInterface gets a reference to the given InputInterface and assigns it to the InputInterface field.
+func (o *AgentResponse) SetInputInterface(v InputInterface) {
+	o.InputInterface = &v
+}
+
 func (o AgentResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -337,6 +370,9 @@ func (o AgentResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["agentType"] = o.AgentType
 	if !IsNil(o.RuntimeConfigs) {
 		toSerialize["runtimeConfigs"] = o.RuntimeConfigs
+	}
+	if !IsNil(o.InputInterface) {
+		toSerialize["inputInterface"] = o.InputInterface
 	}
 	return toSerialize, nil
 }

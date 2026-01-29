@@ -22,22 +22,19 @@ type InputInterface struct {
 	// Type of the endpoint (e.g., HTTP)
 	Type string `json:"type"`
 	// Port number
-	Port   int32                `json:"port"`
-	Schema InputInterfaceSchema `json:"schema"`
+	Port   *int32                `json:"port,omitempty"`
+	Schema *InputInterfaceSchema `json:"schema,omitempty"`
 	// Base path for the endpoint
-	BasePath string `json:"basePath"`
+	BasePath *string `json:"basePath,omitempty"`
 }
 
 // NewInputInterface instantiates a new InputInterface object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewInputInterface(type_ string, port int32, schema InputInterfaceSchema, basePath string) *InputInterface {
+func NewInputInterface(type_ string) *InputInterface {
 	this := InputInterface{}
 	this.Type = type_
-	this.Port = port
-	this.Schema = schema
-	this.BasePath = basePath
 	return &this
 }
 
@@ -73,76 +70,100 @@ func (o *InputInterface) SetType(v string) {
 	o.Type = v
 }
 
-// GetPort returns the Port field value
+// GetPort returns the Port field value if set, zero value otherwise.
 func (o *InputInterface) GetPort() int32 {
-	if o == nil {
+	if o == nil || IsNil(o.Port) {
 		var ret int32
 		return ret
 	}
-
-	return o.Port
+	return *o.Port
 }
 
-// GetPortOk returns a tuple with the Port field value
+// GetPortOk returns a tuple with the Port field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *InputInterface) GetPortOk() (*int32, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.Port) {
 		return nil, false
 	}
-	return &o.Port, true
+	return o.Port, true
 }
 
-// SetPort sets field value
+// HasPort returns a boolean if a field has been set.
+func (o *InputInterface) HasPort() bool {
+	if o != nil && !IsNil(o.Port) {
+		return true
+	}
+
+	return false
+}
+
+// SetPort gets a reference to the given int32 and assigns it to the Port field.
 func (o *InputInterface) SetPort(v int32) {
-	o.Port = v
+	o.Port = &v
 }
 
-// GetSchema returns the Schema field value
+// GetSchema returns the Schema field value if set, zero value otherwise.
 func (o *InputInterface) GetSchema() InputInterfaceSchema {
-	if o == nil {
+	if o == nil || IsNil(o.Schema) {
 		var ret InputInterfaceSchema
 		return ret
 	}
-
-	return o.Schema
+	return *o.Schema
 }
 
-// GetSchemaOk returns a tuple with the Schema field value
+// GetSchemaOk returns a tuple with the Schema field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *InputInterface) GetSchemaOk() (*InputInterfaceSchema, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.Schema) {
 		return nil, false
 	}
-	return &o.Schema, true
+	return o.Schema, true
 }
 
-// SetSchema sets field value
+// HasSchema returns a boolean if a field has been set.
+func (o *InputInterface) HasSchema() bool {
+	if o != nil && !IsNil(o.Schema) {
+		return true
+	}
+
+	return false
+}
+
+// SetSchema gets a reference to the given InputInterfaceSchema and assigns it to the Schema field.
 func (o *InputInterface) SetSchema(v InputInterfaceSchema) {
-	o.Schema = v
+	o.Schema = &v
 }
 
-// GetBasePath returns the BasePath field value
+// GetBasePath returns the BasePath field value if set, zero value otherwise.
 func (o *InputInterface) GetBasePath() string {
-	if o == nil {
+	if o == nil || IsNil(o.BasePath) {
 		var ret string
 		return ret
 	}
-
-	return o.BasePath
+	return *o.BasePath
 }
 
-// GetBasePathOk returns a tuple with the BasePath field value
+// GetBasePathOk returns a tuple with the BasePath field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *InputInterface) GetBasePathOk() (*string, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.BasePath) {
 		return nil, false
 	}
-	return &o.BasePath, true
+	return o.BasePath, true
 }
 
-// SetBasePath sets field value
+// HasBasePath returns a boolean if a field has been set.
+func (o *InputInterface) HasBasePath() bool {
+	if o != nil && !IsNil(o.BasePath) {
+		return true
+	}
+
+	return false
+}
+
+// SetBasePath gets a reference to the given string and assigns it to the BasePath field.
 func (o *InputInterface) SetBasePath(v string) {
-	o.BasePath = v
+	o.BasePath = &v
 }
 
 func (o InputInterface) MarshalJSON() ([]byte, error) {
@@ -156,9 +177,15 @@ func (o InputInterface) MarshalJSON() ([]byte, error) {
 func (o InputInterface) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["type"] = o.Type
-	toSerialize["port"] = o.Port
-	toSerialize["schema"] = o.Schema
-	toSerialize["basePath"] = o.BasePath
+	if !IsNil(o.Port) {
+		toSerialize["port"] = o.Port
+	}
+	if !IsNil(o.Schema) {
+		toSerialize["schema"] = o.Schema
+	}
+	if !IsNil(o.BasePath) {
+		toSerialize["basePath"] = o.BasePath
+	}
 	return toSerialize, nil
 }
 

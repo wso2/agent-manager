@@ -1749,6 +1749,8 @@ components:
           $ref: "#/components/schemas/AgentType"
         runtimeConfigs:
           $ref: "#/components/schemas/RuntimeConfiguration"
+        inputInterface:
+          $ref: "#/components/schemas/InputInterface"
       required:
         - uuid
         - name
@@ -1847,6 +1849,39 @@ components:
           description: Path within the repository where the source code resides
           pattern: "^/.*"
           example: "/my-agent"
+    BuildParameters:
+      type: object
+      description: Parameters used for the build
+      properties:
+        repoUrl:
+          type: string
+          description: Repository URL
+        appPath:
+          type: string
+          description: Path within the repository
+        branch:
+          type: string
+          description: Branch name
+        commitId:
+          type: string
+          description: Commit ID
+        language:
+          type: string
+          description: Programming language
+        languageVersion:
+          type: string
+          description: Language version
+        runCommand:
+          type: string
+          description: Command to run the application
+      required:
+        - commitId
+        - branch
+        - repoUrl
+        - appPath
+        - language
+        - languageVersion
+        - runCommand
     BuildResponse:
       type: object
       properties:
@@ -1857,8 +1892,6 @@ components:
         projectName:
           type: string
         agentName:
-          type: string
-        commitId:
           type: string
         startedAt:
           type: string
@@ -1871,15 +1904,14 @@ components:
         status:
           type: string
           enum: [BuildInProgress, BuildTriggered, BuildCompleted]
-        branch:
-          type: string
+        buildParameters:
+          $ref: "#/components/schemas/BuildParameters"
       required:
         - buildName
         - projectName
         - agentName
         - startedAt
-        - commitId
-        - branch
+        - buildParameters
     LogEntry:
       type: object
       properties:
@@ -1965,6 +1997,8 @@ components:
               type: integer
               description: Build duration in seconds
               minimum: 0
+            inputInterface:
+              $ref: "#/components/schemas/InputInterface"
 
     # Deployment Schemas
     DeployAgentRequest:
@@ -2011,9 +2045,6 @@ components:
       description: Endpoint configurations
       required:
         - type
-        - port
-        - schema
-        - basePath
       properties:
         type:
           type: string
@@ -2024,18 +2055,20 @@ components:
           minimum: 1
           maximum: 65535
         schema:
-          type: object
-          properties:
-            path:
-              type: string
-              description: Path to OpenAPI schema file
-              pattern: "^/.*"
-              example: "/openapi.yaml"
-          required:
-            - path
+          $ref: "#/components/schemas/InputInterfaceSchema"
         basePath:
           type: string
           description: Base path for the endpoint
+    InputInterfaceSchema:
+      type: object
+      properties:
+        path:
+          type: string
+          description: Path to OpenAPI schema file
+          pattern: "^/.*"
+          example: "/openapi.yaml"
+      required:
+        - path
     EndpointSchema:
       type: object
       required:

@@ -264,10 +264,10 @@ func validateInputInterface(agentType spec.AgentType, inputInterface *spec.Input
 		if inputInterface.Schema.Path == "" || !strings.HasPrefix(inputInterface.Schema.Path, "/") {
 			return fmt.Errorf("inputInterface.schema.path is required and must start with /")
 		}
-		if inputInterface.Port <= 0 || inputInterface.Port > 65535 {
+		if IntPointerAsInt(inputInterface.Port, 0) <= 0 || IntPointerAsInt(inputInterface.Port, 0) > 65535 {
 			return fmt.Errorf("inputInterface.port must be a valid port number (1-65535)")
 		}
-		if inputInterface.BasePath == "" {
+		if StrPointerAsStr(inputInterface.BasePath, "") == "" {
 			return fmt.Errorf("inputInterface.basePath is required")
 		}
 	}

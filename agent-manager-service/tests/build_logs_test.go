@@ -91,7 +91,7 @@ func TestGetBuildLogs(t *testing.T) {
 		observabilityClient := createMockObservabilityClientForBuildLogs()
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		// Override to return existing build
-		openChoreoClient.GetComponentWorkflowFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
+		openChoreoClient.GetComponentWorkflowRunFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
 			return &models.BuildDetailsResponse{
 				BuildResponse: models.BuildResponse{
 					UUID:        "build-uid-456",
@@ -143,7 +143,7 @@ func TestGetBuildLogs(t *testing.T) {
 		// Validate service calls
 		require.Len(t, observabilityClient.GetBuildLogsCalls(), 1)
 		require.Len(t, openChoreoClient.GetAgentComponentCalls(), 1)
-		require.Len(t, openChoreoClient.GetComponentWorkflowCalls(), 1)
+		require.Len(t, openChoreoClient.GetComponentWorkflowRunCalls(), 1)
 
 		// Validate call parameters
 		getBuildLogsCall := observabilityClient.GetBuildLogsCalls()[0]
@@ -154,7 +154,7 @@ func TestGetBuildLogs(t *testing.T) {
 		require.Equal(t, buildLogsProjName, getComponentCall.ProjName)
 		require.Equal(t, buildLogsAgentName, getComponentCall.AgentName)
 
-		getWorkflowCall := openChoreoClient.GetComponentWorkflowCalls()[0]
+		getWorkflowCall := openChoreoClient.GetComponentWorkflowRunCalls()[0]
 		require.Equal(t, buildLogsOrgName, getWorkflowCall.OrgName)
 		require.Equal(t, buildLogsProjName, getWorkflowCall.ProjName)
 		require.Equal(t, buildLogsAgentName, getWorkflowCall.ComponentName)
@@ -191,7 +191,7 @@ func TestGetBuildLogs(t *testing.T) {
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				obsClient := createMockObservabilityClientForBuildLogs()
 				openClient := apitestutils.CreateMockOpenChoreoClient()
-				openClient.GetComponentWorkflowFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
+				openClient.GetComponentWorkflowRunFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
 					return &models.BuildDetailsResponse{
 						BuildResponse: models.BuildResponse{
 							UUID:        "build-uid-456",
@@ -225,7 +225,7 @@ func TestGetBuildLogs(t *testing.T) {
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				obsClient := createMockObservabilityClientForBuildLogs()
 				openClient := apitestutils.CreateMockOpenChoreoClient()
-				openClient.GetComponentWorkflowFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
+				openClient.GetComponentWorkflowRunFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
 					return nil, utils.ErrBuildNotFound
 				}
 				return obsClient, openClient
@@ -240,7 +240,7 @@ func TestGetBuildLogs(t *testing.T) {
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				obsClient := createMockObservabilityClientForBuildLogs()
 				openClient := apitestutils.CreateMockOpenChoreoClient()
-				openClient.GetComponentWorkflowFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
+				openClient.GetComponentWorkflowRunFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
 					return &models.BuildDetailsResponse{
 						BuildResponse: models.BuildResponse{
 							UUID:        "build-uid-456",
@@ -279,7 +279,7 @@ func TestGetBuildLogs(t *testing.T) {
 			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
 				obsClient := createMockObservabilityClientForBuildLogs()
 				openClient := apitestutils.CreateMockOpenChoreoClient()
-				openClient.GetComponentWorkflowFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
+				openClient.GetComponentWorkflowRunFunc = func(ctx context.Context, orgName, projName, componentName, buildName string) (*models.BuildDetailsResponse, error) {
 					return nil, fmt.Errorf("workflow service error")
 				}
 				return obsClient, openClient
