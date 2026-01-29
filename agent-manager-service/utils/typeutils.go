@@ -41,3 +41,10 @@ func ParseUUID(s string) (uuid.UUID, error) {
 func BoolAsString(v bool) string {
 	return strconv.FormatBool(v)
 }
+
+func IntPointerAsInt(v *int32, defaultValue int32) int32 {
+	if v == nil {
+		return defaultValue
+	}
+	return *v
+}
