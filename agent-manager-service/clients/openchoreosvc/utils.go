@@ -126,7 +126,7 @@ func getInputInterfaceConfig(req *spec.CreateAgentRequest) (int32, string) {
 	if req.AgentType.Type == string(utils.AgentTypeAPI) && agentSubType == string(utils.AgentSubTypeChatAPI) {
 		return int32(config.GetConfig().DefaultChatAPI.DefaultHTTPPort), config.GetConfig().DefaultChatAPI.DefaultBasePath
 	}
-	return utils.IntPointerAsInt(req.InputInterface.Port,0), utils.StrPointerAsStr(req.InputInterface.BasePath, "")
+	return utils.IntPointerAsInt(req.InputInterface.Port, 0), utils.StrPointerAsStr(req.InputInterface.BasePath, "")
 }
 
 func buildEnvironmentVariablesArray(req *spec.CreateAgentRequest) []EnvironmentVariable {

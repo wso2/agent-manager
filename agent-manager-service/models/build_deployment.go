@@ -97,7 +97,7 @@ type BuildStep struct {
 // InputInterface represents endpoint configuration
 type InputInterface struct {
 	Type     string                `json:"type"`
-	Port     int32                   `json:"port,omitempty"`
+	Port     int32                 `json:"port,omitempty"`
 	BasePath string                `json:"basePath,omitempty"`
 	Schema   *InputInterfaceSchema `json:"schema,omitempty"`
 }

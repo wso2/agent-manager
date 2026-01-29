@@ -48,8 +48,8 @@ import (
 //			GetAgentEndpointsFunc: func(ctx context.Context, orgName string, projName string, agentName string, environment string) (map[string]models.EndpointsResponse, error) {
 //				panic("mock out the GetAgentEndpoints method")
 //			},
-//			GetComponentWorkflowFunc: func(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
-//				panic("mock out the GetComponentWorkflow method")
+//			GetComponentWorkflowRunFunc: func(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
+//				panic("mock out the GetComponentWorkflowRun method")
 //			},
 //			GetDataplanesForOrganizationFunc: func(ctx context.Context, orgName string) ([]*models.DataPlaneResponse, error) {
 //				panic("mock out the GetDataplanesForOrganization method")
@@ -75,8 +75,8 @@ import (
 //			ListAgentComponentsFunc: func(ctx context.Context, orgName string, projName string) ([]*openchoreosvc.AgentComponent, error) {
 //				panic("mock out the ListAgentComponents method")
 //			},
-//			ListComponentWorkflowsFunc: func(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error) {
-//				panic("mock out the ListComponentWorkflows method")
+//			ListComponentWorkflowRunsFunc: func(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error) {
+//				panic("mock out the ListComponentWorkflowRuns method")
 //			},
 //			ListOrgEnvironmentsFunc: func(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error) {
 //				panic("mock out the ListOrgEnvironments method")
@@ -133,8 +133,8 @@ type OpenChoreoSvcClientMock struct {
 	// GetAgentEndpointsFunc mocks the GetAgentEndpoints method.
 	GetAgentEndpointsFunc func(ctx context.Context, orgName string, projName string, agentName string, environment string) (map[string]models.EndpointsResponse, error)
 
-	// GetComponentWorkflowFunc mocks the GetComponentWorkflow method.
-	GetComponentWorkflowFunc func(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error)
+	// GetComponentWorkflowRunFunc mocks the GetComponentWorkflowRun method.
+	GetComponentWorkflowRunFunc func(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error)
 
 	// GetDataplanesForOrganizationFunc mocks the GetDataplanesForOrganization method.
 	GetDataplanesForOrganizationFunc func(ctx context.Context, orgName string) ([]*models.DataPlaneResponse, error)
@@ -160,8 +160,8 @@ type OpenChoreoSvcClientMock struct {
 	// ListAgentComponentsFunc mocks the ListAgentComponents method.
 	ListAgentComponentsFunc func(ctx context.Context, orgName string, projName string) ([]*openchoreosvc.AgentComponent, error)
 
-	// ListComponentWorkflowsFunc mocks the ListComponentWorkflows method.
-	ListComponentWorkflowsFunc func(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error)
+	// ListComponentWorkflowRunsFunc mocks the ListComponentWorkflowRuns method.
+	ListComponentWorkflowRunsFunc func(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error)
 
 	// ListOrgEnvironmentsFunc mocks the ListOrgEnvironments method.
 	ListOrgEnvironmentsFunc func(ctx context.Context, orgName string) ([]*models.EnvironmentResponse, error)
@@ -303,8 +303,8 @@ type OpenChoreoSvcClientMock struct {
 			// Environment is the environment argument value.
 			Environment string
 		}
-		// GetComponentWorkflow holds details about calls to the GetComponentWorkflow method.
-		GetComponentWorkflow []struct {
+		// GetComponentWorkflowRun holds details about calls to the GetComponentWorkflowRun method.
+		GetComponentWorkflowRun []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// OrgName is the orgName argument value.
@@ -386,8 +386,8 @@ type OpenChoreoSvcClientMock struct {
 			// ProjName is the projName argument value.
 			ProjName string
 		}
-		// ListComponentWorkflows holds details about calls to the ListComponentWorkflows method.
-		ListComponentWorkflows []struct {
+		// ListComponentWorkflowRuns holds details about calls to the ListComponentWorkflowRuns method.
+		ListComponentWorkflowRuns []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// OrgName is the orgName argument value.
@@ -464,7 +464,7 @@ type OpenChoreoSvcClientMock struct {
 	lockGetAgentConfigurations                sync.RWMutex
 	lockGetAgentDeployments                   sync.RWMutex
 	lockGetAgentEndpoints                     sync.RWMutex
-	lockGetComponentWorkflow                  sync.RWMutex
+	lockGetComponentWorkflowRun               sync.RWMutex
 	lockGetDataplanesForOrganization          sync.RWMutex
 	lockGetDeploymentPipeline                 sync.RWMutex
 	lockGetDeploymentPipelinesForOrganization sync.RWMutex
@@ -473,7 +473,7 @@ type OpenChoreoSvcClientMock struct {
 	lockGetProject                            sync.RWMutex
 	lockIsAgentComponentExists                sync.RWMutex
 	lockListAgentComponents                   sync.RWMutex
-	lockListComponentWorkflows                sync.RWMutex
+	lockListComponentWorkflowRuns             sync.RWMutex
 	lockListOrgEnvironments                   sync.RWMutex
 	lockListOrganizations                     sync.RWMutex
 	lockListProjects                          sync.RWMutex
@@ -942,10 +942,10 @@ func (mock *OpenChoreoSvcClientMock) GetAgentEndpointsCalls() []struct {
 	return calls
 }
 
-// GetComponentWorkflow calls GetComponentWorkflowFunc.
-func (mock *OpenChoreoSvcClientMock) GetComponentWorkflow(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
-	if mock.GetComponentWorkflowFunc == nil {
-		panic("OpenChoreoSvcClientMock.GetComponentWorkflowFunc: method is nil but OpenChoreoSvcClient.GetComponentWorkflow was just called")
+// GetComponentWorkflowRun calls GetComponentWorkflowRunFunc.
+func (mock *OpenChoreoSvcClientMock) GetComponentWorkflowRun(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
+	if mock.GetComponentWorkflowRunFunc == nil {
+		panic("OpenChoreoSvcClientMock.GetComponentWorkflowRunFunc: method is nil but OpenChoreoSvcClient.GetComponentWorkflowRun was just called")
 	}
 	callInfo := struct {
 		Ctx           context.Context
@@ -960,17 +960,17 @@ func (mock *OpenChoreoSvcClientMock) GetComponentWorkflow(ctx context.Context, o
 		ComponentName: componentName,
 		BuildName:     buildName,
 	}
-	mock.lockGetComponentWorkflow.Lock()
-	mock.calls.GetComponentWorkflow = append(mock.calls.GetComponentWorkflow, callInfo)
-	mock.lockGetComponentWorkflow.Unlock()
-	return mock.GetComponentWorkflowFunc(ctx, orgName, projName, componentName, buildName)
+	mock.lockGetComponentWorkflowRun.Lock()
+	mock.calls.GetComponentWorkflowRun = append(mock.calls.GetComponentWorkflowRun, callInfo)
+	mock.lockGetComponentWorkflowRun.Unlock()
+	return mock.GetComponentWorkflowRunFunc(ctx, orgName, projName, componentName, buildName)
 }
 
-// GetComponentWorkflowCalls gets all the calls that were made to GetComponentWorkflow.
+// GetComponentWorkflowRunCalls gets all the calls that were made to GetComponentWorkflowRun.
 // Check the length with:
 //
-//	len(mockedOpenChoreoSvcClient.GetComponentWorkflowCalls())
-func (mock *OpenChoreoSvcClientMock) GetComponentWorkflowCalls() []struct {
+//	len(mockedOpenChoreoSvcClient.GetComponentWorkflowRunCalls())
+func (mock *OpenChoreoSvcClientMock) GetComponentWorkflowRunCalls() []struct {
 	Ctx           context.Context
 	OrgName       string
 	ProjName      string
@@ -984,9 +984,9 @@ func (mock *OpenChoreoSvcClientMock) GetComponentWorkflowCalls() []struct {
 		ComponentName string
 		BuildName     string
 	}
-	mock.lockGetComponentWorkflow.RLock()
-	calls = mock.calls.GetComponentWorkflow
-	mock.lockGetComponentWorkflow.RUnlock()
+	mock.lockGetComponentWorkflowRun.RLock()
+	calls = mock.calls.GetComponentWorkflowRun
+	mock.lockGetComponentWorkflowRun.RUnlock()
 	return calls
 }
 
@@ -1306,10 +1306,10 @@ func (mock *OpenChoreoSvcClientMock) ListAgentComponentsCalls() []struct {
 	return calls
 }
 
-// ListComponentWorkflows calls ListComponentWorkflowsFunc.
-func (mock *OpenChoreoSvcClientMock) ListComponentWorkflows(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error) {
-	if mock.ListComponentWorkflowsFunc == nil {
-		panic("OpenChoreoSvcClientMock.ListComponentWorkflowsFunc: method is nil but OpenChoreoSvcClient.ListComponentWorkflows was just called")
+// ListComponentWorkflowRuns calls ListComponentWorkflowRunsFunc.
+func (mock *OpenChoreoSvcClientMock) ListComponentWorkflowRuns(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error) {
+	if mock.ListComponentWorkflowRunsFunc == nil {
+		panic("OpenChoreoSvcClientMock.ListComponentWorkflowRunsFunc: method is nil but OpenChoreoSvcClient.ListComponentWorkflowRuns was just called")
 	}
 	callInfo := struct {
 		Ctx           context.Context
@@ -1322,17 +1322,17 @@ func (mock *OpenChoreoSvcClientMock) ListComponentWorkflows(ctx context.Context,
 		ProjName:      projName,
 		ComponentName: componentName,
 	}
-	mock.lockListComponentWorkflows.Lock()
-	mock.calls.ListComponentWorkflows = append(mock.calls.ListComponentWorkflows, callInfo)
-	mock.lockListComponentWorkflows.Unlock()
-	return mock.ListComponentWorkflowsFunc(ctx, orgName, projName, componentName)
+	mock.lockListComponentWorkflowRuns.Lock()
+	mock.calls.ListComponentWorkflowRuns = append(mock.calls.ListComponentWorkflowRuns, callInfo)
+	mock.lockListComponentWorkflowRuns.Unlock()
+	return mock.ListComponentWorkflowRunsFunc(ctx, orgName, projName, componentName)
 }
 
-// ListComponentWorkflowsCalls gets all the calls that were made to ListComponentWorkflows.
+// ListComponentWorkflowRunsCalls gets all the calls that were made to ListComponentWorkflowRuns.
 // Check the length with:
 //
-//	len(mockedOpenChoreoSvcClient.ListComponentWorkflowsCalls())
-func (mock *OpenChoreoSvcClientMock) ListComponentWorkflowsCalls() []struct {
+//	len(mockedOpenChoreoSvcClient.ListComponentWorkflowRunsCalls())
+func (mock *OpenChoreoSvcClientMock) ListComponentWorkflowRunsCalls() []struct {
 	Ctx           context.Context
 	OrgName       string
 	ProjName      string
@@ -1344,9 +1344,9 @@ func (mock *OpenChoreoSvcClientMock) ListComponentWorkflowsCalls() []struct {
 		ProjName      string
 		ComponentName string
 	}
-	mock.lockListComponentWorkflows.RLock()
-	calls = mock.calls.ListComponentWorkflows
-	mock.lockListComponentWorkflows.RUnlock()
+	mock.lockListComponentWorkflowRuns.RLock()
+	calls = mock.calls.ListComponentWorkflowRuns
+	mock.lockListComponentWorkflowRuns.RUnlock()
 	return calls
 }
 
