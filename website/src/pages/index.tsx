@@ -18,12 +18,12 @@ function HomepageHeader() {
         <p className="hero__subtitle">{siteConfig.tagline}</p>
         <div className={styles.buttons}>
           <Link
-            className="button button--primary button--lg"
+            className="button button--secondary button--lg"
             to="/docs/intro">
             Get Started →
           </Link>
           <Link
-            className="button button--secondary button--lg margin-left--md"
+            className="button button--outline button--lg margin-left--md"
             to="https://github.com/wso2/ai-agent-management-platform">
             View on GitHub
           </Link>
