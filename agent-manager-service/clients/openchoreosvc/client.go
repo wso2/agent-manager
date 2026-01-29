@@ -683,7 +683,8 @@ func (k *openChoreoSvcClient) ListComponentWorkflowRuns(ctx context.Context, org
 		}
 		language, languageVersion, runCommand, _, err := extractBuildParametersFromWorkflow(parametersRaw)
 		if err != nil {
-			return nil, fmt.Errorf("failed to extract build parameters for %s: %w", workflowRun.Name, err)
+			slog.Error("failed to extract build parameters", "workflowRun", workflowRun.Name, "error", err)
+			continue
 		}
 
 		buildResponses = append(buildResponses, &models.BuildResponse{
@@ -693,7 +694,7 @@ func (k *openChoreoSvcClient) ListComponentWorkflowRuns(ctx context.Context, org
 			ProjectName: projName,
 			Status:      string(determineBuildStatus(workflowRun.Status.Conditions)),
 			StartedAt:   workflowRun.CreationTimestamp.Time,
-			Image:       workflowRun.Status.ImageStatus.Image,
+			ImageId:     workflowRun.Status.ImageStatus.Image,
 			EndedAt:     &endedAtTime,
 			BuildParameters: models.BuildParameters{
 				CommitID:        commit,
