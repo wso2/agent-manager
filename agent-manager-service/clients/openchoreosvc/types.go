@@ -75,3 +75,24 @@ type ComponentEndpoint struct {
 	SchemaContent  string `json:"schemaContent,omitempty"`
 	SchemaFilePath string `json:"schemaFilePath,omitempty"`
 }
+
+// EnvironmentVariable represents an environment variable with name and value
+type EnvironmentVariable struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// BuildpackConfigs contains configuration for buildpacks (Google or Ballerina)
+type BuildpackConfigs struct {
+	Language           string `json:"language"`
+	LanguageVersion    string `json:"languageVersion,omitempty"`    // Google buildpack only
+	GoogleEntryPoint   string `json:"googleEntryPoint,omitempty"`   // Google buildpack only
+	LanguageVersionKey string `json:"languageVersionKey,omitempty"` // Google buildpack only
+}
+
+// ComponentWorkflowParameters represents workflow parameters for component buildpacks
+type ComponentWorkflowParameters struct {
+	BuildpackConfigs     BuildpackConfigs      `json:"buildpackConfigs"`
+	Endpoints            []ComponentEndpoint   `json:"endpoints"`
+	EnvironmentVariables []EnvironmentVariable `json:"environmentVariables"`
+}

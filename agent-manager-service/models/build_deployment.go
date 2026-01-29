@@ -63,16 +63,26 @@ type EnvVars struct {
 
 // Build represents a build instance
 type BuildResponse struct {
-	UUID        string     `json:"uuid"`
-	Name        string     `json:"name"`
-	AgentName   string     `json:"agentName"`
-	ProjectName string     `json:"projectName"`
-	CommitID    string     `json:"commitId"`
-	Status      string     `json:"status"`
-	StartedAt   time.Time  `json:"startedAt"`
-	Image       string     `json:"image,omitempty"`
-	Branch      string     `json:"branch,omitempty"`
-	EndedAt     *time.Time `json:"endedAt,omitempty"`
+	UUID            string          `json:"uuid"`
+	Name            string          `json:"name"`
+	AgentName       string          `json:"agentName"`
+	ProjectName     string          `json:"projectName"`
+	Status          string          `json:"status"`
+	StartedAt       time.Time       `json:"startedAt"`
+	Image           string          `json:"image,omitempty"`
+	EndedAt         *time.Time      `json:"endedAt,omitempty"`
+	BuildParameters BuildParameters `json:"buildParameters"`
+}
+
+// BuildParameters represents parameters for a build
+type BuildParameters struct {
+	RepoUrl         string `json:"repoUrl"`
+	AppPath         string `json:"appPath"`
+	Branch          string `json:"branch"`
+	CommitID        string `json:"commitId"`
+	Language        string `json:"language"`
+	LanguageVersion string `json:"languageVersion"`
+	RunCommand      string `json:"runCommand"`
 }
 
 // BuildStep represents a step in the build process
@@ -84,10 +94,24 @@ type BuildStep struct {
 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 }
 
+// InputInterface represents endpoint configuration
+type InputInterface struct {
+	Type     string                `json:"type"`
+	Port     int32                   `json:"port,omitempty"`
+	BasePath string                `json:"basePath,omitempty"`
+	Schema   *InputInterfaceSchema `json:"schema,omitempty"`
+}
+
+// InputInterfaceSchema represents schema configuration
+type InputInterfaceSchema struct {
+	Path string `json:"path,omitempty"`
+}
+
 // BuildDetails represents detailed build information
 type BuildDetailsResponse struct {
 	BuildResponse
-	Percent         float32     `json:"percent,omitempty"`
-	Steps           []BuildStep `json:"steps,omitempty"`
-	DurationSeconds int32       `json:"durationSeconds,omitempty"`
+	Percent         float32         `json:"percent,omitempty"`
+	Steps           []BuildStep     `json:"steps,omitempty"`
+	DurationSeconds int32           `json:"durationSeconds,omitempty"`
+	InputInterface  *InputInterface `json:"inputInterface,omitempty"`
 }

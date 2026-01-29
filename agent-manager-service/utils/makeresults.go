@@ -93,16 +93,27 @@ func ConvertToBuildResponse(build *models.BuildResponse) spec.BuildResponse {
 		return spec.BuildResponse{}
 	}
 	return spec.BuildResponse{
-		BuildId:     &build.UUID,
-		AgentName:   build.AgentName,
-		ProjectName: build.ProjectName,
-		CommitId:    build.CommitID,
-		Status:      &build.Status,
-		StartedAt:   build.StartedAt,
-		ImageId:     &build.Image,
-		BuildName:   build.Name,
-		Branch:      build.Branch,
-		EndedAt:     build.EndedAt,
+		BuildId:         &build.UUID,
+		AgentName:       build.AgentName,
+		ProjectName:     build.ProjectName,
+		Status:          &build.Status,
+		StartedAt:       build.StartedAt,
+		ImageId:         &build.Image,
+		BuildName:       build.Name,
+		EndedAt:         build.EndedAt,
+		BuildParameters: convertToBuildParameters(build.BuildParameters),
+	}
+}
+
+func convertToBuildParameters(params models.BuildParameters) spec.BuildParameters {
+	return spec.BuildParameters{
+		CommitId:        params.CommitID,
+		Branch:          params.Branch,
+		RepoUrl:         params.RepoUrl,
+		AppPath:         params.AppPath,
+		Language:        params.Language,
+		LanguageVersion: params.LanguageVersion,
+		RunCommand:      params.RunCommand,
 	}
 }
 
@@ -132,21 +143,43 @@ func ConvertToBuildDetailsResponse(buildDetails *models.BuildDetailsResponse) sp
 			FinishedAt: step.FinishedAt,
 		}
 	}
-	return spec.BuildDetailsResponse{
+
+	response := spec.BuildDetailsResponse{
 		BuildId:         &buildDetails.UUID,
 		AgentName:       buildDetails.AgentName,
 		ProjectName:     buildDetails.ProjectName,
-		CommitId:        buildDetails.CommitID,
 		Status:          &buildDetails.Status,
 		StartedAt:       buildDetails.StartedAt,
 		ImageId:         &buildDetails.Image,
 		BuildName:       buildDetails.Name,
-		Branch:          buildDetails.Branch,
 		Percent:         &buildDetails.Percent,
 		Steps:           steps,
 		DurationSeconds: &buildDetails.DurationSeconds,
 		EndedAt:         buildDetails.EndedAt,
+		BuildParameters: convertToBuildParameters(buildDetails.BuildParameters),
+		InputInterface:  convertToInputInterface(buildDetails.InputInterface),
 	}
+
+	return response
+}
+
+func convertToInputInterface(input *models.InputInterface) *spec.InputInterface {
+	if input == nil {
+		return nil
+	}
+
+	result := &spec.InputInterface{
+		Type: input.Type,
+		Port: &input.Port,
+	}
+
+	if input.Schema != nil {
+		result.Schema = &spec.InputInterfaceSchema{
+			Path: input.Schema.Path,
+		}
+	}
+
+	return result
 }
 
 func ConvertToDeploymentDetailsResponse(deploymentDetails []*models.DeploymentResponse) map[string]spec.DeploymentDetailsResponse {

@@ -541,7 +541,7 @@ func (s *agentManagerService) GetBuildLogs(ctx context.Context, orgName string, 
 	}
 
 	// Check if build exists
-	build, err := s.OpenChoreoSvcClient.GetComponentWorkflow(ctx, orgName, projectName, agentName, buildName)
+	build, err := s.OpenChoreoSvcClient.GetComponentWorkflowRun(ctx, orgName, projectName, agentName, buildName)
 	if err != nil {
 		s.logger.Error("Failed to get build", "buildName", buildName, "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
 		return nil, err
@@ -662,7 +662,7 @@ func (s *agentManagerService) ListAgentBuilds(ctx context.Context, orgName strin
 	}
 
 	// Fetch all builds from OpenChoreo first
-	allBuilds, err := s.OpenChoreoSvcClient.ListComponentWorkflows(ctx, orgName, projectName, agentName)
+	allBuilds, err := s.OpenChoreoSvcClient.ListComponentWorkflowRuns(ctx, orgName, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to list builds from OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
 		return nil, 0, fmt.Errorf("failed to list builds for agent %s: %w", agentName, err)
@@ -710,13 +710,10 @@ func (s *agentManagerService) GetBuild(ctx context.Context, orgName string, proj
 		return nil, fmt.Errorf("build operation is not supported for agent type: '%s'", agent.Provisioning.Type)
 	}
 	// Fetch the build from OpenChoreo
-	build, err := s.OpenChoreoSvcClient.GetComponentWorkflow(ctx, orgName, projectName, agentName, buildName)
+	build, err := s.OpenChoreoSvcClient.GetComponentWorkflowRun(ctx, orgName, projectName, agentName, buildName)
 	if err != nil {
 		s.logger.Error("Failed to get build from OpenChoreo", "buildName", buildName, "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		if errors.Is(err, utils.ErrBuildNotFound) {
-			return nil, utils.ErrBuildNotFound
-		}
-		return nil, fmt.Errorf("failed to get build %s for agent %s: %w", buildName, agentName, err)
+		return nil, err
 	}
 
 	s.logger.Info("Fetched build successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName, "buildName", build.Name)

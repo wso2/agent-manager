@@ -44,6 +44,39 @@ func normalizePath(path string) string {
 	return path
 }
 
+// extractBuildParametersFromWorkflow extracts language, languageVersion, runCommand and inputInterface
+// from the workflow parameters raw JSON
+func extractBuildParametersFromWorkflow(parametersRaw []byte) (language, languageVersion, runCommand string, inputInterface *models.InputInterface) {
+	if len(parametersRaw) == 0 {
+		return
+	}
+
+	var workflowParams ComponentWorkflowParameters
+	if err := json.Unmarshal(parametersRaw, &workflowParams); err != nil {
+		return
+	}
+
+	language = workflowParams.BuildpackConfigs.Language
+	languageVersion = workflowParams.BuildpackConfigs.LanguageVersion
+	runCommand = workflowParams.BuildpackConfigs.GoogleEntryPoint
+
+	// Extract inputInterface from endpoints
+	if len(workflowParams.Endpoints) > 0 {
+		endpoint := workflowParams.Endpoints[0]
+		inputInterface = &models.InputInterface{
+			Type: endpoint.Type,
+			Port: endpoint.Port,
+		}
+		if endpoint.SchemaFilePath != "" {
+			inputInterface.Schema = &models.InputInterfaceSchema{
+				Path: endpoint.SchemaFilePath,
+			}
+		}
+	}
+
+	return
+}
+
 func getLanguageVersionEnvVariable(language string) string {
 	for _, buildpack := range utils.Buildpacks {
 		if buildpack.Language == language {
@@ -93,17 +126,17 @@ func getInputInterfaceConfig(req *spec.CreateAgentRequest) (int32, string) {
 	if req.AgentType.Type == string(utils.AgentTypeAPI) && agentSubType == string(utils.AgentSubTypeChatAPI) {
 		return int32(config.GetConfig().DefaultChatAPI.DefaultHTTPPort), config.GetConfig().DefaultChatAPI.DefaultBasePath
 	}
-	return req.InputInterface.Port, req.InputInterface.BasePath
+	return utils.IntPointerAsInt(req.InputInterface.Port,0), utils.StrPointerAsStr(req.InputInterface.BasePath, "")
 }
 
-func buildEnvironmentVariablesArray(req *spec.CreateAgentRequest) []map[string]interface{} {
+func buildEnvironmentVariablesArray(req *spec.CreateAgentRequest) []EnvironmentVariable {
 	// Initialize as empty slice to ensure JSON serializes to [] instead of null
-	environmentVariables := make([]map[string]interface{}, 0)
+	environmentVariables := make([]EnvironmentVariable, 0)
 	if req.RuntimeConfigs != nil && len(req.RuntimeConfigs.Env) > 0 {
 		for _, env := range req.RuntimeConfigs.Env {
-			environmentVariables = append(environmentVariables, map[string]interface{}{
-				"name":  env.Key,
-				"value": env.Value,
+			environmentVariables = append(environmentVariables, EnvironmentVariable{
+				Name:  env.Key,
+				Value: env.Value,
 			})
 		}
 	}
@@ -138,7 +171,7 @@ func buildEndpointsArray(req *spec.CreateAgentRequest) ([]ComponentEndpoint, err
 		endpoints = []ComponentEndpoint{
 			{
 				Name:           fmt.Sprintf("%s-endpoint", req.Name),
-				Port:           req.InputInterface.Port,
+				Port:           utils.IntPointerAsInt(req.InputInterface.Port, 0),
 				Type:           req.InputInterface.Type,
 				SchemaType:     string(v1alpha1.EndpointTypeREST),
 				SchemaFilePath: normalizePath(req.InputInterface.Schema.Path),
@@ -149,33 +182,37 @@ func buildEndpointsArray(req *spec.CreateAgentRequest) ([]ComponentEndpoint, err
 	return endpoints, nil
 }
 
-func getComponentWorkflowParametersForGoogleBuildPack(req *spec.CreateAgentRequest) (map[string]interface{}, error) {
+func getComponentWorkflowParametersForGoogleBuildPack(req *spec.CreateAgentRequest) (*ComponentWorkflowParameters, error) {
 	environmentVariables := buildEnvironmentVariablesArray(req)
 	endpoints, err := buildEndpointsArray(req)
 	if err != nil {
 		return nil, err
 	}
 
-	return map[string]interface{}{
-		"buildpackConfigs": map[string]interface{}{
-			"googleEntryPoint":   req.RuntimeConfigs.RunCommand,
-			"languageVersion":    req.RuntimeConfigs.LanguageVersion,
-			"languageVersionKey": getLanguageVersionEnvVariable(req.RuntimeConfigs.Language),
+	return &ComponentWorkflowParameters{
+		BuildpackConfigs: BuildpackConfigs{
+			Language:           req.RuntimeConfigs.Language,
+			LanguageVersion:    utils.StrPointerAsStr(req.RuntimeConfigs.LanguageVersion, ""),
+			GoogleEntryPoint:   utils.StrPointerAsStr(req.RuntimeConfigs.RunCommand, ""),
+			LanguageVersionKey: getLanguageVersionEnvVariable(req.RuntimeConfigs.Language),
 		},
-		"endpoints":            endpoints,
-		"environmentVariables": environmentVariables,
+		Endpoints:            endpoints,
+		EnvironmentVariables: environmentVariables,
 	}, nil
 }
 
-func getComponentWorkflowParametersForBallerinaBuildPack(req *spec.CreateAgentRequest) (map[string]interface{}, error) {
+func getComponentWorkflowParametersForBallerinaBuildPack(req *spec.CreateAgentRequest) (*ComponentWorkflowParameters, error) {
 	environmentVariables := buildEnvironmentVariablesArray(req)
 	endpoints, err := buildEndpointsArray(req)
 	if err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{
-		"endpoints":            endpoints,
-		"environmentVariables": environmentVariables,
+	return &ComponentWorkflowParameters{
+		BuildpackConfigs: BuildpackConfigs{
+			Language: req.RuntimeConfigs.Language,
+		},
+		Endpoints:            endpoints,
+		EnvironmentVariables: environmentVariables,
 	}, nil
 }
 
@@ -248,7 +285,7 @@ func createComponentCRForInternalAgents(orgName, projectName string, req *spec.C
 		},
 	}
 
-	var componentWorkflowParameters map[string]interface{}
+	var componentWorkflowParameters *ComponentWorkflowParameters
 	var err error
 	if isGoogleBuildpack(req.RuntimeConfigs.Language) {
 		componentWorkflowParameters, err = getComponentWorkflowParametersForGoogleBuildPack(req)
@@ -397,7 +434,7 @@ func updateComponentCRForInternalAgents(existing *v1alpha1.Component, req *spec.
 		}
 
 		// Update workflow parameters - reuse existing functions
-		var componentWorkflowParameters map[string]interface{}
+		var componentWorkflowParameters *ComponentWorkflowParameters
 		if isGoogleBuildpack(req.RuntimeConfigs.Language) {
 			componentWorkflowParameters, err = getComponentWorkflowParametersForGoogleBuildPack(createReq)
 			if err != nil {
@@ -619,18 +656,33 @@ func toBuildDetailsResponse(componentWorkflow *v1alpha1.ComponentWorkflowRun) (*
 		commitId = "latest"
 	}
 
+	// Extract language, languageVersion, runCommand, and inputInterface from workflow parameters
+	var parametersRaw []byte
+	if componentWorkflow.Spec.Workflow.Parameters != nil {
+		parametersRaw = componentWorkflow.Spec.Workflow.Parameters.Raw
+	}
+	language, languageVersion, runCommand, inputInterface := extractBuildParametersFromWorkflow(parametersRaw)
+
 	buildResp := &models.BuildDetailsResponse{
 		BuildResponse: models.BuildResponse{
 			UUID:        string(componentWorkflow.UID),
 			Name:        componentWorkflow.Name,
 			AgentName:   componentWorkflow.Spec.Owner.ComponentName,
 			ProjectName: componentWorkflow.Spec.Owner.ProjectName,
-			CommitID:    commitId,
 			Status:      string(determineBuildStatus(componentWorkflow.Status.Conditions)),
 			StartedAt:   componentWorkflow.CreationTimestamp.Time,
-			Branch:      componentWorkflow.Spec.Workflow.SystemParameters.Repository.Revision.Branch,
 			Image:       componentWorkflow.Status.ImageStatus.Image,
+			BuildParameters: models.BuildParameters{
+				CommitID:        commitId,
+				RepoUrl:         componentWorkflow.Spec.Workflow.SystemParameters.Repository.URL,
+				AppPath:         componentWorkflow.Spec.Workflow.SystemParameters.Repository.AppPath,
+				Branch:          componentWorkflow.Spec.Workflow.SystemParameters.Repository.Revision.Branch,
+				Language:        language,
+				LanguageVersion: languageVersion,
+				RunCommand:      runCommand,
+			},
 		},
+		InputInterface: inputInterface,
 	}
 
 	// Convert conditions to build steps
