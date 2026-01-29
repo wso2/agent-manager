@@ -81,7 +81,8 @@ const config: Config = {
 
   themeConfig: {
     // Replace with your project's social card
-    image: 'img/docusaurus-social-card.jpg',    // Algolia search configuration
+    // image: 'img/amp-social-card.png',
+    // Algolia search configuration
     // To enable search, apply for Algolia DocSearch at https://docsearch.algolia.com/apply/
     // Once approved, you'll receive your appId and apiKey
     // algolia: {
@@ -90,16 +91,17 @@ const config: Config = {
     //   indexName: 'ai-agent-management-platform',
     //   contextualSearch: true,
     //   searchParameters: {},
-    // },    colorMode: {
+    // },
+    colorMode: {
       respectPrefersColorScheme: true,
     },
     navbar: {
       title: 'AI Agent Management Platform',
-      logo: {
-        alt: 'AMP Logo',
-        src: 'img/logo.svg',
-        srcDark: 'img/logo-dark.svg',
-      },
+      // logo: {
+      //   alt: 'AMP Logo',
+      //   src: 'img/logo.svg',
+      //   srcDark: 'img/logo-dark.svg',
+      // },
       items: [
         {
           type: 'docSidebar',
