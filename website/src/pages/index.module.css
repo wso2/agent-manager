@@ -32,6 +32,27 @@
   flex-wrap: wrap;
 }
 
+.buttons .button--secondary {
+  background-color: white;
+  color: var(--ifm-color-primary);
+  border: 2px solid white;
+}
+
+.buttons .button--secondary:hover {
+  background-color: rgba(255, 255, 255, 0.9);
+  color: var(--ifm-color-primary-dark);
+}
+
+.buttons .button--outline {
+  color: white;
+  border-color: white;
+}
+
+.buttons .button--outline:hover {
+  color: white;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
 .features {
   display: flex;
   align-items: center;

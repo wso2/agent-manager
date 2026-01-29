@@ -71,21 +71,7 @@ const config: Config = {
           editUrl:
             'https://github.com/wso2/ai-agent-management-platform/edit/main/website/',
         },
-        blog: {
-          showReadingTime: true,
-          feedOptions: {
-            type: ['rss', 'atom'],
-            xslt: true,
-          },
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/wso2/ai-agent-management-platform/edit/main/website/',
-          // Useful options to enforce blogging best practices
-          onInlineTags: 'warn',
-          onInlineAuthors: 'warn',
-          onUntruncatedBlogPosts: 'warn',
-        },
+        blog: false, // Disable blog until we have content
         theme: {
           customCss: './src/css/custom.css',
         },
@@ -95,8 +81,16 @@ const config: Config = {
 
   themeConfig: {
     // Replace with your project's social card
-    image: 'img/docusaurus-social-card.jpg',
-    colorMode: {
+    image: 'img/docusaurus-social-card.jpg',    // Algolia search configuration
+    // To enable search, apply for Algolia DocSearch at https://docsearch.algolia.com/apply/
+    // Once approved, you'll receive your appId and apiKey
+    // algolia: {
+    //   appId: 'YOUR_APP_ID',
+    //   apiKey: 'YOUR_SEARCH_API_KEY',
+    //   indexName: 'ai-agent-management-platform',
+    //   contextualSearch: true,
+    //   searchParameters: {},
+    // },    colorMode: {
       respectPrefersColorScheme: true,
     },
     navbar: {
@@ -113,7 +107,6 @@ const config: Config = {
           position: 'left',
           label: 'Documentation',
         },
-        {to: '/blog', label: 'Blog', position: 'left'},
         {
           type: 'docsVersionDropdown',
           position: 'right',
@@ -161,11 +154,7 @@ const config: Config = {
           items: [
             {
               label: 'Blog',
-              to: '/blog',
-            },
-            {
-              label: 'GitHub',
-              href: 'https://github.com/wso2/ai-agent-management-platform',
+              to: '/blttps://github.com/wso2/ai-agent-management-platform',
             },
             {
               label: 'WSO2',
