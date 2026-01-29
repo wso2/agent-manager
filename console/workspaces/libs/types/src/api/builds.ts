@@ -46,17 +46,26 @@ export const BUILD_STATUS_COLOR_MAP: Record<BuildStatus, BuildStatusColor> = {
   WorkloadUpdated: 'success',
 };
 
+export interface BuildParameters {
+  repoUrl: string;
+  appPath: string;
+  branch: string;
+  commitId: string;
+  language: string;
+  languageVersion: string;
+  runCommand: string;
+}
+
 export interface BuildResponse {
   buildId?: string;
   buildName: string;
   projectName: string;
   agentName: string;
-  commitId: string;
   startedAt: string; // ISO date-time
   endedAt?: string; // ISO date-time
   imageId?: string;
   status?: BuildStatus;
-  branch: string;
+  buildParameters: BuildParameters;
 }
 
 export interface BuildsListResponse extends PaginationMeta {

@@ -9,6 +9,7 @@ metadata:
 {{- include "amp-build-extension.labels" . | nindent 4 }}
 spec:
   entrypoint: build-workflow
+  activeDeadlineSeconds: 3600
   templates:
     - name: build-workflow
       steps:
