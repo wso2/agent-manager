@@ -23,7 +23,7 @@ export interface AppRoute {
     children: {[key: string]: AppRoute};
 }
 
-export interface GenaratedRoute {
+export interface GeneratedRoute {
     path?: string;
-    children: {[key: string]: GenaratedRoute};
+    children: {[key: string]: GeneratedRoute};
 }

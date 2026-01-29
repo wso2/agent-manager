@@ -101,13 +101,12 @@ export const rootRouteMap: AppRoute = {
                                             traces: {
                                                 path: 'traces',
                                                 index: true,
-                                                children: {
-                                                    traceDetails: {
-                                                        path: ':traceId',
-                                                        index: true,
-                                                        children: {},
-                                                    },
-                                                },
+                                                children: {},
+                                            },
+                                            logs: {
+                                                path: 'logs',
+                                                index: true,
+                                                children: {},
                                             },
                                         },
                                     },

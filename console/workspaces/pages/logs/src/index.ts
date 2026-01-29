@@ -16,11 +16,20 @@
  * under the License.
  */
 
-export * from './agents';
-export * from './builds';
-export * from './deployments';
-export * from './traces';
-export * from './organizations';
-export * from './projects';
-export * from './metrics';
-export * from './runtime-logs';
+import { LogsComponent } from './Logs.Component';
+import { Logs } from '@wso2/oxygen-ui-icons-react';
+
+export const metaData = {
+  title: 'Runtime Logs',
+  description: 'A page component for Logs',
+  icon: Logs,
+  path: '/logs',
+  component: LogsComponent,
+  levels: {
+    component: LogsComponent,
+  },
+};
+
+export { LogsComponent };
+
+export default LogsComponent;

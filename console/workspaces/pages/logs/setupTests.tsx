@@ -16,11 +16,4 @@
  * under the License.
  */
 
-export * from './agents';
-export * from './builds';
-export * from './deployments';
-export * from './traces';
-export * from './organizations';
-export * from './projects';
-export * from './metrics';
-export * from './runtime-logs';
+import '@testing-library/jest-dom';

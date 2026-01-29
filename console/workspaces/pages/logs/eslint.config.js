@@ -16,11 +16,35 @@
  * under the License.
  */
 
-export * from './agents';
-export * from './builds';
-export * from './deployments';
-export * from './traces';
-export * from './organizations';
-export * from './projects';
-export * from './metrics';
-export * from './runtime-logs';
+import eslintConfig from "@agent-management-platform/eslint-config";
+import { FlatCompat } from "@eslint/eslintrc";
+
+const compat = new FlatCompat();
+
+export default [
+  ...eslintConfig,
+  ...compat.extends('plugin:storybook/recommended'),
+  {
+    files: [
+      '**/*.ts',
+      '**/*.tsx',
+      '**/*.js',
+      '**/*.jsx',
+      '**/*.mjs',
+      '**/*.cjs'
+    ],
+  },
+  {
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/.rush/**',
+      '**/common/temp/**',
+      '**/coverage/**',
+      '**/.storybook/**',
+      '**/storybook-static/**',
+      "**.config.js",
+      "**.config.cjs"
+    ],
+  }
+]
