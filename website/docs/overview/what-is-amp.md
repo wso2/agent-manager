@@ -1,8 +1,7 @@
 ---
 sidebar_position: 1
 ---
-
-# What is AI Agent Management Platform?
+# WSO2 AI Agent Management Platform
 
 An open control plane designed for enterprises to deploy, manage, and govern AI agents at scale.
 
@@ -14,71 +13,14 @@ Built on [OpenChoreo](https://github.com/openchoreo/openchoreo) for internal age
 
 ## Key Features
 
-### Deploy at Scale
-Deploy and run AI agents on Kubernetes with production-ready configurations. The platform handles:
-- Container orchestration
-- Resource management
-- Auto-scaling
-- High availability
+- **Deploy at Scale** - Deploy and run AI agents on Kubernetes with production-ready configurations
+- **Lifecycle Management** - Manage agent versions, configurations, and deployments from a unified control plane
+- **Governance** - Enforce policies, manage access controls, and ensure compliance across all agents
+- **Full Observability** - Capture traces, metrics, and logs for complete visibility into agent behavior
+- **Auto-Instrumentation** - OpenTelemetry-based instrumentation for AI frameworks with zero code changes
+- **External Agent Support** - Monitor and govern externally deployed agents alongside internal ones
 
-### Lifecycle Management
-Manage agent versions, configurations, and deployments from a unified control plane:
-- Version control for agent deployments
-- Configuration management
-- Rollback capabilities
-- Blue-green deployments
-
-### Governance
-Enforce policies, manage access controls, and ensure compliance across all agents:
-- Policy enforcement
-- Access control (RBAC)
-- Audit logging
-- Compliance reporting
-
-### Full Observability
-Capture traces, metrics, and logs for complete visibility into agent behavior:
-- Distributed tracing with OpenTelemetry
-- Metrics collection and visualization
-- Log aggregation
-- Performance monitoring
-
-### Auto-Instrumentation
-OpenTelemetry-based instrumentation for AI frameworks with zero code changes:
-- Automatic trace generation
-- Support for LangChain, LlamaIndex, and more
-- Custom instrumentation support
-- Framework-agnostic design
-
-### External Agent Support
-Monitor and govern externally deployed agents alongside internal ones:
-- Unified observability
-- Consistent governance policies
-- Cross-environment visibility
-
-## Architecture
-
-The platform consists of several key components working together:
-
-```mermaid
-graph TB
-    Console[Console UI]
-    API[Agent Manager API]
-    Traces[Traces Observer]
-    DB[(PostgreSQL)]
-    OC[OpenChoreo Platform]
-    OTEL[OpenTelemetry Collector]
-    
-    Console --> API
-    Console --> Traces
-    API --> DB
-    API --> OC
-    Traces --> DB
-    Agent[AI Agents] --> OTEL
-    OTEL --> Traces
-    OC --> Agent
-```
-
-### Components
+## Components
 
 | Component | Description |
 |-----------|-------------|
@@ -88,28 +30,35 @@ graph TB
 | **amp-trace-observer** | API for querying and analyzing trace data | 
 | **amp-python-instrumentation-provider** | Kubernetes init container for automatic Python instrumentation |
 
-## Use Cases
+## Helm Charts
 
-### Enterprise AI Agent Deployment
-- Deploy multiple AI agents across different teams
-- Centralized management and monitoring
-- Consistent deployment patterns
+Deploy WSO2 AI Agent Management Platform on Kubernetes using our Helm charts:
 
-### Multi-Environment Agent Management
-- Manage agents across dev, staging, and production
-- Environment-specific configurations
-- Promotion workflows
-
-### Compliance and Governance
-- Audit all agent interactions
-- Enforce usage policies
-- Track agent performance and costs
-
-### Development and Testing
-- Rapid prototyping and testing
-- Trace-driven debugging
-- Performance optimization
+| Chart | Description |
+|-------|-------------|
+| `wso2-ai-agent-management-platform` | Main platform deployment |
+| `wso2-amp-build-extension` | Build extension for OpenChoreo |
+| `wso2-amp-observability-extension` | Observability stack extension for OpenChoreo |
 
 ## Getting Started
 
-Ready to try it out? Check out our [Quick Start Guide](../getting-started/quick-start) to get the platform running in minutes.
+For installation instructions and a step-by-step guide, see the [Quick Start Guide](https://github.com/wso2/ai-agent-management-platform/blob/amp/v0/docs/quick-start.md).
+
+## Contributing
+
+We welcome contributions from the community! Here's how you can help:
+
+1. **Report Issues** - Found a bug or have a feature request? Open an issue on GitHub
+2. **Submit Pull Requests** - Fork the repository, make your changes, and submit a PR
+3. **Improve Documentation** - Help us improve docs, tutorials, and examples
+
+Please ensure your contributions adhere to our coding standards and include appropriate tests.
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/wso2/ai-agent-management-platform/issues)
+- **Community**: [WSO2 Community](https://wso2.com/community/)

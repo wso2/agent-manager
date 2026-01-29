@@ -14,7 +14,6 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
  */
 const sidebars: SidebarsConfig = {
   docsSidebar: [
-
     {
       type: 'category',
       label: 'Overview',
@@ -25,14 +24,31 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Get Started',
+      label: 'Getting Started',
       collapsed: false,
       items: [
         'getting-started/quick-start',
-        'getting-started/single-cluster-installation',
+        {
+          type: 'category',
+          label: 'Installation',
+          collapsed: false,
+          items: [
+            'getting-started/single-cluster-installation',
+          ],
+        },
       ],
     },
-    // More sections will be added as documentation is migrated
+    {
+      type: 'category',
+      label: 'Components',
+      collapsed: false,
+      items: [
+        'components/amp-api',
+        'components/amp-console',
+        'components/amp-instrumentation',
+        'components/amp-trace-observer',
+      ],
+    },
   ],
 };
 
