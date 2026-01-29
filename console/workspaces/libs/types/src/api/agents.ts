@@ -29,6 +29,16 @@ export interface CreateAgentRequest {
   inputInterface?: InputInterface;
 }
 
+export interface UpdateAgentRequest {
+  name: string;
+  displayName: string;
+  description?: string;
+  provisioning: Provisioning;
+  agentType?: AgentType;
+  runtimeConfigs?: RuntimeConfiguration;
+  inputInterface?: InputInterface;
+}
+
 export type InputInterfaceType = 'DEFAULT' | 'CUSTOM';
 
 export interface InputInterface {
@@ -74,6 +84,7 @@ export type ListAgentsPathParams = OrgProjPathParams;
 export type CreateAgentPathParams = OrgProjPathParams;
 export type GetAgentPathParams = AgentPathParams;
 export type DeleteAgentPathParams = AgentPathParams;
+export type UpdateAgentPathParams = AgentPathParams;
 export type ListAgentsQuery = ListQuery;
 
 // Agent Token
