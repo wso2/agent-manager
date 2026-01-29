@@ -4,6 +4,7 @@ import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import Heading from '@theme/Heading';
+import Icon from '@site/src/components/Icon';
 
 import styles from './index.module.css';
 
@@ -36,10 +37,10 @@ function HomepageHeader() {
           <div className="row">
             <div className="col col--10 col--offset-1">
               <Heading as="h2" className={clsx('text--center', styles.whatIsTitle)}>
-                What is WSO2 AI Agent Management Platform?
+                What is WSO2 Agent Manager?
               </Heading>
               <p className={clsx('text--center', styles.whatIsDescription)}>
-                WSO2 AI Agent Management Platform is an open control plane designed for enterprises 
+                WSO2 Agent Manager is an open control plane designed for enterprises 
                 to deploy, manage, and govern AI agents at scale. It provides comprehensive lifecycle 
                 management, full-stack observability, and enterprise-grade governance for both internally 
                 hosted and externally deployed AI agents.
@@ -62,7 +63,7 @@ function FeatureSection() {
         <div className="row">
           <div className="col col--4">
             <div className="text--center padding-horiz--md">
-              <Heading as="h3">🚀 Deploy at Scale</Heading>
+              <Heading as="h3"><Icon name="Rocket" size={28} /> Deploy at Scale</Heading>
               <p>
                 Deploy and run AI agents on Kubernetes with production-ready configurations,
                 auto-scaling, and high availability.
@@ -71,7 +72,7 @@ function FeatureSection() {
           </div>
           <div className="col col--4">
             <div className="text--center padding-horiz--md">
-              <Heading as="h3">🔍 Full Observability</Heading>
+              <Heading as="h3"><Icon name="Eye" size={28} /> Full Observability</Heading>
               <p>
                 Capture traces, metrics, and logs for complete visibility into agent behavior
                 using OpenTelemetry instrumentation.
@@ -80,7 +81,7 @@ function FeatureSection() {
           </div>
           <div className="col col--4">
             <div className="text--center padding-horiz--md">
-              <Heading as="h3">🛡️ Governance</Heading>
+              <Heading as="h3"><Icon name="ShieldCheck" size={28} /> Governance</Heading>
               <p>
                 Enforce policies, manage access controls, and ensure compliance across all
                 agents with built-in governance tools.
@@ -91,7 +92,7 @@ function FeatureSection() {
         <div className="row margin-top--lg">
           <div className="col col--4">
             <div className="text--center padding-horiz--md">
-              <Heading as="h3">🔧 Auto-Instrumentation</Heading>
+              <Heading as="h3"><Icon name="Wrench" size={28} /> Auto-Instrumentation</Heading>
               <p>
                 Zero-code instrumentation for popular AI frameworks including LangChain,
                 LlamaIndex, and more.
@@ -100,7 +101,7 @@ function FeatureSection() {
           </div>
           <div className="col col--4">
             <div className="text--center padding-horiz--md">
-              <Heading as="h3">📊 Lifecycle Management</Heading>
+              <Heading as="h3"><Icon name="BarChart3" size={28} /> Lifecycle Management</Heading>
               <p>
                 Manage agent versions, configurations, and deployments from a unified control
                 plane with rollback capabilities.
@@ -109,7 +110,7 @@ function FeatureSection() {
           </div>
           <div className="col col--4">
             <div className="text--center padding-horiz--md">
-              <Heading as="h3">🌐 External Agent Support</Heading>
+              <Heading as="h3"><Icon name="Globe" size={28} /> External Agent Support</Heading>
               <p>
                 Monitor and govern externally deployed agents alongside internal ones with
                 unified observability.
@@ -224,7 +225,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title={`Home`}
-      description="Deploy, manage, and govern AI agents at scale with WSO2 AI Agent Management Platform">
+      description="Deploy, manage, observe and govern AI agents at scale with WSO2 Agent Manager">
       <HomepageHeader />
       <main>
         <FeatureSection />

@@ -1,4 +1,4 @@
-name: Test deployment
+name: Test Documentation Build
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ on:
 
 jobs:
   test-deploy:
-    name: Test deployment
+    name: Test Documentation Build
     runs-on: ubuntu-latest
 
     steps:

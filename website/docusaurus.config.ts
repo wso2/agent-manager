@@ -5,7 +5,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: 'WSO2 AI Agent Management Platform',
+  title: 'WSO2 Agent Manager',
   tagline: 'Build, Deploy, and Manage AI Agents at Scale',
   favicon: 'img/favicon.ico',
 
@@ -15,18 +15,18 @@ const config: Config = {
   },
 
   // Set the production url of your site here
-  url: 'https://anoshanj.github.io',
+  url: 'https://wso2.github.io',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: '/ai-agent-management-platform/',
+  baseUrl: '/agent-manager/',
 
   // Set true for GitHub pages deployment.
   trailingSlash: true,
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'anoshanj', // Usually your GitHub org/user name.
-  projectName: 'ai-agent-management-platform', // Usually your repo name.
+  organizationName: 'wso2', // Usually your GitHub org/user name.
+  projectName: 'agent-manager', // Usually your repo name.
 
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
@@ -52,7 +52,7 @@ const config: Config = {
       'classic',
       {
         docs: {
-          lastVersion: 'current',
+          lastVersion: 'v0.3.0',
           versions: {
             current: {
               label: 'Next',
@@ -65,7 +65,7 @@ const config: Config = {
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-            'https://github.com/wso2/ai-agent-management-platform/edit/main/website/',
+            'https://github.com/wso2/agent-manager/edit/main/website/',
         },
         blog: false, // Disable blog until we have content
         theme: {
@@ -84,7 +84,7 @@ const config: Config = {
     // algolia: {
     //   appId: 'YOUR_APP_ID',
     //   apiKey: 'YOUR_SEARCH_API_KEY',
-    //   indexName: 'ai-agent-management-platform',
+    //   indexName: 'agent-manager',
     //   contextualSearch: true,
     //   searchParameters: {},
     // },
@@ -92,7 +92,7 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'WSO2 AI Agent Management Platform',
+      title: 'WSO2 Agent Manager',
       // logo: {
       //   alt: 'AMP Logo',
       //   src: 'img/logo.svg',
@@ -111,7 +111,7 @@ const config: Config = {
           dropdownActiveClassDisabled: true,
         },
         {
-          href: 'https://github.com/wso2/ai-agent-management-platform',
+          href: 'https://github.com/wso2/agent-manager',
           position: 'right',
           className: 'header-github-link',
           'aria-label': 'GitHub repository',
@@ -139,11 +139,11 @@ const config: Config = {
           items: [
             {
               label: 'GitHub Discussions',
-              href: 'https://github.com/wso2/ai-agent-management-platform/discussions',
+              href: 'https://github.com/wso2/agent-manager/discussions',
             },
             {
               label: 'Issues',
-              href: 'https://github.com/wso2/ai-agent-management-platform/issues',
+              href: 'https://github.com/wso2/agent-manager/issues',
             },
           ],
         },
@@ -152,7 +152,7 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/wso2/ai-agent-management-platform',
+              href: 'https://github.com/wso2/agent-manager',
             },
             {
               label: 'WSO2',

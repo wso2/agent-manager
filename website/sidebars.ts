@@ -49,6 +49,14 @@ const sidebars: SidebarsConfig = {
         'components/amp-trace-observer',
       ],
     },
+    {
+      type: 'category',
+      label: 'Contributing',
+      collapsed: false,
+      items: [
+        'contributing/contributing',
+      ],
+    },
   ],
 };
 
