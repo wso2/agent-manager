@@ -164,7 +164,7 @@ export function BuildLogs({
           {buildLogs && buildLogs?.length > 0 && <Divider />}
           <Stack direction="column" gap={1} overflow="auto" mb={1}>
             {buildLogs?.map((log, index) => (
-              <Typography variant="body1" key={index}>
+              <Typography fontFamily="monospace" variant="caption" key={index}>
                 {log.log}
               </Typography>
             ))}

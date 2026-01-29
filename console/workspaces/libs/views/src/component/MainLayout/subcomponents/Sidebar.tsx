@@ -152,6 +152,7 @@ export function Sidebar({
     <Layout.Sidebar
       sx={{
         width: drawerWidth,
+        minWidth: drawerWidth,
         pt: 1,
         px: 1,
         display: 'flex',

@@ -52,7 +52,8 @@
     "@agent-management-platform/types": "workspace:*",
     "yup": "1.4.0",
     "react-hook-form": "7.53.0",
-    "@hookform/resolvers": "3.9.0"
+    "@hookform/resolvers": "3.9.0",
+    "lodash": "4.17.21"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "8.6.13",
@@ -95,11 +96,13 @@
     "eslint-plugin-import": "2.31.0",
     "globals": "16.4.0",
     "@agent-management-platform/eslint-config": "workspace:*",
-    "@eslint/eslintrc": "3.3.1"
+    "@eslint/eslintrc": "3.3.1",
+    "@types/lodash": "4.17.13"
+
+    
   },
   "peerDependencies": {
     "react": "19.1.1",
-    "lodash": "4.17.21",
     "@babel/runtime-corejs3": "7.11.2"
   }
 }

@@ -59,6 +59,7 @@ export function PageLayout({
       py={disablePadding ? 0 : 3}
       px={disablePadding ? 0 : 3}
       gap={2}
+      width="100%"
     >
       {backHref && (
         <Box display="flex" alignItems="center">
