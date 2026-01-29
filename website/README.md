@@ -24,6 +24,32 @@ yarn build
 
 This command generates static content into the `build` directory and can be served using any static contents hosting service.
 
+## Versioning
+
+### Creating a New Version
+
+To create a new documentation version (e.g., v0.4.x):
+
+```bash
+npm run docusaurus docs:version v0.4.x
+```
+
+This command will:
+- Snapshot all current docs from `docs/` into `versioned_docs/version-v0.4.x/`
+- Create a sidebar snapshot at `versioned_sidebars/version-v0.4.x-sidebars.json`
+- Add the version to `versions.json`
+
+After creating a version, update `docusaurus.config.ts` to configure the version label and banner settings.
+
+### Deleting a Version
+
+To delete a version (e.g., v0.3.x):
+
+1. Remove the version from `versions.json`
+2. Delete `versioned_docs/version-v0.3.x/`
+3. Delete `versioned_sidebars/version-v0.3.x-sidebars.json`
+4. Remove version configuration from `docusaurus.config.ts`
+
 ## Deployment
 
 Using SSH:

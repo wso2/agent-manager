@@ -1,11 +1,6 @@
 {
   "docsSidebar": [
     {
-      "type": "doc",
-      "id": "intro",
-      "label": "Introduction"
-    },
-    {
       "type": "category",
       "label": "Overview",
       "collapsed": false,

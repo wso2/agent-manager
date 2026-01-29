@@ -5,7 +5,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: 'AI Agent Management Platform',
+  title: 'WSO2 AI Agent Management Platform',
   tagline: 'Build, Deploy, and Manage AI Agents at Scale',
   favicon: 'img/favicon.ico',
 
@@ -58,10 +58,6 @@ const config: Config = {
               label: 'Next',
               banner: 'unreleased',
             },
-            'v0.3.x': {
-              label: 'v0.3.x',
-              banner: 'none',
-            },
           },
           sidebarPath: './sidebars.ts',
           showLastUpdateAuthor: true,
@@ -96,7 +92,7 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'AI Agent Management Platform',
+      title: 'WSO2 AI Agent Management Platform',
       // logo: {
       //   alt: 'AMP Logo',
       //   src: 'img/logo.svg',
