@@ -17,6 +17,7 @@
  */
 
 import { type AgentPathParams, type BuildPathParams } from "./common";
+import { type TraceListTimeRange } from "./traces";
 
 // Common Log Types
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
@@ -32,11 +33,13 @@ export interface BuildLogsResponse {
   logs: BuildLogEntry[];
 }
 
-// Runtime Logs Request
+// Runtime Logs Request - supports either timeRange OR custom startTime/endTime
 export interface LogFilterRequest {
   environmentName: string;
-  startTime: string; // RFC3339 format
-  endTime: string; // RFC3339 format
+  // Either provide timeRange (will be calculated) OR startTime/endTime (fixed time)
+  timeRange?: TraceListTimeRange;
+  startTime?: string; // RFC3339 format (required if timeRange not provided)
+  endTime?: string; // RFC3339 format (required if timeRange not provided)
   limit?: number; // 1-10000
   sortOrder?: "asc" | "desc";
   logLevels?: LogLevel[];

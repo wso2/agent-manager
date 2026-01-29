@@ -36,8 +36,6 @@ export function useGetAgentMetrics(
     queryFn: () => getAgentMetrics(params, body, getToken),
     enabled:
       (options?.enabled ?? true) &&
-      !!params.orgName &&
-      !!params.projName &&
       !!params.agentName &&
       !!body.environmentName &&
       !!body.startTime &&
