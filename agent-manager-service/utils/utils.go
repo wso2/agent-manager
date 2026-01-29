@@ -157,7 +157,7 @@ func validateInternalAgent(payload spec.CreateAgentRequest) error {
 }
 
 func validateAgentType(agentType spec.AgentType) error {
-	if agentType.Type != string(AgentTypeAPI) {
+	if agentType.Type != string(AgentTypeAPI) && agentType.Type != string(AgentTypeExternalAPI) {
 		return fmt.Errorf("unsupported agent type: %s", agentType.Type)
 	}
 	return nil
