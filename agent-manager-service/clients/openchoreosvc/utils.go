@@ -691,7 +691,7 @@ func toBuildDetailsResponse(componentWorkflow *v1alpha1.ComponentWorkflowRun) (*
 			ProjectName: componentWorkflow.Spec.Owner.ProjectName,
 			Status:      string(determineBuildStatus(componentWorkflow.Status.Conditions)),
 			StartedAt:   componentWorkflow.CreationTimestamp.Time,
-			Image:       componentWorkflow.Status.ImageStatus.Image,
+			ImageId:     componentWorkflow.Status.ImageStatus.Image,
 			BuildParameters: models.BuildParameters{
 				CommitID:        commitId,
 				RepoUrl:         componentWorkflow.Spec.Workflow.SystemParameters.Repository.URL,

@@ -69,7 +69,7 @@ type BuildResponse struct {
 	ProjectName     string          `json:"projectName"`
 	Status          string          `json:"status"`
 	StartedAt       time.Time       `json:"startedAt"`
-	Image           string          `json:"image,omitempty"`
+	ImageId         string          `json:"imageId,omitempty"`
 	EndedAt         *time.Time      `json:"endedAt,omitempty"`
 	BuildParameters BuildParameters `json:"buildParameters"`
 }
