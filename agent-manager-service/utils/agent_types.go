@@ -29,7 +29,7 @@ type AgentType string
 
 const (
 	AgentTypeAPI      AgentType = "agent-api"
-	ExternalAgentType AgentType = "external-agent-api"
+	AgentTypeExternalAPI AgentType = "external-agent-api"
 )
 
 type AgentSubType string
