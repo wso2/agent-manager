@@ -21,6 +21,7 @@ import { Environment } from "@agent-management-platform/types/dist/api/deploymen
 import { NoDataFound, TextInput } from "@agent-management-platform/views";
 import {
   Clock,
+  ExternalLink,
   FlaskConical,
   Rocket,
   Workflow,
@@ -33,6 +34,7 @@ import {
   CardContent,
   CircularProgress,
   Divider,
+  IconButton,
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
@@ -42,6 +44,7 @@ import {
 } from "@agent-management-platform/shared-component";
 import dayjs from "dayjs";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { extractBuildIdFromImageId } from "../utils/extractBuildIdFromImageId";
 
 interface DeployCardProps {
   currentEnvironment: Environment;
@@ -58,6 +61,7 @@ export function DeployCard(props: DeployCardProps) {
       agentName: agentId,
     });
   const currentDeployment = deployments?.[currentEnvironment.name];
+  const selectedBuildId = extractBuildIdFromImageId(currentDeployment?.imageId);
 
   if (isDeploymentsLoading) {
     return (
@@ -138,6 +142,19 @@ export function DeployCard(props: DeployCardProps) {
           {currentDeployment?.imageId && (
             <TextInput
               label="Build Image"
+              labelAction={
+                <IconButton component={Link} to={generatePath(
+                  absoluteRouteMap.children.org.children.projects.children.agents
+                    .children.build.path,
+                  {
+                    orgId,
+                    projectId,
+                    agentId,
+                  }
+                ) + "?panel=logs&selectedBuild=" + selectedBuildId}>
+                  <ExternalLink size={16} />
+                </IconButton>
+              }
               value={currentDeployment?.imageId}
               copyable
               copyTooltipText="Copy Build Image"

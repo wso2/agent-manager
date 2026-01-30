@@ -1,0 +1,166 @@
+/**
+ * CSS files with the .module.css suffix will be treated as CSS modules
+ * and scoped locally.
+ */
+
+.heroBanner {
+  padding: 4rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--ifm-color-primary-darker) 0%, var(--ifm-color-primary) 100%);
+  color: white;
+}
+
+.heroBanner h1 {
+  color: white;
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.heroBanner p {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1.5rem;
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 2rem;
+  flex-wrap: wrap;
+}
+
+.buttons .button--secondary {
+  background-color: white;
+  color: var(--ifm-color-primary);
+  border: 2px solid white;
+}
+
+.buttons .button--secondary:hover {
+  background-color: rgba(255, 255, 255, 0.9);
+  color: var(--ifm-color-primary-dark);
+}
+
+.buttons .button--outline {
+  color: white;
+  border-color: white;
+}
+
+.buttons .button--outline:hover {
+  color: white;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.whatIs {
+  padding: 6rem 0;
+  background: linear-gradient(180deg, #1a1a1a 0%, #2d2d2d 100%);
+  color: white;
+}
+
+.whatIsTitle {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: white;
+  position: relative;
+  padding-bottom: 1.5rem;
+}
+
+.whatIsTitle::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 4px;
+  background: linear-gradient(90deg, var(--ifm-color-primary) 0%, var(--ifm-color-primary-light) 100%);
+  border-radius: 2px;
+}
+
+.whatIsDescription {
+  font-size: 1.25rem;
+  line-height: 1.8;
+  color: rgba(255, 255, 255, 0.9);
+  max-width: 900px;
+  margin: 0 auto;
+  margin-top: 2.5rem;
+}
+
+.features {
+  display: flex;
+  align-items: center;
+  padding: 5rem 0;
+  width: 100%;
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.features h2 {
+  font-size: 2.5rem;
+}
+
+.features h3 {
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+.builtOn {
+  padding: 5rem 0;
+  background-color: var(--ifm-background-surface-color);
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.builtOn h2 {
+  font-size: 2.5rem;
+}
+
+.builtOn h3 {
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+.quickStart {
+  padding: 5rem 0;
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.quickStart h2 {
+  font-size: 2.5rem;
+}
+
+.codeBlock {
+  background-color: var(--ifm-code-background);
+  border-radius: 8px;
+  padding: 1.5rem;
+  overflow-x: auto;
+}
+
+.codeBlock pre {
+  margin: 0;
+  background: transparent;
+}
+
+.codeBlock code {
+  color: var(--ifm-font-color-base);
+  font-size: 0.9rem;
+}
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 2rem;
+  }
+
+  .heroBanner h1 {
+    font-size: 2rem;
+  }
+
+  .heroBanner p {
+    font-size: 1.2rem;
+  }
+
+  .buttons {
+    flex-direction: column;
+  }
+}

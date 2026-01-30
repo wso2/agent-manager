@@ -221,7 +221,7 @@ export function BuildCard(props: BuildCardProps) {
                     <Box display="flex" alignItems="center" gap={0.5}>
                       <GitCommit size={16} />
                       <Typography variant="caption">
-                        {currentBuild.commitId?.substring(0, 8) || "N/A"}
+                        {currentBuild.buildParameters?.commitId?.substring(0, 8) || "N/A"}
                       </Typography>
                     </Box>
                     <Box display="flex" alignItems="center" gap={0.5}>

@@ -30,12 +30,14 @@ import { useState } from 'react';
 
 export interface TextInputProps extends Omit<TextFieldProps, 'variant'> {
   label?: string;
+  labelAction?: React.ReactNode;
   copyable?: boolean;
   copyTooltipText?: string;
 }
 
 export const TextInput = ({ 
   label, 
+  labelAction,
   copyable = false,
   copyTooltipText,
   value,
@@ -87,7 +89,7 @@ export const TextInput = ({
 
   return (
     <FormControl fullWidth>
-      {label && <FormLabel htmlFor={label}>{label}</FormLabel>}
+      {label && <FormLabel htmlFor={label}>{label}{labelAction}</FormLabel>}
       <TextField
         id={label}
         sx={{

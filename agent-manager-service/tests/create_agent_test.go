@@ -303,8 +303,8 @@ func TestCreateAgent(t *testing.T) {
 		// Validate custom interface specific fields
 		require.Equal(t, "HTTP", createComponentCall.Req.InputInterface.Type)
 		require.NotNil(t, createComponentCall.Req.InputInterface.Schema.Path)
-		require.Equal(t, int32(5000), createComponentCall.Req.InputInterface.Port)
-		require.Equal(t, "/reading-list", createComponentCall.Req.InputInterface.BasePath)
+		require.Equal(t, int32(5000), *createComponentCall.Req.InputInterface.Port)
+		require.Equal(t, "/reading-list", *createComponentCall.Req.InputInterface.BasePath)
 
 		// Validate runtime configs
 		require.Equal(t, "uvicorn app:app --host 0.0.0.0 --port 8000", *createComponentCall.Req.RuntimeConfigs.RunCommand)

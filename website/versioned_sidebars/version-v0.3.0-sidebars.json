@@ -1,0 +1,47 @@
+{
+  "docsSidebar": [
+    {
+      "type": "category",
+      "label": "Overview",
+      "collapsed": false,
+      "items": [
+        "overview/what-is-amp"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Getting Started",
+      "collapsed": false,
+      "items": [
+        "getting-started/quick-start",
+        {
+          "type": "category",
+          "label": "Installation",
+          "collapsed": false,
+          "items": [
+            "getting-started/single-cluster-installation"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Components",
+      "collapsed": false,
+      "items": [
+        "components/amp-api",
+        "components/amp-console",
+        "components/amp-instrumentation",
+        "components/amp-trace-observer"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Contributing",
+      "collapsed": false,
+      "items": [
+        "contributing/contributing"
+      ]
+    }
+  ]
+}
