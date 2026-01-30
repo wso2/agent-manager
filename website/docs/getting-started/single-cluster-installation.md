@@ -63,7 +63,7 @@ helm install openchoreo-control-plane \
   --version 0.9.0 \
   --namespace openchoreo-control-plane \
   --create-namespace \
-  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.4.0/deployments/single-cluster/values-cp.yaml
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.4.0/deployments/single-cluster/values-cp.yaml
 ```
 
 #### Install OpenChoreo Build Plane
@@ -76,7 +76,7 @@ helm install openchoreo-build-plane \
   --version 0.9.0 \
   --namespace openchoreo-build-plane \
   --create-namespace \
-  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.4.0/deployments/single-cluster/values-bp.yaml
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.4.0/deployments/single-cluster/values-bp.yaml
 ```
 
 #### Install OpenChoreo Data Plane
@@ -89,7 +89,7 @@ helm install openchoreo-data-plane \
   --version 0.9.0 \
   --namespace openchoreo-data-plane \
   --create-namespace \
-  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.4.0/deployments/single-cluster/values-dp.yaml
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.4.0/deployments/single-cluster/values-dp.yaml
 ```
 
 #### Install OpenChoreo Observability Plane
@@ -103,7 +103,7 @@ kubectl create namespace openchoreo-observability-plane
 Create the opentelemetry collector config map
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.4.0/deployments/values/oc-collector-configmap.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.4.0/deployments/values/oc-collector-configmap.yaml
 ```
 
 Install the Openchoreo observability plane to the same namespace.
@@ -114,7 +114,7 @@ helm install openchoreo-observability-plane \
   --version 0.9.0 \
   --namespace openchoreo-observability-plane \
   --create-namespace \
-  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.4.0/deployments/single-cluster/values-op.yaml
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.4.0/deployments/single-cluster/values-op.yaml
 ```
 
 Follow the [OpenChoreo Single Cluster Setup](https://openchoreo.dev/docs/v0.9.x/getting-started/try-it-out/on-self-hosted-kubernetes/) guide to install cert-manager, create the Gateway TLS certificate, and register the BuildPlane, DataPlane, and Observability Plane with the Control Plane.
@@ -322,7 +322,7 @@ kubectl wait --for=condition=Available \
 # Configure the Gateway Operator
 
 # Apply the Gateway Operator configuration for API authentication and rate limiting
-kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.3.0/deployments/values/api-platform-operator-full-config.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.4.0/deployments/values/api-platform-operator-full-config.yaml
 ```
 
 **Note:** For local development, you may need to update the JWKS URI in the configuration to use `http://host.docker.internal:9000/auth/external/jwks.json` instead of the cluster-internal service URL.
@@ -331,14 +331,14 @@ kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-plat
 
 ```bash
 # Apply Observability Gateway
-kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.3.0/deployments/values/obs-gateway.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.4.0/deployments/values/obs-gateway.yaml
 
 # Wait for Gateway to be programmed
 kubectl wait --for=condition=Programmed \
   gateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
 
 # Apply OTEL Collector RestApi
-kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.3.0/deployments/values/otel-collector-rest-api.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.4.0/deployments/values/otel-collector-rest-api.yaml
 
 # Wait for RestApi to be programmed
 kubectl wait --for=condition=Programmed \
