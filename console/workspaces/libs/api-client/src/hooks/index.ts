@@ -24,3 +24,4 @@ export * from './organizations';
 export * from './projects';
 export * from './metrics';
 export * from './runtime-logs';
+export * from './repositories';

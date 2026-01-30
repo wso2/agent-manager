@@ -25,3 +25,4 @@ export * from './organizations';
 export * from './projects';
 export * from './metrics';
 export * from './logs';
+export * from './repositories';
