@@ -59,7 +59,15 @@ export async function listBranches(
     }
   );
 
-  if (!response.ok) throw await response.json();
+  if (!response.ok) {
+    let errorBody;
+    try {
+      errorBody = await response.json();
+    } catch {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    throw errorBody;
+  }
   return response.json();
 }
 
@@ -95,6 +103,14 @@ export async function listCommits(
     }
   );
 
-  if (!response.ok) throw await response.json();
+  if (!response.ok) {
+    let errorBody;
+    try {
+      errorBody = await response.json();
+    } catch {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    throw errorBody;
+  }
   return response.json();
 }
