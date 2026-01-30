@@ -1,12 +1,12 @@
 {/* This file stores constants used across the documentation */}
 
 export const versions = {
-  platform: 'v0.0.0-dev',
+  platform: 'v0.3.0',
   pythonInstrumentation: '0.0.1',
   openChoreo: '0.9.0',
-  dockerTag: 'v0.0.0-dev',
+  dockerTag: 'v0.3.0',
   githubRef: 'main',
-  helmChart: 'v0.0.0-dev',
+  helmChart: 'v0.3.0',
 };
 
 export const urls = {

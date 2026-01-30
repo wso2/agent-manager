@@ -12,12 +12,16 @@ The AI Agent Management Platform is an enterprise-grade platform for managing, m
 ## Installation
 
 ```bash
+make install
+# or
 npm install
 ```
 
 ## Local Development
 
 ```bash
+make start
+# or
 npm run start
 ```
 
@@ -28,10 +32,28 @@ The site will be available at `http://localhost:3000`
 ## Build
 
 ```bash
+make build
+# or
 npm run build
 ```
 
 This command generates static content into the `build` directory and can be served using any static contents hosting service.
+
+## Available Make Commands
+
+Run `make` or `make help` to see all available commands:
+
+```bash
+make help
+```
+
+Common commands:
+- `make install` - Install dependencies
+- `make start` - Start development server
+- `make build` - Build static site
+- `make serve` - Serve built site locally
+- `make clean` - Clean build artifacts
+- `make version VERSION=v0.4.x` - Create new documentation version
 
 ## Project Structure
 
@@ -103,7 +125,20 @@ The platform documentation uses versioning to maintain docs for different releas
 
 ### Creating a New Version
 
-When releasing a new minor version (e.g., v0.4.0):
+When releasing a new version, use the Makefile:
+
+```bash
+make version VERSION=v0.4.x
+```
+
+This will create a new documentation version snapshot.
+
+
+This will prompt for confirmation before removing the version.
+
+#### Manual Version Creation
+
+If you prefer to create versions manually:
 
 1. **Create the documentation version**:
    ```bash

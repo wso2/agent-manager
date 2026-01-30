@@ -24,7 +24,7 @@ pip install amp-instrumentation
 
 ### 1. Register Your Agent
 
-First, register your agent at the [WSO2 Agent Manager](https://github.com/wso2/agent-manager) to obtain your agent API key and configuration details.
+First, register your agent at the [WSO2 Agent Manager](https://github.com/wso2/ai-agent-management-platform) to obtain your agent API key and configuration details.
 
 ### 2. Set Required Environment Variables
 

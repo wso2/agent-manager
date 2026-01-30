@@ -5,6 +5,7 @@ import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import Heading from '@theme/Heading';
 import Icon from '@site/src/components/Icon';
+import {versions} from '@site/docs/_constants.md';
 
 import styles from './index.module.css';
 
@@ -14,9 +15,13 @@ function HomepageHeader() {
     <>
       <header className={clsx('hero', styles.heroBanner)}>
         <div className="container">
-          <Heading as="h1" className="hero__title">
-            {siteConfig.title}
-          </Heading>
+          <div className="margin-bottom--md">
+            <img 
+              src="/agent-manager/img/WSO2 Agent Manager Logo_white.svg" 
+              alt="WSO2 Agent Manager" 
+              style={{height: '80px', maxWidth: '100%'}}
+            />
+          </div>
           <p className="hero__subtitle">{siteConfig.tagline}</p>
           <div className={styles.buttons}>
             <Link
@@ -101,7 +106,7 @@ function FeatureSection() {
           </div>
           <div className="col col--4">
             <div className="text--center padding-horiz--md">
-              <Heading as="h3"><Icon name="BarChart3" size={28} /> Lifecycle Management</Heading>
+              <Heading as="h3"><Icon name="RefreshCw" size={28} /> Lifecycle Management</Heading>
               <p>
                 Manage agent versions, configurations, and deployments from a unified control
                 plane with rollback capabilities.
@@ -194,7 +199,7 @@ function QuickStartSection() {
 {`docker run --rm -it --name amp-quick-start \\
   -v /var/run/docker.sock:/var/run/docker.sock \\
   --network=host \\
-  ghcr.io/wso2/amp-quick-start:v0.3.0
+  ghcr.io/wso2/amp-quick-start:${versions.dockerTag}
 
 # Inside container
 ./install.sh`}
