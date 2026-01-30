@@ -1,4 +1,4 @@
-# Travel Planner Agent
+# Hotel Booking Agent
 
 Minimal Python + React stack for the travel planner agent.
 
