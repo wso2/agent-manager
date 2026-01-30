@@ -164,3 +164,63 @@
     flex-direction: column;
   }
 }
+
+/* Light mode overrides for improved contrast */
+[data-theme="light"] .heroBanner {
+  /* No override: keep default dark heroBanner for all themes */
+}
+
+[data-theme="light"] .heroBanner h1,
+[data-theme="light"] .heroBanner p {
+  /* No override: keep default white text for all themes */
+}
+
+[data-theme="light"] .buttons .button--secondary {
+  background-color: #222;
+  color: #fff;
+  border: 2px solid #222;
+}
+
+[data-theme="light"] .buttons .button--secondary:hover {
+  background-color: #444;
+  color: #fff;
+}
+
+[data-theme="light"] .buttons .button--outline {
+  color: #222;
+  border-color: #222;
+}
+
+[data-theme="light"] .buttons .button--outline:hover {
+  color: #444;
+  background-color: #e9ecef;
+}
+
+[data-theme="light"] .whatIs {
+  background: linear-gradient(180deg, #f5f7fa 0%, #e9ecef 100%);
+  color: #222;
+}
+
+[data-theme="light"] .whatIsTitle {
+  color: #222;
+}
+
+[data-theme="light"] .whatIsDescription {
+  color: #444;
+}
+
+[data-theme="light"] .features {
+  background: #fff;
+}
+
+[data-theme="light"] .builtOn {
+  background-color: #f8f9fa;
+}
+
+[data-theme="light"] .codeBlock {
+  background-color: #f3f3f3;
+}
+
+[data-theme="light"] .codeBlock code {
+  color: #222;
+}
