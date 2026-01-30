@@ -19,7 +19,7 @@
 import { type AgentPathParams, type RuntimeConfiguration, type ListQuery, type OrgProjPathParams, type PaginationMeta, type RepositoryConfig } from './common';
 
 // Requests
-export interface CreateAgentRequest {
+interface AgentRequestBase {
   name: string;
   displayName: string;
   description?: string;
@@ -29,15 +29,11 @@ export interface CreateAgentRequest {
   inputInterface?: InputInterface;
 }
 
-export interface UpdateAgentRequest {
-  name: string;
-  displayName: string;
-  description?: string;
-  provisioning: Provisioning;
-  agentType?: AgentType;
-  runtimeConfigs?: RuntimeConfiguration;
-  inputInterface?: InputInterface;
-}
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface CreateAgentRequest extends AgentRequestBase {}
+
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface UpdateAgentRequest extends AgentRequestBase {}
 
 export type InputInterfaceType = 'DEFAULT' | 'CUSTOM';
 
