@@ -22,6 +22,5 @@ export * from './BuildSteps';
 export * from './CodeBlock';
 export * from './DeploymentConfig';
 export * from './EnvironmentVariable';
-export * from './AgentLayout';
 export * from './EnvironmentCard';
 export * from './ConfirmationDialog';

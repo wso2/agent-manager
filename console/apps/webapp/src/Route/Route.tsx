@@ -35,10 +35,6 @@ import {
 } from "../pages";
 import { LoadingFallback } from "../components/LoadingFallback";
 import { relativeRouteMap } from "@agent-management-platform/types";
-import {
-  AgentInfoPageLayout,
-  AgentLayout,
-} from "@agent-management-platform/shared-component";
 export function RootRouter() {
   return (
     <BrowserRouter>
@@ -83,15 +79,10 @@ export function RootRouter() {
                   relativeRouteMap.children.org.children.projects.children
                     .agents.path
                 }
-                element={<AgentLayout />}
               >
                 <Route
                   index
-                  element={
-                    <AgentInfoPageLayout>
-                      <LazyOverviewComponent />
-                    </AgentInfoPageLayout>
-                  }
+                  element={<LazyOverviewComponent />}
                 />
                 <Route
                   path={

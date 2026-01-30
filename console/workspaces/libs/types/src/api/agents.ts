@@ -19,7 +19,7 @@
 import { type AgentPathParams, type RuntimeConfiguration, type ListQuery, type OrgProjPathParams, type PaginationMeta, type RepositoryConfig } from './common';
 
 // Requests
-export interface CreateAgentRequest {
+interface AgentRequestBase {
   name: string;
   displayName: string;
   description?: string;
@@ -28,6 +28,10 @@ export interface CreateAgentRequest {
   runtimeConfigs?: RuntimeConfiguration;
   inputInterface?: InputInterface;
 }
+
+
+export type CreateAgentRequest = AgentRequestBase;
+export type UpdateAgentRequest = AgentRequestBase;
 
 export type InputInterfaceType = 'DEFAULT' | 'CUSTOM';
 
@@ -62,6 +66,7 @@ export interface AgentResponse {
   provisioning: Provisioning;
   agentType?: AgentType;
   runtimeConfigs?: RuntimeConfiguration;
+  inputInterface?: InputInterface;
   uuid?: string;
 }
 
@@ -74,6 +79,7 @@ export type ListAgentsPathParams = OrgProjPathParams;
 export type CreateAgentPathParams = OrgProjPathParams;
 export type GetAgentPathParams = AgentPathParams;
 export type DeleteAgentPathParams = AgentPathParams;
+export type UpdateAgentPathParams = AgentPathParams;
 export type ListAgentsQuery = ListQuery;
 
 // Agent Token

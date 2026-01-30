@@ -20,25 +20,84 @@ import { useGetAgent } from "@agent-management-platform/api-client";
 import { InternalAgentOverview } from "./InternalAgentOverview";
 import { useParams } from "react-router-dom";
 import { ExternalAgentOverview } from "./ExternalAgentOverview";
+import { useState } from "react";
+import { Box, Chip, Skeleton, IconButton, Tooltip } from "@wso2/oxygen-ui";
+import { Edit } from "@wso2/oxygen-ui-icons-react";
+import { EditAgentDrawer } from "./EditAgentDrawer";
+import {
+  PageLayout,
+  displayProvisionTypes,
+} from "@agent-management-platform/views";
+
+function AgentOverviewSkeleton() {
+  return (
+    <Box display="flex" flexDirection="column" p={3} gap={4} width="100%">
+      <Box display="flex" flexDirection="row" gap={2} alignItems="center">
+        <Skeleton variant="rounded" width={70} height={70} />
+        <Box display="flex" gap={2} flexDirection="column">
+          <Skeleton variant="rounded" width={400} height={30} />
+          <Skeleton variant="rounded" width={500} height={20} />
+        </Box>
+      </Box>
+      <Skeleton variant="rounded" width="100%" height="40vh" />
+    </Box>
+  );
+}
 
 export function AgentOverview() {
-    const { orgId, agentId, projectId } = useParams();
-    const { data: agent } = useGetAgent({
-        orgName: orgId,
-        projName: projectId,
-        agentName: agentId,
-    });
+  const { orgId, agentId, projectId } = useParams();
+  const [editAgentDrawerOpen, setEditAgentDrawerOpen] = useState(false);
+  const { data: agent, isLoading: isAgentLoading } = useGetAgent({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
 
-    if (agent?.provisioning.type === 'internal') {
-        return (
-            <InternalAgentOverview />
-        )
-    }
-    if (agent?.provisioning.type === 'external') {
-        return (
-            <ExternalAgentOverview />
-        )
-    }
+  if (isAgentLoading) {
+    return <AgentOverviewSkeleton />;
+  }
 
-    return null;
+  return (
+    <>
+      <PageLayout
+        title={agent?.displayName ?? "Agent"}
+        description={agent?.description ?? "No description provided."}
+        titleTail={
+          <>
+            <Tooltip title="Edit Agent">
+              <IconButton
+                color="primary"
+                size="small"
+                onClick={() => setEditAgentDrawerOpen(true)}
+                disabled={!agent}
+              >
+                <Edit size={18} />
+              </IconButton>
+            </Tooltip>
+            <Chip
+              label={displayProvisionTypes(agent?.provisioning?.type)}
+              color="default"
+              size="small"
+              variant="outlined"
+            />
+          </>
+        }
+      >
+        <Box display="flex" flexDirection="column" gap={4}>
+          {agent?.provisioning.type === "internal" && <InternalAgentOverview />}
+          {agent?.provisioning.type === "external" && <ExternalAgentOverview />}
+        </Box>
+      </PageLayout>
+
+      {agent && (
+        <EditAgentDrawer
+          open={editAgentDrawerOpen}
+          onClose={() => setEditAgentDrawerOpen(false)}
+          agent={agent}
+          orgId={orgId || "default"}
+          projectId={projectId || "default"}
+        />
+      )}
+    </>
+  );
 }

@@ -28,60 +28,24 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 )
 
-func ValidateAgentUpdatePayload(payload spec.UpdateAgentRequest) error {
-	// Validate agent name
-	if err := ValidateResourceName(payload.Name, "agent"); err != nil {
-		return fmt.Errorf("invalid agent name: %w", err)
-	}
-	if err := ValidateResourceDisplayName(payload.DisplayName, "agent"); err != nil {
-		return fmt.Errorf("invalid agent display name: %w", err)
-	}
-	// Validate agent provisioning
-	if err := validateAgentProvisioning(payload.Provisioning); err != nil {
-		return fmt.Errorf("invalid agent provisioning: %w", err)
-	}
-	// Validate agent type and subtype
-	if err := validateAgentType(payload.AgentType); err != nil {
-		return fmt.Errorf("invalid agent type or subtype: %w", err)
-	}
-	// Additional validations for internal agents
-	if payload.Provisioning.Type == string(InternalAgent) {
-		if err := validateInternalAgentUpdate(payload); err != nil {
-			return err
-		}
-	}
-
-	return nil
+type agentPayload struct {
+	name           string
+	displayName    string
+	provisioning   spec.Provisioning
+	agentType      spec.AgentType
+	runtimeConfigs *spec.RuntimeConfiguration
+	inputInterface *spec.InputInterface
 }
 
-// validateInternalAgentUpdate performs validations specific to internal agents for update
-func validateInternalAgentUpdate(payload spec.UpdateAgentRequest) error {
-	// Validate Agent Type
-	if err := validateAgentSubType(payload.AgentType); err != nil {
-		return fmt.Errorf("invalid agent subtype: %w", err)
-	}
-	// Validate API input interface for API agents
-	if payload.AgentType.Type == string(AgentTypeAPI) {
-		if err := validateInputInterface(payload.AgentType, payload.InputInterface); err != nil {
-			return fmt.Errorf("invalid inputInterface: %w", err)
-		}
-	}
-
-	// Validate runtime configurations
-	if payload.RuntimeConfigs == nil {
-		return fmt.Errorf("runtimeConfigs is required for internal agents")
-	}
-
-	if err := validateLanguage(payload.RuntimeConfigs.Language, payload.RuntimeConfigs.LanguageVersion); err != nil {
-		return fmt.Errorf("invalid language: %w", err)
-	}
-
-	// Validate environment variables if present
-	if err := validateEnvironmentVariables(payload.RuntimeConfigs.Env); err != nil {
-		return fmt.Errorf("invalid environment variables: %w", err)
-	}
-
-	return nil
+func ValidateAgentUpdatePayload(payload spec.UpdateAgentRequest) error {
+	return validateAgentPayload(agentPayload{
+		name:           payload.Name,
+		displayName:    payload.DisplayName,
+		provisioning:   payload.Provisioning,
+		agentType:      payload.AgentType,
+		runtimeConfigs: payload.RuntimeConfigs,
+		inputInterface: payload.InputInterface,
+	})
 }
 
 func ValidateProjectUpdatePayload(payload spec.UpdateProjectRequest) error {
@@ -101,24 +65,35 @@ func ValidateProjectUpdatePayload(payload spec.UpdateProjectRequest) error {
 }
 
 func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
+	return validateAgentPayload(agentPayload{
+		name:           payload.Name,
+		displayName:    payload.DisplayName,
+		provisioning:   payload.Provisioning,
+		agentType:      payload.AgentType,
+		runtimeConfigs: payload.RuntimeConfigs,
+		inputInterface: payload.InputInterface,
+	})
+}
+
+func validateAgentPayload(payload agentPayload) error {
 	// Validate agent name
-	if err := ValidateResourceName(payload.Name, "agent"); err != nil {
+	if err := ValidateResourceName(payload.name, "agent"); err != nil {
 		return fmt.Errorf("invalid agent name: %w", err)
 	}
-	if err := ValidateResourceDisplayName(payload.DisplayName, "agent"); err != nil {
+	if err := ValidateResourceDisplayName(payload.displayName, "agent"); err != nil {
 		return fmt.Errorf("invalid agent display name: %w", err)
 	}
 	// Validate agent provisioning
-	if err := validateAgentProvisioning(payload.Provisioning); err != nil {
+	if err := validateAgentProvisioning(payload.provisioning); err != nil {
 		return fmt.Errorf("invalid agent provisioning: %w", err)
 	}
 	// Validate agent type and subtype
-	if err := validateAgentType(payload.AgentType); err != nil {
+	if err := validateAgentType(payload.agentType); err != nil {
 		return fmt.Errorf("invalid agent type or subtype: %w", err)
 	}
 	// Additional validations for internal agents
-	if payload.Provisioning.Type == string(InternalAgent) {
-		if err := validateInternalAgent(payload); err != nil {
+	if payload.provisioning.Type == string(InternalAgent) {
+		if err := validateInternalAgentPayload(payload); err != nil {
 			return err
 		}
 	}
@@ -126,30 +101,30 @@ func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
 	return nil
 }
 
-// validateInternalAgent performs validations specific to internal agents
-func validateInternalAgent(payload spec.CreateAgentRequest) error {
+// validateInternalAgentPayload performs validations specific to internal agents.
+func validateInternalAgentPayload(payload agentPayload) error {
 	// Validate Agent Type
-	if err := validateAgentSubType(payload.AgentType); err != nil {
+	if err := validateAgentSubType(payload.agentType); err != nil {
 		return fmt.Errorf("invalid agent subtype: %w", err)
 	}
 	// Validate API input interface for API agents
-	if payload.AgentType.Type == string(AgentTypeAPI) {
-		if err := validateInputInterface(payload.AgentType, payload.InputInterface); err != nil {
+	if payload.agentType.Type == string(AgentTypeAPI) {
+		if err := validateInputInterface(payload.agentType, payload.inputInterface); err != nil {
 			return fmt.Errorf("invalid inputInterface: %w", err)
 		}
 	}
 
 	// Validate runtime configurations
-	if payload.RuntimeConfigs == nil {
+	if payload.runtimeConfigs == nil {
 		return fmt.Errorf("runtimeConfigs is required for internal agents")
 	}
 
-	if err := validateLanguage(payload.RuntimeConfigs.Language, payload.RuntimeConfigs.LanguageVersion); err != nil {
+	if err := validateLanguage(payload.runtimeConfigs.Language, payload.runtimeConfigs.LanguageVersion); err != nil {
 		return fmt.Errorf("invalid language: %w", err)
 	}
 
 	// Validate environment variables if present
-	if err := validateEnvironmentVariables(payload.RuntimeConfigs.Env); err != nil {
+	if err := validateEnvironmentVariables(payload.runtimeConfigs.Env); err != nil {
 		return fmt.Errorf("invalid environment variables: %w", err)
 	}
 
@@ -157,7 +132,7 @@ func validateInternalAgent(payload spec.CreateAgentRequest) error {
 }
 
 func validateAgentType(agentType spec.AgentType) error {
-	if agentType.Type != string(AgentTypeAPI) {
+	if agentType.Type != string(AgentTypeAPI) && agentType.Type != string(AgentTypeExternalAPI) {
 		return fmt.Errorf("unsupported agent type: %s", agentType.Type)
 	}
 	return nil
