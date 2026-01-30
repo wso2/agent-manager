@@ -133,6 +133,8 @@ agentManagerService:
     # GitHub configuration for repository API access
     github:
       token: ""
+      existingSecret: ""
+      existingSecretKey: "github-token"
 
   agentWorkload:
     cors:

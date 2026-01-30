@@ -94,6 +94,11 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.agentManagerService.config.apiKey.existingSecret | default (include "agent-management-platform.agentManagerService.fullname" .) }}
                   key: {{ .Values.agentManagerService.config.apiKey.existingSecretKey | default "api-key" }}
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.agentManagerService.config.github.existingSecret | default (include "agent-management-platform.agentManagerService.fullname" .) }}
+                  key: {{ .Values.agentManagerService.config.github.existingSecretKey | default "github-token" }}
           envFrom:
             - configMapRef:
                 name: {{ include "agent-management-platform.agentManagerService.fullname" . }}
