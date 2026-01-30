@@ -1,6 +1,6 @@
-# WSO2 AI Agent Management Platform Instrumentation
+# WSO2 Agent Manager Instrumentation
 
-Zero-code OpenTelemetry instrumentation for Python agents using the Traceloop SDK, with trace visibility in the WSO2 AI Agent Management Platform.
+Zero-code OpenTelemetry instrumentation for Python agents using the Traceloop SDK, with trace visibility in the WSO2 Agent Manager.
 
 ## Overview
 
@@ -24,7 +24,7 @@ pip install amp-instrumentation
 
 ### 1. Register Your Agent
 
-First, register your agent at the [WSO2 AI Agent Management Platform](https://github.com/wso2/ai-agent-management-platform) to obtain your agent API key and configuration details.
+First, register your agent at the [WSO2 Agent Manager](https://github.com/wso2/ai-agent-management-platform) to obtain your agent API key and configuration details.
 
 ### 2. Set Required Environment Variables
 
@@ -49,4 +49,4 @@ amp-instrument poetry run python script.py
 amp-instrument uv run python script.py
 ```
 
-That's it! Your application is now instrumented and sending traces to the WSO2 AI Agent Management Platform.
+That's it! Your application is now instrumented and sending traces to the WSO2 Agent Manager.
