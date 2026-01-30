@@ -7,7 +7,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'WSO2 Agent Manager',
   tagline: 'Build, Deploy, and Manage AI Agents at Scale',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/WSO2-Logo.png',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -29,7 +29,6 @@ const config: Config = {
   projectName: 'agent-manager', // Usually your repo name.
 
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -42,6 +41,9 @@ const config: Config = {
   // Enable mermaid for markdown files
   markdown: {
     mermaid: true,
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
   },
 
   // Enable mermaid theme
@@ -52,7 +54,7 @@ const config: Config = {
       'classic',
       {
         docs: {
-          lastVersion: 'v0.3.0',
+          lastVersion: 'v0.4.0',
           versions: {
             current: {
               label: 'Next',
@@ -92,12 +94,11 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'WSO2 Agent Manager',
-      // logo: {
-      //   alt: 'AMP Logo',
-      //   src: 'img/logo.svg',
-      //   srcDark: 'img/logo-dark.svg',
-      // },
+      logo: {
+        alt: 'WSO2 Agent Manager Logo',
+        src: 'img/WSO2 Agent Manager Logo_Black.svg',
+        srcDark: 'img/WSO2 Agent Manager Logo_white.svg',
+      },
       items: [
         {
           type: 'docSidebar',

@@ -29,6 +29,16 @@
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
 
+/* Navbar logo styling */
+.navbar__logo {
+  align-items: center;
+}
+
+.navbar__logo img {
+  height: 25px;
+  display: block;
+}
+
 /* GitHub icon styling */
 .header-github-link::before {
   content: '';
