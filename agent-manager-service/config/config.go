@@ -61,6 +61,16 @@ type Config struct {
 
 	// IDP OAuth2 client credentials for service-to-service auth
 	IDP IDPConfig
+
+	// GitHub configuration for repository API access
+	GitHub GitHubConfig
+}
+
+// GitHubConfig holds GitHub API configuration
+type GitHubConfig struct {
+	// Token is a GitHub Personal Access Token for API authentication (optional but recommended)
+	// Without a token, rate limit is 60 requests/hour; with token, 5000 requests/hour
+	Token string `json:"-"`
 }
 
 type IDPConfig struct {

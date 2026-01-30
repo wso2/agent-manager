@@ -158,6 +158,11 @@ func loadEnvs() {
 		DefaultEnvironment:    r.readOptionalString("JWT_SIGNING_DEFAULT_ENVIRONMENT", "default"),
 	}
 
+	// GitHub configuration for repository API access
+	config.GitHub = GitHubConfig{
+		Token: r.readOptionalString("GITHUB_TOKEN", ""),
+	}
+
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)
 

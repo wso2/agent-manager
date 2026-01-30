@@ -573,7 +573,7 @@ func (k *openChoreoSvcClient) TriggerBuild(ctx context.Context, orgName string, 
 	}
 	language, languageVersion, runCommand, _, err := extractBuildParametersFromWorkflow(parametersRaw)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract build parameters: %w", err)
+		slog.Error("failed to extract build parameters", "component", component.Name, "error", err)
 	}
 
 	return &models.BuildResponse{
