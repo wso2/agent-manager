@@ -130,6 +130,9 @@ agentManagerService:
       defaultExpiry: "8760h"
       issuer: "agent-manager-service"
       defaultEnvironment: "default"
+    # GitHub configuration for repository API access
+    github:
+      token: ""
 
   agentWorkload:
     cors:
