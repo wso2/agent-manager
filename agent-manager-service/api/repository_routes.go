@@ -1,5 +1,4 @@
-//
-// Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file except
@@ -14,33 +13,16 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-//
 
-package utils
+package api
 
-type AgentProvisioningType string
+import (
+	"net/http"
 
-const (
-	InternalAgent AgentProvisioningType = "internal"
-	ExternalAgent AgentProvisioningType = "external"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 )
 
-type AgentType string
-
-const (
-	AgentTypeAPI      AgentType = "agent-api"
-	ExternalAgentType AgentType = "external-agent-api"
-)
-
-type AgentSubType string
-
-const (
-	AgentSubTypeChatAPI   AgentSubType = "chat-api"
-	AgentSubTypeCustomAPI AgentSubType = "custom-api"
-)
-
-type InputInterfaceType string
-
-const (
-	InputInterfaceTypeHTTP InputInterfaceType = "HTTP"
-)
+func registerRepositoryRoutes(mux *http.ServeMux, ctrl controllers.RepositoryController) {
+	mux.HandleFunc("POST /repositories/branches", ctrl.ListBranches)
+	mux.HandleFunc("POST /repositories/commits", ctrl.ListCommits)
+}

@@ -52,17 +52,20 @@ type AgentManagerService interface {
 type agentManagerService struct {
 	OpenChoreoSvcClient    clients.OpenChoreoSvcClient
 	ObservabilitySvcClient observabilitysvc.ObservabilitySvcClient
+	RepositoryService      RepositoryService
 	logger                 *slog.Logger
 }
 
 func NewAgentManagerService(
 	openChoreoSvcClient clients.OpenChoreoSvcClient,
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient,
+	repositoryService RepositoryService,
 	logger *slog.Logger,
 ) AgentManagerService {
 	return &agentManagerService{
 		OpenChoreoSvcClient:    openChoreoSvcClient,
 		ObservabilitySvcClient: observabilitySvcClient,
+		RepositoryService:      repositoryService,
 		logger:                 logger,
 	}
 }
@@ -358,8 +361,26 @@ func (s *agentManagerService) createOpenChoreoAgentComponent(ctx context.Context
 	}
 	// For internal agents, trigger build after creation
 	s.logger.Debug("Agent component created, triggering build", "agentName", req.Name, "orgName", orgName, "projectName", projectName)
+
+	// Get the latest commit from the repository
+	commitId := ""
+	if req.Provisioning.Repository != nil {
+		repoURL := req.Provisioning.Repository.Url
+		branch := req.Provisioning.Repository.Branch
+		owner, repo := utils.ParseGitHubURL(repoURL)
+		if owner != "" && repo != "" {
+			latestCommit, err := s.RepositoryService.GetLatestCommit(ctx, owner, repo, branch)
+			if err != nil {
+				s.logger.Warn("Failed to get latest commit, will use empty commit", "repoURL", repoURL, "branch", branch, "error", err)
+			} else {
+				commitId = latestCommit
+				s.logger.Debug("Got latest commit for build", "commitId", commitId, "branch", branch)
+			}
+		}
+	}
+
 	// Trigger build in OpenChoreo with the latest commit
-	build, err := s.OpenChoreoSvcClient.TriggerBuild(ctx, orgName, projectName, req.Name, "")
+	build, err := s.OpenChoreoSvcClient.TriggerBuild(ctx, orgName, projectName, req.Name, commitId)
 	if err != nil {
 		// Clean up the component if build trigger fails
 		s.logger.Info("Cleaning up component after build trigger failure", "agentName", req.Name)
@@ -368,7 +389,7 @@ func (s *agentManagerService) createOpenChoreoAgentComponent(ctx context.Context
 		}
 		return fmt.Errorf("failed to trigger build: agentName %s, error: %w", req.Name, err)
 	}
-	s.logger.Info("Agent component created and build triggered successfully", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "buildName", build.Name)
+	s.logger.Info("Agent component created and build triggered successfully", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "buildName", build.Name, "commitId", commitId)
 	return nil
 }
 
