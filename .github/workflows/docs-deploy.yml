@@ -26,7 +26,11 @@ jobs:
       - name: Install dependencies
         working-directory: ./website
         run: npm ci
-      
+
+      - name: Security Audit
+        working-directory: ./website
+        run: npm audit --audit-level=high --omit=dev
+        
       - name: Build website
         working-directory: ./website
         run: npm run build
