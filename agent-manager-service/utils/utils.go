@@ -564,6 +564,7 @@ func isValidLogLevel(level string) bool {
 // Supports formats:
 // - https://github.com/owner/repo
 // - https://github.com/owner/repo.git
+// - https://github.com/owner/my.repo.git (dots allowed in repo names)
 // - git@github.com:owner/repo.git
 // Returns empty strings if the URL cannot be parsed.
 func ParseGitHubURL(url string) (owner, repo string) {
@@ -572,13 +573,15 @@ func ParseGitHubURL(url string) (owner, repo string) {
 	}
 
 	// Handle HTTPS URLs: https://github.com/owner/repo or https://github.com/owner/repo.git
-	httpsPattern := regexp.MustCompile(`github\.com/([^/]+)/([^/.]+)`)
+	// Allow dots in repo name, strip optional .git suffix and trailing slash
+	httpsPattern := regexp.MustCompile(`^https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$`)
 	if matches := httpsPattern.FindStringSubmatch(url); len(matches) == 3 {
 		return matches[1], matches[2]
 	}
 
 	// Handle SSH URLs: git@github.com:owner/repo.git
-	sshPattern := regexp.MustCompile(`github\.com:([^/]+)/([^/.]+)`)
+	// Allow dots in repo name, strip optional .git suffix
+	sshPattern := regexp.MustCompile(`^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$`)
 	if matches := sshPattern.FindStringSubmatch(url); len(matches) == 3 {
 		return matches[1], matches[2]
 	}

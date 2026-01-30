@@ -43,12 +43,29 @@ func NewProviderFromURL(repoURL string, cfg Config) (Provider, error) {
 
 // DetectProvider determines the provider type from a repository URL
 func DetectProvider(repoURL string) (ProviderType, error) {
+	// Handle SSH format: git@github.com:owner/repo.git
+	if strings.HasPrefix(repoURL, "git@") {
+		hostPart := strings.TrimPrefix(repoURL, "git@")
+		if idx := strings.Index(hostPart, ":"); idx > 0 {
+			host := strings.ToLower(hostPart[:idx])
+			if strings.Contains(host, "github.com") {
+				return ProviderGitHub, nil
+			}
+			return "", fmt.Errorf("unknown git provider for host: %s", host)
+		}
+		return "", fmt.Errorf("invalid SSH repository URL format: %s", repoURL)
+	}
+
+	// Handle HTTPS format
 	parsed, err := url.Parse(repoURL)
 	if err != nil {
 		return "", fmt.Errorf("invalid repository URL: %w", err)
 	}
 
 	host := strings.ToLower(parsed.Host)
+	if host == "" {
+		return "", fmt.Errorf("invalid repository URL: no host found in %s", repoURL)
+	}
 
 	switch {
 	case strings.Contains(host, "github.com"):
