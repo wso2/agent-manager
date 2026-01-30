@@ -257,7 +257,7 @@ export function BuildPanel({
                                     <Box display="flex" flexDirection="column" width="100%">
                                         <Box display="flex" alignItems="center" gap={1}>
                                             <Typography variant="body2" noWrap sx={{ maxWidth: 350 }}>
-                                                {commit.message.split('\n')[0]}
+                                                {commit.message?.split('\n')[0] || ""}
                                             </Typography>
                                             {index === 0 && (
                                                 <Chip label="Latest" size="small" color="primary" />
