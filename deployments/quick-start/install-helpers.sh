@@ -15,7 +15,7 @@ VERSION="${VERSION:-0.0.0-dev}"
 HELM_CHART_REGISTRY="${HELM_CHART_REGISTRY:-ghcr.io/wso2}"
 
 # Chart names
-AMP_CHART_NAME="wso2-ai-agent-management-platform"
+AMP_CHART_NAME="wso2-agent-manager"
 BUILD_CI_CHART_NAME="wso2-amp-build-extension"
 OBSERVABILITY_CHART_NAME="wso2-amp-observability-extension"
 PLATFORM_RESOURCES_CHART_NAME="wso2-amp-platform-resources-extension"
