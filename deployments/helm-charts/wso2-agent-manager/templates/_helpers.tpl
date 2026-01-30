@@ -203,6 +203,23 @@ PostgreSQL password secret key
 
 {{/*
 ==============================================
+JWT Keys Secret Helpers
+==============================================
+*/}}
+
+{{/*
+JWT Keys Secret name
+*/}}
+{{- define "agent-management-platform.jwtKeysSecretName" -}}
+{{- if .Values.jwtSigning.existingSecret }}
+{{- .Values.jwtSigning.existingSecret }}
+{{- else }}
+{{- printf "%s-jwt-keys" (include "agent-management-platform.fullname" .) }}
+{{- end }}
+{{- end }}
+
+{{/*
+==============================================
 Image Pull Secrets
 ==============================================
 */}}

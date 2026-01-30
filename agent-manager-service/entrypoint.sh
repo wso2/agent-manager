@@ -23,13 +23,18 @@ set -e
 
 echo "Starting agent-manager-service..."
 
-# Generate JWT signing keys using the gen_keys.sh script
-# This script will only generate keys if they don't already exist
-if [ -f /app/scripts/gen_keys.sh ]; then
-    echo "Running key generation script..."
-    bash /app/scripts/gen_keys.sh "${JWT_SIGNING_ACTIVE_KEY_ID:-key-1}"
+# Check if JWT signing keys exist (mounted from Kubernetes Secret)
+if [ -f /app/keys/private.pem ] && [ -f /app/keys/public.pem ] && [ -f /app/keys/public-keys-config.json ]; then
+    echo "JWT signing keys found (mounted from Secret), skipping generation"
 else
-    echo "Warning: gen_keys.sh script not found, skipping key generation"
+    # Generate JWT signing keys using the gen_keys.sh script (for local development)
+    # This script will only generate keys if they don't already exist
+    if [ -f /app/scripts/gen_keys.sh ]; then
+        echo "JWT signing keys not found, running key generation script..."
+        bash /app/scripts/gen_keys.sh "${JWT_SIGNING_ACTIVE_KEY_ID:-key-1}"
+    else
+        echo "Warning: gen_keys.sh script not found and keys not mounted, service may fail to start"
+    fi
 fi
 
 # Start the application
