@@ -16,14 +16,33 @@
  * under the License.
  */
 
-import { Box, Button, Card, CardContent, Typography, Collapse, Alert, Divider, useTheme } from "@wso2/oxygen-ui";
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Typography,
+  Collapse,
+  Alert,
+  Divider,
+  useTheme,
+} from "@wso2/oxygen-ui";
 import { Settings, CheckCircle, Circle } from "@wso2/oxygen-ui-icons-react";
-import { DrawerWrapper, DrawerHeader, DrawerContent, TextInput } from "@agent-management-platform/views";
+import {
+  DrawerWrapper,
+  DrawerHeader,
+  DrawerContent,
+  TextInput,
+} from "@agent-management-platform/views";
 import { useForm, FormProvider, useWatch, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { useUpdateAgent } from "@agent-management-platform/api-client";
-import { AgentResponse, UpdateAgentRequest, InputInterfaceType } from "@agent-management-platform/types";
+import {
+  AgentResponse,
+  UpdateAgentRequest,
+  InputInterfaceType,
+} from "@agent-management-platform/types";
 import { useEffect, useCallback, useMemo } from "react";
 
 interface ConfigureBuildDrawerProps {
@@ -51,55 +70,59 @@ const configureBuildSchema = yup.object({
   repositoryUrl: yup
     .string()
     .trim()
-    .url('Must be a valid URL')
-    .required('Repository URL is required'),
-  branch: yup
-    .string()
-    .trim()
-    .required('Branch is required'),
+    .url("Must be a valid URL")
+    .required("Repository URL is required"),
+  branch: yup.string().trim().required("Branch is required"),
   appPath: yup
     .string()
     .trim()
-    .required('App path is required')
+    .required("App path is required")
+    .test("starts-with-slash", "App path must start with /", (value) => {
+      if (!value) return false;
+      return value.startsWith("/");
+    })
     .test(
-      'starts-with-slash',
-      'App path must start with /',
+      "valid-path",
+      "App path must be a valid path (use / for root directory)",
       (value) => {
         if (!value) return false;
-        return value.startsWith('/');
-      }
-    )
-    .test(
-      'valid-path',
-      'App path must be a valid path (use / for root directory)',
-      (value) => {
-        if (!value) return false;
-        if (value === '/') return true;
-        return !value.endsWith('/');
-      }
+        if (value === "/") return true;
+        return !value.endsWith("/");
+      },
     ),
-  runCommand: yup.string().trim().required('Start Command is required'),
-  language: yup.string().trim().required('Language is required'),
+  runCommand: yup.string().trim().required("Start Command is required"),
+  language: yup.string().trim().required("Language is required"),
   languageVersion: yup.string().trim(),
-  interfaceType: yup.mixed<InputInterfaceType>().oneOf(['DEFAULT', 'CUSTOM']).required(),
+  interfaceType: yup
+    .mixed<InputInterfaceType>()
+    .oneOf(["DEFAULT", "CUSTOM"])
+    .required(),
   port: yup
     .number()
-    .transform((value, original) => (original === "" || original === null ? undefined : value))
-    .when('interfaceType', {
-      is: 'CUSTOM',
-      then: (schema) => schema.required('Port is required').min(1).max(65535),
+    .transform((value, original) =>
+      original === "" || original === null ? undefined : value,
+    )
+    .when("interfaceType", {
+      is: "CUSTOM",
+      then: (schema) => schema.required("Port is required").min(1).max(65535),
       otherwise: (schema) => schema.notRequired(),
     }),
-  basePath: yup.string().trim().when('interfaceType', {
-    is: 'CUSTOM',
-    then: (schema) => schema.required('Base path is required'),
-    otherwise: (schema) => schema.notRequired(),
-  }),
-  openApiPath: yup.string().trim().when('interfaceType', {
-    is: 'CUSTOM',
-    then: (schema) => schema.required('OpenAPI spec path is required'),
-    otherwise: (schema) => schema.notRequired(),
-  }),
+  basePath: yup
+    .string()
+    .trim()
+    .when("interfaceType", {
+      is: "CUSTOM",
+      then: (schema) => schema.required("Base path is required"),
+      otherwise: (schema) => schema.notRequired(),
+    }),
+  openApiPath: yup
+    .string()
+    .trim()
+    .when("interfaceType", {
+      is: "CUSTOM",
+      then: (schema) => schema.required("OpenAPI spec path is required"),
+      otherwise: (schema) => schema.notRequired(),
+    }),
 });
 
 const inputInterfaces = [
@@ -142,12 +165,15 @@ export function ConfigureBuildDrawer({
   const inputInterface = agent.inputInterface;
   const buildDefaults = useMemo(
     () => ({
-      repositoryUrl: repo?.url || '',
-      branch: repo?.branch || '',
-      appPath: repo?.appPath ?? '',
-      runCommand: runtimeConfigs?.runCommand ?? 'python main.py',
-      language: runtimeConfigs?.language !== "" ? runtimeConfigs?.language : 'python',
-      languageVersion: runtimeConfigs?.languageVersion ?? '3.11',
+      repositoryUrl: repo?.url || "",
+      branch: repo?.branch || "",
+      appPath: repo?.appPath ?? "",
+      runCommand: runtimeConfigs?.runCommand ?? "python main.py",
+      language:
+        runtimeConfigs?.language && runtimeConfigs.language !== ""
+          ? runtimeConfigs?.language
+          : "python",
+      languageVersion: runtimeConfigs?.languageVersion ?? "3.11",
       interfaceType: resolvedInterfaceType,
       port: inputInterface?.port,
       basePath: inputInterface?.basePath ?? "",
@@ -164,7 +190,7 @@ export function ConfigureBuildDrawer({
       inputInterface?.basePath,
       inputInterface?.schema?.path,
       resolvedInterfaceType,
-    ]
+    ],
   );
   const methods = useForm<ConfigureBuildFormValues>({
     resolver: yupResolver(configureBuildSchema),
@@ -174,7 +200,10 @@ export function ConfigureBuildDrawer({
   const { mutate: updateAgent, isPending } = useUpdateAgent();
   const interfaceType =
     useWatch({ control: methods.control, name: "interfaceType" }) || "DEFAULT";
-  const port = useWatch({ control: methods.control, name: "port" }) as unknown as string;
+  const port = useWatch({
+    control: methods.control,
+    name: "port",
+  }) as unknown as string;
 
   // Reset form when agent changes
   useEffect(() => {
@@ -188,11 +217,13 @@ export function ConfigureBuildDrawer({
       methods.setValue("interfaceType", value, { shouldValidate: true });
       if (value === "DEFAULT") {
         methods.setValue("openApiPath", "", { shouldValidate: true });
-        methods.setValue("port", "" as unknown as number, { shouldValidate: true });
+        methods.setValue("port", "" as unknown as number, {
+          shouldValidate: true,
+        });
         methods.setValue("basePath", "/", { shouldValidate: true });
       }
     },
-    [methods]
+    [methods],
   );
 
   const handleSubmit = (data: ConfigureBuildFormValues) => {
@@ -219,8 +250,8 @@ export function ConfigureBuildDrawer({
       },
       agentType: nextAgentType,
       runtimeConfigs: {
-        language: data.language || 'python',
-        languageVersion: data.languageVersion || '',
+        language: data.language || "python",
+        languageVersion: data.languageVersion || "",
         runCommand: data.runCommand,
         env: agent.runtimeConfigs?.env || [],
       },
@@ -251,7 +282,7 @@ export function ConfigureBuildDrawer({
         onSuccess: () => {
           onClose();
         },
-      }
+      },
     );
   };
 
@@ -267,7 +298,9 @@ export function ConfigureBuildDrawer({
           <form onSubmit={methods.handleSubmit(handleSubmit)}>
             <Box display="flex" flexDirection="column" gap={2} flexGrow={1}>
               <Card variant="outlined">
-                <CardContent sx={{ gap: 1, display: "flex", flexDirection: "column" }}>
+                <CardContent
+                  sx={{ gap: 1, display: "flex", flexDirection: "column" }}
+                >
                   <Typography variant="h5">Repository Details</Typography>
                   <Box display="flex" flexDirection="column" gap={1}>
                     <TextInput
@@ -276,7 +309,10 @@ export function ConfigureBuildDrawer({
                       fullWidth
                       size="small"
                       error={!!methods.formState.errors.repositoryUrl}
-                      helperText={methods.formState.errors.repositoryUrl?.message as string}
+                      helperText={
+                        methods.formState.errors.repositoryUrl
+                          ?.message as string
+                      }
                       {...methods.register("repositoryUrl")}
                     />
                     <Box display="flex" flexDirection="row" gap={1}>
@@ -286,7 +322,9 @@ export function ConfigureBuildDrawer({
                         fullWidth
                         size="small"
                         error={!!methods.formState.errors.branch}
-                        helperText={methods.formState.errors.branch?.message as string}
+                        helperText={
+                          methods.formState.errors.branch?.message as string
+                        }
                         {...methods.register("branch")}
                       />
                       <TextInput
@@ -295,7 +333,9 @@ export function ConfigureBuildDrawer({
                         fullWidth
                         size="small"
                         error={!!methods.formState.errors.appPath}
-                        helperText={methods.formState.errors.appPath?.message as string}
+                        helperText={
+                          methods.formState.errors.appPath?.message as string
+                        }
                         {...methods.register("appPath")}
                       />
                     </Box>
@@ -304,7 +344,9 @@ export function ConfigureBuildDrawer({
               </Card>
 
               <Card variant="outlined">
-                <CardContent sx={{ gap: 1, display: "flex", flexDirection: "column" }}>
+                <CardContent
+                  sx={{ gap: 1, display: "flex", flexDirection: "column" }}
+                >
                   <Typography variant="h5">Build Details</Typography>
                   <Box display="flex" flexDirection="column" gap={1}>
                     <Box display="flex" flexDirection="row" gap={1}>
@@ -316,8 +358,8 @@ export function ConfigureBuildDrawer({
                         size="small"
                         error={!!methods.formState.errors.language}
                         helperText={
-                          (methods.formState.errors.language?.message as string) ||
-                          "e.g., python, nodejs, go"
+                          (methods.formState.errors.language
+                            ?.message as string) || "e.g., python, nodejs, go"
                         }
                         {...methods.register("language")}
                       />
@@ -328,8 +370,8 @@ export function ConfigureBuildDrawer({
                         size="small"
                         error={!!methods.formState.errors.languageVersion}
                         helperText={
-                          (methods.formState.errors.languageVersion?.message as string) ||
-                          "e.g., 3.11, 20, 1.21"
+                          (methods.formState.errors.languageVersion
+                            ?.message as string) || "e.g., 3.11, 20, 1.21"
                         }
                         {...methods.register("languageVersion")}
                       />
@@ -341,7 +383,8 @@ export function ConfigureBuildDrawer({
                       size="small"
                       error={!!methods.formState.errors.runCommand}
                       helperText={
-                        (methods.formState.errors.runCommand?.message as string) ||
+                        (methods.formState.errors.runCommand
+                          ?.message as string) ||
                         "Dependencies auto-install from package.json, requirements.txt, or pyproject.toml"
                       }
                       {...methods.register("runCommand")}
@@ -351,7 +394,9 @@ export function ConfigureBuildDrawer({
               </Card>
 
               <Card variant="outlined">
-                <CardContent sx={{ gap: 1, display: "flex", flexDirection: "column" }}>
+                <CardContent
+                  sx={{ gap: 1, display: "flex", flexDirection: "column" }}
+                >
                   <Typography variant="h5">Agent Interface</Typography>
                   <Typography variant="body2" color="text.secondary">
                     How your agent receives requests
@@ -362,7 +407,9 @@ export function ConfigureBuildDrawer({
                         <Card
                           key={interfaceOption.value}
                           variant="outlined"
-                          onClick={() => handleSelectInterface(interfaceOption.value)}
+                          onClick={() =>
+                            handleSelectInterface(interfaceOption.value)
+                          }
                           sx={{
                             maxWidth: 500,
                             cursor: "pointer",
@@ -418,8 +465,9 @@ export function ConfigureBuildDrawer({
                     </Box>
                     <Collapse in={interfaceType === "DEFAULT"}>
                       <Alert severity="info">
-                        Uses the standard chat interface: <strong>POST /chat</strong> on
-                        port <strong>8000</strong>
+                        Uses the standard chat interface:{" "}
+                        <strong>POST /chat</strong> on port{" "}
+                        <strong>8000</strong>
                         <br />
                         Request:{" "}
                         <code>{`{message: string, session_id: string, context: JSON}`}</code>
@@ -430,7 +478,11 @@ export function ConfigureBuildDrawer({
                     <Collapse in={interfaceType === "CUSTOM"}>
                       <Box display="flex" flexDirection="column" gap={1}>
                         <Box display="flex" flexDirection="row" gap={1}>
-                          <Box display="flex" flexDirection="column" flexGrow={1}>
+                          <Box
+                            display="flex"
+                            flexDirection="column"
+                            flexGrow={1}
+                          >
                             <TextInput
                               label="OpenAPI Spec Path"
                               placeholder="/openapi.yaml"
@@ -439,7 +491,8 @@ export function ConfigureBuildDrawer({
                               size="small"
                               error={!!methods.formState.errors.openApiPath}
                               helperText={
-                                (methods.formState.errors.openApiPath?.message as string) ||
+                                (methods.formState.errors.openApiPath
+                                  ?.message as string) ||
                                 "Path to OpenAPI schema file in your repository"
                               }
                               {...methods.register("openApiPath")}
@@ -459,7 +512,7 @@ export function ConfigureBuildDrawer({
                                     const next = e.target.value;
                                     if (/^\d*$/.test(next)) {
                                       field.onChange(
-                                        next === "" ? undefined : Number(next)
+                                        next === "" ? undefined : Number(next),
                                       );
                                     }
                                   }}
@@ -467,7 +520,8 @@ export function ConfigureBuildDrawer({
                                   type="number"
                                   error={!!methods.formState.errors.port}
                                   helperText={
-                                    (methods.formState.errors.port?.message as string) ||
+                                    (methods.formState.errors.port
+                                      ?.message as string) ||
                                     (port ? undefined : "Port is required")
                                   }
                                 />
@@ -484,7 +538,8 @@ export function ConfigureBuildDrawer({
                             size="small"
                             error={!!methods.formState.errors.basePath}
                             helperText={
-                              (methods.formState.errors.basePath?.message as string) ||
+                              (methods.formState.errors.basePath
+                                ?.message as string) ||
                               "API base path (e.g., / or /api/v1)"
                             }
                             {...methods.register("basePath")}
