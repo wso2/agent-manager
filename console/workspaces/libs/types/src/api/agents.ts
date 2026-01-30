@@ -29,11 +29,9 @@ interface AgentRequestBase {
   inputInterface?: InputInterface;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface CreateAgentRequest extends AgentRequestBase {}
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface UpdateAgentRequest extends AgentRequestBase {}
+export type CreateAgentRequest = AgentRequestBase;
+export type UpdateAgentRequest = AgentRequestBase;
 
 export type InputInterfaceType = 'DEFAULT' | 'CUSTOM';
 
