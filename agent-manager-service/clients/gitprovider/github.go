@@ -18,13 +18,13 @@ package gitprovider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
 )
 
 const (
@@ -41,23 +41,35 @@ const (
 	// MaxPerPage is the maximum number of results per page allowed by GitHub
 	MaxPerPage = 100
 
-	// requestTimeout is the timeout for individual API requests
-	requestTimeout = 30 * time.Second
+	// Rate limit retry configuration
+	// Reference: https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately
+	gitHubRetryWaitMin     = 60 * time.Second // GitHub recommends minimum 1 minute wait
+	gitHubRetryWaitMax     = 5 * time.Minute  // Maximum wait between retries
+	gitHubRetryAttemptsMax = 3                // Maximum retry attempts
+	gitHubAttemptTimeout   = 30 * time.Second // Timeout for individual requests
 )
+
+// gitHubRetryConfig returns the retry configuration for GitHub API requests
+func gitHubRetryConfig() requests.RequestRetryConfig {
+	return requests.RequestRetryConfig{
+		RetryWaitMin:     gitHubRetryWaitMin,
+		RetryWaitMax:     gitHubRetryWaitMax,
+		RetryAttemptsMax: gitHubRetryAttemptsMax,
+		AttemptTimeout:   gitHubAttemptTimeout,
+	}
+}
 
 // GitHubProvider implements the Provider interface for GitHub
 type GitHubProvider struct {
-	token      string
-	httpClient *http.Client
-	baseURL    string
+	token   string
+	baseURL string
 }
 
 // NewGitHubProvider creates a new GitHub provider
 func NewGitHubProvider(cfg Config) (*GitHubProvider, error) {
 	return &GitHubProvider{
-		token:      cfg.Token,
-		httpClient: &http.Client{Timeout: requestTimeout},
-		baseURL:    GitHubAPIBaseURL,
+		token:   cfg.Token,
+		baseURL: GitHubAPIBaseURL,
 	}, nil
 }
 
@@ -69,19 +81,7 @@ func (g *GitHubProvider) GetProviderType() ProviderType {
 // ListBranches returns available branches for a repository
 // Reference: https://docs.github.com/en/rest/branches/branches
 func (g *GitHubProvider) ListBranches(ctx context.Context, owner, repo string, opts ListBranchesOptions) (*ListBranchesResponse, error) {
-	// Apply defaults
-	perPage := opts.PerPage
-	if perPage <= 0 {
-		perPage = DefaultPerPage
-	}
-	if perPage > MaxPerPage {
-		perPage = MaxPerPage
-	}
-
-	page := opts.Page
-	if page <= 0 {
-		page = 1
-	}
+	perPage, page := normalizePagination(opts.PerPage, opts.Page)
 
 	// Get default branch from repository info
 	defaultBranch, err := g.getDefaultBranch(ctx, owner, repo)
@@ -89,33 +89,26 @@ func (g *GitHubProvider) ListBranches(ctx context.Context, owner, repo string, o
 		return nil, err
 	}
 
-	// Build URL
-	url := fmt.Sprintf("%s/repos/%s/%s/branches?per_page=%d&page=%d",
-		g.baseURL, owner, repo, perPage, page)
+	req := (&requests.HttpRequest{
+		Name:   "github.ListBranches",
+		URL:    fmt.Sprintf("%s/repos/%s/%s/branches", g.baseURL, owner, repo),
+		Method: http.MethodGet,
+	}).
+		SetHeader("Accept", "application/vnd.github+json").
+		SetHeader("X-GitHub-Api-Version", GitHubAPIVersion).
+		SetQuery("per_page", strconv.Itoa(perPage)).
+		SetQuery("page", strconv.Itoa(page))
 
-	// Make request
-	req, err := g.newRequest(ctx, http.MethodGet, url)
-	if err != nil {
-		return nil, err
+	if g.token != "" {
+		req.SetHeader("Authorization", "Bearer "+g.token)
 	}
 
-	resp, err := g.httpClient.Do(req)
-	if err != nil {
+	var ghBranches []githubBranch
+	result := requests.SendRequest(ctx, http.DefaultClient, req, gitHubRetryConfig())
+	if err := result.ScanResponse(&ghBranches, http.StatusOK); err != nil {
 		return nil, fmt.Errorf("failed to list branches: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if err := g.checkResponse(resp); err != nil {
-		return nil, err
-	}
-
-	// Parse response
-	var ghBranches []githubBranch
-	if err := json.NewDecoder(resp.Body).Decode(&ghBranches); err != nil {
-		return nil, fmt.Errorf("failed to decode branches response: %w", err)
-	}
-
-	// Convert to our model
 	branches := make([]Branch, len(ghBranches))
 	for i, b := range ghBranches {
 		branches[i] = Branch{
@@ -125,41 +118,34 @@ func (g *GitHubProvider) ListBranches(ctx context.Context, owner, repo string, o
 		}
 	}
 
-	// Check if there are more pages using Link header
-	hasMore := g.hasNextPage(resp)
-
 	return &ListBranchesResponse{
 		Branches: branches,
 		Page:     page,
 		PerPage:  perPage,
-		HasMore:  hasMore,
+		HasMore:  hasNextPage(result.GetHeader("Link")),
 	}, nil
 }
 
 // getDefaultBranch fetches the repository's default branch name
 func (g *GitHubProvider) getDefaultBranch(ctx context.Context, owner, repo string) (string, error) {
-	url := fmt.Sprintf("%s/repos/%s/%s", g.baseURL, owner, repo)
+	req := (&requests.HttpRequest{
+		Name:   "github.GetRepository",
+		URL:    fmt.Sprintf("%s/repos/%s/%s", g.baseURL, owner, repo),
+		Method: http.MethodGet,
+	}).
+		SetHeader("Accept", "application/vnd.github+json").
+		SetHeader("X-GitHub-Api-Version", GitHubAPIVersion)
 
-	req, err := g.newRequest(ctx, http.MethodGet, url)
-	if err != nil {
-		return "", err
-	}
-
-	resp, err := g.httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to get repository info: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if err := g.checkResponse(resp); err != nil {
-		return "", err
+	if g.token != "" {
+		req.SetHeader("Authorization", "Bearer "+g.token)
 	}
 
 	var repoInfo struct {
 		DefaultBranch string `json:"default_branch"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&repoInfo); err != nil {
-		return "", fmt.Errorf("failed to decode repository response: %w", err)
+	result := requests.SendRequest(ctx, http.DefaultClient, req, gitHubRetryConfig())
+	if err := result.ScanResponse(&repoInfo, http.StatusOK); err != nil {
+		return "", fmt.Errorf("failed to get repository info: %w", err)
 	}
 
 	return repoInfo.DefaultBranch, nil
@@ -168,63 +154,43 @@ func (g *GitHubProvider) getDefaultBranch(ctx context.Context, owner, repo strin
 // ListCommits returns commits for a repository
 // Reference: https://docs.github.com/en/rest/commits/commits
 func (g *GitHubProvider) ListCommits(ctx context.Context, owner, repo string, opts ListCommitsOptions) (*ListCommitsResponse, error) {
-	// Apply defaults
-	perPage := opts.PerPage
-	if perPage <= 0 {
-		perPage = DefaultPerPage
-	}
-	if perPage > MaxPerPage {
-		perPage = MaxPerPage
-	}
+	perPage, page := normalizePagination(opts.PerPage, opts.Page)
 
-	page := opts.Page
-	if page <= 0 {
-		page = 1
+	req := (&requests.HttpRequest{
+		Name:   "github.ListCommits",
+		URL:    fmt.Sprintf("%s/repos/%s/%s/commits", g.baseURL, owner, repo),
+		Method: http.MethodGet,
+	}).
+		SetHeader("Accept", "application/vnd.github+json").
+		SetHeader("X-GitHub-Api-Version", GitHubAPIVersion).
+		SetQuery("per_page", strconv.Itoa(perPage)).
+		SetQuery("page", strconv.Itoa(page))
+
+	if g.token != "" {
+		req.SetHeader("Authorization", "Bearer "+g.token)
 	}
-
-	// Build URL
-	url := fmt.Sprintf("%s/repos/%s/%s/commits?per_page=%d&page=%d",
-		g.baseURL, owner, repo, perPage, page)
-
 	if opts.SHA != "" {
-		url += fmt.Sprintf("&sha=%s", opts.SHA)
+		req.SetQuery("sha", opts.SHA)
 	}
 	if opts.Path != "" {
-		url += fmt.Sprintf("&path=%s", opts.Path)
+		req.SetQuery("path", opts.Path)
 	}
 	if opts.Author != "" {
-		url += fmt.Sprintf("&author=%s", opts.Author)
+		req.SetQuery("author", opts.Author)
 	}
 	if opts.Since != nil {
-		url += fmt.Sprintf("&since=%s", opts.Since.Format(time.RFC3339))
+		req.SetQuery("since", opts.Since.Format(time.RFC3339))
 	}
 	if opts.Until != nil {
-		url += fmt.Sprintf("&until=%s", opts.Until.Format(time.RFC3339))
+		req.SetQuery("until", opts.Until.Format(time.RFC3339))
 	}
 
-	// Make request
-	req, err := g.newRequest(ctx, http.MethodGet, url)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := g.httpClient.Do(req)
-	if err != nil {
+	var ghCommits []githubCommit
+	result := requests.SendRequest(ctx, http.DefaultClient, req, gitHubRetryConfig())
+	if err := result.ScanResponse(&ghCommits, http.StatusOK); err != nil {
 		return nil, fmt.Errorf("failed to list commits: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if err := g.checkResponse(resp); err != nil {
-		return nil, err
-	}
-
-	// Parse response
-	var ghCommits []githubCommit
-	if err := json.NewDecoder(resp.Body).Decode(&ghCommits); err != nil {
-		return nil, fmt.Errorf("failed to decode commits response: %w", err)
-	}
-
-	// Convert to our model
 	commits := make([]Commit, len(ghCommits))
 	for i, c := range ghCommits {
 		commits[i] = Commit{
@@ -236,104 +202,36 @@ func (g *GitHubProvider) ListCommits(ctx context.Context, owner, repo string, op
 				AvatarURL: c.Author.AvatarURL,
 			},
 			Timestamp: c.Commit.Author.Date,
-			IsLatest:  i == 0 && page == 1, // First commit on first page is latest
+			IsLatest:  i == 0 && page == 1,
 		}
 	}
-
-	// Check if there are more pages using Link header
-	hasMore := g.hasNextPage(resp)
 
 	return &ListCommitsResponse{
 		Commits: commits,
 		Page:    page,
 		PerPage: perPage,
-		HasMore: hasMore,
+		HasMore: hasNextPage(result.GetHeader("Link")),
 	}, nil
 }
 
-// newRequest creates a new HTTP request with appropriate headers
-func (g *GitHubProvider) newRequest(ctx context.Context, method, url string) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, method, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+// normalizePagination applies defaults and limits to pagination parameters
+func normalizePagination(perPage, page int) (int, int) {
+	if perPage <= 0 {
+		perPage = DefaultPerPage
 	}
-
-	// Set required headers
-	// Reference: https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", GitHubAPIVersion)
-
-	// Set authorization if token is provided
-	if g.token != "" {
-		req.Header.Set("Authorization", "Bearer "+g.token)
+	if perPage > MaxPerPage {
+		perPage = MaxPerPage
 	}
-
-	return req, nil
-}
-
-// checkResponse checks the response for errors
-func (g *GitHubProvider) checkResponse(resp *http.Response) error {
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return nil
+	if page <= 0 {
+		page = 1
 	}
-
-	body, _ := io.ReadAll(resp.Body)
-	var ghError githubErrorResponse
-	if err := json.Unmarshal(body, &ghError); err == nil && ghError.Message != "" {
-		return &GitHubError{
-			StatusCode: resp.StatusCode,
-			Message:    ghError.Message,
-			Response:   string(body),
-		}
-	}
-
-	return &GitHubError{
-		StatusCode: resp.StatusCode,
-		Message:    fmt.Sprintf("GitHub API error: %d", resp.StatusCode),
-		Response:   string(body),
-	}
+	return perPage, page
 }
 
 // hasNextPage checks if there are more pages by parsing the Link header
 // Reference: https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-link-headers
-func (g *GitHubProvider) hasNextPage(resp *http.Response) bool {
-	linkHeader := resp.Header.Get("Link")
-	if linkHeader == "" {
-		return false
-	}
+func hasNextPage(linkHeader string) bool {
 	return strings.Contains(linkHeader, `rel="next"`)
-}
-
-// getRateLimitInfo extracts rate limit information from response headers
-func (g *GitHubProvider) getRateLimitInfo(resp *http.Response) *RateLimitInfo {
-	remaining := resp.Header.Get("X-RateLimit-Remaining")
-	reset := resp.Header.Get("X-RateLimit-Reset")
-	limit := resp.Header.Get("X-RateLimit-Limit")
-
-	info := &RateLimitInfo{}
-	if remaining != "" {
-		if v, err := strconv.Atoi(remaining); err == nil {
-			info.Remaining = v
-		}
-	}
-	if reset != "" {
-		if v, err := strconv.ParseInt(reset, 10, 64); err == nil {
-			info.ResetAt = time.Unix(v, 0)
-		}
-	}
-	if limit != "" {
-		if v, err := strconv.Atoi(limit); err == nil {
-			info.Limit = v
-		}
-	}
-	return info
-}
-
-// RateLimitInfo contains rate limit information from GitHub API
-type RateLimitInfo struct {
-	Limit     int
-	Remaining int
-	ResetAt   time.Time
 }
 
 // GitHubError represents an error from the GitHub API
@@ -372,9 +270,4 @@ type githubCommit struct {
 	Author struct {
 		AvatarURL string `json:"avatar_url"`
 	} `json:"author"`
-}
-
-type githubErrorResponse struct {
-	Message          string `json:"message"`
-	DocumentationURL string `json:"documentation_url"`
 }
