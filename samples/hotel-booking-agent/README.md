@@ -4,7 +4,7 @@ Minimal Python stack for the travel planner agent.
 
 - **AI Agent**: `samples/hotel-booking-agent/agent/`
 - **Hotel API**: `samples/hotel-booking-agent/services/hotel_api/`
-- **Policy ingest**: `samples/hotel-booking-agent/services/hotel_api/resources/ingest/`
+- **Policy ingest**: `samples/hotel-booking-agent/services/hotel_api/ingest/`
 - **Sample policy PDFs**: `samples/hotel-booking-agent/services/hotel_api/resources/policy_pdfs/`
 
 ## Quick Start
@@ -13,9 +13,9 @@ Minimal Python stack for the travel planner agent.
 Deploy the agent in your Agent Manager environment (details to be added). The flow below covers the required supporting services:
 
 **Agent Manager**
-- Repo URL: `https://github.com/wso2/agent-manager/tree/amp/v0/samples/travel_planner_agent`
+- Repo URL: `https://github.com/wso2/agent-manager/tree/amp/v0/samples/hotel_booking_agent`
 - Language/runtime: Python 3.11
-- Run command: `uvicorn app:app --host 0.0.0.0 --port 9090`
+- Run command: `python -m uvicorn app:app --host 0.0.0.0 --port 9090`
 - Agent type: Chat API Agent
 - Schema path: `openapi.yaml`
 - Port: `9090`
@@ -23,17 +23,13 @@ Deploy the agent in your Agent Manager environment (details to be added). The fl
 **Agent environment variables**
 Required:
 - `OPENAI_API_KEY`
-- `ASGARDEO_BASE_URL`
-- `ASGARDEO_CLIENT_ID`
 - `PINECONE_API_KEY`
 - `PINECONE_SERVICE_URL`
-
-Optional (defaults are applied if unset):
-- `OPENAI_MODEL` (default: `gpt-4o-mini`)
-- `OPENAI_EMBEDDING_MODEL` (default: `text-embedding-3-small`)
+- `OPENAI_MODEL` 
+- `OPENAI_EMBEDDING_MODEL` 
 - `WEATHER_API_KEY`
 - `WEATHER_API_BASE_URL` (default: `http://api.weatherapi.com/v1`)
-- `BOOKING_API_BASE_URL` (default: `http://localhost:9091`)
+- `HOTEL_API_BASE_URL` (default: `http://localhost:9091`)
 
 **Expose the agent endpoint after deploy**
 Run this inside the WSO2-AMP dev container to expose the agent on `localhost:9090`:
@@ -58,7 +54,7 @@ cd samples/hotel-booking-agent/agent
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app:app --host 0.0.0.0 --port 9090
+python -m uvicorn app:app --host 0.0.0.0 --port 9090
 ```
 
 #### 2) Start the Hotel API (local)
@@ -67,7 +63,7 @@ cd samples/hotel-booking-agent/services/hotel_api
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn service:app --host 0.0.0.0 --port 9091
+python -m uvicorn service:app --host 0.0.0.0 --port 9091
 ```
 
 ### Sample chat request
