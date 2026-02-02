@@ -18,32 +18,47 @@
 
 import { useEffect, useRef } from 'react';
 
+let initialBaseTitle: string | null = null;
+
 export function useDocumentTitle(
   title?: string,
   baseTitleFallback = 'Agent Manager Console'
 ) {
   const baseTitleRef = useRef<string | null>(null);
+  const prevTitleRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (typeof document === 'undefined') {
       return;
     }
 
-    if (baseTitleRef.current === null) {
-      baseTitleRef.current = document.title || baseTitleFallback;
+    if (initialBaseTitle === null) {
+      initialBaseTitle = document.title || baseTitleFallback;
     }
+
+    if (baseTitleRef.current === null) {
+      baseTitleRef.current = initialBaseTitle;
+    }
+
+    prevTitleRef.current = document.title;
 
     const baseTitle = baseTitleRef.current;
 
     if (!title) {
       document.title = baseTitle;
-      return;
+      return () => {
+        if (prevTitleRef.current !== null) {
+          document.title = prevTitleRef.current;
+        }
+      };
     }
 
     document.title = `${title} | ${baseTitle}`;
 
     return () => {
-      document.title = baseTitle;
+      if (prevTitleRef.current !== null) {
+        document.title = prevTitleRef.current;
+      }
     };
   }, [baseTitleFallback, title]);
 }
