@@ -33,13 +33,16 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          image: "{{ .Values.jwtKeysGeneration.image.repository }}:{{ .Values.jwtKeysGeneration.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.jwtKeysGeneration.image.pullPolicy }}
+          image: "alpine:3.21"
+          imagePullPolicy: IfNotPresent
           command:
-            - /bin/bash
+            - /bin/sh
             - -c
             - |
               set -euo pipefail
+              
+              # Install required tools
+              apk add --no-cache openssl kubectl curl
               
               # Check if secret already exists
               if kubectl get secret {{ include "agent-management-platform.jwtKeysSecretName" . }} -n {{ .Release.Namespace }} &>/dev/null; then
@@ -48,11 +51,39 @@ spec:
               fi
               
               echo "Generating JWT signing keys..."
-              cd /app
-              /app/scripts/gen_keys.sh
+              mkdir -p /tmp/keys
+              cd /tmp/keys
+              
+              # Generate RSA private key (4096 bits for security)
+              openssl genrsa -out private.pem 4096
+              
+              # Extract public key
+              openssl rsa -in private.pem -pubout -out public.pem
+              
+              # Use configured key ID from agentManagerService config
+              KEY_ID="{{ .Values.agentManagerService.config.jwtSigning.activeKeyId }}"
+              ISSUER="{{ .Values.agentManagerService.config.jwtSigning.issuer }}"
+              TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+              
+              # Create public-keys-config.json
+              cat > public-keys-config.json <<EOF
+              {
+                "keys": [
+                  {
+                    "keyId": "${KEY_ID}",
+                    "publicKey": "$(awk 'NF {sub(/\r/, ""); printf "%s\\n",$0;}' public.pem)",
+                    "algorithm": "RS256",
+                    "issuer": "${ISSUER}",
+                    "createdAt": "${TIMESTAMP}",
+                    "expiresAt": null,
+                    "isActive": true
+                  }
+                ]
+              }
+              EOF
               
               # Verify keys were generated
-              if [[ ! -f /app/keys/private.pem ]] || [[ ! -f /app/keys/public.pem ]] || [[ ! -f /app/keys/public-keys-config.json ]]; then
+              if [[ ! -f private.pem ]] || [[ ! -f public.pem ]] || [[ ! -f public-keys-config.json ]]; then
                 echo "ERROR: Key generation failed - missing key files"
                 exit 1
               fi
@@ -60,20 +91,21 @@ spec:
               echo "Creating Kubernetes Secret with JWT keys..."
               kubectl create secret generic {{ include "agent-management-platform.jwtKeysSecretName" . }} \
                 -n {{ .Release.Namespace }} \
-                --from-file=private.pem=/app/keys/private.pem \
-                --from-file=public.pem=/app/keys/public.pem \
-                --from-file=public-keys-config.json=/app/keys/public-keys-config.json \
+                --from-file=private.pem=private.pem \
+                --from-file=public.pem=public.pem \
+                --from-file=public-keys-config.json=public-keys-config.json \
                 --dry-run=client -o yaml | \
               kubectl apply -f -
               
-              # Add annotation for tracking
+              # Add annotations for tracking
               kubectl annotate secret {{ include "agent-management-platform.jwtKeysSecretName" . }} \
                 -n {{ .Release.Namespace }} \
                 amp.wso2.com/keys-version="1" \
-                amp.wso2.com/generated-at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                amp.wso2.com/key-id="${KEY_ID}" \
+                amp.wso2.com/generated-at="${TIMESTAMP}" \
                 --overwrite
               
-              echo "JWT keys Secret created successfully"
+              echo "JWT keys Secret created successfully with key ID: ${KEY_ID}"
           {{- with .Values.jwtKeysGeneration.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

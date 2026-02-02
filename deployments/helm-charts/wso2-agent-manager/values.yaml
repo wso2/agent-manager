@@ -146,6 +146,12 @@ agentManagerService:
       allowedMethods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
       allowedHeaders: "authorization,Content-Type,Origin"
 
+  agentWorkload:
+    cors:
+      allowedOrigin: "http://localhost:3000"
+      allowedMethods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
+      allowedHeaders: "authorization,Content-Type,Origin"
+
   # Pod-level configurations
   podAnnotations: {}
   podLabels: {}
@@ -162,13 +168,6 @@ agentManagerService:
   tolerations: []
   affinity: {}
 
-# Agent Workload Configuration
-agentWorkload:
-  cors:
-    allowedOrigin: "http://localhost:3000"
-    allowedMethods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-    allowedHeaders: "authorization,Content-Type,Origin"
-
 # JWT Signing Keys Configuration
 jwtSigning:
   # Existing secret containing JWT keys (private.pem, public.pem, public-keys-config.json)
@@ -178,19 +177,15 @@ jwtSigning:
 # JWT Keys Generation Job Configuration
 jwtKeysGeneration:
   enabled: true
-
-  image:
-    repository: ghcr.io/wso2/amp-api
-    tag: "0.0.0-dev"
-    pullPolicy: IfNotPresent
+  # Key ID is derived from agentManagerService.config.jwtSigning.activeKeyId
 
   resources:
     requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
       memory: 128Mi
       cpu: 100m
-    limits:
-      memory: 256Mi
-      cpu: 200m
 
   backoffLimit: 3
   podSecurityContext: {}
@@ -346,10 +341,6 @@ rbac:
     - apiGroups: ["*"]
       resources: ["*"]
       verbs: ["*"]
-    # Explicit permissions for JWT keys Secret management
-    - apiGroups: [""]
-      resources: ["secrets"]
-      verbs: ["get", "list", "create", "update", "patch"]
 
 # Global volume mounts and volumes (optional)
 volumeMounts: []
