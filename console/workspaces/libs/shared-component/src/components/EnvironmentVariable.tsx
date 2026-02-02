@@ -16,17 +16,53 @@
  * under the License.
  */
 
+import { useState, useCallback, useMemo } from "react";
 import { Box, Button, Typography } from "@wso2/oxygen-ui";
-import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
+import { Plus as Add, FileText } from "@wso2/oxygen-ui-icons-react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import { EnvVariableEditor } from "@agent-management-platform/views";
+import { EnvBulkImportModal } from "./EnvBulkImportModal";
+import type { EnvVariable } from "../utils";
 
 export const EnvironmentVariable = () => {
-    const { control, formState: { errors }, register } = useFormContext();
-    const { fields, append, remove } = useFieldArray({ control, name: 'env' });
-    const envValues = useWatch({ control, name: 'env' }) || [];
+    const { control, formState: { errors }, register, getValues } = useFormContext();
+    const { fields, append, remove, replace } = useFieldArray({ control, name: 'env' });
+    const watchedEnvValues = useWatch({ control, name: 'env' });
+    const [importModalOpen, setImportModalOpen] = useState(false);
 
-    const isOneEmpty = envValues.some((e: any) => !e?.key || !e?.value);
+    // Memoize envValues to stabilize dependency for useCallback
+    const envValues = useMemo(
+        () => (watchedEnvValues || []) as EnvVariable[],
+        [watchedEnvValues]
+    );
+
+    const isOneEmpty = envValues.some((e) => !e?.key || !e?.value);
+
+    // Handle bulk import - merge imported vars with existing ones, remove empty rows
+    const handleImport = useCallback((importedVars: EnvVariable[]) => {
+        // Get current values directly from form to avoid stale closure
+        const currentEnv = (getValues('env') || []) as EnvVariable[];
+
+        // Filter out empty rows from existing values
+        const nonEmptyExisting = currentEnv.filter((env) => env?.key && env?.value);
+
+        // Map existing keys to their values for merging
+        const existingMap = new Map<string, string>();
+        nonEmptyExisting.forEach((env) => {
+            existingMap.set(env.key, env.value);
+        });
+
+        // Merge: imported vars override existing ones with same key
+        importedVars.forEach((imported) => {
+            existingMap.set(imported.key, imported.value);
+        });
+
+        // Convert map back to array
+        const mergedEnv = Array.from(existingMap.entries()).map(([key, value]) => ({ key, value }));
+
+        // Replace all fields with merged result
+        replace(mergedEnv);
+    }, [getValues, replace]);
 
     return (
         <Box display="flex" flexDirection="column" gap={2} width="100%">
@@ -37,7 +73,7 @@ export const EnvironmentVariable = () => {
                 Set environment variables for your agent deployment.
             </Typography>
             <Box display="flex" flexDirection="column" gap={2}>
-                {fields.map((field: any, index: number) => (
+                {fields.map((field, index) => (
                     <EnvVariableEditor
                         key={field.id}
                         fieldName="env"
@@ -49,7 +85,7 @@ export const EnvironmentVariable = () => {
                     />
                 ))}
             </Box>
-            <Box display="flex" justifyContent="flex-start" width="100%">
+            <Box display="flex" justifyContent="flex-start" gap={1} width="100%">
                 <Button
                     startIcon={<Add fontSize="small" />}
                     disabled={isOneEmpty}
@@ -59,7 +95,21 @@ export const EnvironmentVariable = () => {
                 >
                     Add
                 </Button>
+                <Button
+                    startIcon={<FileText fontSize="small" />}
+                    variant="outlined"
+                    color="primary"
+                    onClick={() => setImportModalOpen(true)}
+                >
+                    Import
+                </Button>
             </Box>
+
+            <EnvBulkImportModal
+                open={importModalOpen}
+                onClose={() => setImportModalOpen(false)}
+                onImport={handleImport}
+            />
         </Box>
     );
 };
