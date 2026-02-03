@@ -27,6 +27,7 @@ paths:
                 summary: Simple travel query
                 value:
                   message: "Plan a 5-day trip to Tokyo"
+                  sessionId: "session_abc123"
                   userId: "user_123"
                   userName: "Traveler"
               with_session:
@@ -75,6 +76,7 @@ components:
       type: object
       required:
         - message
+        - sessionId
         - userId
       properties:
         message:
@@ -88,7 +90,7 @@ components:
             - type: string
             - type: null
           title: SessionId
-          description: Optional session identifier for maintaining conversation context
+          description: Session identifier for maintaining conversation context
           example: "session_abc123"
         userId:
           type: string
