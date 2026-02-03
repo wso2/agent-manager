@@ -16,12 +16,7 @@
 
 """Evaluators subpackage."""
 
-from .base import (
-    BaseEvaluator,
-    LLMAsJudgeEvaluator,
-    CompositeEvaluator,
-    FunctionEvaluator
-)
+from .base import BaseEvaluator, LLMAsJudgeEvaluator, CompositeEvaluator, FunctionEvaluator
 
 from .builtin import (
     AnswerLengthEvaluator,

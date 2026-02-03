@@ -19,13 +19,13 @@ Evaluation runners for the framework.
 
 Two evaluation scenarios:
 
-1. BenchmarkRunner - Evaluation with a dataset of predefined tasks
+1. Experiment - Evaluation with a dataset of predefined tasks
    - You have a set of test cases (questions/prompts with expected answers)
    - Runner INVOKES the agent with each task
    - Gets traces and evaluates against ground truth
    - Use case: "Test my agent against these 100 questions"
 
-2. LiveRunner - Evaluation on live production traces
+2. Monitor - Evaluation on live production traces
    - No predefined tasks - uses live traffic
    - Runner FETCHES traces from API for a time period
    - Evaluates without ground truth (quality metrics, latency, errors)
@@ -42,45 +42,47 @@ Configuration styles:
 Examples:
     # Config-driven (loads from environment variables)
     config = Config()  # Loads AMP_API_URL etc from env
-    runner = LiveRunner(config=config)
+    runner = Monitor(config=config)
     result = runner.run(limit=1000)
 
     # Programmatic (explicit parameters)
-    runner = LiveRunner(
+    runner = Monitor(
         trace_service_url="http://traces-api:8001",
         exclude_tags=["llm-judge"]
     )
     result = runner.run(start_time="2024-01-26T00:00:00")
 
     # Hybrid (config + overrides)
-    runner = LiveRunner(
+    runner = Monitor(
         config=config,
         trace_service_url="http://custom-url:9000",  # Overrides config
         include_tags=["quality"]
     )
 
     # Benchmark evaluation
-    runner = BenchmarkRunner(
-        agent=my_agent_function,
+    runner = Experiment(
+        invoker=my_agent_invoker,
         dataset=Dataset.from_csv("test_cases.csv")
     )
     result = runner.run()
 """
 
-from typing import List, Dict, Optional, Any, Callable, Union
+from typing import List, Dict, Optional, Any, TYPE_CHECKING
 from dataclasses import dataclass, field
 from datetime import datetime
 from abc import ABC, abstractmethod
 from enum import Enum
 import logging
 
-from .trace import EvalTrace, parse_trace_for_evaluation, TraceFetcher
+from .trace import Trajectory, parse_trace_for_evaluation, TraceFetcher
 from .registry import get_registry, get_evaluator
 from .evaluators.base import BaseEvaluator
-from .models import EvalResult, Task, Dataset, EvalContext, Constraints
-from .aggregators.aggregation import ResultAggregator, AggregatedResults
-from .aggregators.base import AggregationType
+from .models import Task, Dataset, EvalContext, EvaluatorSummary, EvaluatorScore
+from .aggregators.base import normalize_aggregations
 from .config import Config
+
+if TYPE_CHECKING:
+    from .invokers import AgentInvoker, InvokeResult
 
 
 logger = logging.getLogger(__name__)
@@ -94,8 +96,8 @@ logger = logging.getLogger(__name__)
 class RunType(str, Enum):
     """Type of evaluation run."""
 
-    BENCHMARK = "benchmark"
-    LIVE = "live"
+    EXPERIMENT = "experiment"
+    MONITOR = "monitor"
 
 
 # ============================================================================
@@ -108,24 +110,26 @@ class RunResult:
     """Result of an evaluation run."""
 
     run_id: str
-    run_type: RunType  # BENCHMARK or LIVE
+    run_type: RunType  # EXPERIMENT or MONITOR
     started_at: datetime
     completed_at: Optional[datetime] = None
+
+    # Context information
+    agent_uid: Optional[str] = None
+    environment_uid: Optional[str] = None
+    dataset_id: Optional[str] = None  # For experiments
 
     # Counts
     traces_evaluated: int = 0
     evaluators_run: int = 0
 
-    # Per-evaluator aggregated results
-    scores: Dict[str, AggregatedResults] = field(default_factory=dict)
-
-    # Individual results per trace (optional, for detailed analysis)
-    trace_results: List[Dict[str, EvalResult]] = field(default_factory=list)
+    # Per-evaluator aggregated results (new structure)
+    scores: Dict[str, EvaluatorSummary] = field(default_factory=dict)
 
     # Errors encountered
     errors: List[str] = field(default_factory=list)
 
-    # Metadata
+    # Metadata (additional context)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -142,21 +146,36 @@ class RunResult:
         """Get a human-readable summary."""
         lines = [
             f"Evaluation Run: {self.run_id} ({self.run_type})",
-            f"  Traces evaluated: {self.traces_evaluated}",
-            f"  Evaluators run: {self.evaluators_run}",
+            f"  Started: {self.started_at.isoformat()}",
             f"  Duration: {self.duration_seconds:.2f}s",
-            f"  Errors: {len(self.errors)}",
-            "",
-            "Scores:",
         ]
 
-        for name, agg in self.scores.items():
+        # Add context information
+        if self.agent_uid:
+            lines.append(f"  Agent: {self.agent_uid}")
+        if self.environment_uid:
+            lines.append(f"  Environment: {self.environment_uid}")
+        if self.dataset_id:
+            lines.append(f"  Dataset: {self.dataset_id}")
+
+        lines.extend(
+            [
+                "",
+                f"Traces evaluated: {self.traces_evaluated}",
+                f"Evaluators run: {self.evaluators_run}",
+                f"Errors: {len(self.errors)}",
+                "",
+                "Scores:",
+            ]
+        )
+
+        for name, summary in self.scores.items():
             lines.append(f"  {name}:")
             # Show all available aggregations
-            for agg_name, value in agg.aggregations.items():
+            for agg_name, value in summary.aggregated_scores.items():
                 lines.append(f"    {agg_name}: {value:.4f}")
             # Show count
-            lines.append(f"    count: {agg.count}")
+            lines.append(f"    count: {summary.count}")
 
         if self.errors:
             lines.append("")
@@ -189,6 +208,8 @@ class BaseRunner(ABC):
     def __init__(
         self,
         config: Optional[Config] = None,
+        trace_fetcher: Optional[TraceFetcher] = None,
+        trace_service_url: Optional[str] = None,
         include: Optional[List[str]] = None,
         exclude: Optional[List[str]] = None,
         include_tags: Optional[List[str]] = None,
@@ -199,6 +220,8 @@ class BaseRunner(ABC):
 
         Args:
             config: Config object (loads from env if None). Individual params override this.
+            trace_fetcher: Optional TraceFetcher instance (overrides config-based creation)
+            trace_service_url: Optional trace service URL (overrides config, used if no trace_fetcher)
             include: Only run these evaluators (by name)
             exclude: Don't run these evaluators (by name)
             include_tags: Only run evaluators with ANY of these tags
@@ -211,6 +234,11 @@ class BaseRunner(ABC):
         """
         # Store or create config (from environment)
         self.config = config if config is not None else Config.from_env()
+
+        # Trace fetcher (lazy initialization)
+        self._trace_fetcher = trace_fetcher
+        self._trace_service_url = trace_service_url
+        self._fetcher_instance: Optional[TraceFetcher] = None
 
         # Individual parameters override config
         self.include = set(include) if include else None
@@ -235,9 +263,48 @@ class BaseRunner(ABC):
         self._evaluators: List[BaseEvaluator] = []
         self._load_evaluators()
 
-        # Results storage
-        self._results_by_evaluator: Dict[str, List[EvalResult]] = {}
-        self.reset()
+    def _get_fetcher(self) -> TraceFetcher:
+        """
+        Get or create the trace fetcher instance (lazy initialization).
+
+        Priority (highest to lowest):
+            1. Explicit trace_fetcher passed to __init__
+            2. Explicit trace_service_url passed to __init__
+            3. Create from config (platform mode with api_url)
+
+        Returns:
+            TraceFetcher instance
+
+        Raises:
+            ValueError: If no fetcher and config doesn't have required settings
+        """
+        if self._fetcher_instance is not None:
+            return self._fetcher_instance
+
+        if self._trace_fetcher:
+            # Explicit fetcher takes highest priority
+            self._fetcher_instance = self._trace_fetcher
+        elif self._trace_service_url:
+            # Explicit URL overrides config, use agent info from config
+            self._fetcher_instance = TraceFetcher(
+                base_url=self._trace_service_url,
+                agent_uid=self.config.agent.agent_uid,
+                environment_uid=self.config.agent.environment_uid,
+            )
+        elif self.config.trace_loader.mode == "platform" and self.config.platform.api_url:
+            # Create from config when in platform mode
+            self._fetcher_instance = TraceFetcher(
+                base_url=self.config.platform.api_url,
+                agent_uid=self.config.agent.agent_uid,
+                environment_uid=self.config.agent.environment_uid,
+            )
+        else:
+            raise ValueError(
+                "No trace_fetcher or trace_service_url provided and config is missing platform API URL. "
+                "Either pass trace_fetcher/trace_service_url parameter or set AMP_API_URL environment variable."
+            )
+
+        return self._fetcher_instance
 
     def _load_evaluators(self):
         """Load evaluators from registry based on filters."""
@@ -291,32 +358,24 @@ class BaseRunner(ABC):
         """Get number of evaluators that will run."""
         return len(self._evaluators)
 
-    def reset(self):
-        """Reset accumulated results."""
-        self._results_by_evaluator = {e.name: [] for e in self._evaluators}
-
-    def evaluate_trace(self, trace: EvalTrace, task: Optional[Task] = None) -> Dict[str, EvalResult]:
+    def evaluate_trace(
+        self, trace: Trajectory, task: Optional[Task] = None, trial_id: Optional[str] = None
+    ) -> Dict[str, EvaluatorScore]:
         """
         Run all evaluators on a single trace.
 
         Args:
-            trace: The EvalTrace to evaluate
+            trace: The Trajectory to evaluate
             task: Optional task for reference/ground truth data
+            trial_id: Optional trial identifier for experiments
 
         Returns:
-            Dict mapping evaluator name to EvalResult
+            Dict mapping evaluator name to EvaluatorScore
         """
-        # Build constraints from task if available
-        constraints = None
-        if task and (task.max_latency_ms or task.max_tokens or task.max_iterations):
-            constraints = Constraints(
-                max_latency_ms=task.max_latency_ms, max_tokens=task.max_tokens, max_iterations=task.max_iterations
-            )
-
         # Build evaluation context with all available data from task
         context = EvalContext(
             trace=trace,
-            is_benchmark=self.run_type == RunType.BENCHMARK,
+            is_experiment=self.run_type == RunType.EXPERIMENT,
             # Expected data (ground truth)
             _expected_output=task.expected_output if task else None,
             _expected_trajectory=task.expected_trajectory if task else None,
@@ -324,45 +383,64 @@ class BaseRunner(ABC):
             # Guidelines
             _success_criteria=task.success_criteria_text if task else None,
             _prohibited_content=task.prohibited_content if task else None,
-            # Constraints
-            _constraints=constraints,
+            # Constraints (already in task)
+            _constraints=task.constraints if task else None,
             # Custom attributes
             _custom=task.custom if task else {},
             # Task reference
             _task=task,
         )
 
-        results = {}
+        scores = {}
 
         for evaluator in self._evaluators:
             try:
-                result = evaluator.evaluate(context)
-                results[evaluator.name] = result
-                self._results_by_evaluator[evaluator.name].append(result)
-            except Exception as e:
-                error_result = EvalResult(
-                    evaluator_name=evaluator.name,
-                    target_id=trace.trace_id,
-                    target_type="trace",
-                    score=0.0,
-                    passed=False,
-                    explanation=f"Evaluator error: {str(e)}",
-                )
-                results[evaluator.name] = error_result
-                self._results_by_evaluator[evaluator.name].append(error_result)
+                # Call evaluator - returns EvalResult
+                eval_result = evaluator(context)
 
-        return results
+                # Create EvaluatorScore directly from EvalResult
+                evaluator_score = EvaluatorScore(
+                    trace_id=trace.trace_id,
+                    score=eval_result.score,
+                    passed=eval_result.passed,
+                    timestamp=trace.timestamp,
+                    explanation=eval_result.explanation,
+                    task_id=task.task_id if task else None,
+                    trial_id=trial_id,
+                    metadata=eval_result.details or {},
+                )
+                scores[evaluator.name] = evaluator_score
+
+            except Exception as e:
+                # Record the error properly without fake scores
+                error_score = EvaluatorScore(
+                    trace_id=trace.trace_id,
+                    score=0.0,  # Required field, but marked as error
+                    passed=False,
+                    timestamp=trace.timestamp,
+                    explanation=None,  # Don't use explanation for errors
+                    task_id=task.task_id if task else None,
+                    trial_id=trial_id,
+                    metadata={},
+                    error=str(e),  # Actual error message
+                )
+                scores[evaluator.name] = error_score
+
+        return scores
 
     def _evaluate_traces(
-        self, traces: List[EvalTrace], tasks: Optional[Dict[str, Task]] = None, store_individual_results: bool = False
+        self,
+        traces: List[Trajectory],
+        tasks: Optional[Dict[str, Task]] = None,
+        trial_info: Optional[Dict[str, str]] = None,
     ) -> RunResult:
         """
         Internal method to evaluate a list of traces.
 
         Args:
-            traces: List of EvalTrace objects
+            traces: List of Trajectory objects
             tasks: Optional dict mapping trace_id to Task
-            store_individual_results: Whether to store per-trace results
+            trial_info: Optional dict mapping trace_id to trial_id (for experiments)
 
         Returns:
             RunResult with aggregated scores
@@ -373,22 +451,30 @@ class BaseRunner(ABC):
         started_at = datetime.now()
 
         result = RunResult(
-            run_id=run_id, run_type=self.run_type, started_at=started_at, evaluators_run=len(self._evaluators)
+            run_id=run_id,
+            run_type=self.run_type,
+            started_at=started_at,
+            evaluators_run=len(self._evaluators),
+            agent_uid=self.config.agent.agent_uid,
+            environment_uid=self.config.agent.environment_uid,
         )
 
-        # Reset any previous results
-        self.reset()
+        # Collect scores by evaluator name
+        scores_by_evaluator: Dict[str, List[EvaluatorScore]] = {e.name: [] for e in self._evaluators}
 
         # Evaluate each trace
         for trace in traces:
             task = tasks.get(trace.trace_id) if tasks else None
+            trial_id = trial_info.get(trace.trace_id) if trial_info else None
 
             try:
-                trace_results = self.evaluate_trace(trace, task)
+                # evaluate_trace returns Dict[str, EvaluatorScore]
+                trace_scores = self.evaluate_trace(trace, task, trial_id=trial_id)
                 result.traces_evaluated += 1
 
-                if store_individual_results:
-                    result.trace_results.append(trace_results)
+                # Collect scores by evaluator
+                for evaluator_name, score in trace_scores.items():
+                    scores_by_evaluator[evaluator_name].append(score)
 
             except Exception as e:
                 error_msg = f"Error evaluating trace {trace.trace_id}: {e}"
@@ -396,32 +482,73 @@ class BaseRunner(ABC):
                 logger.error(error_msg)
 
         # Aggregate results
-        result.scores = self._get_aggregated_scores()
+        result.scores = self._get_aggregated_scores(scores_by_evaluator)
         result.completed_at = datetime.now()
 
         return result
 
-    def _get_aggregated_scores(self) -> Dict[str, AggregatedResults]:
-        """Get aggregated scores from all evaluators."""
-        aggregated = {}
+    def _get_aggregated_scores(
+        self, scores_by_evaluator: Dict[str, List[EvaluatorScore]]
+    ) -> Dict[str, EvaluatorSummary]:
+        """
+        Compute aggregated scores for all evaluators.
 
-        for evaluator in self._evaluators:
-            results = self._results_by_evaluator.get(evaluator.name, [])
+        Args:
+            scores_by_evaluator: Dict mapping evaluator name to list of EvaluatorScore objects
 
-            # Use evaluator's aggregations or default to MEAN
-            aggregations = getattr(evaluator, "aggregations", None)
-            if aggregations is None:
-                aggregations = [AggregationType.MEAN]
+        Returns:
+            Dict mapping evaluator name to EvaluatorSummary
+        """
+        # Build evaluator lookup for getting aggregation config
+        evaluator_by_name = {e.name: e for e in self._evaluators}
 
-            agg = ResultAggregator.aggregate(results=results, aggregations=aggregations, evaluator_name=evaluator.name)
-            aggregated[evaluator.name] = agg
+        summaries = {}
 
-        return aggregated
+        for evaluator_name, all_scores in scores_by_evaluator.items():
+            # Get evaluator for aggregation config
+            evaluator = evaluator_by_name.get(evaluator_name)
+            aggregations = getattr(evaluator, "aggregations", None) if evaluator else None
+
+            # Separate successful scores from errors
+            successful_scores = [s for s in all_scores if not s.is_error]
+            error_count = len(all_scores) - len(successful_scores)
+
+            if error_count > 0:
+                logger.warning(
+                    f"Evaluator '{evaluator_name}' had {error_count} errors out of {len(all_scores)} evaluations"
+                )
+
+            # Normalize aggregations to List[Aggregation]
+            agg_list = normalize_aggregations(aggregations)
+
+            # Extract score values (only from successful evaluations)
+            score_values = [s.score for s in successful_scores]
+
+            # Compute each aggregation
+            aggregated_scores = {}
+            for agg in agg_list:
+                try:
+                    value = agg.compute(score_values)
+                    aggregated_scores[agg.name] = value
+                except Exception as e:
+                    logger.warning(f"Failed to compute {agg.name} for {evaluator_name}: {e}")
+                    # Skip failed aggregations - don't add 0.0 as it's misleading
+
+            # Create EvaluatorSummary
+            summary = EvaluatorSummary(
+                evaluator_name=evaluator_name,
+                count=len(all_scores),
+                aggregated_scores=aggregated_scores,
+                individual_scores=all_scores,
+            )
+            summaries[evaluator_name] = summary
+
+        return summaries
 
     @property
     @abstractmethod
     def run_type(self) -> RunType:
-        """Return the type of run: RunType.BENCHMARK or RunType.LIVE."""
+        """Return the type of run: RunType.EXPERIMENT or RunType.MONITOR."""
         pass
 
     @abstractmethod
@@ -434,41 +561,41 @@ class BaseRunner(ABC):
 # BENCHMARK RUNNER
 # ============================================================================
 
-# Type for agent callable: takes a task/prompt, returns trace or trace_id
-AgentCallable = Callable[[Task], Union[EvalTrace, str, Dict[str, Any]]]
 
-
-class BenchmarkRunner(BaseRunner):
+class Experiment(BaseRunner):
     """
     Evaluation runner for benchmark/dataset-based testing.
 
     This runner:
     1. Takes a dataset of tasks (prompts with expected answers)
-    2. INVOKES the agent with each task
-    3. Collects traces from the agent execution
+    2. INVOKES the agent with each task using an AgentInvoker
+    3. Collects traces from the agent execution via time-based batch fetching
     4. Evaluates traces against ground truth
 
     Use this when you have a predefined set of test cases.
 
     Example:
-        def my_agent(task: Task) -> EvalTrace:
-            response = agent.invoke(task.query)
-            return get_trace()  # Get trace from instrumentation
+        class MyInvoker(AgentInvoker):
+            def invoke(self, task: Task) -> InvokeResult:
+                response = requests.post(url, json=task.input)
+                return InvokeResult(output=response.json())
 
-        runner = BenchmarkRunner(
-            agent=my_agent,
-            dataset=Dataset.from_csv("test_cases.csv")
+        experiment = Experiment(
+            invoker=MyInvoker(),
+            dataset=dataset,
         )
-        result = runner.run()
-        print(f"Accuracy: {result.scores['accuracy'].mean}")
+        result = experiment.run()
     """
 
     def __init__(
         self,
-        agent: AgentCallable,
+        invoker: "AgentInvoker",
         dataset: Optional[Dataset] = None,
         trials_per_task: int = 1,
+        trace_fetch_wait_seconds: float = 60.0,
         config: Optional[Config] = None,
+        trace_fetcher: Optional[TraceFetcher] = None,
+        trace_service_url: Optional[str] = None,
         include: Optional[List[str]] = None,
         exclude: Optional[List[str]] = None,
         include_tags: Optional[List[str]] = None,
@@ -478,94 +605,276 @@ class BenchmarkRunner(BaseRunner):
         Initialize benchmark runner.
 
         Args:
-            agent: Callable that takes a Task and returns trace/trace_id
+            invoker: AgentInvoker instance for batch-friendly invocation
             dataset: Dataset with test tasks
             trials_per_task: Number of times to run each task (default: 1)
+            trace_fetch_wait_seconds: Seconds to wait before batch fetching traces (default: 60.0)
             config: Config object (loads from env if None)
+            trace_fetcher: Optional TraceFetcher (created from config if not provided)
+            trace_service_url: Optional trace service URL (overrides config, used if no trace_fetcher)
             include: Only run these evaluators (by name)
             exclude: Don't run these evaluators (by name)
             include_tags: Only run evaluators with these tags
             exclude_tags: Don't run evaluators with these tags
         """
-        super().__init__(config, include, exclude, include_tags, exclude_tags)
+        super().__init__(
+            config=config,
+            trace_fetcher=trace_fetcher,
+            trace_service_url=trace_service_url,
+            include=include,
+            exclude=exclude,
+            include_tags=include_tags,
+            exclude_tags=exclude_tags,
+        )
 
-        self.agent = agent
+        self.invoker = invoker
         self.dataset = dataset
         self.trials_per_task = trials_per_task
+        self.trace_fetch_wait_seconds = trace_fetch_wait_seconds
 
     @property
     def run_type(self) -> RunType:
-        return RunType.BENCHMARK
+        return RunType.EXPERIMENT
 
-    def run(self, dataset: Optional[Dataset] = None, store_individual_results: bool = False) -> RunResult:
+    def run(
+        self,
+        dataset: Optional[Dataset] = None,
+        traces: Optional[List[Trajectory]] = None,
+    ) -> RunResult:
         """
         Run benchmark evaluation.
 
         Args:
             dataset: Optional dataset (overrides constructor dataset)
-            store_individual_results: Whether to store per-trace results
+            traces: Pre-fetched Trajectory objects (skip agent invocation and trace fetching)
 
         Returns:
             RunResult with aggregated scores
         """
+        # If traces are provided directly, skip invocation and use them
+        if traces:
+            # Build task mapping if we have a dataset
+            tasks_by_trace_id = None
+            if dataset or self.dataset:
+                ds = dataset or self.dataset
+                # Try to match traces to tasks by trace_id == task_id (convention)
+                tasks_by_trace_id = {task.task_id: task for task in ds.tasks}
+
+            return self._evaluate_traces(
+                traces=traces,
+                tasks=tasks_by_trace_id,
+            )
+
+        # Normal invocation flow
         dataset = dataset or self.dataset
         if not dataset:
             raise ValueError("No dataset provided. Pass dataset to constructor or run().")
 
-        traces: List[EvalTrace] = []
+        return self._run_with_invoker(dataset)
+
+    def _run_with_invoker(self, dataset: Dataset) -> RunResult:
+        """
+        Run experiment using AgentInvoker pattern.
+
+        Uses time-based trace fetching with bagging parameters (task_id, trial_id)
+        for trace-to-task matching instead of trace context propagation.
+
+        Flow:
+        1. Record start time
+        2. Invoke agent for all tasks (propagates task_id and trial_id via OpenTelemetry baggage)
+        3. Record end time, wait for traces to be exported
+        4. Bulk fetch all traces in time window via /traces/export
+        5. Match traces to tasks using task_id and trial_id from span attributes
+        """
+        from .invokers import InvokeResult
+        from .trace import parse_trace_for_evaluation
+        import time
+        from datetime import datetime, timezone, timedelta
+        import uuid
+
+        # Import OpenTelemetry baggage for propagating task_id and trial_id
+        try:
+            from opentelemetry import baggage, context
+            from opentelemetry.context import attach, detach
+            from opentelemetry.instrumentation.requests import RequestsInstrumentor
+
+            # Enable HTTP instrumentation to inject baggage into requests
+            RequestsInstrumentor().instrument()
+            otel_available = True
+        except ImportError:
+            logger.warning("OpenTelemetry not available - baggage propagation disabled")
+            otel_available = False
+
+        traces: List[Trajectory] = []
         tasks_by_trace_id: Dict[str, Task] = {}
         errors: List[str] = []
 
-        # Run agent on each task
+        # Phase 1: Invoke agent for all tasks, collect results
+        all_results: List[tuple[Task, "InvokeResult", str]] = []  # (task, result, trial_id)
+
+        # Record start time for trace fetching
+        experiment_start_time = datetime.now(timezone.utc)
+        logger.info(f"Experiment started at {experiment_start_time.isoformat()}")
+
         for task in dataset.tasks:
             for trial in range(self.trials_per_task):
+                # Generate unique trial_id using UUID
+                trial_id = f"trial-{uuid.uuid4()}"
+
+                # Set task.id and trial.id in OpenTelemetry baggage context
+                # Using dotted notation following OpenTelemetry semantic conventions
+                # This will be automatically propagated in HTTP headers
+                token = None
+                if otel_available:
+                    ctx = context.get_current()
+                    ctx = baggage.set_baggage("task.id", task.task_id, context=ctx)
+                    ctx = baggage.set_baggage("trial.id", trial_id, context=ctx)
+                    token = attach(ctx)
+
                 try:
-                    # Invoke agent
-                    result = self.agent(task)
+                    # Invoke agent - baggage is propagated automatically
+                    result = self.invoker.invoke(task)
 
-                    # Handle different return types
-                    if isinstance(result, EvalTrace):
-                        trace = result
-                    elif isinstance(result, dict):
-                        trace = parse_trace_for_evaluation(result)
-                    elif isinstance(result, str):
-                        # trace_id returned, would need to fetch
-                        errors.append(f"Task {task.task_id}: trace_id return not supported yet")
-                        continue
-                    else:
-                        errors.append(f"Task {task.task_id}: unexpected return type {type(result)}")
-                        continue
+                    if result is None:
+                        result = InvokeResult()
 
-                    traces.append(trace)
-                    tasks_by_trace_id[trace.trace_id] = task
+                    all_results.append((task, result, trial_id))
+
+                    if result.error:
+                        errors.append(f"Task {task.task_id} trial {trial}: {result.error}")
 
                 except Exception as e:
                     errors.append(f"Task {task.task_id} trial {trial}: {e}")
+                    all_results.append((task, InvokeResult(error=str(e)), trial_id))
+                finally:
+                    # Detach baggage context
+                    if token is not None:
+                        detach(token)
+
+        # Record end time
+        experiment_end_time = datetime.now(timezone.utc)
+
+        # Add buffer to time window to ensure we capture all traces
+        # Traces might be timestamped slightly before/after invocation due to processing delays
+        fetch_start_time = experiment_start_time - timedelta(seconds=5)
+        fetch_end_time = experiment_end_time + timedelta(seconds=5)
+
+        # Phase 2: Bulk fetch all traces in the time window and match to tasks
+        # using task_id and trial_id from span attributes
+
+        try:
+            fetcher = self._get_fetcher()
+
+            # Wait for traces to be exported to the trace service
+            if self.trace_fetch_wait_seconds > 0:
+                logger.info(f"Waiting {self.trace_fetch_wait_seconds}s for traces to be exported...")
+                time.sleep(self.trace_fetch_wait_seconds)
+
+            # Calculate expected number of traces based on experiment size
+            # Add buffer for potential retries or additional spans
+            expected_traces = len(dataset.tasks) * self.trials_per_task
+            fetch_limit = max(expected_traces * 2, 100)  # At least 100, or 2x expected
+
+            # Fetch all traces in the experiment time window
+            fetched_traces = fetcher.fetch_traces(
+                start_time=fetch_start_time.isoformat(), end_time=fetch_end_time.isoformat(), limit=fetch_limit
+            )
+
+            logger.info(
+                f"Fetched {len(fetched_traces)} traces from trace service (expected: {expected_traces}, limit: {fetch_limit})"
+            )
+
+            # Build a lookup map: (task_id, trial_id) -> Trace
+            trace_by_baggage: Dict[tuple[str, str], Any] = {}
+
+            for trace in fetched_traces:
+                # Extract task_id and trial_id from trace-level fields (populated by trace service)
+                task_id = trace.taskId
+                trial_id = trace.trialId
+
+                if task_id and trial_id:
+                    trace_by_baggage[(task_id, trial_id)] = trace
+                    logger.debug(f"Trace {trace.traceId}: taskId={task_id}, trialId={trial_id}")
+                else:
+                    logger.warning(f"Trace {trace.traceId} missing taskId={task_id} or trialId={trial_id}")
+
+            logger.info(f"Matched {len(trace_by_baggage)} traces to tasks using baggage parameters")
+
+            # Match fetched traces to tasks
+            updated_results: List[tuple[Task, InvokeResult]] = []
+            for task, result, trial_id in all_results:
+                baggage_key = (task.task_id, trial_id)
+
+                if baggage_key in trace_by_baggage:
+                    otel_trace = trace_by_baggage[baggage_key]
+                    trajectory = parse_trace_for_evaluation(otel_trace)
+                    updated_results.append(
+                        (
+                            task,
+                            InvokeResult(
+                                output=result.output,
+                                trajectory=trajectory,
+                                metadata=result.metadata,
+                                error=result.error,
+                            ),
+                        )
+                    )
+                else:
+                    # No matching trace found
+                    logger.warning(f"No trace found for task_id={task.task_id}, trial_id={trial_id}")
+                    errors.append(
+                        f"Task {task.task_id} trial {trial_id}: No trace found with matching task_id/trial_id"
+                    )
+                    updated_results.append((task, result))
+
+            all_results = [(task, result, "") for task, result in updated_results]
+
+        except ValueError as e:
+            # No fetcher available
+            logger.warning(f"Cannot fetch traces: {e}")
+            errors.append(f"Trace fetching failed: {e}")
+        except Exception as e:
+            logger.error(f"Error during trace fetching: {e}", exc_info=True)
+            errors.append(f"Trace fetching error: {e}")
+
+        # Phase 3: Collect trajectories and track trial info
+        trial_info_by_trace: Dict[str, str] = {}  # trace_id -> trial_id
+        for task, result, trial_id in all_results:
+            if result.has_trajectory:
+                traces.append(result.trajectory)
+                tasks_by_trace_id[result.trajectory.trace_id] = task
+                if trial_id:
+                    trial_info_by_trace[result.trajectory.trace_id] = trial_id
+            elif result.error:
+                pass  # Already logged
+            else:
+                errors.append(f"Task {task.task_id}: No trajectory available")
 
         # Evaluate all traces
         run_result = self._evaluate_traces(
-            traces=traces, tasks=tasks_by_trace_id, store_individual_results=store_individual_results
+            traces=traces,
+            tasks=tasks_by_trace_id,
+            trial_info=trial_info_by_trace,
         )
 
-        # Add benchmark-specific metadata
+        # Add experiment-specific metadata
+        run_result.dataset_id = getattr(dataset, "dataset_id", None) or f"dataset-{len(dataset.tasks)}-tasks"
         run_result.metadata["dataset_size"] = len(dataset.tasks)
         run_result.metadata["trials_per_task"] = self.trials_per_task
         run_result.metadata["total_invocations"] = len(dataset.tasks) * self.trials_per_task
 
-        # Add any agent invocation errors
         run_result.errors.extend(errors)
-
         return run_result
 
 
 # ============================================================================
-# LIVE RUNNER
+# MONITOR RUNNER
 # ============================================================================
 
 
-class LiveRunner(BaseRunner):
+class Monitor(BaseRunner):
     """
-    Evaluation runner for live/production trace analysis.
+    Evaluation runner for monitor/production trace analysis.
 
     This runner:
     1. FETCHES traces from a trace service API
@@ -577,11 +886,11 @@ class LiveRunner(BaseRunner):
     Example:
         # Config-driven
         config = Config()  # Loads from env
-        runner = LiveRunner(config=config)
+        runner = Monitor(config=config)
         result = runner.run(limit=1000)
 
         # Programmatic
-        runner = LiveRunner(
+        runner = Monitor(
             trace_service_url="http://traces-api:8001",
             exclude_tags=["llm-judge"]
         )
@@ -594,21 +903,21 @@ class LiveRunner(BaseRunner):
 
     def __init__(
         self,
-        trace_service_url: Optional[str] = None,
-        trace_fetcher: Optional[TraceFetcher] = None,
         config: Optional[Config] = None,
+        trace_fetcher: Optional[TraceFetcher] = None,
+        trace_service_url: Optional[str] = None,
         include: Optional[List[str]] = None,
         exclude: Optional[List[str]] = None,
         include_tags: Optional[List[str]] = None,
         exclude_tags: Optional[List[str]] = None,
     ):
         """
-        Initialize live runner.
+        Initialize monitor runner.
 
         Args:
-            trace_service_url: URL of the trace service API (overrides config)
-            trace_fetcher: Custom TraceFetcher instance (overrides URL and config)
             config: Config object (loads from env if None). Platform API URL from config.platform.api_url
+            trace_fetcher: Custom TraceFetcher instance (overrides URL and config)
+            trace_service_url: URL of the trace service API (overrides config)
             include: Only run these evaluators (by name)
             exclude: Don't run these evaluators (by name)
             include_tags: Only run evaluators with these tags
@@ -619,64 +928,30 @@ class LiveRunner(BaseRunner):
             2. trace_service_url parameter (if provided)
             3. config.platform.api_url (if config provided and mode=platform)
             4. Default config from env variables (AMP_API_URL)
-            5. Fallback to localhost:8001
         """
-        super().__init__(config, include, exclude, include_tags, exclude_tags)
-
-        # Store parameters for lazy fetcher creation
-        self._trace_service_url = trace_service_url
-        self._trace_fetcher = trace_fetcher
-        self._fetcher_instance: Optional[TraceFetcher] = None
-
-    def _get_fetcher(self) -> TraceFetcher:
-        """Get or create the trace fetcher instance (lazy initialization)."""
-        if self._fetcher_instance is not None:
-            return self._fetcher_instance
-
-        # Determine trace fetcher with priority
-        if self._trace_fetcher:
-            # Explicit fetcher takes highest priority
-            self._fetcher_instance = self._trace_fetcher
-        elif self._trace_service_url:
-            # Explicit URL overrides config, use agent info from config
-            self._fetcher_instance = TraceFetcher(
-                base_url=self._trace_service_url,
-                agent_uid=self.config.agent.agent_uid,
-                environment_uid=self.config.agent.environment_uid,
-            )
-        elif self.config.trace_loader.mode == "platform" and self.config.platform.api_url:
-            # Use platform API URL when in platform mode
-            self._fetcher_instance = TraceFetcher(
-                base_url=self.config.platform.api_url,
-                agent_uid=self.config.agent.agent_uid,
-                environment_uid=self.config.agent.environment_uid,
-            )
-        else:
-            # Fallback to localhost with config agent info
-            self._fetcher_instance = TraceFetcher(
-                base_url="http://localhost:8001",
-                agent_uid=self.config.agent.agent_uid,
-                environment_uid=self.config.agent.environment_uid,
-            )
-
-        return self._fetcher_instance
+        super().__init__(
+            config=config,
+            trace_fetcher=trace_fetcher,
+            trace_service_url=trace_service_url,
+            include=include,
+            exclude=exclude,
+            include_tags=include_tags,
+            exclude_tags=exclude_tags,
+        )
 
     @property
     def run_type(self) -> RunType:
-        return RunType.LIVE
+        return RunType.MONITOR
 
     def run(
         self,
         start_time: Optional[str] = None,
         end_time: Optional[str] = None,
         limit: Optional[int] = None,
-        agent_id: Optional[str] = None,
-        traces: Optional[List[EvalTrace]] = None,
-        raw_traces: Optional[List[Dict[str, Any]]] = None,
-        store_individual_results: bool = False,
+        traces: Optional[List[Trajectory]] = None,
     ) -> RunResult:
         """
-        Run live evaluation.
+        Run monitor evaluation.
 
         Provide traces directly OR specify time range to fetch.
 
@@ -684,40 +959,26 @@ class LiveRunner(BaseRunner):
             start_time: Start time in ISO format (for fetching)
             end_time: End time in ISO format (for fetching)
             limit: Max traces to fetch
-            agent_id: Filter by agent ID
-            traces: Pre-fetched EvalTrace objects (skip fetching)
-            raw_traces: Pre-fetched raw trace dicts (will be parsed)
-            store_individual_results: Whether to store per-trace results
+            traces: Pre-fetched Trajectory objects (skip fetching)
 
         Returns:
             RunResult with aggregated scores
         """
-        eval_traces: List[EvalTrace] = []
+        eval_traces: List[Trajectory] = []
 
         if traces:
             # Use provided traces directly
             eval_traces = traces
-        elif raw_traces:
-            # Parse provided raw traces
-            eval_traces = [parse_trace_for_evaluation(t) for t in raw_traces]
         else:
             # Fetch from trace service
             try:
                 fetcher = self._get_fetcher()
-                fetched = fetcher.fetch_traces(start_time=start_time, end_time=end_time, limit=limit, agent_id=agent_id)
-                # Parse fetched traces to EvalTrace
+                fetched = fetcher.fetch_traces(start_time=start_time, end_time=end_time, limit=limit)
+                # Parse fetched traces to Trajectory
                 for trace in fetched:
-                    # Handle both dict and object formats
-                    if isinstance(trace, dict):
-                        trace_dict = trace
-                    elif hasattr(trace, "__dict__"):
-                        trace_dict = trace.__dict__
-                    else:
-                        logger.warning(f"Unknown trace type {type(trace)}, skipping")
-                        continue
-
                     try:
-                        eval_traces.append(parse_trace_for_evaluation(trace_dict))
+                        # fetcher.fetch_traces() returns Trace objects, pass directly to parser
+                        eval_traces.append(parse_trace_for_evaluation(trace))
                     except Exception as parse_error:
                         logger.error(f"Error parsing trace: {parse_error}")
                         continue
@@ -731,63 +992,22 @@ class LiveRunner(BaseRunner):
 
                 return RunResult(
                     run_id=generate_id("run"),
-                    run_type=RunType.LIVE,
+                    run_type=RunType.MONITOR,
                     started_at=datetime.now(),
                     completed_at=datetime.now(),
                     errors=[error_msg],
                 )
 
-        # Evaluate traces (no tasks/ground truth for live)
+        # Evaluate traces (no tasks/ground truth for monitor)
         run_result = self._evaluate_traces(
             traces=eval_traces,
-            tasks=None,  # No ground truth in live mode
-            store_individual_results=store_individual_results,
+            tasks=None,  # No ground truth in monitor mode
         )
 
-        # Add live-specific metadata
+        # Add monitor-specific metadata
         if start_time:
             run_result.metadata["start_time"] = start_time
         if end_time:
             run_result.metadata["end_time"] = end_time
-        if agent_id:
-            run_result.metadata["agent_id"] = agent_id
 
         return run_result
-
-
-# ============================================================================
-# CONVENIENCE FUNCTION
-# ============================================================================
-
-
-def evaluate(
-    traces: List[EvalTrace],
-    tasks: Optional[Dict[str, Task]] = None,
-    include: Optional[List[str]] = None,
-    exclude: Optional[List[str]] = None,
-    include_tags: Optional[List[str]] = None,
-    exclude_tags: Optional[List[str]] = None,
-) -> RunResult:
-    """
-    Convenience function to evaluate traces without creating a runner.
-
-    Args:
-        traces: List of EvalTrace objects
-        tasks: Optional dict mapping trace_id to Task (for ground truth)
-        include/exclude: Evaluator filtering by name
-        include_tags/exclude_tags: Evaluator filtering by tag
-
-    Returns:
-        RunResult with aggregated scores
-
-    Example:
-        result = evaluate(traces, include_tags=["quality"])
-        print(result.scores["accuracy"].mean)
-    """
-    runner = LiveRunner(
-        include=include,
-        exclude=exclude,
-        include_tags=include_tags,
-        exclude_tags=exclude_tags,
-    )
-    return runner.run(traces=traces)

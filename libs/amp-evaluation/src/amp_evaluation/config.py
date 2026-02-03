@@ -18,6 +18,7 @@
 Configuration loader for the evaluation framework.
 Loads configuration from environment variables.
 """
+
 import os
 from typing import Optional
 from dataclasses import dataclass
@@ -26,71 +27,65 @@ from dataclasses import dataclass
 @dataclass
 class AgentConfig:
     """Agent configuration loaded from environment."""
+
     agent_uid: str
     environment_uid: str
 
     @classmethod
-    def from_env(cls) -> 'AgentConfig':
+    def from_env(cls) -> "AgentConfig":
         """Load agent config from environment variables."""
-        return cls(
-            agent_uid=os.getenv('AGENT_UID', ''),
-            environment_uid=os.getenv('ENVIRONMENT_UID', '')
-        )
+        return cls(agent_uid=os.getenv("AGENT_UID", ""), environment_uid=os.getenv("ENVIRONMENT_UID", ""))
 
 
 @dataclass
 class PlatformConfig:
     """Platform API configuration."""
+
     api_url: str
     api_key: str
 
     @classmethod
-    def from_env(cls) -> 'PlatformConfig':
+    def from_env(cls) -> "PlatformConfig":
         """Load platform config from environment variables."""
-        return cls(
-            api_url=os.getenv('AMP_API_URL', ''),
-            api_key=os.getenv('AMP_API_KEY', '')
-        )
+        return cls(api_url=os.getenv("AMP_API_URL", ""), api_key=os.getenv("AMP_API_KEY", ""))
 
 
 @dataclass
 class TraceLoaderConfig:
     """Trace loading configuration."""
+
     mode: str  # "platform" | "file"
     trace_file_path: Optional[str] = None
 
     @classmethod
-    def from_env(cls) -> 'TraceLoaderConfig':
+    def from_env(cls) -> "TraceLoaderConfig":
         """Load trace loader config from environment variables."""
-        return cls(
-            mode=os.getenv('TRACE_LOADER_MODE', 'platform'),
-            trace_file_path=os.getenv('TRACE_FILE_PATH')
-        )
+        return cls(mode=os.getenv("TRACE_LOADER_MODE", "platform"), trace_file_path=os.getenv("TRACE_FILE_PATH"))
 
 
 @dataclass
 class ResultsConfig:
     """Results publishing configuration."""
+
     publish_to_platform: bool = True
 
     @classmethod
-    def from_env(cls) -> 'ResultsConfig':
+    def from_env(cls) -> "ResultsConfig":
         """Load results config from environment variables."""
-        return cls(
-            publish_to_platform=os.getenv('PUBLISH_RESULTS', 'true').lower() == 'true'
-        )
+        return cls(publish_to_platform=os.getenv("PUBLISH_RESULTS", "true").lower() == "true")
 
 
 @dataclass
 class Config:
     """Complete configuration for the evaluation framework."""
+
     agent: AgentConfig
     platform: PlatformConfig
     trace_loader: TraceLoaderConfig
     results: ResultsConfig
 
     @classmethod
-    def from_env(cls) -> 'Config':
+    def from_env(cls) -> "Config":
         """
         Load complete configuration from environment variables.
 
@@ -108,15 +103,15 @@ class Config:
             agent=AgentConfig.from_env(),
             platform=PlatformConfig.from_env(),
             trace_loader=TraceLoaderConfig.from_env(),
-            results=ResultsConfig.from_env()
+            results=ResultsConfig.from_env(),
         )
-        
+
         # Validate configuration
         errors = config.validate()
         if errors:
             error_msg = "Configuration validation failed:\n  - " + "\n  - ".join(errors)
             raise ValueError(error_msg)
-        
+
         return config
 
     def validate(self) -> list[str]:

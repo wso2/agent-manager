@@ -200,7 +200,7 @@ class EvaluatorRegistry:
             @wraps(evaluator_or_func)
             def wrapper(context: EvalContext) -> EvalResult:
                 result = evaluator_or_func(context)
-                return _normalize_result(result, context.trace.trace_id, name)
+                return _normalize_result(result)
 
             # Wrap in FunctionEvaluator
             func_eval = FunctionEvaluator(wrapper, name=name)
@@ -244,53 +244,40 @@ def _validate_evaluator_function(func: Callable, name: str) -> None:
         )
 
 
-def _normalize_result(result, target_id: str, evaluator_name: str) -> EvalResult:
+def _normalize_result(result) -> EvalResult:
     """
     Normalize different result types to EvalResult.
 
     Supports:
     - EvalResult (passthrough)
-    - dict with 'score' field
-    - float/int (just a score)
+    - dict with 'score' field (create EvalResult)
+    - float/int (create EvalResult)
     """
     if isinstance(result, EvalResult):
-        # Ensure fields are set
-        if not result.evaluator_name:
-            result.evaluator_name = evaluator_name
-        if not result.target_id:
-            result.target_id = target_id
         return result
 
     elif isinstance(result, dict):
         if "score" not in result:
             raise ValueError(
-                f"Evaluator '{evaluator_name}' returned dict without 'score' field.\n"
+                f"Evaluator returned dict without 'score' field.\n"
                 f"Expected: {{'score': 0.95, 'explanation': '...'}}\n"
                 f"Got: {result}"
             )
 
         return EvalResult(
-            evaluator_name=evaluator_name,
-            target_id=target_id,
-            target_type=result.get("target_type", "trace"),
             score=result.get("score", 0.0),
-            passed=result.get("passed", result.get("score", 0.0) >= 0.7),
+            passed=result.get("passed"),
             explanation=result.get("explanation", ""),
-            reasoning_steps=result.get("reasoning_steps", []),
-            evidence=result.get("evidence", {}),
-            details=result.get("details", {}),
-            metadata=result.get("metadata", {}),
+            details=result.get("details"),
         )
 
     elif isinstance(result, (int, float)):
         score = float(result)
-        return EvalResult(
-            evaluator_name=evaluator_name, target_id=target_id, target_type="trace", score=score, passed=score >= 0.7
-        )
+        return EvalResult(score=score, passed=score >= 0.7, explanation="", details=None)
 
     else:
         raise TypeError(
-            f"Evaluator '{evaluator_name}' returned invalid type {type(result).__name__}.\n"
+            f"Evaluator returned invalid type {type(result).__name__}.\n"
             f"Expected: EvalResult | dict | float\n"
             f"Got: {result}\n"
             f"\nValid return examples:\n"
@@ -305,7 +292,7 @@ def _normalize_result(result, target_id: str, evaluator_name: str) -> EvalResult
 # ============================================================================
 
 
-def register(
+def evaluator(
     name: str,
     evaluator_type: str = "trace",
     description: Optional[str] = None,

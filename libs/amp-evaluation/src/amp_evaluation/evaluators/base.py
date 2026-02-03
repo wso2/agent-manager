@@ -20,9 +20,9 @@ Base evaluator classes and interfaces.
 Simplified architecture with single evaluate(context: EvalContext) interface.
 All evaluators receive the same EvalContext and access what they need.
 """
+
 from abc import ABC, abstractmethod
 from typing import List, Optional, Literal, Callable, TYPE_CHECKING
-import time
 import logging
 
 from ..models import EvalResult, CompositeScore, EvalContext
@@ -39,29 +39,23 @@ class BaseEvaluator(ABC):
     Abstract base class for all evaluators.
 
     Evaluators score specific aspects of agent performance.
-    All evaluators implement a single evaluate(context) method and access
-    whatever data they need from the EvalContext.
-    
-    Evaluator Types:
-        - code: Deterministic logic-based evaluation (default)
-        - model: LLM-as-judge evaluation
-        - human: Human evaluation (async)
-    
+    All evaluators implement a single evaluate(context) method and return
+    a simple EvalResult with score and explanation.
+
+    The runner automatically enriches EvalResult into EvaluatorScore
+    with metadata (trace ID, timestamp, task ID, trial ID).
+
     Example:
         class ExactMatchEvaluator(BaseEvaluator):
             def evaluate(self, ctx: EvalContext) -> EvalResult:
                 matches = ctx.trace.output == ctx.expected_output
-                return self._create_result(
-                    target_id=ctx.trace.trace_id,
-                    target_type="trace",
+                return EvalResult(
                     score=1.0 if matches else 0.0,
                     explanation=f"Exact match: {matches}"
                 )
     """
 
     def __init__(self):
-        self.evaluator_type: Literal["code", "model", "human"] = "code"
-        self.version: Optional[str] = "1.0"
         self._name: Optional[str] = None
         self._aggregations: Optional[List] = None
 
@@ -78,7 +72,7 @@ class BaseEvaluator(ABC):
     def aggregations(self) -> Optional[List]:
         """Get configured aggregations for this evaluator."""
         return self._aggregations
-    
+
     @aggregations.setter
     def aggregations(self, value: List):
         """Set aggregations for this evaluator."""
@@ -93,38 +87,17 @@ class BaseEvaluator(ABC):
             context: EvalContext containing trace and optional ground truth
 
         Returns:
-            EvalResult with score and explanation
+            EvalResult with score and explanation (metadata added automatically)
         """
         pass
 
-    def _create_result(
-        self,
-        target_id: str,
-        target_type: str,
-        score: float,
-        passed: bool = None,
-        explanation: str = "",
-        reasoning_steps: List[str] = None,
-        evidence: dict = None,
-        details: dict = None
-    ) -> EvalResult:
-        """Helper to create EvalResult with consistent metadata."""
-        if passed is None:
-            passed = score >= 0.7
+    def __call__(self, context: EvalContext) -> EvalResult:
+        """
+        Execute the evaluator.
 
-        return EvalResult(
-            evaluator_name=self.name,
-            target_id=target_id,
-            target_type=target_type,
-            score=score,
-            passed=passed,
-            explanation=explanation,
-            reasoning_steps=reasoning_steps or [],
-            evidence=evidence or {},
-            details=details or {},
-            evaluator_type=self.evaluator_type,
-            evaluator_version=self.version
-        )
+        Simply calls evaluate() - the runner will handle enriching with metadata.
+        """
+        return self.evaluate(context)
 
 
 class LLMAsJudgeEvaluator(BaseEvaluator):
@@ -133,14 +106,8 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
     Uses an LLM to evaluate outputs for subjective criteria.
     """
 
-    def __init__(
-        self,
-        model: str = "gpt-4",
-        prompt_template: Optional[str] = None,
-        criteria: Optional[str] = None
-    ):
+    def __init__(self, model: str = "gpt-4", prompt_template: Optional[str] = None, criteria: Optional[str] = None):
         super().__init__()
-        self.evaluator_type = "model"
         self.model = model
         self.prompt_template = prompt_template or self._default_prompt_template()
         self.criteria = criteria or "quality, accuracy, and helpfulness"
@@ -167,12 +134,10 @@ Explanation: <your reasoning>
 
     def evaluate(self, context: EvalContext) -> EvalResult:
         """Evaluate using LLM-as-judge."""
-        start_time = time.time()
-        
         reference_section = ""
         if context.has_expected_output():
             reference_section = f"\nExpected Output: {context.expected_output}"
-        
+
         criteria_section = f"\nEvaluation Criteria: {self.criteria}"
         if context.has_success_criteria():
             criteria_section = f"\nSuccess Criteria: {context.success_criteria}"
@@ -181,20 +146,16 @@ Explanation: <your reasoning>
             input=context.trace.input,
             output=context.trace.output,
             reference_section=reference_section,
-            criteria_section=criteria_section
+            criteria_section=criteria_section,
         )
 
         llm_response = self.call_llm(prompt)
-        
-        result = self._create_result(
-            target_id=context.trace.trace_id,
-            target_type="trace",
+
+        return EvalResult(
             score=llm_response.get("score", 0.0),
             explanation=llm_response.get("explanation", ""),
-            details={"model": self.model, "criteria": self.criteria}
+            details={"model": self.model, "criteria": self.criteria},
         )
-        result.evaluation_duration_ms = (time.time() - start_time) * 1000
-        return result
 
 
 class CompositeEvaluator:
@@ -205,7 +166,7 @@ class CompositeEvaluator:
         evaluators: List[BaseEvaluator],
         aggregation_method: Literal["weighted_average", "minimum", "all_pass", "majority"] = "weighted_average",
         weights: Optional[dict] = None,
-        threshold: float = 0.7
+        threshold: float = 0.7,
     ):
         self.evaluators = evaluators
         self.aggregation_method = aggregation_method
@@ -215,7 +176,7 @@ class CompositeEvaluator:
     def evaluate(self, context: EvalContext) -> CompositeScore:
         """Run all evaluators and combine scores."""
         component_scores = {}
-        
+
         for evaluator in self.evaluators:
             try:
                 result = evaluator.evaluate(context)
@@ -229,7 +190,7 @@ class CompositeEvaluator:
             component_scores=component_scores,
             aggregation_method=self.aggregation_method,
             weights=self.weights,
-            threshold=self.threshold
+            threshold=self.threshold,
         )
 
         composite.calculate()
@@ -246,30 +207,19 @@ class FunctionEvaluator(BaseEvaluator):
 
     def evaluate(self, context: EvalContext) -> EvalResult:
         """Call the wrapped function."""
-        start_time = time.time()
-        
         result = self.func(context)
 
+        # Handle different return types from user functions
         if isinstance(result, EvalResult):
-            eval_result = result
+            return result
         elif isinstance(result, dict):
-            eval_result = self._create_result(
-                target_id=context.trace.trace_id,
-                target_type="trace",
+            return EvalResult(
                 score=result.get("score", 0.0),
                 passed=result.get("passed"),
                 explanation=result.get("explanation", ""),
-                evidence=result.get("evidence"),
-                details=result.get("details")
+                details=result.get("details"),
             )
         elif isinstance(result, (int, float)):
-            eval_result = self._create_result(
-                target_id=context.trace.trace_id,
-                target_type="trace",
-                score=float(result)
-            )
+            return EvalResult(score=float(result))
         else:
             raise TypeError(f"Evaluator function must return EvalResult, dict, or float, got {type(result)}")
-        
-        eval_result.evaluation_duration_ms = (time.time() - start_time) * 1000
-        return eval_result

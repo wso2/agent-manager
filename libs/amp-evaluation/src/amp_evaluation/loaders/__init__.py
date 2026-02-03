@@ -16,18 +16,8 @@
 
 """Loaders subpackage."""
 
-from .trace_loader import (
-    TraceLoader,
-    JSONFileTraceLoader,
-    ProductionTraceLoader,
-)
 from .dataset_loader import DatasetLoader
-from .dataset_matcher import DatasetMatcher
 
 __all__ = [
-    "TraceLoader",
-    "JSONFileTraceLoader",
-    "ProductionTraceLoader",
     "DatasetLoader",
-    "DatasetMatcher",
 ]
