@@ -50,8 +50,8 @@
     "@agent-management-platform/logs": "workspace:*",
     "@agent-management-platform/metrics": "workspace:*",
     "@wso2/oxygen-ui-charts-react": "0.4.0",
-    "@wso2/oxygen-ui-icons-react": "0.0.1-alpha.9",
-    "@wso2/oxygen-ui": "0.0.1-alpha.9",
+    "@wso2/oxygen-ui-icons-react": "0.4.0",
+    "@wso2/oxygen-ui": "0.4.0",
     "swagger-ui-react": "5.19.0",
     "@monaco-editor/react": "4.7.0"
   },

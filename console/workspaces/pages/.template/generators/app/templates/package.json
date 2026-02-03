@@ -51,8 +51,8 @@
     "yup": "1.4.0",
     "react-hook-form": "7.53.0",
     "@hookform/resolvers": "3.9.0",
-    "@wso2/oxygen-ui": "0.0.1-alpha.9",
-    "@wso2/oxygen-ui-icons-react": "0.0.1-alpha.9"
+    "@wso2/oxygen-ui": "0.4.0",
+    "@wso2/oxygen-ui-icons-react": "0.4.0"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "8.6.13",
