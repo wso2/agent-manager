@@ -28,6 +28,7 @@ import {
 import { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { FadeIn } from '../FadeIn';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 
 export interface PageLayoutProps {
   children: ReactNode;
@@ -51,6 +52,8 @@ export function PageLayout({
   disablePadding = false,
   disableIcon = false,
 }: PageLayoutProps) {
+  useDocumentTitle(title);
+
   return (
     <Box
       display="flex"
