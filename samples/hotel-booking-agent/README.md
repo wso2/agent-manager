@@ -10,7 +10,7 @@ Minimal Python stack for the travel planner agent.
 ## Quick Start
 
 ### Agent Manager deployment
-Deploy the agent in your Agent Manager environment (details to be added). The flow below covers the required supporting services:
+Deploy the agent in your Agent Manager environment . The flow below covers the required supporting services:
 
 **Agent Manager**
 - Repo URL: `https://github.com/wso2/agent-manager/tree/amp/v0/samples/hotel_booking_agent`
@@ -40,7 +40,7 @@ kubectl -n dp-default-default-default-ccb66d74 port-forward svc/travel-planner-a
 
 **Hotel API**
 - Runs locally on `http://localhost:9091` when started via `uvicorn`.
-- You can also deploy it to a cloud host; just point the agent configuration at the deployed base URL.
+- You can also deploy it to a cloud host; in that case point the agent configuration at the deployed base URL.
 
 **Pinecone policies**
 - Create a Pinecone index using your preferred embedding model.
