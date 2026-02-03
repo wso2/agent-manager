@@ -83,23 +83,22 @@ const config: Config = {
   ],
 
   themeConfig: {
+
     // Replace with your project's social card
     // image: 'img/amp-social-card.png',
-    // Algolia search configuration
-    // To enable search, apply for Algolia DocSearch at https://docsearch.algolia.com/apply/
-    // Once approved, you'll receive your appId and apiKey
-    // algolia: {
-    //   appId: 'YOUR_APP_ID',
-    //   apiKey: 'YOUR_SEARCH_API_KEY',
-    //   indexName: 'agent-manager',
-    //   contextualSearch: true,
-    //   searchParameters: {},
-    // },
     announcementBar: {
       id: `release_${latestVersion.replace(/\./g, '_')}`,
       content:
-        `🎉️ WSO2 Agent Manager <a target="_blank" rel="noopener noreferrer" href="https://github.com/wso2/agent-manager/releases/tag/amp%2F${latestVersion}">${latestVersion}</a> has been released! Explore what's new. 🎉`,
+        `WSO2 Agent Manager <a target="_blank" rel="noopener noreferrer" href="https://github.com/wso2/agent-manager/releases/tag/amp%2F${latestVersion}">${latestVersion}</a> has been released! Explore what's new. 🎉`,
       isCloseable: true,
+    },
+
+    algolia: {
+      appId: 'HGUIB02S86',
+      apiKey: '5499faf1eb8741fc9f7fcfebe844572e',
+      indexName: 'Agent Manager Documentation Site (Docusaurus)',
+      contextualSearch: true,
+      searchParameters: {},
     },
     colorMode: {
       respectPrefersColorScheme: true,
