@@ -19,6 +19,7 @@ Base aggregator classes and types.
 
 Provides type-safe, extensible aggregation configuration for evaluators.
 """
+
 from typing import Union, Callable, List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
@@ -27,17 +28,18 @@ from enum import Enum
 class AggregationType(Enum):
     """
     Predefined aggregation types.
-    
+
     Use these for common aggregation strategies. For aggregations that
     require parameters (like PASS_RATE), wrap in an Aggregation object.
-    
+
     Example:
         # Simple aggregation (no params)
         aggregations=[AggregationType.MEAN, AggregationType.MEDIAN]
-        
+
         # Aggregation with parameters
         aggregations=[Aggregation(AggregationType.PASS_RATE, threshold=0.7)]
     """
+
     # Basic statistics
     MEAN = "mean"
     MEDIAN = "median"
@@ -47,14 +49,14 @@ class AggregationType(Enum):
     COUNT = "count"
     STDEV = "stdev"
     VARIANCE = "variance"
-    
+
     # Percentiles
     P50 = "p50"
     P75 = "p75"
     P90 = "p90"
     P95 = "p95"
     P99 = "p99"
-    
+
     # Pass/fail based (requires threshold parameter)
     PASS_RATE = "pass_rate"
 
@@ -63,22 +65,47 @@ class AggregationType(Enum):
 _custom_aggregators: Dict[str, Callable] = {}
 
 
+def aggregator(name: str):
+    """
+    Decorator to register a custom aggregation function.
+
+    Args:
+        name: Unique name for the aggregator
+
+    Example:
+        @aggregator("weighted_average")
+        def weighted_average(scores: List[float], weights: List[float] = None, **kwargs) -> float:
+            if weights:
+                return sum(s * w for s, w in zip(scores, weights)) / sum(weights)
+            return sum(scores) / len(scores)
+
+        # Now use it:
+        Aggregation("weighted_average", weights=[0.5, 0.3, 0.2])
+    """
+
+    def decorator(func: Callable[[List[float]], float]) -> Callable[[List[float]], float]:
+        _custom_aggregators[name] = func
+        return func
+
+    return decorator
+
+
 def register_aggregator(name: str, func: Callable[[List[float]], float]):
     """
     Register a custom aggregation function for reuse.
-    
+
     Args:
         name: Unique name for the aggregator
         func: Function that takes list of scores (and optional **kwargs) and returns float
-    
+
     Example:
         def weighted_average(scores: List[float], weights: List[float] = None, **kwargs) -> float:
             if weights:
                 return sum(s * w for s, w in zip(scores, weights)) / sum(weights)
             return sum(scores) / len(scores)
-        
+
         register_aggregator("weighted_average", weighted_average)
-        
+
         # Now use it:
         Aggregation("weighted_average", weights=[0.5, 0.3, 0.2])
     """
@@ -101,37 +128,34 @@ def list_aggregators() -> List[str]:
 class Aggregation:
     """
     Configuration for an aggregation with optional parameters.
-    
+
     Use this when you need to pass parameters to an aggregation function,
     like threshold for PASS_RATE.
-    
+
     Examples:
         # With enum type
         Aggregation(AggregationType.PASS_RATE, threshold=0.7)
         Aggregation(AggregationType.PASS_RATE, threshold=0.9)
-        
+
         # With custom registered function
         Aggregation("weighted_average", weights=[0.5, 0.3, 0.2])
-        
+
         # With inline custom function
         Aggregation(lambda scores: max(scores) - min(scores))  # range
     """
+
     type: Union[AggregationType, str, Callable]
     params: Dict[str, Any] = field(default_factory=dict)
-    
-    def __init__(
-        self,
-        type: Union[AggregationType, str, Callable],
-        **params
-    ):
+
+    def __init__(self, type: Union[AggregationType, str, Callable], **params):
         self.type = type
         self.params = params
-    
+
     @property
     def name(self) -> str:
         """
         Get display name for this aggregation.
-        
+
         Includes parameters in name for uniqueness.
         Examples:
             - "mean"
@@ -144,31 +168,31 @@ class Aggregation:
         elif isinstance(self.type, str):
             base = self.type
         elif callable(self.type):
-            base = getattr(self.type, '__name__', 'custom')
+            base = getattr(self.type, "__name__", "custom")
         else:
             base = str(self.type)
-        
+
         # Add parameters to name if present
         if self.params:
             param_parts = []
             for k, v in sorted(self.params.items()):
                 param_parts.append(f"{k}_{v}")
             return f"{base}_{'_'.join(param_parts)}"
-        
+
         return base
-    
+
     def get_function(self) -> Callable:
         """
         Get the aggregation function.
-        
+
         Returns:
             Callable that takes (scores: List[float], **kwargs) -> float
-        
+
         Raises:
             ValueError: If aggregation type not found
         """
         from .builtin import BUILTIN_AGGREGATORS
-        
+
         if isinstance(self.type, AggregationType):
             return BUILTIN_AGGREGATORS[self.type]
         elif callable(self.type):
@@ -182,26 +206,23 @@ class Aggregation:
             custom = get_aggregator(self.type)
             if custom:
                 return custom
-            raise ValueError(
-                f"Unknown aggregation type: '{self.type}'. "
-                f"Available: {list_aggregators()}"
-            )
+            raise ValueError(f"Unknown aggregation type: '{self.type}'. Available: {list_aggregators()}")
         else:
             raise TypeError(f"Invalid aggregation type: {type(self.type)}")
-    
+
     def compute(self, scores: List[float]) -> float:
         """
         Compute the aggregation on a list of scores.
-        
+
         Args:
             scores: List of float scores
-        
+
         Returns:
             Aggregated score
         """
         func = self.get_function()
         return func(scores, **self.params)
-    
+
     def __repr__(self) -> str:
         if self.params:
             params_str = ", ".join(f"{k}={v!r}" for k, v in self.params.items())
@@ -210,30 +231,28 @@ class Aggregation:
 
 
 # Default aggregations for evaluators that don't specify any
+# Using only MEAN as the default keeps it simple and predictable
 DEFAULT_AGGREGATIONS: List[Union[AggregationType, Aggregation]] = [
     AggregationType.MEAN,
-    AggregationType.MEDIAN,
-    AggregationType.MIN,
-    AggregationType.MAX,
 ]
 
 
 def normalize_aggregations(
-    aggregations: Optional[List[Union[AggregationType, Aggregation, str, Callable]]]
+    aggregations: Optional[List[Union[AggregationType, Aggregation, str, Callable]]],
 ) -> List[Aggregation]:
     """
     Normalize various aggregation specifications to List[Aggregation].
-    
+
     Args:
         aggregations: List of aggregation specs (can be mixed types)
-    
+
     Returns:
         List of Aggregation objects
-    
+
     Examples:
         normalize_aggregations([AggregationType.MEAN, "median"])
         # -> [Aggregation(MEAN), Aggregation("median")]
-        
+
         normalize_aggregations([
             AggregationType.MEAN,
             Aggregation(AggregationType.PASS_RATE, threshold=0.7)
@@ -242,7 +261,7 @@ def normalize_aggregations(
     """
     if aggregations is None:
         return [Aggregation(a) for a in DEFAULT_AGGREGATIONS]
-    
+
     result = []
     for agg in aggregations:
         if isinstance(agg, Aggregation):
@@ -255,8 +274,7 @@ def normalize_aggregations(
             result.append(Aggregation(agg))
         else:
             raise TypeError(
-                f"Invalid aggregation type: {type(agg)}. "
-                f"Expected AggregationType, Aggregation, str, or Callable."
+                f"Invalid aggregation type: {type(agg)}. Expected AggregationType, Aggregation, str, or Callable."
             )
-    
+
     return result

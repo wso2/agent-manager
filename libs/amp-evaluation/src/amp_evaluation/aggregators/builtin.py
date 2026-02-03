@@ -19,6 +19,7 @@ Built-in aggregation functions.
 
 Provides standard statistical aggregations for evaluator scores.
 """
+
 from typing import List, Dict, Callable
 import statistics
 
@@ -69,7 +70,7 @@ def _variance(scores: List[float], **kwargs) -> float:
 def _percentile(scores: List[float], p: float = 50, **kwargs) -> float:
     """
     Calculate percentile of scores.
-    
+
     Args:
         scores: List of scores
         p: Percentile (0-100)
@@ -111,11 +112,11 @@ def _p99(scores: List[float], **kwargs) -> float:
 def _pass_rate(scores: List[float], threshold: float = 0.7, **kwargs) -> float:
     """
     Calculate pass rate based on threshold.
-    
+
     Args:
         scores: List of scores
         threshold: Score threshold for passing (default: 0.7)
-    
+
     Returns:
         Fraction of scores >= threshold
     """

@@ -34,13 +34,13 @@ pip install -e .
 ### 1. Simple Evaluation with Built-in Evaluators
 
 ```python
-from amp_eval import LiveRunner, Config
+from amp_evaluation import Monitor, Config
 
 # Configure connection to trace service
 config = Config.from_env()  # Loads from environment variables
 
 # Create runner with built-in evaluators
-runner = LiveRunner(
+runner = Monitor(
     config=config,
     evaluator_names=["answer-length", "exact-match"]
 )
@@ -55,9 +55,9 @@ print(f"Results: {result.aggregated_results}")
 ### 2. Define a Custom Evaluator
 
 ```python
-from amp_eval import BaseEvaluator, EvalContext, EvalResult, register
+from amp_evaluation import BaseEvaluator, EvalContext, EvalResult, evaluator
 
-@register("answer-quality", tags=["quality", "output"])
+@evaluator("answer-quality", tags=["quality", "output"])
 class AnswerQualityEvaluator(BaseEvaluator):
     """Checks if answer meets quality standards."""
     
@@ -87,13 +87,13 @@ class AnswerQualityEvaluator(BaseEvaluator):
 ### 3. Use with Ground Truth (Benchmark Mode)
 
 ```python
-from amp_eval import BenchmarkRunner, Dataset, Task
+from amp_evaluation import Experiment, Dataset, Task
 
 # Load benchmark dataset
 dataset = Dataset.from_csv("benchmarks/qa_dataset.csv")
 
 # Create benchmark runner
-runner = BenchmarkRunner(
+runner = Experiment(
     config=config,
     evaluators=["exact-match", "answer-relevancy"],
     dataset=dataset
@@ -116,51 +116,86 @@ for eval_name, agg_results in result.aggregated_results.items():
 The main data structure representing a single agent execution extracted from OpenTelemetry spans.
 
 ```python
-from amp_eval.trace import EvalTrace
+from amp_evaluation.trace import EvalTrace
 
 # EvalTrace contains:
 trace.trace_id           # Unique identifier
 trace.input              # Agent input
 trace.output             # Agent output
-trace.llm_spans          # List of LLM calls
-trace.tool_spans         # List of tool invocations
-trace.retriever_spans    # List of retrieval operations
-trace.agent_span         # Primary agent span
+trace.steps              # Sequential list of all spans (execution order)
 trace.metrics            # Aggregated metrics (tokens, duration, errors)
-trace.success            # Whether trace succeeded (no errors)
+trace.timestamp          # When the trace occurred
+trace.metadata           # Additional context
+
+# Typed getters (filter by span type):
+trace.get_llm_steps()       # List[LLMSpan]
+trace.get_tool_steps()      # List[ToolSpan]
+trace.get_retriever_steps() # List[RetrieverSpan]
+trace.get_agent_steps()     # List[AgentSpan]
+
+# Legacy properties (backward compatible):
+trace.llm_spans          # Same as get_llm_steps()
+trace.tool_spans         # Same as get_tool_steps()
+trace.retriever_spans    # Same as get_retriever_steps()
+trace.agent_span         # First agent span (if any)
 
 # Convenience properties:
 trace.has_output         # bool
 trace.has_errors         # bool
-trace.all_tool_names     # List[str]
+trace.success            # bool (no errors)
+trace.all_tool_names     # List[str] (in order)
+trace.unique_tool_names  # List[str] (unique)
 trace.unique_models_used # List[str]
+trace.framework          # str (detected framework)
 ```
 
 ### EvalContext
 Rich context object passed to evaluators containing the trace and optional ground truth.
 
 ```python
-from amp_eval.models import EvalContext
+from amp_evaluation.models import EvalContext
 
-# EvalContext provides:
-context.trace              # EvalTrace object
-context.trace_id           # str
-context.expected_output    # Ground truth output (raises if not available)
-context.expected_trajectory # Expected tool sequence (raises if not available)
-context.prohibited_content # List of prohibited strings
-context.constraints        # Performance constraints (latency, tokens, iterations)
-context.metadata           # Additional context
+# Always available:
+context.trace              # EvalTrace object (the observed execution)
+context.trace_id           # str (convenience - same as trace.trace_id)
+context.input              # str (convenience - same as trace.input)
+context.output             # str (convenience - same as trace.output)
+context.timestamp          # datetime (when trace occurred)
+context.metrics            # TraceMetrics (convenience - same as trace.metrics)
+context.is_experiment      # bool (True if Experiment, False if Monitor)
+context.custom             # Dict[str, Any] (user-defined attributes)
+
+# Expected data (may be unavailable - raises DataNotAvailableError):
+context.expected_output    # str - Ground truth output
+context.expected_trajectory # List[Dict] - Expected tool sequence
+context.expected_outcome   # Dict - Expected side effects
+
+# Guidelines (may be unavailable - raises DataNotAvailableError):
+context.success_criteria   # str - Human-readable success criteria
+context.prohibited_content # List[str] - Content that shouldn't appear
+
+# Constraints (optional - returns None if not set):
+context.constraints        # Optional[Constraints]
+  .max_latency_ms          # float
+  .max_tokens              # int
+  .max_iterations          # int
+
+# Task reference (optional):
+context.task               # Optional[Task] - Original task from dataset
 
 # Check availability before access:
 if context.has_expected_output():
     expected = context.expected_output
+
+if context.constraints and context.constraints.has_latency_constraint():
+    max_latency = context.constraints.max_latency_ms
 ```
 
 ### BaseEvaluator
 Abstract base class for all evaluators. Implements single `evaluate(context)` interface.
 
 ```python
-from amp_eval import BaseEvaluator, EvalContext, EvalResult
+from amp_evaluation import BaseEvaluator, EvalContext, EvalResult
 
 class MyEvaluator(BaseEvaluator):
     def __init__(self, threshold: float = 0.7):
@@ -197,7 +232,7 @@ class MyEvaluator(BaseEvaluator):
 - Examples: relevancy, helpfulness, coherence
 
 ```python
-from amp_eval.evaluators import LLMAsJudgeEvaluator
+from amp_evaluation.evaluators import LLMAsJudgeEvaluator
 
 class RelevancyEvaluator(LLMAsJudgeEvaluator):
     def __init__(self):
@@ -217,11 +252,11 @@ class RelevancyEvaluator(LLMAsJudgeEvaluator):
 Evaluation mode indicator.
 
 ```python
-from amp_eval import RunType
+from amp_evaluation import RunType
 
 # Two modes:
-RunType.BENCHMARK  # Evaluating against ground truth dataset
-RunType.LIVE       # Monitoring live production traces
+RunType.EXPERIMENT  # Evaluating against ground truth dataset
+RunType.MONITOR     # Monitoring live production traces
 ```
 
 ### Aggregation System
@@ -231,7 +266,7 @@ Compute statistics across multiple evaluation results.
 **Base Types and Configuration** (`aggregators/base.py`)
 
 ```python
-from amp_eval.aggregators import AggregationType, Aggregation
+from amp_evaluation.aggregators import AggregationType, Aggregation
 
 # Simple aggregations (no parameters)
 aggregations = [
@@ -281,48 +316,42 @@ AggregationType.P99        # 99th percentile
 AggregationType.PASS_RATE  # Requires threshold parameter
 ```
 
-**Execution Engine** (`aggregators/aggregation.py`)
+**How Aggregation Works**
+
+Aggregations are configured per-evaluator and computed automatically by the runner.
 
 ```python
-from amp_eval.aggregators import ResultAggregator, AggregatedResults
+# Configure aggregations in your evaluator
+@evaluator("quality-check", aggregations=[
+    AggregationType.MEAN,
+    AggregationType.MEDIAN,
+    Aggregation(AggregationType.PASS_RATE, threshold=0.7),
+])
+def quality_check(ctx: EvalContext) -> EvalResult:
+    # ... evaluation logic ...
+    return EvalResult(score=0.85)
 
-# Aggregate results
-results = [result1, result2, result3, ...]  # List of EvalResult
+# Run evaluation
+result = runner.run()
 
-aggregated = ResultAggregator.aggregate(
-    results,
-    aggregations=[
-        AggregationType.MEAN,
-        AggregationType.MEDIAN,
-        Aggregation(AggregationType.PASS_RATE, threshold=0.7),
-        Aggregation(AggregationType.PASS_RATE, threshold=0.9),
-    ]
-)
-
-# Access results
-print(aggregated.mean)                      # 0.85
-print(aggregated.median)                    # 0.88
-print(aggregated["pass_rate_threshold_0.7"]) # 0.92
-print(aggregated.count)                     # 100
-print(aggregated.individual_scores)         # [(trace_id, score), ...]
-
-# Aggregate by evaluator
-by_evaluator = ResultAggregator.aggregate_by_evaluator(results)
-for eval_name, agg in by_evaluator.items():
-    print(f"{eval_name}: mean={agg.mean:.3f}")
+# Access aggregated results
+summary = result.scores["quality-check"]
+print(summary.aggregated_scores["mean"])           # 0.85
+print(summary.aggregated_scores["pass_rate_0.7"])  # 0.92
+print(summary.count)                                # 100
+print(summary.individual_scores)                    # List[EvaluatorScore]
 ```
 
 **Custom Aggregator Registration**
 
 ```python
-from amp_eval.aggregators import register_aggregator
+from amp_evaluation.aggregators import aggregator
 
+@aggregator("weighted_avg")
 def weighted_average(scores, weights=None, **kwargs):
     if weights:
         return sum(s * w for s, w in zip(scores, weights)) / sum(weights)
     return sum(scores) / len(scores)
-
-register_aggregator("weighted_avg", weighted_average)
 
 # Now use it:
 aggregations = [
@@ -335,7 +364,7 @@ aggregations = [
 Create reusable benchmark datasets with ground truth.
 
 ```python
-from amp_eval import Dataset, Task
+from amp_evaluation import Dataset, Task
 
 # Create dataset
 dataset = Dataset(
@@ -364,15 +393,15 @@ dataset = Dataset.from_json("benchmarks/qa_benchmark_v1.json")
 
 ### Runners
 
-**BenchmarkRunner** - Evaluate against ground truth dataset
+**Experiment** - Evaluate against ground truth dataset
 
 ```python
-from amp_eval import BenchmarkRunner, Config
+from amp_evaluation import Experiment, Config
 
 config = Config.from_env()
 dataset = Dataset.from_csv("benchmarks/qa_benchmark.csv")
 
-runner = BenchmarkRunner(
+runner = Experiment(
     config=config,
     evaluators=["exact-match", "contains-match"],
     dataset=dataset
@@ -381,14 +410,14 @@ runner = BenchmarkRunner(
 result = runner.run()
 ```
 
-**LiveRunner** - Monitor production traces
+**Monitor** - Monitor production traces
 
 ```python
-from amp_eval import LiveRunner, Config
+from amp_evaluation import Monitor, Config
 
 config = Config.from_env()
 
-runner = LiveRunner(
+runner = Monitor(
     config=config,
     evaluator_names=["has-output", "error-free"],
     batch_size=50  # Process 50 traces per batch
@@ -405,14 +434,14 @@ result = runner.run(
 
 ```python
 # By tags
-runner = LiveRunner(
+runner = Monitor(
     config=config,
     include_tags=["quality", "safety"],    # Only run these
     exclude_tags=["slow", "experimental"]  # Skip these
 )
 
 # By name
-runner = LiveRunner(
+runner = Monitor(
     config=config,
     evaluator_names=["exact-match", "answer-length"]
 )
@@ -458,7 +487,7 @@ The framework includes 13 production-ready evaluators in `evaluators/builtin.py`
 ### Using Built-in Evaluators
 
 ```python
-from amp_eval.evaluators import (
+from amp_evaluation.evaluators import (
     AnswerLengthEvaluator,
     ExactMatchEvaluator,
     LatencyEvaluator
@@ -472,7 +501,7 @@ evaluators = [
 ]
 
 # Or use by name (registered automatically)
-runner = LiveRunner(
+runner = Monitor(
     config=config,
     evaluator_names=["answer-length", "exact-match", "latency"]
 )
@@ -483,10 +512,10 @@ runner = LiveRunner(
 ### Custom Evaluators with Aggregations
 
 ```python
-from amp_eval import BaseEvaluator, EvalContext, register
-from amp_eval.aggregators import AggregationType, Aggregation
+from amp_evaluation import BaseEvaluator, EvalContext, evaluator
+from amp_evaluation.aggregators import AggregationType, Aggregation
 
-@register("semantic-similarity", tags=["quality", "nlp"])
+@evaluator("semantic-similarity", tags=["quality", "nlp"])
 class SemanticSimilarityEvaluator(BaseEvaluator):
     def __init__(self):
         super().__init__()
@@ -519,7 +548,7 @@ class SemanticSimilarityEvaluator(BaseEvaluator):
 ### LLM-as-Judge Pattern
 
 ```python
-from amp_eval.evaluators import LLMAsJudgeEvaluator
+from amp_evaluation.evaluators import LLMAsJudgeEvaluator
 import openai
 
 class HelpfulnessEvaluator(LLMAsJudgeEvaluator):
@@ -556,7 +585,7 @@ class HelpfulnessEvaluator(LLMAsJudgeEvaluator):
 Combine multiple evaluators into one.
 
 ```python
-from amp_eval.evaluators import CompositeEvaluator
+from amp_evaluation.evaluators import CompositeEvaluator
 
 class OverallQualityEvaluator(CompositeEvaluator):
     def __init__(self):
@@ -571,12 +600,12 @@ class OverallQualityEvaluator(CompositeEvaluator):
 
 ### Function-Based Evaluators
 
-Quick evaluators using the `@register` decorator.
+Quick evaluators using the `@evaluator` decorator.
 
 ```python
-from amp_eval import register, EvalContext
+from amp_evaluation import evaluator, EvalContext
 
-@register("has-greeting", tags=["output", "simple"])
+@evaluator("has-greeting", tags=["output", "simple"])
 def check_greeting(context: EvalContext) -> float:
     """Simple function-based evaluator."""
     output = context.trace.output.lower()
@@ -587,7 +616,7 @@ def check_greeting(context: EvalContext) -> float:
 
 ```python
 import os
-from amp_eval import Config
+from amp_evaluation import Config
 
 # Set environment variables
 os.environ["AGENT_UID"] = "my-agent-123"
@@ -604,13 +633,13 @@ config = Config.from_env()
 ### Publishing Results to Platform
 
 ```python
-from amp_eval import LiveRunner, Config
+from amp_evaluation import Monitor, Config
 
 config = Config.from_env()
 config.publish_results = True  # Enable platform publishing
 
 # Results automatically published
-runner = LiveRunner(config=config, evaluator_names=["quality-check"])
+runner = Monitor(config=config, evaluator_names=["quality-check"])
 result = runner.run()
 
 # Results now visible in platform dashboard
@@ -686,8 +715,8 @@ amp-evaluation/
    - Execution engine (`aggregation.py`)
 
 3. **Execution Layer** (`runner.py`)
-   - BenchmarkRunner for datasets
-   - LiveRunner for production monitoring
+   - Experiment for datasets
+   - Monitor for production monitoring
    - Result publishing and reporting
 
 ## Examples
@@ -695,13 +724,13 @@ amp-evaluation/
 ### Complete Working Example
 
 ```python
-from amp_eval import (
-    Config, LiveRunner, BaseEvaluator, EvalContext, EvalResult,
-    register, AggregationType, Aggregation
+from amp_evaluation import (
+    Config, Monitor, BaseEvaluator, EvalContext, EvalResult,
+    evaluator, AggregationType, Aggregation
 )
 
 # 1. Define custom evaluator
-@register("custom-quality", tags=["quality", "custom"])
+@evaluator("custom-quality", tags=["quality", "custom"])
 class CustomQualityEvaluator(BaseEvaluator):
     def __init__(self):
         super().__init__()
@@ -739,7 +768,7 @@ class CustomQualityEvaluator(BaseEvaluator):
 config = Config.from_env()
 
 # 3. Create runner with multiple evaluators
-runner = LiveRunner(
+runner = Monitor(
     config=config,
     evaluator_names=["custom-quality"],
     include_tags=["quality"],
@@ -815,7 +844,7 @@ pytest --cov=amp_eval --cov-report=html
 - [ ] Install package: `pip install amp-evaluation`
 - [ ] Set up environment variables
 - [ ] Start trace service or configure OpenSearch
-- [ ] Try built-in evaluators with `LiveRunner`
+- [ ] Try built-in evaluators with `Monitor`
 - [ ] Create custom evaluator for your use case
 - [ ] Set up benchmark dataset (optional)
 - [ ] Configure platform publishing (optional)
@@ -869,7 +898,7 @@ Apache License 2.0 - see LICENSE file for details.
 2. **Use Tags**: Organize evaluators with tags for easy filtering
 3. **Configure Aggregations**: Set per-evaluator aggregations
 4. **Validate Config**: Always use `Config.from_env()`
-5. **Monitor Production**: Use `LiveRunner` for continuous monitoring
+5. **Monitor Production**: Use `Monitor` for continuous monitoring
 
 ## FAQ
 
@@ -877,7 +906,7 @@ Apache License 2.0 - see LICENSE file for details.
 A: Yes! Works with any agent producing OpenTelemetry traces.
 
 **Q: Do I need ground truth data?**  
-A: No. Use `LiveRunner` without ground truth, or `BenchmarkRunner` with datasets.
+A: No. Use `Monitor` without ground truth, or `Experiment` with datasets.
 
 **Q: How do I create custom evaluators?**  
 A: Extend `BaseEvaluator` and implement `evaluate(context)`.

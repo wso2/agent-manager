@@ -5,38 +5,36 @@ This module provides data structures and parsing utilities for working
 with agent execution traces in an evaluation context.
 
 Key Components:
-- EvalTrace: The main trace container for evaluation
+- Trajectory: The main trace container for evaluation
 - Span Types: LLMSpan, ToolSpan, RetrieverSpan, AgentSpan
 - Metrics: TraceMetrics, SpanMetrics, TokenUsage
 - Parser: parse_trace_for_evaluation()
 
 Example Usage:
-    from amp_eval.trace import EvalTrace, parse_trace_for_evaluation
-    
+    from amp_eval.trace import Trajectory, parse_trace_for_evaluation
+
     # Parse a raw OTEL trace
     raw_trace = {...}  # From trace service
-    eval_trace = parse_trace_for_evaluation(raw_trace)
-    
+    trajectory = parse_trace_for_evaluation(raw_trace)
+
     # Access spans
-    for llm in eval_trace.llm_spans:
+    for llm in trajectory.llm_spans:
         print(f"Model: {llm.model}, Tokens: {llm.metrics.token_usage.total_tokens}")
-    
+
     # Access aggregated metrics
-    print(f"Total LLM calls: {eval_trace.metrics.llm_call_count}")
-    print(f"Total tokens: {eval_trace.metrics.total_token_usage.total_tokens}")
+    print(f"Total LLM calls: {trajectory.metrics.llm_call_count}")
+    print(f"Total tokens: {trajectory.metrics.total_token_usage.total_tokens}")
 """
 
 # Models
 from .models import (
     # Core trace class
-    EvalTrace,
-    
+    Trajectory,  # The main trace class with sequential steps
     # Span types
     LLMSpan,
     ToolSpan,
     RetrieverSpan,
     AgentSpan,
-    
     # Metrics classes
     TraceMetrics,
     SpanMetrics,
@@ -45,7 +43,6 @@ from .models import (
     RetrieverMetrics,
     AgentMetrics,
     TokenUsage,
-    
     # Supporting types
     Message,
     ToolCall,
@@ -74,40 +71,34 @@ from .fetcher import (
 
 __all__ = [
     # Core trace
-    'EvalTrace',
-    
+    "Trajectory",
     # Span types
-    'LLMSpan',
-    'ToolSpan', 
-    'RetrieverSpan',
-    'AgentSpan',
-    
+    "LLMSpan",
+    "ToolSpan",
+    "RetrieverSpan",
+    "AgentSpan",
     # Metrics
-    'TraceMetrics',
-    'SpanMetrics',
-    'LLMMetrics',
-    'ToolMetrics',
-    'RetrieverMetrics',
-    'AgentMetrics',
-    'TokenUsage',
-    
+    "TraceMetrics",
+    "SpanMetrics",
+    "LLMMetrics",
+    "ToolMetrics",
+    "RetrieverMetrics",
+    "AgentMetrics",
+    "TokenUsage",
     # Supporting types
-    'Message',
-    'ToolCall',
-    'RetrievedDoc',
-    
+    "Message",
+    "ToolCall",
+    "RetrievedDoc",
     # Parser functions
-    'parse_trace_for_evaluation',
-    'parse_traces_for_evaluation',
-    
+    "parse_trace_for_evaluation",
+    "parse_traces_for_evaluation",
     # OTEL/AMP attribute models (raw trace models from API)
-    'OTELTrace',
-    'OTELSpan',
-    'OTELTokenUsage',
-    'OTELTraceStatus',
-    
+    "OTELTrace",
+    "OTELSpan",
+    "OTELTokenUsage",
+    "OTELTraceStatus",
     # Fetcher
-    'TraceFetcher',
-    'TraceFetchConfig',
-    'TraceLoader',
+    "TraceFetcher",
+    "TraceFetchConfig",
+    "TraceLoader",
 ]

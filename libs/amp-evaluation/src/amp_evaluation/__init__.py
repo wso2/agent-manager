@@ -16,8 +16,8 @@
 
 """
 Evaluation framework for AI agents supporting:
-- Tasks, Trials, and Trajectories
-- Multiple evaluator types (trace, trajectory, outcome)
+- Tasks and Datasets
+- Multiple evaluator types (trace, trajectory)
 - Aggregation and benchmarking
 - Local and cloud execution
 """
@@ -28,39 +28,23 @@ __version__ = "0.0.0-dev"
 from .models import (
     # Exceptions
     DataNotAvailableError,
-    # Trace & Trajectory
-    Trace,
-    Span,
-    Trajectory,
-    TrajectoryStep,
-    SpanStatus,
-    LLMTokenUsage,
-    ToolCall,
-    PromptMessage,
-    RetrievedDocument,
-    # Task & Trial
+    # Task & Dataset
     Task,
-    TaskInput,
-    TaskSuccessCriteria,
-    Trial,
-    TrialStatus,
-    Outcome,
-    # Metrics & Results
-    Metrics,
+    Dataset,
+    # Results
     EvalResult,
+    EvaluatorScore,
+    EvaluatorSummary,
     EvalContext,
     CompositeScore,
-    Constraints,
-    # Dataset & Benchmark
-    Dataset,
-    DatasetSchema,
-    Benchmark,
-    BenchmarkEnvironment,
     # Agent (minimal - from config)
     Agent,
     # Utilities
     generate_id,
 )
+
+# Dataset schema (JSON loading) - Constraints is the single source of truth
+from .dataset_schema import DatasetSchema, Constraints
 
 
 # Evaluator base classes
@@ -68,7 +52,7 @@ from .evaluators.base import BaseEvaluator, LLMAsJudgeEvaluator, CompositeEvalua
 
 # Registry
 from .registry import (
-    register,
+    evaluator,
     get_evaluator,
     list_evaluators,
     get_evaluator_metadata,
@@ -82,30 +66,28 @@ from .registry import (
 from .aggregators.base import (
     Aggregation,
     AggregationType,
+    aggregator,
     register_aggregator,
     list_aggregators,
     normalize_aggregations,
     DEFAULT_AGGREGATIONS,
 )
 
-from .aggregators.aggregation import ResultAggregator, AggregatedResults
-
 # Evaluation runners
-from .runner import BaseRunner, BenchmarkRunner, LiveRunner, RunResult, RunType, evaluate
+from .runner import BaseRunner, Experiment, Monitor, RunResult, RunType
+
+# Agent invocation
+from .invokers import AgentInvoker, InvokeResult, HttpAgentInvoker
 
 # Loaders
 from .loaders import (
-    TraceLoader as LegacyTraceLoader,
-    JSONFileTraceLoader,
-    ProductionTraceLoader,
     DatasetLoader,
-    DatasetMatcher,
 )
 
 # Trace module - evaluation-optimized trace structures
 from .trace import (
     # Core trace
-    EvalTrace,
+    Trajectory,
     # Span types
     LLMSpan,
     ToolSpan,
@@ -143,32 +125,18 @@ __all__ = [
     # Version
     "__version__",
     # Core models
-    "Trace",
-    "Span",
-    "Trajectory",
-    "TrajectoryStep",
-    "SpanStatus",
-    "LLMTokenUsage",
-    "ToolCall",
-    "PromptMessage",
-    "RetrievedDocument",
     "Task",
-    "TaskInput",
-    "TaskSuccessCriteria",
-    "Trial",
-    "TrialStatus",
-    "Outcome",
-    "Metrics",
-    "EvalResult",
-    "CompositeScore",
     "Constraints",
     "Dataset",
     "DatasetSchema",
-    "Benchmark",
-    "BenchmarkEnvironment",
     "Agent",
     "generate_id",
     "DataNotAvailableError",
+    # Results & Context
+    "EvalResult",
+    "EvaluatorScore",
+    "EvaluatorSummary",
+    "CompositeScore",
     "EvalContext",
     # Evaluators
     "BaseEvaluator",
@@ -176,7 +144,7 @@ __all__ = [
     "CompositeEvaluator",
     "FunctionEvaluator",
     # Registry
-    "register",
+    "evaluator",
     "get_evaluator",
     "list_evaluators",
     "get_evaluator_metadata",
@@ -185,33 +153,31 @@ __all__ = [
     "get_registry",
     "EvaluatorRegistry",
     # Aggregation system
-    "ResultAggregator",
-    "AggregatedResults",
     "Aggregation",
     "AggregationType",
+    "aggregator",
     "register_aggregator",
     "list_aggregators",
     "normalize_aggregations",
     "DEFAULT_AGGREGATIONS",
     # Runners
     "BaseRunner",
-    "BenchmarkRunner",
-    "LiveRunner",
+    "Experiment",
+    "Monitor",
     "RunResult",
     "RunType",
-    "evaluate",
+    # Agent invocation
+    "AgentInvoker",
+    "InvokeResult",
+    "HttpAgentInvoker",
     # Loaders
-    "TraceLoader",
-    "LegacyTraceLoader",
-    "JSONFileTraceLoader",
-    "ProductionTraceLoader",
     "DatasetLoader",
-    "DatasetMatcher",
     # Trace fetching
     "TraceFetcher",
     "TraceFetchConfig",
+    "TraceLoader",
     # Trace module - evaluation-optimized structures
-    "EvalTrace",
+    "Trajectory",
     "LLMSpan",
     "ToolSpan",
     "RetrieverSpan",

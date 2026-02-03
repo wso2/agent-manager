@@ -161,6 +161,22 @@ func (s *TracingController) retrieveAndGroupTraces(ctx context.Context, params o
 			input, output = opensearch.ExtractRootSpanInputOutput(rootSpan)
 		}
 
+		// Extract task.id and trial.id from OpenTelemetry baggage attributes
+		// These are propagated from the experiment framework for trace-to-task matching
+		// Using dotted notation following OpenTelemetry semantic conventions
+		var taskId, trialId string
+
+		if taskIdVal, ok := rootSpan.Attributes["task.id"]; ok {
+			if taskIdStr, ok := taskIdVal.(string); ok {
+				taskId = taskIdStr
+			}
+		}
+		if trialIdVal, ok := rootSpan.Attributes["trial.id"]; ok {
+			if trialIdStr, ok := trialIdVal.(string); ok {
+				trialId = trialIdStr
+			}
+		}
+
 		// Store trace data as a map with all necessary fields
 		traceData := map[string]interface{}{
 			"traceID":         traceID,
@@ -170,6 +186,8 @@ func (s *TracingController) retrieveAndGroupTraces(ctx context.Context, params o
 			"status":          traceStatus,
 			"input":           input,
 			"output":          output,
+			"taskId":          taskId,  // Task ID from baggage
+			"trialId":         trialId, // Trial ID from baggage
 			"rootSpanName":    rootSpan.Name,
 			"rootSpanKind":    string(opensearch.DetermineSpanType(*rootSpan)),
 			"startTime":       rootSpan.StartTime.Format(time.RFC3339Nano),
@@ -389,7 +407,9 @@ func (s *TracingController) ExportTraces(ctx context.Context, params opensearch.
 			Status:          traceData["status"].(*opensearch.TraceStatus),
 			Input:           traceData["input"],
 			Output:          traceData["output"],
-			Spans:           traceSpans, // Include all spans with full details
+			TaskId:          traceData["taskId"].(string),  // Task ID from baggage
+			TrialId:         traceData["trialId"].(string), // Trial ID from baggage
+			Spans:           traceSpans,                    // Include all spans with full details
 		})
 	}
 

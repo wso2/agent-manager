@@ -20,6 +20,7 @@
 from .base import (
     Aggregation,
     AggregationType,
+    aggregator,
     register_aggregator,
     get_aggregator,
     list_aggregators,
@@ -32,13 +33,11 @@ from .builtin import (
     BUILTIN_AGGREGATORS,
 )
 
-# Aggregation execution (applying aggregators to results)
-from .aggregation import ResultAggregator, AggregatedResults
-
 __all__ = [
     # Base
     "Aggregation",
     "AggregationType",
+    "aggregator",
     "register_aggregator",
     "get_aggregator",
     "list_aggregators",
@@ -46,7 +45,4 @@ __all__ = [
     "DEFAULT_AGGREGATIONS",
     # Builtin
     "BUILTIN_AGGREGATORS",
-    # Execution
-    "ResultAggregator",
-    "AggregatedResults",
 ]
