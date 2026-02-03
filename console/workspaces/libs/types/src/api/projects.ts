@@ -26,6 +26,13 @@ export interface CreateProjectRequest {
   deploymentPipeline: string;
 }
 
+export interface UpdateProjectRequest {
+  name: string;
+  displayName: string;
+  description?: string;
+  deploymentPipeline: string;
+}
+
 // Responses
 export interface ProjectResponse {
   name: string;
@@ -55,4 +62,5 @@ export type CreateProjectPathParams = { orgName: string | undefined };
 export type GetProjectPathParams = { orgName: string | undefined; projName: string | undefined };
 export type ListProjectsQuery = ListQuery;
 export type DeleteProjectPathParams = { orgName: string | undefined; projName: string | undefined };
+export type UpdateProjectPathParams = { orgName: string | undefined; projName: string | undefined };
 

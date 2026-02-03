@@ -23,6 +23,7 @@ import { metaData as buildMetadata } from "@agent-management-platform/build";
 import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
 import { metaData as testMetadata } from "@agent-management-platform/test";
 import { metaData as tracesMetadata } from "@agent-management-platform/traces";
+import { metaData as logsMetadata } from "@agent-management-platform/logs";
 
 export * from './Login';
 
@@ -41,6 +42,7 @@ export const LazyDeploymentComponent: FC = () => (
 
 export const LazyTestComponent = testMetadata.levels.component as FC;
 export const LazyTracesComponent = tracesMetadata.levels.component as FC;
+export const LazyLogsComponent = logsMetadata.levels.component as FC;
 
 // Create pages - lazy loaded (only needed when user creates something)
 export const LazyAddNewAgent = lazy(() =>

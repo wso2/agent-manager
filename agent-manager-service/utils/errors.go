@@ -30,4 +30,5 @@ var (
 	ErrDeploymentPipelineNotFound = errors.New("deployment pipeline not found")
 	ErrProjectHasAssociatedAgents = errors.New("project has associated agents")
 	ErrInvalidInput               = errors.New("invalid input")
+	ErrImmutableFieldChange       = errors.New("cannot change immutable field")
 )

@@ -19,6 +19,7 @@ package openchoreosvc
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"sort"
 	"time"
@@ -51,6 +52,7 @@ type KubernetesConfigData struct {
 
 type OpenChoreoSvcClient interface {
 	CreateAgentComponent(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error
+	UpdateAgentComponent(ctx context.Context, orgName string, projName string, agentName string, req *spec.UpdateAgentRequest) error
 	AttachInstrumentationTrait(ctx context.Context, orgName string, projName string, agentName string) error
 	TriggerBuild(ctx context.Context, orgName string, projName string, agentName string, commitId string) (*models.BuildResponse, error)
 	GetProject(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error)
@@ -60,14 +62,15 @@ type OpenChoreoSvcClient interface {
 	ListOrganizations(ctx context.Context) ([]*models.OrganizationResponse, error)
 	GetDeploymentPipelinesForOrganization(ctx context.Context, orgName string) ([]*models.DeploymentPipelineResponse, error)
 	DeleteProject(ctx context.Context, orgName string, projectName string) error
+	UpdateProject(ctx context.Context, orgName string, projectName string, payload spec.UpdateProjectRequest) error
 	GetDeploymentPipeline(ctx context.Context, orgName string, deploymentPipelineName string) (*models.DeploymentPipelineResponse, error)
 	CreateProject(ctx context.Context, orgName string, projectName string, deploymentPipelineRef string, projectDisplayName string, projectDescription string) error
 	GetAgentComponent(ctx context.Context, orgName string, projName string, agentName string) (*AgentComponent, error)
 	ListAgentComponents(ctx context.Context, orgName string, projName string) ([]*AgentComponent, error)
 	DeleteAgentComponent(ctx context.Context, orgName string, projName string, agentName string) error
 	DeployAgentComponent(ctx context.Context, orgName string, projName string, componentName string, req *spec.DeployAgentRequest) error
-	ListComponentWorkflows(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error)
-	GetComponentWorkflow(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error)
+	ListComponentWorkflowRuns(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error)
+	GetComponentWorkflowRun(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error)
 	GetAgentDeployments(ctx context.Context, orgName string, pipelineName string, projName string, componentName string) ([]*models.DeploymentResponse, error)
 	GetEnvironment(ctx context.Context, orgName string, environmentName string) (*models.EnvironmentResponse, error)
 	IsAgentComponentExists(ctx context.Context, orgName string, projName string, agentName string, verifyProject bool) (bool, error)
@@ -164,7 +167,12 @@ func (k *openChoreoSvcClient) ListAgentComponents(ctx context.Context, orgName s
 	for i := range componentList.Items {
 		component := &componentList.Items[i]
 		if component.Spec.Owner.ProjectName == projName {
-			agentComponents = append(agentComponents, toComponentResponse(component))
+			agentComponent, err := toComponentResponse(component)
+			if err != nil {
+				slog.Error("failed to convert component", "component", component.Name, "projectName", projName, "error", err)
+				continue
+			}
+			agentComponents = append(agentComponents, agentComponent)
 		}
 	}
 	// Sort components by creation time descending
@@ -219,7 +227,7 @@ func (k *openChoreoSvcClient) GetAgentComponent(ctx context.Context, orgName str
 	if component.Spec.Owner.ProjectName != projName {
 		return nil, fmt.Errorf("component does not belong to the specified project")
 	}
-	return toComponentResponse(component), nil
+	return toComponentResponse(component)
 }
 
 func (k *openChoreoSvcClient) AttachInstrumentationTrait(ctx context.Context, orgName string, projName string, agentName string) error {
@@ -464,6 +472,49 @@ func (k *openChoreoSvcClient) DeleteAgentComponent(ctx context.Context, orgName 
 	return nil
 }
 
+func (k *openChoreoSvcClient) UpdateAgentComponent(ctx context.Context, orgName string, projName string, agentName string, req *spec.UpdateAgentRequest) error {
+	key := client.ObjectKey{
+		Name:      agentName,
+		Namespace: orgName,
+	}
+
+	// Retry the entire get-modify-update operation to handle conflicts
+	err := k.retryK8sOperation(ctx, "UpdateComponent", func() error {
+		// Fetch the latest version of the component on each attempt
+		component := &v1alpha1.Component{}
+		if err := k.client.Get(ctx, key, component); err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				return utils.ErrAgentNotFound
+			}
+			return fmt.Errorf("failed to get component for update: %w", err)
+		}
+
+		// Verify that the component belongs to the specified project
+		if component.Spec.Owner.ProjectName != projName {
+			return fmt.Errorf("component does not belong to the specified project")
+		}
+
+		// Update component based on provisioning type
+		if req.Provisioning.Type == string(utils.ExternalAgent) {
+			if err := updateComponentCRForExternalAgents(component, req); err != nil {
+				return fmt.Errorf("failed to update component CR for external agents: %w", err)
+			}
+		} else {
+			if err := updateComponentCRForInternalAgents(component, req); err != nil {
+				return fmt.Errorf("failed to update component CR for internal agents: %w", err)
+			}
+		}
+		if err := k.client.Update(ctx, component); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update component: %w", err)
+	}
+	return nil
+}
+
 func (k *openChoreoSvcClient) TriggerBuild(ctx context.Context, orgName string, projName string, agentName string, commitId string) (*models.BuildResponse, error) {
 	// Retrieve component and use that to create the build
 	component := &v1alpha1.Component{}
@@ -514,15 +565,33 @@ func (k *openChoreoSvcClient) TriggerBuild(ctx context.Context, orgName string, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to trigger build: %w", err)
 	}
+
+	// Extract language, languageVersion, and runCommand from workflow parameters
+	var parametersRaw []byte
+	if component.Spec.Workflow.Parameters != nil {
+		parametersRaw = component.Spec.Workflow.Parameters.Raw
+	}
+	language, languageVersion, runCommand, _, err := extractBuildParametersFromWorkflow(parametersRaw)
+	if err != nil {
+		slog.Error("failed to extract build parameters", "component", component.Name, "error", err)
+	}
+
 	return &models.BuildResponse{
 		UUID:        string(componentWorkflowRunCR.UID),
 		Name:        componentWorkflowRunCR.Name,
 		AgentName:   agentName,
 		ProjectName: projName,
-		CommitID:    commitId,
 		Status:      string(BuildStatusInitiated),
 		StartedAt:   time.Now(),
-		Branch:      systemParams.Repository.Revision.Branch,
+		BuildParameters: models.BuildParameters{
+			CommitID:        commitId,
+			Branch:          systemParams.Repository.Revision.Branch,
+			RepoUrl:         systemParams.Repository.URL,
+			AppPath:         systemParams.Repository.AppPath,
+			Language:        language,
+			LanguageVersion: languageVersion,
+			RunCommand:      runCommand,
+		},
 	}, nil
 }
 
@@ -579,7 +648,7 @@ func (k *openChoreoSvcClient) getComponentWorkload(ctx context.Context, orgName 
 	return componentWorkload, nil
 }
 
-func (k *openChoreoSvcClient) ListComponentWorkflows(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error) {
+func (k *openChoreoSvcClient) ListComponentWorkflowRuns(ctx context.Context, orgName string, projName string, componentName string) ([]*models.BuildResponse, error) {
 	workflowRuns := &v1alpha1.ComponentWorkflowRunList{}
 	err := k.retryK8sOperation(ctx, "ListBuilds", func() error {
 		return k.client.List(ctx, workflowRuns, client.InNamespace(orgName))
@@ -606,17 +675,36 @@ func (k *openChoreoSvcClient) ListComponentWorkflows(ctx context.Context, orgNam
 		if commit == "" {
 			commit = "latest"
 		}
+
+		// Extract language, languageVersion, and runCommand from workflow parameters
+		var parametersRaw []byte
+		if workflowRun.Spec.Workflow.Parameters != nil {
+			parametersRaw = workflowRun.Spec.Workflow.Parameters.Raw
+		}
+		language, languageVersion, runCommand, _, err := extractBuildParametersFromWorkflow(parametersRaw)
+		if err != nil {
+			slog.Error("failed to extract build parameters", "workflowRun", workflowRun.Name, "error", err)
+			continue
+		}
+
 		buildResponses = append(buildResponses, &models.BuildResponse{
 			Name:        workflowRun.Name,
 			UUID:        string(workflowRun.UID),
 			AgentName:   componentName,
 			ProjectName: projName,
-			CommitID:    commit,
 			Status:      string(determineBuildStatus(workflowRun.Status.Conditions)),
 			StartedAt:   workflowRun.CreationTimestamp.Time,
-			Image:       workflowRun.Status.ImageStatus.Image,
-			Branch:      workflowRun.Spec.Workflow.SystemParameters.Repository.Revision.Branch,
+			ImageId:     workflowRun.Status.ImageStatus.Image,
 			EndedAt:     &endedAtTime,
+			BuildParameters: models.BuildParameters{
+				CommitID:        commit,
+				Branch:          workflowRun.Spec.Workflow.SystemParameters.Repository.Revision.Branch,
+				RepoUrl:         workflowRun.Spec.Workflow.SystemParameters.Repository.URL,
+				AppPath:         workflowRun.Spec.Workflow.SystemParameters.Repository.AppPath,
+				Language:        language,
+				LanguageVersion: languageVersion,
+				RunCommand:      runCommand,
+			},
 		})
 	}
 
@@ -628,7 +716,7 @@ func (k *openChoreoSvcClient) ListComponentWorkflows(ctx context.Context, orgNam
 	return buildResponses, nil
 }
 
-func (k *openChoreoSvcClient) GetComponentWorkflow(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
+func (k *openChoreoSvcClient) GetComponentWorkflowRun(ctx context.Context, orgName string, projName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
 	componentWorkflow := &v1alpha1.ComponentWorkflowRun{}
 	key := client.ObjectKey{
 		Name:      buildName,
@@ -999,6 +1087,35 @@ func (k *openChoreoSvcClient) CreateProject(ctx context.Context, orgName string,
 	}
 	return k.retryK8sOperation(ctx, "CreateProject", func() error {
 		return k.client.Create(ctx, project)
+	})
+}
+
+func (k *openChoreoSvcClient) UpdateProject(ctx context.Context, orgName string, projectName string, payload spec.UpdateProjectRequest) error {
+	key := client.ObjectKey{
+		Name:      projectName,
+		Namespace: orgName,
+	}
+
+	// Retry the entire get-modify-update operation to handle conflicts
+	return k.retryK8sOperation(ctx, "UpdateProject", func() error {
+		// Fetch the latest version of the project on each attempt
+		project := &v1alpha1.Project{}
+		if err := k.client.Get(ctx, key, project); err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				return utils.ErrProjectNotFound
+			}
+			return fmt.Errorf("failed to get project for update: %w", err)
+		}
+
+		// Update annotations for display name and description
+		if project.Annotations == nil {
+			project.Annotations = make(map[string]string)
+		}
+		project.Annotations[string(AnnotationKeyDisplayName)] = payload.DisplayName
+		project.Annotations[string(AnnotationKeyDescription)] = utils.StrPointerAsStr(payload.Description, "")
+		project.Spec.DeploymentPipelineRef = payload.DeploymentPipeline
+
+		return k.client.Update(ctx, project)
 	})
 }
 

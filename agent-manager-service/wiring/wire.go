@@ -48,6 +48,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewInfraResourceManager,
 	services.NewObservabilityManager,
 	services.NewAgentTokenManagerService,
+	services.NewRepositoryService,
 )
 
 var controllerProviderSet = wire.NewSet(
@@ -55,6 +56,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewInfraResourceController,
 	controllers.NewObservabilityController,
 	controllers.NewAgentTokenController,
+	controllers.NewRepositoryController,
 )
 
 var testClientProviderSet = wire.NewSet(

@@ -27,7 +27,7 @@ Before deploying this agent, ensure you have:
 
 ## Deployment Instructions
 
-### Step 1: Access Agent Manager Platform
+### Step 1: Access Agent Manager
 
 1. Navigate to the **Default** project
 2. Click **"Add Agent"**

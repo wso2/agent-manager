@@ -34,6 +34,7 @@ type AgentController interface {
 	ListAgents(w http.ResponseWriter, r *http.Request)
 	GetAgent(w http.ResponseWriter, r *http.Request)
 	CreateAgent(w http.ResponseWriter, r *http.Request)
+	UpdateAgent(w http.ResponseWriter, r *http.Request)
 	DeleteAgent(w http.ResponseWriter, r *http.Request)
 	BuildAgent(w http.ResponseWriter, r *http.Request)
 	DeployAgent(w http.ResponseWriter, r *http.Request)
@@ -59,6 +60,27 @@ func NewAgentController(agentService services.AgentManagerService) AgentControll
 	}
 }
 
+// handleCommonErrors checks for common resource errors and writes appropriate responses.
+// If no common error matches, writes an internal server error with the provided fallback message.
+func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
+	switch {
+	case errors.Is(err, utils.ErrOrganizationNotFound):
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+	case errors.Is(err, utils.ErrProjectNotFound):
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+	case errors.Is(err, utils.ErrAgentNotFound):
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
+	case errors.Is(err, utils.ErrBuildNotFound):
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Build not found")
+	case errors.Is(err, utils.ErrAgentAlreadyExists):
+		utils.WriteErrorResponse(w, http.StatusConflict, "Agent already exists")
+	case errors.Is(err, utils.ErrImmutableFieldChange):
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+	default:
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, fallbackMsg)
+	}
+}
+
 func (c *agentController) GetAgent(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -70,19 +92,7 @@ func (c *agentController) GetAgent(w http.ResponseWriter, r *http.Request) {
 	agent, err := c.agentService.GetAgent(ctx, orgName, projName, agentName)
 	if err != nil {
 		log.Error("GetAgent: failed to get agent", "error", err)
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-			return
-		}
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
-			return
-		}
-		if errors.Is(err, utils.ErrAgentNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get agent")
+		handleCommonErrors(w, err, "Failed to get agent")
 		return
 	}
 
@@ -125,15 +135,7 @@ func (c *agentController) ListAgents(w http.ResponseWriter, r *http.Request) {
 	agents, total, err := c.agentService.ListAgents(ctx, orgName, projName, int32(limit), int32(offset))
 	if err != nil {
 		log.Error("ListAgents: failed to list agents", "error", err)
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-			return
-		}
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list agents")
+		handleCommonErrors(w, err, "Failed to list agents")
 		return
 	}
 
@@ -173,19 +175,7 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	err := c.agentService.CreateAgent(ctx, orgName, projName, &payload)
 	if err != nil {
 		log.Error("CreateAgent: failed to create agent", "error", err)
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-			return
-		}
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
-			return
-		}
-		if errors.Is(err, utils.ErrAgentAlreadyExists) {
-			utils.WriteErrorResponse(w, http.StatusConflict, "Agent already exists")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create agent")
+		handleCommonErrors(w, err, "Failed to create agent")
 		return
 	}
 	response := &spec.AgentResponse{
@@ -202,6 +192,40 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	utils.WriteSuccessResponse(w, http.StatusAccepted, response)
 }
 
+func (c *agentController) UpdateAgent(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	// Extract path parameters
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+
+	// Parse and validate request body
+	var payload spec.UpdateAgentRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		log.Error("UpdateAgent: failed to decode request body", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if err := utils.ValidateAgentUpdatePayload(payload); err != nil {
+		log.Error("UpdateAgent: invalid agent payload", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	agent, err := c.agentService.UpdateAgent(ctx, orgName, projName, agentName, &payload)
+	if err != nil {
+		log.Error("UpdateAgent: failed to update agent", "error", err)
+		handleCommonErrors(w, err, "Failed to update agent")
+		return
+	}
+
+	agentResponse := utils.ConvertToAgentResponse(agent)
+	utils.WriteSuccessResponse(w, http.StatusOK, agentResponse)
+}
+
 func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -213,15 +237,7 @@ func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	err := c.agentService.DeleteAgent(ctx, orgName, projName, agentName)
 	if err != nil {
 		log.Error("DeleteAgent: failed to delete agent", "error", err)
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-			return
-		}
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete agent")
+		handleCommonErrors(w, err, "Failed to delete agent")
 		return
 	}
 	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
@@ -245,19 +261,7 @@ func (c *agentController) BuildAgent(w http.ResponseWriter, r *http.Request) {
 	build, err := c.agentService.BuildAgent(ctx, orgName, projName, agentName, commitId)
 	if err != nil {
 		log.Error("BuildAgent: failed to build agent", "error", err)
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-			return
-		}
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
-			return
-		}
-		if errors.Is(err, utils.ErrAgentNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to build agent")
+		handleCommonErrors(w, err, "Failed to build agent")
 		return
 	}
 	utils.WriteSuccessResponse(w, http.StatusAccepted, build)
@@ -276,23 +280,7 @@ func (c *agentController) GetBuildLogs(w http.ResponseWriter, r *http.Request) {
 	buildLogs, err := c.agentService.GetBuildLogs(ctx, orgName, projName, agentName, buildName)
 	if err != nil {
 		log.Error("GetBuildLogs: failed to get build logs", "error", err)
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-			return
-		}
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
-			return
-		}
-		if errors.Is(err, utils.ErrAgentNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
-			return
-		}
-		if errors.Is(err, utils.ErrBuildNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Build not found")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get build logs")
+		handleCommonErrors(w, err, "Failed to get build logs")
 		return
 	}
 	buildLogsResponse := utils.ConvertToLogsResponse(*buildLogs)
@@ -325,19 +313,7 @@ func (c *agentController) GetAgentRuntimeLogs(w http.ResponseWriter, r *http.Req
 	applicationLogs, err := c.agentService.GetAgentRuntimeLogs(ctx, orgName, projName, agentName, payload)
 	if err != nil {
 		log.Error("GetAgentRuntimeLogs: failed to get build logs", "error", err)
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-			return
-		}
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
-			return
-		}
-		if errors.Is(err, utils.ErrAgentNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get build logs")
+		handleCommonErrors(w, err, "Failed to get build logs")
 		return
 	}
 	buildLogsResponse := utils.ConvertToLogsResponse(*applicationLogs)
@@ -371,19 +347,7 @@ func (c *agentController) GetAgentMetrics(w http.ResponseWriter, r *http.Request
 	metricsResponse, err := c.agentService.GetAgentMetrics(ctx, orgName, projName, agentName, payload)
 	if err != nil {
 		log.Error("GetAgentMetrics: failed to get agent metrics", "error", err)
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-			return
-		}
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
-			return
-		}
-		if errors.Is(err, utils.ErrAgentNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get agent metrics")
+		handleCommonErrors(w, err, "Failed to get agent metrics")
 		return
 	}
 	utils.WriteSuccessResponse(w, http.StatusOK, metricsResponse)
@@ -415,19 +379,7 @@ func (c *agentController) DeployAgent(w http.ResponseWriter, r *http.Request) {
 	deployedEnv, err := c.agentService.DeployAgent(ctx, orgName, projName, agentName, &payload)
 	if err != nil {
 		log.Error("DeployAgent: failed to deploy agent", "error", err)
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-			return
-		}
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
-			return
-		}
-		if errors.Is(err, utils.ErrAgentNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to deploy agent")
+		handleCommonErrors(w, err, "Failed to deploy agent")
 		return
 	}
 
@@ -477,19 +429,7 @@ func (c *agentController) ListAgentBuilds(w http.ResponseWriter, r *http.Request
 	builds, total, err := c.agentService.ListAgentBuilds(ctx, orgName, projName, agentName, int32(limit), int32(offset))
 	if err != nil {
 		log.Error("ListAgentBuilds: failed to list agent builds", "error", err)
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-			return
-		}
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
-			return
-		}
-		if errors.Is(err, utils.ErrAgentNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list agent builds")
+		handleCommonErrors(w, err, "Failed to list agent builds")
 		return
 	}
 
@@ -528,15 +468,7 @@ func (c *agentController) GenerateName(w http.ResponseWriter, r *http.Request) {
 	candidateName, err := c.agentService.GenerateName(ctx, orgName, payload)
 	if err != nil {
 		log.Error("GenerateAgentName: failed to generate agent name", "error", err)
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-			return
-		}
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to check agent name availability")
+		handleCommonErrors(w, err, "Failed to check agent name availability")
 		return
 	}
 
@@ -561,23 +493,7 @@ func (c *agentController) GetBuild(w http.ResponseWriter, r *http.Request) {
 	build, err := c.agentService.GetBuild(ctx, orgName, projName, agentName, buildName)
 	if err != nil {
 		log.Error("GetBuild: failed to get build", "error", err)
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-			return
-		}
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
-			return
-		}
-		if errors.Is(err, utils.ErrAgentNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
-			return
-		}
-		if errors.Is(err, utils.ErrBuildNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Build not found")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get build")
+		handleCommonErrors(w, err, "Failed to get build")
 		return
 	}
 
@@ -597,19 +513,7 @@ func (c *agentController) GetAgentDeployments(w http.ResponseWriter, r *http.Req
 	deployments, err := c.agentService.GetAgentDeployments(ctx, orgName, projName, agentName)
 	if err != nil {
 		log.Error("GetAgentDeployments: failed to get deployments", "error", err)
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-			return
-		}
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
-			return
-		}
-		if errors.Is(err, utils.ErrAgentNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get deployments")
+		handleCommonErrors(w, err, "Failed to get deployments")
 		return
 	}
 
@@ -635,19 +539,7 @@ func (c *agentController) GetAgentEndpoints(w http.ResponseWriter, r *http.Reque
 	endpoints, err := c.agentService.GetAgentEndpoints(ctx, orgName, projName, agentName, environment)
 	if err != nil {
 		log.Error("GetAgentEndpoints: failed to get agent endpoints", "error", err)
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-			return
-		}
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
-			return
-		}
-		if errors.Is(err, utils.ErrAgentNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get agent endpoints")
+		handleCommonErrors(w, err, "Failed to get agent endpoints")
 		return
 	}
 
@@ -674,19 +566,7 @@ func (c *agentController) GetAgentConfigurations(w http.ResponseWriter, r *http.
 	configurations, err := c.agentService.GetAgentConfigurations(ctx, orgName, projName, agentName, environment)
 	if err != nil {
 		log.Error("GetAgentConfigurations: failed to get configurations", "error", err)
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-			return
-		}
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
-			return
-		}
-		if errors.Is(err, utils.ErrAgentNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
-			return
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get configurations")
+		handleCommonErrors(w, err, "Failed to get configurations")
 		return
 	}
 

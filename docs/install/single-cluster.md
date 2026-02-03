@@ -1,6 +1,6 @@
 # Single Cluster Installation
 
-Install the Agent Management Platform on an existing OpenChoreo cluster.
+Install the Agent Manager on an existing OpenChoreo cluster.
 
 ## Prerequisites
 
@@ -24,7 +24,7 @@ docker --version  # If using k3d
 
 ### OpenChoreo Cluster Requirements
 
-The Agent Management Platform requires an **OpenChoreo cluster (v0.9.0)** with the following components installed:
+The Agent Manager requires an **OpenChoreo cluster (v0.9.0)** with the following components installed:
 
 - **OpenChoreo Control Plane** - Core orchestration and management
 - **OpenChoreo Data Plane** - Runtime environment for agents
@@ -144,9 +144,9 @@ kubectl get pods -n openchoreo-observability-plane -l app=opensearch
 
 ## Installation Steps
 
-The Agent Management Platform installation consists of four main components:
+The Agent Manager installation consists of four main components:
 
-1. **Agent Management Platform** - Core platform (PostgreSQL, API, Console)
+1. **Agent Manager** - Core platform (PostgreSQL, API, Console)
 2. **Platform Resources Extension** - Default Organization, Project, Environment, DeploymentPipeline
 3. **Observability Extension** - Traces Observer service
 4. **Build Extension** - Workflow templates for building container images
@@ -170,7 +170,7 @@ export DEFAULT_NS="default"
 export DATA_PLANE_NS="openchoreo-data-plane"
 ```
 
-### Step 1: Install Agent Management Platform
+### Step 1: Install Agent Manager
 
 The core platform includes:
 
@@ -346,7 +346,7 @@ kubectl wait --for=condition=Programmed \
 Verify all components are installed and running:
 
 ```bash
-# Check Agent Management Platform pods
+# Check Agent Manager pods
 kubectl get pods -n wso2-amp
 
 # Check Observability pods

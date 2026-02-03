@@ -177,3 +177,12 @@ func (r *Result) CheckStatus(successStatuses ...int) (int, error) {
 	}
 	return status, nil
 }
+
+// GetHeader returns the value of a response header.
+// Returns empty string if the header is not present or if there was an error.
+func (r *Result) GetHeader(key string) string {
+	if r.err != nil || r.response == nil {
+		return ""
+	}
+	return r.response.Header.Get(key)
+}

@@ -130,6 +130,11 @@ agentManagerService:
       defaultExpiry: "8760h"
       issuer: "agent-manager-service"
       defaultEnvironment: "default"
+    # GitHub configuration for repository API access
+    github:
+      token: ""
+      existingSecret: ""
+      existingSecretKey: "github-token"
 
   agentWorkload:
     cors:
@@ -204,7 +209,7 @@ console:
 
     # Backend API URLs (will be auto-configured if empty)
     apiBaseUrl: "http://localhost:9000"
-    instrumentationUrl: "http://localhost:22893/otel"
+    instrumentationUrl: "https://localhost:22894/otel"
 
   # Pod-level configurations
   podAnnotations: {}

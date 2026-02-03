@@ -16,4 +16,4 @@
  * under the License.
  */
 
-export * from './AgentLayout';
+import '@testing-library/jest-dom';

@@ -25,7 +25,6 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/idp"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 )
@@ -102,9 +101,9 @@ func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, buildName str
 func (o *observabilitySvcClient) GetComponentMetrics(ctx context.Context, agentComponentId string, envId string, projectId string, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error) {
 	baseURL := config.GetConfig().Observer.URL
 	metricsURL := fmt.Sprintf("%s/api/metrics/component/usage", baseURL)
-	token := jwtassertion.GetJWTFromContext(ctx)
-	if token == "" {
-		return nil, fmt.Errorf("observabilitysvc.GetComponentMetrics: JWT token not found in context")
+	token, err := o.tokenProvider.GetToken(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("observabilitysvc.GetBuildLogs: failed to get token: %w", err)
 	}
 
 	requestBody := map[string]interface{}{
@@ -135,9 +134,9 @@ func (o *observabilitySvcClient) GetComponentMetrics(ctx context.Context, agentC
 func (o *observabilitySvcClient) GetComponentLogs(ctx context.Context, agentComponentId string, envId string, payload spec.LogFilterRequest) (*models.LogsResponse, error) {
 	baseURL := config.GetConfig().Observer.URL
 	logsURL := fmt.Sprintf("%s/api/logs/component/%s", baseURL, agentComponentId)
-	token := jwtassertion.GetJWTFromContext(ctx)
-	if token == "" {
-		return nil, fmt.Errorf("observabilitysvc.GetComponentLogs: JWT token not found in context")
+	token, err := o.tokenProvider.GetToken(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("observabilitysvc.GetBuildLogs: failed to get token: %w", err)
 	}
 
 	requestBody := map[string]interface{}{

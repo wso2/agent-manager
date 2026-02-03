@@ -31,13 +31,10 @@ import {
   LazyDeploymentComponent,
   LazyTestComponent,
   LazyTracesComponent,
+  LazyLogsComponent,
 } from "../pages";
 import { LoadingFallback } from "../components/LoadingFallback";
 import { relativeRouteMap } from "@agent-management-platform/types";
-import {
-  AgentInfoPageLayout,
-  AgentLayout,
-} from "@agent-management-platform/shared-component";
 export function RootRouter() {
   return (
     <BrowserRouter>
@@ -82,15 +79,10 @@ export function RootRouter() {
                   relativeRouteMap.children.org.children.projects.children
                     .agents.path
                 }
-                element={<AgentLayout />}
               >
                 <Route
                   index
-                  element={
-                    <AgentInfoPageLayout>
-                      <LazyOverviewComponent />
-                    </AgentInfoPageLayout>
-                  }
+                  element={<LazyOverviewComponent />}
                 />
                 <Route
                   path={
@@ -122,10 +114,24 @@ export function RootRouter() {
                   <Route
                     path={
                       relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.observability.path +
+                        "/" +
+                        relativeRouteMap.children.org.children.projects.children
                         .agents.children.environment.children.observability
-                        .path + "/*"
+                        .children.traces.path
                     }
                     element={<LazyTracesComponent />}
+                  />
+                  <Route
+                    path={
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.observability.path +
+                        "/" +
+                        relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.observability
+                        .children.logs.path
+                    }
+                    element={<LazyLogsComponent />}
                   />
                 </Route>
               </Route>

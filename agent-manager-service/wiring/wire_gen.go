@@ -30,8 +30,9 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 		return nil, err
 	}
 	observabilitySvcClient := observabilitysvc.NewObservabilitySvcClient()
+	repositoryService := services.NewRepositoryService()
 	logger := ProvideLogger()
-	agentManagerService := services.NewAgentManagerService(openChoreoSvcClient, observabilitySvcClient, logger)
+	agentManagerService := services.NewAgentManagerService(openChoreoSvcClient, observabilitySvcClient, repositoryService, logger)
 	agentController := controllers.NewAgentController(agentManagerService)
 	infraResourceManager := services.NewInfraResourceManager(openChoreoSvcClient, logger)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
@@ -44,12 +45,14 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 		return nil, err
 	}
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
+	repositoryController := controllers.NewRepositoryController(repositoryService)
 	appParams := &AppParams{
 		AuthMiddleware:          middleware,
 		AgentController:         agentController,
 		InfraResourceController: infraResourceController,
 		ObservabilityController: observabilityController,
 		AgentTokenController:    agentTokenController,
+		RepositoryController:    repositoryController,
 	}
 	return appParams, nil
 }
@@ -57,8 +60,9 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware jwtassertion.Middleware, testClients TestClients) (*AppParams, error) {
 	openChoreoSvcClient := ProvideTestOpenChoreoSvcClient(testClients)
 	observabilitySvcClient := ProvideTestObservabilitySvcClient(testClients)
+	repositoryService := services.NewRepositoryService()
 	logger := ProvideLogger()
-	agentManagerService := services.NewAgentManagerService(openChoreoSvcClient, observabilitySvcClient, logger)
+	agentManagerService := services.NewAgentManagerService(openChoreoSvcClient, observabilitySvcClient, repositoryService, logger)
 	agentController := controllers.NewAgentController(agentManagerService)
 	infraResourceManager := services.NewInfraResourceManager(openChoreoSvcClient, logger)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
@@ -72,12 +76,14 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 		return nil, err
 	}
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
+	repositoryController := controllers.NewRepositoryController(repositoryService)
 	appParams := &AppParams{
 		AuthMiddleware:          authMiddleware,
 		AgentController:         agentController,
 		InfraResourceController: infraResourceController,
 		ObservabilityController: observabilityController,
 		AgentTokenController:    agentTokenController,
+		RepositoryController:    repositoryController,
 	}
 	return appParams, nil
 }
@@ -90,9 +96,9 @@ var configProviderSet = wire.NewSet(
 
 var clientProviderSet = wire.NewSet(openchoreosvc.NewOpenChoreoSvcClient, observabilitysvc.NewObservabilitySvcClient, traceobserversvc.NewTraceObserverClient)
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService)
 
-var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController)
+var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController)
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoSvcClient,

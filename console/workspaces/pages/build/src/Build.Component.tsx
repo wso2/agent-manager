@@ -23,10 +23,12 @@ import {
   DrawerWrapper,
   PageLayout,
 } from "@agent-management-platform/views";
-import { Button } from "@wso2/oxygen-ui";
-import { Wrench as BuildOutlined } from "@wso2/oxygen-ui-icons-react";
+import { Button, Box } from "@wso2/oxygen-ui";
+import { Wrench as BuildOutlined, Settings } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { BuildPanel } from "@agent-management-platform/shared-component";
+import { useGetAgent } from "@agent-management-platform/api-client";
+import { ConfigureBuildDrawer } from "./ConfigureBuildDrawer";
 
 export const BuildComponent: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -34,6 +36,13 @@ export const BuildComponent: React.FC = () => {
   const { orgId, projectId, agentId } = useParams();
 
   const isBuildPanelOpen = searchParams.get("buildPanel") === "open";
+  const isConfigureBuildOpen = searchParams.get("configureBuild") === "open";
+
+  const { data: agent } = useGetAgent({
+    orgName: orgId,
+    projName: projectId,
+    agentName: agentId,
+  });
 
   const closeBuildPanel = useCallback(() => {
     const next = new URLSearchParams(searchParams);
@@ -47,21 +56,46 @@ export const BuildComponent: React.FC = () => {
     setSearchParams(next);
   }, [searchParams, setSearchParams]);
 
+  const closeConfigure = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("configureBuild");
+    setSearchParams(next);
+  }, [searchParams, setSearchParams]);
+
+  const handleConfigureBuild = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.set("configureBuild", "open");
+    setSearchParams(next);
+  }, [searchParams, setSearchParams]);
+
   return (
     <FadeIn>
       <PageLayout
         title="Build"
         disableIcon
         actions={
-          <Button
-            onClick={handleBuild}
-            variant="contained"
-            color="primary"
-            startIcon={<BuildOutlined size={16} />}
-            size="small"
-          >
-            Trigger a Build
-          </Button>
+          <Box display="flex" gap={1}>
+            {agent?.provisioning.type === 'internal' && (
+              <Button
+                onClick={handleConfigureBuild}
+                variant="outlined"
+                color="primary"
+                startIcon={<Settings size={16} />}
+                size="small"
+              >
+                Configure Build
+              </Button>
+            )}
+            <Button
+              onClick={handleBuild}
+              variant="contained"
+              color="primary"
+              startIcon={<BuildOutlined size={16} />}
+              size="small"
+            >
+              Trigger a Build
+            </Button>
+          </Box>
         }
       >
         <AgentBuild />
@@ -73,6 +107,15 @@ export const BuildComponent: React.FC = () => {
             agentName={agentId || ""}
           />
         </DrawerWrapper>
+        {agent && agent.provisioning.type === 'internal' && (
+          <ConfigureBuildDrawer
+            open={isConfigureBuildOpen}
+            onClose={closeConfigure}
+            agent={agent}
+            orgId={orgId || 'default'}
+            projectId={projectId || 'default'}
+          />
+        )}
       </PageLayout>
     </FadeIn>
   );

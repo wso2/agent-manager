@@ -291,6 +291,51 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    put:
+      summary: Update project
+      operationId: updateProject
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProjectRequest"
+      responses:
+        "200":
+          description: Project updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     delete:
       summary: Delete a project
       operationId: deleteProject
@@ -446,6 +491,56 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AgentResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      summary: Update agent
+      operationId: updateAgent
+      parameters:
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAgentRequest"
+      responses:
+        "200":
+          description: Agent updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Agent not found
           content:
@@ -1504,6 +1599,132 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /repositories/branches:
+    post:
+      summary: List branches for a repository
+      description: |
+        Returns a list of branches for the specified public repository.
+        Currently supports GitHub repositories only.
+      operationId: listRepositoryBranches
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of results to return (default 30, max 100)
+          required: false
+          schema:
+            type: integer
+            default: 30
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          description: Number of results to skip for pagination (default 0)
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ListBranchesRequest"
+      responses:
+        "200":
+          description: List of branches
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListBranchesResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Repository not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /repositories/commits:
+    post:
+      summary: List commits for a repository
+      description: |
+        Returns a list of commits for the specified public repository.
+        Currently supports GitHub repositories only.
+      operationId: listRepositoryCommits
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of results to return (default 30, max 100)
+          required: false
+          schema:
+            type: integer
+            default: 30
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          description: Number of results to skip for pagination (default 0)
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ListCommitsRequest"
+      responses:
+        "200":
+          description: List of commits
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListCommitsResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Repository not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     CreateOrganizationRequest:
@@ -1583,6 +1804,52 @@ components:
           $ref: "#/components/schemas/RuntimeConfiguration"
         inputInterface:
           $ref: "#/components/schemas/InputInterface"
+
+    UpdateAgentRequest:
+      type: object
+      required:
+        - name
+        - displayName
+        - provisioning
+        - agentType
+      properties:
+        name:
+          type: string
+          description: Unique name of the agent
+        displayName:
+          type: string
+          description: Display name of the agent
+        provisioning:
+          $ref: "#/components/schemas/Provisioning"
+        description:
+          type: string
+          description: Description of the agent
+        agentType:
+          $ref: "#/components/schemas/AgentType"
+        runtimeConfigs:
+          $ref: "#/components/schemas/RuntimeConfiguration"
+        inputInterface:
+          $ref: "#/components/schemas/InputInterface"
+
+    UpdateProjectRequest:
+      type: object
+      required:
+        - name
+        - displayName
+        - deploymentPipeline
+      properties:
+        name:
+          type: string
+          description: Name of the project
+        displayName:
+          type: string
+          description: Display name of the project
+        description:
+          type: string
+          description: Description of the project
+        deploymentPipeline:
+          type: string
+
     AgentResponse:
       type: object
       properties:
@@ -1608,6 +1875,8 @@ components:
           $ref: "#/components/schemas/AgentType"
         runtimeConfigs:
           $ref: "#/components/schemas/RuntimeConfiguration"
+        inputInterface:
+          $ref: "#/components/schemas/InputInterface"
       required:
         - uuid
         - name
@@ -1704,6 +1973,41 @@ components:
         appPath:
           type: string
           description: Path within the repository where the source code resides
+          pattern: "^/.*"
+          example: "/my-agent"
+    BuildParameters:
+      type: object
+      description: Parameters used for the build
+      properties:
+        repoUrl:
+          type: string
+          description: Repository URL
+        appPath:
+          type: string
+          description: Path within the repository
+        branch:
+          type: string
+          description: Branch name
+        commitId:
+          type: string
+          description: Commit ID
+        language:
+          type: string
+          description: Programming language
+        languageVersion:
+          type: string
+          description: Language version
+        runCommand:
+          type: string
+          description: Command to run the application
+      required:
+        - commitId
+        - branch
+        - repoUrl
+        - appPath
+        - language
+        - languageVersion
+        - runCommand
     BuildResponse:
       type: object
       properties:
@@ -1714,8 +2018,6 @@ components:
         projectName:
           type: string
         agentName:
-          type: string
-        commitId:
           type: string
         startedAt:
           type: string
@@ -1728,15 +2030,14 @@ components:
         status:
           type: string
           enum: [BuildInProgress, BuildTriggered, BuildCompleted]
-        branch:
-          type: string
+        buildParameters:
+          $ref: "#/components/schemas/BuildParameters"
       required:
         - buildName
         - projectName
         - agentName
         - startedAt
-        - commitId
-        - branch
+        - buildParameters
     LogEntry:
       type: object
       properties:
@@ -1822,6 +2123,8 @@ components:
               type: integer
               description: Build duration in seconds
               minimum: 0
+            inputInterface:
+              $ref: "#/components/schemas/InputInterface"
 
     # Deployment Schemas
     DeployAgentRequest:
@@ -1868,9 +2171,6 @@ components:
       description: Endpoint configurations
       required:
         - type
-        - port
-        - schema
-        - basePath
       properties:
         type:
           type: string
@@ -1881,16 +2181,20 @@ components:
           minimum: 1
           maximum: 65535
         schema:
-          type: object
-          properties:
-            path:
-              type: string
-              description: Path to OpenAPI schema file
-          required:
-            - path
+          $ref: "#/components/schemas/InputInterfaceSchema"
         basePath:
           type: string
           description: Base path for the endpoint
+    InputInterfaceSchema:
+      type: object
+      properties:
+        path:
+          type: string
+          description: Path to OpenAPI schema file
+          pattern: "^/.*"
+          example: "/openapi.yaml"
+      required:
+        - path
     EndpointSchema:
       type: object
       required:
@@ -3012,3 +3316,179 @@ components:
           type: string
           description: RSA exponent (Base64urlUInt-encoded)
           example: "AQAB"
+
+    ListBranchesRequest:
+      type: object
+      description: Request body for listing repository branches
+      required:
+        - owner
+        - repository
+      properties:
+        owner:
+          type: string
+          description: Repository owner (organization or user)
+          example: "octocat"
+        repository:
+          type: string
+          description: Repository name
+          example: "hello-world"
+
+    ListBranchesResponse:
+      type: object
+      description: Response containing list of branches
+      required:
+        - branches
+        - limit
+        - offset
+      properties:
+        branches:
+          type: array
+          items:
+            $ref: "#/components/schemas/Branch"
+          description: List of branches
+        nextOffset:
+          type: integer
+          description: Offset to use for fetching the next page (only present when more results are available)
+        limit:
+          type: integer
+          description: Maximum number of results returned
+        offset:
+          type: integer
+          description: Number of results skipped
+
+    Branch:
+      type: object
+      description: Git branch information
+      required:
+        - name
+        - commitSha
+        - isDefault
+      properties:
+        name:
+          type: string
+          description: Branch name
+          example: "main"
+        commitSha:
+          type: string
+          description: SHA of the latest commit on this branch
+          example: "c5b97d5ae6c19d5c5df71a34c7fbeeda2479ccbc"
+        isDefault:
+          type: boolean
+          description: Whether this is the default branch of the repository
+          example: true
+
+    ListCommitsRequest:
+      type: object
+      description: Request body for listing repository commits
+      required:
+        - owner
+        - repo
+      properties:
+        owner:
+          type: string
+          description: Repository owner (organization or user)
+          example: "octocat"
+        repo:
+          type: string
+          description: Repository name
+          example: "hello-world"
+        branch:
+          type: string
+          description: Branch name or SHA to list commits from (defaults to repository's default branch)
+          example: "main"
+        path:
+          type: string
+          description: Filter commits affecting this file path
+          example: "src/main.go"
+        author:
+          type: string
+          description: Filter commits by author (GitHub username or email)
+          example: "octocat"
+        since:
+          type: string
+          format: date-time
+          description: Filter commits after this date (RFC3339 format)
+          example: "2025-01-01T00:00:00Z"
+        until:
+          type: string
+          format: date-time
+          description: Filter commits before this date (RFC3339 format)
+          example: "2025-12-31T23:59:59Z"
+
+    ListCommitsResponse:
+      type: object
+      description: Response containing list of commits
+      required:
+        - commits
+        - limit
+        - offset
+      properties:
+        commits:
+          type: array
+          items:
+            $ref: "#/components/schemas/Commit"
+          description: List of commits
+        nextOffset:
+          type: integer
+          description: Offset to use for fetching the next page (only present when more results are available)
+        limit:
+          type: integer
+          description: Maximum number of results returned
+        offset:
+          type: integer
+          description: Number of results skipped
+
+    Commit:
+      type: object
+      description: Git commit information
+      required:
+        - sha
+        - shortSha
+        - message
+        - author
+        - timestamp
+        - isLatest
+      properties:
+        sha:
+          type: string
+          description: Full commit SHA
+          example: "c5b97d5ae6c19d5c5df71a34c7fbeeda2479ccbc"
+        shortSha:
+          type: string
+          description: Short commit SHA (first 7 characters)
+          example: "c5b97d5"
+        message:
+          type: string
+          description: Commit message
+          example: "Fix authentication bug"
+        author:
+          $ref: "#/components/schemas/CommitAuthor"
+        timestamp:
+          type: string
+          format: date-time
+          description: Commit timestamp
+          example: "2025-01-15T10:30:00Z"
+        isLatest:
+          type: boolean
+          description: Whether this is the latest commit on the branch
+          example: true
+
+    CommitAuthor:
+      type: object
+      description: Commit author information
+      required:
+        - name
+        - email
+      properties:
+        name:
+          type: string
+          description: Author name
+          example: "The Octocat"
+        email:
+          type: string
+          description: Author email
+          example: "octocat@github.com"
+        avatarUrl:
+          type: string
+          description: URL to the author's avatar image
+          example: "https://avatars.githubusercontent.com/u/583231?v=4"

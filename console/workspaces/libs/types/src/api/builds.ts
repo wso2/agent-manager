@@ -46,33 +46,30 @@ export const BUILD_STATUS_COLOR_MAP: Record<BuildStatus, BuildStatusColor> = {
   WorkloadUpdated: 'success',
 };
 
+export interface BuildParameters {
+  repoUrl: string;
+  appPath: string;
+  branch: string;
+  commitId: string;
+  language: string;
+  languageVersion: string;
+  runCommand: string;
+}
+
 export interface BuildResponse {
   buildId?: string;
   buildName: string;
   projectName: string;
   agentName: string;
-  commitId: string;
   startedAt: string; // ISO date-time
   endedAt?: string; // ISO date-time
   imageId?: string;
   status?: BuildStatus;
-  branch: string;
+  buildParameters: BuildParameters;
 }
 
 export interface BuildsListResponse extends PaginationMeta {
   builds: BuildResponse[];
-}
-
-export type LogLevel = "INFO" | "WARN" | "ERROR" | "DEBUG";
-
-export interface BuildLogEntry {
-  timestamp: string; // ISO date-time
-  log: string;
-  logLevel: LogLevel;
-}
-
-export interface BuildLogsResponse {
-  logs: BuildLogEntry[];
 }
 
 export type BuildStepType =
@@ -101,6 +98,12 @@ export interface BuildDetailsResponse extends BuildResponse {
 export type BuildAgentPathParams = AgentPathParams;
 export type GetAgentBuildsPathParams = AgentPathParams;
 export type GetBuildPathParams = BuildPathParams;
-export type GetBuildLogsPathParams = BuildPathParams;
 
 export type GetAgentBuildsQuery = ListQuery;
+
+// Re-export log types for convenience
+export type {
+  BuildLogEntry,
+  BuildLogsResponse,
+  GetBuildLogsPathParams,
+} from "./logs";

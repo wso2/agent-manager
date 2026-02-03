@@ -28,25 +28,72 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 )
 
+type agentPayload struct {
+	name           string
+	displayName    string
+	provisioning   spec.Provisioning
+	agentType      spec.AgentType
+	runtimeConfigs *spec.RuntimeConfiguration
+	inputInterface *spec.InputInterface
+}
+
+func ValidateAgentUpdatePayload(payload spec.UpdateAgentRequest) error {
+	return validateAgentPayload(agentPayload{
+		name:           payload.Name,
+		displayName:    payload.DisplayName,
+		provisioning:   payload.Provisioning,
+		agentType:      payload.AgentType,
+		runtimeConfigs: payload.RuntimeConfigs,
+		inputInterface: payload.InputInterface,
+	})
+}
+
+func ValidateProjectUpdatePayload(payload spec.UpdateProjectRequest) error {
+	if err := ValidateResourceName(payload.Name, "project"); err != nil {
+		return fmt.Errorf("invalid project name: %w", err)
+	}
+
+	if err := ValidateResourceDisplayName(payload.DisplayName, "project"); err != nil {
+		return fmt.Errorf("invalid project display name: %w", err)
+	}
+
+	if payload.DeploymentPipeline == "" {
+		return fmt.Errorf("deployment pipeline cannot be empty")
+	}
+
+	return nil
+}
+
 func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
+	return validateAgentPayload(agentPayload{
+		name:           payload.Name,
+		displayName:    payload.DisplayName,
+		provisioning:   payload.Provisioning,
+		agentType:      payload.AgentType,
+		runtimeConfigs: payload.RuntimeConfigs,
+		inputInterface: payload.InputInterface,
+	})
+}
+
+func validateAgentPayload(payload agentPayload) error {
 	// Validate agent name
-	if err := ValidateResourceName(payload.Name, "agent"); err != nil {
+	if err := ValidateResourceName(payload.name, "agent"); err != nil {
 		return fmt.Errorf("invalid agent name: %w", err)
 	}
-	if err := ValidateResourceDisplayName(payload.DisplayName, "agent"); err != nil {
+	if err := ValidateResourceDisplayName(payload.displayName, "agent"); err != nil {
 		return fmt.Errorf("invalid agent display name: %w", err)
 	}
 	// Validate agent provisioning
-	if err := validateAgentProvisioning(payload.Provisioning); err != nil {
+	if err := validateAgentProvisioning(payload.provisioning); err != nil {
 		return fmt.Errorf("invalid agent provisioning: %w", err)
 	}
 	// Validate agent type and subtype
-	if err := validateAgentType(payload.AgentType); err != nil {
+	if err := validateAgentType(payload.agentType); err != nil {
 		return fmt.Errorf("invalid agent type or subtype: %w", err)
 	}
 	// Additional validations for internal agents
-	if payload.Provisioning.Type == string(InternalAgent) {
-		if err := validateInternalAgent(payload); err != nil {
+	if payload.provisioning.Type == string(InternalAgent) {
+		if err := validateInternalAgentPayload(payload); err != nil {
 			return err
 		}
 	}
@@ -54,30 +101,30 @@ func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
 	return nil
 }
 
-// validateInternalAgent performs validations specific to internal agents
-func validateInternalAgent(payload spec.CreateAgentRequest) error {
+// validateInternalAgentPayload performs validations specific to internal agents.
+func validateInternalAgentPayload(payload agentPayload) error {
 	// Validate Agent Type
-	if err := validateAgentSubType(payload.AgentType); err != nil {
+	if err := validateAgentSubType(payload.agentType); err != nil {
 		return fmt.Errorf("invalid agent subtype: %w", err)
 	}
 	// Validate API input interface for API agents
-	if payload.AgentType.Type == string(AgentTypeAPI) {
-		if err := validateInputInterface(payload.AgentType, payload.InputInterface); err != nil {
+	if payload.agentType.Type == string(AgentTypeAPI) {
+		if err := validateInputInterface(payload.agentType, payload.inputInterface); err != nil {
 			return fmt.Errorf("invalid inputInterface: %w", err)
 		}
 	}
 
 	// Validate runtime configurations
-	if payload.RuntimeConfigs == nil {
+	if payload.runtimeConfigs == nil {
 		return fmt.Errorf("runtimeConfigs is required for internal agents")
 	}
 
-	if err := validateLanguage(payload.RuntimeConfigs.Language, payload.RuntimeConfigs.LanguageVersion); err != nil {
+	if err := validateLanguage(payload.runtimeConfigs.Language, payload.runtimeConfigs.LanguageVersion); err != nil {
 		return fmt.Errorf("invalid language: %w", err)
 	}
 
 	// Validate environment variables if present
-	if err := validateEnvironmentVariables(payload.RuntimeConfigs.Env); err != nil {
+	if err := validateEnvironmentVariables(payload.runtimeConfigs.Env); err != nil {
 		return fmt.Errorf("invalid environment variables: %w", err)
 	}
 
@@ -85,7 +132,7 @@ func validateInternalAgent(payload spec.CreateAgentRequest) error {
 }
 
 func validateAgentType(agentType spec.AgentType) error {
-	if agentType.Type != string(AgentTypeAPI) {
+	if agentType.Type != string(AgentTypeAPI) && agentType.Type != string(AgentTypeExternalAPI) {
 		return fmt.Errorf("unsupported agent type: %s", agentType.Type)
 	}
 	return nil
@@ -174,6 +221,9 @@ func validateRepoDetails(repo *spec.RepositoryConfig) error {
 	if repo.Branch == "" {
 		return fmt.Errorf("repository branch cannot be empty")
 	}
+	if repo.AppPath == "" || !strings.HasPrefix(repo.AppPath, "/") {
+		return fmt.Errorf("repository appPath is required and must start with /")
+	}
 	return nil
 }
 
@@ -186,13 +236,13 @@ func validateInputInterface(agentType spec.AgentType, inputInterface *spec.Input
 		return fmt.Errorf("unsupported inputInterface type: %s", inputInterface.Type)
 	}
 	if StrPointerAsStr(agentType.SubType, "") == string(AgentSubTypeCustomAPI) {
-		if inputInterface.Schema.Path == "" {
-			return fmt.Errorf("inputInterface.schema.path is required")
+		if inputInterface.Schema.Path == "" || !strings.HasPrefix(inputInterface.Schema.Path, "/") {
+			return fmt.Errorf("inputInterface.schema.path is required and must start with /")
 		}
-		if inputInterface.Port <= 0 || inputInterface.Port > 65535 {
+		if IntPointerAsInt(inputInterface.Port, 0) <= 0 || IntPointerAsInt(inputInterface.Port, 0) > 65535 {
 			return fmt.Errorf("inputInterface.port must be a valid port number (1-65535)")
 		}
-		if inputInterface.BasePath == "" {
+		if StrPointerAsStr(inputInterface.BasePath, "") == "" {
 			return fmt.Errorf("inputInterface.basePath is required")
 		}
 	}
@@ -508,4 +558,33 @@ func validateTimes(startTime string, endTime string) error {
 // isValidLogLevel checks if the given log level is valid
 func isValidLogLevel(level string) bool {
 	return level == LogLevelInfo || level == LogLevelDebug || level == LogLevelWarn || level == LogLevelError
+}
+
+// ParseGitHubURL extracts the owner and repository name from a GitHub URL.
+// Supports formats:
+// - https://github.com/owner/repo
+// - https://github.com/owner/repo.git
+// - https://github.com/owner/my.repo.git (dots allowed in repo names)
+// - git@github.com:owner/repo.git
+// Returns empty strings if the URL cannot be parsed.
+func ParseGitHubURL(url string) (owner, repo string) {
+	if url == "" {
+		return "", ""
+	}
+
+	// Handle HTTPS URLs: https://github.com/owner/repo or https://github.com/owner/repo.git
+	// Allow dots in repo name, strip optional .git suffix and trailing slash
+	httpsPattern := regexp.MustCompile(`^https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$`)
+	if matches := httpsPattern.FindStringSubmatch(url); len(matches) == 3 {
+		return matches[1], matches[2]
+	}
+
+	// Handle SSH URLs: git@github.com:owner/repo.git
+	// Allow dots in repo name, strip optional .git suffix
+	sshPattern := regexp.MustCompile(`^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$`)
+	if matches := sshPattern.FindStringSubmatch(url); len(matches) == 3 {
+		return matches[1], matches[2]
+	}
+
+	return "", ""
 }

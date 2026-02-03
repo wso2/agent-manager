@@ -37,6 +37,7 @@ type InfraResourceController interface {
 	ListProjects(w http.ResponseWriter, r *http.Request)
 	GetProject(w http.ResponseWriter, r *http.Request)
 	CreateProject(w http.ResponseWriter, r *http.Request)
+	UpdateProject(w http.ResponseWriter, r *http.Request)
 	DeleteProject(w http.ResponseWriter, r *http.Request)
 	ListOrgDeploymentPipelines(w http.ResponseWriter, r *http.Request)
 	GetDataplanes(w http.ResponseWriter, r *http.Request)
@@ -233,6 +234,59 @@ func (c *infraResourceController) CreateProject(w http.ResponseWriter, r *http.R
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusAccepted, projectResponse)
+}
+
+func (c *infraResourceController) UpdateProject(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	// Extract path parameters
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projectName := r.PathValue(utils.PathParamProjName)
+
+	// Parse and validate request body
+	var payload spec.UpdateProjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		log.Error("UpdateProject: failed to decode request body", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if err := utils.ValidateProjectUpdatePayload(payload); err != nil {
+		log.Error("UpdateProject: invalid project payload", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	project, err := c.infraResourceManager.UpdateProject(ctx, orgName, projectName, payload)
+	if err != nil {
+		log.Error("UpdateProject: failed to update project", "error", err)
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+			return
+		}
+		if errors.Is(err, utils.ErrProjectNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			return
+		}
+		if errors.Is(err, utils.ErrImmutableFieldChange) {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update project")
+		return
+	}
+
+	projectResponse := spec.ProjectResponse{
+		Name:               project.Name,
+		DisplayName:        project.DisplayName,
+		Description:        project.Description,
+		DeploymentPipeline: project.DeploymentPipeline,
+		OrgName:            project.OrgName,
+		CreatedAt:          project.CreatedAt,
+	}
+
+	utils.WriteSuccessResponse(w, http.StatusOK, projectResponse)
 }
 
 func (c *infraResourceController) DeleteProject(w http.ResponseWriter, r *http.Request) {

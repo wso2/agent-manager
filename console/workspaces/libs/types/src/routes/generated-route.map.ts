@@ -82,13 +82,12 @@ export const generatedRouteMap =  {
                         "traces": {
                           "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/traces",
                           "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/traces/*",
-                          "children": {
-                            "traceDetails": {
-                              "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/traces/:traceId",
-                              "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/traces/:traceId/*",
-                              "children": {}
-                            }
-                          }
+                          "children": {}
+                        },
+                        "logs": {
+                          "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/logs",
+                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/logs/*",
+                          "children": {}
                         }
                       }
                     }

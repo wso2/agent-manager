@@ -33,6 +33,7 @@ import (
 type AgentManagerService interface {
 	ListAgents(ctx context.Context, orgName string, projName string, limit int32, offset int32) ([]*models.AgentResponse, int32, error)
 	CreateAgent(ctx context.Context, orgName string, projectName string, req *spec.CreateAgentRequest) error
+	UpdateAgent(ctx context.Context, orgName string, projectName string, agentName string, req *spec.UpdateAgentRequest) (*models.AgentResponse, error)
 	BuildAgent(ctx context.Context, orgName string, projectName string, agentName string, commitId string) (*models.BuildResponse, error)
 	DeleteAgent(ctx context.Context, orgName string, projectName string, agentName string) error
 	DeployAgent(ctx context.Context, orgName string, projectName string, agentName string, req *spec.DeployAgentRequest) (string, error)
@@ -51,17 +52,20 @@ type AgentManagerService interface {
 type agentManagerService struct {
 	OpenChoreoSvcClient    clients.OpenChoreoSvcClient
 	ObservabilitySvcClient observabilitysvc.ObservabilitySvcClient
+	RepositoryService      RepositoryService
 	logger                 *slog.Logger
 }
 
 func NewAgentManagerService(
 	openChoreoSvcClient clients.OpenChoreoSvcClient,
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient,
+	repositoryService RepositoryService,
 	logger *slog.Logger,
 ) AgentManagerService {
 	return &agentManagerService{
 		OpenChoreoSvcClient:    openChoreoSvcClient,
 		ObservabilitySvcClient: observabilitySvcClient,
+		RepositoryService:      repositoryService,
 		logger:                 logger,
 	}
 }
@@ -162,6 +166,69 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 
 	s.logger.Info("Agent created successfully", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "provisioningType", req.Provisioning.Type)
 	return nil
+}
+
+func (s *agentManagerService) UpdateAgent(ctx context.Context, orgName string, projectName string, agentName string, req *spec.UpdateAgentRequest) (*models.AgentResponse, error) {
+	s.logger.Info("Updating agent", "agentName", agentName, "orgName", orgName, "projectName", projectName)
+
+	// Validate organization exists
+	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
+	if err != nil {
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return nil, err
+	}
+
+	// Validate project exists
+	_, err = s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
+	if err != nil {
+		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
+		return nil, err
+	}
+
+	// Fetch existing agent to validate immutable fields
+	existingAgent, err := s.OpenChoreoSvcClient.GetAgentComponent(ctx, orgName, projectName, agentName)
+	if err != nil {
+		s.logger.Error("Failed to fetch existing agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		return nil, err
+	}
+
+	// Check immutable fields - name cannot be changed
+	if req.Name != existingAgent.Name {
+		s.logger.Error("Cannot change agent name", "existingName", existingAgent.Name, "requestedName", req.Name)
+		return nil, fmt.Errorf("%w: agent name cannot be changed", utils.ErrImmutableFieldChange)
+	}
+
+	// Check immutable fields - agentType cannot be changed
+	if req.AgentType.Type != existingAgent.Type.Type {
+		s.logger.Error("Cannot change agent type", "existingType", existingAgent.Type.Type, "requestedType", req.AgentType.Type)
+		return nil, fmt.Errorf("%w: agent type cannot be changed", utils.ErrImmutableFieldChange)
+	}
+
+	// Check immutable fields - provisioning type cannot be changed
+	if req.Provisioning.Type != existingAgent.Provisioning.Type {
+		s.logger.Error("Cannot change provisioning type", "existingType", existingAgent.Provisioning.Type, "requestedType", req.Provisioning.Type)
+		return nil, fmt.Errorf("%w: provisioning type cannot be changed", utils.ErrImmutableFieldChange)
+	}
+
+	// Update agent component in OpenChoreo
+	if err := s.OpenChoreoSvcClient.UpdateAgentComponent(ctx, orgName, projectName, agentName, req); err != nil {
+		s.logger.Error("Failed to update agent component in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		return nil, fmt.Errorf("failed to update agent component: %w", err)
+	}
+
+	// Fetch updated agent
+	updatedAgent, err := s.OpenChoreoSvcClient.GetAgentComponent(ctx, orgName, projectName, agentName)
+	if err != nil {
+		s.logger.Error("Failed to fetch updated agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		return nil, err
+	}
+
+	s.logger.Info("Agent updated successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName)
+
+	if updatedAgent.Provisioning.Type == string(utils.ExternalAgent) {
+		return s.convertExternalAgentToAgentResponse(updatedAgent), nil
+	}
+	return s.convertManagedAgentToAgentResponse(updatedAgent), nil
 }
 
 func (s *agentManagerService) GenerateName(ctx context.Context, orgName string, payload spec.ResourceNameRequest) (string, error) {
@@ -294,8 +361,26 @@ func (s *agentManagerService) createOpenChoreoAgentComponent(ctx context.Context
 	}
 	// For internal agents, trigger build after creation
 	s.logger.Debug("Agent component created, triggering build", "agentName", req.Name, "orgName", orgName, "projectName", projectName)
+
+	// Get the latest commit from the repository
+	commitId := ""
+	if req.Provisioning.Repository != nil {
+		repoURL := req.Provisioning.Repository.Url
+		branch := req.Provisioning.Repository.Branch
+		owner, repo := utils.ParseGitHubURL(repoURL)
+		if owner != "" && repo != "" {
+			latestCommit, err := s.RepositoryService.GetLatestCommit(ctx, owner, repo, branch)
+			if err != nil {
+				s.logger.Warn("Failed to get latest commit, will use empty commit", "repoURL", repoURL, "branch", branch, "error", err)
+			} else {
+				commitId = latestCommit
+				s.logger.Debug("Got latest commit for build", "commitId", commitId, "branch", branch)
+			}
+		}
+	}
+
 	// Trigger build in OpenChoreo with the latest commit
-	build, err := s.OpenChoreoSvcClient.TriggerBuild(ctx, orgName, projectName, req.Name, "")
+	build, err := s.OpenChoreoSvcClient.TriggerBuild(ctx, orgName, projectName, req.Name, commitId)
 	if err != nil {
 		// Clean up the component if build trigger fails
 		s.logger.Info("Cleaning up component after build trigger failure", "agentName", req.Name)
@@ -304,7 +389,7 @@ func (s *agentManagerService) createOpenChoreoAgentComponent(ctx context.Context
 		}
 		return fmt.Errorf("failed to trigger build: agentName %s, error: %w", req.Name, err)
 	}
-	s.logger.Info("Agent component created and build triggered successfully", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "buildName", build.Name)
+	s.logger.Info("Agent component created and build triggered successfully", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "buildName", build.Name, "commitId", commitId)
 	return nil
 }
 
@@ -477,7 +562,7 @@ func (s *agentManagerService) GetBuildLogs(ctx context.Context, orgName string, 
 	}
 
 	// Check if build exists
-	build, err := s.OpenChoreoSvcClient.GetComponentWorkflow(ctx, orgName, projectName, agentName, buildName)
+	build, err := s.OpenChoreoSvcClient.GetComponentWorkflowRun(ctx, orgName, projectName, agentName, buildName)
 	if err != nil {
 		s.logger.Error("Failed to get build", "buildName", buildName, "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
 		return nil, err
@@ -598,7 +683,7 @@ func (s *agentManagerService) ListAgentBuilds(ctx context.Context, orgName strin
 	}
 
 	// Fetch all builds from OpenChoreo first
-	allBuilds, err := s.OpenChoreoSvcClient.ListComponentWorkflows(ctx, orgName, projectName, agentName)
+	allBuilds, err := s.OpenChoreoSvcClient.ListComponentWorkflowRuns(ctx, orgName, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to list builds from OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
 		return nil, 0, fmt.Errorf("failed to list builds for agent %s: %w", agentName, err)
@@ -646,13 +731,10 @@ func (s *agentManagerService) GetBuild(ctx context.Context, orgName string, proj
 		return nil, fmt.Errorf("build operation is not supported for agent type: '%s'", agent.Provisioning.Type)
 	}
 	// Fetch the build from OpenChoreo
-	build, err := s.OpenChoreoSvcClient.GetComponentWorkflow(ctx, orgName, projectName, agentName, buildName)
+	build, err := s.OpenChoreoSvcClient.GetComponentWorkflowRun(ctx, orgName, projectName, agentName, buildName)
 	if err != nil {
 		s.logger.Error("Failed to get build from OpenChoreo", "buildName", buildName, "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		if errors.Is(err, utils.ErrBuildNotFound) {
-			return nil, utils.ErrBuildNotFound
-		}
-		return nil, fmt.Errorf("failed to get build %s for agent %s: %w", buildName, agentName, err)
+		return nil, err
 	}
 
 	s.logger.Info("Fetched build successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName, "buildName", build.Name)
@@ -788,8 +870,14 @@ func (s *agentManagerService) convertToAgentListItem(agent *clients.AgentCompone
 			Type:    agent.Type.Type,
 			SubType: agent.Type.SubType,
 		},
-		Language:  agent.Language,
 		CreatedAt: agent.CreatedAt,
+	}
+	if agent.RuntimeConfigs != nil {
+		response.RuntimeConfigs = &models.RuntimeConfigs{
+			Language:        agent.RuntimeConfigs.Language,
+			LanguageVersion: agent.RuntimeConfigs.LanguageVersion,
+			RunCommand:      agent.RuntimeConfigs.RunCommand,
+		}
 	}
 	return response
 }
@@ -814,7 +902,7 @@ func (s *agentManagerService) convertExternalAgentToAgentResponse(ocAgentCompone
 
 // convertToManagedAgentResponse converts an OpenChoreo AgentComponent to AgentResponse for managed agents
 func (s *agentManagerService) convertManagedAgentToAgentResponse(ocAgentComponent *clients.AgentComponent) *models.AgentResponse {
-	return &models.AgentResponse{
+	response := &models.AgentResponse{
 		UUID:        ocAgentComponent.UUID,
 		Name:        ocAgentComponent.Name,
 		DisplayName: ocAgentComponent.DisplayName,
@@ -832,9 +920,17 @@ func (s *agentManagerService) convertManagedAgentToAgentResponse(ocAgentComponen
 			Type:    ocAgentComponent.Type.Type,
 			SubType: ocAgentComponent.Type.SubType,
 		},
-		Language:  ocAgentComponent.Language,
-		CreatedAt: ocAgentComponent.CreatedAt,
+		CreatedAt:      ocAgentComponent.CreatedAt,
+		InputInterface: ocAgentComponent.InputInterface,
 	}
+	if ocAgentComponent.RuntimeConfigs != nil {
+		response.RuntimeConfigs = &models.RuntimeConfigs{
+			Language:        ocAgentComponent.RuntimeConfigs.Language,
+			LanguageVersion: ocAgentComponent.RuntimeConfigs.LanguageVersion,
+			RunCommand:      ocAgentComponent.RuntimeConfigs.RunCommand,
+		}
+	}
+	return response
 }
 
 // buildWorkloadSpec constructs the workload specification from the create agent request
