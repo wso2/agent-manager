@@ -64,6 +64,7 @@ func NewAgentController(agentService services.AgentManagerService) AgentControll
 // If no common error matches, writes an internal server error with the provided fallback message.
 func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
+	// Not found errors
 	case errors.Is(err, utils.ErrOrganizationNotFound):
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
 	case errors.Is(err, utils.ErrProjectNotFound):
@@ -72,10 +73,29 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 	case errors.Is(err, utils.ErrBuildNotFound):
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Build not found")
+	case errors.Is(err, utils.ErrEnvironmentNotFound):
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
+
+	// Conflict errors
 	case errors.Is(err, utils.ErrAgentAlreadyExists):
 		utils.WriteErrorResponse(w, http.StatusConflict, "Agent already exists")
+
+	// Bad request errors
 	case errors.Is(err, utils.ErrImmutableFieldChange):
 		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, utils.ErrBadRequest):
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+
+	// Authorization errors
+	case errors.Is(err, utils.ErrUnauthorized):
+		utils.WriteErrorResponse(w, http.StatusUnauthorized, err.Error())
+	case errors.Is(err, utils.ErrForbidden):
+		utils.WriteErrorResponse(w, http.StatusForbidden, err.Error())
+
+	// Service unavailable
+	case errors.Is(err, utils.ErrServiceUnavailable):
+		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, err.Error())
+
 	default:
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, fallbackMsg)
 	}
@@ -257,8 +277,13 @@ func (c *agentController) BuildAgent(w http.ResponseWriter, r *http.Request) {
 	if commitId == "" {
 		log.Debug("BuildAgent: commitId not provided, using latest commit")
 	}
+	branch := r.URL.Query().Get("branch")
+	if branch == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid branch parameter: branch is required")
+		return
+	}
 
-	build, err := c.agentService.BuildAgent(ctx, orgName, projName, agentName, commitId)
+	build, err := c.agentService.BuildAgent(ctx, orgName, projName, agentName, commitId, branch)
 	if err != nil {
 		log.Error("BuildAgent: failed to build agent", "error", err)
 		handleCommonErrors(w, err, "Failed to build agent")
