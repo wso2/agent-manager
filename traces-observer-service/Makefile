@@ -7,7 +7,8 @@ DOCKER_IMAGE=$(APP_NAME):$(TAG)
 CONTAINER_NAME=$(APP_NAME)
 PORT=9098
 KIND_CLUSTER_NAME=openchoreo-local
-K3D_CLUSTER_NAME=openchoreo-local-v0.9
+OPEN_CHOREO_VERSION=0.13.0
+K3D_CLUSTER_NAME=openchoreo-local-v$(OPEN_CHOREO_VERSION)
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'

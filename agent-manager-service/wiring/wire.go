@@ -25,7 +25,8 @@ import (
 	"github.com/google/wire"
 
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
-	clients "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	ocauth "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
+	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
@@ -38,9 +39,10 @@ var configProviderSet = wire.NewSet(
 )
 
 var clientProviderSet = wire.NewSet(
-	clients.NewOpenChoreoSvcClient,
 	observabilitysvc.NewObservabilitySvcClient,
 	traceobserversvc.NewTraceObserverClient,
+	ProvideOCAuthProvider,
+	ProvideOCClient,
 )
 
 var serviceProviderSet = wire.NewSet(
@@ -60,7 +62,7 @@ var controllerProviderSet = wire.NewSet(
 )
 
 var testClientProviderSet = wire.NewSet(
-	ProvideTestOpenChoreoSvcClient,
+	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
 	ProvideTestTraceObserverClient,
 )
@@ -70,13 +72,30 @@ func ProvideLogger() *slog.Logger {
 	return slog.Default()
 }
 
+// ProvideOCAuthProvider creates the OpenChoreo auth provider using IDP config
+func ProvideOCAuthProvider(cfg config.Config) occlient.AuthProvider {
+	return ocauth.NewAuthProvider(ocauth.Config{
+		TokenURL:     cfg.IDP.TokenURL,
+		ClientID:     cfg.IDP.ClientID,
+		ClientSecret: cfg.IDP.ClientSecret,
+	})
+}
+
+// ProvideOCClient creates the OpenChoreo client
+func ProvideOCClient(cfg config.Config, authProvider occlient.AuthProvider) (occlient.OpenChoreoClient, error) {
+	return occlient.NewOpenChoreoClient(&occlient.Config{
+		BaseURL:      cfg.OpenChoreo.BaseURL,
+		AuthProvider: authProvider,
+	})
+}
+
 var loggerProviderSet = wire.NewSet(
 	ProvideLogger,
 )
 
-// ProvideTestOpenChoreoSvcClient extracts the OpenChoreoSvcClient from TestClients
-func ProvideTestOpenChoreoSvcClient(testClients TestClients) clients.OpenChoreoSvcClient {
-	return testClients.OpenChoreoSvcClient
+// ProvideTestOpenChoreoClient extracts the OpenChoreoClient from TestClients
+func ProvideTestOpenChoreoClient(testClients TestClients) occlient.OpenChoreoClient {
+	return testClients.OpenChoreoClient
 }
 
 // ProvideTestObservabilitySvcClient extracts the ObservabilitySvcClient from TestClients

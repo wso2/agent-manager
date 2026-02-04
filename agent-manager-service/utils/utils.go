@@ -33,33 +33,35 @@ type agentPayload struct {
 	displayName    string
 	provisioning   spec.Provisioning
 	agentType      spec.AgentType
+	
 	runtimeConfigs *spec.RuntimeConfiguration
 	inputInterface *spec.InputInterface
 }
 
 func ValidateAgentUpdatePayload(payload spec.UpdateAgentRequest) error {
-	return validateAgentPayload(agentPayload{
-		name:           payload.Name,
-		displayName:    payload.DisplayName,
-		provisioning:   payload.Provisioning,
-		agentType:      payload.AgentType,
-		runtimeConfigs: payload.RuntimeConfigs,
-		inputInterface: payload.InputInterface,
-	})
+	// return validateAgentPayload(agentPayload{
+	// 	name:           payload.Name,
+	// 	displayName:    payload.DisplayName,
+	// 	provisioning:   payload.Provisioning,
+	// 	agentType:      payload.AgentType,
+	// 	runtimeConfigs: payload.RuntimeConfigs,
+	// 	inputInterface: payload.InputInterface,
+	// })
+	return nil
 }
 
 func ValidateProjectUpdatePayload(payload spec.UpdateProjectRequest) error {
-	if err := ValidateResourceName(payload.Name, "project"); err != nil {
-		return fmt.Errorf("invalid project name: %w", err)
-	}
+	// if err := ValidateResourceName(payload.Name, "project"); err != nil {
+	// 	return fmt.Errorf("invalid project name: %w", err)
+	// }
 
-	if err := ValidateResourceDisplayName(payload.DisplayName, "project"); err != nil {
-		return fmt.Errorf("invalid project display name: %w", err)
-	}
+	// if err := ValidateResourceDisplayName(payload.DisplayName, "project"); err != nil {
+	// 	return fmt.Errorf("invalid project display name: %w", err)
+	// }
 
-	if payload.DeploymentPipeline == "" {
-		return fmt.Errorf("deployment pipeline cannot be empty")
-	}
+	// if payload.DeploymentPipeline == "" {
+	// 	return fmt.Errorf("deployment pipeline cannot be empty")
+	// }
 
 	return nil
 }
@@ -587,4 +589,21 @@ func ParseGitHubURL(url string) (owner, repo string) {
 	}
 
 	return "", ""
+}
+
+// ToShortSHA converts a full git commit SHA to short format (first 8 characters).
+// If the commit is already short or invalid, returns it as-is.
+// This matches the behavior of the build workflow templates that use cut -c1-8.
+func ToShortSHA(commit string) string {
+	if commit == "" {
+		return commit
+	}
+
+	// If commit is already 8 characters or less, return as-is
+	if len(commit) <= 8 {
+		return commit
+	}
+
+	// Return first 8 characters
+	return commit[:8]
 }

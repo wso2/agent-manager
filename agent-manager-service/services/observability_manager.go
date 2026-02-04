@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
@@ -59,18 +59,18 @@ type ObservabilityManagerService interface {
 
 type observabilityManagerService struct {
 	traceObserverClient traceobserversvc.TraceObserverClient
-	openChoreoClient    openchoreosvc.OpenChoreoSvcClient
+	ocClient            client.OpenChoreoClient
 	logger              *slog.Logger
 }
 
 func NewObservabilityManager(
 	traceObserverClient traceobserversvc.TraceObserverClient,
-	openChoreoClient openchoreosvc.OpenChoreoSvcClient,
+	ocClient client.OpenChoreoClient,
 	logger *slog.Logger,
 ) ObservabilityManagerService {
 	return &observabilityManagerService{
 		traceObserverClient: traceObserverClient,
-		openChoreoClient:    openChoreoClient,
+		ocClient:            ocClient,
 		logger:              logger,
 	}
 }
@@ -80,7 +80,7 @@ func (s *observabilityManagerService) ListTraces(ctx context.Context, req ListTr
 	s.logger.Info("Listing traces", "agentName", req.AgentName, "limit", req.Limit, "offset", req.Offset)
 
 	// Fetch component to get UID
-	component, err := s.openChoreoClient.GetAgentComponent(ctx, req.OrgName, req.ProjectName, req.AgentName)
+	component, err := s.ocClient.GetComponent(ctx, req.OrgName, req.ProjectName, req.AgentName)
 	if err != nil {
 		s.logger.Error("Failed to get agent component", "agentName", req.AgentName, "error", err)
 		return nil, fmt.Errorf("failed to get agent component: %w", err)
@@ -88,7 +88,7 @@ func (s *observabilityManagerService) ListTraces(ctx context.Context, req ListTr
 
 	// Fetch environment to get UID (if specified)
 
-	environment, err := s.openChoreoClient.GetEnvironment(ctx, req.OrgName, req.Environment)
+	environment, err := s.ocClient.GetEnvironment(ctx, req.OrgName, req.Environment)
 	if err != nil {
 		s.logger.Error("Failed to get environment", "environment", req.Environment, "error", err)
 		return nil, fmt.Errorf("failed to get environment: %w", err)
@@ -163,14 +163,14 @@ func (s *observabilityManagerService) ExportTraces(ctx context.Context, req List
 	s.logger.Info("Exporting traces", "agentName", req.AgentName, "limit", req.Limit, "offset", req.Offset)
 
 	// Fetch component to get UID
-	component, err := s.openChoreoClient.GetAgentComponent(ctx, req.OrgName, req.ProjectName, req.AgentName)
+	component, err := s.ocClient.GetComponent(ctx, req.OrgName, req.ProjectName, req.AgentName)
 	if err != nil {
 		s.logger.Error("Failed to get agent component", "agentName", req.AgentName, "error", err)
 		return nil, fmt.Errorf("failed to get agent component: %w", err)
 	}
 
 	// Fetch environment to get UID (if specified)
-	environment, err := s.openChoreoClient.GetEnvironment(ctx, req.OrgName, req.Environment)
+	environment, err := s.ocClient.GetEnvironment(ctx, req.OrgName, req.Environment)
 	if err != nil {
 		s.logger.Error("Failed to get environment", "environment", req.Environment, "error", err)
 		return nil, fmt.Errorf("failed to get environment: %w", err)
@@ -278,13 +278,13 @@ func (s *observabilityManagerService) GetTraceDetails(ctx context.Context, req T
 	s.logger.Info("Getting trace details", "traceId", req.TraceID, "agentName", req.AgentName)
 
 	// Fetch component to get UID
-	component, err := s.openChoreoClient.GetAgentComponent(ctx, req.OrgName, req.ProjectName, req.AgentName)
+	component, err := s.ocClient.GetComponent(ctx, req.OrgName, req.ProjectName, req.AgentName)
 	if err != nil {
 		s.logger.Error("Failed to get agent component", "agentName", req.AgentName, "error", err)
 		return nil, fmt.Errorf("failed to get agent component: %w", err)
 	}
 
-	environment, err := s.openChoreoClient.GetEnvironment(ctx, req.OrgName, req.Environment)
+	environment, err := s.ocClient.GetEnvironment(ctx, req.OrgName, req.Environment)
 	if err != nil {
 		s.logger.Error("Failed to get environment", "environment", req.Environment, "error", err)
 		return nil, fmt.Errorf("failed to get environment: %w", err)
