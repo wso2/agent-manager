@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ClusterWorkflowTemplate
 metadata:
-  name: ballerina-buildpack-ci
+  name: amp-ballerina-buildpack-ci
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "15"
@@ -21,18 +21,18 @@ spec:
               parameters:
                 - name: git-revision
                   value: '{{ "{{" }}steps.clone-step.outputs.parameters.git-revision{{ "}}" }}'
-        - - name: push-step
-            template: push-step
+        - - name: publish-image
+            template: publish-image
             arguments:
               parameters:
                 - name: git-revision
                   value: '{{ "{{" }}steps.clone-step.outputs.parameters.git-revision{{ "}}" }}'
-        - - name: workload-create-step
-            template: workload-create-step
+        - - name: generate-workload-cr
+            template: generate-workload-cr
             arguments:
               parameters:
                 - name: image
-                  value: '{{ "{{" }}steps.push-step.outputs.parameters.image{{ "}}" }}'
+                  value: '{{ "{{" }}steps.publish-image.outputs.parameters.image{{ "}}" }}'
     - name: clone-step
       outputs:
         parameters:
@@ -106,17 +106,16 @@ spec:
              #####################################################################
             # 2. Registry configuration and pull pre-cached images
             #####################################################################
-            REGISTRY_ENDPOINT="{{ include "openchoreo-build-plane.registryEndpoint" . }}"
+            BUILDER="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "ballerina-builder" "context" .) }}"
+            RUN_IMAGE="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "ballerina-run" "context" .) }}"
 
-            # Pull pre-cached buildpack images from registry
-            BUILDER="${REGISTRY_ENDPOINT}/buildpacks-cache/ballerina-builder:18"
-            RUN_IMAGE="${REGISTRY_ENDPOINT}/buildpacks-cache/ballerina-run:18"
-
+            {{- if .Values.global.defaultResources.buildpackCache.enabled }}
             echo "Pulling cached builder: $BUILDER"
-            podman pull --tls-verify=false "$BUILDER"
+            podman pull --tls-verify={{ .Values.global.defaultResources.registry.tlsVerify }} "$BUILDER"
 
             echo "Pulling cached run image: $RUN_IMAGE"
-            podman pull --tls-verify=false "$RUN_IMAGE"
+            podman pull --tls-verify={{ .Values.global.defaultResources.registry.tlsVerify }} "$RUN_IMAGE"
+            {{- end }}
 
             #####################################################################
             # 3. Build with Ballerina Buildpacks
@@ -140,7 +139,7 @@ spec:
             name: workspace
           - mountPath: /shared/podman/cache
             name: podman-cache
-    - name: push-step
+    - name: publish-image
       inputs:
         parameters:
           - name: git-revision
@@ -202,7 +201,7 @@ spec:
         volumeMounts:
           - mountPath: /mnt/vol
             name: workspace
-    - name: workload-create-step
+    - name: generate-workload-cr
       inputs:
         parameters:
           - name: image
@@ -225,9 +224,9 @@ spec:
             IMAGE={{ "{{" }}inputs.parameters.image{{ "}}" }}
             PROJECT_NAME={{ "{{" }}workflow.parameters.project-name{{ "}}" }}
             COMPONENT_NAME={{ "{{" }}workflow.parameters.component-name{{ "}}" }}
-            ORG_NAME={{ "{{" }}workflow.namespace{{ "}}" }}
-            # Strip 'openchoreo-ci-' prefix to get the actual org name
-            ORG_NAME=${ORG_NAME#openchoreo-ci-}
+            NAMESPACE={{ "{{" }}workflow.namespace{{ "}}" }}
+            # Strip 'openchoreo-ci-' prefix to get the actual namespace
+            NAMESPACE=${NAMESPACE#openchoreo-ci-}
             ENDPOINTS='{{ "{{" }}workflow.parameters.endpoints{{ "}}" }}'
             ENV_VARS='{{ "{{" }}workflow.parameters.environment-variables{{ "}}" }}'
             SOURCE_PATH="/mnt/vol/source/{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
@@ -238,7 +237,7 @@ spec:
             echo "kind: Workload" >> "$OUT"
             echo "metadata:" >> "$OUT"
             echo "  name: ${COMPONENT_NAME}-workload" >> "$OUT"
-            echo "  namespace: ${ORG_NAME}" >> "$OUT"
+            echo "  namespace: ${NAMESPACE}" >> "$OUT"
             echo "spec:" >> "$OUT"
             echo "  owner:" >> "$OUT"
             echo "    projectName: ${PROJECT_NAME}" >> "$OUT"
