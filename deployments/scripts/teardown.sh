@@ -1,7 +1,8 @@
 #!/bin/bash
-CLUSTER_NAME="openchoreo-local-v0.9"
-
 set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/env.sh"
 
 echo "=== Tearing Down Agent Manager Development Environment ==="
 

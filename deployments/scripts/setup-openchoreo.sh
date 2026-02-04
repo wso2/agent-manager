@@ -7,9 +7,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Change to script directory to ensure consistent working directory
 cd "$SCRIPT_DIR"
 
+source "$SCRIPT_DIR/env.sh"
+
 PROJECT_ROOT="$1"
-CLUSTER_NAME="openchoreo-local-v0.9"
-CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
 
 echo "=== Installing OpenChoreo on k3d ==="
 
@@ -43,7 +43,7 @@ echo ""
 echo "1️⃣  Installing/Upgrading OpenChoreo Control Plane..."
 echo "   This may take up to 10 minutes..."
 helm upgrade --install openchoreo-control-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
---version 0.9.0 \
+--version ${OPENCHOREO_VERSION} \
 --namespace openchoreo-control-plane \
 --create-namespace \
 --values "${SCRIPT_DIR}/../single-cluster/values-cp.yaml"
@@ -57,12 +57,31 @@ fi
 echo "✅ OpenChoreo Control Plane ready"
 echo ""
 
+# Create Certificate for Control Plane TLS
+echo "📜 Creating Certificate for Control Plane TLS..."
+kubectl apply -f - <<EOF
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: control-plane-tls
+  namespace: openchoreo-control-plane
+spec:
+  secretName: control-plane-tls
+  issuerRef:
+    name: openchoreo-selfsigned-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.openchoreo.localhost"
+EOF
+echo "✅ Control Plane TLS Certificate created"
+echo ""
+
 # ============================================================================
 # Step 2: Install OpenChoreo Data Plane
 echo "2️⃣  Installing/Upgrading OpenChoreo Data Plane..."
 echo "   This may take up to 10 minutes..."
 helm upgrade --install openchoreo-data-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
---version 0.9.0 \
+--version ${OPENCHOREO_VERSION} \
 --namespace openchoreo-data-plane \
 --create-namespace \
 --values "${SCRIPT_DIR}/../single-cluster/values-dp.yaml"
@@ -136,9 +155,24 @@ echo ""
 
 # ============================================================================
 # Step 3: Install OpenChoreo Build Plane
+
+echo "3️⃣  Setting up OpenChoreo Build Plane..."
+# Install Docker Registry for Build Plane
+echo "🔧 Installing Docker Registry for Build Plane..."
+helm upgrade --install registry docker-registry \
+  --repo https://twuni.github.io/docker-registry.helm \
+  --namespace openchoreo-build-plane \
+  --create-namespace \
+  --set persistence.enabled=true \
+  --set persistence.size=10Gi \
+  --set service.type=LoadBalancer
+
+echo "⏳ Waiting for Docker Registry to be ready..."
+kubectl wait --for=condition=available deployment/registry-docker-registry -n openchoreo-build-plane --timeout=120s
+
 echo "4️⃣  Installing/Upgrading OpenChoreo Build Plane..."
 helm upgrade --install openchoreo-build-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane \
---version 0.9.0 \
+--version ${OPENCHOREO_VERSION} \
 --namespace openchoreo-build-plane \
 --create-namespace \
 --values "${SCRIPT_DIR}/../single-cluster/values-bp.yaml"
@@ -200,7 +234,7 @@ else
     kubectl apply -f $1/deployments/values/oc-collector-configmap.yaml -n openchoreo-observability-plane
 
     helm install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-        --version 0.9.0 \
+        --version ${OPENCHOREO_VERSION} \
         --namespace openchoreo-observability-plane \
         --create-namespace \
     --values "${SCRIPT_DIR}/../single-cluster/values-op.yaml" \

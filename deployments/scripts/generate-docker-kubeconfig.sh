@@ -5,6 +5,9 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/env.sh"
+
 # Check prerequisites
 if ! command -v k3d &> /dev/null; then
     echo "❌ k3d is not installed. Please install it first:"
@@ -19,7 +22,6 @@ if ! command -v kubectl &> /dev/null; then
 fi
 
 DOCKER_KUBECONFIG="$HOME/.kube/config-docker"
-CLUSTER_NAME="openchoreo-local-v0.9"
 
 echo "🔧 Generating Docker kubeconfig for k3d cluster..."
 

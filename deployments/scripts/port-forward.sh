@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/env.sh"
+
 echo "=== Setting up Port Forwarding for OpenChoreo Services ==="
 
 # Check if kubectl is available
@@ -10,13 +13,13 @@ if ! command -v kubectl &> /dev/null; then
 fi
 
 # Check if cluster is running
-if ! kubectl cluster-info --context k3d-openchoreo-local-v0.9 &> /dev/null; then
-    echo "❌ k3d cluster 'openchoreo-local-v0.9' is not running"
+if ! kubectl cluster-info --context $CLUSTER_CONTEXT &> /dev/null; then
+    echo "❌ k3d cluster '$CLUSTER_NAME' is not running"
     exit 1
 fi
 
 echo "🔧 Setting kubectl context..."
-kubectl config use-context k3d-openchoreo-local-v0.9
+kubectl config use-context $CLUSTER_CONTEXT
 
 echo ""
 echo "🌐 Starting port forwarding for OpenChoreo services..."
