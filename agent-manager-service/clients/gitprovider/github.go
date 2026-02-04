@@ -43,10 +43,10 @@ const (
 
 	// Rate limit retry configuration
 	// Reference: https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately
-	gitHubRetryWaitMin     = 60 * time.Second // GitHub recommends minimum 1 minute wait
-	gitHubRetryWaitMax     = 5 * time.Minute  // Maximum wait between retries
+	gitHubRetryWaitMin     = 5 * time.Second  // GitHub recommends minimum 1 minute wait
+	gitHubRetryWaitMax     = 10 * time.Second // Maximum wait between retries
 	gitHubRetryAttemptsMax = 3                // Maximum retry attempts
-	gitHubAttemptTimeout   = 30 * time.Second // Timeout for individual requests
+	gitHubAttemptTimeout   = 60 * time.Second // Timeout for individual requests (increased to handle slow responses)
 )
 
 // gitHubRetryConfig returns the retry configuration for GitHub API requests
@@ -85,12 +85,15 @@ func (g *GitHubProvider) GetProviderType() ProviderType {
 func (g *GitHubProvider) ListBranches(ctx context.Context, owner, repo string, opts ListBranchesOptions) (*ListBranchesResponse, error) {
 	perPage, page := normalizePagination(opts.PerPage, opts.Page)
 
-	// Get default branch from repository info
-	defaultBranch, err := g.getDefaultBranch(ctx, owner, repo)
-	if err != nil {
-		return nil, err
+	var defaultBranch string
+	if opts.IncludeDefault {
+		// Get default branch from repository info
+		var err error
+		defaultBranch, err = g.getDefaultBranch(ctx, owner, repo)
+		if err != nil {
+			return nil, err
+		}
 	}
-
 	req := (&requests.HttpRequest{
 		Name:   "github.ListBranches",
 		URL:    fmt.Sprintf("%s/repos/%s/%s/branches", g.baseURL, owner, repo),
