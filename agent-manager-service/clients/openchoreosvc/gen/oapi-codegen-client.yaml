@@ -1,6 +1,6 @@
 # oapi-codegen configuration for OpenChoreo client generation
-package: openapi
-output: clients/openchoreo/openapi/client.gen.go
+package: gen
+output: clients/openchoreo/gen/client.gen.go
 generate:
   models: false
   client: true

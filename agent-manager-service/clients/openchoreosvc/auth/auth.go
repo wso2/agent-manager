@@ -28,7 +28,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreo/client"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
 )
 
