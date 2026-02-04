@@ -9,9 +9,5 @@ global:
   defaultResources:
     registry:
       # k3d registry endpoint
-      endpoint: host.k3d.internal:10082
-
-# Registry service configuration
-registry:
-  service:
-    type: LoadBalancer
+      host: host.k3d.internal:10082
+      tlsVerify: false
