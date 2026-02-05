@@ -52,8 +52,6 @@ export const InstrumentationDrawer = ({
   environment,
   instrumentationUrl,
   apiKey,
-  componentUid,
-  environmentUid,
 }: InstrumentationDrawerProps) => {
   const [generatedApiKey, setGeneratedApiKey] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<Language>("python");
