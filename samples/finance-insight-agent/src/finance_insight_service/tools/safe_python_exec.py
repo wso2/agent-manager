@@ -192,11 +192,14 @@ def _normalize_parsed_payload(payload: Any):
                         normalized.append(json.loads(text))
                         continue
                     except JSONDecodeError:
+                        # If the string isn't valid JSON, fall back to other parsing
+                        # strategies below; ultimately we keep the original item.
                         pass
                     try:
                         normalized.append(ast.literal_eval(text))
                         continue
                     except (ValueError, SyntaxError):
+                        # If literal_eval fails, keep the original string.
                         pass
             normalized.append(item)
         return normalized

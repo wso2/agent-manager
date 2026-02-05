@@ -17,6 +17,10 @@ class FinanceInsightCrew:
     agents_config = "config/agents.yaml"
     tasks_config = "config/tasks.yaml"
 
+    def __init__(self, job_id: str | None = None) -> None:
+        """Initialize the crew with an optional job identifier."""
+        self.job_id = job_id
+
     @agent
     def researcher(self) -> Agent:
         return Agent(
@@ -135,7 +139,11 @@ class FinanceInsightCrew:
             if "report" in selected_names:
                 agents.append(self.reporter())
 
-        crew_name = "finance_insight_crew"
+        crew_name = (
+            f"finance_insight_crew_{self.job_id}"
+            if self.job_id
+            else "finance_insight_crew"
+        )
 
         return Crew(
             name=crew_name,
@@ -150,4 +158,3 @@ class FinanceInsightCrew:
     def crew(self) -> Crew:
         """Creates the Finance Insight crew."""
         return self.build_crew()
-

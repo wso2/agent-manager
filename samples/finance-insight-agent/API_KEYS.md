@@ -5,9 +5,9 @@
 | Service | Purpose | Get API Key | Free Tier |
 |---------|---------|-------------|-----------|
 | **OpenAI** | LLM for agents (Required) | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) | $5 free credit |
-| **SerpAPI** | Google search for news (Required) | [serpapi.com](https://serpapi.com) | 100 searches/month |
+| **SerpAPI** | Google search for news (Required) | [serpapi.com](https://serpapi.com) | 250 searches/month |
 | **Alpha Vantage** | Company fundamentals (Required for ratios) | [alphavantage.co/support/#api-key](https://www.alphavantage.co/support/#api-key) | 25 requests/day |
-| **Twelve Data** | Market data (Required) | [twelvedata.com/apikey](https://twelvedata.com/apikey) | 800 requests/day |
+| **Twelve Data** | Market data (Required) | [twelvedata.com/apikey](https://twelvedata.com/apikey) | Credits/day (varies by endpoint) |
 
 ---
 
@@ -40,7 +40,8 @@
 4. Copy the key (long alphanumeric string)
 
 **Free Tier:**
-- 100 searches per month (free tier may change)
+- 250 searches per month (free tier may change)
+- See pricing and free-tier limits: https://serpapi.com/pricing
 - Credit card might be required depending on plan
 
 ### 3. Alpha Vantage API Key (Required for fundamentals)
@@ -65,8 +66,8 @@
 4. Copy your API key
 
 **Free Tier:**
-- 800 requests per day
-- Real-time and historical market data
+- Quota is based on credits per day (endpoint costs vary)
+- See pricing and limits: https://twelvedata.com/pricing
 
 ---
 

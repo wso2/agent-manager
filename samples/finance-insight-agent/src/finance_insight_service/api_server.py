@@ -38,6 +38,7 @@ class JobStatus(str, Enum):
 
 
 # In-memory job storage (for production, use Redis or database)
+# NOTE: This sample assumes a single replica; multiple replicas will not share job state.
 jobs = {}
 jobs_lock = threading.Lock()
 JOB_EXPIRATION_SECONDS = 600  # Jobs expire after 10 minutes (reduced to free memory faster)
@@ -376,7 +377,7 @@ def create_app() -> Flask:
 
                 # Execute crew
                 inputs = _build_inputs(payload)
-                crew = FinanceInsightCrew().build_crew()
+                crew = FinanceInsightCrew(job_id=job_id).build_crew()
 
                 # Store unsubscribe functions to clean up after
                 unsubscribe_funcs = []
@@ -386,6 +387,9 @@ def create_app() -> Flask:
                     def handler_wrapper(src, evt):
                         nonlocal pending_crew_completed
                         nonlocal crew_completed_emitted
+                        evt_crew_name = getattr(evt, "crew_name", None)
+                        if evt_crew_name and evt_crew_name != crew.name:
+                            return
                         if isinstance(evt, CrewKickoffStartedEvent):
                             emit_trace("crew_started")
                         elif isinstance(evt, CrewKickoffCompletedEvent):
@@ -434,6 +438,7 @@ def create_app() -> Flask:
                         try:
                             unsub()
                         except Exception:
+                            # Best-effort cleanup; ignore unsubscribe failures.
                             pass
 
                 if _is_job_cancelled(job_id):
