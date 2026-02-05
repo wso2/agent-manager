@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
@@ -159,8 +158,7 @@ func createComponentCRForInternalAgents(orgName, projectName string, req CreateC
 						"revision": map[string]interface{}{
 							"branch": req.Repository.Branch,
 						},
-						"appPath":    normalizePath(req.Repository.AppPath),
-						"parameters": componentWorkflowParameters,
+						"appPath": normalizePath(req.Repository.AppPath),
 					},
 				},
 				"parameters": componentWorkflowParameters,
@@ -583,9 +581,9 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceN
 	}
 
 	// Extract endpoint URLs from the release
-	var endpointURLs []endpointURL
+	var endpoints []models.Endpoint
 	if releaseResp.JSON200 != nil && releaseResp.JSON200.Data != nil {
-		endpointURLs, err = extractEndpointURLsFromRelease(releaseResp.JSON200.Data)
+		endpoints, err = extractEndpointURLsFromRelease(releaseResp.JSON200.Data)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract endpoint URLs from release: %w", err)
 		}
@@ -604,9 +602,9 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceN
 			}
 
 			// Set URL from release if available
-			if len(endpointURLs) > 0 {
-				details.URL = endpointURLs[0].URL
-				details.Visibility = endpointURLs[0].Visibility
+			if len(endpoints) > 0 {
+				details.URL = endpoints[0].URL
+				details.Visibility = endpoints[0].Visibility
 			}
 
 			// Get schema content from workload endpoint
@@ -689,66 +687,6 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 // -----------------------------------------------------------------------------
 // Helper functions
 // -----------------------------------------------------------------------------
-
-// endpointURL represents an extracted endpoint URL with visibility
-type endpointURL struct {
-	URL        string
-	Visibility string
-}
-
-// extractEndpointURLsFromRelease extracts endpoint URLs from HTTPRoute resources in the release
-func extractEndpointURLsFromRelease(envRelease *gen.ReleaseResponse) ([]endpointURL, error) {
-	var endpoints []endpointURL
-
-	if envRelease == nil || envRelease.Spec.Resources == nil {
-		return endpoints, nil
-	}
-
-	// Check spec.resources for HTTPRoute definitions
-	specResources := *envRelease.Spec.Resources
-
-	// Find all HTTPRoute objects in spec resources
-	for _, resource := range specResources {
-		obj := resource.Object
-		if len(obj) == 0 {
-			continue
-		}
-
-		// Check if this is an HTTPRoute
-		kind, found, err := unstructured.NestedString(obj, "kind")
-		if err != nil || !found || kind != "HTTPRoute" {
-			continue
-		}
-
-		// Get hostname
-		hostnames, found, err := unstructured.NestedStringSlice(obj, "spec", "hostnames")
-		if err != nil {
-			return nil, fmt.Errorf("error extracting hostnames from HTTPRoute: %w", err)
-		}
-		if !found || len(hostnames) == 0 {
-			return nil, fmt.Errorf("HTTPRoute missing hostnames")
-		}
-		hostname := hostnames[0]
-		pathValue, err := extractPathValue(obj)
-		if err != nil {
-			return nil, fmt.Errorf("error extracting path from HTTPRoute: %w", err)
-		}
-		// Construct the invoke URL
-		port := config.GetConfig().DefaultGatewayPort
-		url := fmt.Sprintf("http://%s:%d", hostname, port)
-		if pathValue != "" {
-			url = fmt.Sprintf("http://%s:%d%s", hostname, port, pathValue)
-		}
-
-		endpoints = append(endpoints, endpointURL{
-			URL:        url,
-			Visibility: "Public",
-		})
-
-	}
-
-	return endpoints, nil
-}
 
 // convertComponent converts an gen.ComponentResponse to models.AgentResponse
 func convertComponent(comp *gen.ComponentResponse) *models.AgentResponse {
