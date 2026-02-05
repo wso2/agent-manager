@@ -51,6 +51,7 @@ export default defineConfig({
       '@agent-management-platform/test': path.resolve(__dirname, '../../workspaces/pages/test/src'),
       '@agent-management-platform/traces': path.resolve(__dirname, '../../workspaces/pages/traces/src'),
       '@agent-management-platform/logs': path.resolve(__dirname, '../../workspaces/pages/logs/src'),
+      '@agent-management-platform/metrics': path.resolve(__dirname, '../../workspaces/pages/metrics/src'),
     },
   },
   server: {
@@ -91,7 +92,7 @@ export default defineConfig({
               if (match) {
                 const packageName = match[1];
                 // Group related packages
-                if (['overview', 'build', 'deploy', 'test', 'traces', 'logs'].includes(packageName)) {
+                if (['overview', 'build', 'deploy', 'test', 'traces', 'logs', 'metrics'].includes(packageName)) {
                   return `page-${packageName}`;
                 }
                 if (['add-new-agent', 'add-new-project'].includes(packageName)) {

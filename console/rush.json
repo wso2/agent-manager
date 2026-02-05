@@ -397,6 +397,10 @@
       "projectFolder": "workspaces/pages/logs"
     },
     {
+      "packageName": "@agent-management-platform/metrics",
+      "projectFolder": "workspaces/pages/metrics"
+    },
+    {
       "packageName": "@agent-management-platform/add-new-project",
       "projectFolder": "workspaces/pages/add-new-project"
     }
