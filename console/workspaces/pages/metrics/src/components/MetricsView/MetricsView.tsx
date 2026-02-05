@@ -262,7 +262,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                 ])}
                 xAxisDataKey="label"
                 xAxis={{ show: true, interval: "preserveStartEnd" }}
-                yAxis={{ show: true, name: "GB" }}
+                yAxis={{ show: true, name: "GiB" }}
                 tooltip={{ show: false }}
                 lines={[
                   {
