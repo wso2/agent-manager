@@ -197,9 +197,11 @@ func toCreateAgentRequest(req *spec.CreateAgentRequest) client.CreateComponentRe
 		Description:      utils.StrPointerAsStr(req.Description, ""),
 		ProvisioningType: client.ProvisioningType(req.Provisioning.Type),
 		AgentType: client.AgentTypeConfig{
-			Type:    req.AgentType.Type,
-			SubType: utils.StrPointerAsStr(req.AgentType.SubType, ""),
+			Type: req.AgentType.Type,
 		},
+	}
+	if req.Provisioning.Type == string(utils.InternalAgent) {
+		result.AgentType.SubType = utils.StrPointerAsStr(req.AgentType.SubType, "")
 	}
 	if req.Provisioning.Repository != nil {
 		result.Repository = &client.RepositoryConfig{
@@ -339,6 +341,15 @@ func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, or
 // buildUpdateBuildParametersRequest converts spec request to client request
 func buildUpdateBuildParametersRequest(req *spec.UpdateAgentBuildParametersRequest) client.UpdateComponentBuildParametersRequest {
 	updateReq := client.UpdateComponentBuildParametersRequest{}
+
+	// Map Repository
+	if req.Provisioning.Repository != nil {
+		updateReq.Repository = &client.RepositoryConfig{
+			URL:     req.Provisioning.Repository.Url,
+			Branch:  req.Provisioning.Repository.Branch,
+			AppPath: req.Provisioning.Repository.AppPath,
+		}
+	}
 
 	// Map RuntimeConfigs
 	updateReq.RuntimeConfigs = &client.RuntimeConfigs{
@@ -493,6 +504,14 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
 		return err
 	}
+	// Validate project exists
+	_, err = s.ocClient.GetProject(ctx, orgName, projectName)
+	if err != nil {
+		s.logger.Error("Failed to find project", "projectName", projectName, "orgName", orgName, "error", err)
+		return err
+	}
+	// Delete agent component in OpenChoreo
+	s.logger.Debug("Deleting oc agent", "agentName", agentName, "orgName", orgName, "projectName", projectName)
 	err = s.ocClient.DeleteComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentNotFound) {

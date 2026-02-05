@@ -75,13 +75,18 @@ Parameters:
 {{- $ctx := .context -}}
 {{- $cacheEnabled := $ctx.Values.global.defaultResources.buildpackCache.enabled -}}
 {{- $registryEndpoint := include "openchoreo-build-plane.registryEndpoint" $ctx -}}
+{{- $found := false -}}
 {{- range $ctx.Values.global.defaultResources.buildpackCache.images -}}
   {{- if eq .id $id -}}
+    {{- $found = true -}}
     {{- if $cacheEnabled -}}
       {{- printf "%s/%s" $registryEndpoint .cachedImage -}}
     {{- else -}}
       {{- .remoteImage -}}
     {{- end -}}
   {{- end -}}
+{{- end -}}
+{{- if not $found -}}
+  {{- fail (printf "Buildpack image with id '%s' not found in buildpackCache.images" $id) -}}
 {{- end -}}
 {{- end -}}

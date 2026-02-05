@@ -2,6 +2,10 @@
 # This chart creates default OpenChoreo resources needed for the AI Agent Management Platform
 # All those resources are created in default namespace
 
+# Kubectl image configuration for jobs
+kubectl:
+  image: bitnamilegacy/kubectl:1.32.4
+
 # Environment configuration
 environment:
   # Name of the default environment

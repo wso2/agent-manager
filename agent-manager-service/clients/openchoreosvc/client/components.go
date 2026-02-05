@@ -399,6 +399,7 @@ func getInputInterfaceConfig(req CreateComponentRequest) (int32, string) {
 	if req.AgentType.Type == string(utils.AgentTypeAPI) && agentSubType == string(utils.AgentSubTypeChatAPI) {
 		return int32(config.GetConfig().DefaultChatAPI.DefaultHTTPPort), config.GetConfig().DefaultChatAPI.DefaultBasePath
 	}
+	// agentSubType is validated in controller layer
 	return req.InputInterface.Port, req.InputInterface.BasePath
 }
 
@@ -584,7 +585,10 @@ func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceN
 	// Extract endpoint URLs from the release
 	var endpointURLs []endpointURL
 	if releaseResp.JSON200 != nil && releaseResp.JSON200.Data != nil {
-		endpointURLs, _ = extractEndpointURLsFromRelease(releaseResp.JSON200.Data)
+		endpointURLs, err = extractEndpointURLsFromRelease(releaseResp.JSON200.Data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract endpoint URLs from release: %w", err)
+		}
 	}
 
 	// Extract endpoint details from workload spec
@@ -786,10 +790,12 @@ func convertComponent(comp *gen.ComponentResponse) *models.AgentResponse {
 
 	// Temporary workaround: Determine subtype based on schema presence
 	// If schema path exists, it's a custom-api, otherwise chat-api
-	if agent.InputInterface != nil && agent.InputInterface.Schema != nil && agent.InputInterface.Schema.Path != "" {
-		agent.Type.SubType = string(utils.AgentSubTypeCustomAPI)
-	} else {
-		agent.Type.SubType = string(utils.AgentSubTypeChatAPI)
+	if provisioningType == string(ProvisioningInternal) {
+		if agent.InputInterface != nil && agent.InputInterface.Schema != nil && agent.InputInterface.Schema.Path != "" {
+			agent.Type.SubType = string(utils.AgentSubTypeCustomAPI)
+		} else {
+			agent.Type.SubType = string(utils.AgentSubTypeChatAPI)
+		}
 	}
 
 	return agent
