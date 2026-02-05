@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
@@ -51,7 +51,7 @@ func TestCreateAgent(t *testing.T) {
 	t.Run("Creating an agent with default interface should return 202", func(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -111,26 +111,21 @@ func TestCreateAgent(t *testing.T) {
 		require.NotZero(t, payload.CreatedAt)
 
 		// Validate service calls
-		require.Len(t, openChoreoClient.GetProjectCalls(), 1)
-		require.Len(t, openChoreoClient.CreateAgentComponentCalls(), 1)
+		require.Len(t, openChoreoClient.CreateComponentCalls(), 1)
 		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
 
 		// Validate call parameters
-		getProjectCall := openChoreoClient.GetProjectCalls()[0]
-		require.Equal(t, testProjName, getProjectCall.ProjectName)
-		require.Equal(t, testOrgName, getProjectCall.OrgName)
-
-		createComponentCall := openChoreoClient.CreateAgentComponentCalls()[0]
-		require.Equal(t, testOrgName, createComponentCall.OrgName)
-		require.Equal(t, testProjName, createComponentCall.ProjName)
+		createComponentCall := openChoreoClient.CreateComponentCalls()[0]
+		require.Equal(t, testOrgName, createComponentCall.NamespaceName)
+		require.Equal(t, testProjName, createComponentCall.ProjectName)
 		require.Equal(t, testAgentNameOne, createComponentCall.Req.Name)
-		require.Equal(t, "Test Agent Description", *createComponentCall.Req.Description)
+		require.Equal(t, "Test Agent Description", createComponentCall.Req.Description)
 	})
 
 	t.Run("Creating an agent with ballerina language should return 202", func(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -190,31 +185,22 @@ func TestCreateAgent(t *testing.T) {
 		require.NotZero(t, payload.CreatedAt)
 
 		// Validate service calls
-		require.Len(t, openChoreoClient.GetProjectCalls(), 1)
-		require.Len(t, openChoreoClient.CreateAgentComponentCalls(), 1)
+		require.Len(t, openChoreoClient.CreateComponentCalls(), 1)
 		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
 
 		// Validate call parameters
-		getProjectCall := openChoreoClient.GetProjectCalls()[0]
-		require.Equal(t, testProjName, getProjectCall.ProjectName)
-		require.Equal(t, testOrgName, getProjectCall.OrgName)
-
-		createComponentCall := openChoreoClient.CreateAgentComponentCalls()[0]
-		require.Equal(t, testOrgName, createComponentCall.OrgName)
-		require.Equal(t, testProjName, createComponentCall.ProjName)
+		createComponentCall := openChoreoClient.CreateComponentCalls()[0]
+		require.Equal(t, testOrgName, createComponentCall.NamespaceName)
+		require.Equal(t, testProjName, createComponentCall.ProjectName)
 		require.Equal(t, testAgentNameBallerina, createComponentCall.Req.Name)
-		require.Equal(t, "Test Ballerina Agent Description", *createComponentCall.Req.Description)
-
-		// Validate runtime configs
+		require.Equal(t, "Test Ballerina Agent Description", createComponentCall.Req.Description)
 		require.Equal(t, "ballerina", createComponentCall.Req.RuntimeConfigs.Language)
-		require.Nil(t, createComponentCall.Req.RuntimeConfigs.LanguageVersion)
-		require.Nil(t, createComponentCall.Req.RuntimeConfigs.RunCommand)
 	})
 
 	t.Run("Creating an agent with custom interface should return 202", func(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -285,33 +271,19 @@ func TestCreateAgent(t *testing.T) {
 		require.NotZero(t, payload.CreatedAt)
 
 		// Validate service calls
-		require.Len(t, openChoreoClient.GetProjectCalls(), 1)
-		require.Len(t, openChoreoClient.CreateAgentComponentCalls(), 1)
+		require.Len(t, openChoreoClient.CreateComponentCalls(), 1)
 		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
 
 		// Validate call parameters
-		getProjectCall := openChoreoClient.GetProjectCalls()[0]
-		require.Equal(t, testProjName, getProjectCall.ProjectName)
-		require.Equal(t, testOrgName, getProjectCall.OrgName)
-
-		createComponentCall := openChoreoClient.CreateAgentComponentCalls()[0]
-		require.Equal(t, testOrgName, createComponentCall.OrgName)
-		require.Equal(t, testProjName, createComponentCall.ProjName)
+		createComponentCall := openChoreoClient.CreateComponentCalls()[0]
+		require.Equal(t, testOrgName, createComponentCall.NamespaceName)
+		require.Equal(t, testProjName, createComponentCall.ProjectName)
 		require.Equal(t, testAgentNameTwo, createComponentCall.Req.Name)
-		require.Equal(t, "Test Agent Description", *createComponentCall.Req.Description)
-
-		// Validate custom interface specific fields
-		require.Equal(t, "HTTP", createComponentCall.Req.InputInterface.Type)
-		require.NotNil(t, createComponentCall.Req.InputInterface.Schema.Path)
-		require.Equal(t, int32(5000), *createComponentCall.Req.InputInterface.Port)
-		require.Equal(t, "/reading-list", *createComponentCall.Req.InputInterface.BasePath)
+		require.Equal(t, "Test Agent Description", createComponentCall.Req.Description)
 
 		// Validate runtime configs
-		require.Equal(t, "uvicorn app:app --host 0.0.0.0 --port 8000", *createComponentCall.Req.RuntimeConfigs.RunCommand)
-		require.Equal(t, "3.11", *createComponentCall.Req.RuntimeConfigs.LanguageVersion)
-		require.Len(t, createComponentCall.Req.RuntimeConfigs.Env, 1)
-		require.Equal(t, "DB_HOST", createComponentCall.Req.RuntimeConfigs.Env[0].Key)
-		require.Equal(t, "aiven", createComponentCall.Req.RuntimeConfigs.Env[0].Value)
+		require.Equal(t, "uvicorn app:app --host 0.0.0.0 --port 8000", createComponentCall.Req.RuntimeConfigs.RunCommand)
+		require.Equal(t, "3.11", createComponentCall.Req.RuntimeConfigs.LanguageVersion)
 	})
 
 	validationTests := []struct {
@@ -321,7 +293,7 @@ func TestCreateAgent(t *testing.T) {
 		wantStatus     int
 		wantErrMsg     string
 		url            string
-		setupMock      func() *clientmocks.OpenChoreoSvcClientMock
+		setupMock      func() *clientmocks.OpenChoreoClientMock
 	}{
 		{
 			name:           "return 400 on missing agent name",
@@ -353,7 +325,7 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "invalid agent name: agent name cannot be empty",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -388,7 +360,7 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "invalid agent name: agent name must contain only lowercase alphanumeric characters or '-'",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -418,7 +390,7 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "invalid repository details: repository details are required for internal agents",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -453,7 +425,7 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "invalid repository details: invalid GitHub repository format (expected: https://github.com/owner/repo)",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -488,7 +460,7 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 404,
 			wantErrMsg: "Organization not found",
 			url:        fmt.Sprintf("/api/v1/orgs/nonexistent-org/projects/%s/agents", testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				mock := apitestutils.CreateMockOpenChoreoClient()
 				return mock
 			},
@@ -524,8 +496,14 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 404,
 			wantErrMsg: "Project not found",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/nonexistent-project/agents", testOrgName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				mock := apitestutils.CreateMockOpenChoreoClient()
+				mock.CreateComponentFunc = func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error {
+					if projectName == "nonexistent-project" {
+						return utils.ErrProjectNotFound
+					}
+					return nil
+				}
 				return mock
 			},
 		},
@@ -560,14 +538,11 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 409,
 			wantErrMsg: "Agent already exists",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				mock := apitestutils.CreateMockOpenChoreoClient()
-				mock.GetAgentComponentFunc = func(ctx context.Context, orgName string, projName string, agentName string) (*openchoreosvc.AgentComponent, error) {
-					// Return an existing agent component
-					return &openchoreosvc.AgentComponent{
-						Name:        agentName,
-						ProjectName: projName,
-					}, nil
+				mock.CreateComponentFunc = func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error {
+					// Return error to simulate agent already exists
+					return utils.ErrAgentAlreadyExists
 				}
 				return mock
 			},
@@ -603,9 +578,9 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 500,
 			wantErrMsg: "Failed to create agent",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				mock := apitestutils.CreateMockOpenChoreoClient()
-				mock.CreateAgentComponentFunc = func(ctx context.Context, orgName string, projName string, req *spec.CreateAgentRequest) error {
+				mock.CreateComponentFunc = func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error {
 					return fmt.Errorf("internal service error")
 				}
 				return mock
@@ -646,7 +621,7 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 401,
 			wantErrMsg: "missing header: Authorization",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -681,7 +656,7 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "invalid language: unsupported language 'rust'",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -716,7 +691,7 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "invalid language: unsupported language version '2.7' for language 'python'",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -751,7 +726,7 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "language cannot be empty",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -786,7 +761,7 @@ func TestCreateAgent(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "invalid language: language version cannot be empty",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -796,7 +771,7 @@ func TestCreateAgent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			openChoreoClient := tt.setupMock()
 			testClients := wiring.TestClients{
-				OpenChoreoSvcClient: openChoreoClient,
+				OpenChoreoClient: openChoreoClient,
 			}
 
 			app := apitestutils.MakeAppClientWithDeps(t, testClients, tt.authMiddleware)

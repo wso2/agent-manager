@@ -515,6 +515,14 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, orgName string, pr
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
 		return nil, err
 	}
+
+	// Validate project exists
+	_, err = s.ocClient.GetProject(ctx, orgName, projectName)
+	if err != nil {
+		s.logger.Error("Failed to find project", "projectName", projectName, "orgName", orgName, "error", err)
+		return nil, err
+	}
+
 	agent, err := s.ocClient.GetComponent(ctx, org.Name, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "error", err)

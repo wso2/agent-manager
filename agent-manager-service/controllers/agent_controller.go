@@ -80,12 +80,18 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	// Conflict errors
 	case errors.Is(err, utils.ErrAgentAlreadyExists):
 		utils.WriteErrorResponse(w, http.StatusConflict, "Agent already exists")
+	case errors.Is(err, utils.ErrProjectAlreadyExists):
+		utils.WriteErrorResponse(w, http.StatusConflict, "Project already exists")
+	case errors.Is(err, utils.ErrProjectHasAssociatedAgents):
+		utils.WriteErrorResponse(w, http.StatusConflict, "Project has associated agents")
 
 	// Bad request errors
 	case errors.Is(err, utils.ErrImmutableFieldChange):
 		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, utils.ErrBadRequest):
 		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, utils.ErrDeploymentPipelineNotFound):
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Deployment pipeline not found")
 
 	// Authorization errors
 	case errors.Is(err, utils.ErrUnauthorized):

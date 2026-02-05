@@ -92,8 +92,11 @@ import (
 //			TriggerBuildFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, commitID string) (*models.BuildResponse, error) {
 //				panic("mock out the TriggerBuild method")
 //			},
-//			UpdateComponentFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentRequest) error {
-//				panic("mock out the UpdateComponent method")
+//			UpdateComponentBasicInfoFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentBasicInfoRequest) error {
+//				panic("mock out the UpdateComponentBasicInfo method")
+//			},
+//			UpdateComponentBuildParametersFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentBuildParametersRequest) error {
+//				panic("mock out the UpdateComponentBuildParameters method")
 //			},
 //		}
 //
@@ -177,8 +180,11 @@ type OpenChoreoClientMock struct {
 	// TriggerBuildFunc mocks the TriggerBuild method.
 	TriggerBuildFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, commitID string) (*models.BuildResponse, error)
 
-	// UpdateComponentFunc mocks the UpdateComponent method.
-	UpdateComponentFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentRequest) error
+	// UpdateComponentBasicInfoFunc mocks the UpdateComponentBasicInfo method.
+	UpdateComponentBasicInfoFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentBasicInfoRequest) error
+
+	// UpdateComponentBuildParametersFunc mocks the UpdateComponentBuildParameters method.
+	UpdateComponentBuildParametersFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentBuildParametersRequest) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -435,8 +441,8 @@ type OpenChoreoClientMock struct {
 			// CommitID is the commitID argument value.
 			CommitID string
 		}
-		// UpdateComponent holds details about calls to the UpdateComponent method.
-		UpdateComponent []struct {
+		// UpdateComponentBasicInfo holds details about calls to the UpdateComponentBasicInfo method.
+		UpdateComponentBasicInfo []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// NamespaceName is the namespaceName argument value.
@@ -446,35 +452,49 @@ type OpenChoreoClientMock struct {
 			// ComponentName is the componentName argument value.
 			ComponentName string
 			// Req is the req argument value.
-			Req client.UpdateComponentRequest
+			Req client.UpdateComponentBasicInfoRequest
+		}
+		// UpdateComponentBuildParameters holds details about calls to the UpdateComponentBuildParameters method.
+		UpdateComponentBuildParameters []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// Req is the req argument value.
+			Req client.UpdateComponentBuildParametersRequest
 		}
 	}
-	lockAttachTrait                  sync.RWMutex
-	lockComponentExists              sync.RWMutex
-	lockCreateComponent              sync.RWMutex
-	lockCreateProject                sync.RWMutex
-	lockDeleteComponent              sync.RWMutex
-	lockDeleteProject                sync.RWMutex
-	lockDeploy                       sync.RWMutex
-	lockGetBuild                     sync.RWMutex
-	lockGetComponent                 sync.RWMutex
-	lockGetComponentConfigurations   sync.RWMutex
-	lockGetComponentEndpoints        sync.RWMutex
-	lockGetDeployments               sync.RWMutex
-	lockGetEnvironment               sync.RWMutex
-	lockGetOrganization              sync.RWMutex
-	lockGetProject                   sync.RWMutex
-	lockGetProjectDeploymentPipeline sync.RWMutex
-	lockListBuilds                   sync.RWMutex
-	lockListComponents               sync.RWMutex
-	lockListDataPlanes               sync.RWMutex
-	lockListDeploymentPipelines      sync.RWMutex
-	lockListEnvironments             sync.RWMutex
-	lockListOrganizations            sync.RWMutex
-	lockListProjects                 sync.RWMutex
-	lockPatchProject                 sync.RWMutex
-	lockTriggerBuild                 sync.RWMutex
-	lockUpdateComponent              sync.RWMutex
+	lockAttachTrait                    sync.RWMutex
+	lockComponentExists                sync.RWMutex
+	lockCreateComponent                sync.RWMutex
+	lockCreateProject                  sync.RWMutex
+	lockDeleteComponent                sync.RWMutex
+	lockDeleteProject                  sync.RWMutex
+	lockDeploy                         sync.RWMutex
+	lockGetBuild                       sync.RWMutex
+	lockGetComponent                   sync.RWMutex
+	lockGetComponentConfigurations     sync.RWMutex
+	lockGetComponentEndpoints          sync.RWMutex
+	lockGetDeployments                 sync.RWMutex
+	lockGetEnvironment                 sync.RWMutex
+	lockGetOrganization                sync.RWMutex
+	lockGetProject                     sync.RWMutex
+	lockGetProjectDeploymentPipeline   sync.RWMutex
+	lockListBuilds                     sync.RWMutex
+	lockListComponents                 sync.RWMutex
+	lockListDataPlanes                 sync.RWMutex
+	lockListDeploymentPipelines        sync.RWMutex
+	lockListEnvironments               sync.RWMutex
+	lockListOrganizations              sync.RWMutex
+	lockListProjects                   sync.RWMutex
+	lockPatchProject                   sync.RWMutex
+	lockTriggerBuild                   sync.RWMutex
+	lockUpdateComponentBasicInfo       sync.RWMutex
+	lockUpdateComponentBuildParameters sync.RWMutex
 }
 
 // AttachTrait calls AttachTraitFunc.
@@ -1533,17 +1553,17 @@ func (mock *OpenChoreoClientMock) TriggerBuildCalls() []struct {
 	return calls
 }
 
-// UpdateComponent calls UpdateComponentFunc.
-func (mock *OpenChoreoClientMock) UpdateComponent(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentRequest) error {
-	if mock.UpdateComponentFunc == nil {
-		panic("OpenChoreoClientMock.UpdateComponentFunc: method is nil but OpenChoreoClient.UpdateComponent was just called")
+// UpdateComponentBasicInfo calls UpdateComponentBasicInfoFunc.
+func (mock *OpenChoreoClientMock) UpdateComponentBasicInfo(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentBasicInfoRequest) error {
+	if mock.UpdateComponentBasicInfoFunc == nil {
+		panic("OpenChoreoClientMock.UpdateComponentBasicInfoFunc: method is nil but OpenChoreoClient.UpdateComponentBasicInfo was just called")
 	}
 	callInfo := struct {
 		Ctx           context.Context
 		NamespaceName string
 		ProjectName   string
 		ComponentName string
-		Req           client.UpdateComponentRequest
+		Req           client.UpdateComponentBasicInfoRequest
 	}{
 		Ctx:           ctx,
 		NamespaceName: namespaceName,
@@ -1551,32 +1571,80 @@ func (mock *OpenChoreoClientMock) UpdateComponent(ctx context.Context, namespace
 		ComponentName: componentName,
 		Req:           req,
 	}
-	mock.lockUpdateComponent.Lock()
-	mock.calls.UpdateComponent = append(mock.calls.UpdateComponent, callInfo)
-	mock.lockUpdateComponent.Unlock()
-	return mock.UpdateComponentFunc(ctx, namespaceName, projectName, componentName, req)
+	mock.lockUpdateComponentBasicInfo.Lock()
+	mock.calls.UpdateComponentBasicInfo = append(mock.calls.UpdateComponentBasicInfo, callInfo)
+	mock.lockUpdateComponentBasicInfo.Unlock()
+	return mock.UpdateComponentBasicInfoFunc(ctx, namespaceName, projectName, componentName, req)
 }
 
-// UpdateComponentCalls gets all the calls that were made to UpdateComponent.
+// UpdateComponentBasicInfoCalls gets all the calls that were made to UpdateComponentBasicInfo.
 // Check the length with:
 //
-//	len(mockedOpenChoreoClient.UpdateComponentCalls())
-func (mock *OpenChoreoClientMock) UpdateComponentCalls() []struct {
+//	len(mockedOpenChoreoClient.UpdateComponentBasicInfoCalls())
+func (mock *OpenChoreoClientMock) UpdateComponentBasicInfoCalls() []struct {
 	Ctx           context.Context
 	NamespaceName string
 	ProjectName   string
 	ComponentName string
-	Req           client.UpdateComponentRequest
+	Req           client.UpdateComponentBasicInfoRequest
 } {
 	var calls []struct {
 		Ctx           context.Context
 		NamespaceName string
 		ProjectName   string
 		ComponentName string
-		Req           client.UpdateComponentRequest
+		Req           client.UpdateComponentBasicInfoRequest
 	}
-	mock.lockUpdateComponent.RLock()
-	calls = mock.calls.UpdateComponent
-	mock.lockUpdateComponent.RUnlock()
+	mock.lockUpdateComponentBasicInfo.RLock()
+	calls = mock.calls.UpdateComponentBasicInfo
+	mock.lockUpdateComponentBasicInfo.RUnlock()
+	return calls
+}
+
+// UpdateComponentBuildParameters calls UpdateComponentBuildParametersFunc.
+func (mock *OpenChoreoClientMock) UpdateComponentBuildParameters(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentBuildParametersRequest) error {
+	if mock.UpdateComponentBuildParametersFunc == nil {
+		panic("OpenChoreoClientMock.UpdateComponentBuildParametersFunc: method is nil but OpenChoreoClient.UpdateComponentBuildParameters was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		Req           client.UpdateComponentBuildParametersRequest
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+		Req:           req,
+	}
+	mock.lockUpdateComponentBuildParameters.Lock()
+	mock.calls.UpdateComponentBuildParameters = append(mock.calls.UpdateComponentBuildParameters, callInfo)
+	mock.lockUpdateComponentBuildParameters.Unlock()
+	return mock.UpdateComponentBuildParametersFunc(ctx, namespaceName, projectName, componentName, req)
+}
+
+// UpdateComponentBuildParametersCalls gets all the calls that were made to UpdateComponentBuildParameters.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.UpdateComponentBuildParametersCalls())
+func (mock *OpenChoreoClientMock) UpdateComponentBuildParametersCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ProjectName   string
+	ComponentName string
+	Req           client.UpdateComponentBuildParametersRequest
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		Req           client.UpdateComponentBuildParametersRequest
+	}
+	mock.lockUpdateComponentBuildParameters.RLock()
+	calls = mock.calls.UpdateComponentBuildParameters
+	mock.lockUpdateComponentBuildParameters.RUnlock()
 	return calls
 }

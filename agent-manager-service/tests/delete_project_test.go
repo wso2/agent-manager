@@ -27,8 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/wiring"
@@ -48,7 +48,7 @@ func TestDeleteProject(t *testing.T) {
 	t.Run("Deleting an empty project should return 204", func(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -68,15 +68,15 @@ func TestDeleteProject(t *testing.T) {
 
 		// Validate call parameters
 		deleteCall := openChoreoClient.DeleteProjectCalls()[0]
-		require.Equal(t, testDeleteProjectOrgName, deleteCall.OrgName)
+		require.Equal(t, testDeleteProjectOrgName, deleteCall.NamespaceName)
 		require.Equal(t, testDeleteProjectProjName, deleteCall.ProjectName)
 	})
 
 	t.Run("Deleting a project with agents should return 409", func(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
-		openChoreoClient.ListAgentComponentsFunc = func(ctx context.Context, orgName string, projectName string) ([]*openchoreosvc.AgentComponent, error) {
+		openChoreoClient.ListComponentsFunc = func(ctx context.Context, orgName string, projectName string) ([]*models.AgentResponse, error) {
 			if projectName == testProjectWithAgents {
-				return []*openchoreosvc.AgentComponent{
+				return []*models.AgentResponse{
 					{
 						Name:        "test-agent",
 						ProjectName: projectName,
@@ -84,10 +84,10 @@ func TestDeleteProject(t *testing.T) {
 					},
 				}, nil
 			}
-			return []*openchoreosvc.AgentComponent{}, nil
+			return []*models.AgentResponse{}, nil
 		}
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -108,8 +108,16 @@ func TestDeleteProject(t *testing.T) {
 
 	t.Run("Deleting non-existent project should return 204 (idempotent)", func(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+		// Override DeleteProjectFunc to return project not found for non-existent project
+		// ListComponents returns empty list (no agents), so DeleteProject will be called
+		openChoreoClient.DeleteProjectFunc = func(ctx context.Context, namespaceName string, projectName string) error {
+			if projectName == "nonexistent-project" {
+				return utils.ErrProjectNotFound
+			}
+			return nil
+		}
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -124,8 +132,8 @@ func TestDeleteProject(t *testing.T) {
 		// Assert response - DELETE should be idempotent
 		require.Equal(t, http.StatusNoContent, rr.Code)
 
-		// Validate that OpenChoreo delete was NOT called for non-existent project
-		require.Len(t, openChoreoClient.DeleteProjectCalls(), 0)
+		// Validate that OpenChoreo delete was called and handled project not found gracefully
+		require.Len(t, openChoreoClient.DeleteProjectCalls(), 1)
 	})
 
 	validationTests := []struct {
@@ -134,7 +142,7 @@ func TestDeleteProject(t *testing.T) {
 		wantStatus     int
 		wantErrMsg     string
 		url            string
-		setupMock      func() *clientmocks.OpenChoreoSvcClientMock
+		setupMock      func() *clientmocks.OpenChoreoClientMock
 	}{
 		{
 			name:           "return 404 on organization not found",
@@ -142,7 +150,7 @@ func TestDeleteProject(t *testing.T) {
 			wantStatus:     404,
 			wantErrMsg:     "Organization not found",
 			url:            fmt.Sprintf("/api/v1/orgs/nonexistent-org/projects/%s", testDeleteProjectProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -156,7 +164,7 @@ func TestDeleteProject(t *testing.T) {
 			wantStatus: 401,
 			wantErrMsg: "missing header: Authorization",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s", testDeleteProjectOrgName, testDeleteProjectProjName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				return apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -166,7 +174,7 @@ func TestDeleteProject(t *testing.T) {
 			wantStatus:     500,
 			wantErrMsg:     "Failed to delete project",
 			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/%s", testDeleteProjectOrgName, testFailingProjectName),
-			setupMock: func() *clientmocks.OpenChoreoSvcClientMock {
+			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				mock := apitestutils.CreateMockOpenChoreoClient()
 				mock.DeleteProjectFunc = func(ctx context.Context, orgName string, projectName string) error {
 					return fmt.Errorf("OpenChoreo service error")
@@ -180,7 +188,7 @@ func TestDeleteProject(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			openChoreoClient := tt.setupMock()
 			testClients := wiring.TestClients{
-				OpenChoreoSvcClient: openChoreoClient,
+				OpenChoreoClient: openChoreoClient,
 			}
 
 			app := apitestutils.MakeAppClientWithDeps(t, testClients, tt.authMiddleware)
@@ -209,7 +217,7 @@ func TestDeleteProjectIdempotency(t *testing.T) {
 	t.Run("Multiple deletes of same project should be handled gracefully", func(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)

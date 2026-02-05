@@ -144,7 +144,7 @@ func (s *infraResourceManager) UpdateProject(ctx context.Context, orgName string
 		return nil, err
 	}
     // Todo: verify existence of deployment pipeline if deployment pipeline is being updated
-	
+
 	// Update project in OpenChoreo using PatchProject
 	patchReq := client.PatchProjectRequest{
 		DisplayName:        payload.DisplayName,
