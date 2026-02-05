@@ -40,7 +40,7 @@ func (c *openChoreoClient) TriggerBuild(ctx context.Context, orgName, projectNam
 		return nil, fmt.Errorf("failed to trigger build: %w", err)
 	}
 
-	if resp.StatusCode() != http.StatusCreated && resp.StatusCode() != http.StatusOK {
+	if resp.StatusCode() != http.StatusCreated {
 		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
 			NotFoundErr: utils.ErrAgentNotFound,
 		})
@@ -105,8 +105,10 @@ func (c *openChoreoClient) ListBuilds(ctx context.Context, orgName, projectName,
 		slog.Error("failed to fetch component for build listing", "componentName", componentName, "error", err)
 	} else {
 		// Enrich builds with input interface details from component workflow parameters
-		for _, build := range buildResponses {
-			build.BuildParameters.Branch = component.Provisioning.Repository.Branch
+		if component.Provisioning.Repository.Branch != "" {
+			for _, build := range buildResponses {
+				build.BuildParameters.Branch = component.Provisioning.Repository.Branch
+			}
 		}
 	}
 
