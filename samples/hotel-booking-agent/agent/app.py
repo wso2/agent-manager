@@ -3,8 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import logging
 
-from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException, status
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 
@@ -28,15 +27,6 @@ class ChatResponse(BaseModel):
     message: str
 
 app = FastAPI(title="Hotel Booking Agent")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "Accept", "x-user-id"],
-    max_age=84900,
-)
-
 
 def _wrap_user_message(user_message: str, user_id: str, user_name: str | None) -> str:
     now = datetime.now(timezone.utc).isoformat()

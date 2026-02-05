@@ -1,12 +1,6 @@
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-def _split_csv(value: str | None, default: list[str]) -> list[str]:
-    if value is None:
-        return default
-    stripped = [item.strip() for item in value.split(",")]
-    return [item for item in stripped if item]
-
 
 class Settings(BaseSettings):
     openai_api_key: str
@@ -22,16 +16,6 @@ class Settings(BaseSettings):
         description="Base URL for the hotel booking API.",
         validation_alias="HOTEL_API_BASE_URL",
     )
-    cors_allow_origins: list[str] | str = Field(default_factory=lambda: ["http://localhost:3001"])
-    cors_allow_credentials: bool = True
-
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-
-    @property
-    def cors_allow_origins_list(self) -> list[str]:
-        if isinstance(self.cors_allow_origins, list):
-            return self.cors_allow_origins
-        return _split_csv(self.cors_allow_origins, ["http://localhost:3001"])
-
 
 settings = Settings()
