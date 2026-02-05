@@ -71,8 +71,7 @@ export function useGetAgentBuilds(
       const hasInProgressBuild =
         queryState?.state?.data?.builds?.some(
           (build: BuildDetailsResponse) =>
-            build.status === "BuildTriggered" ||
-            build.status === "BuildRunning"
+            build.status === "Pending" || build.status === "Running"
         ) ?? false;
 
       // Only invalidate when transitioning from true to false (build completed)
@@ -99,8 +98,8 @@ export function useGetBuild(params: GetBuildPathParams) {
       // Check if build is in progress
       const isBuildRunning =
         queryState?.state?.data &&
-        (queryState.state.data.status === "BuildTriggered" ||
-          queryState.state.data.status === "BuildRunning");
+        (queryState.state.data.status === "Pending" ||
+          queryState.state.data.status === "Running");
       return isBuildRunning ? POLL_INTERVAL : false;
     },
   });
@@ -116,7 +115,7 @@ export function useGetBuildLogs(
     queryFn: () => getBuildLogs(params, getToken),
     enabled: !!params.orgName && !!params.projName && !!params.agentName && !!params.buildName,
     refetchInterval:
-      buildStatus === "BuildTriggered" || buildStatus === "BuildRunning"
+      buildStatus === "Pending" || buildStatus === "Running"
         ? POLL_INTERVAL
         : false,
   });

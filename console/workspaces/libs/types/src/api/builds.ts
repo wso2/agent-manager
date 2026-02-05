@@ -30,20 +30,20 @@ export interface BuildAgentQuery {
 
 // Responses
 export type BuildStatus =
-  | "BuildRunning"
-  | "BuildTriggered"
-  | "BuildCompleted"
-  | "BuildFailed"
-  | "WorkloadUpdated";
+  | "Completed"
+  | "Succeeded"
+  | "Running"
+  | "Pending"
+  | "Failed";
 
 export type BuildStatusColor = 'success' | 'warning' | 'error' | 'default';
 
 export const BUILD_STATUS_COLOR_MAP: Record<BuildStatus, BuildStatusColor> = {
-  BuildCompleted: 'success',
-  BuildTriggered: 'warning',
-  BuildRunning: 'warning',
-  BuildFailed: 'error',
-  WorkloadUpdated: 'success',
+  Completed: "success",
+  Succeeded: "success",
+  Running: "warning",
+  Pending: "warning",
+  Failed: "error",
 };
 
 export interface BuildParameters {
@@ -72,16 +72,11 @@ export interface BuildsListResponse extends PaginationMeta {
   builds: BuildResponse[];
 }
 
-export type BuildStepType =
-  | "BuildInitiated"
-  | "BuildTriggered"
-  | "BuildRunning"
-  | "BuildCompleted"
-  | "WorkloadUpdated";
+
 export type BuildStepStatus = "Succeeded" | "Failed" | "Running" | "Pending";
 
 export interface BuildStep {
-  type: BuildStepType;
+  type: BuildStatus;
   status: BuildStepStatus;
   message: string;
   startedAt?: string; // ISO date-time

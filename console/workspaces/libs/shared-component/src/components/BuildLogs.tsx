@@ -94,10 +94,7 @@ export function BuildLogs({
       };
     }
 
-    if (
-      build?.status === "BuildRunning" ||
-      build?.status === "BuildTriggered"
-    ) {
+    if (build?.status === "Running" || build?.status === "Pending") {
       return {
         title: "Logs Being Generated",
         subtitle:
@@ -105,7 +102,7 @@ export function BuildLogs({
       };
     }
 
-    if (build?.status === "BuildFailed") {
+    if (build?.status === "Failed") {
       return {
         title: "Unable to Retrieve Logs",
         subtitle:
@@ -162,9 +159,9 @@ export function BuildLogs({
             />
           )}
           {buildLogs && buildLogs?.length > 0 && <Divider />}
-          <Stack direction="column" gap={1} overflow="auto" mb={1}>
+          <Stack direction="column" overflow="auto" mb={1}>
             {buildLogs?.map((log, index) => (
-              <Typography fontFamily="monospace" variant="caption" key={index}>
+              <Typography fontFamily="monospace" key={index} variant="caption">
                 {log.log}
               </Typography>
             ))}
