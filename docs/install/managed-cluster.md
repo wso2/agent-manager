@@ -586,21 +586,21 @@ kubectl wait --for=condition=Available \
   -n ${DATA_PLANE_NS} --timeout=300s
 
 # Apply the Gateway Operator configuration for API authentication and rate limiting
-kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.3.0/deployments/values/api-platform-operator-full-config.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/values/api-platform-operator-full-config.yaml
 ```
 
 **Create Gateway and API Resources:**
 
 ```bash
 # Apply Observability Gateway
-kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.3.0/deployments/values/obs-gateway.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/values/obs-gateway.yaml
 
 # Wait for Gateway to be programmed
 kubectl wait --for=condition=Programmed \
   gateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
 
 # Apply OTEL Collector RestApi
-kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.3.0/deployments/values/otel-collector-rest-api.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/values/otel-collector-rest-api.yaml
 
 # Wait for RestApi to be programmed
 kubectl wait --for=condition=Programmed \
@@ -915,7 +915,7 @@ aws ec2 describe-security-groups --filters "Name=tag:kubernetes.io/cluster/<clus
 
 ## See Also
 
-- [Single Cluster Installation](./single-cluster.md) - Installation on self-hosted Kubernetes
+- [Self Hosted Kubernetes Cluster](./self-hosted-cluster.md) - Installation on self-hosted Kubernetes
 - [Quick Start Guide](../quick-start.md) - Complete automated setup with k3d and OpenChoreo
 - [Main README](../../README.md) - Project overview and architecture
 - [OpenChoreo Documentation](https://openchoreo.dev/docs/v0.9.x/) - Official OpenChoreo setup and configuration
