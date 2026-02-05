@@ -1,8 +1,8 @@
-fastapi==0.115.0
-uvicorn==0.30.6
-langgraph==0.2.34
-langchain-openai==0.2.6
-pydantic==2.9.2
-pydantic-settings==2.6.1
-requests==2.32.3
-pinecone-client==3.2.2
+fastapi
+uvicorn
+langgraph
+langchain-openai
+pydantic
+pydantic-settings
+requests
+pinecone-client
