@@ -58,12 +58,12 @@ func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildPara
 	if payload.Provisioning.Type == string(InternalAgent) {
 		if err := validateInternalAgentPayload(
 			agentPayload{
-				provisioning:   payload.Provisioning,
-				agentType:      payload.AgentType,
+				provisioning: payload.Provisioning,
+				agentType:    payload.AgentType,
 				runtimeConfigs: &spec.RuntimeConfiguration{
-					RunCommand: payload.RuntimeConfigs.RunCommand,
+					RunCommand:      payload.RuntimeConfigs.RunCommand,
 					LanguageVersion: payload.RuntimeConfigs.LanguageVersion,
-					Language: payload.RuntimeConfigs.Language,
+					Language:        payload.RuntimeConfigs.Language,
 				},
 				inputInterface: &payload.InputInterface,
 			},
@@ -71,8 +71,9 @@ func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildPara
 			return err
 		}
 	}
-	return  nil
+	return nil
 }
+
 func ValidateProjectUpdatePayload(payload spec.UpdateProjectRequest) error {
 	if err := ValidateResourceName(payload.DisplayName, "project"); err != nil {
 		return fmt.Errorf("invalid project name: %w", err)

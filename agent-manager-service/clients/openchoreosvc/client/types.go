@@ -91,12 +91,13 @@ type InputInterfaceConfig struct {
 // UpdateComponentRequest contains data for updating a component (patch operation)
 type UpdateComponentBasicInfoRequest struct {
 	DisplayName string
-	Description  string
+	Description string
 }
+
 // UpdateComponentBuildParametersRequest contains data for updating build parameters of a component
 type UpdateComponentBuildParametersRequest struct {
-	Repository     *RepositoryConfig   // nil if no change
-	RuntimeConfigs *RuntimeConfigs     // nil if no change
+	Repository     *RepositoryConfig     // nil if no change
+	RuntimeConfigs *RuntimeConfigs       // nil if no change
 	InputInterface *InputInterfaceConfig // nil if no change
 }
 

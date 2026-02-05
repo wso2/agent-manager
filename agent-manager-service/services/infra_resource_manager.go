@@ -143,7 +143,7 @@ func (s *infraResourceManager) UpdateProject(ctx context.Context, orgName string
 		s.logger.Error("Failed to get project", "projectName", projectName, "orgName", orgName, "error", err)
 		return nil, err
 	}
-    // Todo: verify existence of deployment pipeline if deployment pipeline is being updated
+	// Todo: verify existence of deployment pipeline if deployment pipeline is being updated
 
 	// Update project in OpenChoreo using PatchProject
 	patchReq := client.PatchProjectRequest{

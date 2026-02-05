@@ -65,7 +65,7 @@ type OpenChoreoClient interface {
 	TriggerBuild(ctx context.Context, namespaceName, projectName, componentName, commitID string) (*models.BuildResponse, error)
 	GetBuild(ctx context.Context, namespaceName, projectName, componentName, buildName string) (*models.BuildDetailsResponse, error)
 	ListBuilds(ctx context.Context, namespaceName, projectName, componentName string) ([]*models.BuildResponse, error)
-	UpdateComponentBuildParameters(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBuildParametersRequest) error	
+	UpdateComponentBuildParameters(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBuildParametersRequest) error
 
 	// Deployment Operations
 	Deploy(ctx context.Context, namespaceName, projectName, componentName string, req DeployRequest) error

@@ -158,7 +158,6 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 		"metadata": map[string]interface{}{
 			"name":      componentName,
 			"namespace": namespaceName,
-			
 		},
 		"spec": map[string]interface{}{
 			"workflow": workflowSection,
@@ -208,7 +207,7 @@ func buildUpdatedWorkflowParameters(component *gen.ComponentResponse, req Update
 
 	// Update endpoints if InputInterface provided
 	if req.InputInterface != nil {
-		endpoints, err := buildEndpointsFromInputInterface(component.Name,req.InputInterface)
+		endpoints, err := buildEndpointsFromInputInterface(component.Name, req.InputInterface)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build endpoints: %w", err)
 		}
@@ -219,7 +218,7 @@ func buildUpdatedWorkflowParameters(component *gen.ComponentResponse, req Update
 }
 
 // buildEndpointsFromInputInterface builds endpoint configuration from InputInterface
-func buildEndpointsFromInputInterface(componentName string,inputInterface *InputInterfaceConfig) ([]map[string]any, error) {
+func buildEndpointsFromInputInterface(componentName string, inputInterface *InputInterfaceConfig) ([]map[string]any, error) {
 	endpoints := []map[string]any{
 		{
 			"name": fmt.Sprintf("%s-endpoint", componentName),

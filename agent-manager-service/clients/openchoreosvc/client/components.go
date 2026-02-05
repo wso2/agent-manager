@@ -315,7 +315,6 @@ func (c *openChoreoClient) GetComponent(ctx context.Context, namespaceName, proj
 }
 
 func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBasicInfoRequest) error {
-
 	annotations := map[string]string{
 		string(AnnotationKeyDisplayName): req.DisplayName,
 		string(AnnotationKeyDescription): req.Description,
@@ -330,7 +329,7 @@ func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, namespa
 			"annotations": annotations,
 		},
 	}
-	
+
 	resp, err := c.ocClient.ApplyResourceWithResponse(ctx, body)
 	if err != nil {
 		return fmt.Errorf("failed to update component meta details: %w", err)
