@@ -85,13 +85,19 @@ type InputInterfaceConfig struct {
 	Type       string
 	Port       int32
 	SchemaPath string
-	BasePath	string
+	BasePath   string
 }
 
 // UpdateComponentRequest contains data for updating a component (patch operation)
-type UpdateComponentRequest struct {
-	AutoDeploy *bool
-	Parameters map[string]any
+type UpdateComponentBasicInfoRequest struct {
+	DisplayName string
+	Description  string
+}
+// UpdateComponentBuildParametersRequest contains data for updating build parameters of a component
+type UpdateComponentBuildParametersRequest struct {
+	Repository     *RepositoryConfig   // nil if no change
+	RuntimeConfigs *RuntimeConfigs     // nil if no change
+	InputInterface *InputInterfaceConfig // nil if no change
 }
 
 // DeployRequest contains data for deploying a component

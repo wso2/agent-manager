@@ -1,21 +1,3 @@
-//
-// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
-//
-// WSO2 LLC. licenses this file to you under the Apache License,
-// Version 2.0 (the "License"); you may not use this file except
-// in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing,
-// software distributed under the License is distributed on an
-// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-// KIND, either express or implied.  See the License for the
-// specific language governing permissions and limitations
-// under the License.
-//
-
 // Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
@@ -36,7 +18,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -52,19 +33,12 @@ import (
 )
 
 func (c *openChoreoClient) CreateComponent(ctx context.Context, namespaceName, projectName string, req CreateComponentRequest) error {
-	var apiReq gen.CreateComponentJSONRequestBody
-	var err error
-
-	if req.ProvisioningType == ProvisioningExternal {
-		apiReq = buildExternalComponentRequest(req)
-	} else {
-		apiReq, err = buildInternalComponentRequest(req)
-		if err != nil {
-			return fmt.Errorf("failed to build component request: %w", err)
-		}
+	apiReq, err := buildComponentRequest(namespaceName, projectName, req)
+	if err != nil {
+		return fmt.Errorf("failed to build component request: %w", err)
 	}
 
-	resp, err := c.ocClient.CreateComponentWithResponse(ctx, namespaceName, projectName, apiReq)
+	resp, err := c.ocClient.ApplyResourceWithResponse(ctx, apiReq)
 	if err != nil {
 		return fmt.Errorf("failed to create component: %w", err)
 	}
@@ -78,47 +52,133 @@ func (c *openChoreoClient) CreateComponent(ctx context.Context, namespaceName, p
 	return nil
 }
 
-// buildExternalComponentRequest creates API request for external agents
-func buildExternalComponentRequest(req CreateComponentRequest) gen.CreateComponentJSONRequestBody {
-	return gen.CreateComponentJSONRequestBody{
-		Name:        req.Name,
-		DisplayName: &req.DisplayName,
-		Description: &req.Description,
-		Type:        ComponentTypeExternalAgentAPI,
+func buildComponentRequest(orgName, projectName string, req CreateComponentRequest) (gen.ApplyResourceJSONRequestBody, error) {
+	if req.ProvisioningType == ProvisioningExternal {
+		return createComponentCRForExternalAgents(orgName, projectName, req)
 	}
+	return createComponentCRForInternalAgents(orgName, projectName, req)
 }
 
-// buildInternalComponentRequest creates API request for internal agents
-func buildInternalComponentRequest(req CreateComponentRequest) (gen.CreateComponentJSONRequestBody, error) {
-	apiReq := gen.CreateComponentJSONRequestBody{
-		Name:        req.Name,
-		DisplayName: &req.DisplayName,
-		Description: &req.Description,
-		Type:        ComponentTypeInternalAgentAPI,
+func createComponentCRForExternalAgents(orgName, projectName string, req CreateComponentRequest) (gen.ApplyResourceJSONRequestBody, error) {
+	annotations := map[string]string{
+		string(AnnotationKeyDisplayName): req.DisplayName,
+		string(AnnotationKeyDescription): req.Description,
 	}
+	labels := map[string]string{
+		string(LabelKeyProvisioningType): string(req.ProvisioningType),
+	}
+	componentType, err := getOpenChoreoComponentType(string(req.ProvisioningType), req.AgentType.Type)
+	if err != nil {
+		return nil, err
+	}
+	componentCR := gen.ApplyResourceJSONRequestBody{
+		"apiVersion": ResourceAPIVersion,
+		"kind":       ResourceKindComponent,
+		"metadata": map[string]interface{}{
+			"name":        req.Name,
+			"namespace":   orgName,
+			"annotations": annotations,
+			"labels":      labels,
+		},
+		"spec": map[string]interface{}{
+			"componentType": componentType,
+			"owner": map[string]interface{}{
+				"projectName": projectName,
+			},
+		},
+	}
+	return componentCR, nil
+}
 
-	if req.Repository != nil && req.RuntimeConfigs != nil {
-		workflowParams, err := buildWorkflowParameters(req)
-		if err != nil {
-			return gen.CreateComponentJSONRequestBody{}, err
-		}
-		appPath := normalizePath(req.Repository.AppPath)
-		apiReq.Workflow = &gen.ComponentWorkflow{
-			Name:       getWorkflowName(req.RuntimeConfigs.Language),
-			Parameters: &workflowParams,
-			SystemParameters: gen.ComponentWorkflowSystemParams{
-				Repository: gen.ComponentWorkflowRepository{
-					Url:     req.Repository.URL,
-					AppPath: &appPath,
-					Revision: gen.ComponentWorkflowRepositoryRevision{
-						Branch: req.Repository.Branch,
+func createComponentCRForInternalAgents(orgName, projectName string, req CreateComponentRequest) (gen.ApplyResourceJSONRequestBody, error) {
+	annotations := map[string]string{
+		string(AnnotationKeyDisplayName): req.DisplayName,
+		string(AnnotationKeyDescription): req.Description,
+	}
+	labels := map[string]string{
+		string(LabelKeyProvisioningType):     string(req.ProvisioningType),
+		string(LabelKeyAgentSubType):         req.AgentType.SubType,
+		string(LabelKeyAgentLanguage):        req.RuntimeConfigs.Language,
+		string(LabelKeyAgentLanguageVersion): req.RuntimeConfigs.LanguageVersion,
+	}
+	componentType, err := getOpenChoreoComponentType(string(req.ProvisioningType), req.AgentType.Type)
+	if err != nil {
+		return nil, err
+	}
+	componentWorkflow := getWorkflowName(req.RuntimeConfigs.Language)
+	containerPort, basePath := getInputInterfaceConfig(req)
+
+	// Create parameters as RawExtension
+	parameters := map[string]interface{}{
+		"exposed":  true,
+		"replicas": DefaultReplicaCount,
+		"port":     containerPort,
+		"resources": map[string]interface{}{
+			"requests": map[string]string{
+				"cpu":    DefaultCPURequest,
+				"memory": DefaultMemoryRequest,
+			},
+			"limits": map[string]string{
+				"cpu":    DefaultCPULimit,
+				"memory": DefaultMemoryLimit,
+			},
+		},
+		"basePath": basePath,
+		"cors": map[string]interface{}{
+			"allowOrigin":  strings.Split(config.GetAgentWorkloadConfig().CORS.AllowOrigin, ","),
+			"allowMethods": strings.Split(config.GetAgentWorkloadConfig().CORS.AllowMethods, ","),
+			"allowHeaders": strings.Split(config.GetAgentWorkloadConfig().CORS.AllowHeaders, ","),
+		},
+	}
+	componentWorkflowParameters, err := buildWorkflowParameters(req)
+	if err != nil {
+		return nil, fmt.Errorf("error building workflow parameters: %w", err)
+	}
+	// Build the ApplyResource request body
+	componentCR := gen.ApplyResourceJSONRequestBody{
+		"apiVersion": ResourceAPIVersion,
+		"kind":       ResourceKindComponent,
+		"metadata": map[string]interface{}{
+			"name":        req.Name,
+			"namespace":   orgName,
+			"annotations": annotations,
+			"labels":      labels,
+		},
+		"spec": map[string]interface{}{
+			"componentType": componentType,
+			"owner": map[string]interface{}{
+				"projectName": projectName,
+			},
+			"autoDeploy": true,
+			"parameters": parameters,
+			"workflow": map[string]interface{}{
+				"name": string(componentWorkflow),
+				"systemParameters": map[string]interface{}{
+					"repository": map[string]interface{}{
+						"url": req.Repository.URL,
+						"revision": map[string]interface{}{
+							"branch": req.Repository.Branch,
+						},
+						"appPath":    normalizePath(req.Repository.AppPath),
+						"parameters": componentWorkflowParameters,
 					},
 				},
+				"parameters": componentWorkflowParameters,
 			},
-		}
+		},
 	}
+	return componentCR, nil
+}
 
-	return apiReq, nil
+func getOpenChoreoComponentType(provisioningType string, agentType string) (ComponentType, error) {
+	if provisioningType == string(utils.ExternalAgent) {
+		return ComponentTypeExternalAgentAPI, nil
+	}
+	if provisioningType == string(utils.InternalAgent) && agentType == string(utils.AgentTypeAPI) {
+		return ComponentTypeInternalAgentAPI, nil
+	}
+	// agent type is already validated in controller layer
+	return "", fmt.Errorf("invalid provisioning type or agent type")
 }
 
 // -----------------------------------------------------------------------------
@@ -254,14 +314,26 @@ func (c *openChoreoClient) GetComponent(ctx context.Context, namespaceName, proj
 	return convertComponent(resp.JSON200.Data), nil
 }
 
-func (c *openChoreoClient) UpdateComponent(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentRequest) error {
-	apiReq := gen.PatchComponentJSONRequestBody{
-		AutoDeploy: req.AutoDeploy,
-	}
+func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBasicInfoRequest) error {
 
-	resp, err := c.ocClient.PatchComponentWithResponse(ctx, namespaceName, projectName, componentName, apiReq)
+	annotations := map[string]string{
+		string(AnnotationKeyDisplayName): req.DisplayName,
+		string(AnnotationKeyDescription): req.Description,
+	}
+	// Build the ApplyResource request body
+	body := gen.ApplyResourceJSONRequestBody{
+		"apiVersion": ResourceAPIVersion,
+		"kind":       ResourceKindComponent,
+		"metadata": map[string]interface{}{
+			"name":        componentName,
+			"namespace":   namespaceName,
+			"annotations": annotations,
+		},
+	}
+	
+	resp, err := c.ocClient.ApplyResourceWithResponse(ctx, body)
 	if err != nil {
-		return fmt.Errorf("failed to patch component: %w", err)
+		return fmt.Errorf("failed to update component meta details: %w", err)
 	}
 
 	if resp.StatusCode() != http.StatusOK {
@@ -321,76 +393,6 @@ func (c *openChoreoClient) ComponentExists(ctx context.Context, namespaceName, p
 		return false, err
 	}
 	return true, nil
-}
-
-
-func (c *openChoreoClient) PatchComponentWithParams(ctx context.Context, orgName, projectName string, req CreateComponentRequest, isEnabled bool) error {
-	// First, get the component to retrieve its type
-	componentResp, err := c.ocClient.GetComponentWithResponse(ctx, orgName, projectName, req.Name, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get component: %w", err)
-	}
-
-	if componentResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(componentResp.StatusCode(), componentResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
-		})
-	}
-
-	if componentResp.JSON200 == nil || componentResp.JSON200.Data == nil {
-		return fmt.Errorf("empty component response")
-	}
-
-	componentType := componentResp.JSON200.Data.Type
-	containerPort, basePath := getInputInterfaceConfig(req)
-
-	// Build the ApplyResource request body
-	body := gen.ApplyResourceJSONRequestBody{
-		"apiVersion": ResourceAPIVersion,
-		"kind":       ResourceKindComponent,
-		"metadata": map[string]interface{}{
-			"name":        req.Name,
-			"namespace":   orgName,
-		},
-		"spec": map[string]interface{}{
-			"autoDeploy": isEnabled,
-			"componentType":       componentType,
-		},
-		"parameters": map[string]interface{}{
-			"exposed":  true,
-			"replicas": DefaultReplicaCount,
-			"port":     containerPort,
-			"resources": map[string]interface{}{
-				"requests": map[string]string{
-					"cpu":    DefaultCPURequest,
-					"memory": DefaultMemoryRequest,
-				},
-				"limits": map[string]string{
-					"cpu":    DefaultCPULimit,
-					"memory": DefaultMemoryLimit,
-				},
-			},
-			"basePath": basePath,
-			"cors": map[string]interface{}{
-				"allowOrigin":  strings.Split(config.GetAgentWorkloadConfig().CORS.AllowOrigin, ","),
-				"allowMethods": strings.Split(config.GetAgentWorkloadConfig().CORS.AllowMethods, ","),
-				"allowHeaders": strings.Split(config.GetAgentWorkloadConfig().CORS.AllowHeaders, ","),
-			},
-		},
-	}
-
-	resp, err := c.ocClient.ApplyResourceWithResponse(ctx, body)
-	if err != nil {
-		return fmt.Errorf("failed to update component auto-deploy setting: %w", err)
-	}
-
-	if resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusCreated {
-		return handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
-		})
-	}
-
-	return nil
 }
 
 func getInputInterfaceConfig(req CreateComponentRequest) (int32, string) {
@@ -702,10 +704,6 @@ func extractEndpointURLsFromRelease(envRelease *gen.ReleaseResponse) ([]endpoint
 	// Check spec.resources for HTTPRoute definitions
 	specResources := *envRelease.Spec.Resources
 
-	// Debug: Print specResources as JSON
-	specResourcesJSON, _ := json.MarshalIndent(specResources, "", "  ")
-	fmt.Printf("specResources JSON:\n%s\n", string(specResourcesJSON))
-
 	// Find all HTTPRoute objects in spec resources
 	for _, resource := range specResources {
 		obj := resource.Object
@@ -756,7 +754,7 @@ func convertComponent(comp *gen.ComponentResponse) *models.AgentResponse {
 	}
 
 	provisioningType := string(ProvisioningInternal)
-	if comp.Type == ComponentTypeExternalAgentAPI {
+	if comp.Type == string(ComponentTypeExternalAgentAPI) {
 		provisioningType = string(ProvisioningExternal)
 	}
 

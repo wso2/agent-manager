@@ -29,6 +29,8 @@ import {
   CreateAgentRequest,
   UpdateAgentPathParams,
   UpdateAgentRequest,
+  UpdateAgentBuildParametersPathParams,
+  UpdateAgentBuildParametersRequest,
   GenerateAgentTokenPathParams,
   GenerateAgentTokenQuery,
   TokenRequest,
@@ -135,6 +137,27 @@ export async function updateAgent(
     `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}` +
     `/projects/${encodeURIComponent(projName)}` +
     `/agents/${encodeURIComponent(agentName)}`;
+  const res = await httpPUT(url, cloneDeep(body), { token });
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function updateAgentBuildParameters(
+  params: UpdateAgentBuildParametersPathParams,
+  body: UpdateAgentBuildParametersRequest,
+  getToken?: () => Promise<string>,
+): Promise<AgentResponse> {
+  const { orgName = "default", projName = "default", agentName } = params;
+
+  if (!agentName) {
+    throw new Error("agentName is required");
+  }
+
+  const token = getToken ? await getToken() : undefined;
+  const url =
+    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}` +
+    `/projects/${encodeURIComponent(projName)}` +
+    `/agents/${encodeURIComponent(agentName)}/build-parameters`;
   const res = await httpPUT(url, cloneDeep(body), { token });
   if (!res.ok) throw await res.json();
   return res.json();

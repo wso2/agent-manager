@@ -39,10 +39,11 @@ const (
 // -----------------------------------------------------------------------------
 // Component type identifiers
 // -----------------------------------------------------------------------------
+type ComponentType string
 
 const (
-	ComponentTypeInternalAgentAPI = "deployment/agent-api"
-	ComponentTypeExternalAgentAPI = "proxy/external-agent-api"
+	ComponentTypeInternalAgentAPI ComponentType = "deployment/agent-api"
+	ComponentTypeExternalAgentAPI ComponentType = "proxy/external-agent-api"
 )
 
 // -----------------------------------------------------------------------------
@@ -132,6 +133,22 @@ const (
 	AnnotationKeyDescription = "openchoreo.dev/description"
 )
 
+// / -----------------------------------------------------------------------------
+// OpenChoreo label keys
+// -----------------------------------------------------------------------------
+type LabelKeys string
+
+const (
+	LabelKeyOrganizationName     LabelKeys = "openchoreo.dev/organization"
+	LabelKeyProjectName          LabelKeys = "openchoreo.dev/project"
+	LabelKeyComponentName        LabelKeys = "openchoreo.dev/component"
+	LabelKeyEnvironmentName      LabelKeys = "openchoreo.dev/environment"
+	LabelKeyAgentSubType         LabelKeys = "openchoreo.dev/agent-sub-type"
+	LabelKeyAgentLanguage        LabelKeys = "openchoreo.dev/agent-language"
+	LabelKeyAgentLanguageVersion LabelKeys = "openchoreo.dev/agent-language-version"
+	LabelKeyProvisioningType     LabelKeys = "openchoreo.dev/provisioning-type"
+)
+
 // -----------------------------------------------------------------------------
 // Container and endpoint constants
 // -----------------------------------------------------------------------------
@@ -140,8 +157,6 @@ const (
 	MainContainerName        = "main"
 	EndpointVisibilityPublic = "Public"
 )
-
-
 
 // -----------------------------------------------------------------------------
 //  Workflow Run Status (from OpenChoreo ComponentWorkflowRun )
@@ -188,7 +203,6 @@ const (
 	StepIndexCompleted
 	StepIndexWorkloadUpdated
 )
-
 
 // Resource constants
 const (

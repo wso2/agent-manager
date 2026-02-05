@@ -53,19 +53,19 @@ type OpenChoreoClient interface {
 	// Component Operations
 	CreateComponent(ctx context.Context, namespaceName, projectName string, req CreateComponentRequest) error
 	GetComponent(ctx context.Context, namespaceName, projectName, componentName string) (*models.AgentResponse, error)
-	UpdateComponent(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentRequest) error
+	UpdateComponentBasicInfo(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBasicInfoRequest) error
 	DeleteComponent(ctx context.Context, namespaceName, projectName, componentName string) error
 	ListComponents(ctx context.Context, namespaceName, projectName string) ([]*models.AgentResponse, error)
 	ComponentExists(ctx context.Context, namespaceName, projectName, componentName string, verifyProject bool) (bool, error)
 	AttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) error
 	GetComponentEndpoints(ctx context.Context, namespaceName, projectName, componentName, environment string) (map[string]models.EndpointsResponse, error)
 	GetComponentConfigurations(ctx context.Context, namespaceName, projectName, componentName, environment string) ([]models.EnvVars, error)
-	PatchComponentWithParams(ctx context.Context, orgName, projectName string, req CreateComponentRequest, isEnabled bool) error
 
 	// Build Operations
-	TriggerBuild(ctx context.Context, namespaceName, projectName, componentName, commitID, branch string) (*models.BuildResponse, error)
+	TriggerBuild(ctx context.Context, namespaceName, projectName, componentName, commitID string) (*models.BuildResponse, error)
 	GetBuild(ctx context.Context, namespaceName, projectName, componentName, buildName string) (*models.BuildDetailsResponse, error)
 	ListBuilds(ctx context.Context, namespaceName, projectName, componentName string) ([]*models.BuildResponse, error)
+	UpdateComponentBuildParameters(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBuildParametersRequest) error	
 
 	// Deployment Operations
 	Deploy(ctx context.Context, namespaceName, projectName, componentName string, req DeployRequest) error

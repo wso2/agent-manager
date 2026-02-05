@@ -32,8 +32,9 @@ import (
 type AgentManagerService interface {
 	ListAgents(ctx context.Context, orgName string, projName string, limit int32, offset int32) ([]*models.AgentResponse, int32, error)
 	CreateAgent(ctx context.Context, orgName string, projectName string, req *spec.CreateAgentRequest) error
-	UpdateAgent(ctx context.Context, orgName string, projectName string, agentName string, req *spec.UpdateAgentRequest) (*models.AgentResponse, error)
-	BuildAgent(ctx context.Context, orgName string, projectName string, agentName string, commitId string, branch string) (*models.BuildResponse, error)
+	UpdateAgentBasicInfo(ctx context.Context, orgName string, projectName string, agentName string, req *spec.UpdateAgentBasicInfoRequest) (*models.AgentResponse, error)
+	UpdateAgentBuildParameters(ctx context.Context, orgName string, projectName string, agentName string, req *spec.UpdateAgentBuildParametersRequest) (*models.AgentResponse, error)
+	BuildAgent(ctx context.Context, orgName string, projectName string, agentName string, commitId string) (*models.BuildResponse, error)
 	DeleteAgent(ctx context.Context, orgName string, projectName string, agentName string) error
 	DeployAgent(ctx context.Context, orgName string, projectName string, agentName string, req *spec.DeployAgentRequest) (string, error)
 	GetAgent(ctx context.Context, orgName string, projectName string, agentName string) (*models.AgentResponse, error)
@@ -51,7 +52,7 @@ type AgentManagerService interface {
 type agentManagerService struct {
 	ocClient               client.OpenChoreoClient
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient
-	gitRepositoryService    RepositoryService
+	gitRepositoryService   RepositoryService
 	logger                 *slog.Logger
 }
 
@@ -64,7 +65,7 @@ func NewAgentManagerService(
 	return &agentManagerService{
 		ocClient:               OpenChoreoClient,
 		observabilitySvcClient: observabilitySvcClient,
-		gitRepositoryService:    gitRepositoryService,
+		gitRepositoryService:   gitRepositoryService,
 		logger:                 logger,
 	}
 }
@@ -139,17 +140,7 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 
 	// For internal agents, attach OTEL instrumentation trait for Python API agents
 	if req.Provisioning.Type == string(utils.InternalAgent) {
-		// Temporary solution: directly patching the component with the required configuration and until OpenChoreo can handle this during component creation
-		if err := s.ocClient.PatchComponentWithParams(ctx, orgName, projectName, createAgentReq, true); err != nil {
-			s.logger.Error("Failed to patch component with params", "agentName", req.Name, "error", err)
-			// Rollback - delete the created agent
-			errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name)
-			if errDeletion != nil {
-				s.logger.Error("Failed to rollback agent creation after patching component with params failure", "agentName", req.Name, "error", errDeletion)
-			}
-			return fmt.Errorf("failed to patch component with params: %w", err)
-
-		}
+		s.logger.Debug("Patched component with params successfully", "agentName", req.Name)
 		if req.AgentType.Type == string(utils.AgentTypeAPI) && req.RuntimeConfigs.Language == string(utils.LanguagePython) {
 			if err := s.ocClient.AttachTrait(ctx, orgName, projectName, req.Name, client.TraitOTELInstrumentation); err != nil {
 				s.logger.Error("Failed to attach OTEL instrumentation trait", "agentName", req.Name, "error", err)
@@ -174,7 +165,6 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 }
 
 func (s *agentManagerService) triggerInitialBuild(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
-	
 	// Get the latest commit from the repository
 	commitId := ""
 	if req.Provisioning.Repository != nil {
@@ -192,14 +182,13 @@ func (s *agentManagerService) triggerInitialBuild(ctx context.Context, orgName, 
 		}
 	}
 	// Trigger build in OpenChoreo with the latest commit
-	build, err := s.ocClient.TriggerBuild(ctx, orgName, projectName, req.Name, commitId, req.Provisioning.Repository.Branch)
+	build, err := s.ocClient.TriggerBuild(ctx, orgName, projectName, req.Name, commitId)
 	if err != nil {
 		return fmt.Errorf("failed to trigger initial build: agentName %s, error: %w", req.Name, err)
 	}
 	s.logger.Info("Agent component created and build triggered successfully", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "buildName", build.Name, "commitId", commitId)
 	return nil
 }
-
 
 func toCreateAgentRequest(req *spec.CreateAgentRequest) client.CreateComponentRequest {
 	result := client.CreateComponentRequest{
@@ -242,12 +231,59 @@ func toCreateAgentRequest(req *spec.CreateAgentRequest) client.CreateComponentRe
 		if req.InputInterface.Schema != nil {
 			result.InputInterface.SchemaPath = req.InputInterface.Schema.Path
 		}
+		if req.InputInterface.BasePath != nil {
+			result.InputInterface.BasePath = *req.InputInterface.BasePath
+		}
 	}
 	return result
 }
 
-func (s *agentManagerService) UpdateAgent(ctx context.Context, orgName string, projectName string, agentName string, req *spec.UpdateAgentRequest) (*models.AgentResponse, error) {
-	s.logger.Info("Updating agent", "agentName", agentName, "orgName", orgName, "projectName", projectName)
+func (s *agentManagerService) UpdateAgentBasicInfo(ctx context.Context, orgName string, projectName string, agentName string, req *spec.UpdateAgentBasicInfoRequest) (*models.AgentResponse, error) {
+	s.logger.Info("Updating agent basic info", "agentName", agentName, "orgName", orgName, "projectName", projectName)
+
+	// Validate organization exists
+	_, err := s.ocClient.GetOrganization(ctx, orgName)
+	if err != nil {
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return nil, err
+	}
+
+	// Validate project exists
+	_, err = s.ocClient.GetProject(ctx, orgName, projectName)
+	if err != nil {
+		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
+		return nil, err
+	}
+
+	// Fetch existing agent to validate it exists
+	_, err = s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
+	if err != nil {
+		s.logger.Error("Failed to fetch existing agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		return nil, err
+	}
+	// Update agent basic info in OpenChoreo
+	updateReq := client.UpdateComponentBasicInfoRequest{
+		DisplayName: req.DisplayName,
+		Description: req.Description,
+	}
+	if err := s.ocClient.UpdateComponentBasicInfo(ctx, orgName, projectName, agentName, updateReq); err != nil {
+		s.logger.Error("Failed to update agent meta data in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		return nil, fmt.Errorf("failed to update agent basic info: %w", err)
+	}
+
+	// Fetch agent to return current state
+	updatedAgent, err := s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
+	if err != nil {
+		s.logger.Error("Failed to fetch agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		return nil, err
+	}
+
+	s.logger.Info("Agent basic info update called", "agentName", agentName, "orgName", orgName, "projectName", projectName)
+	return updatedAgent, nil
+}
+
+func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, orgName string, projectName string, agentName string, req *spec.UpdateAgentBuildParametersRequest) (*models.AgentResponse, error) {
+	s.logger.Info("Updating agent build parameters", "agentName", agentName, "orgName", orgName, "projectName", projectName)
 
 	// Validate organization exists
 	_, err := s.ocClient.GetOrganization(ctx, orgName)
@@ -270,40 +306,67 @@ func (s *agentManagerService) UpdateAgent(ctx context.Context, orgName string, p
 		return nil, err
 	}
 
-	// Check immutable fields - name cannot be changed
-	if req.Name != &existingAgent.Name {
-		s.logger.Error("Cannot change agent name", "existingName", existingAgent.Name, "requestedName", req.Name)
-		return nil, fmt.Errorf("%w: agent name cannot be changed", utils.ErrImmutableFieldChange)
-	}
-
-	// Check immutable fields - agentType cannot be changed
+	// Check immutable fields - agentType cannot be changed if provided
 	if req.AgentType.Type != existingAgent.Type.Type {
 		s.logger.Error("Cannot change agent type", "existingType", existingAgent.Type.Type, "requestedType", req.AgentType.Type)
 		return nil, fmt.Errorf("%w: agent type cannot be changed", utils.ErrImmutableFieldChange)
 	}
 
-	// Check immutable fields - provisioning type cannot be changed
+	// Check immutable fields - provisioning type cannot be changed if provided
 	if req.Provisioning.Type != existingAgent.Provisioning.Type {
 		s.logger.Error("Cannot change provisioning type", "existingType", existingAgent.Provisioning.Type, "requestedType", req.Provisioning.Type)
 		return nil, fmt.Errorf("%w: provisioning type cannot be changed", utils.ErrImmutableFieldChange)
 	}
 
-	// Update agent component in OpenChoreo
-	updateReq := client.UpdateComponentRequest{}
-	if err := s.ocClient.UpdateComponent(ctx, orgName, projectName, agentName, updateReq); err != nil {
-		s.logger.Error("Failed to update agent component in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, fmt.Errorf("failed to update agent component: %w", err)
+	// Update agent build parameters in OpenChoreo
+	updateReq := buildUpdateBuildParametersRequest(req)
+	if err := s.ocClient.UpdateComponentBuildParameters(ctx, orgName, projectName, agentName, updateReq); err != nil {
+		s.logger.Error("Failed to update agent build parameters in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		return nil, fmt.Errorf("failed to update agent build parameters: %w", err)
 	}
 
-	// Fetch updated agent
+	// Fetch agent to return current state
 	updatedAgent, err := s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
-		s.logger.Error("Failed to fetch updated agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		s.logger.Error("Failed to fetch agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
 		return nil, err
 	}
 
-	s.logger.Info("Agent updated successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName)
+	s.logger.Info("Agent build parameters updated successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName)
 	return updatedAgent, nil
+}
+
+// buildUpdateBuildParametersRequest converts spec request to client request
+func buildUpdateBuildParametersRequest(req *spec.UpdateAgentBuildParametersRequest) client.UpdateComponentBuildParametersRequest {
+	updateReq := client.UpdateComponentBuildParametersRequest{}
+
+	// Map RuntimeConfigs
+	updateReq.RuntimeConfigs = &client.RuntimeConfigs{
+		Language:        req.RuntimeConfigs.Language,
+		LanguageVersion: utils.StrPointerAsStr(req.RuntimeConfigs.LanguageVersion, ""),
+		RunCommand:      utils.StrPointerAsStr(req.RuntimeConfigs.RunCommand, ""),
+	}
+
+	// Map InputInterface
+	port := int32(0)
+	if req.InputInterface.Port != nil {
+		port = *req.InputInterface.Port
+	}
+
+	updateReq.InputInterface = &client.InputInterfaceConfig{
+		Type: req.InputInterface.Type,
+		Port: port,
+	}
+
+	if req.InputInterface.BasePath != nil {
+		updateReq.InputInterface.BasePath = *req.InputInterface.BasePath
+	}
+
+	if req.InputInterface.Schema != nil && req.InputInterface.Schema.Path != "" {
+		updateReq.InputInterface.SchemaPath = req.InputInterface.Schema.Path
+	}
+
+	return updateReq
 }
 
 func (s *agentManagerService) GenerateName(ctx context.Context, orgName string, payload spec.ResourceNameRequest) (string, error) {
@@ -444,7 +507,7 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 }
 
 // BuildAgent triggers a build for an agent.
-func (s *agentManagerService) BuildAgent(ctx context.Context, orgName string, projectName string, agentName string, commitId string, branch string) (*models.BuildResponse, error) {
+func (s *agentManagerService) BuildAgent(ctx context.Context, orgName string, projectName string, agentName string, commitId string) (*models.BuildResponse, error) {
 	s.logger.Info("Building agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "commitId", commitId)
 	// Validate organization exists
 	org, err := s.ocClient.GetOrganization(ctx, orgName)
@@ -461,8 +524,8 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, orgName string, pr
 		return nil, fmt.Errorf("build operation is not supported for agent type: '%s'", agent.Provisioning.Type)
 	}
 	// Trigger build in OpenChoreo
-	s.logger.Debug("Triggering build in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "commitId", commitId, "branch", branch)
-	build, err := s.ocClient.TriggerBuild(ctx, orgName, projectName, agentName, commitId, branch)
+	s.logger.Debug("Triggering build in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "commitId", commitId)
+	build, err := s.ocClient.TriggerBuild(ctx, orgName, projectName, agentName, commitId)
 	if err != nil {
 		s.logger.Error("Failed to trigger build in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
 		return nil, err

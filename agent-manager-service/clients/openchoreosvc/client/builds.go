@@ -29,37 +29,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
-func (c *openChoreoClient) TriggerBuild(ctx context.Context, orgName, projectName, componentName, commitID , branch string) (*models.BuildResponse, error) {
-	// Temporality fix to patch the component to set the desired branch
-	body := gen.ApplyResourceJSONRequestBody{
-		"apiVersion": ResourceAPIVersion,
-		"kind":       ResourceKindComponent,
-		"metadata": map[string]interface{}{
-			"name":        componentName,
-			"namespace":   orgName,
-		},
-		"spec": map[string]interface{}{                                                                                                                              
-           "workflow": map[string]interface{}{                                                                                                                        
-             "systemParameters": map[string]interface{}{                                                                                                              
-               "repository": map[string]interface{}{                                                                                                                  
-               "revision": map[string]interface{}{                                                                                                                  
-                   "branch": branch,                                                                                                                                  
-                 },                                                                                                                                                   
-               },                                                                                                                                                     
-             },                                                                                                                                                       
-           },                                                                                                                                                         
-         },
-	}
-	patchResp, err := c.ocClient.ApplyResourceWithResponse(ctx, body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update component branch %w", err)
-	}
-	if patchResp.StatusCode() != http.StatusOK && patchResp.StatusCode() != http.StatusCreated {
-		return nil, handleErrorResponse(patchResp.StatusCode(), patchResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
-		})
-	}
-
+func (c *openChoreoClient) TriggerBuild(ctx context.Context, orgName, projectName, componentName, commitID string) (*models.BuildResponse, error) {
 	params := &gen.CreateComponentWorkflowRunParams{}
 	if commitID != "" {
 		params.Commit = &commitID
@@ -137,6 +107,134 @@ func (c *openChoreoClient) ListBuilds(ctx context.Context, orgName, projectName,
 	return buildResponses, nil
 }
 
+func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBuildParametersRequest) error {
+	// Get existing component to fetch current workflow configuration
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, projectName, componentName, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get component: %w", err)
+	}
+
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	if resp.JSON200 == nil || resp.JSON200.Data == nil {
+		return fmt.Errorf("empty response from get component")
+	}
+
+	component := resp.JSON200.Data
+
+	// Build updated workflow parameters
+	workflowParams, err := buildUpdatedWorkflowParameters(component, req)
+	if err != nil {
+		return fmt.Errorf("failed to build workflow parameters: %w", err)
+	}
+
+	// Build workflow section for the component CR
+	workflowSection := map[string]interface{}{
+		"parameters": workflowParams,
+	}
+
+	// If repository is updated, include systemParameters
+	if req.Repository != nil {
+		workflowSection["systemParameters"] = map[string]interface{}{
+			"repository": map[string]interface{}{
+				"url": req.Repository.URL,
+				"revision": map[string]interface{}{
+					"branch": req.Repository.Branch,
+				},
+				"appPath":    normalizePath(req.Repository.AppPath),
+				"parameters": workflowParams,
+			},
+		}
+	}
+
+	// Build the ApplyResource request body
+	body := gen.ApplyResourceJSONRequestBody{
+		"apiVersion": ResourceAPIVersion,
+		"kind":       ResourceKindComponent,
+		"metadata": map[string]interface{}{
+			"name":      componentName,
+			"namespace": namespaceName,
+			
+		},
+		"spec": map[string]interface{}{
+			"workflow": workflowSection,
+		},
+	}
+
+	// Apply the updated component
+	applyResp, err := c.ocClient.ApplyResourceWithResponse(ctx, body)
+	if err != nil {
+		return fmt.Errorf("failed to update component build parameters: %w", err)
+	}
+
+	if applyResp.StatusCode() != http.StatusOK && applyResp.StatusCode() != http.StatusCreated {
+		return handleErrorResponse(applyResp.StatusCode(), applyResp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	return nil
+}
+
+// buildUpdatedWorkflowParameters builds workflow parameters based on the update request
+func buildUpdatedWorkflowParameters(component *gen.ComponentResponse, req UpdateComponentBuildParametersRequest) (map[string]any, error) {
+	// Start with existing workflow parameters if available
+	existingParams := make(map[string]any)
+	if component.ComponentWorkflow != nil && component.ComponentWorkflow.Parameters != nil {
+		existingParams = *component.ComponentWorkflow.Parameters
+	}
+
+	// Update buildpack configs if RuntimeConfigs provided
+	if req.RuntimeConfigs != nil {
+		buildpackConfigs := make(map[string]any)
+		if isGoogleBuildpack(req.RuntimeConfigs.Language) {
+			buildpackConfigs = map[string]any{
+				"language":           req.RuntimeConfigs.Language,
+				"languageVersion":    req.RuntimeConfigs.LanguageVersion,
+				"googleEntryPoint":   req.RuntimeConfigs.RunCommand,
+				"languageVersionKey": getLanguageVersionEnvVariable(req.RuntimeConfigs.Language),
+			}
+		} else {
+			buildpackConfigs = map[string]any{
+				"language": req.RuntimeConfigs.Language,
+			}
+		}
+		existingParams["buildpackConfigs"] = buildpackConfigs
+	}
+
+	// Update endpoints if InputInterface provided
+	if req.InputInterface != nil {
+		endpoints, err := buildEndpointsFromInputInterface(component.Name,req.InputInterface)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build endpoints: %w", err)
+		}
+		existingParams["endpoints"] = endpoints
+	}
+
+	return existingParams, nil
+}
+
+// buildEndpointsFromInputInterface builds endpoint configuration from InputInterface
+func buildEndpointsFromInputInterface(componentName string,inputInterface *InputInterfaceConfig) ([]map[string]any, error) {
+	endpoints := []map[string]any{
+		{
+			"name": fmt.Sprintf("%s-endpoint", componentName),
+			"type": inputInterface.Type,
+			"port": inputInterface.Port,
+		},
+	}
+
+	if inputInterface.SchemaPath != "" {
+		endpoints[0]["schemaFilePath"] = inputInterface.SchemaPath
+	}
+
+	return endpoints, nil
+}
+
 // toWorkflowRunBuild converts a gen.ComponentWorkflowRunResponse to models.BuildResponse
 func toWorkflowRunBuild(run *gen.ComponentWorkflowRunResponse) (*models.BuildResponse, error) {
 	commit := utils.StrPointerAsStr(run.Commit, "")
@@ -211,8 +309,7 @@ func toBuildDetailsResponse(run *gen.ComponentWorkflowRunResponse) (*models.Buil
 	return details, nil
 }
 
-
-//	Initiated → Triggered → Running → Succeeded → Completed
+// Initiated → Triggered → Running → Succeeded → Completed
 func mapStatusToBuildSteps(apiStatus string) []models.BuildStep {
 	steps := []models.BuildStep{
 		{Type: string(BuildStatusInitiated), Status: string(BuildStepStatusSucceeded), Message: "Build initiated"},

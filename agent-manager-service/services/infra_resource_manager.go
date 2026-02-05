@@ -138,23 +138,18 @@ func (s *infraResourceManager) UpdateProject(ctx context.Context, orgName string
 	}
 
 	// Validate project exists
-	existingProject, err := s.ocClient.GetProject(ctx, orgName, projectName)
+	_, err = s.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to get project", "projectName", projectName, "orgName", orgName, "error", err)
 		return nil, err
 	}
-
-	// Check immutable fields - name cannot be changed
-	if payload.Name != &existingProject.Name {
-		s.logger.Error("Cannot change project name", "existingName", existingProject.Name, "requestedName", payload.Name)
-		return nil, fmt.Errorf("%w: project name cannot be changed", utils.ErrImmutableFieldChange)
-	}
-
+    // Todo: verify existence of deployment pipeline if deployment pipeline is being updated
+	
 	// Update project in OpenChoreo using PatchProject
 	patchReq := client.PatchProjectRequest{
-		DisplayName:        utils.StrPointerAsStr(payload.DisplayName, ""),
-		Description:        utils.StrPointerAsStr(payload.Description, ""),
-		DeploymentPipeline: utils.StrPointerAsStr(payload.DeploymentPipeline, ""),
+		DisplayName:        payload.DisplayName,
+		Description:        payload.Description,
+		DeploymentPipeline: payload.DeploymentPipeline,
 	}
 	if err := s.ocClient.PatchProject(ctx, orgName, projectName, patchReq); err != nil {
 		s.logger.Error("Failed to update project in OpenChoreo", "projectName", projectName, "orgName", orgName, "error", err)
