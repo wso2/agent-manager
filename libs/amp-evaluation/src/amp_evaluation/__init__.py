@@ -28,6 +28,8 @@ __version__ = "0.0.0-dev"
 from .models import (
     # Exceptions
     DataNotAvailableError,
+    # Observation
+    Observation,
     # Task & Dataset
     Task,
     Dataset,
@@ -35,8 +37,6 @@ from .models import (
     EvalResult,
     EvaluatorScore,
     EvaluatorSummary,
-    EvalContext,
-    CompositeScore,
     # Agent (minimal - from config)
     Agent,
     # Utilities
@@ -48,7 +48,7 @@ from .dataset_schema import DatasetSchema, Constraints
 
 
 # Evaluator base classes
-from .evaluators.base import BaseEvaluator, LLMAsJudgeEvaluator, CompositeEvaluator, FunctionEvaluator
+from .evaluators.base import BaseEvaluator, LLMAsJudgeEvaluator, FunctionEvaluator
 
 # Registry
 from .registry import (
@@ -125,6 +125,7 @@ __all__ = [
     # Version
     "__version__",
     # Core models
+    "Observation",
     "Task",
     "Constraints",
     "Dataset",
@@ -136,12 +137,11 @@ __all__ = [
     "EvalResult",
     "EvaluatorScore",
     "EvaluatorSummary",
-    "CompositeScore",
-    "EvalContext",
+    "Observation",
+    "Task",
     # Evaluators
     "BaseEvaluator",
     "LLMAsJudgeEvaluator",
-    "CompositeEvaluator",
     "FunctionEvaluator",
     # Registry
     "evaluator",

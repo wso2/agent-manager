@@ -17,10 +17,11 @@
 """
 Built-in evaluators for common evaluation patterns.
 
-All evaluators use the simplified context-based interface:
-    evaluate(context: EvalContext) -> EvalResult
+All evaluators use the two-parameter interface:
+    evaluate(observation: Observation, task: Optional[Task] = None) -> EvalResult
 
-Access trace data via context.trace, and ground truth via context properties.
+- observation: What the agent did (always available)
+- task: What it should have done (only for experiments with datasets)
 """
 
 import logging
@@ -28,7 +29,7 @@ import re
 from typing import List, Optional, Set
 
 from .base import BaseEvaluator
-from ..models import EvalContext, EvalResult
+from ..models import Observation, Task, EvalResult
 
 
 logger = logging.getLogger(__name__)
@@ -48,9 +49,8 @@ class AnswerLengthEvaluator(BaseEvaluator):
         self.min_length = min_length
         self.max_length = max_length
 
-    def evaluate(self, context: EvalContext) -> EvalResult:
-        trace = context.trace
-        output_length = len(trace.output) if trace.output else 0
+    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+        output_length = len(observation.output) if observation.output else 0
 
         if output_length < self.min_length:
             return EvalResult(
@@ -84,10 +84,9 @@ class AnswerRelevancyEvaluator(BaseEvaluator):
         self._name = name
         self.min_overlap_ratio = min_overlap_ratio
 
-    def evaluate(self, context: EvalContext) -> EvalResult:
-        trace = context.trace
-        input_text = trace.input.lower() if trace.input else ""
-        output_text = trace.output.lower() if trace.output else ""
+    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+        input_text = observation.input.lower() if observation.input else ""
+        output_text = observation.output.lower() if observation.output else ""
 
         # Simple word overlap relevancy check
         input_words = set(input_text.split())
@@ -124,9 +123,8 @@ class RequiredContentEvaluator(BaseEvaluator):
         self.required_patterns = required_patterns or []
         self.case_sensitive = case_sensitive
 
-    def evaluate(self, context: EvalContext) -> EvalResult:
-        trace = context.trace
-        output = trace.output if trace.output else ""
+    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+        output = observation.output if observation.output else ""
         compare_output = output if self.case_sensitive else output.lower()
 
         missing_strings = []
@@ -176,15 +174,14 @@ class ProhibitedContentEvaluator(BaseEvaluator):
         self.case_sensitive = case_sensitive
         self.use_context_prohibited = use_context_prohibited
 
-    def evaluate(self, context: EvalContext) -> EvalResult:
-        trace = context.trace
-        output = trace.output if trace.output else ""
+    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+        output = observation.output if observation.output else ""
         compare_output = output if self.case_sensitive else output.lower()
 
         # Combine explicit and context prohibited content
         all_prohibited = list(self.prohibited_strings)
-        if self.use_context_prohibited and context.has_prohibited_content():
-            all_prohibited.extend(context.prohibited_content)
+        if self.use_context_prohibited and task and task.prohibited_content:
+            all_prohibited.extend(task.prohibited_content)
 
         found_strings = []
         for prohibited in all_prohibited:
@@ -218,13 +215,11 @@ class ExactMatchEvaluator(BaseEvaluator):
         self.case_sensitive = case_sensitive
         self.strip_whitespace = strip_whitespace
 
-    def evaluate(self, context: EvalContext) -> EvalResult:
-        trace = context.trace
-
+    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         # Get expected output from context (raises DataNotAvailableError if not available)
-        expected = context.expected_output
+        expected = task.expected_output
 
-        output = trace.output if trace.output else ""
+        output = observation.output if observation.output else ""
 
         if self.strip_whitespace:
             output = output.strip()
@@ -255,11 +250,10 @@ class ContainsMatchEvaluator(BaseEvaluator):
         self._name = name
         self.case_sensitive = case_sensitive
 
-    def evaluate(self, context: EvalContext) -> EvalResult:
-        trace = context.trace
-        expected = context.expected_output
+    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+        expected = task.expected_output
 
-        output = trace.output if trace.output else ""
+        output = observation.output if observation.output else ""
 
         compare_output = output if self.case_sensitive else output.lower()
         compare_expected = expected if self.case_sensitive else expected.lower()
@@ -293,7 +287,7 @@ class ToolSequenceEvaluator(BaseEvaluator):
         Args:
             expected_sequence: List of tool names in expected order
             strict: If True, requires exact sequence. If False, allows extra tools
-            use_context_trajectory: If True, uses context.expected_trajectory
+            use_context_trajectory: If True, uses task.expected_trajectory
         """
         super().__init__()
         self._name = name
@@ -301,15 +295,14 @@ class ToolSequenceEvaluator(BaseEvaluator):
         self.strict = strict
         self.use_context_trajectory = use_context_trajectory
 
-    def evaluate(self, context: EvalContext) -> EvalResult:
-        trace = context.trace
-        trajectory = trace.trajectory
+    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+        trajectory = observation.trajectory
 
         # Get expected sequence
         expected = list(self.expected_sequence)
-        if self.use_context_trajectory and context.has_expected_trajectory():
+        if self.use_context_trajectory and task and task.expected_trajectory:
             # Expected trajectory is list of dicts with tool info
-            expected_trajectory = context.expected_trajectory
+            expected_trajectory = task.expected_trajectory
             expected = [step.get("tool") for step in expected_trajectory if step.get("tool")]
 
         if not expected:
@@ -348,15 +341,14 @@ class RequiredToolsEvaluator(BaseEvaluator):
         self._name = name
         self.required_tools = set(required_tools) if required_tools else set()
 
-    def evaluate(self, context: EvalContext) -> EvalResult:
-        trace = context.trace
-        trajectory = trace.trajectory
+    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+        trajectory = observation.trajectory
 
         required = set(self.required_tools)
 
         # Also check context for expected trajectory tools
-        if context.has_expected_trajectory():
-            expected_trajectory = context.expected_trajectory
+        if task and task.expected_trajectory:
+            expected_trajectory = task.expected_trajectory
             for step in expected_trajectory:
                 if step.get("tool"):
                     required.add(step["tool"])
@@ -393,9 +385,8 @@ class StepSuccessRateEvaluator(BaseEvaluator):
         self._name = name
         self.min_success_rate = min_success_rate
 
-    def evaluate(self, context: EvalContext) -> EvalResult:
-        trace = context.trace
-        trajectory = trace.trajectory
+    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+        trajectory = observation.trajectory
 
         if not trajectory.steps:
             return EvalResult(score=1.0, passed=True, explanation="No steps to evaluate", details={"step_count": 0})
@@ -430,13 +421,11 @@ class LatencyEvaluator(BaseEvaluator):
         self.max_latency_ms = max_latency_ms
         self.use_context_constraint = use_context_constraint
 
-    def evaluate(self, context: EvalContext) -> EvalResult:
-        trace = context.trace
-
+    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         # Determine max latency
         max_latency = self.max_latency_ms
-        if self.use_context_constraint and context.has_constraints():
-            constraints = context.constraints
+        if self.use_context_constraint and task and task.constraints:
+            constraints = task.constraints
             if constraints and constraints.has_latency_constraint():
                 max_latency = constraints.max_latency_ms
 
@@ -445,10 +434,10 @@ class LatencyEvaluator(BaseEvaluator):
                 score=1.0,
                 passed=True,
                 explanation="No latency constraint specified",
-                details={"actual_latency_ms": trace.metrics.total_duration_ms},
+                details={"actual_latency_ms": observation.metrics.total_duration_ms},
             )
 
-        actual_latency = trace.metrics.total_duration_ms or 0
+        actual_latency = observation.metrics.total_duration_ms or 0
         passed = actual_latency <= max_latency
 
         # Score: 1.0 if within limit, decreasing as we exceed
@@ -477,13 +466,11 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
         self.max_tokens = max_tokens
         self.use_context_constraint = use_context_constraint
 
-    def evaluate(self, context: EvalContext) -> EvalResult:
-        trace = context.trace
-
+    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         # Determine max tokens
         max_tokens = self.max_tokens
-        if self.use_context_constraint and context.has_constraints():
-            constraints = context.constraints
+        if self.use_context_constraint and task and task.constraints:
+            constraints = task.constraints
             if constraints and constraints.has_token_constraint():
                 max_tokens = constraints.max_tokens
 
@@ -492,10 +479,10 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
                 score=1.0,
                 passed=True,
                 explanation="No token constraint specified",
-                details={"actual_tokens": trace.metrics.total_token_usage},
+                details={"actual_tokens": observation.metrics.total_token_usage},
             )
 
-        actual_tokens = trace.metrics.total_token_usage or 0
+        actual_tokens = observation.metrics.total_token_usage or 0
         passed = actual_tokens <= max_tokens
 
         # Score: 1.0 if within limit, decreasing as we exceed
@@ -523,14 +510,13 @@ class IterationCountEvaluator(BaseEvaluator):
         self.max_iterations = max_iterations
         self.use_context_constraint = use_context_constraint
 
-    def evaluate(self, context: EvalContext) -> EvalResult:
-        trace = context.trace
-        trajectory = trace.trajectory
+    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+        trajectory = observation.trajectory
 
         # Determine max iterations
         max_iterations = self.max_iterations
-        if self.use_context_constraint and context.has_constraints():
-            constraints = context.constraints
+        if self.use_context_constraint and task and task.constraints:
+            constraints = task.constraints
             if constraints and constraints.has_iteration_constraint():
                 max_iterations = constraints.max_iterations
 
@@ -567,18 +553,17 @@ class IterationCountEvaluator(BaseEvaluator):
 class ExpectedOutcomeEvaluator(BaseEvaluator):
     """Evaluates if the trace achieved the expected outcome.
 
-    Compares trace.success with context.expected_outcome.
+    Compares observation.success with task.expected_outcome.
     """
 
     def __init__(self, name: str = "expected_outcome"):
         super().__init__()
         self._name = name
 
-    def evaluate(self, context: EvalContext) -> EvalResult:
-        trace = context.trace
-        expected = context.expected_outcome  # Raises if not available
+    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+        expected = task.expected_outcome  # Raises if not available
 
-        actual = trace.success
+        actual = observation.success
         passed = actual == expected
 
         return EvalResult(

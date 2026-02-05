@@ -16,7 +16,7 @@
 
 """Evaluators subpackage."""
 
-from .base import BaseEvaluator, LLMAsJudgeEvaluator, CompositeEvaluator, FunctionEvaluator
+from .base import BaseEvaluator, LLMAsJudgeEvaluator, FunctionEvaluator
 
 from .builtin import (
     AnswerLengthEvaluator,
@@ -38,7 +38,6 @@ __all__ = [
     # Base classes
     "BaseEvaluator",
     "LLMAsJudgeEvaluator",
-    "CompositeEvaluator",
     "FunctionEvaluator",
     # Built-in evaluators
     "AnswerLengthEvaluator",

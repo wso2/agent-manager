@@ -155,8 +155,8 @@ class TestMonitorBasic:
         """Run returns a RunResult with proper structure."""
 
         @evaluator(name="simple_eval")
-        def simple_eval(context):
-            return 1.0 if context.trace.output else 0.0
+        def simple_eval(observation):
+            return 1.0 if observation.output else 0.0
 
         runner = Monitor()
         result = runner.run(traces=sample_traces)
@@ -295,8 +295,8 @@ class TestMonitorAggregation:
         """Default aggregation is MEAN when none specified."""
 
         @evaluator(name="output_check")
-        def output_check(context):
-            return 1.0 if context.trace.output else 0.0
+        def output_check(observation, task=None):
+            return 1.0 if observation.output else 0.0
 
         runner = Monitor()
         result = runner.run(traces=sample_traces)
@@ -313,8 +313,8 @@ class TestMonitorAggregation:
         """Individual scores with trace_ids are included in results."""
 
         @evaluator(name="test_eval")
-        def test_eval(context):
-            return 1.0 if context.trace.output else 0.0
+        def test_eval(observation, task=None):
+            return 1.0 if observation.output else 0.0
 
         runner = Monitor()
         result = runner.run(traces=sample_traces)

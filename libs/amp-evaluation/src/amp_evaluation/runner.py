@@ -77,7 +77,7 @@ import logging
 from .trace import Trajectory, parse_trace_for_evaluation, TraceFetcher
 from .registry import get_registry, get_evaluator
 from .evaluators.base import BaseEvaluator
-from .models import Task, Dataset, EvalContext, EvaluatorSummary, EvaluatorScore
+from .models import Task, Dataset, EvaluatorSummary, EvaluatorScore
 from .aggregators.base import normalize_aggregations
 from .config import Config
 
@@ -372,31 +372,17 @@ class BaseRunner(ABC):
         Returns:
             Dict mapping evaluator name to EvaluatorScore
         """
-        # Build evaluation context with all available data from task
-        context = EvalContext(
-            trace=trace,
-            is_experiment=self.run_type == RunType.EXPERIMENT,
-            # Expected data (ground truth)
-            _expected_output=task.expected_output if task else None,
-            _expected_trajectory=task.expected_trajectory if task else None,
-            _expected_outcome=task.expected_outcome if task else None,
-            # Guidelines
-            _success_criteria=task.success_criteria_text if task else None,
-            _prohibited_content=task.prohibited_content if task else None,
-            # Constraints (already in task)
-            _constraints=task.constraints if task else None,
-            # Custom attributes
-            _custom=task.custom if task else {},
-            # Task reference
-            _task=task,
-        )
+        # Create observation from trace (always available)
+        from .models import Observation
+
+        observation = Observation(trajectory=trace)
 
         scores = {}
 
         for evaluator in self._evaluators:
             try:
-                # Call evaluator - returns EvalResult
-                eval_result = evaluator(context)
+                # Call evaluator with new two-parameter signature
+                eval_result = evaluator(observation, task)
 
                 # Create EvaluatorScore directly from EvalResult
                 evaluator_score = EvaluatorScore(

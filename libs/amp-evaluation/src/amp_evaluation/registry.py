@@ -24,7 +24,7 @@ import inspect
 import logging
 
 from .evaluators.base import BaseEvaluator, FunctionEvaluator
-from .models import EvalResult, EvalContext
+from .models import EvalResult, Observation, Task
 
 
 logger = logging.getLogger(__name__)
@@ -198,8 +198,8 @@ class EvaluatorRegistry:
             _validate_evaluator_function(evaluator_or_func, name)
 
             @wraps(evaluator_or_func)
-            def wrapper(context: EvalContext) -> EvalResult:
-                result = evaluator_or_func(context)
+            def wrapper(observation: "Observation", task: Optional["Task"] = None) -> EvalResult:
+                result = evaluator_or_func(observation, task)
                 return _normalize_result(result)
 
             # Wrap in FunctionEvaluator

@@ -22,7 +22,7 @@ except ImportError:
 import evaluators  # noqa: F401
 
 from amp_evaluation import (
-    EvalContext,
+    Observation,
     Trajectory,
     ToolSpan,
     ToolMetrics,
@@ -121,12 +121,12 @@ def test_evaluators():
         print(f"  Tools: {[s.name for s in trace.tool_spans]}")
         print()
 
-        ctx = EvalContext(trace=trace, is_experiment=False)
+        observation = Observation(trajectory=trace)
 
         for eval_name in evaluator_names:
             try:
                 evaluator = get_evaluator(eval_name)
-                result = evaluator.evaluate(ctx)
+                result = evaluator.evaluate(observation)
                 status = "✓ PASS" if result.passed else "✗ FAIL"
                 print(f"  {eval_name}: {result.score:.2f} {status}")
                 print(f"    → {result.explanation}")
