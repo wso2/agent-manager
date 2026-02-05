@@ -308,6 +308,17 @@ kubectl logs -n openchoreo-observability-plane -l app=cluster-agent --tail=10
 echo "✅ OpenChoreo Observability Plane ready"
 echo ""
 
+# Enable Logs Collection
+helm upgrade --install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
+  --version  ${OPENCHOREO_VERSION} \
+  --namespace openchoreo-observability-plane \
+  --reuse-values \
+  --set fluent-bit.enabled=true \
+  --timeout 10m
+
+echo "✅ Logs collection enabled in Observability Plane"
+echo ""
+
 # ============================================================================
 # Step 5: Install Gateway Operator
 echo "9️⃣  Installing Gateway Operator..."

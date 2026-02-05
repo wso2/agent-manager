@@ -85,7 +85,7 @@ spec:
             IMAGE="{{ "{{" }}workflow.parameters.image-name{{ "}}" }}:{{ "{{" }}workflow.parameters.image-tag{{ "}}" }}-{{ "{{" }}inputs.parameters.git-revision{{ "}}" }}"
             APP_PATH="{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
 
-            echo "Building image: $IMAGE from path: $WORKDIR/$APP_PATH"
+            echo "Building image: $IMAGE from path: $WORKDIR$APP_PATH"
 
             #####################################################################
             # 1. Podman daemon + storage.conf
@@ -123,7 +123,7 @@ spec:
             /usr/local/bin/pack build "$IMAGE" \
               --builder "$BUILDER" \
               --docker-host inherit \
-              --path "$WORKDIR/$APP_PATH" \
+              --path "$WORKDIR$APP_PATH" \
               --volume "/mnt/vol:/app/generated-artifacts:rw" \
               --pull-policy if-not-present
 
