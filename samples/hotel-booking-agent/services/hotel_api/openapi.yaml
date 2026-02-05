@@ -1,0 +1,485 @@
+openapi: 3.0.3
+info:
+  title: Hotel Booking API
+  version: "1.0.0"
+servers:
+  - url: http://localhost:9091
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                required:
+                  - status
+  /bookings:
+    get:
+      summary: List bookings for the caller
+      parameters:
+        - name: x-user-id
+          in: header
+          required: false
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of bookings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Booking"
+    post:
+      summary: Create a booking
+      parameters:
+        - name: x-user-id
+          in: header
+          required: false
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingCreateRequest"
+      responses:
+        "201":
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingCreateResponse"
+  /bookings/{booking_id}:
+    get:
+      summary: Get a booking by id
+      parameters:
+        - name: booking_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: x-user-id
+          in: header
+          required: false
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Booking details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+    put:
+      summary: Update a booking
+      parameters:
+        - name: booking_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: x-user-id
+          in: header
+          required: false
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingUpdateRequest"
+      responses:
+        "200":
+          description: Booking updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingUpdateResponse"
+    delete:
+      summary: Cancel a booking
+      parameters:
+        - name: booking_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: x-user-id
+          in: header
+          required: false
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Booking cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingCancelResponse"
+  /hotels/search:
+    get:
+      summary: Search hotels
+      parameters:
+        - name: destination
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: checkInDate
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: checkOutDate
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: guests
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 2
+        - name: rooms
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: minPrice
+          in: query
+          required: false
+          schema:
+            type: number
+            format: float
+        - name: maxPrice
+          in: query
+          required: false
+          schema:
+            type: number
+            format: float
+        - name: minRating
+          in: query
+          required: false
+          schema:
+            type: number
+            format: float
+        - name: sortBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["price_low", "price_high", "rating"]
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HotelSearchResponse"
+  /hotels/resolve:
+    get:
+      summary: Resolve a hotel id by name
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Resolved hotel id
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hotelId:
+                    type: string
+                    nullable: true
+                required:
+                  - hotelId
+  /hotels/{hotel_id}:
+    get:
+      summary: Get hotel details
+      parameters:
+        - name: hotel_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: checkInDate
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: checkOutDate
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: guests
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 2
+      responses:
+        "200":
+          description: Hotel details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HotelDetailsResponse"
+  /hotels/{hotel_id}/availability:
+    get:
+      summary: Check availability for a hotel
+      parameters:
+        - name: hotel_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: checkInDate
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: checkOutDate
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: guests
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 2
+        - name: roomCount
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+      responses:
+        "200":
+          description: Availability results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityResponse"
+components:
+  schemas:
+    Booking:
+      type: object
+      properties:
+        bookingId:
+          type: string
+        hotelId:
+          type: string
+        hotelName:
+          type: string
+        rooms:
+          type: array
+          items:
+            type: object
+        userId:
+          type: string
+        checkInDate:
+          type: string
+        checkOutDate:
+          type: string
+        numberOfGuests:
+          type: integer
+        primaryGuest:
+          type: object
+        pricing:
+          type: array
+          items:
+            type: object
+        bookingStatus:
+          type: string
+        bookingDate:
+          type: string
+        confirmationNumber:
+          type: string
+        specialRequests:
+          type: string
+        updatedAt:
+          type: string
+        cancelledAt:
+          type: string
+    BookingCreateRequest:
+      type: object
+      properties:
+        hotelId:
+          type: string
+        hotelName:
+          type: string
+        rooms:
+          type: array
+          items:
+            type: object
+        checkInDate:
+          type: string
+        checkOutDate:
+          type: string
+        numberOfGuests:
+          type: integer
+        primaryGuest:
+          type: object
+        specialRequests:
+          type: string
+      required:
+        - hotelId
+        - hotelName
+        - rooms
+        - checkInDate
+        - checkOutDate
+        - numberOfGuests
+        - primaryGuest
+    BookingUpdateRequest:
+      type: object
+      properties:
+        hotelId:
+          type: string
+        hotelName:
+          type: string
+        rooms:
+          type: array
+          items:
+            type: object
+        checkInDate:
+          type: string
+        checkOutDate:
+          type: string
+        numberOfGuests:
+          type: integer
+        primaryGuest:
+          type: object
+        specialRequests:
+          type: string
+    BookingCreateResponse:
+      type: object
+      properties:
+        bookingId:
+          type: string
+        confirmationNumber:
+          type: string
+        message:
+          type: string
+        bookingDetails:
+          $ref: "#/components/schemas/Booking"
+    BookingUpdateResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        bookingDetails:
+          $ref: "#/components/schemas/Booking"
+    BookingCancelResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        bookingDetails:
+          $ref: "#/components/schemas/Booking"
+    HotelSearchResponse:
+      type: object
+      properties:
+        hotels:
+          type: array
+          items:
+            type: object
+        metadata:
+          type: object
+          properties:
+            totalResults:
+              type: integer
+            page:
+              type: integer
+            pageSize:
+              type: integer
+            dataSource:
+              type: string
+    HotelDetailsResponse:
+      type: object
+      properties:
+        hotel:
+          type: object
+        rooms:
+          type: array
+          items:
+            type: object
+        recentReviews:
+          type: array
+          items:
+            type: object
+        nearbyAttractions:
+          type: array
+          items:
+            type: object
+    AvailabilityResponse:
+      type: object
+      properties:
+        hotelId:
+          type: string
+        checkInDate:
+          type: string
+        checkOutDate:
+          type: string
+        availableRooms:
+          type: array
+          items:
+            type: object
+        totalAvailable:
+          type: integer

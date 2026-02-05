@@ -1,0 +1,196 @@
+[
+  {
+    "bookingId": "BK42788303",
+    "hotelId": "mock-001-paris",
+    "hotelName": "Azure Bay Resort Paris",
+    "rooms": [
+      {
+        "roomId": "mock-001-paris_BookingCom_1",
+        "numberOfRooms": 1,
+        "pricePerNight": 371.88
+      }
+    ],
+    "userId": "user_123",
+    "checkInDate": "2026-02-10",
+    "checkOutDate": "2026-02-12",
+    "numberOfGuests": 2,
+    "primaryGuest": {
+      "firstName": "Ava",
+      "lastName": "Lee",
+      "email": "ava@example.com",
+      "phoneNumber": "+1234567890"
+    },
+    "pricing": [],
+    "bookingStatus": "CONFIRMED",
+    "bookingDate": "2026-01-30T08:45:05.788291+00:00",
+    "confirmationNumber": "CONF92c9a294-d121-4c12-8406-61f812084368",
+    "specialRequests": {
+      "otherRequests": "Late check-in"
+    }
+  },
+  {
+    "bookingId": "BK99E89980",
+    "hotelId": "h1",
+    "hotelName": "Hotel One",
+    "rooms": [
+      {
+        "roomType": "Queen",
+        "quantity": 1
+      }
+    ],
+    "userId": "user-a",
+    "checkInDate": "2026-02-10",
+    "checkOutDate": "2026-02-12",
+    "numberOfGuests": 2,
+    "primaryGuest": {
+      "firstName": "Ava",
+      "lastName": "Lee"
+    },
+    "pricing": [],
+    "bookingStatus": "CANCELLED",
+    "bookingDate": "2026-02-03T06:57:01.415099+00:00",
+    "confirmationNumber": "CONF033715bf-9a7c-4892-b57a-949cdad808a5",
+    "specialRequests": "High floor",
+    "updatedAt": "2026-02-03T07:05:46.954947+00:00",
+    "cancelledAt": "2026-02-03T07:05:51.245974+00:00"
+  },
+  {
+    "bookingId": "BK2E12A8AC",
+    "hotelId": "h2",
+    "hotelName": "Hotel Two",
+    "rooms": [
+      {
+        "roomType": "King",
+        "quantity": 1
+      }
+    ],
+    "userId": "user-b",
+    "checkInDate": "2026-02-15",
+    "checkOutDate": "2026-02-16",
+    "numberOfGuests": 1,
+    "primaryGuest": {
+      "firstName": "Ben",
+      "lastName": "Ray"
+    },
+    "pricing": [],
+    "bookingStatus": "CANCELLED",
+    "bookingDate": "2026-02-03T06:57:01.419397+00:00",
+    "confirmationNumber": "CONF6bcc4f9a-e4f9-49d3-a762-c826057f4083",
+    "specialRequests": null,
+    "cancelledAt": "2026-02-03T07:32:08.594344+00:00"
+  },
+  {
+    "bookingId": "BKA1E1EB5A",
+    "hotelId": "mock-004-dubai",
+    "hotelName": "Golden Sands Palace Dubai",
+    "rooms": [
+      {
+        "roomId": "mock-004-dubai_BookingCom_1",
+        "numberOfRooms": 1,
+        "pricePerNight": 531.02
+      }
+    ],
+    "userId": "user-a",
+    "checkInDate": "2026-02-07",
+    "checkOutDate": "2026-02-08",
+    "numberOfGuests": 1,
+    "primaryGuest": {
+      "firstName": "Venumi",
+      "lastName": "Gunasekara",
+      "email": "venumi@123",
+      "phoneNumber": "12345678",
+      "nationality": null
+    },
+    "pricing": [],
+    "bookingStatus": "CONFIRMED",
+    "bookingDate": "2026-02-03T07:05:39.992452+00:00",
+    "confirmationNumber": "CONFf7aae19c-3066-41d8-8aa7-a01ad924e672",
+    "specialRequests": null
+  },
+  {
+    "bookingId": "BK3AEF2795",
+    "hotelId": "mock-004-dubai",
+    "hotelName": "Golden Sands Palace Dubai",
+    "rooms": [
+      {
+        "roomId": "1",
+        "numberOfRooms": 1,
+        "pricePerNight": 425.0
+      }
+    ],
+    "userId": "user-b",
+    "checkInDate": "2026-02-04",
+    "checkOutDate": "2026-02-06",
+    "numberOfGuests": 1,
+    "primaryGuest": {
+      "firstName": "user-b",
+      "lastName": "user-b",
+      "email": "user-b@example.com",
+      "phoneNumber": "+123456789",
+      "nationality": "USA"
+    },
+    "pricing": [],
+    "bookingStatus": "CANCELLED",
+    "bookingDate": "2026-02-03T07:08:46.301003+00:00",
+    "confirmationNumber": "CONFc5e7067f-680a-4312-8c7b-5442e1da750d",
+    "specialRequests": null,
+    "cancelledAt": "2026-02-03T07:33:03.957006+00:00"
+  },
+  {
+    "bookingId": "BK413696F8",
+    "hotelId": "mock-004-dubai",
+    "hotelName": "Golden Sands Palace Dubai",
+    "rooms": [
+      {
+        "roomId": "1",
+        "numberOfRooms": 1,
+        "pricePerNight": 425.0
+      }
+    ],
+    "userId": "user-b",
+    "checkInDate": "2026-02-04",
+    "checkOutDate": "2026-02-06",
+    "numberOfGuests": 1,
+    "primaryGuest": {
+      "firstName": "User",
+      "lastName": "B",
+      "email": "userb@123",
+      "phoneNumber": "99988877",
+      "nationality": "USA"
+    },
+    "pricing": [],
+    "bookingStatus": "CONFIRMED",
+    "bookingDate": "2026-02-03T07:08:57.553890+00:00",
+    "confirmationNumber": "CONF7ffdac78-fc8e-46cc-8295-40f3d6d2433a",
+    "specialRequests": null
+  },
+  {
+    "bookingId": "BKD154FC96",
+    "hotelId": "mock-002-tokyo",
+    "hotelName": "The Crimson Tower Tokyo",
+    "rooms": [
+      {
+        "roomId": "mock-002-tokyo_PreferredHotels1_1",
+        "numberOfRooms": 1,
+        "pricePerNight": 184.69
+      }
+    ],
+    "userId": "user_1",
+    "checkInDate": "2026-02-12",
+    "checkOutDate": "2026-02-14",
+    "numberOfGuests": 2,
+    "primaryGuest": {
+      "firstName": "Alex",
+      "lastName": "Alex",
+      "email": "alex@example.com",
+      "phoneNumber": "555-0000",
+      "nationality": null
+    },
+    "pricing": [],
+    "bookingStatus": "CONFIRMED",
+    "bookingDate": "2026-02-05T06:51:13.882136+00:00",
+    "confirmationNumber": "CONF61ee4e52-9434-40c2-9c45-1e4812fb1a28",
+    "specialRequests": null,
+    "updatedAt": "2026-02-05T06:52:50.602512+00:00"
+  }
+]
