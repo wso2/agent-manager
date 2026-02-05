@@ -58,7 +58,7 @@ const expiryBuffer = 30 * time.Second
 func NewTokenProvider(cfg config.IDPConfig) TokenProvider {
 	return &tokenProvider{
 		config:     cfg,
-		httpClient: requests.NewRetryableHTTPClient(&http.Client{Timeout: 15 * time.Second}),
+		httpClient: requests.NewRetryableHTTPClient(&http.Client{}),
 	}
 }
 

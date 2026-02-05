@@ -71,7 +71,7 @@ const expiryBuffer = 30 * time.Second
 func NewAuthProvider(cfg Config) client.AuthProvider {
 	return &AuthProvider{
 		config:     cfg,
-		httpClient: requests.NewRetryableHTTPClient(&http.Client{Timeout: 15 * time.Second}),
+		httpClient: requests.NewRetryableHTTPClient(&http.Client{}),
 	}
 }
 

@@ -146,6 +146,14 @@ func (c *RetryableHTTPClient) doAttempt(ctx context.Context, req *http.Request, 
 		}
 		if isLastAttempt {
 			log.Warn("HTTP request returned retryable status after all attempts", logAttrs...)
+			// Read body before attemptCtx is canceled to prevent "context canceled" errors
+			bodyBytes, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				return nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			// Replace body with buffered version
+			resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 			return resp, nil
 		}
 		log.Debug("HTTP request returned retryable status, retrying", logAttrs...)
@@ -155,6 +163,14 @@ func (c *RetryableHTTPClient) doAttempt(ctx context.Context, req *http.Request, 
 		return nil, nil // Signal to retry
 	}
 
+	// Read body before attemptCtx is canceled to prevent "context canceled" errors
+	bodyBytes, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+	// Replace body with buffered version so caller can still read it
+	resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	return resp, nil
 }
 

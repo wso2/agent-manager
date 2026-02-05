@@ -51,7 +51,7 @@ type observabilitySvcClient struct {
 func NewObservabilitySvcClient() ObservabilitySvcClient {
 	cfg := config.GetConfig()
 	return &observabilitySvcClient{
-		httpClient:    requests.NewRetryableHTTPClient(&http.Client{Timeout: time.Second * 15}),
+		httpClient:    requests.NewRetryableHTTPClient(&http.Client{}),
 		tokenProvider: idp.NewTokenProvider(cfg.IDP),
 	}
 }

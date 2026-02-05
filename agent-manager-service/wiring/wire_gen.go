@@ -7,7 +7,10 @@
 package wiring
 
 import (
+	"log/slog"
+
 	"github.com/google/wire"
+
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
@@ -16,7 +19,6 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
-	"log/slog"
 )
 
 // Injectors from wire.go:
