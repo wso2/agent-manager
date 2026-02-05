@@ -189,7 +189,7 @@ func buildUpdatedWorkflowParameters(component *gen.ComponentResponse, req Update
 
 	// Update buildpack configs if RuntimeConfigs provided
 	if req.RuntimeConfigs != nil {
-		buildpackConfigs := make(map[string]any)
+		var buildpackConfigs map[string]any
 		if isGoogleBuildpack(req.RuntimeConfigs.Language) {
 			buildpackConfigs = map[string]any{
 				"language":           req.RuntimeConfigs.Language,

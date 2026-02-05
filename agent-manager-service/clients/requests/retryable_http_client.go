@@ -19,6 +19,7 @@ package requests
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -26,6 +27,9 @@ import (
 	"net/http"
 	"time"
 )
+
+// errRetry is a sentinel error used internally to signal retry attempts.
+var errRetry = errors.New("retry")
 
 // RetryableHTTPClient wraps an HttpClient with retry logic.
 // It implements HttpClient interface and can be used with oapi-codegen generated clients.
@@ -64,7 +68,9 @@ func (c *RetryableHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	if req.Body != nil {
 		var err error
 		bodyBytes, err = io.ReadAll(req.Body)
-		req.Body.Close()
+		if closeErr := req.Body.Close(); closeErr != nil {
+			log.Warn("failed to close request body", slog.String("error", closeErr.Error()))
+		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to read request body: %w", err)
 		}
@@ -79,11 +85,11 @@ func (c *RetryableHTTPClient) Do(req *http.Request) (*http.Response, error) {
 		}
 
 		resp, err := c.doAttempt(ctx, req, cfg, attempt, isLastAttempt, log)
-		if resp != nil || err != nil {
+		if !errors.Is(err, errRetry) {
 			return resp, err
 		}
 
-		// nil, nil means retry - wait before next attempt
+		// errRetry means retry - wait before next attempt
 		if !isLastAttempt {
 			waitDuration := calculateBackoff(cfg.RetryWaitMin, cfg.RetryWaitMax, attempt)
 			select {
@@ -121,7 +127,7 @@ func (c *RetryableHTTPClient) doAttempt(ctx context.Context, req *http.Request, 
 				return nil, fmt.Errorf("request timed out after %d attempts: %w", attempt, err)
 			}
 			log.Debug("HTTP request attempt timed out, retrying", logAttrs...)
-			return nil, nil // Signal to retry
+			return nil, errRetry
 		}
 		logAttrs := []any{
 			slog.Int("attempt", attempt),
@@ -133,7 +139,7 @@ func (c *RetryableHTTPClient) doAttempt(ctx context.Context, req *http.Request, 
 			return nil, fmt.Errorf("request failed after %d attempts: %w", attempt, err)
 		}
 		log.Debug("HTTP request failed, retrying", logAttrs...)
-		return nil, nil // Signal to retry
+		return nil, errRetry
 	}
 
 	// Check if status code is retryable
@@ -148,7 +154,9 @@ func (c *RetryableHTTPClient) doAttempt(ctx context.Context, req *http.Request, 
 			log.Warn("HTTP request returned retryable status after all attempts", logAttrs...)
 			// Read body before attemptCtx is canceled to prevent "context canceled" errors
 			bodyBytes, err := io.ReadAll(resp.Body)
-			resp.Body.Close()
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				log.Warn("failed to close response body", slog.String("error", closeErr.Error()))
+			}
 			if err != nil {
 				return nil, fmt.Errorf("failed to read response body: %w", err)
 			}
@@ -158,14 +166,20 @@ func (c *RetryableHTTPClient) doAttempt(ctx context.Context, req *http.Request, 
 		}
 		log.Debug("HTTP request returned retryable status, retrying", logAttrs...)
 		// Drain and close body to allow connection reuse
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-		return nil, nil // Signal to retry
+		if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+			log.Warn("failed to drain response body", slog.String("error", err.Error()))
+		}
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			log.Warn("failed to close response body", slog.String("error", closeErr.Error()))
+		}
+		return nil, errRetry
 	}
 
 	// Read body before attemptCtx is canceled to prevent "context canceled" errors
 	bodyBytes, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	if closeErr := resp.Body.Close(); closeErr != nil {
+		log.Warn("failed to close response body", slog.String("error", closeErr.Error()))
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
