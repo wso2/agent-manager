@@ -68,7 +68,7 @@ export const TokenGenerationStep = ({
   }, [data?.token, onTokenGenerated]);
 
   const displayToken = data?.token || "ey***";
-  const codeSnippet = `API Key="${displayToken}"`;
+  const codeSnippet = `${displayToken}`;
 
   return (
     <Box display="flex" gap={1} flexDirection="column">

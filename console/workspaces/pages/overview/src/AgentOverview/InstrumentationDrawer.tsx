@@ -172,12 +172,10 @@ tracingProvider = "amp"`}
                 stepNumber={5}
                 title="Set Environment Variables"
                 code={`export BAL_CONFIG_VAR_BALLERINAX_AMP_OTELENDPOINT="${instrumentationUrl}"
-export BAL_CONFIG_VAR_BALLERINAX_AMP_APIKEY="${effectiveApiKey}"
-export BAL_CONFIG_VAR_BALLERINAX_AMP_COMPONENTUID="${componentUid || ''}"
-export BAL_CONFIG_VAR_BALLERINAX_AMP_ENVIRONMENTUID="${environmentUid || ''}"`}
+export BAL_CONFIG_VAR_BALLERINAX_AMP_APIKEY="${effectiveApiKey}"`}
                 language="bash"
                 fieldId="env-vars"
-                description="Configure the Amp connection using environment variables."
+                description="Configure the exporter using environment variables."
               />
             </>
           )}
