@@ -35,7 +35,11 @@ class CompanyFundamentalsFetchTool(BaseTool):
         if not api_key:
             return _error_payload("ALPHAVANTAGE_API_KEY missing", provider="alpha_vantage")
 
-        limit = max(1, min(int(limit), 12))
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            limit = 1
+        limit = max(1, min(limit, 12))
 
         overview, overview_error = _fetch_alpha("OVERVIEW", symbol, api_key)
         income_raw, income_error = _fetch_alpha("INCOME_STATEMENT", symbol, api_key)

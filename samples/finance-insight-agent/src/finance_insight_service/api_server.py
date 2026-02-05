@@ -102,6 +102,15 @@ def _normalize_list(value: Any) -> list[str]:
     return [str(value).strip()]
 
 
+def _bounded_int(value: Any, default: int, min_v: int, max_v: int) -> int:
+    """Parse an int and clamp to an allowed range, falling back to default."""
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        return default
+    return v if min_v <= v <= max_v else default
+
+
 def _build_search_query(query: str, tickers: Any, sites: Any) -> str:
     """Build a SerpAPI search query with tickers and site filters."""
     parts = [query.strip()] if query.strip() else []
@@ -178,8 +187,8 @@ def _build_inputs(payload: dict[str, Any]) -> dict[str, Any]:
     sites = payload.get("sites", "")
     symbol = payload.get("symbol", "")
     interval = payload.get("interval", "1day")
-    outputsize = int(payload.get("outputsize", 260) or 260)
-    horizon_days = int(payload.get("horizon_days", 30) or 30)
+    outputsize = _bounded_int(payload.get("outputsize"), 260, 10, 5000)
+    horizon_days = _bounded_int(payload.get("horizon_days"), 30, 1, 365)
     provided_data = payload.get("provided_data", "")
     if isinstance(provided_data, (dict, list)):
         provided_data = json.dumps(provided_data)
@@ -188,8 +197,8 @@ def _build_inputs(payload: dict[str, Any]) -> dict[str, Any]:
     # Get current date/time to provide context
     current_date = datetime.now().strftime("%Y-%m-%d")
     current_year = datetime.now().year
-    days = int(payload.get("days", 7) or 7)
-    max_articles = int(payload.get("max_articles", 8) or 8)
+    days = _bounded_int(payload.get("days"), 7, 1, 30)
+    max_articles = _bounded_int(payload.get("max_articles"), 8, 1, 20)
 
     return {
         "user_request": user_request,
@@ -397,11 +406,8 @@ def create_app() -> Flask:
                 inputs = _build_inputs(payload)
                 crew = FinanceInsightCrew(job_id=job_id).build_crew()
 
-                # Store unsubscribe functions to clean up after
-                unsubscribe_funcs = []
-
                 try:
-                    # Subscribe to events and store unsubscribe functions
+                    # Subscribe to events within a scoped handler context
                     def handler_wrapper(src, evt):
                         nonlocal pending_crew_completed
                         nonlocal crew_completed_emitted
@@ -438,25 +444,20 @@ def create_app() -> Flask:
                             agent = getattr(getattr(evt.task, "agent", None), "role", None)
                             emit_trace("task_failed", task=task_name, agent=agent)
 
-                    for event_cls in [
-                        CrewKickoffStartedEvent,
-                        CrewKickoffCompletedEvent,
-                        CrewKickoffFailedEvent,
-                        TaskStartedEvent,
-                        TaskCompletedEvent,
-                        TaskFailedEvent,
-                    ]:
-                        unsub = crewai_event_bus.on(event_cls)(handler_wrapper)
-                        unsubscribe_funcs.append(unsub)
+                    with crewai_event_bus.scoped_handlers():
+                        for event_cls in [
+                            CrewKickoffStartedEvent,
+                            CrewKickoffCompletedEvent,
+                            CrewKickoffFailedEvent,
+                            TaskStartedEvent,
+                            TaskCompletedEvent,
+                            TaskFailedEvent,
+                        ]:
+                            crewai_event_bus.on(event_cls)(handler_wrapper)
 
-                    result = crew.kickoff(inputs=inputs)
+                        result = crew.kickoff(inputs=inputs)
                 finally:
-                    # Unsubscribe all handlers to prevent memory leaks
-                    for unsub in unsubscribe_funcs:
-                        try:
-                            unsub()
-                        except Exception:
-                            pass
+                    pass
 
                 if _is_job_cancelled(job_id):
                     with jobs_lock:

@@ -3,8 +3,9 @@ import datetime as datetime_module
 import io
 import json
 import math
-import signal
 import statistics
+import subprocess
+import sys
 import time
 import traceback
 import textwrap
@@ -65,62 +66,10 @@ class SafePythonExecTool(BaseTool):
         def _deny_exit(*_args, **_kwargs):
             raise RuntimeError("exit is not allowed; return limitations instead")
 
-        safe_builtins = {
-            "abs": abs,
-            "all": all,
-            "any": any,
-            "bool": bool,
-            "dict": dict,
-            "enumerate": enumerate,
-            "Exception": Exception,
-            "exit": _deny_exit,
-            "float": float,
-            "int": int,
-            "isinstance": isinstance,
-            "len": len,
-            "list": list,
-            "max": max,
-            "min": min,
-            "NameError": NameError,
-            "print": print,
-            "range": range,
-            "round": round,
-            "set": set,
-            "sorted": sorted,
-            "str": str,
-            "sum": sum,
-            # NOTE: Including `type` enables basic introspection. This sandbox is
-            # only for trusted, agent-generated code and is not a security
-            # boundary for untrusted input.
-            "type": type,
-            "zip": zip,
-        }
-
-        allowed_modules = {
-            "math": math,
-            "statistics": statistics,
-            "datetime": datetime_module,
-            "json": json,
-            "time": time,
-            "numpy": np,
-            "pandas": pd,
-        }
-
-        def _limited_import(name, globals=None, locals=None, fromlist=(), level=0):
-            if name in allowed_modules:
-                return allowed_modules[name]
-            raise ImportError(f"Module not allowed: {name}")
-
-        safe_builtins["__import__"] = _limited_import
-
-        context = {"__builtins__": safe_builtins}
-        context.update(allowed_modules)
-        context["np"] = np
-        context["pd"] = pd
-
-        if data_json:
+        data_payload = None
+        if data_json is not None:
             try:
-                context["data"] = _parse_json_payload(data_json)
+                data_payload = _parse_json_payload(data_json)
             except ValueError as exc:
                 return json.dumps(
                     {
@@ -130,40 +79,61 @@ class SafePythonExecTool(BaseTool):
                     },
                     ensure_ascii=True,
                 )
-        else:
-            context["data"] = None
 
-        stdout = io.StringIO()
-        old_handler = None
         try:
-            try:
-                old_handler = signal.getsignal(signal.SIGALRM)
-                signal.signal(signal.SIGALRM, _timeout_handler)
-                signal.alarm(EXEC_TIMEOUT_SECONDS)
-            except (AttributeError, ValueError):
-                old_handler = None
-            with redirect_stdout(stdout):
-                exec(code_to_run, context)
-        except Exception as exc:
+            payload_json = json.dumps(
+                {"code": code_to_run, "data": data_payload},
+                ensure_ascii=True,
+            )
+        except TypeError:
+            payload_json = json.dumps(
+                {"code": code_to_run, "data": str(data_payload)},
+                ensure_ascii=True,
+            )
+
+        try:
+            completed = subprocess.run(
+                [sys.executable, "-c", _EXEC_RUNNER],
+                input=payload_json,
+                text=True,
+                capture_output=True,
+                timeout=EXEC_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
             return json.dumps(
                 {
-                    "status": "CODE_ERROR",
-                    "error": f"execution failed: {exc}",
-                    "traceback": traceback.format_exc(),
+                    "status": "TIMEOUT",
+                    "error": f"execution timed out after {EXEC_TIMEOUT_SECONDS}s",
                     "code": code_to_run,
                 },
                 ensure_ascii=True,
             )
-        finally:
-            if old_handler is not None:
-                signal.alarm(0)
-                signal.signal(signal.SIGALRM, old_handler)
 
-        output = stdout.getvalue().strip()
-        return json.dumps(
-            {"status": "SUCCESS", "final_output": output, "code": code_to_run},
-            ensure_ascii=True,
-        )
+        stdout_text = (completed.stdout or "").strip()
+        if not stdout_text:
+            return json.dumps(
+                {
+                    "status": "CODE_ERROR",
+                    "error": "execution failed: no output from sandbox",
+                    "traceback": completed.stderr,
+                    "code": code_to_run,
+                },
+                ensure_ascii=True,
+            )
+        try:
+            # Runner outputs a single JSON payload to stdout.
+            json.loads(stdout_text)
+            return stdout_text
+        except json.JSONDecodeError:
+            return json.dumps(
+                {
+                    "status": "CODE_ERROR",
+                    "error": "execution failed: invalid sandbox output",
+                    "traceback": completed.stderr,
+                    "code": code_to_run,
+                },
+                ensure_ascii=True,
+            )
 
 
 def _parse_json_payload(value: object):
@@ -181,6 +151,7 @@ def _parse_json_payload(value: object):
             return _parse_json_payload(parsed)
         return _normalize_parsed_payload(parsed)
     except json.JSONDecodeError:
+        # Fall back to raw decode / literal_eval strategies below.
         pass
 
     decoder = json.JSONDecoder()
@@ -215,11 +186,13 @@ def _normalize_parsed_payload(payload: Any):
                         normalized.append(json.loads(text))
                         continue
                     except json.JSONDecodeError:
+                        # If not valid JSON, try literal_eval or keep as-is.
                         pass
                     try:
                         normalized.append(ast.literal_eval(text))
                         continue
                     except (ValueError, SyntaxError):
+                        # Fall back to original item if not parseable.
                         pass
             normalized.append(item)
         return normalized
@@ -269,9 +242,123 @@ def _normalize_indentation(code: str) -> str:
     return "\n".join(normalized)
 
 
-EXEC_TIMEOUT_SECONDS = 600
+EXEC_TIMEOUT_SECONDS = 60
 
 
-def _timeout_handler(_signum, _frame):
-    """Raise a timeout error when execution exceeds the limit."""
-    raise TimeoutError(f"execution timed out after {EXEC_TIMEOUT_SECONDS}s")
+_EXEC_RUNNER = r"""
+import json
+import math
+import statistics
+import datetime as datetime_module
+import time
+import traceback
+import io
+import sys
+from contextlib import redirect_stdout
+
+try:
+    import numpy as np
+    import pandas as pd
+except Exception as exc:
+    print(
+        json.dumps(
+            {
+                "status": "CODE_ERROR",
+                "error": f"module import failed: {exc}",
+                "code": "",
+            },
+            ensure_ascii=True,
+        )
+    )
+    raise SystemExit(1)
+
+
+def _deny_exit(*_args, **_kwargs):
+    raise RuntimeError("exit is not allowed; return limitations instead")
+
+
+safe_builtins = {
+    "abs": abs,
+    "all": all,
+    "any": any,
+    "bool": bool,
+    "dict": dict,
+    "enumerate": enumerate,
+    "Exception": Exception,
+    "exit": _deny_exit,
+    "float": float,
+    "int": int,
+    "isinstance": isinstance,
+    "len": len,
+    "list": list,
+    "max": max,
+    "min": min,
+    "NameError": NameError,
+    "print": print,
+    "range": range,
+    "round": round,
+    "set": set,
+    "sorted": sorted,
+    "str": str,
+    "sum": sum,
+    # NOTE: Including `type` enables basic introspection. This sandbox is
+    # only for trusted, agent-generated code and is not a security
+    # boundary for untrusted input.
+    "type": type,
+    "zip": zip,
+}
+
+allowed_modules = {
+    "math": math,
+    "statistics": statistics,
+    "datetime": datetime_module,
+    "json": json,
+    "time": time,
+    "numpy": np,
+    "pandas": pd,
+}
+
+
+def _limited_import(name, globals=None, locals=None, fromlist=(), level=0):
+    if name in allowed_modules:
+        return allowed_modules[name]
+    raise ImportError(f"Module not allowed: {name}")
+
+
+safe_builtins["__import__"] = _limited_import
+
+payload = json.load(sys.stdin)
+code_to_run = payload.get("code") or ""
+data = payload.get("data")
+
+context = {"__builtins__": safe_builtins}
+context.update(allowed_modules)
+context["np"] = np
+context["pd"] = pd
+context["data"] = data
+
+stdout = io.StringIO()
+try:
+    with redirect_stdout(stdout):
+        exec(code_to_run, context)
+    output = stdout.getvalue().strip()
+    print(
+        json.dumps(
+            {"status": "SUCCESS", "final_output": output, "code": code_to_run},
+            ensure_ascii=True,
+        )
+    )
+except Exception as exc:
+    print(
+        json.dumps(
+            {
+                "status": "CODE_ERROR",
+                "error": f"execution failed: {exc}",
+                "traceback": traceback.format_exc(),
+                "code": code_to_run,
+            },
+            ensure_ascii=True,
+        )
+    )
+    raise SystemExit(1)
+"""
