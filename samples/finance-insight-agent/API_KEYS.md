@@ -92,9 +92,10 @@ uv run finance_insight_api --host 0.0.0.0 --port 5000
 ### Production Mode
 For production deployments, set environment variables directly:
 
-**Docker:**
+**Docker (recommended):**
 ```bash
-docker run -e OPENAI_API_KEY=sk-... -e SERPAPI_API_KEY=... -e TWELVE_DATA_API_KEY=... -e ALPHAVANTAGE_API_KEY=... finance-insight
+# Create .env with your secrets (keep it out of git)
+docker run --env-file .env finance-insight
 ```
 
 **Systemd Service:**
@@ -106,10 +107,9 @@ Environment="TWELVE_DATA_API_KEY=..."
 Environment="ALPHAVANTAGE_API_KEY=..."
 ```
 
-**Cloud Platforms:**
-- AWS: Use Parameter Store or Secrets Manager
-- Heroku: Set Config Vars in dashboard
-- Render/Railway: Use environment variables in UI
+**OpenChoreo / AMP:**
+- Set these as environment variables when creating or updating the agent in the AMP UI.
+
 
 ## Required Keys
 

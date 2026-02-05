@@ -5,15 +5,16 @@ description = "Finance Insight Service - research agent"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "crewai[tools]>=0.83.0",
-  "crewai-tools>=0.28.0",
-  "openinference-instrumentation-crewai>=0.1.0",
-  "flask>=3.0.0",
-  "flask-cors>=4.0.0",
-  "numpy>=1.26.4",
-  "openai>=1.40.0",
-  "pandas>=2.2.2",
-  "python-dotenv>=1.0.1",
+  "crewai[tools]>=1.8.0,<1.9.0",
+  "crewai-tools>=1.8.0,<1.9.0",
+  "openinference-instrumentation-crewai>=0.1.0,<0.2.0",
+  "flask>=3.0.0,<4.0.0",
+  "flask-cors>=4.0.0,<5.0.0",
+  "numpy>=1.26.4,<2.0.0",
+  "openai>=1.40.0,<2.0.0",
+  "pandas>=2.2.2,<3.0.0",
+  "python-dotenv>=1.0.1,<2.0.0",
+  "setuptools>=65.0.0,<80.0.0",
 ]
 
 [project.scripts]

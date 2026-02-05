@@ -39,7 +39,13 @@ The UI expects:
 
 ### Environment option
 
-You can set a default backend URL in `src/ui/.env.local`:
+The UI defaults to the AMP/Choreo gateway URL:
+
+```
+http://default.localhost:9080/finance-insight
+```
+
+Override this for local development or other deployments via `src/ui/.env.local`:
 
 ```
 NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
@@ -54,6 +60,6 @@ The Settings page overrides this per browser (stored in `localStorage`).
 
 ## Security notes
 
-- API keys stored in localStorage are fine for local dev only.
+- API keys stored in localStorage are vulnerable to XSS. Use this only for local dev.
 - For production, use server-side auth (sessions/JWT) and do not expose keys.
 - Use HTTPS and restrict CORS origins to your frontend domain.

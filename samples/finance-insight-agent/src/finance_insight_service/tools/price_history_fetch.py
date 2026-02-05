@@ -11,12 +11,14 @@ from crewai.tools import BaseTool
 
 
 class PriceHistoryFetchArgs(BaseModel):
+    """Arguments for price history fetching."""
     symbol: str = Field(..., description="Ticker or symbol to fetch.")
     interval: str = Field("1day", description="Interval (1day, 1week, 1month).")
     outputsize: int = Field(365, description="Number of data points to return.")
 
 
 class PriceHistoryFetchTool(BaseTool):
+    """CrewAI tool for fetching OHLCV price history."""
     name: str = "price_history_fetch"
     description: str = (
         "Fetches OHLCV price history from Twelve Data. "
@@ -25,6 +27,7 @@ class PriceHistoryFetchTool(BaseTool):
     args_schema: type[BaseModel] = PriceHistoryFetchArgs
 
     def _run(self, symbol: str, interval: str = "1day", outputsize: int = 365) -> str:
+        """Fetch OHLCV history for a symbol and return JSON."""
         symbol = (symbol or "").strip()
         if not symbol:
             return _error_payload("symbol is required")
@@ -37,6 +40,7 @@ class PriceHistoryFetchTool(BaseTool):
 
 
 def _error_payload(message: str, provider: str = "") -> str:
+    """Return a JSON error payload for price history fetches."""
     return json.dumps(
         {
             "provider": provider,
@@ -51,6 +55,7 @@ def _error_payload(message: str, provider: str = "") -> str:
 
 
 def _fetch_twelve_data(symbol: str, interval: str, outputsize: int) -> dict[str, Any]:
+    """Fetch OHLCV data from Twelve Data."""
     api_key = os.getenv("TWELVE_DATA_API_KEY")
     if not api_key:
         return _error_dict("twelve_data", symbol, interval, "TWELVE_DATA_API_KEY missing")
@@ -110,6 +115,7 @@ def _fetch_twelve_data(symbol: str, interval: str, outputsize: int) -> dict[str,
 
 
 def _error_dict(provider: str, symbol: str, interval: str, message: str) -> dict[str, Any]:
+    """Build a structured error payload dictionary."""
     return {
         "provider": provider,
         "symbol": symbol,

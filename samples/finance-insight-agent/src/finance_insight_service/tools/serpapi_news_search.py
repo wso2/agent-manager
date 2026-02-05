@@ -11,6 +11,7 @@ from crewai.tools import BaseTool
 
 
 class SerpApiNewsSearchArgs(BaseModel):
+    """Arguments for news search via SerpAPI."""
     search_query: str = Field(
         ..., description="Search query for recent news articles."
     )
@@ -21,6 +22,7 @@ class SerpApiNewsSearchArgs(BaseModel):
 
 
 class SerpApiNewsSearchTool(BaseTool):
+    """CrewAI tool for fetching recent news results."""
     name: str = "serpapi_news_search"
     description: str = (
         "Searches recent news via SerpAPI. Requires SERPAPI_API_KEY in the environment."
@@ -33,6 +35,7 @@ class SerpApiNewsSearchTool(BaseTool):
         location: str | None = None,
         n_results: int = 10,
     ) -> str:
+        """Search recent news and return results as JSON."""
         query = (search_query or "").strip()
         if not query:
             return _error_payload("search_query is required")
@@ -78,6 +81,7 @@ class SerpApiNewsSearchTool(BaseTool):
 
 
 def _extract_news_items(payload: dict[str, Any], n_results: int) -> list[dict[str, str]]:
+    """Extract news entries from a SerpAPI payload."""
     items: list[dict[str, str]] = []
     for entry in payload.get("news_results", [])[:n_results]:
         items.append(
@@ -107,6 +111,7 @@ def _extract_news_items(payload: dict[str, Any], n_results: int) -> list[dict[st
 
 
 def _error_payload(message: str) -> str:
+    """Return a JSON error payload for news searches."""
     return json.dumps(
         {
             "provider": "serpapi",

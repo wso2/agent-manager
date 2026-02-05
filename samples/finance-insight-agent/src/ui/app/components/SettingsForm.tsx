@@ -38,7 +38,12 @@ export default function SettingsForm() {
     setApiKey(config.apiKey ?? "");
     
     // Load keys from localStorage
-    const savedKeys = localStorage.getItem("financeApiKeys");
+    let savedKeys: string | null = null;
+    try {
+      savedKeys = localStorage.getItem("financeApiKeys");
+    } catch (error) {
+      console.warn("[Settings] localStorage unavailable:", error);
+    }
     if (savedKeys) {
       try {
         const parsed = JSON.parse(savedKeys) as Partial<ApiKeys> & {
@@ -66,7 +71,11 @@ export default function SettingsForm() {
     const trimmedKey = apiKey.trim();
 
     setApiConfig({ baseUrl: trimmedBase, apiKey: trimmedKey });
-    localStorage.setItem("financeApiKeys", JSON.stringify(keys));
+    try {
+      localStorage.setItem("financeApiKeys", JSON.stringify(keys));
+    } catch (error) {
+      console.warn("[Settings] localStorage unavailable:", error);
+    }
     
     setStatus("saved");
     setMessage("Settings and API keys saved locally. Restart backend to use new keys.");
@@ -245,8 +254,10 @@ ALPHAVANTAGE_API_KEY=${keys.alphaVantage}
       </div>
 
       <div className="settings-hint">
-        <strong>Note:</strong> Keys are stored locally in your browser. Click "Export .env file" 
-        to download a .env file, then copy it to your project root and restart the backend.
+        <strong>Security warning:</strong> Keys are stored in your browser's localStorage, which
+        is vulnerable to XSS. Use this only for local development, not production. Click
+        "Export .env file" to download a .env file, then copy it to your project root and
+        restart the backend.
       </div>
     </form>
   );

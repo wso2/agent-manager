@@ -40,13 +40,13 @@ Design principles:
 
 ## AMP / Choreo Deployment
 
-AMP repo: https://github.com/wso2/ai-agent-management-platform/tree/amp/v0
+AMP repo: <https://github.com/wso2/ai-agent-management-platform/tree/amp/v0>
 
 ### Prerequisites
 - Kubernetes cluster (k3d or equivalent)
 - AMP installed (see AMP quick start guide)
 - Docker registry accessible to the cluster
-- API keys for OpenAI, SerpAPI, Twelve Data, Alpha Vantage
+- API keys for OpenAI, SerpAPI, Twelve Data, Alpha Vantage (the service will start without them, but related features will fail or degrade at runtime)
 
 ### Create Component Definition
 Create `.choreo/component.yaml` in your project root:
@@ -94,6 +94,7 @@ Copy `.env.example` to `.env` and set these keys:
 - `SERPAPI_API_KEY`
 - `TWELVE_DATA_API_KEY`
 - `ALPHAVANTAGE_API_KEY`
+- `CORS_ALLOWED_ORIGINS` (optional, comma-separated origins for allowed frontend URLs, e.g. `http://localhost:3000,http://localhost:3001`)
 
 See key setup details in [API_KEYS.md](API_KEYS.md).
 

@@ -29,7 +29,12 @@ export default function ThemeToggle() {
   const transitionRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
+    let stored: string | null = null;
+    try {
+      stored = window.localStorage.getItem(STORAGE_KEY);
+    } catch (error) {
+      console.warn("[Theme] localStorage unavailable:", error);
+    }
     const initial =
       stored === "light" || stored === "dark" ? stored : getSystemTheme();
     setTheme(initial);
@@ -39,7 +44,11 @@ export default function ThemeToggle() {
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
-    window.localStorage.setItem(STORAGE_KEY, next);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, next);
+    } catch (error) {
+      console.warn("[Theme] localStorage unavailable:", error);
+    }
     if (transitionRef.current) {
       window.clearTimeout(transitionRef.current);
     }

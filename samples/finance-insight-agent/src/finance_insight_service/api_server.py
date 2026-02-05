@@ -6,7 +6,7 @@ import os
 import threading
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 from dotenv import load_dotenv
@@ -30,6 +30,7 @@ from finance_insight_service.crew import FinanceInsightCrew
 
 
 class JobStatus(str, Enum):
+    """Enumerates async job lifecycle states."""
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -37,18 +38,19 @@ class JobStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-# In-memory job storage (for production, use Redis or database)
-# NOTE: This sample assumes a single replica; multiple replicas will not share job state.
+# In-memory job storage ; This sample assumes a single replica; multiple replicas will not share job state.
 jobs = {}
 jobs_lock = threading.Lock()
 JOB_EXPIRATION_SECONDS = 600  # Jobs expire after 10 minutes (reduced to free memory faster)
 
 
 def _utc_now() -> datetime:
-    return datetime.utcnow()
+    """Return the current UTC time."""
+    return datetime.now(timezone.utc)
 
 
 def _is_job_cancelled(job_id: str) -> bool:
+    """Check whether the job has been cancelled."""
     with jobs_lock:
         job = jobs.get(job_id)
         return bool(job and job.get("status") == JobStatus.CANCELLED)
@@ -69,7 +71,7 @@ def _cleanup_expired_jobs():
                     if updated_str:
                         try:
                             updated_time = datetime.fromisoformat(updated_str.replace('Z', '+00:00'))
-                        except:
+                        except (ValueError, TypeError):
                             continue
                         
                         age_seconds = (now - updated_time).total_seconds()
@@ -90,6 +92,7 @@ def _cleanup_expired_jobs():
 
 
 def _normalize_list(value: Any) -> list[str]:
+    """Normalize list-like inputs into a list of non-empty strings."""
     if value is None:
         return []
     if isinstance(value, list):
@@ -100,6 +103,7 @@ def _normalize_list(value: Any) -> list[str]:
 
 
 def _build_search_query(query: str, tickers: Any, sites: Any) -> str:
+    """Build a SerpAPI search query with tickers and site filters."""
     parts = [query.strip()] if query.strip() else []
     tickers_list = _normalize_list(tickers)
     if tickers_list:
@@ -111,6 +115,7 @@ def _build_search_query(query: str, tickers: Any, sites: Any) -> str:
 
 
 def _format_task_label(task_name: str | None) -> str:
+    """Format a task name into a user-facing label."""
     name = (task_name or "").lower()
     if "research" in name:
         return "Research"
@@ -124,6 +129,7 @@ def _format_task_label(task_name: str | None) -> str:
 
 
 def _extract_text(value: Any) -> str:
+    """Extract text from common CrewAI output shapes."""
     if value is None:
         return ""
     if isinstance(value, str):
@@ -145,6 +151,7 @@ def _extract_text(value: Any) -> str:
 
 
 def _extract_final_response(raw: Any) -> tuple[str, Any]:
+    """Extract a final response string and parsed payload."""
     if raw is None:
         return "", raw
     text = _extract_text(raw)
@@ -164,6 +171,7 @@ def _extract_final_response(raw: Any) -> tuple[str, Any]:
 
 
 def _build_inputs(payload: dict[str, Any]) -> dict[str, Any]:
+    """Build the input dictionary for the crew."""
     user_request = payload.get("message", "")
     query = payload.get("query") or user_request
     tickers = payload.get("tickers", "")
@@ -204,13 +212,23 @@ def _build_inputs(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def create_app() -> Flask:
+    """Create and configure the Flask app."""
     load_dotenv()
     CrewAIInstrumentor().instrument()
 
     app = Flask(__name__)
+    allowed_origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
+    if allowed_origins_env:
+        allowed_origins = [
+            origin.strip()
+            for origin in allowed_origins_env.split(",")
+            if origin.strip()
+        ]
+    else:
+        allowed_origins = "*"
     CORS(app, resources={
         r"/*": {
-            "origins": "*",
+            "origins": allowed_origins,
             "methods": ["GET", "POST", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization", "X-API-Key"],
             "expose_headers": ["Content-Type"],
@@ -438,7 +456,6 @@ def create_app() -> Flask:
                         try:
                             unsub()
                         except Exception:
-                            # Best-effort cleanup; ignore unsubscribe failures.
                             pass
 
                 if _is_job_cancelled(job_id):
@@ -543,6 +560,7 @@ def create_app() -> Flask:
 
 
 def main() -> None:
+    """CLI entry point for running the API server."""
     parser = argparse.ArgumentParser(description="Finance Insight API server.")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=5000)

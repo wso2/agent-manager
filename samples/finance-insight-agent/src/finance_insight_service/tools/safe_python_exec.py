@@ -3,11 +3,11 @@ import datetime as datetime_module
 import io
 import json
 import math
+import signal
 import statistics
 import time
 import traceback
 import textwrap
-from json import JSONDecodeError, JSONDecoder
 from typing import Any
 from contextlib import redirect_stdout
 
@@ -17,6 +17,7 @@ from crewai.tools import BaseTool
 
 
 class SafePythonExecArgs(BaseModel):
+    """Arguments for safe Python execution."""
     code: str = Field(..., description="Python code to execute.")
     data_json: Any | None = Field(
         None,
@@ -27,6 +28,11 @@ class SafePythonExecArgs(BaseModel):
 
 
 class SafePythonExecTool(BaseTool):
+    """CrewAI tool for executing restricted, trusted Python code only.
+
+    This is a best-effort sandbox intended for agent-generated code in a
+    controlled environment. It is not safe for untrusted or adversarial input.
+    """
     name: str = "safe_python_exec"
     description: str = (
         "Executes Python code in a restricted environment and returns a status JSON. "
@@ -35,6 +41,7 @@ class SafePythonExecTool(BaseTool):
     args_schema: type[BaseModel] = SafePythonExecArgs
 
     def _run(self, code: str, data_json: Any | None = None) -> str:
+        """Execute code in a restricted environment and return JSON."""
         code_to_run = textwrap.dedent(code or "").replace("\t", "    ").strip()
         code_to_run = _normalize_indentation(code_to_run)
         if not code_to_run:
@@ -82,6 +89,9 @@ class SafePythonExecTool(BaseTool):
             "sorted": sorted,
             "str": str,
             "sum": sum,
+            # NOTE: Including `type` enables basic introspection. This sandbox is
+            # only for trusted, agent-generated code and is not a security
+            # boundary for untrusted input.
             "type": type,
             "zip": zip,
         }
@@ -124,7 +134,14 @@ class SafePythonExecTool(BaseTool):
             context["data"] = None
 
         stdout = io.StringIO()
+        old_handler = None
         try:
+            try:
+                old_handler = signal.getsignal(signal.SIGALRM)
+                signal.signal(signal.SIGALRM, _timeout_handler)
+                signal.alarm(EXEC_TIMEOUT_SECONDS)
+            except (AttributeError, ValueError):
+                old_handler = None
             with redirect_stdout(stdout):
                 exec(code_to_run, context)
         except Exception as exc:
@@ -137,6 +154,10 @@ class SafePythonExecTool(BaseTool):
                 },
                 ensure_ascii=True,
             )
+        finally:
+            if old_handler is not None:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
 
         output = stdout.getvalue().strip()
         return json.dumps(
@@ -146,6 +167,7 @@ class SafePythonExecTool(BaseTool):
 
 
 def _parse_json_payload(value: object):
+    """Parse a JSON payload from string, dict, or list inputs."""
     if isinstance(value, (dict, list)):
         return value
     if not isinstance(value, str):
@@ -158,17 +180,17 @@ def _parse_json_payload(value: object):
         if isinstance(parsed, str):
             return _parse_json_payload(parsed)
         return _normalize_parsed_payload(parsed)
-    except JSONDecodeError:
+    except json.JSONDecodeError:
         pass
 
-    decoder = JSONDecoder()
+    decoder = json.JSONDecoder()
     for start in (text.find("{"), text.find("[")):
         if start == -1:
             continue
         try:
             parsed, _ = decoder.raw_decode(text[start:])
             return _normalize_parsed_payload(parsed)
-        except JSONDecodeError:
+        except json.JSONDecodeError:
             continue
 
     try:
@@ -179,6 +201,7 @@ def _parse_json_payload(value: object):
 
 
 def _normalize_parsed_payload(payload: Any):
+    """Normalize parsed JSON payloads and nested data values."""
     if isinstance(payload, str):
         return payload
 
@@ -191,15 +214,12 @@ def _normalize_parsed_payload(payload: Any):
                     try:
                         normalized.append(json.loads(text))
                         continue
-                    except JSONDecodeError:
-                        # If the string isn't valid JSON, fall back to other parsing
-                        # strategies below; ultimately we keep the original item.
+                    except json.JSONDecodeError:
                         pass
                     try:
                         normalized.append(ast.literal_eval(text))
                         continue
                     except (ValueError, SyntaxError):
-                        # If literal_eval fails, keep the original string.
                         pass
             normalized.append(item)
         return normalized
@@ -214,6 +234,7 @@ def _normalize_parsed_payload(payload: Any):
 
 
 def _normalize_indentation(code: str) -> str:
+    """Normalize indentation to avoid syntax errors in code."""
     if not code:
         return code
 
@@ -246,3 +267,11 @@ def _normalize_indentation(code: str) -> str:
         prev_line = stripped
 
     return "\n".join(normalized)
+
+
+EXEC_TIMEOUT_SECONDS = 600
+
+
+def _timeout_handler(_signum, _frame):
+    """Raise a timeout error when execution exceeds the limit."""
+    raise TimeoutError(f"execution timed out after {EXEC_TIMEOUT_SECONDS}s")

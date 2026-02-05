@@ -1584,7 +1584,7 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  fontSize: 14px;
+  font-size: 14px;
   color: var(--text-secondary);
   text-decoration: none;
   padding: 6px 12px;

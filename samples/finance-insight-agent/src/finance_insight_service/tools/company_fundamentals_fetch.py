@@ -11,11 +11,13 @@ from crewai.tools import BaseTool
 
 
 class CompanyFundamentalsFetchArgs(BaseModel):
+    """Arguments for company fundamentals fetching."""
     symbol: str = Field(..., description="Ticker or symbol to fetch fundamentals for.")
     limit: int = Field(1, description="Number of periods to return (latest first).")
 
 
 class CompanyFundamentalsFetchTool(BaseTool):
+    """CrewAI tool for fetching company fundamentals."""
     name: str = "company_fundamentals_fetch"
     description: str = (
         "Fetches fundamentals from Alpha Vantage (overview, income statement, "
@@ -24,6 +26,7 @@ class CompanyFundamentalsFetchTool(BaseTool):
     args_schema: type[BaseModel] = CompanyFundamentalsFetchArgs
 
     def _run(self, symbol: str, limit: int = 1) -> str:
+        """Fetch and return fundamentals for a ticker symbol."""
         symbol = (symbol or "").strip().upper()
         if not symbol:
             return _error_payload("symbol is required")
@@ -60,6 +63,7 @@ class CompanyFundamentalsFetchTool(BaseTool):
 
 
 def _fetch_alpha(function: str, symbol: str, api_key: str) -> tuple[Any, str]:
+    """Call Alpha Vantage and return payload plus error string."""
     base_url = "https://www.alphavantage.co/query"
     query = {"function": function, "symbol": symbol, "apikey": api_key}
     url = f"{base_url}?{urlencode(query)}"
@@ -82,6 +86,7 @@ def _fetch_alpha(function: str, symbol: str, api_key: str) -> tuple[Any, str]:
 
 
 def _trim_reports(payload: Any, limit: int) -> dict[str, list[dict[str, Any]]]:
+    """Trim annual and quarterly reports to the given limit."""
     if not isinstance(payload, dict):
         return {"annual": [], "quarterly": []}
 
@@ -96,6 +101,7 @@ def _trim_reports(payload: Any, limit: int) -> dict[str, list[dict[str, Any]]]:
 
 
 def _error_payload(message: str, provider: str = "") -> str:
+    """Return a JSON error payload for fundamentals fetches."""
     return json.dumps(
         {
             "provider": provider,

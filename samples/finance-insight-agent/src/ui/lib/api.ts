@@ -44,7 +44,13 @@ export const getApiConfig = (): ApiConfig => {
     return { baseUrl: DEFAULT_API_BASE_URL };
   }
 
-  const stored = window.localStorage.getItem(STORAGE_KEY);
+  let stored: string | null = null;
+  try {
+    stored = window.localStorage.getItem(STORAGE_KEY);
+  } catch (error) {
+    console.warn("[API] localStorage unavailable:", error);
+    return { baseUrl: DEFAULT_API_BASE_URL };
+  }
   if (!stored) {
     return { baseUrl: DEFAULT_API_BASE_URL };
   }
@@ -65,7 +71,11 @@ export const setApiConfig = (config: ApiConfig) => {
     return;
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  } catch (error) {
+    console.warn("[API] localStorage unavailable:", error);
+  }
 };
 
 type SendOptions = {
