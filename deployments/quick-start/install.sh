@@ -17,7 +17,7 @@ set -euo pipefail
 # Configuration
 CLUSTER_NAME="amp-local"
 CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
-OPENCHOREO_VERSION="0.9.0"
+OPENCHOREO_VERSION="0.13.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K3D_CONFIG="${SCRIPT_DIR}/k3d-config.yaml"
 
@@ -449,10 +449,30 @@ else
 fi
 
 # ============================================================================
-# Step 3: Install Cert Manager
+# Step 3: Generate Machine IDs for observability
 # ============================================================================
 
-log_step "Step 3/10: Installing Cert Manager"
+log_info "Generating Machine IDs for Fluent Bit observability..."
+NODES=$(k3d node list -o json | grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"name"[[:space:]]*:[[:space:]]*"//;s/"$//' | grep "^k3d-$CLUSTER_NAME-")
+if [[ -z "$NODES" ]]; then
+    log_warning "Could not retrieve node list"
+else
+    for NODE in $NODES; do
+        log_info "Generating machine ID for ${NODE}..."
+        if docker exec ${NODE} sh -c "cat /proc/sys/kernel/random/uuid | tr -d '-' > /etc/machine-id" 2>/dev/null; then
+            log_success "Machine ID generated for ${NODE}"
+        else
+            log_warning "Could not generate Machine ID for ${NODE} (it may not be running)"
+        fi
+    done
+fi
+log_success "Machine ID generation complete"
+
+# ============================================================================
+# Step 4: Install Cert Manager
+# ============================================================================
+
+log_step "Step 4/11: Installing Cert Manager"
 
 helm_install_idempotent \
     "cert-manager" \
@@ -465,10 +485,10 @@ helm_install_idempotent \
 wait_for_pods "cert-manager" 300
 
 # ============================================================================
-# Step 4: Install AMP Thunder Extension
+# Step 5: Install AMP Thunder Extension
 # ============================================================================
 
-log_step "Step 4/10: Installing WSO2 AMP Thunder Extension"
+log_step "Step 5/11: Installing WSO2 AMP Thunder Extension"
 
 log_info "Installing WSO2 AMP Thunder Extension..."
 if ! install_amp_thunder_extension; then
@@ -484,10 +504,10 @@ fi
 echo ""
 
 # ============================================================================
-# Step 5: Install OpenChoreo Control Plane
+# Step 6: Install OpenChoreo Control Plane
 # ============================================================================
 
-log_step "Step 5/10: Installing OpenChoreo Control Plane"
+log_step "Step 6/11: Installing OpenChoreo Control Plane"
 
 helm_install_idempotent \
     "openchoreo-control-plane" \
@@ -499,11 +519,33 @@ helm_install_idempotent \
 
 wait_for_pods "openchoreo-control-plane" "${TIMEOUT_CONTROL_PLANE}"
 
+# Create Certificate for Control Plane TLS
+log_info "Creating Certificate for Control Plane TLS..."
+if kubectl apply -f - <<EOF
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: control-plane-tls
+  namespace: openchoreo-control-plane
+spec:
+  secretName: control-plane-tls
+  issuerRef:
+    name: openchoreo-selfsigned-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.openchoreo.localhost"
+EOF
+then
+    log_success "Control Plane TLS Certificate created successfully"
+else
+    log_warning "Failed to create Control Plane TLS certificate (non-fatal)"
+fi
+
 # ============================================================================
-# Step 6: Install OpenChoreo Data Plane
+# Step 7: Install OpenChoreo Data Plane
 # ============================================================================
 
-log_step "Step 6/10: Installing OpenChoreo Data Plane"
+log_step "Step 7/11: Installing OpenChoreo Data Plane"
 
 helm_install_idempotent \
     "openchoreo-data-plane" \
@@ -585,10 +627,37 @@ fi
 wait_for_pods "openchoreo-data-plane" "${TIMEOUT_DATA_PLANE}"
 
 # ============================================================================
-# Step 7: Install OpenChoreo Build Plane
+# Step 8: Install OpenChoreo Build Plane
 # ============================================================================
 
-log_step "Step 7/10: Installing OpenChoreo Build Plane"
+log_step "Step 8/11: Installing OpenChoreo Build Plane"
+
+# Install Docker Registry for Build Plane
+log_info "Installing Docker Registry for Build Plane..."
+if helm status registry -n openchoreo-build-plane &>/dev/null; then
+    log_info "Docker Registry already installed, skipping..."
+else
+    if helm upgrade --install registry docker-registry \
+        --repo https://twuni.github.io/docker-registry.helm \
+        --namespace openchoreo-build-plane \
+        --create-namespace \
+        --set persistence.enabled=true \
+        --set persistence.size=10Gi \
+        --set service.type=LoadBalancer \
+        --timeout 120s; then
+        log_success "Docker Registry installed successfully"
+    else
+        log_error "Failed to install Docker Registry"
+        exit 1
+    fi
+fi
+
+log_info "Waiting for Docker Registry to be ready..."
+if kubectl wait --for=condition=available deployment/registry-docker-registry -n openchoreo-build-plane --timeout=120s 2>/dev/null; then
+    log_success "Docker Registry is ready"
+else
+    log_warning "Docker Registry may still be starting (non-fatal)"
+fi
 
 helm_install_idempotent \
     "openchoreo-build-plane" \
@@ -636,10 +705,10 @@ fi
 wait_for_deployments "openchoreo-build-plane" "${TIMEOUT_BUILD_PLANE}"
 
 # ============================================================================
-# Step 8: Install OpenChoreo Observability Plane
+# Step 9: Install OpenChoreo Observability Plane
 # ============================================================================
 
-log_step "Step 8/10: Installing OpenChoreo Observability Plane"
+log_step "Step 9/11: Installing OpenChoreo Observability Plane"
 
 # Create namespace (idempotent)
 log_info "Ensuring OpenChoreo Observability Plane namespace exists..."
@@ -740,12 +809,25 @@ else
     log_warning "BuildPlane resource not found yet (will use default observer)"
 fi
 
+# Enable Logs Collection
+log_info "Enabling logs collection in Observability Plane..."
+if helm upgrade --install openchoreo-observability-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
+    --version "${OPENCHOREO_VERSION}" \
+    --namespace openchoreo-observability-plane \
+    --reuse-values \
+    --set fluent-bit.enabled=true \
+    --timeout 10m; then
+    log_success "Logs collection enabled in Observability Plane"
+else
+    log_warning "Failed to enable logs collection (non-fatal)"
+fi
+
 # ============================================================================
-# Step 9: Install Gateway Operator
+# Step 10: Install Gateway Operator
 # ============================================================================
 
 
-log_step "Step 9/10: Installing Gateway Operator"
+log_step "Step 10/11: Installing Gateway Operator"
 log_info "Installing Gateway Operator..."
 helm_install_idempotent \
     "gateway-operator" \
@@ -812,10 +894,10 @@ fi
 log_success "Gateway Operator setup complete"
 
 # ============================================================================
-# Step 10: Install Agent Management Platform
+# Step 11: Install Agent Management Platform
 # ============================================================================
 
-log_step "Step 10/10: Installing Agent Management Platform"
+log_step "Step 11/11: Installing Agent Management Platform"
 
 # Verify prerequisites
 if ! verify_amp_prerequisites; then
