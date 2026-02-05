@@ -7,7 +7,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-install, post-upgrade
     "helm.sh/hook-weight": "3"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -16,11 +16,11 @@ metadata:
   annotations:
     "helm.sh/hook": post-install, post-upgrade
     "helm.sh/hook-weight": "4"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation
 rules:
   - apiGroups: [""]
     resources: ["namespaces"]
-    verbs: ["get", "patch", "update"]
+    verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -29,7 +29,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-install, post-upgrade
     "helm.sh/hook-weight": "5"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation
 subjects:
   - kind: ServiceAccount
     name: label-default-namespace-sa
@@ -54,7 +54,7 @@ spec:
       serviceAccountName: label-default-namespace-sa
       containers:
         - name: label-namespace
-          image: bitnami/kubectl:latest
+          image: {{ .Values.kubectl.image }}
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh

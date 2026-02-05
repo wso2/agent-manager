@@ -98,6 +98,17 @@ func (c *openChoreoClient) ListBuilds(ctx context.Context, orgName, projectName,
 		}
 		buildResponses = append(buildResponses, build)
 	}
+	// Temporarily enrich build responses with input interface details by fetching the component.
+	// fetch component
+	component, err := c.GetComponent(ctx, orgName, projectName, componentName)
+	if err != nil {
+		slog.Error("failed to fetch component for build listing", "componentName", componentName, "error", err)
+	} else {
+		// Enrich builds with input interface details from component workflow parameters
+		for _, build := range buildResponses {
+			build.BuildParameters.Branch = component.Provisioning.Repository.Branch
+		}
+	}
 
 	// Sort by creation timestamp to ensure consistent ordering for pagination
 	sort.Slice(buildResponses, func(i, j int) bool {
@@ -145,8 +156,7 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 				"revision": map[string]interface{}{
 					"branch": req.Repository.Branch,
 				},
-				"appPath":    normalizePath(req.Repository.AppPath),
-				"parameters": workflowParams,
+				"appPath": normalizePath(req.Repository.AppPath),
 			},
 		}
 	}
@@ -249,8 +259,6 @@ func toWorkflowRunBuild(run *gen.ComponentWorkflowRunResponse) (*models.BuildRes
 		return nil, fmt.Errorf("failed to extract build parameters: %w", err)
 	}
 
-	fmt.Printf("build status %s", utils.StrPointerAsStr(run.Image, ""))
-
 	build := &models.BuildResponse{
 		UUID:        run.Uuid,
 		Name:        run.Name,
@@ -290,7 +298,10 @@ func toBuildDetailsResponse(run *gen.ComponentWorkflowRunResponse) (*models.Buil
 	status := utils.StrPointerAsStr(run.Status, "")
 
 	// Extract inputInterface from workflow parameters
-	_, _, _, inputInterface, _ := extractWorkflowParameters(run.Workflow)
+	_, _, _, inputInterface, err := extractWorkflowParameters(run.Workflow)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract workflow parameters: %w", err)
+	}
 
 	details := &models.BuildDetailsResponse{
 		BuildResponse:  *build,

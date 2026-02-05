@@ -214,6 +214,10 @@ func (s *infraResourceManager) DeleteProject(ctx context.Context, orgName string
 	s.logger.Debug("Checking for associated agents", "projectName", projectName)
 	agents, err := s.ocClient.ListComponents(ctx, orgName, projectName)
 	if err != nil {
+		if errors.Is(err, utils.ErrProjectNotFound) {
+			s.logger.Warn("Project not found while listing components; delete is idempotent", "orgName", orgName, "projectName", projectName)
+			return nil
+		}
 		s.logger.Error("Failed to list agents for project", "projectName", projectName, "error", err)
 		return err
 	}

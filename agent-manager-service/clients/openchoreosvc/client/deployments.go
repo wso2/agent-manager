@@ -84,14 +84,23 @@ func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, com
 			Value: &value,
 		})
 	}
-
-	// Update only the containers with new image and env
-	workloadBody["containers"] = map[string]gen.Container{
-		MainContainerName: {
-			Image: req.ImageID,
-			Env:   &envVars,
-		},
+	// Update only the main container, preserving any existing containers
+	containers, ok := workloadBody["containers"].(map[string]interface{})
+	if !ok || containers == nil {
+		return fmt.Errorf("invalid containers field in workload")
 	}
+	mainContainerInterface := containers[MainContainerName]
+	mainContainerMap, ok := mainContainerInterface.(map[string]interface{})
+	if !ok {
+		mainContainerMap = map[string]interface{}{}
+	}
+	// Update only specific fields
+	mainContainerMap["image"] = req.ImageID
+	if len(envVars) > 0 {
+		mainContainerMap["env"] = envVars
+	}
+	containers[MainContainerName] = mainContainerMap
+	workloadBody["containers"] = containers
 
 	// Update workload
 	createResp, err := c.ocClient.CreateWorkloadWithResponse(ctx, orgName, projectName, componentName, workloadBody)
@@ -345,8 +354,12 @@ func extractEndpointURLFromEnvRelease(release *gen.ReleaseResponse) ([]models.En
 
 func extractPathValue(obj map[string]interface{}) (string, error) {
 	rules, found, err := unstructured.NestedSlice(obj, "spec", "rules")
-	if err != nil || !found || len(rules) == 0 {
-		return "", fmt.Errorf("HTTPRoute missing rules")
+	if err != nil {
+		return "", fmt.Errorf("error extracting rules from HTTPRoute: %w", err)
+	}
+	// Rules are optional - empty rules means match-all behavior
+	if !found || len(rules) == 0 {
+		return "", nil
 	}
 
 	rule0, ok := rules[0].(map[string]interface{})
@@ -355,8 +368,12 @@ func extractPathValue(obj map[string]interface{}) (string, error) {
 	}
 
 	matches, found, err := unstructured.NestedSlice(rule0, "matches")
-	if err != nil || !found || len(matches) == 0 {
-		return "", fmt.Errorf("HTTPRoute missing matches")
+	if err != nil {
+		return "", fmt.Errorf("error extracting matches from HTTPRoute: %w", err)
+	}
+	// Matches are optional - empty matches means match-all behavior
+	if !found || len(matches) == 0 {
+		return "", nil
 	}
 
 	match0, ok := matches[0].(map[string]interface{})
@@ -365,8 +382,12 @@ func extractPathValue(obj map[string]interface{}) (string, error) {
 	}
 
 	pathValue, found, err := unstructured.NestedString(match0, "path", "value")
-	if err != nil || !found {
-		return "", fmt.Errorf("HTTPRoute missing path value")
+	if err != nil {
+		return "", fmt.Errorf("error extracting path value from HTTPRoute: %w", err)
+	}
+	// Path value is optional - missing path means prefix match on "/"
+	if !found {
+		return "", nil
 	}
 	return pathValue, nil
 }
