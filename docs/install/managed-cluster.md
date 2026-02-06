@@ -92,35 +92,115 @@ The Agent Manager requires a complete OpenChoreo platform installation.
 
 While following the OpenChoreo installation guide, apply these Agent Manager-specific configurations:
 
-| Configuration | When to Apply | Purpose |
-|--------------|---------------|---------|
-| **Custom OTel Collector ConfigMap** | Before/After Observability Plane installation | Required for Agent Manager trace ingestion |
-| **Observability Integration** | After all planes are installed | Links DataPlane and BuildPlane to ObservabilityPlane |
+| Component | Required Values File |
+|-----------|---------------------|
+| **Build Plane** | [values-bp.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/single-cluster/values-bp.yaml) |
+| **Observability Plane** | [values-op.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/single-cluster/values-op.yaml) |
+| **Control Plane** | [values-cp.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/single-cluster/values-cp.yaml) |
+| **Data Plane** | [values-dp.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/single-cluster/values-dp.yaml) |
 
 ### Installation Steps
 
+Follow the **[OpenChoreo Managed Kubernetes Installation Guide](https://openchoreo.dev/docs/getting-started/try-it-out/on-managed-kubernetes/)** with the following Agent Manager-specific configurations.
+
+#### Step 1: Install OpenChoreo Control Plane
+
 ```bash
-# Set version variable for Agent Manager configuration files
-export VERSION="0.0.0-dev"  # Replace with your desired version
+# Install Control Plane
+helm install openchoreo-control-plane \
+  oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
+  --version 0.13.0 \
+  --namespace openchoreo-control-plane \
+  --create-namespace \
+  --timeout 600s
+
+# Wait for Control Plane to be ready
+kubectl wait --for=condition=Available \
+  deployment --all -n openchoreo-control-plane --timeout=600s
 ```
 
-Follow the **[OpenChoreo Managed Kubernetes Installation Guide](https://openchoreo.dev/docs/getting-started/try-it-out/on-managed-kubernetes/)** and apply the Agent Manager-specific configurations below at the appropriate steps.
+**Note:** Follow the OpenChoreo guide to configure the domain and TLS after obtaining the LoadBalancer IP.
 
-### Agent Manager-Specific OpenChoreo Configuration
-
-After completing the base OpenChoreo installation, apply these Agent Manager-specific configurations:
-
-#### 1. Apply Custom OpenTelemetry Collector Configuration
-
-The Agent Manager requires a custom OpenTelemetry collector configuration for trace ingestion:
+#### Step 2: Install OpenChoreo Data Plane
 
 ```bash
-# Apply custom OpenTelemetry Collector ConfigMap
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/oc-collector-configmap.yaml \
+# Set Control Plane domain (obtained from LoadBalancer IP in Step 1)
+export CP_DOMAIN="openchoreo.192-168-1-1.nip.io"  # Replace with your domain
+
+# Install Data Plane
+helm install openchoreo-data-plane \
+  oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
+  --version 0.13.0 \
+  --namespace openchoreo-data-plane \
+  --create-namespace \
+  --timeout 600s \
+  --set controlPlane.url=https://${CP_DOMAIN}
+
+# Wait for Data Plane to be ready
+kubectl wait --for=condition=Available \
+  deployment --all -n openchoreo-data-plane --timeout=600s
+```
+
+**Note:** Follow the OpenChoreo guide to register the Data Plane with the Control Plane (creating DataPlane CR with CA certificates).
+
+#### Step 3: Install OpenChoreo Build Plane
+
+```bash
+# Install Build Plane (choose registry option based on your needs)
+helm install openchoreo-build-plane \
+  oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane \
+  --version 0.13.0 \
+  --namespace openchoreo-build-plane \
+  --create-namespace \
+  --timeout 600s \
+  --set controlPlane.url=https://${CP_DOMAIN}
+
+# Wait for Build Plane to be ready
+kubectl wait --for=condition=Available \
+  deployment --all -n openchoreo-build-plane --timeout=600s
+
+# Save the registry endpoint for later use
+export REGISTRY_ENDPOINT="registry.${CP_DOMAIN}"  # Adjust based on your registry configuration
+echo "Registry endpoint: ${REGISTRY_ENDPOINT}"
+```
+
+**Note:** Follow the OpenChoreo guide to:
+- Configure registry endpoint (built-in or cloud provider)
+- Register the Build Plane with the Control Plane (creating BuildPlane CR with CA certificates)
+
+#### Step 4: Install OpenChoreo Observability Plane
+
+**Agent Manager requires custom OpenTelemetry Collector configuration:**
+
+```bash
+# Create namespace
+kubectl create namespace openchoreo-observability-plane
+
+# Apply custom OpenTelemetry Collector ConfigMap (required for Agent Manager)
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/oc-collector-configmap.yaml \
   -n openchoreo-observability-plane
+
+# Install Observability Plane
+helm install openchoreo-observability-plane \
+  oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
+  --version 0.13.0 \
+  --namespace openchoreo-observability-plane \
+  --timeout 900s \
+  --set controlPlane.url=https://${CP_DOMAIN}
+
+# Wait for deployments to be ready
+kubectl wait --for=condition=Available \
+  deployment --all -n openchoreo-observability-plane --timeout=900s
+
+# Wait for StatefulSets (OpenSearch) to be ready
+for sts in $(kubectl get statefulset -n openchoreo-observability-plane -o name 2>/dev/null); do
+  kubectl rollout status "${sts}" -n openchoreo-observability-plane --timeout=900s
+done
 ```
 
-#### 2. Configure Observability Integration
+**Note:** Follow the OpenChoreo guide to register the Observability Plane with the Control Plane (creating ObservabilityPlane CR with CA certificates).
+
+#### Step 5: Configure Observability Integration
 
 Link the Data Plane and Build Plane to the Observability Plane:
 
@@ -134,16 +214,7 @@ kubectl patch buildplane default -n default --type merge \
   -p '{"spec":{"observabilityPlaneRef":"default"}}'
 ```
 
-#### 3. Save Registry Endpoint
-
-Make note of the registry endpoint configured during Build Plane installation. You'll need this value when installing the Agent Manager Build Extension:
-
-```bash
-# If using OpenChoreo's built-in registry:
-export REGISTRY_ENDPOINT="registry.${CP_DOMAIN}"
-
-# If using cloud registries, use the endpoint you configured (e.g., AWS ECR, GCR, ACR)
-```
+**For detailed plane registration steps (extracting CA certificates, creating plane CRs, and configuring domains/TLS), refer to the [OpenChoreo Managed Kubernetes Guide](https://openchoreo.dev/docs/getting-started/try-it-out/on-managed-kubernetes/).**
 
 ### Verify OpenChoreo Installation
 
@@ -237,7 +308,7 @@ This configuration sets up API authentication (using JWT/JWKS) and rate limiting
 
 ```bash
 # Apply Gateway Operator configuration
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/api-platform-operator-full-config.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/api-platform-operator-full-config.yaml
 ```
 
 ### Step 2: Create Gateway and API Resources
@@ -246,14 +317,14 @@ Deploy the observability gateway and trace API endpoint for secure trace ingesti
 
 ```bash
 # Apply Observability Gateway
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/obs-gateway.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/obs-gateway.yaml
 
 # Wait for Gateway to be programmed
 kubectl wait --for=condition=Programmed \
   gateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
 
 # Apply OTEL Collector RestApi
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/otel-collector-rest-api.yaml
 
 # Wait for RestApi to be programmed
 kubectl wait --for=condition=Programmed \
@@ -271,7 +342,7 @@ export THUNDER_NS="amp-thunder"
 # Install AMP Thunder Extension
 helm install amp-thunder-extension \
   oci://${HELM_CHART_REGISTRY}/wso2-amp-thunder-extension \
-  --version ${VERSION} \
+  --version 0.0.0-dev \
   --namespace ${THUNDER_NS} \
   --create-namespace \
   --timeout 1800s
@@ -303,7 +374,7 @@ echo "Observability Gateway: ${OBS_GATEWAY_IP}"
 # Install the platform Helm chart with instrumentation URL configured
 helm install amp \
   oci://${HELM_CHART_REGISTRY}/wso2-agent-manager \
-  --version ${VERSION} \
+  --version 0.0.0-dev \
   --namespace ${AMP_NS} \
   --create-namespace \
   --set console.config.instrumentationUrl="http://${OBS_GATEWAY_IP}:22893/otel" \
@@ -343,7 +414,7 @@ The Platform Resources Extension creates default resources:
 # Install Platform Resources Extension
 helm install amp-platform-resources \
   oci://${HELM_CHART_REGISTRY}/wso2-amp-platform-resources-extension \
-  --version ${VERSION} \
+  --version 0.0.0-dev \
   --namespace ${DEFAULT_NS} \
   --timeout 1800s
 ```
@@ -358,7 +429,7 @@ The observability extension includes the Traces Observer service for querying tr
 
 ```bash
 # Verify or apply the OpenTelemetry collector config map
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/oc-collector-configmap.yaml \
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/oc-collector-configmap.yaml \
   -n ${OBSERVABILITY_NS}
 ```
 
@@ -368,7 +439,7 @@ kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VER
 # Install observability Helm chart
 helm install amp-observability-traces \
   oci://${HELM_CHART_REGISTRY}/wso2-amp-observability-extension \
-  --version ${VERSION} \
+  --version 0.0.0-dev \
   --namespace ${OBSERVABILITY_NS} \
   --timeout 1800s
 ```
@@ -400,7 +471,7 @@ echo "Using registry endpoint: ${REGISTRY_ENDPOINT}"
 # Install Build Extension with the same registry endpoint
 helm install build-workflow-extensions \
   oci://${HELM_CHART_REGISTRY}/wso2-amp-build-extension \
-  --version ${VERSION} \
+  --version 0.0.0-dev \
   --namespace ${BUILD_CI_NS} \
   --set global.registry.endpoint=${REGISTRY_ENDPOINT} \
   --timeout 1800s
@@ -427,7 +498,7 @@ export REGISTRY_ENDPOINT="registry.${CP_DOMAIN}"
 # Install Build Extension
 helm install build-workflow-extensions \
   oci://${HELM_CHART_REGISTRY}/wso2-amp-build-extension \
-  --version ${VERSION} \
+  --version 0.0.0-dev \
   --namespace ${BUILD_CI_NS} \
   --set global.registry.endpoint=${REGISTRY_ENDPOINT} \
   --timeout 1800s
