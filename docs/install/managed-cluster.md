@@ -542,7 +542,7 @@ The observability extension includes the Traces Observer service for querying tr
 
 ```bash
 # Create the OpenTelemetry collector config map
-kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/values/oc-collector-configmap.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/oc-collector-configmap.yaml
 ```
 
 **Installation:**
@@ -586,21 +586,21 @@ kubectl wait --for=condition=Available \
   -n ${DATA_PLANE_NS} --timeout=300s
 
 # Apply the Gateway Operator configuration for API authentication and rate limiting
-kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/values/api-platform-operator-full-config.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/api-platform-operator-full-config.yaml
 ```
 
 **Create Gateway and API Resources:**
 
 ```bash
 # Apply Observability Gateway
-kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/values/obs-gateway.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/obs-gateway.yaml
 
 # Wait for Gateway to be programmed
 kubectl wait --for=condition=Programmed \
   gateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
 
 # Apply OTEL Collector RestApi
-kubectl apply -f https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v0.0.0-dev/deployments/values/otel-collector-rest-api.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/otel-collector-rest-api.yaml
 
 # Wait for RestApi to be programmed
 kubectl wait --for=condition=Programmed \
