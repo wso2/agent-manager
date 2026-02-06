@@ -3,8 +3,8 @@ name: Helm Charts
 on:
   pull_request:
     paths:
-      - 'deployments/helm-charts/**'
-      - '.github/workflows/helm-charts-pr-check.yml'
+      - "deployments/helm-charts/**"
+      - ".github/workflows/helm-charts-pr-check.yml"
 
 env:
   HELM_VERSION: "3.19.4"
@@ -26,25 +26,36 @@ jobs:
       - name: Detect changed charts
         id: detect
         run: |
-          # Get list of changed files
           CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '^deployments/helm-charts/' || true)
-
+          # 1. Get list of changed files
           if [ -z "$CHANGED_FILES" ]; then
-            echo "No Helm chart changes detected"
             echo "has-changes=false" >> $GITHUB_OUTPUT
             echo "charts=[]" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          echo "Changed files:"
-          echo "$CHANGED_FILES"
+          # 2. Extract unique chart names and FILTER OUT deleted ones
+          DETECTED_CHARTS=""
+          # Get the first folder name after 'deployments/helm-charts/'
+          CHART_NAMES=$(echo "$CHANGED_FILES" | cut -d/ -f3 | sort -u)
 
-          # Extract unique chart names
-          CHARTS=$(echo "$CHANGED_FILES" | grep -oP 'deployments/helm-charts/\K[^/]+' | sort -u | jq -R . | jq -s -c .)
+          for chart in $CHART_NAMES; do
+            # CRITICAL: Only add if the directory exists in the current branch
+            if [ -d "deployments/helm-charts/$chart" ]; then
+              DETECTED_CHARTS+="$chart "
+            fi
+          done
 
-          echo "Detected charts: $CHARTS"
-          echo "has-changes=true" >> $GITHUB_OUTPUT
-          echo "charts=$CHARTS" >> $GITHUB_OUTPUT
+          # 3. Convert to JSON for the matrix
+          if [ -z "$DETECTED_CHARTS" ]; then
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+            echo "charts=[]" >> $GITHUB_OUTPUT
+          else
+            CHARTS_JSON=$(echo "$DETECTED_CHARTS" | xargs -n1 | jq -R . | jq -s -c .)
+            echo "Detected charts: $CHARTS_JSON"
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+            echo "charts=$CHARTS_JSON" >> $GITHUB_OUTPUT
+          fi
         shell: bash
 
   helm-lint:

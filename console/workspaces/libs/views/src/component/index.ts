@@ -34,3 +34,4 @@ export * from './FormElements';
 export * from './Drawer';
 export * from './JSONView';
 export * from './MarkdownView';
+export * from './Logo';

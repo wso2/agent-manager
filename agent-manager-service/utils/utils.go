@@ -585,6 +585,159 @@ func isValidLogLevel(level string) bool {
 	return level == LogLevelInfo || level == LogLevelDebug || level == LogLevelWarn || level == LogLevelError
 }
 
+// isValidGitHubIdentifier validates that a string contains only characters allowed in GitHub usernames/repos
+// GitHub allows alphanumeric characters, hyphens, underscores, and periods
+// This prevents path traversal attacks and URL manipulation
+func isValidGitHubIdentifier(value string) bool {
+	if value == "" {
+		return false
+	}
+	// GitHub identifiers: alphanumeric, hyphens, underscores, and periods only
+	// Must not contain: /, .., or other special characters that could be used for path traversal
+	validPattern := regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+	if !validPattern.MatchString(value) {
+		return false
+	}
+	// Reject path traversal patterns
+	if strings.Contains(value, "..") {
+		return false
+	}
+	return true
+}
+
+// isValidGitHubBranch validates branch names
+func isValidGitHubBranch(branch string) bool {
+	if branch == "" {
+		return false
+	}
+
+	// Reject path traversal
+	if strings.Contains(branch, "..") {
+		return false
+	}
+
+	// Reject control characters and null bytes (prevents injection attacks)
+	controlChars := regexp.MustCompile(`[\x00-\x1f\x7f]`)
+	if controlChars.MatchString(branch) {
+		return false
+	}
+
+	// Reject Git special characters and whitespace
+	// Still allows @, +, and other characters that are valid in branch names
+	gitSpecialChars := regexp.MustCompile(`[\s~^:?*\[\\]`)
+	return !gitSpecialChars.MatchString(branch)
+}
+
+// ValidateListBranchesRequest validates the ListBranchesRequest payload
+func ValidateListBranchesRequest(payload *spec.ListBranchesRequest) error {
+	// Normalize and validate owner
+	payload.Owner = strings.TrimSpace(payload.Owner)
+	if payload.Owner == "" {
+		return fmt.Errorf("owner cannot be empty")
+	}
+
+	// Validate owner contains only safe characters
+	if !isValidGitHubIdentifier(payload.Owner) {
+		return fmt.Errorf("owner contains invalid characters or path traversal patterns")
+	}
+
+	// Normalize and validate repository
+	payload.Repository = strings.TrimSpace(payload.Repository)
+	if payload.Repository == "" {
+		return fmt.Errorf("repository cannot be empty")
+	}
+
+	// Validate repository contains only safe characters
+	if !isValidGitHubIdentifier(payload.Repository) {
+		return fmt.Errorf("repository contains invalid characters or path traversal patterns")
+	}
+
+	return nil
+}
+
+// ValidateListCommitsRequest validates the ListCommitsRequest payload
+func ValidateListCommitsRequest(payload *spec.ListCommitsRequest) error {
+	// Normalize and validate owner
+	payload.Owner = strings.TrimSpace(payload.Owner)
+	if payload.Owner == "" {
+		return fmt.Errorf("owner cannot be empty")
+	}
+
+	// Validate owner contains only safe characters
+	if !isValidGitHubIdentifier(payload.Owner) {
+		return fmt.Errorf("owner contains invalid characters or path traversal patterns")
+	}
+
+	// Normalize and validate repo
+	payload.Repo = strings.TrimSpace(payload.Repo)
+	if payload.Repo == "" {
+		return fmt.Errorf("repo cannot be empty")
+	}
+
+	// Validate repo contains only safe characters
+	if !isValidGitHubIdentifier(payload.Repo) {
+		return fmt.Errorf("repo contains invalid characters or path traversal patterns")
+	}
+
+	// Normalize and validate optional branch field if provided
+	if payload.Branch != nil {
+		branchVal := strings.TrimSpace(*payload.Branch)
+		if branchVal == "" {
+			return fmt.Errorf("branch cannot be empty or whitespace")
+		}
+		if !isValidGitHubBranch(branchVal) {
+			return fmt.Errorf("branch contains invalid characters or path traversal patterns")
+		}
+		*payload.Branch = branchVal // Normalize by writing back trimmed value
+	}
+
+	// Normalize and validate optional path field if provided
+	if payload.Path != nil {
+		pathVal := strings.TrimSpace(*payload.Path)
+		if pathVal == "" {
+			return fmt.Errorf("path cannot be empty or whitespace")
+		}
+		// Path can contain slashes, but reject path traversal patterns
+		if strings.Contains(pathVal, "..") {
+			return fmt.Errorf("path contains path traversal patterns")
+		}
+		*payload.Path = pathVal // Normalize by writing back trimmed value
+	}
+
+	// Normalize and validate optional author field if provided
+	if payload.Author != nil {
+		authorVal := strings.TrimSpace(*payload.Author)
+		if authorVal == "" {
+			return fmt.Errorf("author cannot be empty or whitespace")
+		}
+		// Author can be a username or email, so allow @ and . characters
+		// But still reject path traversal patterns
+		if strings.Contains(authorVal, "..") || strings.Contains(authorVal, "/") {
+			return fmt.Errorf("author contains invalid characters or path traversal patterns")
+		}
+		*payload.Author = authorVal // Normalize by writing back trimmed value
+	}
+
+	// Validate time fields if both are provided
+	if payload.Since != nil && payload.Until != nil {
+		if payload.Until.Before(*payload.Since) {
+			return fmt.Errorf("until time must be after since time")
+		}
+	}
+
+	// Validate since time is not in the future
+	if payload.Since != nil && payload.Since.After(time.Now()) {
+		return fmt.Errorf("since time cannot be in the future")
+	}
+
+	// Validate until time is not in the future
+	if payload.Until != nil && payload.Until.After(time.Now()) {
+		return fmt.Errorf("until time cannot be in the future")
+	}
+
+	return nil
+}
+
 // ParseGitHubURL extracts the owner and repository name from a GitHub URL.
 // Supports formats:
 // - https://github.com/owner/repo

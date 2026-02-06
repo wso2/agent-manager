@@ -31,55 +31,7 @@ import { ChevronDown } from '@wso2/oxygen-ui-icons-react';
 import { User } from './UserMenu';
 import { TopSelecter, TopSelecterProps } from './TopSelecter';
 import { Link } from 'react-router-dom';
-
-export function Logo() {
-  const theme = useTheme();
-  return (
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 1.5,
-      }}
-    >
-      <Box
-        sx={{
-          width: theme.spacing(5),
-          height: theme.spacing(5),
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: 0.5,
-          fontSize: theme.typography.pxToRem(18),
-          backgroundColor: 'primary.main',
-          color: 'primary.contrastText',
-        }}
-      >
-        AI
-      </Box>
-      <Box sx={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-        <Typography
-          color="textSecondary"
-          sx={{
-            fontSize: theme.typography.pxToRem(8),
-            letterSpacing: 0.2,
-          }}
-        >
-          WSO2
-        </Typography>
-        <Typography
-          variant="caption"
-          color="textPrimary"
-          fontSize={theme.typography.pxToRem(12)}
-          fontWeight={600}
-          sx={{ letterSpacing: 0.05 }}
-        >
-          Agent Manager
-        </Typography>
-      </Box>
-    </Box>
-  );
-}
+import { Logo } from '../../Logo/Logo';
 export interface NavBarToolbarProps {
   /** Whether the sidebar is collapsed (icons only) */
   sidebarOpen?: boolean;
@@ -150,7 +102,24 @@ export function NavBarToolbar({
               component={Link}
               to={homePath ?? '/'}
             >
-              <Logo />
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                }}
+              >
+                <Box
+                  sx={{
+                    width: theme.spacing(24),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Logo />
+                </Box>
+              </Box>
             </ButtonBase>
           </Box>
           <Box display="flex" alignItems="center" gap={1}>

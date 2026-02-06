@@ -88,6 +88,11 @@ export const generatedRouteMap =  {
                           "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/logs",
                           "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/logs/*",
                           "children": {}
+                        },
+                        "metrics": {
+                          "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/metrics",
+                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/metrics/*",
+                          "children": {}
                         }
                       }
                     }

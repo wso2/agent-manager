@@ -37,6 +37,7 @@ import { metaData as buildMetadata } from "@agent-management-platform/build";
 import { metaData as testMetadata } from "@agent-management-platform/test";
 import { metaData as tracesMetadata } from "@agent-management-platform/traces";
 import { metaData as logsMetadata } from "@agent-management-platform/logs";
+import { metaData as metricsMetadata } from "@agent-management-platform/metrics";
 import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
 
 export function useNavigationItems(): Array<
@@ -199,6 +200,23 @@ export function useNavigationItems(): Array<
             href: generatePath(
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.environment.children.observability.children.logs
+                .path,
+              { orgId, projectId, agentId, envId: defaultEnv }
+            ),
+          },
+          {
+            label: metricsMetadata.title,
+            type: "item",
+            icon: <metricsMetadata.icon  />,
+            isActive: !!matchPath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.metrics
+                .wildPath,
+              pathname
+            ),
+            href: generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.environment.children.observability.children.metrics
                 .path,
               { orgId, projectId, agentId, envId: defaultEnv }
             ),

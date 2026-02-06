@@ -108,6 +108,11 @@ export const rootRouteMap: AppRoute = {
                                                 index: true,
                                                 children: {},
                                             },
+                                            metrics: {
+                                                path: 'metrics',
+                                                index: true,
+                                                children: {},
+                                            },
                                         },
                                     },
                                 }
