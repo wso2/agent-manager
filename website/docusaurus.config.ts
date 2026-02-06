@@ -56,7 +56,7 @@ const config: Config = {
       'classic',
       {
         docs: {
-          lastVersion: 'v0.4.0',
+          lastVersion: 'v0.5.0',
           versions: {
             current: {
               label: 'Next',
