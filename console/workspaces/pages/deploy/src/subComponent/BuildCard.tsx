@@ -67,8 +67,7 @@ export function BuildCard(props: BuildCardProps) {
         )
         .filter(
           (build) =>
-            build.status === "BuildCompleted" ||
-            build.status === "WorkloadUpdated"
+            build.status === "Completed" || build.status === "Succeeded"
         ),
     [builds]
   );
@@ -245,8 +244,8 @@ export function BuildCard(props: BuildCardProps) {
               onClick={handleOpenDeployment}
               disabled={
                 !currentBuild ||
-                (currentBuild.status !== "BuildCompleted" &&
-                  currentBuild.status !== "WorkloadUpdated")
+                (currentBuild.status !== "Completed" &&
+                  currentBuild.status !== "Succeeded")
               }
               startIcon={<Rocket size={16} />}
             >

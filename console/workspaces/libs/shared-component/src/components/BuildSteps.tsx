@@ -52,16 +52,16 @@ export interface BuildStepsProps {
 
 const getDisplayName = (step: BuildStep) => {
   switch (step.type) {
-    case "BuildCompleted":
-      return "Build Image";
-    case "BuildInitiated":
-      return "Initiated";
-    case "BuildTriggered":
-      return "Triggered";
-    case "BuildRunning":
-      return "Build Running";
-    case "WorkloadUpdated":
-      return "Workload Updated";
+    case "Completed":
+      return "Completed";
+    case "Succeeded":
+      return "Succeeded";
+    case "Running":
+      return "Running";
+    case "Pending":
+      return "Pending";
+    case "Failed":
+      return "Failed";
     default:
       return step.type;
   }
