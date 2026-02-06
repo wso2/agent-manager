@@ -39,13 +39,13 @@ spec:
             - /bin/sh
             - -c
             - |
-              set -euo pipefail
+              set -eu
               
               # Install required tools
               apk add --no-cache openssl kubectl curl
               
               # Check if secret already exists
-              if kubectl get secret {{ include "agent-management-platform.jwtKeysSecretName" . }} -n {{ .Release.Namespace }} &>/dev/null; then
+              if kubectl get secret {{ include "agent-management-platform.jwtKeysSecretName" . }} -n {{ .Release.Namespace }} >/dev/null 2>&1; then
                 echo "JWT keys Secret already exists, skipping generation"
                 exit 0
               fi
@@ -80,7 +80,7 @@ spec:
               EOF
               
               # Verify keys were generated
-              if [[ ! -f private.pem ]] || [[ ! -f public.pem ]] || [[ ! -f public-keys-config.json ]]; then
+              if [ ! -f private.pem ] || [ ! -f public.pem ] || [ ! -f public-keys-config.json ]; then
                 echo "ERROR: Key generation failed - missing key files"
                 exit 1
               fi
