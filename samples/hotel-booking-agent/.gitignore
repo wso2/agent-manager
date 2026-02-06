@@ -1,0 +1,16 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+
+# Env
+.env
+
+# OS
+.DS_Store
+
+# Hotel API booking data
+services/hotel_api/storage/bookings.json
