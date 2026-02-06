@@ -578,7 +578,7 @@ Install with custom values:
 
 ```bash
 helm install amp \
-  oci://${HELM_CHART_REGISTRY}/wso2-ai-agent-management-platform \
+  oci://${HELM_CHART_REGISTRY}/wso2-agent-manager \
   --version ${VERSION} \
   --namespace ${AMP_NS} \
   --create-namespace \
