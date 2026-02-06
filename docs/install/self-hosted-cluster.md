@@ -72,10 +72,10 @@ While following the OpenChoreo installation guide, use the Agent Manager-optimiz
 
 | Component | Required Values File |
 |-----------|---------------------|
-| **Build Plane** | [values-bp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-bp.yaml) |
-| **Observability Plane** | [values-op.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-op.yaml) |
-| **Control Plane** | [values-cp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-cp.yaml) |
-| **Data Plane** | [values-dp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-dp.yaml) |
+| **Build Plane** | [values-bp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/single-cluster/values-bp.yaml) |
+| **Observability Plane** | [values-op.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/single-cluster/values-op.yaml) |
+| **Control Plane** | [values-cp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/single-cluster/values-cp.yaml) |
+| **Data Plane** | [values-dp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/single-cluster/values-dp.yaml) |
 
 ### Installation Steps
 
@@ -91,7 +91,7 @@ helm install openchoreo-control-plane \
   --namespace openchoreo-control-plane \
   --create-namespace \
   --timeout 600s \
-  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-cp.yaml
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/single-cluster/values-cp.yaml
 
 # Wait for Control Plane to be ready
 kubectl wait --for=condition=Available \
@@ -110,7 +110,7 @@ helm install openchoreo-data-plane \
   --namespace openchoreo-data-plane \
   --create-namespace \
   --timeout 600s \
-  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-dp.yaml
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/single-cluster/values-dp.yaml
 
 # Wait for Data Plane to be ready
 kubectl wait --for=condition=Available \
@@ -140,7 +140,7 @@ helm install openchoreo-build-plane \
   --version 0.13.0 \
   --namespace openchoreo-build-plane \
   --timeout 600s \
-  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-bp.yaml
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/single-cluster/values-bp.yaml
 
 # Wait for Build Plane to be ready
 kubectl wait --for=condition=Available \
@@ -160,7 +160,7 @@ This configures the registry endpoint as `host.k3d.internal:10082`, which is req
 kubectl create namespace openchoreo-observability-plane
 
 # Apply custom OpenTelemetry Collector ConfigMap (required for Agent Manager)
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/oc-collector-configmap.yaml \
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/values/oc-collector-configmap.yaml \
   -n openchoreo-observability-plane
 
 # Install Observability Plane with Agent Manager-optimized configuration
@@ -169,7 +169,7 @@ helm install openchoreo-observability-plane \
   --version 0.13.0 \
   --namespace openchoreo-observability-plane \
   --timeout 900s \
-  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-op.yaml
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/single-cluster/values-op.yaml
 
 # Wait for deployments to be ready
 kubectl wait --for=condition=Available \
@@ -273,7 +273,7 @@ This configuration sets up API authentication (using JWT/JWKS) and rate limiting
 
 ```bash
 # Apply Gateway Operator configuration
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/api-platform-operator-full-config.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/values/api-platform-operator-full-config.yaml
 ```
 
 **Create Gateway and API Resources:**
@@ -282,14 +282,14 @@ Deploy the observability gateway and trace API endpoint:
 
 ```bash
 # Apply Observability Gateway
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/obs-gateway.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/values/obs-gateway.yaml
 
 # Wait for Gateway to be programmed
 kubectl wait --for=condition=Programmed \
   gateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
 
 # Apply OTEL Collector RestApi
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/otel-collector-rest-api.yaml
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/values/otel-collector-rest-api.yaml
 
 # Wait for RestApi to be programmed
 kubectl wait --for=condition=Programmed \
@@ -309,7 +309,7 @@ export THUNDER_NS="amp-thunder"
 # Install AMP Thunder Extension
 helm install amp-thunder-extension \
   oci://${HELM_CHART_REGISTRY}/wso2-amp-thunder-extension \
-  --version 0.0.0-dev \
+  --version 0.5.0 \
   --namespace ${THUNDER_NS} \
   --create-namespace \
   --timeout 1800s
@@ -331,7 +331,7 @@ The core platform includes:
 # Install the platform Helm chart with instrumentation URL configured
 helm install amp \
   oci://${HELM_CHART_REGISTRY}/wso2-agent-manager \
-  --version 0.0.0-dev \
+  --version 0.5.0 \
   --namespace ${AMP_NS} \
   --create-namespace \
   --set console.config.instrumentationUrl="http://localhost:22893/otel" \
@@ -371,7 +371,7 @@ The Platform Resources Extension creates default resources:
 # Install Platform Resources Extension
 helm install amp-platform-resources \
   oci://${HELM_CHART_REGISTRY}/wso2-amp-platform-resources-extension \
-  --version 0.0.0-dev \
+  --version 0.5.0 \
   --namespace ${DEFAULT_NS} \
   --timeout 1800s
 ```
@@ -391,7 +391,7 @@ export OBSERVABILITY_NS="openchoreo-observability-plane"
 # Install observability Helm chart
 helm install amp-observability-traces \
   oci://${HELM_CHART_REGISTRY}/wso2-amp-observability-extension \
-  --version 0.0.0-dev \
+  --version 0.5.0 \
   --namespace ${OBSERVABILITY_NS} \
   --timeout 1800s
 ```
@@ -424,7 +424,7 @@ export REGISTRY_ENDPOINT="host.k3d.internal:10082"
 # Install Build Extension with the same registry endpoint
 helm install build-workflow-extensions \
   oci://${HELM_CHART_REGISTRY}/wso2-amp-build-extension \
-  --version 0.0.0-dev \
+  --version 0.5.0 \
   --namespace ${BUILD_CI_NS} \
   --set global.registry.endpoint=${REGISTRY_ENDPOINT} \
   --timeout 1800s
@@ -583,7 +583,7 @@ Install with custom values:
 ```bash
 helm install amp \
   oci://${HELM_CHART_REGISTRY}/wso2-agent-manager \
-  --version 0.0.0-dev \
+  --version 0.5.0 \
   --namespace ${AMP_NS} \
   --create-namespace \
   --timeout 1800s \
@@ -678,14 +678,14 @@ fi
 
 All configuration values files used in this guide are available in the repository:
 
-- **Control Plane Values**: [deployments/single-cluster/values-cp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-cp.yaml)
-- **Data Plane Values**: [deployments/single-cluster/values-dp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-dp.yaml)
-- **Build Plane Values**: [deployments/single-cluster/values-bp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-bp.yaml)
-- **Observability Plane Values**: [deployments/single-cluster/values-op.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-op.yaml)
-- **Gateway Operator Config**: [deployments/values/api-platform-operator-full-config.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/api-platform-operator-full-config.yaml)
-- **Observability Gateway**: [deployments/values/obs-gateway.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/obs-gateway.yaml)
-- **OTEL Collector ConfigMap**: [deployments/values/oc-collector-configmap.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/oc-collector-configmap.yaml)
-- **OTEL Collector RestApi**: [deployments/values/otel-collector-rest-api.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/otel-collector-rest-api.yaml)
+- **Control Plane Values**: [deployments/single-cluster/values-cp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/single-cluster/values-cp.yaml)
+- **Data Plane Values**: [deployments/single-cluster/values-dp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/single-cluster/values-dp.yaml)
+- **Build Plane Values**: [deployments/single-cluster/values-bp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/single-cluster/values-bp.yaml)
+- **Observability Plane Values**: [deployments/single-cluster/values-op.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/single-cluster/values-op.yaml)
+- **Gateway Operator Config**: [deployments/values/api-platform-operator-full-config.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/values/api-platform-operator-full-config.yaml)
+- **Observability Gateway**: [deployments/values/obs-gateway.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/values/obs-gateway.yaml)
+- **OTEL Collector ConfigMap**: [deployments/values/oc-collector-configmap.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/values/oc-collector-configmap.yaml)
+- **OTEL Collector RestApi**: [deployments/values/otel-collector-rest-api.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.5.0/deployments/values/otel-collector-rest-api.yaml)
 
 You can customize these files for your specific deployment needs.
 
