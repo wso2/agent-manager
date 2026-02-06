@@ -1,0 +1,86 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package models
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
+
+// GatewayEnvironmentResponse is the API response DTO
+type GatewayEnvironmentResponse struct {
+	UUID           string    `json:"uuid"`
+	OrganizationID string    `json:"organizationId"`
+	Name           string    `json:"name"`
+	DisplayName    string    `json:"displayName"`
+	Description    string    `json:"description,omitempty"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
+// CreateEnvironmentRequest is the API request for creating an environment
+type CreateEnvironmentRequest struct {
+	Name        string `json:"name" validate:"required,max=64"`
+	DisplayName string `json:"displayName" validate:"required,max=128"`
+	Description string `json:"description,omitempty"`
+}
+
+// UpdateEnvironmentRequest is the API request for updating an environment
+type UpdateEnvironmentRequest struct {
+	DisplayName *string `json:"displayName,omitempty"`
+	Description *string `json:"description,omitempty"`
+}
+
+// Environment is the database model
+type Environment struct {
+	UUID             uuid.UUID      `gorm:"column:uuid;primaryKey"`
+	OrganizationUUID uuid.UUID      `gorm:"column:organization_uuid"`
+	Name             string         `gorm:"column:name"`
+	DisplayName      string         `gorm:"column:display_name"`
+	Description      string         `gorm:"column:description"`
+	CreatedAt        time.Time      `gorm:"column:created_at"`
+	UpdatedAt        time.Time      `gorm:"column:updated_at"`
+	DeletedAt        gorm.DeletedAt `gorm:"column:deleted_at"`
+}
+
+// TableName returns the table name for GORM
+func (Environment) TableName() string {
+	return "environments"
+}
+
+// ToResponse converts the database model to API response
+func (e *Environment) ToResponse() *GatewayEnvironmentResponse {
+	return &GatewayEnvironmentResponse{
+		UUID:           e.UUID.String(),
+		OrganizationID: e.OrganizationUUID.String(),
+		Name:           e.Name,
+		DisplayName:    e.DisplayName,
+		Description:    e.Description,
+		CreatedAt:      e.CreatedAt,
+		UpdatedAt:      e.UpdatedAt,
+	}
+}
+
+// GatewayEnvironmentListResponse is the paginated list response
+type GatewayEnvironmentListResponse struct {
+	Environments []GatewayEnvironmentResponse `json:"environments"`
+	Total        int32                        `json:"total"`
+	Limit        int32                        `json:"limit"`
+	Offset       int32                        `json:"offset"`
+}
