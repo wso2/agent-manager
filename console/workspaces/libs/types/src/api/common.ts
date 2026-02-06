@@ -47,6 +47,12 @@ export interface RuntimeConfiguration {
   env?: EnvironmentVariable[];
 }
 
+export interface RuntimeConfigurationWithoutEnv {
+  language: string;
+  languageVersion?: string;
+  runCommand?: string;
+}
+
 export interface EndpointSchema {
   content: string;
 }

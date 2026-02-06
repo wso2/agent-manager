@@ -10,8 +10,8 @@ spec:
   workloadType: deployment
 
   allowedWorkflows:
-    - google-cloud-buildpacks
-    - ballerina-buildpack
+    - amp-google-cloud-buildpacks
+    - amp-ballerina-buildpack
 
   schema:
     types:

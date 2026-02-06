@@ -23,7 +23,7 @@ import (
 	"log/slog"
 	"time"
 
-	clients "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
@@ -44,26 +44,26 @@ type InfraResourceManager interface {
 }
 
 type infraResourceManager struct {
-	OpenChoreoSvcClient clients.OpenChoreoSvcClient
-	logger              *slog.Logger
+	ocClient client.OpenChoreoClient
+	logger   *slog.Logger
 }
 
 func NewInfraResourceManager(
-	openChoreoSvcClient clients.OpenChoreoSvcClient,
+	openChoreoClient client.OpenChoreoClient,
 	logger *slog.Logger,
 ) InfraResourceManager {
 	return &infraResourceManager{
-		OpenChoreoSvcClient: openChoreoSvcClient,
-		logger:              logger,
+		ocClient: openChoreoClient,
+		logger:   logger,
 	}
 }
 
 func (s *infraResourceManager) ListOrganizations(ctx context.Context, limit int, offset int) ([]*models.OrganizationResponse, int32, error) {
 	s.logger.Debug("ListOrganizations called", "limit", limit, "offset", offset)
-	orgs, err := s.OpenChoreoSvcClient.ListOrganizations(ctx)
+	orgs, err := s.ocClient.ListOrganizations(ctx)
 	if err != nil {
 		s.logger.Error("Failed to list organizations from openchoreo", "error", err)
-		return nil, 0, fmt.Errorf("failed to list organizations: %w", err)
+		return nil, 0, err
 	}
 	s.logger.Debug("Retrieved organizations from openchoreo", "totalCount", len(orgs))
 	total := len(orgs)
@@ -83,17 +83,10 @@ func (s *infraResourceManager) ListOrganizations(ctx context.Context, limit int,
 func (s *infraResourceManager) GetOrganization(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
 	s.logger.Debug("GetOrganization called", "orgName", orgName)
 
-	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
-	if err != nil {
-		s.logger.Error("Failed to get organization from repository", "orgName", orgName, "error", err)
-		return nil, err
-	}
-	s.logger.Debug("Organization found in repository, fetching from OpenChoreo", "orgName", orgName)
-
-	org, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
+	org, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to get organization from OpenChoreo", "orgName", orgName, "error", err)
-		return nil, fmt.Errorf("failed to get organization %s from OpenChoreo: %w", orgName, err)
+		return nil, err
 	}
 
 	s.logger.Info("Fetched organization successfully", "orgName", orgName)
@@ -104,47 +97,23 @@ func (s *infraResourceManager) CreateProject(ctx context.Context, orgName string
 	s.logger.Debug("CreateProject called", "orgName", orgName, "projectName", payload.Name, "deploymentPipeline", payload.DeploymentPipeline)
 
 	// Validate organization exists
-	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
+	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to get organization from repository", "orgName", orgName, "error", err)
+		s.logger.Error("Failed to get organization", "orgName", orgName, "error", err)
 		return nil, err
-	}
-	_, err = s.OpenChoreoSvcClient.GetProject(ctx, payload.Name, orgName)
-	if err == nil {
-		// Project already exists
-		s.logger.Error("Project already exists", "orgName", orgName, "projectName", payload.Name)
-		return nil, utils.ErrProjectAlreadyExists
-	} else if !errors.Is(err, utils.ErrProjectNotFound) {
-		// Some other error occurred
-		s.logger.Error("Failed to check existing projects", "orgName", orgName, "projectName", payload.Name, "error", err)
-		return nil, fmt.Errorf("failed to check existing projects: %w", err)
-	}
-	s.logger.Debug("Verified project does not exist", "orgName", orgName, "projectName", payload.Name)
-
-	s.logger.Debug("Fetching deployment pipelines from OpenChoreo", "orgName", orgName)
-	deploymentPipelines, err := s.OpenChoreoSvcClient.GetDeploymentPipelinesForOrganization(ctx, orgName)
-	if err != nil {
-		s.logger.Error("Failed to get deployment pipelines from OpenChoreo", "orgName", orgName, "error", err)
-		return nil, fmt.Errorf("failed to get deployment pipelines for organization %s: %w", orgName, err)
-	}
-	s.logger.Debug("Retrieved deployment pipelines", "orgName", orgName, "pipelineCount", len(deploymentPipelines))
-
-	// Check if deployment pipeline exists
-	pipelineExists := false
-	for _, pipeline := range deploymentPipelines {
-		if pipeline.Name == payload.DeploymentPipeline {
-			pipelineExists = true
-			break
-		}
-	}
-	if !pipelineExists {
-		s.logger.Warn("Deployment pipeline not found", "orgName", orgName, "requestedPipeline", payload.DeploymentPipeline)
-		return nil, utils.ErrDeploymentPipelineNotFound
 	}
 
 	// Create project in OpenChoreo
-	if err := s.OpenChoreoSvcClient.CreateProject(ctx, orgName, payload.Name, payload.DeploymentPipeline, payload.DisplayName, utils.StrPointerAsStr(payload.Description, "")); err != nil {
-		return nil, fmt.Errorf("failed to create project in OpenChoreo: %w", err)
+	req := client.CreateProjectRequest{
+		Name:               payload.Name,
+		DisplayName:        payload.DisplayName,
+		Description:        utils.StrPointerAsStr(payload.Description, ""),
+		DeploymentPipeline: payload.DeploymentPipeline,
+	}
+
+	if err := s.ocClient.CreateProject(ctx, orgName, req); err != nil {
+		s.logger.Error("Failed to create project in OpenChoreo", "orgName", orgName, "projectName", payload.Name, "error", err)
+		return nil, err
 	}
 	s.logger.Info("Project created successfully", "orgName", orgName, "projectName", payload.Name)
 
@@ -162,55 +131,33 @@ func (s *infraResourceManager) UpdateProject(ctx context.Context, orgName string
 	s.logger.Info("Updating project", "orgName", orgName, "projectName", projectName)
 
 	// Validate organization exists
-	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
+	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to get organization", "orgName", orgName, "error", err)
 		return nil, err
 	}
 
 	// Validate project exists
-	existingProject, err := s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
+	_, err = s.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to get project", "projectName", projectName, "orgName", orgName, "error", err)
 		return nil, err
 	}
+	// Todo: verify existence of deployment pipeline if deployment pipeline is being updated
 
-	// Check immutable fields - name cannot be changed
-	if payload.Name != existingProject.Name {
-		s.logger.Error("Cannot change project name", "existingName", existingProject.Name, "requestedName", payload.Name)
-		return nil, fmt.Errorf("%w: project name cannot be changed", utils.ErrImmutableFieldChange)
+	// Update project in OpenChoreo using PatchProject
+	patchReq := client.PatchProjectRequest{
+		DisplayName:        payload.DisplayName,
+		Description:        payload.Description,
+		DeploymentPipeline: payload.DeploymentPipeline,
 	}
-
-	// Validate deployment pipeline exists if it's being changed
-	if payload.DeploymentPipeline != existingProject.DeploymentPipeline {
-		deploymentPipelines, err := s.OpenChoreoSvcClient.GetDeploymentPipelinesForOrganization(ctx, orgName)
-		if err != nil {
-			s.logger.Error("Failed to get deployment pipelines from OpenChoreo", "orgName", orgName, "error", err)
-			return nil, fmt.Errorf("failed to get deployment pipelines for organization %s: %w", orgName, err)
-		}
-
-		// Check if deployment pipeline exists
-		pipelineExists := false
-		for _, pipeline := range deploymentPipelines {
-			if pipeline.Name == payload.DeploymentPipeline {
-				pipelineExists = true
-				break
-			}
-		}
-		if !pipelineExists {
-			s.logger.Warn("Deployment pipeline not found", "orgName", orgName, "requestedPipeline", payload.DeploymentPipeline)
-			return nil, utils.ErrDeploymentPipelineNotFound
-		}
-	}
-
-	// Update project in OpenChoreo
-	if err := s.OpenChoreoSvcClient.UpdateProject(ctx, orgName, projectName, payload); err != nil {
+	if err := s.ocClient.PatchProject(ctx, orgName, projectName, patchReq); err != nil {
 		s.logger.Error("Failed to update project in OpenChoreo", "projectName", projectName, "orgName", orgName, "error", err)
 		return nil, fmt.Errorf("failed to update project: %w", err)
 	}
 
 	// Fetch updated project
-	updatedProject, err := s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
+	updatedProject, err := s.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to fetch updated project", "projectName", projectName, "orgName", orgName, "error", err)
 		return nil, err
@@ -225,18 +172,18 @@ func (s *infraResourceManager) ListProjects(ctx context.Context, orgName string,
 	s.logger.Debug("ListProjects called", "orgName", orgName, "limit", limit, "offset", offset)
 
 	// Validate organization exists
-	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
+	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to get organization from repository", "orgName", orgName, "error", err)
+		s.logger.Error("Failed to get organization", "orgName", orgName, "error", err)
 		return nil, 0, err
 	}
 
-	projects, err := s.OpenChoreoSvcClient.ListProjects(ctx, orgName)
+	projects, err := s.ocClient.ListProjects(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to list projects from repository", "orgName", orgName, "error", err)
+		s.logger.Error("Failed to list projects", "orgName", orgName, "error", err)
 		return nil, 0, fmt.Errorf("failed to list projects for organization %s: %w", orgName, err)
 	}
-	s.logger.Debug("Retrieved projects from repository", "orgName", orgName, "totalCount", len(projects))
+	s.logger.Debug("Retrieved projects", "orgName", orgName, "totalCount", len(projects))
 
 	total := len(projects)
 	// Apply pagination
@@ -250,60 +197,44 @@ func (s *infraResourceManager) ListProjects(ctx context.Context, orgName string,
 	}
 	paginatedProjects := projects[start:end]
 
-	// Convert Project models to ProjectResponse DTOs
-	var projectResponses []*models.ProjectResponse
-	for _, project := range paginatedProjects {
-		projectResponse := &models.ProjectResponse{
-			UUID:        project.UUID,
-			Name:        project.Name,
-			OrgName:     orgName,
-			DisplayName: project.DisplayName,
-			Description: project.Description,
-			CreatedAt:   project.CreatedAt,
-		}
-		projectResponses = append(projectResponses, projectResponse)
-	}
-
-	s.logger.Info("Fetched projects successfully", "orgName", orgName, "count", len(projectResponses), "total", total)
-	return projectResponses, int32(total), nil
+	s.logger.Info("Fetched projects successfully", "orgName", orgName, "count", len(paginatedProjects), "total", total)
+	return paginatedProjects, int32(total), nil
 }
 
 func (s *infraResourceManager) DeleteProject(ctx context.Context, orgName string, projectName string) error {
 	s.logger.Debug("DeleteProject called", "orgName", orgName, "projectName", projectName)
 
 	// Validate organization exists
-	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
+	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to get organization from repository", "orgName", orgName, "error", err)
+		s.logger.Error("Failed to get organization", "orgName", orgName, "error", err)
 		return err
 	}
-	_, err = s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
-	if err != nil {
-		// DELETE is idempotent
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			s.logger.Debug("Project not found, treating as successful delete (idempotent)", "orgName", orgName, "projectName", projectName)
-			return nil
-		}
-		s.logger.Error("Failed to get project", "orgName", orgName, "projectName", projectName, "error", err)
-		return fmt.Errorf("failed to find project %s: %w", projectName, err)
-	}
-	s.logger.Debug("Project found", "orgName", orgName, "projectName", projectName)
-
 	// Check agents exist for the project
 	s.logger.Debug("Checking for associated agents", "projectName", projectName)
-	agents, err := s.OpenChoreoSvcClient.ListAgentComponents(ctx, orgName, projectName)
+	agents, err := s.ocClient.ListComponents(ctx, orgName, projectName)
 	if err != nil {
+		if errors.Is(err, utils.ErrProjectNotFound) {
+			s.logger.Warn("Project not found while listing components; delete is idempotent", "orgName", orgName, "projectName", projectName)
+			return nil
+		}
 		s.logger.Error("Failed to list agents for project", "projectName", projectName, "error", err)
-		return fmt.Errorf("failed to list agents for project %s: %w", projectName, err)
+		return err
 	}
 	if len(agents) > 0 {
 		s.logger.Warn("Cannot delete project with associated agents", "orgName", orgName, "projectName", projectName, "agentCount", len(agents))
 		return utils.ErrProjectHasAssociatedAgents
 	}
 	s.logger.Debug("No associated agents found, proceeding with deletion", "projectName", projectName)
+
 	// Delete project from OpenChoreo
-	err = s.OpenChoreoSvcClient.DeleteProject(ctx, orgName, projectName)
+	err = s.ocClient.DeleteProject(ctx, orgName, projectName)
 	if err != nil {
+		if errors.Is(err, utils.ErrProjectNotFound) {
+			s.logger.Warn("Project not found during deletion, delete is idempotent", "orgName", orgName, "projectName", projectName)
+			return nil
+		}
+		s.logger.Error("Failed to delete project from OpenChoreo", "orgName", orgName, "projectName", projectName, "error", err)
 		return err
 	}
 	s.logger.Info("Project deleted successfully", "orgName", orgName, "projectName", projectName)
@@ -314,33 +245,34 @@ func (s *infraResourceManager) GetProject(ctx context.Context, orgName string, p
 	s.logger.Debug("GetProject called", "orgName", orgName, "projectName", projectName)
 
 	// Validate organization exists
-	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
+	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to get organization from repository", "orgName", orgName, "error", err)
+		s.logger.Error("Failed to get organization", "orgName", orgName, "error", err)
 		return nil, err
 	}
-	openChoreoProject, err := s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
+
+	project, err := s.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to get project from OpenChoreo", "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, fmt.Errorf("failed to get project %s for organization %s: %w", projectName, orgName, err)
+		return nil, err
 	}
 
 	s.logger.Info("Fetched project successfully", "orgName", orgName, "projectName", projectName)
-	return openChoreoProject, nil
+	return project, nil
 }
 
 func (s *infraResourceManager) ListOrgDeploymentPipelines(ctx context.Context, orgName string, limit int, offset int) ([]*models.DeploymentPipelineResponse, int, error) {
 	s.logger.Debug("ListOrgDeploymentPipelines called", "orgName", orgName)
 
 	// Validate organization exists
-	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
+	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to get organization from repository", "orgName", orgName, "error", err)
+		s.logger.Error("Failed to get organization", "orgName", orgName, "error", err)
 		return nil, 0, err
 	}
 
 	s.logger.Debug("Fetching deployment pipelines from OpenChoreo", "orgName", orgName)
-	deploymentPipelines, err := s.OpenChoreoSvcClient.GetDeploymentPipelinesForOrganization(ctx, orgName)
+	deploymentPipelines, err := s.ocClient.ListDeploymentPipelines(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to get deployment pipelines from OpenChoreo", "orgName", orgName, "error", err)
 		return nil, 0, fmt.Errorf("failed to get deployment pipelines for organization %s: %w", orgName, err)
@@ -366,16 +298,16 @@ func (s *infraResourceManager) ListOrgEnvironments(ctx context.Context, orgName 
 	s.logger.Debug("ListOrgEnvironments called", "orgName", orgName)
 
 	// Validate organization exists
-	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
+	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to get organization from repository", "orgName", orgName, "error", err)
+		s.logger.Error("Failed to get organization from OpenChoreo", "orgName", orgName, "error", err)
 		return nil, err
 	}
 	s.logger.Debug("Fetching environments from OpenChoreo", "orgName", orgName)
-	environments, err := s.OpenChoreoSvcClient.ListOrgEnvironments(ctx, orgName)
+	environments, err := s.ocClient.ListEnvironments(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to get environments from OpenChoreo", "orgName", orgName, "error", err)
-		return nil, fmt.Errorf("failed to get environments for organization %s: %w", orgName, err)
+		return nil, err
 	}
 
 	s.logger.Info("Fetched environments successfully", "orgName", orgName, "count", len(environments))
@@ -386,26 +318,20 @@ func (s *infraResourceManager) GetProjectDeploymentPipeline(ctx context.Context,
 	s.logger.Debug("GetProjectDeploymentPipeline called", "orgName", orgName, "projectName", projectName)
 
 	// Validate organization exists
-	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
+	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to get organization from repository", "orgName", orgName, "error", err)
-		return nil, err
-	}
-	openChoreoProject, err := s.OpenChoreoSvcClient.GetProject(ctx, projectName, orgName)
-	if err != nil {
-		s.logger.Error("Failed to get project from OpenChoreo", "orgName", orgName, "projectName", projectName, "error", err)
+		s.logger.Error("Failed to get organization", "orgName", orgName, "error", err)
 		return nil, err
 	}
 
-	pipelineName := openChoreoProject.DeploymentPipeline
-	s.logger.Debug("Fetching deployment pipeline from OpenChoreo", "orgName", orgName, "pipelineName", pipelineName)
-	deploymentPipeline, err := s.OpenChoreoSvcClient.GetDeploymentPipeline(ctx, orgName, pipelineName)
+	s.logger.Debug("Fetching deployment pipeline from OpenChoreo", "orgName", orgName, "projectName", projectName)
+	deploymentPipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
-		s.logger.Error("Failed to get deployment pipeline from OpenChoreo", "orgName", orgName, "pipelineName", pipelineName, "error", err)
-		return nil, fmt.Errorf("failed to get deployment pipeline for project %s: %w", projectName, err)
+		s.logger.Error("Failed to get deployment pipeline from OpenChoreo", "orgName", orgName, "projectName", projectName, "error", err)
+		return nil, err
 	}
 
-	s.logger.Info("Fetched deployment pipeline successfully", "orgName", orgName, "projectName", projectName, "pipelineName", pipelineName)
+	s.logger.Info("Fetched deployment pipeline successfully", "orgName", orgName, "projectName", projectName)
 
 	return deploymentPipeline, nil
 }
@@ -414,17 +340,17 @@ func (s *infraResourceManager) GetDataplanes(ctx context.Context, orgName string
 	s.logger.Debug("GetDataplanes called", "orgName", orgName)
 
 	// Validate organization exists
-	_, err := s.OpenChoreoSvcClient.GetOrganization(ctx, orgName)
+	_, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
-		s.logger.Error("Failed to get organization from repository", "orgName", orgName, "error", err)
+		s.logger.Error("Failed to get organization", "orgName", orgName, "error", err)
 		return nil, err
 	}
 
 	s.logger.Debug("Fetching dataplanes from OpenChoreo", "orgName", orgName)
-	dataplanes, err := s.OpenChoreoSvcClient.GetDataplanesForOrganization(ctx, orgName)
+	dataplanes, err := s.ocClient.ListDataPlanes(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to get dataplanes from OpenChoreo", "orgName", orgName, "error", err)
-		return nil, fmt.Errorf("failed to get dataplanes for organization %s: %w", orgName, err)
+		return nil, err
 	}
 
 	s.logger.Info("Fetched dataplanes successfully", "orgName", orgName, "count", len(dataplanes))

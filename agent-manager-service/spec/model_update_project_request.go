@@ -19,23 +19,21 @@ var _ MappedNullable = &UpdateProjectRequest{}
 
 // UpdateProjectRequest struct for UpdateProjectRequest
 type UpdateProjectRequest struct {
-	// Name of the project
-	Name string `json:"name"`
 	// Display name of the project
 	DisplayName string `json:"displayName"`
 	// Description of the project
-	Description        *string `json:"description,omitempty"`
-	DeploymentPipeline string  `json:"deploymentPipeline"`
+	Description        string `json:"description"`
+	DeploymentPipeline string `json:"deploymentPipeline"`
 }
 
 // NewUpdateProjectRequest instantiates a new UpdateProjectRequest object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewUpdateProjectRequest(name string, displayName string, deploymentPipeline string) *UpdateProjectRequest {
+func NewUpdateProjectRequest(displayName string, description string, deploymentPipeline string) *UpdateProjectRequest {
 	this := UpdateProjectRequest{}
-	this.Name = name
 	this.DisplayName = displayName
+	this.Description = description
 	this.DeploymentPipeline = deploymentPipeline
 	return &this
 }
@@ -46,30 +44,6 @@ func NewUpdateProjectRequest(name string, displayName string, deploymentPipeline
 func NewUpdateProjectRequestWithDefaults() *UpdateProjectRequest {
 	this := UpdateProjectRequest{}
 	return &this
-}
-
-// GetName returns the Name field value
-func (o *UpdateProjectRequest) GetName() string {
-	if o == nil {
-		var ret string
-		return ret
-	}
-
-	return o.Name
-}
-
-// GetNameOk returns a tuple with the Name field value
-// and a boolean to check if the value has been set.
-func (o *UpdateProjectRequest) GetNameOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.Name, true
-}
-
-// SetName sets field value
-func (o *UpdateProjectRequest) SetName(v string) {
-	o.Name = v
 }
 
 // GetDisplayName returns the DisplayName field value
@@ -96,36 +70,28 @@ func (o *UpdateProjectRequest) SetDisplayName(v string) {
 	o.DisplayName = v
 }
 
-// GetDescription returns the Description field value if set, zero value otherwise.
+// GetDescription returns the Description field value
 func (o *UpdateProjectRequest) GetDescription() string {
-	if o == nil || IsNil(o.Description) {
+	if o == nil {
 		var ret string
 		return ret
 	}
-	return *o.Description
+
+	return o.Description
 }
 
-// GetDescriptionOk returns a tuple with the Description field value if set, nil otherwise
+// GetDescriptionOk returns a tuple with the Description field value
 // and a boolean to check if the value has been set.
 func (o *UpdateProjectRequest) GetDescriptionOk() (*string, bool) {
-	if o == nil || IsNil(o.Description) {
+	if o == nil {
 		return nil, false
 	}
-	return o.Description, true
+	return &o.Description, true
 }
 
-// HasDescription returns a boolean if a field has been set.
-func (o *UpdateProjectRequest) HasDescription() bool {
-	if o != nil && !IsNil(o.Description) {
-		return true
-	}
-
-	return false
-}
-
-// SetDescription gets a reference to the given string and assigns it to the Description field.
+// SetDescription sets field value
 func (o *UpdateProjectRequest) SetDescription(v string) {
-	o.Description = &v
+	o.Description = v
 }
 
 // GetDeploymentPipeline returns the DeploymentPipeline field value
@@ -162,11 +128,8 @@ func (o UpdateProjectRequest) MarshalJSON() ([]byte, error) {
 
 func (o UpdateProjectRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["name"] = o.Name
 	toSerialize["displayName"] = o.DisplayName
-	if !IsNil(o.Description) {
-		toSerialize["description"] = o.Description
-	}
+	toSerialize["description"] = o.Description
 	toSerialize["deploymentPipeline"] = o.DeploymentPipeline
 	return toSerialize, nil
 }

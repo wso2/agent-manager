@@ -2,14 +2,9 @@
 # This chart creates default OpenChoreo resources needed for the AI Agent Management Platform
 # All those resources are created in default namespace
 
-# Organization configuration
-organization:
-  # Name of the default organization
-  name: default
-  # Display name for the organization
-  displayName: "Default Organization"
-  # Description for the organization
-  description: "Default organization for WSO2 AI Agent Management Platform"
+# Kubectl image configuration for jobs
+kubectl:
+  image: bitnamilegacy/kubectl:1.32.4
 
 # Environment configuration
 environment:

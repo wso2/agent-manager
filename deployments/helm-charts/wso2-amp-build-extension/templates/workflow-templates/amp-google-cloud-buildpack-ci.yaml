@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ClusterWorkflowTemplate
 metadata:
-  name: ballerina-buildpack-ci
+  name: amp-google-cloud-buildpack-ci
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "15"
@@ -21,18 +21,18 @@ spec:
               parameters:
                 - name: git-revision
                   value: '{{ "{{" }}steps.clone-step.outputs.parameters.git-revision{{ "}}" }}'
-        - - name: push-step
-            template: push-step
+        - - name: publish-image
+            template: publish-image
             arguments:
               parameters:
                 - name: git-revision
                   value: '{{ "{{" }}steps.clone-step.outputs.parameters.git-revision{{ "}}" }}'
-        - - name: workload-create-step
-            template: workload-create-step
+        - - name: generate-workload-cr
+            template: generate-workload-cr
             arguments:
               parameters:
                 - name: image
-                  value: '{{ "{{" }}steps.push-step.outputs.parameters.image{{ "}}" }}'
+                  value: '{{ "{{" }}steps.publish-image.outputs.parameters.image{{ "}}" }}'
     - name: clone-step
       outputs:
         parameters:
@@ -85,7 +85,10 @@ spec:
             IMAGE="{{ "{{" }}workflow.parameters.image-name{{ "}}" }}:{{ "{{" }}workflow.parameters.image-tag{{ "}}" }}-{{ "{{" }}inputs.parameters.git-revision{{ "}}" }}"
             APP_PATH="{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
 
-            echo "Building image: $IMAGE from path: $WORKDIR/$APP_PATH"
+            # Set Google Buildpack entrypoint if provided
+            GOOGLE_ENTRYPOINT="{{ "{{" }}workflow.parameters.google-entry-point{{ "}}" }}"
+            LANGUAGE_VERSION="{{ "{{" }}workflow.parameters.language-version{{ "}}" }}"
+            LANGUAGE_VERSION_ENV_VAR_NAME="{{ "{{" }}workflow.parameters.language-version-key{{ "}}" }}"
 
             #####################################################################
             # 1. Podman daemon + storage.conf
@@ -103,30 +106,51 @@ spec:
             podman system service --time=0 &
             until podman info --format '{{ "{{" }}.Host.RemoteSocket.Exists{{ "}}" }}' 2>/dev/null | grep -q true; do sleep 1; done
 
-             #####################################################################
-            # 2. Registry configuration and pull pre-cached images
+
             #####################################################################
-            REGISTRY_ENDPOINT="{{ include "openchoreo-build-plane.registryEndpoint" . }}"
+            # 2. Build with Google Buildpacks
+            #####################################################################
+            BUILDER="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "google-builder" "context" .) }}"
+            RUN_IMG="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "google-run" "context" .) }}"
+            LIFECYCLE_IMG="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "lifecycle" "context" .) }}"
 
-            # Pull pre-cached buildpack images from registry
-            BUILDER="${REGISTRY_ENDPOINT}/buildpacks-cache/ballerina-builder:18"
-            RUN_IMAGE="${REGISTRY_ENDPOINT}/buildpacks-cache/ballerina-run:18"
 
+            {{- if .Values.global.defaultResources.buildpackCache.enabled }}
             echo "Pulling cached builder: $BUILDER"
-            podman pull --tls-verify=false "$BUILDER"
+            podman pull --tls-verify={{ .Values.global.defaultResources.registry.tlsVerify }} "$BUILDER"
 
-            echo "Pulling cached run image: $RUN_IMAGE"
-            podman pull --tls-verify=false "$RUN_IMAGE"
+            echo "Pulling cached run image: $RUN_IMG"
+            podman pull --tls-verify={{ .Values.global.defaultResources.registry.tlsVerify }} "$RUN_IMG"
+
+            echo "Pulling cached lifecycle: $LIFECYCLE_IMG"
+            podman pull --tls-verify={{ .Values.global.defaultResources.registry.tlsVerify }} "$LIFECYCLE_IMG"
+
+            # Tag lifecycle image to expected name (referenced by builder image metadata)
+            podman tag "$LIFECYCLE_IMG" "docker.io/buildpacksio/lifecycle:0.20.5"
+            {{- end }}
+
 
             #####################################################################
-            # 3. Build with Ballerina Buildpacks
+            # 3. Build with Google Buildpacks
             #####################################################################
-            /usr/local/bin/pack build "$IMAGE" \
-              --builder "$BUILDER" \
-              --docker-host inherit \
-              --path "$WORKDIR/$APP_PATH" \
-              --volume "/mnt/vol:/app/generated-artifacts:rw" \
-              --pull-policy if-not-present
+
+            # Build with Google Buildpacks - create pack command with proper environment variables
+            CMD_ARGS="--builder $BUILDER --docker-host inherit --path $WORKDIR$APP_PATH --pull-policy if-not-present"
+
+            if [ -n "$GOOGLE_ENTRYPOINT" ]; then
+              echo "Setting GOOGLE_ENTRYPOINT=$GOOGLE_ENTRYPOINT"
+              CMD_ARGS="$CMD_ARGS --env GOOGLE_ENTRYPOINT=\"$GOOGLE_ENTRYPOINT\""
+            fi
+            if [ -n "$LANGUAGE_VERSION" ]; then
+              echo "Setting $LANGUAGE_VERSION_ENV_VAR_NAME=$LANGUAGE_VERSION"
+              CMD_ARGS="$CMD_ARGS --env $LANGUAGE_VERSION_ENV_VAR_NAME=$LANGUAGE_VERSION"
+            fi
+
+            # Execute pack build command
+            echo "Building image $IMAGE with CMD ARGS: $CMD_ARGS"
+
+            # Run build using eval to handle quoted arguments properly
+            eval "/usr/local/bin/pack build \"$IMAGE\" $CMD_ARGS"
 
             podman save -o /mnt/vol/app-image.tar "$IMAGE"
         command:
@@ -140,7 +164,7 @@ spec:
             name: workspace
           - mountPath: /shared/podman/cache
             name: podman-cache
-    - name: push-step
+    - name: publish-image
       inputs:
         parameters:
           - name: git-revision
@@ -153,6 +177,7 @@ spec:
         args:
           - |-
             set -e
+
             #####################################################################
             # 1. Inputs
             #####################################################################
@@ -160,7 +185,6 @@ spec:
             IMAGE_NAME={{ "{{" }}workflow.parameters.image-name{{ "}}" }}
             IMAGE_TAG={{ "{{" }}workflow.parameters.image-tag{{ "}}" }}
             SRC_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
-
 
             #####################################################################
             # 2. Registry
@@ -192,7 +216,6 @@ spec:
             # 5. Emit image reference (for later steps/kubelet pulls)
             #####################################################################
             echo -n "$REGISTRY_ENDPOINT/$SRC_IMAGE" > /tmp/image.txt
-
         command:
           - sh
           - -c
@@ -202,7 +225,7 @@ spec:
         volumeMounts:
           - mountPath: /mnt/vol
             name: workspace
-    - name: workload-create-step
+    - name: generate-workload-cr
       inputs:
         parameters:
           - name: image
@@ -225,9 +248,9 @@ spec:
             IMAGE={{ "{{" }}inputs.parameters.image{{ "}}" }}
             PROJECT_NAME={{ "{{" }}workflow.parameters.project-name{{ "}}" }}
             COMPONENT_NAME={{ "{{" }}workflow.parameters.component-name{{ "}}" }}
-            ORG_NAME={{ "{{" }}workflow.namespace{{ "}}" }}
-            # Strip 'openchoreo-ci-' prefix to get the actual org name
-            ORG_NAME=${ORG_NAME#openchoreo-ci-}
+            NAMESPACE={{ "{{" }}workflow.namespace{{ "}}" }}
+            # Strip 'openchoreo-ci-' prefix to get the actual namespace
+            NAMESPACE=${NAMESPACE#openchoreo-ci-}
             ENDPOINTS='{{ "{{" }}workflow.parameters.endpoints{{ "}}" }}'
             ENV_VARS='{{ "{{" }}workflow.parameters.environment-variables{{ "}}" }}'
             SOURCE_PATH="/mnt/vol/source/{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
@@ -238,7 +261,7 @@ spec:
             echo "kind: Workload" >> "$OUT"
             echo "metadata:" >> "$OUT"
             echo "  name: ${COMPONENT_NAME}-workload" >> "$OUT"
-            echo "  namespace: ${ORG_NAME}" >> "$OUT"
+            echo "  namespace: ${NAMESPACE}" >> "$OUT"
             echo "spec:" >> "$OUT"
             echo "  owner:" >> "$OUT"
             echo "    projectName: ${PROJECT_NAME}" >> "$OUT"
@@ -256,7 +279,7 @@ spec:
             # Endpoints
             if [ -n "$ENDPOINTS" ] && [ "$ENDPOINTS" != "null" ] && [ "$ENDPOINTS" != "[]" ]; then
               echo "  endpoints:" >> "$OUT"
-              while read -r ep; do    
+              while read -r ep; do
                 NAME=$(echo "$ep" | jq -r '.name')
                 TYPE=$(echo "$ep" | jq -r '.type // "HTTP"')
                 PORT=$(echo "$ep" | jq -r '.port')
@@ -279,7 +302,7 @@ spec:
                   echo "        content: |" >> "$OUT"
                   sed 's/^/          /' "$SOURCE_PATH$SCHEMA_FILE_PATH" >> "$OUT"
                 fi
-              done < <(echo "$ENDPOINTS" | jq -c '.[]') 
+              done < <(echo "$ENDPOINTS" | jq -c '.[]')
             fi
 
             echo "Workload CR saved to $OUT"
@@ -291,6 +314,7 @@ spec:
     secondsAfterSuccess: 3600
   volumeClaimTemplates:
     - metadata:
+        creationTimestamp: null
         name: workspace
       spec:
         accessModes:

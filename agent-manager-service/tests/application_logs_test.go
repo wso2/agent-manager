@@ -106,7 +106,7 @@ func TestGetApplicationLogs(t *testing.T) {
 		observabilityClient := createMockObservabilityClient()
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient:    openChoreoClient,
+			OpenChoreoClient:       openChoreoClient,
 			ObservabilitySvcClient: observabilityClient,
 		}
 
@@ -170,7 +170,7 @@ func TestGetApplicationLogs(t *testing.T) {
 		observabilityClient := createMockObservabilityClient()
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient:    openChoreoClient,
+			OpenChoreoClient:       openChoreoClient,
 			ObservabilitySvcClient: observabilityClient,
 		}
 
@@ -208,7 +208,7 @@ func TestGetApplicationLogs(t *testing.T) {
 		observabilityClient := createMockObservabilityClient()
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient:    openChoreoClient,
+			OpenChoreoClient:       openChoreoClient,
 			ObservabilitySvcClient: observabilityClient,
 		}
 
@@ -250,7 +250,7 @@ func TestGetApplicationLogs(t *testing.T) {
 		wantStatus     int
 		wantErrMsg     string
 		url            string
-		setupMock      func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock)
+		setupMock      func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock)
 	}{
 		{
 			name:           "return 400 on invalid request body",
@@ -261,7 +261,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "environment is required",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -276,7 +276,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			wantStatus: 404,
 			wantErrMsg: "Agent not found",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/nonexistent-agent/runtime-logs", logsOrgName, logsProjName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				obsClient := createMockObservabilityClient()
 				openClient := apitestutils.CreateMockOpenChoreoClient()
 				return obsClient, openClient
@@ -293,7 +293,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "environment",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -308,7 +308,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "startTime",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -323,7 +323,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "endTime",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -338,7 +338,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "must be after startTime",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -353,7 +353,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "startTime cannot be in the future",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -368,7 +368,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "time range cannot exceed",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -384,7 +384,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "limit must be between",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -400,7 +400,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "limit must be between",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -416,7 +416,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			wantStatus: 400,
 			wantErrMsg: "sortOrder must be",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -435,7 +435,7 @@ func TestGetApplicationLogs(t *testing.T) {
 			wantStatus: 401,
 			wantErrMsg: "missing header: Authorization",
 			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/runtime-logs", logsOrgName, logsProjName, logsAgentName),
-			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoSvcClientMock) {
+			setupMock: func() (*clientmocks.ObservabilitySvcClientMock, *clientmocks.OpenChoreoClientMock) {
 				return createMockObservabilityClient(), apitestutils.CreateMockOpenChoreoClient()
 			},
 		},
@@ -445,7 +445,7 @@ func TestGetApplicationLogs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			obsClient, openClient := tt.setupMock()
 			testClients := wiring.TestClients{
-				OpenChoreoSvcClient:    openClient,
+				OpenChoreoClient:       openClient,
 				ObservabilitySvcClient: obsClient,
 			}
 

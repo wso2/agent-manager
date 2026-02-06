@@ -29,27 +29,53 @@ import (
 )
 
 type agentPayload struct {
-	name           string
-	displayName    string
-	provisioning   spec.Provisioning
-	agentType      spec.AgentType
+	name         string
+	displayName  string
+	provisioning spec.Provisioning
+	agentType    spec.AgentType
+
 	runtimeConfigs *spec.RuntimeConfiguration
 	inputInterface *spec.InputInterface
 }
 
-func ValidateAgentUpdatePayload(payload spec.UpdateAgentRequest) error {
-	return validateAgentPayload(agentPayload{
-		name:           payload.Name,
-		displayName:    payload.DisplayName,
-		provisioning:   payload.Provisioning,
-		agentType:      payload.AgentType,
-		runtimeConfigs: payload.RuntimeConfigs,
-		inputInterface: payload.InputInterface,
-	})
+func ValidateAgentBasicInfoUpdatePayload(payload spec.UpdateAgentBasicInfoRequest) error {
+	if err := ValidateResourceDisplayName(payload.DisplayName, "agent"); err != nil {
+		return fmt.Errorf("invalid agent display name: %w", err)
+	}
+	return nil
+}
+
+func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildParametersRequest) error {
+	// Validate agent provisioning
+	if err := validateAgentProvisioning(payload.Provisioning); err != nil {
+		return fmt.Errorf("invalid agent provisioning: %w", err)
+	}
+	// Validate agent type and subtype
+	if err := validateAgentType(payload.AgentType); err != nil {
+		return fmt.Errorf("invalid agent type or subtype: %w", err)
+	}
+	// Additional validations for internal agents
+	if payload.Provisioning.Type == string(InternalAgent) {
+		if err := validateInternalAgentPayload(
+			agentPayload{
+				provisioning: payload.Provisioning,
+				agentType:    payload.AgentType,
+				runtimeConfigs: &spec.RuntimeConfiguration{
+					RunCommand:      payload.RuntimeConfigs.RunCommand,
+					LanguageVersion: payload.RuntimeConfigs.LanguageVersion,
+					Language:        payload.RuntimeConfigs.Language,
+				},
+				inputInterface: &payload.InputInterface,
+			},
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func ValidateProjectUpdatePayload(payload spec.UpdateProjectRequest) error {
-	if err := ValidateResourceName(payload.Name, "project"); err != nil {
+	if err := ValidateResourceName(payload.DisplayName, "project"); err != nil {
 		return fmt.Errorf("invalid project name: %w", err)
 	}
 
@@ -60,7 +86,6 @@ func ValidateProjectUpdatePayload(payload spec.UpdateProjectRequest) error {
 	if payload.DeploymentPipeline == "" {
 		return fmt.Errorf("deployment pipeline cannot be empty")
 	}
-
 	return nil
 }
 
@@ -740,4 +765,21 @@ func ParseGitHubURL(url string) (owner, repo string) {
 	}
 
 	return "", ""
+}
+
+// ToShortSHA converts a full git commit SHA to short format (first 8 characters).
+// If the commit is already short or invalid, returns it as-is.
+// This matches the behavior of the build workflow templates that use cut -c1-8.
+func ToShortSHA(commit string) string {
+	if commit == "" {
+		return commit
+	}
+
+	// If commit is already 8 characters or less, return as-is
+	if len(commit) <= 8 {
+		return commit
+	}
+
+	// Return first 8 characters
+	return commit[:8]
 }

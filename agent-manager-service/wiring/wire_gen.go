@@ -12,7 +12,8 @@ import (
 	"github.com/google/wire"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
@@ -25,22 +26,23 @@ import (
 func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	configConfig := ProvideConfigFromPtr(cfg)
 	middleware := ProvideAuthMiddleware(configConfig)
-	openChoreoSvcClient, err := openchoreosvc.NewOpenChoreoSvcClient()
+	authProvider := ProvideOCAuthProvider(configConfig)
+	openChoreoClient, err := ProvideOCClient(configConfig, authProvider)
 	if err != nil {
 		return nil, err
 	}
 	observabilitySvcClient := observabilitysvc.NewObservabilitySvcClient()
 	repositoryService := services.NewRepositoryService()
 	logger := ProvideLogger()
-	agentManagerService := services.NewAgentManagerService(openChoreoSvcClient, observabilitySvcClient, repositoryService, logger)
+	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, repositoryService, logger)
 	agentController := controllers.NewAgentController(agentManagerService)
-	infraResourceManager := services.NewInfraResourceManager(openChoreoSvcClient, logger)
+	infraResourceManager := services.NewInfraResourceManager(openChoreoClient, logger)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
 	traceObserverClient := traceobserversvc.NewTraceObserverClient()
-	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoSvcClient, logger)
+	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoClient, logger)
 	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
 	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
-	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoSvcClient, jwtSigningConfig, logger)
+	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoClient, jwtSigningConfig, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -58,20 +60,20 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 }
 
 func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware jwtassertion.Middleware, testClients TestClients) (*AppParams, error) {
-	openChoreoSvcClient := ProvideTestOpenChoreoSvcClient(testClients)
+	openChoreoClient := ProvideTestOpenChoreoClient(testClients)
 	observabilitySvcClient := ProvideTestObservabilitySvcClient(testClients)
 	repositoryService := services.NewRepositoryService()
 	logger := ProvideLogger()
-	agentManagerService := services.NewAgentManagerService(openChoreoSvcClient, observabilitySvcClient, repositoryService, logger)
+	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, repositoryService, logger)
 	agentController := controllers.NewAgentController(agentManagerService)
-	infraResourceManager := services.NewInfraResourceManager(openChoreoSvcClient, logger)
+	infraResourceManager := services.NewInfraResourceManager(openChoreoClient, logger)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
 	traceObserverClient := ProvideTestTraceObserverClient(testClients)
-	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoSvcClient, logger)
+	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoClient, logger)
 	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
 	configConfig := ProvideConfigFromPtr(cfg)
 	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
-	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoSvcClient, jwtSigningConfig, logger)
+	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoClient, jwtSigningConfig, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -94,14 +96,16 @@ var configProviderSet = wire.NewSet(
 	ProvideConfigFromPtr,
 )
 
-var clientProviderSet = wire.NewSet(openchoreosvc.NewOpenChoreoSvcClient, observabilitysvc.NewObservabilitySvcClient, traceobserversvc.NewTraceObserverClient)
+var clientProviderSet = wire.NewSet(observabilitysvc.NewObservabilitySvcClient, traceobserversvc.NewTraceObserverClient, ProvideOCAuthProvider,
+	ProvideOCClient,
+)
 
 var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService)
 
 var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController)
 
 var testClientProviderSet = wire.NewSet(
-	ProvideTestOpenChoreoSvcClient,
+	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
 	ProvideTestTraceObserverClient,
 )
@@ -111,13 +115,30 @@ func ProvideLogger() *slog.Logger {
 	return slog.Default()
 }
 
+// ProvideOCAuthProvider creates the OpenChoreo auth provider using IDP config
+func ProvideOCAuthProvider(cfg config.Config) client.AuthProvider {
+	return auth.NewAuthProvider(auth.Config{
+		TokenURL:     cfg.IDP.TokenURL,
+		ClientID:     cfg.IDP.ClientID,
+		ClientSecret: cfg.IDP.ClientSecret,
+	})
+}
+
+// ProvideOCClient creates the OpenChoreo client
+func ProvideOCClient(cfg config.Config, authProvider client.AuthProvider) (client.OpenChoreoClient, error) {
+	return client.NewOpenChoreoClient(&client.Config{
+		BaseURL:      cfg.OpenChoreo.BaseURL,
+		AuthProvider: authProvider,
+	})
+}
+
 var loggerProviderSet = wire.NewSet(
 	ProvideLogger,
 )
 
-// ProvideTestOpenChoreoSvcClient extracts the OpenChoreoSvcClient from TestClients
-func ProvideTestOpenChoreoSvcClient(testClients TestClients) openchoreosvc.OpenChoreoSvcClient {
-	return testClients.OpenChoreoSvcClient
+// ProvideTestOpenChoreoClient extracts the OpenChoreoClient from TestClients
+func ProvideTestOpenChoreoClient(testClients TestClients) client.OpenChoreoClient {
+	return testClients.OpenChoreoClient
 }
 
 // ProvideTestObservabilitySvcClient extracts the ObservabilitySvcClient from TestClients

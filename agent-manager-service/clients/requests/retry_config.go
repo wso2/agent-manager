@@ -17,14 +17,20 @@
 package requests
 
 import (
-	"context"
 	"net/http"
 	"slices"
 	"time"
-
-	"github.com/hashicorp/go-retryablehttp"
 )
 
+// Default retry configuration values
+const (
+	DefaultRetryWaitMin     = 1 * time.Second
+	DefaultRetryWaitMax     = 10 * time.Second
+	DefaultRetryAttemptsMax = 3
+	DefaultAttemptTimeout   = 30 * time.Second
+)
+
+// TransientHTTPErrorCodes defines HTTP status codes that should trigger retries for non-idempotent operations
 var TransientHTTPErrorCodes = []int{
 	http.StatusTooManyRequests,    // 429
 	http.StatusBadGateway,         // 502
@@ -32,6 +38,7 @@ var TransientHTTPErrorCodes = []int{
 	http.StatusGatewayTimeout,     // 504
 }
 
+// TransientHTTPGETErrorCodes defines HTTP status codes that should trigger retries for idempotent operations (GET, DELETE)
 var TransientHTTPGETErrorCodes = []int{
 	http.StatusTooManyRequests,     // 429
 	http.StatusInternalServerError, // 500
@@ -40,6 +47,7 @@ var TransientHTTPGETErrorCodes = []int{
 	http.StatusGatewayTimeout,      // 504
 }
 
+// RequestRetryConfig holds configuration for HTTP request retry behavior
 type RequestRetryConfig struct {
 	RetryWaitMin time.Duration
 	RetryWaitMax time.Duration
@@ -51,18 +59,18 @@ type RequestRetryConfig struct {
 	RetryOnStatus func(status int) bool
 }
 
-func (cfg RequestRetryConfig) withDefaults(req *HttpRequest) RequestRetryConfig {
+func (cfg RequestRetryConfig) getRetryConfig(req *HttpRequest) RequestRetryConfig {
 	if cfg.RetryWaitMin == 0 {
-		cfg.RetryWaitMin = 1 * time.Second
+		cfg.RetryWaitMin = DefaultRetryWaitMin
 	}
 	if cfg.RetryWaitMax == 0 {
-		cfg.RetryWaitMax = 10 * time.Second
+		cfg.RetryWaitMax = DefaultRetryWaitMax
 	}
 	if cfg.RetryAttemptsMax == 0 {
-		cfg.RetryAttemptsMax = 3
+		cfg.RetryAttemptsMax = DefaultRetryAttemptsMax
 	}
 	if cfg.AttemptTimeout == 0 {
-		cfg.AttemptTimeout = 3 * time.Minute
+		cfg.AttemptTimeout = DefaultAttemptTimeout
 	}
 	if cfg.RetryOnStatus == nil {
 		cfg.RetryOnStatus = func(status int) bool {
@@ -73,16 +81,4 @@ func (cfg RequestRetryConfig) withDefaults(req *HttpRequest) RequestRetryConfig 
 		}
 	}
 	return cfg
-}
-
-func (cfg RequestRetryConfig) makeCheckRetry() retryablehttp.CheckRetry {
-	return func(ctx context.Context, resp *http.Response, err error) (bool, error) {
-		if err != nil { // not nil for network errors, context.DeadlineExceeded etc.
-			return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
-		}
-		if cfg.RetryOnStatus != nil {
-			return cfg.RetryOnStatus(resp.StatusCode), nil
-		}
-		return false, nil
-	}
 }

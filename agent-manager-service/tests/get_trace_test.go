@@ -100,7 +100,7 @@ func TestGetTrace(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		// Override to return existing agent for trace retrieval
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient:    openChoreoClient,
 			TraceObserverClient: traceObserverClient,
 		}
 
@@ -172,7 +172,7 @@ func TestGetTrace(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		// Override to return existing agent for trace retrieval
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient:    openChoreoClient,
 			TraceObserverClient: traceObserverClient,
 		}
 

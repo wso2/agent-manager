@@ -37,10 +37,10 @@ import {
 import { useForm, FormProvider, useWatch, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import { useUpdateAgent } from "@agent-management-platform/api-client";
+import { useUpdateAgentBuildParameters } from "@agent-management-platform/api-client";
 import {
   AgentResponse,
-  UpdateAgentRequest,
+  UpdateAgentBuildParametersRequest,
   InputInterfaceType,
 } from "@agent-management-platform/types";
 import { useEffect, useCallback, useMemo } from "react";
@@ -197,7 +197,7 @@ export function ConfigureBuildDrawer({
     defaultValues: buildDefaults,
   });
 
-  const { mutate: updateAgent, isPending } = useUpdateAgent();
+  const { mutate: updateBuildParameters, isPending } = useUpdateAgentBuildParameters();
   const interfaceType =
     useWatch({ control: methods.control, name: "interfaceType" }) || "DEFAULT";
   const port = useWatch({
@@ -236,10 +236,8 @@ export function ConfigureBuildDrawer({
           type: "agent-api",
           subType: data.interfaceType === "CUSTOM" ? "custom-api" : "chat-api",
         };
-    const payload: UpdateAgentRequest = {
-      name: agent.name,
-      displayName: agent.displayName,
-      description: agent.description,
+
+    const buildParametersPayload: UpdateAgentBuildParametersRequest = {
       provisioning: {
         type: agent.provisioning.type,
         repository: {
@@ -253,7 +251,6 @@ export function ConfigureBuildDrawer({
         language: data.language || "python",
         languageVersion: data.languageVersion || "",
         runCommand: data.runCommand,
-        env: agent.runtimeConfigs?.env || [],
       },
       inputInterface: {
         type: "HTTP",
@@ -269,14 +266,14 @@ export function ConfigureBuildDrawer({
       },
     };
 
-    updateAgent(
+    updateBuildParameters(
       {
         params: {
           orgName: orgId,
           projName: projectId,
           agentName: agent.name,
         },
-        body: payload,
+        body: buildParametersPayload,
       },
       {
         onSuccess: () => {

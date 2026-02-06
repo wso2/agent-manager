@@ -32,7 +32,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
@@ -41,8 +40,8 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/wiring"
 )
 
-func createMockOpenChoreoClientForToken(agentName string, componentUid string, envUid string, orgUid string, projUid string) *clientmocks.OpenChoreoSvcClientMock {
-	return &clientmocks.OpenChoreoSvcClientMock{
+func createMockOpenChoreoClientForToken(agentName string, componentUid string, envUid string, orgUid string, projUid string) *clientmocks.OpenChoreoClientMock {
+	return &clientmocks.OpenChoreoClientMock{
 		GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
 			return &models.ProjectResponse{
 				UUID:        projUid,
@@ -52,9 +51,9 @@ func createMockOpenChoreoClientForToken(agentName string, componentUid string, e
 				CreatedAt:   time.Now(),
 			}, nil
 		},
-		GetAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agName string) (*openchoreosvc.AgentComponent, error) {
+		GetComponentFunc: func(ctx context.Context, orgName string, projName string, agName string) (*models.AgentResponse, error) {
 			// Return existing external agent
-			return &openchoreosvc.AgentComponent{
+			return &models.AgentResponse{
 				UUID:        componentUid,
 				Name:        agName,
 				ProjectName: projName,
@@ -89,7 +88,7 @@ func TestGenerateAgentToken(t *testing.T) {
 	t.Run("Generating a token for an external agent should return 200 with valid token", func(t *testing.T) {
 		openChoreoClient := createMockOpenChoreoClientForToken(tokenAgentName, tokenComponentUid, tokenEnvUid, tokenOrgUid, tokenProjUid)
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -151,7 +150,7 @@ func TestGenerateAgentToken(t *testing.T) {
 	t.Run("Invalid expiry duration - malformed string", func(t *testing.T) {
 		openChoreoClient := createMockOpenChoreoClientForToken(tokenAgentName, tokenComponentUid, tokenEnvUid, tokenOrgUid, tokenProjUid)
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -176,7 +175,7 @@ func TestGenerateAgentToken(t *testing.T) {
 	t.Run("Invalid expiry duration - zero duration", func(t *testing.T) {
 		openChoreoClient := createMockOpenChoreoClientForToken(tokenAgentName, tokenComponentUid, tokenEnvUid, tokenOrgUid, tokenProjUid)
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -201,7 +200,7 @@ func TestGenerateAgentToken(t *testing.T) {
 	t.Run("Empty expiry - should use default", func(t *testing.T) {
 		openChoreoClient := createMockOpenChoreoClientForToken(tokenAgentName, tokenComponentUid, tokenEnvUid, tokenOrgUid, tokenProjUid)
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -227,7 +226,7 @@ func TestGenerateAgentToken(t *testing.T) {
 
 	t.Run("Missing agent should return 404", func(t *testing.T) {
 		nonExistentAgent := "non-existent-agent"
-		openChoreoClient := &clientmocks.OpenChoreoSvcClientMock{
+		openChoreoClient := &clientmocks.OpenChoreoClientMock{
 			GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
 				return &models.ProjectResponse{
 					UUID:        tokenProjUid,
@@ -237,7 +236,7 @@ func TestGenerateAgentToken(t *testing.T) {
 					CreatedAt:   time.Now(),
 				}, nil
 			},
-			GetAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agName string) (*openchoreosvc.AgentComponent, error) {
+			GetComponentFunc: func(ctx context.Context, orgName string, projName string, agName string) (*models.AgentResponse, error) {
 				return nil, utils.ErrAgentNotFound
 			},
 			GetEnvironmentFunc: func(ctx context.Context, orgName string, environmentName string) (*models.EnvironmentResponse, error) {
@@ -253,7 +252,7 @@ func TestGenerateAgentToken(t *testing.T) {
 			},
 		}
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -276,7 +275,7 @@ func TestGenerateAgentToken(t *testing.T) {
 	})
 
 	t.Run("Missing environment should return 404", func(t *testing.T) {
-		openChoreoClient := &clientmocks.OpenChoreoSvcClientMock{
+		openChoreoClient := &clientmocks.OpenChoreoClientMock{
 			GetProjectFunc: func(ctx context.Context, projectName string, orgName string) (*models.ProjectResponse, error) {
 				return &models.ProjectResponse{
 					UUID:        tokenProjUid,
@@ -286,8 +285,8 @@ func TestGenerateAgentToken(t *testing.T) {
 					CreatedAt:   time.Now(),
 				}, nil
 			},
-			GetAgentComponentFunc: func(ctx context.Context, orgName string, projName string, agName string) (*openchoreosvc.AgentComponent, error) {
-				return &openchoreosvc.AgentComponent{
+			GetComponentFunc: func(ctx context.Context, orgName string, projName string, agName string) (*models.AgentResponse, error) {
+				return &models.AgentResponse{
 					UUID:        tokenComponentUid,
 					Name:        agName,
 					ProjectName: projName,
@@ -303,7 +302,7 @@ func TestGenerateAgentToken(t *testing.T) {
 			},
 		}
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -341,7 +340,7 @@ func TestConcurrentTokenGeneration(t *testing.T) {
 	t.Run("Testing concurrent token generation", func(t *testing.T) {
 		openChoreoClient := createMockOpenChoreoClientForToken(concurrentAgentName, concurrentComponentUid, concurrentEnvUid, concurrentOrgUid, concurrentProjUid)
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
@@ -424,7 +423,7 @@ func TestTokenExpiry(t *testing.T) {
 	t.Run("Multiple tokens with different expiry durations", func(t *testing.T) {
 		openChoreoClient := createMockOpenChoreoClientForToken(expiryAgentName, expiryComponentUid, expiryEnvUid, expiryOrgUid, expiryProjUid)
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient: openChoreoClient,
 		}
 
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)

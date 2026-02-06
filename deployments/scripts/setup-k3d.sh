@@ -1,8 +1,13 @@
 #!/bin/bash
 set -e
 
-CLUSTER_NAME="openchoreo-local-v0.9"
-CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
+# Get the absolute directory of this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Change to script directory to ensure consistent working directory
+cd "$SCRIPT_DIR"
+
+source "$SCRIPT_DIR/env.sh"
 
 echo "=== Setting up k3d Cluster for OpenChoreo ==="
 
@@ -65,31 +70,23 @@ else
     echo "✅ k3d cluster created successfully!"
 fi
 
-# Ensure CoreDNS has host.k3d.internal entry
+# Generate Machine IDs for observability
 echo ""
-echo "🔧 Ensuring CoreDNS has host.k3d.internal entry..."
-
-# Wait for CoreDNS to be ready
-kubectl wait --for=condition=available deployment/coredns -n kube-system --context ${CLUSTER_CONTEXT} --timeout=60s
-
-# Get the gateway IP for the k3d network
-GATEWAY_IP=$(docker network inspect k3d-${CLUSTER_NAME} -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || true)
-if [[ -z "$GATEWAY_IP" ]]; then
-    echo "⚠️  Could not determine gateway IP for host.k3d.internal"
+echo "🆔 Generating Machine IDs for Fluent Bit observability..."
+NODES=$(k3d node list -o json | grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"name"[[:space:]]*:[[:space:]]*"//;s/"$//' | grep "^k3d-$CLUSTER_NAME-")
+if [[ -z "$NODES" ]]; then
+    echo "⚠️  Could not retrieve node list"
 else
-    # Ensure host.k3d.internal is in CoreDNS NodeHosts
-    CURRENT_HOSTS=$(kubectl get cm coredns -n kube-system --context ${CLUSTER_CONTEXT} -o jsonpath='{.data.NodeHosts}')
-    if echo "$CURRENT_HOSTS" | grep -q "host.k3d.internal"; then
-        echo "✅ CoreDNS already has host.k3d.internal entry"
-    else
-        echo "📝 Adding host.k3d.internal ($GATEWAY_IP) to CoreDNS..."
-        kubectl patch configmap coredns -n kube-system --context ${CLUSTER_CONTEXT} --type merge \
-            -p "{\"data\":{\"NodeHosts\":\"${CURRENT_HOSTS}\n${GATEWAY_IP} host.k3d.internal\n\"}}"
-        kubectl rollout restart deployment coredns -n kube-system --context ${CLUSTER_CONTEXT}
-        kubectl rollout status deployment/coredns -n kube-system --context ${CLUSTER_CONTEXT} --timeout=60s
-        echo "✅ CoreDNS updated with host.k3d.internal"
-    fi
+    for NODE in $NODES; do
+        echo "   🔧 Generating machine ID for ${NODE}..."
+        if docker exec ${NODE} sh -c "cat /proc/sys/kernel/random/uuid | tr -d '-' > /etc/machine-id" 2>/dev/null; then
+            echo "   ✅ Machine ID generated for ${NODE}"
+        else
+            echo "   ⚠️  Could not generate Machine ID for ${NODE} (it may not be running)"
+        fi
+    done
 fi
+echo "✅ Machine ID generation complete"
 
 # Install cert-manager
 echo ""

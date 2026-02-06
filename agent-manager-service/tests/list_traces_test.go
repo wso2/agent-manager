@@ -94,7 +94,7 @@ func TestListTraces(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient:    openChoreoClient,
 			TraceObserverClient: traceObserverClient,
 		}
 
@@ -145,7 +145,7 @@ func TestListTraces(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient:    openChoreoClient,
 			TraceObserverClient: traceObserverClient,
 		}
 
@@ -177,7 +177,7 @@ func TestListTraces(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient:    openChoreoClient,
 			TraceObserverClient: traceObserverClient,
 		}
 
@@ -207,7 +207,7 @@ func TestListTraces(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient:    openChoreoClient,
 			TraceObserverClient: traceObserverClient,
 		}
 
@@ -237,7 +237,7 @@ func TestListTraces(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient:    openChoreoClient,
 			TraceObserverClient: traceObserverClient,
 		}
 
@@ -267,7 +267,7 @@ func TestListTraces(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient:    openChoreoClient,
 			TraceObserverClient: traceObserverClient,
 		}
 
@@ -297,7 +297,7 @@ func TestListTraces(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient:    openChoreoClient,
 			TraceObserverClient: traceObserverClient,
 		}
 
@@ -322,7 +322,7 @@ func TestListTraces(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient:    openChoreoClient,
 			TraceObserverClient: traceObserverClient,
 		}
 
@@ -347,7 +347,7 @@ func TestListTraces(t *testing.T) {
 		traceObserverClient := createMockTraceObserverClient()
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
 		testClients := wiring.TestClients{
-			OpenChoreoSvcClient: openChoreoClient,
+			OpenChoreoClient:    openChoreoClient,
 			TraceObserverClient: traceObserverClient,
 		}
 

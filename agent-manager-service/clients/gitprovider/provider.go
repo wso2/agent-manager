@@ -46,6 +46,8 @@ type ListBranchesOptions struct {
 	PerPage int
 	// Page is the page number to fetch
 	Page int
+	// IncludeDefault indicates whether to include the default branch
+	IncludeDefault bool
 }
 
 // ListCommitsOptions contains options for listing commits

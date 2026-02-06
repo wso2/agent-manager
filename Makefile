@@ -42,7 +42,7 @@ help:
 	@echo ""
 
 # Complete setup
-setup: setup-colima setup-k3d setup-thunder setup-openchoreo setup-kubeconfig-docker setup-platform setup-console-local
+setup: setup-colima setup-k3d setup-openchoreo setup-thunder setup-kubeconfig-docker setup-platform setup-console-local
 	@echo ""
 	@echo "✅ Complete setup finished!"
 	@echo ""

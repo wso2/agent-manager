@@ -23,6 +23,8 @@ type ListBranchesRequest struct {
 	Owner string `json:"owner"`
 	// Repository name
 	Repository string `json:"repository"`
+	// Whether to include default branch information in the response
+	IncludeDefault *bool `json:"includeDefault,omitempty"`
 }
 
 // NewListBranchesRequest instantiates a new ListBranchesRequest object
@@ -33,6 +35,8 @@ func NewListBranchesRequest(owner string, repository string) *ListBranchesReques
 	this := ListBranchesRequest{}
 	this.Owner = owner
 	this.Repository = repository
+	var includeDefault bool = false
+	this.IncludeDefault = &includeDefault
 	return &this
 }
 
@@ -41,6 +45,8 @@ func NewListBranchesRequest(owner string, repository string) *ListBranchesReques
 // but it doesn't guarantee that properties required by API are set
 func NewListBranchesRequestWithDefaults() *ListBranchesRequest {
 	this := ListBranchesRequest{}
+	var includeDefault bool = false
+	this.IncludeDefault = &includeDefault
 	return &this
 }
 
@@ -92,6 +98,38 @@ func (o *ListBranchesRequest) SetRepository(v string) {
 	o.Repository = v
 }
 
+// GetIncludeDefault returns the IncludeDefault field value if set, zero value otherwise.
+func (o *ListBranchesRequest) GetIncludeDefault() bool {
+	if o == nil || IsNil(o.IncludeDefault) {
+		var ret bool
+		return ret
+	}
+	return *o.IncludeDefault
+}
+
+// GetIncludeDefaultOk returns a tuple with the IncludeDefault field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ListBranchesRequest) GetIncludeDefaultOk() (*bool, bool) {
+	if o == nil || IsNil(o.IncludeDefault) {
+		return nil, false
+	}
+	return o.IncludeDefault, true
+}
+
+// HasIncludeDefault returns a boolean if a field has been set.
+func (o *ListBranchesRequest) HasIncludeDefault() bool {
+	if o != nil && !IsNil(o.IncludeDefault) {
+		return true
+	}
+
+	return false
+}
+
+// SetIncludeDefault gets a reference to the given bool and assigns it to the IncludeDefault field.
+func (o *ListBranchesRequest) SetIncludeDefault(v bool) {
+	o.IncludeDefault = &v
+}
+
 func (o ListBranchesRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -104,6 +142,9 @@ func (o ListBranchesRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["owner"] = o.Owner
 	toSerialize["repository"] = o.Repository
+	if !IsNil(o.IncludeDefault) {
+		toSerialize["includeDefault"] = o.IncludeDefault
+	}
 	return toSerialize, nil
 }
 

@@ -34,7 +34,8 @@ type AgentController interface {
 	ListAgents(w http.ResponseWriter, r *http.Request)
 	GetAgent(w http.ResponseWriter, r *http.Request)
 	CreateAgent(w http.ResponseWriter, r *http.Request)
-	UpdateAgent(w http.ResponseWriter, r *http.Request)
+	UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Request)
+	UpdateAgentBuildParameters(w http.ResponseWriter, r *http.Request)
 	DeleteAgent(w http.ResponseWriter, r *http.Request)
 	BuildAgent(w http.ResponseWriter, r *http.Request)
 	DeployAgent(w http.ResponseWriter, r *http.Request)
@@ -64,6 +65,7 @@ func NewAgentController(agentService services.AgentManagerService) AgentControll
 // If no common error matches, writes an internal server error with the provided fallback message.
 func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
+	// Not found errors
 	case errors.Is(err, utils.ErrOrganizationNotFound):
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
 	case errors.Is(err, utils.ErrProjectNotFound):
@@ -72,10 +74,35 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 	case errors.Is(err, utils.ErrBuildNotFound):
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Build not found")
+	case errors.Is(err, utils.ErrEnvironmentNotFound):
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
+
+	// Conflict errors
 	case errors.Is(err, utils.ErrAgentAlreadyExists):
 		utils.WriteErrorResponse(w, http.StatusConflict, "Agent already exists")
+	case errors.Is(err, utils.ErrProjectAlreadyExists):
+		utils.WriteErrorResponse(w, http.StatusConflict, "Project already exists")
+	case errors.Is(err, utils.ErrProjectHasAssociatedAgents):
+		utils.WriteErrorResponse(w, http.StatusConflict, "Project has associated agents")
+
+	// Bad request errors
 	case errors.Is(err, utils.ErrImmutableFieldChange):
 		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, utils.ErrBadRequest):
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, utils.ErrDeploymentPipelineNotFound):
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Deployment pipeline not found")
+
+	// Authorization errors
+	case errors.Is(err, utils.ErrUnauthorized):
+		utils.WriteErrorResponse(w, http.StatusUnauthorized, err.Error())
+	case errors.Is(err, utils.ErrForbidden):
+		utils.WriteErrorResponse(w, http.StatusForbidden, err.Error())
+
+	// Service unavailable
+	case errors.Is(err, utils.ErrServiceUnavailable):
+		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, err.Error())
+
 	default:
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, fallbackMsg)
 	}
@@ -192,7 +219,7 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	utils.WriteSuccessResponse(w, http.StatusAccepted, response)
 }
 
-func (c *agentController) UpdateAgent(w http.ResponseWriter, r *http.Request) {
+func (c *agentController) UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
@@ -202,23 +229,53 @@ func (c *agentController) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 	agentName := r.PathValue(utils.PathParamAgentName)
 
 	// Parse and validate request body
-	var payload spec.UpdateAgentRequest
+	var payload spec.UpdateAgentBasicInfoRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		log.Error("UpdateAgent: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-
-	if err := utils.ValidateAgentUpdatePayload(payload); err != nil {
-		log.Error("UpdateAgent: invalid agent payload", "error", err)
+	if err := utils.ValidateAgentBasicInfoUpdatePayload(payload); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	agent, err := c.agentService.UpdateAgent(ctx, orgName, projName, agentName, &payload)
+	agent, err := c.agentService.UpdateAgentBasicInfo(ctx, orgName, projName, agentName, &payload)
 	if err != nil {
 		log.Error("UpdateAgent: failed to update agent", "error", err)
 		handleCommonErrors(w, err, "Failed to update agent")
+		return
+	}
+
+	agentResponse := utils.ConvertToAgentResponse(agent)
+	utils.WriteSuccessResponse(w, http.StatusOK, agentResponse)
+}
+
+func (c *agentController) UpdateAgentBuildParameters(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	// Extract path parameters
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+
+	// Parse and validate request body
+	var payload spec.UpdateAgentBuildParametersRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		log.Error("UpdateAgentBuildParameters: failed to decode request body", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if err := utils.ValidateAgentBuildParametersUpdatePayload(payload); err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	agent, err := c.agentService.UpdateAgentBuildParameters(ctx, orgName, projName, agentName, &payload)
+	if err != nil {
+		log.Error("UpdateAgentBuildParameters: failed to update agent build parameters", "error", err)
+		handleCommonErrors(w, err, "Failed to update agent build parameters")
 		return
 	}
 
@@ -257,7 +314,6 @@ func (c *agentController) BuildAgent(w http.ResponseWriter, r *http.Request) {
 	if commitId == "" {
 		log.Debug("BuildAgent: commitId not provided, using latest commit")
 	}
-
 	build, err := c.agentService.BuildAgent(ctx, orgName, projName, agentName, commitId)
 	if err != nil {
 		log.Error("BuildAgent: failed to build agent", "error", err)
@@ -312,8 +368,8 @@ func (c *agentController) GetAgentRuntimeLogs(w http.ResponseWriter, r *http.Req
 
 	applicationLogs, err := c.agentService.GetAgentRuntimeLogs(ctx, orgName, projName, agentName, payload)
 	if err != nil {
-		log.Error("GetAgentRuntimeLogs: failed to get build logs", "error", err)
-		handleCommonErrors(w, err, "Failed to get build logs")
+		log.Error("GetAgentRuntimeLogs: failed to get run-time logs", "error", err)
+		handleCommonErrors(w, err, "Failed to get run-time logs")
 		return
 	}
 	buildLogsResponse := utils.ConvertToLogsResponse(*applicationLogs)
