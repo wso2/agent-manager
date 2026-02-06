@@ -18,7 +18,8 @@ echo "Updating documentation files with version $TARGET_VERSION"
 updated_count=0
 
 # Find all markdown files in docs directory and update version references
-find ./docs -name "*.md" -type f | while read -r doc_file; do
+# Use process substitution to avoid subshell issues with updated_count
+while read -r doc_file; do
   # Check if file contains version patterns before attempting replacement
   if grep -q "0\.0\.0-dev\|v0\.0\.0-dev" "$doc_file" 2>/dev/null; then
     # Replace version: 0.0.0-dev with TARGET_VERSION (without v prefix)
@@ -33,7 +34,7 @@ find ./docs -name "*.md" -type f | while read -r doc_file; do
     echo "✅ Updated $(basename "$doc_file")"
     updated_count=$((updated_count + 1))
   fi
-done
+done < <(find ./docs -name "*.md" -type f)
 
 if [ $updated_count -eq 0 ]; then
   echo "⚠️ No files with version patterns found in ./docs"
