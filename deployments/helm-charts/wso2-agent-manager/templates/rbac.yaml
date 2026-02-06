@@ -5,6 +5,10 @@ metadata:
   name: {{ include "agent-management-platform.fullname" . }}
   labels:
     {{- include "agent-management-platform.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-15"
+    "helm.sh/hook-delete-policy": before-hook-creation
 rules:
 {{- toYaml .Values.rbac.rules | nindent 2 }}
 ---
@@ -14,6 +18,10 @@ metadata:
   name: {{ include "agent-management-platform.fullname" . }}
   labels:
     {{- include "agent-management-platform.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-15"
+    "helm.sh/hook-delete-policy": before-hook-creation
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

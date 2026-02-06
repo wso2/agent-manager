@@ -114,14 +114,22 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.volumeMounts }}
           volumeMounts:
+            - name: jwt-keys
+              mountPath: /app/keys
+              readOnly: true
+            {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
-      {{- with .Values.volumes }}
+            {{- end }}
       volumes:
+        - name: jwt-keys
+          secret:
+            secretName: {{ include "agent-management-platform.jwtKeysSecretName" . }}
+            defaultMode: 0440
+            optional: true
+        {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       {{- with .Values.agentManagerService.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
