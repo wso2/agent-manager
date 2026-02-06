@@ -49,12 +49,14 @@ const config: Config = {
   // Enable mermaid theme
   themes: ['@docusaurus/theme-mermaid'],
 
+  plugins: ['@signalwire/docusaurus-plugin-llms-txt'],
+
   presets: [
     [
       'classic',
       {
         docs: {
-          lastVersion: 'v0.4.0',
+          lastVersion: 'v0.5.0',
           versions: {
             current: {
               label: 'Next',

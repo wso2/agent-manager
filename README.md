@@ -1,7 +1,7 @@
 # WSO2 Agent Manager
 
-[![Platform Release](https://img.shields.io/github/v/release/wso2/ai-agent-management-platform?filter=amp/*&label=platform&color=orange)](https://github.com/wso2/ai-agent-management-platform/releases?q=amp)
-[![Python Instrumentation](https://img.shields.io/github/v/release/wso2/ai-agent-management-platform?filter=amp-instrumentation/*&label=python-instrumentation&color=blue)](https://github.com/wso2/ai-agent-management-platform/releases?q=amp-instrumentation)
+[![Platform Release](https://img.shields.io/github/v/release/wso2/ai-agent-management-platform?filter=amp/*&label=platform&color=orange)](https://github.com/wso2/agent-manager/releases?q=amp)
+[![Python Instrumentation](https://img.shields.io/github/v/release/wso2/ai-agent-management-platform?filter=amp-instrumentation/*&label=python-instrumentation&color=blue)](https://github.com/wso2/agent-manager/releases?q=amp-instrumentation)
 
 An open control plane designed for enterprises to deploy, manage, and govern AI agents at scale.
 
@@ -42,7 +42,7 @@ Deploy WSO2 Agent Manager on Kubernetes using our Helm charts:
 
 ## Getting Started
 
-For installation instructions and a step-by-step guide, see the [Quick Start Guide](https://github.com/wso2/ai-agent-management-platform/blob/amp/v0/docs/quick-start.md).
+For installation instructions and a step-by-step guide, see the [Quick Start Guide](https://github.com/wso2/agent-manager/blob/amp/v0/docs/quick-start.md).
 
 ## Contributing
 
@@ -60,8 +60,8 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/wso2/ai-agent-management-platform/issues)
+- **Issues**: [GitHub Issues](https://github.com/wso2/agent-manager/issues)
 - **Community**: [WSO2 Community](https://wso2.com/community/)
 
 ---
-(c) Copyright 2012 - 2025 [WSO2 LLC](https://wso2.com/).
+(c) Copyright 2012 - 2026 [WSO2 LLC](https://wso2.com/).
