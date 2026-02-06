@@ -26,8 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
-from ..models import Dataset, Task, generate_id
-from ..dataset_schema import Constraints, TrajectoryStep
+from .schema import Dataset, Task, generate_id, Constraints, TrajectoryStep
 
 # Constants
 SCHEMA_VERSION = "1.0"
@@ -37,6 +36,7 @@ SCHEMA_VERSION = "1.0"
 @dataclass
 class DatasetDefaults:
     """Default values applied to all tasks unless overridden."""
+
     max_latency_ms: Optional[float] = None
     max_tokens: Optional[int] = None
     max_iterations: Optional[int] = None
@@ -47,6 +47,7 @@ class DatasetDefaults:
 @dataclass
 class DatasetMetadata:
     """Dataset-level metadata (not passed to evaluators)."""
+
     created_by: Optional[str] = None
     created_at: Optional[str] = None
     domain: Optional[str] = None
@@ -59,23 +60,24 @@ class DatasetMetadata:
 # JSON LOADING
 # ============================================================================
 
+
 def load_dataset_from_json(json_path: str) -> Dataset:
     """
     Load dataset from JSON file.
-    
+
     Args:
         json_path: Path to JSON file
-    
+
     Returns:
         Dataset object
-        
+
     Example:
         >>> dataset = load_dataset_from_json("benchmarks/my_dataset.json")
     """
     path = Path(json_path)
     with open(path, "r") as f:
         data = json.load(f)
-    
+
     return parse_dataset_dict(data)
 
 
@@ -84,7 +86,7 @@ def parse_dataset_dict(data: Dict[str, Any]) -> Dataset:
     defaults = None
     if "defaults" in data:
         defaults = DatasetDefaults(**data["defaults"])
-    
+
     meta = None
     if "metadata" in data:
         meta_data = data["metadata"]
@@ -94,15 +96,18 @@ def parse_dataset_dict(data: Dict[str, Any]) -> Dataset:
             domain=meta_data.get("domain"),
             tags=meta_data.get("tags", []),
             description=meta_data.get("description"),
-            extra={k: v for k, v in meta_data.items() 
-                   if k not in ["created_by", "created_at", "domain", "tags", "description"]},
+            extra={
+                k: v
+                for k, v in meta_data.items()
+                if k not in ["created_by", "created_at", "domain", "tags", "description"]
+            },
         )
-    
+
     tasks = []
     for task_data in data.get("tasks", []):
         task = parse_task_dict(task_data, defaults)
         tasks.append(task)
-    
+
     dataset = Dataset(
         dataset_id=data.get("id", generate_id("dataset_")),
         name=data["name"],
@@ -114,40 +119,39 @@ def parse_dataset_dict(data: Dict[str, Any]) -> Dataset:
         created_by=meta.created_by if meta else None,
         task_count=len(tasks),
     )
-    
+
     return dataset
 
 
 def parse_task_dict(task_data: Dict[str, Any], defaults: Optional[DatasetDefaults] = None) -> Task:
     """Parse a single task from dictionary."""
+    # Merge task constraints with defaults
     constraints = None
-    if "constraints" in task_data:
-        constraints = Constraints(**task_data["constraints"])
-    elif defaults:
+    if "constraints" in task_data or defaults:
+        task_constraints = task_data.get("constraints", {})
         constraints = Constraints(
-            max_latency_ms=defaults.max_latency_ms,
-            max_tokens=defaults.max_tokens,
-            max_iterations=defaults.max_iterations,
-            max_cost=defaults.max_cost,
+            max_latency_ms=task_constraints.get("max_latency_ms", defaults.max_latency_ms if defaults else None),
+            max_tokens=task_constraints.get("max_tokens", defaults.max_tokens if defaults else None),
+            max_iterations=task_constraints.get("max_iterations", defaults.max_iterations if defaults else None),
+            max_cost=task_constraints.get("max_cost", defaults.max_cost if defaults else None),
         )
-    
+
     trajectory = None
-    if "reference_trajectory" in task_data and task_data["reference_trajectory"]:
+    if "expected_trajectory" in task_data and task_data["expected_trajectory"]:
         trajectory = [
-            TrajectoryStep(**step) if isinstance(step, dict) else step
-            for step in task_data["reference_trajectory"]
+            TrajectoryStep(**step) if isinstance(step, dict) else step for step in task_data["expected_trajectory"]
         ]
-    
+
     prohibited = task_data.get("prohibited_content")
     if prohibited is None and defaults:
         prohibited = defaults.prohibited_content
-    
+
     task = Task(
         task_id=task_data.get("id", generate_id("task_")),
         name=task_data.get("name", ""),
         description=task_data.get("description", ""),
         input=task_data["input"],
-        expected_output=task_data.get("reference_output"),
+        expected_output=task_data.get("expected_output"),
         expected_trajectory=trajectory,
         expected_outcome=task_data.get("expected_outcome"),
         success_criteria=task_data.get("success_criteria"),
@@ -160,7 +164,7 @@ def parse_task_dict(task_data: Dict[str, Any], defaults: Optional[DatasetDefault
         custom=task_data.get("custom", {}),
         metadata=task_data.get("metadata", {}),
     )
-    
+
     return task
 
 
@@ -168,41 +172,45 @@ def parse_task_dict(task_data: Dict[str, Any], defaults: Optional[DatasetDefault
 # CSV LOADING
 # ============================================================================
 
+
 def load_dataset_from_csv(csv_path: str, name: Optional[str] = None) -> Dataset:
     """
     Load a simple dataset from CSV.
-    
+
     Args:
         csv_path: Path to CSV file
         name: Optional dataset name (defaults to filename)
-    
+
     Returns:
         Dataset object
-        
+
     Example:
         >>> dataset = load_dataset_from_csv("data.csv", name="My Dataset")
     """
     path = Path(csv_path)
     tasks = []
-    
+
     with open(path, "r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             if "id" not in row or "input" not in row:
                 raise ValueError("CSV must have 'id' and 'input' columns")
-            
+
             task = Task(
                 task_id=row["id"],
                 name=row.get("name", ""),
                 description=row.get("description", ""),
                 input=row["input"],
-                expected_output=row.get("reference_output"),
+                expected_output=row.get("expected_output"),
                 success_criteria=row.get("success_criteria"),
-                custom={k: v for k, v in row.items() 
-                        if k not in ["id", "input", "name", "description", "reference_output", "success_criteria"]},
+                custom={
+                    k: v
+                    for k, v in row.items()
+                    if k not in ["id", "input", "name", "description", "expected_output", "success_criteria"]
+                },
             )
             tasks.append(task)
-    
+
     return Dataset(
         dataset_id=generate_id("dataset_"),
         name=name or path.stem,
@@ -215,6 +223,7 @@ def load_dataset_from_csv(csv_path: str, name: Optional[str] = None) -> Dataset:
 # ============================================================================
 # JSON SAVING
 # ============================================================================
+
 
 def save_dataset_to_json(dataset: Dataset, path: str, indent: int = 2):
     """Save Dataset object to JSON file."""
@@ -230,13 +239,13 @@ def dataset_to_dict(dataset: Dataset) -> Dict[str, Any]:
         "description": dataset.description,
         "version": dataset.version,
         "schema_version": SCHEMA_VERSION,
-        "tasks": []
+        "tasks": [],
     }
-    
+
     for task in dataset.tasks:
         task_dict = task_to_dict(task)
         result["tasks"].append(task_dict)
-    
+
     if dataset.domain or dataset.tags or dataset.created_by:
         result["metadata"] = {}
         if dataset.created_by:
@@ -245,26 +254,26 @@ def dataset_to_dict(dataset: Dataset) -> Dict[str, Any]:
             result["metadata"]["domain"] = dataset.domain
         if dataset.tags:
             result["metadata"]["tags"] = dataset.tags
-    
+
     return result
 
 
 def task_to_dict(task: Task) -> Dict[str, Any]:
     """Convert Task object to dictionary for JSON serialization."""
     result = {"id": task.task_id, "input": task.input}
-    
+
     if task.name:
         result["name"] = task.name
     if task.description:
         result["description"] = task.description
     if task.expected_output:
-        result["reference_output"] = task.expected_output
+        result["expected_output"] = task.expected_output
     if task.expected_trajectory:
-        result["reference_trajectory"] = [
+        result["expected_trajectory"] = [
             {
                 "tool": step.tool,
                 "args": step.args,
-                **({"expected_output": step.expected_output} if step.expected_output else {})
+                **({"expected_output": step.expected_output} if step.expected_output else {}),
             }
             for step in task.expected_trajectory
         ]
@@ -276,16 +285,18 @@ def task_to_dict(task: Task) -> Dict[str, Any]:
         result["prohibited_content"] = task.prohibited_content
     if task.constraints:
         result["constraints"] = {
-            k: v for k, v in {
+            k: v
+            for k, v in {
                 "max_latency_ms": task.constraints.max_latency_ms,
                 "max_tokens": task.constraints.max_tokens,
                 "max_iterations": task.constraints.max_iterations,
                 "max_cost": task.constraints.max_cost,
-            }.items() if v is not None
+            }.items()
+            if v is not None
         }
     if task.custom:
         result["custom"] = task.custom
     if task.metadata:
         result["metadata"] = task.metadata
-    
+
     return result

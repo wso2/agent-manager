@@ -79,16 +79,16 @@ def parse_trace_for_evaluation(trace: OTELTrace) -> Trajectory:
     llm_spans: List[LLMSpan] = []
     tool_spans: List[ToolSpan] = []
     retriever_spans: List[RetrieverSpan] = []
-    agent_span: Optional[AgentSpan] = None
+    agent_spans: List[AgentSpan] = []
+    steps: List[Any] = []
 
     # Metrics accumulators
     token_usage = TokenUsage()
-    total_duration_ms = 0.0
+    total_duration_ms = trace.duration_ms
     error_count = trace.status.errorCount if trace.status else 0
-    agent_span_count = 0
 
     # Process each span from the Trace model
-    for otel_span in trace.spans:
+    for otel_span in sorted(trace.spans, key=lambda s: s.startTime or ""):
         # Get semantic kind from ampAttributes (top-level field in span)
         amp_attrs = otel_span.ampAttributes
         semantic_kind = amp_attrs.get("kind", "unknown")
@@ -98,27 +98,27 @@ def parse_trace_for_evaluation(trace: OTELTrace) -> Trajectory:
             llm = _parse_llm_span_from_otel(otel_span)
             if llm:
                 llm_spans.append(llm)
-                token_usage = token_usage + llm.metrics.token_usage
-                total_duration_ms += llm.metrics.duration_ms
+                steps.append(llm)  # Add to steps in execution order
+                if llm.metrics and llm.metrics.token_usage:
+                    token_usage = token_usage + llm.metrics.token_usage
 
         elif semantic_kind == "tool":
             tool = _parse_tool_span_from_otel(otel_span)
             if tool:
                 tool_spans.append(tool)
-                total_duration_ms += tool.metrics.duration_ms
+                steps.append(tool)  # Add to steps in execution order
 
         elif semantic_kind == "retriever":
             retriever = _parse_retriever_span_from_otel(otel_span)
             if retriever:
                 retriever_spans.append(retriever)
-                total_duration_ms += retriever.metrics.duration_ms
+                steps.append(retriever)  # Add to steps in execution order
 
         elif semantic_kind == "agent":
-            agent_span_count += 1
             agent = _parse_agent_span_from_otel(otel_span)
             if agent:
-                agent_span = agent  # Keep last agent span
-                total_duration_ms += agent.metrics.duration_ms
+                agent_spans.append(agent)  # Keep last agent span
+                steps.append(agent)  # Add to steps in execution order
 
         else:
             # For non-important spans (embedding, rerank, task, chain, etc.),
@@ -140,19 +140,10 @@ def parse_trace_for_evaluation(trace: OTELTrace) -> Trajectory:
         llm_call_count=len(llm_spans),
         tool_call_count=len(tool_spans),
         retrieval_count=len(retriever_spans),
-        agent_span_count=agent_span_count,
+        agent_span_count=len(agent_spans),
+        total_span_count=trace.spanCount if trace.spanCount is not None else len(trace.spans),
         error_count=error_count,
     )
-
-    # Build sequential steps list
-    # TODO: Sort by actual start_time from OTEL spans to preserve exact execution order
-    # For now, we concatenate in a reasonable order: agent -> llm -> tool -> retriever
-    steps = []
-    if agent_span:
-        steps.append(agent_span)
-    steps.extend(llm_spans)
-    steps.extend(tool_spans)
-    steps.extend(retriever_spans)
 
     # Create Trajectory
     return Trajectory(

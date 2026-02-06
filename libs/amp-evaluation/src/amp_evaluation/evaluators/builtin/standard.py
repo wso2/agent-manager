@@ -95,7 +95,7 @@ class AnswerRelevancyEvaluator(BaseEvaluator):
         output_words = set(output_text.split())
 
         if not input_words:
-            return EvalResult(score=0.0, passed=False, explanation="No input text to compare", details={})
+            return EvalResult.skip("No input text to compare")
 
         overlap = input_words.intersection(output_words)
         overlap_ratio = len(overlap) / len(input_words) if input_words else 0
@@ -220,9 +220,20 @@ class ExactMatchEvaluator(BaseEvaluator):
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         # Get expected output from context (raises DataNotAvailableError if not available)
+
+        if task is None or task.expected_output is None:
+            return EvalResult.skip(
+                "Expected output not available for exact match evaluation",
+                details={"expected_available": False, "output_available": observation.output is not None},
+            )
         expected = task.expected_output
 
-        output = observation.output if observation.output else ""
+        output = observation.output if observation.output else None
+        if not output:
+            return EvalResult.skip(
+                "Actual output not available for exact match evaluation",
+                details={"expected_available": expected is not None, "output_available": False},
+            )
 
         if self.strip_whitespace:
             output = output.strip()
@@ -305,12 +316,15 @@ class ToolSequenceEvaluator(BaseEvaluator):
         # Get expected sequence
         expected = list(self.expected_sequence)
         if self.use_context_trajectory and task and task.expected_trajectory:
-            # Expected trajectory is list of dicts with tool info
+            # Expected trajectory is list of TrajectoryStep objects
             expected_trajectory = task.expected_trajectory
-            expected = [step.get("tool") for step in expected_trajectory if step.get("tool")]
+            expected = [step.tool for step in expected_trajectory if step.tool]
 
         if not expected:
-            return EvalResult(score=1.0, passed=True, explanation="No expected sequence specified", details={})
+            return EvalResult.skip(
+                "No expected tool sequence specified",
+                details={"actual_sequence": [step.name for step in trajectory.tool_spans if step.name]},
+            )
 
         # Extract actual tool sequence
         actual_sequence = [step.name for step in trajectory.tool_spans if step.name]
@@ -352,14 +366,17 @@ class RequiredToolsEvaluator(BaseEvaluator):
         required = set(self.required_tools)
 
         # Also check context for expected trajectory tools
-        if task and task.expected_trajectory:
+        if not required and task and task.expected_trajectory:
             expected_trajectory = task.expected_trajectory
             for step in expected_trajectory:
-                if step.get("tool"):
-                    required.add(step["tool"])
+                if step.tool:
+                    required.add(step.tool)
 
         if not required:
-            return EvalResult(score=1.0, passed=True, explanation="No required tools specified", details={})
+            return EvalResult.skip(
+                "No required tools specified",
+                details={"used_tools": [step.name for step in trajectory.tool_spans if step.name]},
+            )
 
         # Get actually used tools
         used_tools = {step.name for step in trajectory.tool_spans if step.name}
@@ -395,7 +412,7 @@ class StepSuccessRateEvaluator(BaseEvaluator):
         trajectory = observation.trajectory
 
         if not trajectory.steps:
-            return EvalResult(score=1.0, passed=True, explanation="No steps to evaluate", details={"step_count": 0})
+            return EvalResult.skip("No steps to evaluate", details={"step_count": 0})
 
         successful_steps = sum(1 for step in trajectory.steps if not step.error)
         total_steps = len(trajectory.steps)
@@ -421,25 +438,22 @@ class LatencyEvaluator(BaseEvaluator):
 
     name = "latency"
 
-    def __init__(self, max_latency_ms: Optional[float] = None, use_context_constraint: bool = True):
+    def __init__(self, max_latency_ms: Optional[float] = None, use_task_constraint: bool = True):
         super().__init__()
         self.max_latency_ms = max_latency_ms
-        self.use_context_constraint = use_context_constraint
+        self.use_task_constraint = use_task_constraint
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         # Determine max latency
         max_latency = self.max_latency_ms
-        if self.use_context_constraint and task and task.constraints:
+        if self.use_task_constraint and task and task.constraints:
             constraints = task.constraints
             if constraints and constraints.has_latency_constraint():
                 max_latency = constraints.max_latency_ms
 
         if max_latency is None:
-            return EvalResult(
-                score=1.0,
-                passed=True,
-                explanation="No latency constraint specified",
-                details={"actual_latency_ms": observation.metrics.total_duration_ms},
+            return EvalResult.skip(
+                "No latency constraint specified", details={"actual_latency_ms": observation.metrics.total_duration_ms}
             )
 
         actual_latency = observation.metrics.total_duration_ms or 0
@@ -479,10 +493,8 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
                 max_tokens = constraints.max_tokens
 
         if max_tokens is None:
-            return EvalResult(
-                score=1.0,
-                passed=True,
-                explanation="No token constraint specified",
+            return EvalResult.skip(
+                "No token constraint specified",
                 details={
                     "actual_tokens": observation.metrics.token_usage.total_tokens
                     if observation.metrics.token_usage
@@ -530,11 +542,8 @@ class IterationCountEvaluator(BaseEvaluator):
         actual_iterations = len(trajectory.steps)
 
         if max_iterations is None:
-            return EvalResult(
-                score=1.0,
-                passed=True,
-                explanation=f"Completed in {actual_iterations} iterations (no constraint)",
-                details={"actual_iterations": actual_iterations},
+            return EvalResult.skip(
+                "No iteration constraint specified", details={"actual_iterations": actual_iterations}
             )
 
         passed = actual_iterations <= max_iterations
@@ -549,31 +558,4 @@ class IterationCountEvaluator(BaseEvaluator):
             passed=passed,
             explanation=f"Iterations: {actual_iterations} (max: {max_iterations})",
             details={"actual_iterations": actual_iterations, "max_iterations": max_iterations},
-        )
-
-
-# =============================================================================
-# Outcome Evaluators
-# =============================================================================
-
-
-class ExpectedOutcomeEvaluator(BaseEvaluator):
-    """Evaluates if the trace achieved the expected outcome.
-
-    Compares observation.success with task.expected_outcome.
-    """
-
-    name = "expected_outcome"
-
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
-        expected = task.expected_outcome  # Raises if not available
-
-        actual = observation.success
-        passed = actual == expected
-
-        return EvalResult(
-            score=1.0 if passed else 0.0,
-            passed=passed,
-            explanation=f"Expected {'success' if expected else 'failure'}, got {'success' if actual else 'failure'}",
-            details={"expected_outcome": expected, "actual_outcome": actual},
         )

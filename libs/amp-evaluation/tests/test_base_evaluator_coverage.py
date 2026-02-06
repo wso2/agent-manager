@@ -146,7 +146,7 @@ class TestLLMAsJudgeEvaluator:
             name="AI Question",
             description="Test task",
             input="What is AI?",
-            success_criteria_text="Must be accurate",
+            success_criteria="Must be accurate",
         )
 
         result = evaluator.evaluate(observation, task)

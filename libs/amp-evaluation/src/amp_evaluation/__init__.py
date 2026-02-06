@@ -58,21 +58,19 @@ from .models import (
     DataNotAvailableError,
     # Observation
     Observation,
-    # Task & Dataset
+    # Task & Dataset (re-exported from dataset module)
     Task,
     Dataset,
+    Constraints,
+    TrajectoryStep,
+    generate_id,
     # Results
     EvalResult,
     EvaluatorScore,
     EvaluatorSummary,
     # Agent (minimal - from config)
     Agent,
-    # Utilities
-    generate_id,
 )
-
-# Dataset schema (JSON loading)
-from .dataset_schema import DatasetSchema, Constraints
 
 # ============================================================================
 # RUNNERS
@@ -80,19 +78,23 @@ from .dataset_schema import DatasetSchema, Constraints
 from .runner import BaseRunner, Experiment, Monitor, RunResult, RunType
 
 # ============================================================================
+# DATASET LOADING
+# ============================================================================
+from .dataset import (
+    load_dataset_from_json,
+    load_dataset_from_csv,
+    save_dataset_to_json,
+)
+
+# ============================================================================
 # CONFIGURATION
 # ============================================================================
 from .config import Config, AgentConfig, PlatformConfig, get_config, reload_config
 
 # ============================================================================
-# AGENT INVOCATION
+# AGENT INVOKERS
 # ============================================================================
 from .invokers import AgentInvoker, InvokeResult, HttpAgentInvoker
-
-# ============================================================================
-# LOADERS
-# ============================================================================
-from .loaders import DatasetLoader
 
 # ============================================================================
 # CONVENIENCE DECORATORS (allowed in main module for ergonomics)
@@ -141,8 +143,11 @@ __all__ = [
     "DataNotAvailableError",
     "generate_id",
     # Dataset schema
-    "DatasetSchema",
     "Constraints",
+    "TrajectoryStep",
+    "load_dataset_from_json",
+    "load_dataset_from_csv",
+    "save_dataset_to_json",
     # -------------------------------------------------------------------------
     # Runners
     # -------------------------------------------------------------------------
@@ -166,9 +171,8 @@ __all__ = [
     "InvokeResult",
     "HttpAgentInvoker",
     # -------------------------------------------------------------------------
-    # Loaders
+    # Loaders (deprecated - use functions directly)
     # -------------------------------------------------------------------------
-    "DatasetLoader",
     # -------------------------------------------------------------------------
     # Convenience decorators (allowed in main module)
     # -------------------------------------------------------------------------

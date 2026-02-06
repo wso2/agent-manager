@@ -83,6 +83,15 @@ def dict_to_otel_trace(trace_dict: dict) -> "OTELTrace":
     # Create trace status with error count
     trace_status = OTELTraceStatus(errorCount=error_count) if error_count > 0 else None
 
+    # Calculate total duration from spans if not provided at trace level
+    total_duration_nanos = None
+    if "duration_ms" in trace_dict:
+        # Trace-level duration provided
+        total_duration_nanos = int(trace_dict["duration_ms"] * 1_000_000)
+    elif otel_spans:
+        # Sum up span durations
+        total_duration_nanos = sum(span.durationInNanos for span in otel_spans if span.durationInNanos)
+
     # Create OTEL Trace
     return OTELTrace(
         traceId=trace_dict.get("trace_id", "test-trace"),
@@ -90,6 +99,7 @@ def dict_to_otel_trace(trace_dict: dict) -> "OTELTrace":
         rootSpanName="test",
         startTime="2026-01-27T00:00:00Z",
         endTime="2026-01-27T00:00:01Z",
+        durationInNanos=total_duration_nanos,
         spans=otel_spans,
         input=trace_dict.get("input"),
         output=trace_dict.get("output"),
@@ -109,9 +119,6 @@ class TestTraceParser:
 
         assert eval_trace.trace_id == "trace_123"
         assert eval_trace.input == "What is 2 + 2?"
-        assert eval_trace.output == "4"
-        assert len(eval_trace.llm_spans) == 0
-        assert len(eval_trace.tool_spans) == 0
         assert eval_trace.output == "4"
         assert len(eval_trace.llm_spans) == 0
         assert len(eval_trace.tool_spans) == 0

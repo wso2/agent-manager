@@ -19,11 +19,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Literal, TYPE_CHECKING, Union
-from uuid import uuid4
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
+from amp_evaluation.trace.models import ToolSpan
 
-# Import Constraints from dataset_schema (single source of truth)
-from .dataset_schema import Constraints
+# Import all dataset-related models from dataset module for re-export
+from .dataset import Task, Dataset, Constraints, TrajectoryStep, generate_id  # noqa: F401
 
 if TYPE_CHECKING:
     from .trace.models import Trajectory
@@ -120,53 +120,9 @@ class Observation:
         return self.trajectory.steps
 
     @property
-    def tool_spans(self) -> List:
+    def tool_spans(self) -> List[ToolSpan]:
         """Tool call spans from the trajectory."""
         return self.trajectory.tool_spans
-
-
-# ============================================================================
-# TASK MODELS
-# ============================================================================
-@dataclass
-class Task:
-    """
-    A single test case - matches JSON DatasetTask schema.
-    The fundamental building block of evaluation.
-    """
-
-    # Required
-    task_id: str
-    name: str
-    description: str
-    input: Union[str, Dict[str, Any]]  # User query/prompt (string or structured JSON)
-
-    # Reference data for evaluation (ground truth)
-    expected_output: Optional[str] = None
-    expected_trajectory: Optional[List[Dict[str, Any]]] = None  # Expected sequence of steps
-    expected_outcome: Optional[Dict[str, Any]] = None  # Expected side effects/state
-    success_criteria_text: Optional[str] = None  # Human-readable success criteria for LLM judges
-
-    # Constraints
-    prohibited_content: Optional[List[str]] = None  # Content that should NOT appear
-    constraints: Optional[Constraints] = None  # Performance limits
-
-    # Classification
-    task_type: str = "general"  # "qa", "code_gen", "rag", "tool_use", "math"
-    difficulty: Literal["easy", "medium", "hard", "expert"] = "medium"
-    tags: List[str] = field(default_factory=list)
-    domain: Optional[str] = None  # "medical", "legal", "technical", etc.
-
-    # Extensibility
-    custom: Dict[str, Any] = field(default_factory=dict)  # Passed to evaluators
-    metadata: Dict[str, Any] = field(default_factory=dict)  # Not passed to evaluators
-
-    # Dataset membership
-    dataset_id: Optional[str] = None
-
-    # Timestamps
-    created_at: datetime = field(default_factory=datetime.now)
-    created_by: Optional[str] = None
 
 
 # ============================================================================
@@ -177,31 +133,111 @@ class Task:
 @dataclass
 class EvalResult:
     """
-    Result returned by evaluators. Contains only the evaluation outcome.
+    Result returned by evaluators.
 
-    This is what developers return from their evaluator functions.
+    Two types of results:
+      1. Success: Evaluation completed with a score
+         EvalResult(score=0.8, explanation="Good response")
+         EvalResult(score=0.0, passed=False, explanation="Failed quality check")
 
-    Examples:
-        return EvalResult(score=0.8, explanation="Good response")
-        return EvalResult(score=1.0, passed=True, details={"tokens": 100})
-        return EvalResult(score=0.0, passed=False, error="Missing required data")
+      2. Error: Evaluation could not be performed
+         EvalResult.skip("Missing required data")
+         EvalResult.skip("API key not configured")
+
+    Always check is_error before accessing score/passed on unknown results.
+
+    Design rationale:
+      - score=0.0 means "evaluated and failed"
+      - skip() means "could not evaluate at all"
     """
 
-    score: float  # 0.0 to 1.0
+    _score: Optional[float] = field(default=None, init=False, repr=False)
+    _passed: Optional[bool] = field(default=None, init=False, repr=False)
     explanation: str = ""
     details: Optional[Dict[str, Any]] = None
-    passed: Optional[bool] = None
-    error: Optional[str] = None  # Set if evaluation cannot be performed
+    error: Optional[str] = field(default=None, init=False, repr=False)
 
-    def __post_init__(self):
-        """Auto-calculate passed if not provided."""
-        if self.passed is None:
-            self.passed = self.score >= 0.5
+    def __init__(
+        self,
+        score: float,  # REQUIRED: must be 0.0-1.0
+        explanation: str = "",
+        details: Optional[Dict[str, Any]] = None,
+        passed: Optional[bool] = None,
+    ):
+        """
+        Create a successful evaluation result.
+
+        Args:
+            score: Evaluation score between 0.0 and 1.0
+            explanation: Human-readable explanation of the result
+            details: Additional structured data
+            passed: Override pass/fail (defaults to score >= 0.5)
+
+        For error cases, use EvalResult.skip() instead.
+        """
+        if not isinstance(score, (int, float)):
+            raise TypeError(f"score must be a number, got {type(score).__name__}")
+        if not 0.0 <= score <= 1.0:
+            raise ValueError(f"score must be between 0.0 and 1.0, got {score}")
+
+        self._score = float(score)
+        self._passed = passed if passed is not None else score >= 0.5
+        self.explanation = explanation
+        self.details = details
+        self.error = None
+
+    @classmethod
+    def skip(cls, reason: str, details: Optional[Dict[str, Any]] = None) -> "EvalResult":
+        """
+        Create an error result when evaluation cannot be performed.
+
+        Use this when:
+        - Required data is missing
+        - Dependencies are not available
+        - Evaluation logic encounters an error
+
+        Args:
+            reason: Why the evaluation was skipped
+            details: Additional context about the error
+
+        Returns:
+            EvalResult with is_error=True
+        """
+        obj = object.__new__(cls)
+        obj._score = None
+        obj._passed = None
+        obj.explanation = reason
+        obj.details = details
+        obj.error = reason
+        return obj
+
+    @property
+    def score(self) -> float:
+        """Get evaluation score. Raises AttributeError if this is an error result."""
+        if self._score is None:
+            raise AttributeError(
+                f"Cannot access score on an error result. Check is_error before accessing score. Error: {self.error}"
+            )
+        return self._score
+
+    @property
+    def passed(self) -> bool:
+        """Get pass/fail status. Raises AttributeError if this is an error result."""
+        if self._passed is None:
+            raise AttributeError(
+                f"Cannot access passed on an error result. Check is_error before accessing passed. Error: {self.error}"
+            )
+        return self._passed
 
     @property
     def is_error(self) -> bool:
         """Check if this result represents an evaluation error."""
         return self.error is not None
+
+    def __repr__(self) -> str:
+        if self.is_error:
+            return f"EvalResult(error={self.error!r})"
+        return f"EvalResult(score={self._score}, passed={self._passed}, explanation={self.explanation!r})"
 
 
 @dataclass
@@ -269,56 +305,10 @@ class EvaluatorSummary:
     @property
     def pass_rate(self) -> Optional[float]:
         """Convenience accessor for default pass_rate (threshold 0.5)."""
-        return self.aggregated_scores.get("pass_rate") or self.aggregated_scores.get("pass_rate_0.5")
-
-
-# ============================================================================
-# DATASET & BENCHMARK MODELS
-# ============================================================================
-
-
-@dataclass
-class Dataset:
-    """
-    A collection of tasks designed to measure specific capabilities or behaviors.
-    Can be production traces, golden set, or synthetic data.
-    """
-
-    dataset_id: str
-    name: str
-    description: str
-
-    # Tasks
-    tasks: List[Task] = field(default_factory=list)
-
-    # Classification
-    dataset_type: Literal["golden_set", "production_traces", "synthetic", "human_annotated"] = "golden_set"
-    domain: Optional[str] = None
-    version: str = "1.0"
-
-    # Source information
-    source: Optional[str] = None  # File path, DB query, API endpoint
-    source_filters: Dict[str, Any] = field(default_factory=dict)
-
-    # Statistics
-    task_count: int = 0
-    difficulty_distribution: Dict[str, int] = field(default_factory=dict)
-
-    # Metadata
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
-    created_by: Optional[str] = None
-    tags: List[str] = field(default_factory=list)
-
-    def add_task(self, task: Task):
-        """Add a task to the dataset."""
-        task.dataset_id = self.dataset_id
-        self.tasks.append(task)
-        self.task_count = len(self.tasks)
-
-        # Update difficulty distribution
-        difficulty = task.difficulty
-        self.difficulty_distribution[difficulty] = self.difficulty_distribution.get(difficulty, 0) + 1
+        rate = self.aggregated_scores.get("pass_rate")
+        if rate is not None:
+            return rate
+        return self.aggregated_scores.get("pass_rate_0.5")
 
 
 # ============================================================================
@@ -335,13 +325,3 @@ class Agent:
 
     agent_uid: str
     environment_uid: str
-
-
-# ============================================================================
-# UTILITY FUNCTIONS
-# ============================================================================
-
-
-def generate_id(prefix: str = "") -> str:
-    """Generate a unique ID."""
-    return f"{prefix}{uuid4().hex[:12]}" if prefix else uuid4().hex[:12]

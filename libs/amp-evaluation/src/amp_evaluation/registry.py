@@ -221,9 +221,15 @@ class EvaluatorRegistry:
             # If it's a function, validate and wrap
             _validate_evaluator_function(evaluator_or_func, name)
 
+            sig = inspect.signature(evaluator_or_func)
+            nparams = len(list(sig.parameters.values()))
+
             @wraps(evaluator_or_func)
             def wrapper(observation: "Observation", task: Optional["Task"] = None) -> EvalResult:
-                result = evaluator_or_func(observation, task)
+                if nparams == 1:
+                    result = evaluator_or_func(observation)
+                else:
+                    result = evaluator_or_func(observation, task)
                 return _normalize_result(result)
 
             # Wrap in FunctionEvaluator and set metadata as instance attributes
@@ -298,7 +304,7 @@ def _normalize_result(result) -> EvalResult:
 
     elif isinstance(result, (int, float)):
         score = float(result)
-        return EvalResult(score=score, passed=score >= 0.7, explanation="", details=None)
+        return EvalResult(score=score, passed=None, explanation="", details=None)
 
     else:
         raise TypeError(

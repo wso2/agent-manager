@@ -175,13 +175,14 @@ def detect_query_domains(query: str) -> Set[str]:
     matched_domains = set()
 
     for domain, keywords in DOMAIN_KEYWORDS.items():
-        if keywords & query_words:
+        # Single-word, alpha-only keywords: fast set intersection
+        simple_keywords = {kw for kw in keywords if kw.isalpha()}
+        if simple_keywords & query_words:
             matched_domains.add(domain)
-        # Also check multi-word keywords as substrings
-        for kw in keywords:
-            if " " in kw and kw in query_lower:
+        # Multi-word or hyphenated keywords: substring match
+        for kw in keywords - simple_keywords:
+            if kw in query_lower:
                 matched_domains.add(domain)
-
     return matched_domains
 
 
@@ -359,10 +360,9 @@ def response_grounding(observation: Observation, task: Optional[Task] = None) ->
     response = observation.output or ""
 
     if not observation.tool_spans:
-        return EvalResult(
-            score=1.0,
-            passed=True,
-            explanation="No tools called — skipping grounding check",
+        return EvalResult.skip(
+            "No tools called — skipping grounding check",
+            details={"response": response[:200]},
         )
 
     tool_outputs = collect_tool_outputs(observation)
@@ -426,7 +426,10 @@ def tool_success_rate(observation: Observation, task: Optional[Task] = None) -> 
       - 0.0 = all tools failed
     """
     if not observation.tool_spans:
-        return EvalResult(score=1.0, passed=True, explanation="No tools called")
+        return EvalResult.skip(
+            "No tools called — skipping success rate check",
+            details={"response": (observation.output or "")[:200]},
+        )
 
     failed = []
     succeeded = []
@@ -475,10 +478,8 @@ def response_completeness(observation: Observation, task: Optional[Task] = None)
 
     # Empty response — this is always bad
     if not response:
-        return EvalResult(
-            score=0.0,
-            passed=False,
-            explanation="Empty response",
+        return EvalResult.skip(
+            "Empty response — skipping completeness check",
             details={"length": 0, "issues": ["empty"]},
         )
 
@@ -488,13 +489,13 @@ def response_completeness(observation: Observation, task: Optional[Task] = None)
 
     # Truncation — only meaningful for longer responses
     if len(response) > 50:
+        # Check for explicit truncation markers first
+        if response.endswith(("...", "…", "[truncated]", "[cut")):
+            issues.append("Response appears truncated")
         # Check if response ends mid-sentence (no terminal punctuation)
         last_char = response[-1]
         if last_char not in ".!?\"')]}":
-            # Could be truncated, but not definitive
-            # Check for explicit truncation markers
-            if response.endswith(("...", "…", "[truncated]", "[cut")):
-                issues.append("Response appears truncated")
+            issues.append("Response appears truncated")
 
     # System errors leaking to the user (not legitimate refusals)
     system_error_patterns = [
@@ -564,10 +565,8 @@ def llm_hallucination_judge(observation: Observation, task: Optional[Task] = Non
 
     api_key = os.getenv(JUDGE_API_KEY_ENV)
     if not api_key:
-        return EvalResult(
-            score=0.0,
-            passed=False,
-            explanation=f"{JUDGE_API_KEY_ENV} not set — cannot run LLM judge",
+        return EvalResult.skip(
+            f"{JUDGE_API_KEY_ENV} not set — cannot run LLM judge",
             details={"skipped": True, "reason": "missing_api_key"},
         )
 
@@ -650,23 +649,17 @@ Respond with JSON:
         )
 
     except ImportError:
-        return EvalResult(
-            score=0.0,
-            passed=False,
-            explanation="openai package not installed — run: pip install openai",
+        return EvalResult.skip(
+            "openai package not installed — run: pip install openai",
             details={"skipped": True, "reason": "missing_dependency"},
         )
     except json.JSONDecodeError:
-        return EvalResult(
-            score=0.0,
-            passed=False,
-            explanation="LLM returned invalid JSON — could not parse judge response",
+        return EvalResult.skip(
+            "LLM returned invalid JSON — could not parse judge response",
             details={"skipped": True, "reason": "invalid_json"},
         )
     except Exception as e:
-        return EvalResult(
-            score=0.0,
-            passed=False,
-            explanation=f"LLM judge failed: {type(e).__name__}: {e}",
+        return EvalResult.skip(
+            f"LLM judge failed: {type(e).__name__}: {e}",
             details={"skipped": True, "reason": "llm_error", "error": str(e)},
         )

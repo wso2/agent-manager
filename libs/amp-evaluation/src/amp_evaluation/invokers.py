@@ -259,13 +259,14 @@ class HttpAgentInvoker(AgentInvoker):
         payload = self.payload_builder(input)
 
         # Merge headers (default + user headers)
-        request_headers = {"Content-Type": "application/json", **self.headers}
+        request_headers = self.headers
 
         try:
             # Make request based on method
             if self.method == "GET":
                 response = self._session.get(url, params=payload, headers=request_headers, timeout=self.timeout)
             elif self.method in ("POST", "PUT", "PATCH"):
+                request_headers["Content-Type"] = "application/json"
                 response = self._session.request(
                     self.method, url, json=payload, headers=request_headers, timeout=self.timeout
                 )

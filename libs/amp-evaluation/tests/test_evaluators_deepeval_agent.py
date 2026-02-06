@@ -219,8 +219,8 @@ class TestDeepEvalPlanQualityEvaluator:
             evaluator = DeepEvalPlanQualityEvaluator()
             result = evaluator.evaluate(basic_observation)
 
-            assert result.score == 0.0
-            assert result.passed is False
+            assert result.is_error
+            assert result.error is not None
             assert "not installed" in result.explanation.lower()
 
 
@@ -600,7 +600,7 @@ class TestDeepEvalEvaluatorsIntegration:
         evaluator = DeepEvalPlanQualityEvaluator()
         result = evaluator.evaluate(basic_observation)
 
-        assert result.score == 0.0
-        assert result.passed is False
+        assert result.is_error
+        assert result.error is not None
         assert "failed" in result.explanation.lower()
         assert "error" in result.details

@@ -87,6 +87,25 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Initialize RequestsInstrumentor once at module level to avoid duplicate instrumentation
+_requests_instrumented = False
+
+
+def _ensure_requests_instrumented():
+    """Ensure requests library is instrumented exactly once."""
+    global _requests_instrumented
+    if not _requests_instrumented:
+        try:
+            from opentelemetry.instrumentation.requests import RequestsInstrumentor
+
+            RequestsInstrumentor().instrument()
+            _requests_instrumented = True
+            logger.debug("RequestsInstrumentor initialized")
+        except ImportError:
+            logger.debug("OpenTelemetry requests instrumentation not available")
+        except Exception as e:
+            logger.warning(f"Failed to instrument requests library: {e}")
+
 
 # ============================================================================
 # RUN TYPE
@@ -173,7 +192,10 @@ class RunResult:
             lines.append(f"  {name}:")
             # Show all available aggregations
             for agg_name, value in summary.aggregated_scores.items():
-                lines.append(f"    {agg_name}: {value:.4f}")
+                if isinstance(value, (int, float)):
+                    lines.append(f"    {agg_name}: {value:.4f}")
+                else:
+                    lines.append(f"    {agg_name}: {value}")
             # Show count
             lines.append(f"    count: {summary.count}")
 
@@ -384,32 +406,48 @@ class BaseRunner(ABC):
                 # Call evaluator with new two-parameter signature
                 eval_result = evaluator(observation, task)
 
-                # Create EvaluatorScore directly from EvalResult
-                evaluator_score = EvaluatorScore(
-                    trace_id=trace.trace_id,
-                    score=eval_result.score,
-                    passed=eval_result.passed,
-                    timestamp=trace.timestamp,
-                    explanation=eval_result.explanation,
-                    task_id=task.task_id if task else None,
-                    trial_id=trial_id,
-                    metadata=eval_result.details or {},
-                    error=eval_result.error,  # Propagate error field from EvalResult
-                )
+                # Create EvaluatorScore from EvalResult
+                # Handle both success and error results correctly
+                if eval_result.is_error:
+                    # Error result - don't access score/passed
+                    evaluator_score = EvaluatorScore(
+                        trace_id=trace.trace_id,
+                        score=0.0,  # Placeholder, marked as error
+                        passed=False,
+                        timestamp=trace.timestamp,
+                        explanation=eval_result.explanation,
+                        task_id=task.task_id if task else None,
+                        trial_id=trial_id,
+                        metadata=eval_result.details or {},
+                        error=eval_result.error,
+                    )
+                else:
+                    # Success result - safe to access score/passed
+                    evaluator_score = EvaluatorScore(
+                        trace_id=trace.trace_id,
+                        score=eval_result.score,
+                        passed=eval_result.passed,
+                        timestamp=trace.timestamp,
+                        explanation=eval_result.explanation,
+                        task_id=task.task_id if task else None,
+                        trial_id=trial_id,
+                        metadata=eval_result.details or {},
+                        error=None,
+                    )
                 scores[evaluator.name] = evaluator_score
 
             except Exception as e:
-                # Record the error properly without fake scores
+                # Record unexpected exception during evaluation
                 error_score = EvaluatorScore(
                     trace_id=trace.trace_id,
-                    score=0.0,  # Required field, but marked as error
+                    score=0.0,  # Placeholder, marked as error
                     passed=False,
                     timestamp=trace.timestamp,
-                    explanation=None,  # Don't use explanation for errors
+                    explanation=f"Evaluator raised exception: {str(e)}",
                     task_id=task.task_id if task else None,
                     trial_id=trial_id,
                     metadata={},
-                    error=str(e),  # Actual error message
+                    error=str(e),
                 )
                 scores[evaluator.name] = error_score
 
@@ -743,13 +781,14 @@ class Experiment(BaseRunner):
         from datetime import datetime, timezone
         import uuid
 
+        # Ensure requests library is instrumented (idempotent, only once per process)
+        _ensure_requests_instrumented()
+
         # Import OpenTelemetry baggage for propagating task_id and trial_id
         try:
             from opentelemetry import baggage, context
             from opentelemetry.context import attach, detach
-            from opentelemetry.instrumentation.requests import RequestsInstrumentor
 
-            RequestsInstrumentor().instrument()
             otel_available = True
         except ImportError:
             logger.warning("OpenTelemetry not available - baggage propagation disabled")

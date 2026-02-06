@@ -287,10 +287,10 @@ class TestDirectImportPattern:
         """Should be able to import and instantiate directly."""
         from amp_evaluation.evaluators.builtin.standard import LatencyEvaluator
 
-        evaluator = LatencyEvaluator(max_latency_ms=1000, use_context_constraint=False)
+        evaluator = LatencyEvaluator(max_latency_ms=1000, use_task_constraint=False)
         assert evaluator.name == "latency"
         assert evaluator.max_latency_ms == 1000
-        assert evaluator.use_context_constraint is False
+        assert evaluator.use_task_constraint is False
 
     def test_direct_import_exact_match_evaluator(self):
         """Should be able to import ExactMatchEvaluator directly."""
@@ -342,14 +342,6 @@ class TestEdgeCases:
         evaluator = get_builtin_evaluator("deepeval/plan-quality")
         # Name comes from class attribute, not overridden
         assert evaluator.name == "deepeval/plan-quality"
-
-    def test_evaluator_without_init_works(self):
-        """Evaluators without custom __init__ should work."""
-        from amp_evaluation.evaluators.builtin import get_builtin_evaluator
-
-        evaluator = get_builtin_evaluator("expected_outcome")
-        assert evaluator.name == "expected_outcome"
-        assert isinstance(evaluator, BaseEvaluator)
 
     def test_discover_handles_instantiation_errors(self):
         """Should skip evaluators that fail to instantiate."""
@@ -443,7 +435,6 @@ class TestIntegrationScenarios:
             "answer_relevancy",
             "contains_match",
             "exact_match",
-            "expected_outcome",
             "iteration_count",
             "latency",
             "prohibited_content",

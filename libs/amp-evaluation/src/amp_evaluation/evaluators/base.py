@@ -53,7 +53,7 @@ class BaseEvaluator(ABC):
         version: Evaluator version string
         aggregations: Default aggregations to compute for this evaluator
 
-    Example (Built-in evaluator with metadata):
+    Example (Success with score):
         class LatencyEvaluator(BaseEvaluator):
             name = "latency"
             description = "Checks if response latency is within acceptable limits"
@@ -72,7 +72,7 @@ class BaseEvaluator(ABC):
                     explanation=f"Latency: {latency}ms"
                 )
 
-    Example (Experiment-only):
+    Example (Error when cannot evaluate):
         class ExactMatchEvaluator(BaseEvaluator):
             name = "exact-match"
             description = "Checks if output exactly matches expected output"
@@ -80,7 +80,7 @@ class BaseEvaluator(ABC):
 
             def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
                 if not task or not task.expected_output:
-                    raise ValueError("ExactMatchEvaluator requires task with expected_output")
+                    return EvalResult.skip("Requires task with expected_output")
 
                 matches = observation.output == task.expected_output
                 return EvalResult(
@@ -92,7 +92,7 @@ class BaseEvaluator(ABC):
     # Class-level metadata attributes (can be overridden by subclasses or instances)
     name: str = ""  # Defaults to class name if not set
     description: str = ""
-    tags: List[str] = []
+    tags: List[str] = ()  # Immutable default; subclasses should override with a list
     version: str = "1.0"
     evaluator_type: str = "trace"
 
@@ -100,6 +100,10 @@ class BaseEvaluator(ABC):
         # Set default name to class name if not already set
         if not self.name:
             self.name = self.__class__.__name__
+
+        # Ensure tags is a mutable list per instance
+        if not isinstance(self.tags, list):
+            self.tags = list(self.tags)
 
         self._aggregations: Optional[List] = None
 
@@ -160,10 +164,8 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
     Base class for LLM-as-judge evaluators.
     Uses an LLM to evaluate outputs for subjective criteria.
 
-    Supports flexible prompt templates with access to:
-    - observation: The observed execution (input, output, metrics, steps, etc.)
-    - task: The task definition (expected_output, success_criteria, etc.) - optional
-    - Any custom context you provide
+    Supports flexible prompt templates with flat variable access (Python str.format()).
+    Use a custom prompt_builder to extract and flatten data from observation/task.
 
     Example with custom prompt:
         class CustomJudge(LLMAsJudgeEvaluator):
@@ -173,9 +175,9 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
                     prompt_template='''
                         Evaluate if the agent used tools appropriately.
 
-                        Query: {observation.input}
+                        Query: {query}
                         Tools Used: {tools_used}
-                        Response: {observation.output}
+                        Response: {response}
 
                         Score (0.0-1.0):
                         Explanation:
@@ -184,11 +186,12 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
                 )
 
             def build_prompt(self, observation, task):
-                tools_used = [s.name for s in observation.tool_spans]
+                # Extract and flatten data for template variables
+                tools_used = [s.name for s in observation.trajectory.tool_spans]
                 return {
-                    "observation": observation,
-                    "task": task,
-                    "tools_used": ", ".join(tools_used)
+                    "query": observation.input,
+                    "response": observation.output,
+                    "tools_used": ", ".join(tools_used) if tools_used else "None"
                 }
 
             def call_llm(self, prompt):
@@ -238,24 +241,25 @@ Explanation: <your reasoning>
         """
         Build template variables for the default prompt.
 
-        Override this or provide custom prompt_builder to customize what's available in templates.
+        Returns a dict of flat variables for str.format(). Python's str.format() doesn't
+        support nested attribute access (like {observation.input}), so extract and flatten
+        all needed values.
+
+        Override this or provide custom prompt_builder to customize variables.
         """
         reference_section = ""
         if task and task.expected_output:
             reference_section = f"\nExpected Output: {task.expected_output}"
 
         criteria_section = f"\nEvaluation Criteria: {self.criteria}"
-        if task and task.success_criteria_text:
-            criteria_section = f"\nSuccess Criteria: {task.success_criteria_text}"
+        if task and task.success_criteria:
+            criteria_section = f"\nSuccess Criteria: {task.success_criteria}"
 
         return {
             "input": observation.input,
             "output": observation.output,
             "reference_section": reference_section,
             "criteria_section": criteria_section,
-            # Make observation and task available for custom templates
-            "observation": observation,
-            "task": task,
         }
 
     @abstractmethod

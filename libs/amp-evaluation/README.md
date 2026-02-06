@@ -211,6 +211,48 @@ class MyEvaluator(BaseEvaluator):
         )
 ```
 
+### EvalResult
+
+Return type for all evaluators. Supports two patterns:
+
+**Success Pattern** - Evaluation completed with a score:
+```python
+# High score (passed)
+return EvalResult(score=0.85, explanation="Good response quality")
+
+# Low score (failed)  
+return EvalResult(score=0.2, explanation="Response too short")
+
+# Zero score (evaluated but completely failed)
+return EvalResult(score=0.0, passed=False, explanation="No relevant content")
+```
+
+**Error Pattern** - Evaluation could not be performed:
+```python
+# Missing dependency
+return EvalResult.skip("DeepEval not installed")
+
+# Missing required data
+return EvalResult.skip("No expected output in task")
+
+# API failure
+return EvalResult.skip(f"API call failed: {error}")
+```
+
+**Key Distinction:**
+- `score=0.0` means "evaluated and completely failed"
+- `skip()` means "could not evaluate at all"
+
+**Safe Access Pattern:**
+```python
+result = evaluator.evaluate(observation)
+
+if result.is_error:
+    print(f"Skipped: {result.error}")
+else:
+    print(f"Score: {result.score}, Passed: {result.passed}")
+```
+
 ### Evaluator Types
 
 **Code Evaluators** (Default)
@@ -625,12 +667,11 @@ print(f"Published: {result.metadata.get('published', False)}")
 
 ## Project Structure
 
-```
+```text
 amp-evaluation/
 ├── src/amp_evaluation/
 │   ├── __init__.py            # Public API exports
 │   ├── config.py              # Configuration management
-│   ├── dataset_schema.py      # Dataset schema definitions
 │   ├── invokers.py            # Agent invoker utilities
 │   ├── models.py              # Core data models (EvalResult, Observation, etc.)
 │   ├── registry.py            # Evaluator/aggregator registration system
@@ -655,9 +696,10 @@ amp-evaluation/
 │   │   ├── parser.py          # OTEL → Trajectory conversion
 │   │   └── fetcher.py         # TraceFetcher for API integration
 │   │
-│   └── loaders/               # Data loading
-│       ├── __init__.py
-│       └── dataset_loader.py  # Dataset CSV/JSON loading
+│   └── dataset/               # Dataset module
+│       ├── __init__.py        # Exports Task, Dataset, Constraints, etc.
+│       ├── schema.py          # Dataset schema models (Task, Dataset, Constraints, TrajectoryStep)
+│       └── loader.py          # Dataset CSV/JSON loading and saving
 │
 ├── tests/                     # Comprehensive test suite
 ├── pyproject.toml             # Package configuration
@@ -768,7 +810,7 @@ pytest
 pytest tests/test_aggregators.py -v
 
 # With coverage
-pytest --cov=amp_eval --cov-report=html
+pytest --cov=amp_evaluation --cov-report=html
 ```
 
 ## Key Features in Detail
@@ -839,6 +881,67 @@ TRACE_FILE_PATH="./traces/my_traces.json"
 That's it! All configuration is handled through these environment variables.
 
 For detailed configuration options, see `src/amp_evaluation/config.py`.
+
+## Module Organization
+
+### Dataset Module
+
+All dataset-related functionality is organized in the `dataset/` module:
+
+```python
+from amp_evaluation.dataset import (
+    # Schema models
+    Task,
+    Dataset,
+    Constraints,
+    TrajectoryStep,
+    generate_id,
+    
+    # Loading/saving functions
+    load_dataset_from_json,
+    load_dataset_from_csv,
+    save_dataset_to_json,
+)
+```
+
+**Module Structure:**
+- `dataset/schema.py` - Core dataclass models (Task, Dataset, Constraints, TrajectoryStep)
+- `dataset/loader.py` - JSON/CSV loading and saving functions
+- `dataset/__init__.py` - Public API exports
+
+**Benefits:**
+- All dataset code in one logical place
+- Clear separation: schema vs I/O operations
+- Clean imports from both `amp_evaluation.dataset` and `amp_evaluation`
+- Self-contained and well-tested (25+ unit tests)
+
+**Example Usage:**
+
+```python
+# Load from JSON
+dataset = load_dataset_from_json("benchmarks/customer_support.json")
+
+# Create programmatically
+from amp_evaluation.dataset import Dataset, Task, Constraints
+
+dataset = Dataset(
+    dataset_id="my_dataset",
+    name="My Test Dataset",
+    description="Testing my agent"
+)
+
+task = Task(
+    task_id="task_001",
+    input="How do I reset my password?",
+    expected_output="Click 'Forgot Password' on login page...",
+    constraints=Constraints(max_latency_ms=3000),
+)
+
+dataset.add_task(task)
+
+# Save to JSON
+save_dataset_to_json(dataset, "my_dataset.json")
+```
 
 ## Contributing
 

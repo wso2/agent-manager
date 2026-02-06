@@ -40,7 +40,6 @@ from amp_evaluation.evaluators.builtin.standard import (
     LatencyEvaluator,
     TokenEfficiencyEvaluator,
     IterationCountEvaluator,
-    ExpectedOutcomeEvaluator,
 )
 from amp_evaluation.models import Observation, Task
 from amp_evaluation.trace import (
@@ -525,86 +524,5 @@ class TestIterationCountEvaluator:
         result = evaluator.evaluate(observation_with_tools)
 
         # 2 tool calls > 1 max
-        assert result.score == 0.0
-        assert result.passed is False
-
-
-# ============================================================================
-# OUTCOME EVALUATORS
-# ============================================================================
-
-
-class TestExpectedOutcomeEvaluator:
-    """Test ExpectedOutcomeEvaluator."""
-
-    @pytest.mark.skip(reason="Observation.success property not yet implemented")
-    def test_outcome_matches(self):
-        """Test when outcome matches expected."""
-        trajectory = Trajectory(
-            trace_id="test",
-            input="test",
-            output="Success",
-            timestamp=datetime.now(),
-            metrics=TraceMetrics(),
-            steps=[],
-        )
-        observation = Observation(trajectory=trajectory)
-
-        task = Task(
-            task_id="task-1",
-            name="Test",
-            description="Test",
-            input="test",
-            expected_outcome={"status": "success"},
-        )
-
-        evaluator = ExpectedOutcomeEvaluator()
-        result = evaluator.evaluate(observation, task)
-
-        assert result.score == 1.0
-        assert result.passed is True
-
-    @pytest.mark.skip(reason="Observation.success property not yet implemented")
-    def test_outcome_mismatch(self):
-        """Test when outcome doesn't match expected."""
-        trajectory = Trajectory(
-            trace_id="test",
-            input="test",
-            output="Failed",
-            timestamp=datetime.now(),
-            metrics=TraceMetrics(),
-            steps=[],
-        )
-        observation = Observation(trajectory=trajectory)
-
-        task = Task(
-            task_id="task-1",
-            name="Test",
-            description="Test",
-            input="test",
-            expected_outcome={"status": "success"},
-        )
-
-        evaluator = ExpectedOutcomeEvaluator()
-        result = evaluator.evaluate(observation, task)
-
-        assert result.score == 0.0
-        assert result.passed is False
-
-    @pytest.mark.skip(reason="Observation.success property not yet implemented")
-    def test_no_outcome_available(self, basic_observation):
-        """Test when no outcome is available."""
-        task = Task(
-            task_id="task-1",
-            name="Test",
-            description="Test",
-            input="test",
-            expected_outcome={"status": "success"},
-        )
-
-        evaluator = ExpectedOutcomeEvaluator()
-        result = evaluator.evaluate(basic_observation, task)
-
-        # Should fail when outcome is not available
         assert result.score == 0.0
         assert result.passed is False

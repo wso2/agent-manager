@@ -145,7 +145,7 @@ class TraceMetrics:
         """Average tokens per LLM call."""
         if self.llm_call_count == 0:
             return 0.0
-        return self.total_token_usage.total_tokens / self.llm_call_count
+        return self.token_usage.total_tokens / self.llm_call_count
 
 
 # ============================================================================
@@ -323,7 +323,7 @@ class AgentSpan:
         return self.metrics.error
 
     @property
-    def total_token_usage(self) -> TokenUsage:
+    def token_usage(self) -> TokenUsage:
         return self.metrics.token_usage
 
 

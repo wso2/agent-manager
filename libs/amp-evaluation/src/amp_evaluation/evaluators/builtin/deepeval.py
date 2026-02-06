@@ -62,9 +62,12 @@ def _get_deepeval_metric_class(metric_name: str):
         from deepeval import metrics
 
         return getattr(metrics, metric_name)
-    except (ImportError, AttributeError) as e:
+    except ImportError as e:
+        raise ImportError(f"DeepEval is not installed. Install with: pip install deepeval\nError: {e}")
+    except AttributeError as e:
         raise ImportError(
-            f"DeepEval metric '{metric_name}' not available. Please install deepeval: pip install deepeval\nError: {e}"
+            f"DeepEval metric '{metric_name}' not found in deepeval.metrics. "
+            f"Check the metric name or update deepeval: pip install --upgrade deepeval\nError: {e}"
         )
 
 
@@ -162,11 +165,11 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
 
         context = []
         for span in retriever_spans:
-            if hasattr(span, "output") and span.output:
-                if isinstance(span.output, list):
-                    context.extend([str(item) for item in span.output])
+            if hasattr(span, "output") and span.documents:
+                if isinstance(span.documents, list):
+                    context.extend([str(item) for item in span.documents])
                 else:
-                    context.append(str(span.output))
+                    context.append(str(span.documents))
 
         return context if context else None
 
@@ -211,6 +214,43 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
             },
         )
 
+    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+        """
+        Template method for DeepEval evaluations with error handling.
+
+        Subclasses should implement _evaluate_with_deepeval() instead of this method.
+        This method wraps the evaluation with consistent error handling.
+        """
+        try:
+            return self._evaluate_with_deepeval(observation, task)
+        except ImportError as e:
+            return EvalResult.skip(
+                f"DeepEval not installed: {e}",
+                details={"error": str(e)},
+            )
+        except Exception as e:
+            logger.error(f"{self.name} evaluation failed: {e}")
+            return EvalResult.skip(
+                f"Evaluation failed: {e}",
+                details={"error": str(e)},
+            )
+
+    def _evaluate_with_deepeval(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+        """
+        Perform the actual DeepEval metric evaluation.
+
+        Subclasses must implement this method to define their specific evaluation logic.
+        This method should:
+        1. Get the DeepEval metric class
+        2. Create and configure the metric
+        3. Build the test case
+        4. Call metric.measure()
+        5. Convert and return the result
+
+        Error handling is done by the parent evaluate() method.
+        """
+        raise NotImplementedError("Subclasses must implement _evaluate_with_deepeval()")
+
 
 # =============================================================================
 # Reasoning Layer Evaluators
@@ -241,43 +281,26 @@ class DeepEvalPlanQualityEvaluator(DeepEvalBaseEvaluator):
     evaluator_type = "agent"
     version = "1.0"
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         """Evaluate the quality of the agent's plan."""
-        try:
-            PlanQualityMetric = _get_deepeval_metric_class("PlanQualityMetric")
+        PlanQualityMetric = _get_deepeval_metric_class("PlanQualityMetric")
 
-            # Create metric
-            metric = PlanQualityMetric(
-                threshold=self.threshold,
-                model=self.model,
-                include_reason=self.include_reason,
-                strict_mode=self.strict_mode,
-                verbose_mode=self.verbose_mode,
-            )
+        # Create metric
+        metric = PlanQualityMetric(
+            threshold=self.threshold,
+            model=self.model,
+            include_reason=self.include_reason,
+            strict_mode=self.strict_mode,
+            verbose_mode=self.verbose_mode,
+        )
 
-            # Build test case
-            test_case = self._build_deepeval_test_case(observation, task)
+        # Build test case
+        test_case = self._build_deepeval_test_case(observation, task)
 
-            # Measure
-            metric.measure(test_case)
+        # Measure
+        metric.measure(test_case)
 
-            return self._convert_deepeval_result(metric)
-
-        except ImportError as e:
-            return EvalResult(
-                score=0.0,
-                passed=False,
-                explanation=f"DeepEval not installed: {e}",
-                details={"error": str(e)},
-            )
-        except Exception as e:
-            logger.error(f"PlanQuality evaluation failed: {e}")
-            return EvalResult(
-                score=0.0,
-                passed=False,
-                explanation=f"Evaluation failed: {e}",
-                details={"error": str(e)},
-            )
+        return self._convert_deepeval_result(metric)
 
 
 class DeepEvalPlanAdherenceEvaluator(DeepEvalBaseEvaluator):
@@ -306,43 +329,26 @@ class DeepEvalPlanAdherenceEvaluator(DeepEvalBaseEvaluator):
     evaluator_type = "agent"
     version = "1.0"
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         """Evaluate how well the agent adheres to its plan."""
-        try:
-            PlanAdherenceMetric = _get_deepeval_metric_class("PlanAdherenceMetric")
+        PlanAdherenceMetric = _get_deepeval_metric_class("PlanAdherenceMetric")
 
-            # Create metric
-            metric = PlanAdherenceMetric(
-                threshold=self.threshold,
-                model=self.model,
-                include_reason=self.include_reason,
-                strict_mode=self.strict_mode,
-                verbose_mode=self.verbose_mode,
-            )
+        # Create metric
+        metric = PlanAdherenceMetric(
+            threshold=self.threshold,
+            model=self.model,
+            include_reason=self.include_reason,
+            strict_mode=self.strict_mode,
+            verbose_mode=self.verbose_mode,
+        )
 
-            # Build test case
-            test_case = self._build_deepeval_test_case(observation, task)
+        # Build test case
+        test_case = self._build_deepeval_test_case(observation, task)
 
-            # Measure
-            metric.measure(test_case)
+        # Measure
+        metric.measure(test_case)
 
-            return self._convert_deepeval_result(metric)
-
-        except ImportError as e:
-            return EvalResult(
-                score=0.0,
-                passed=False,
-                explanation=f"DeepEval not installed: {e}",
-                details={"error": str(e)},
-            )
-        except Exception as e:
-            logger.error(f"PlanAdherence evaluation failed: {e}")
-            return EvalResult(
-                score=0.0,
-                passed=False,
-                explanation=f"Evaluation failed: {e}",
-                details={"error": str(e)},
-            )
+        return self._convert_deepeval_result(metric)
 
 
 # =============================================================================
@@ -421,50 +427,32 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
         self.available_tools = available_tools
         # Set default aggregations
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         """Evaluate if the agent selected the correct tools."""
+        ToolCorrectnessMetric = _get_deepeval_metric_class("ToolCorrectnessMetric")
 
-        try:
-            ToolCorrectnessMetric = _get_deepeval_metric_class("ToolCorrectnessMetric")
+        # Create metric with configuration
+        metric_kwargs = {
+            "threshold": self.threshold,
+        }
 
-            # Create metric with configuration
-            metric_kwargs = {
-                "threshold": self.threshold,
-            }
+        # Only add model if LLM-based evaluation is needed
+        if self.available_tools:
+            metric_kwargs["model"] = self.model
+            metric_kwargs["include_reason"] = self.include_reason
 
-            # Only add model if LLM-based evaluation is needed
-            if self.available_tools:
-                metric_kwargs["model"] = self.model
-                metric_kwargs["include_reason"] = self.include_reason
+        if self.verbose_mode:
+            metric_kwargs["verbose_mode"] = self.verbose_mode
 
-            if self.verbose_mode:
-                metric_kwargs["verbose_mode"] = self.verbose_mode
+        metric = ToolCorrectnessMetric(**metric_kwargs)
 
-            metric = ToolCorrectnessMetric(**metric_kwargs)
+        # Build test case with tools information
+        test_case = self._build_tool_test_case(observation, task)
 
-            # Build test case with tools information
-            test_case = self._build_tool_test_case(observation, task)
+        # Measure
+        metric.measure(test_case)
 
-            # Measure
-            metric.measure(test_case)
-
-            return self._convert_deepeval_result(metric)
-
-        except ImportError as e:
-            return EvalResult(
-                score=0.0,
-                passed=False,
-                explanation=f"DeepEval not installed: {e}",
-                details={"error": str(e)},
-            )
-        except Exception as e:
-            logger.error(f"ToolCorrectness evaluation failed: {e}")
-            return EvalResult(
-                score=0.0,
-                passed=False,
-                explanation=f"Evaluation failed: {e}",
-                details={"error": str(e)},
-            )
+        return self._convert_deepeval_result(metric)
 
     def _build_tool_test_case(self, observation: Observation, task: Optional[Task] = None) -> Any:
         """Build test case with tool call information."""
@@ -488,13 +476,13 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
         if task and task.expected_trajectory:
             expected_tools = []
             for step in task.expected_trajectory:
-                if isinstance(step, dict) and step.get("type") == "tool":
-                    tool_call_kwargs = {"name": step.get("name", step.get("tool_name", ""))}
-                    if self.evaluate_input and "input" in step:
-                        tool_call_kwargs["input"] = step["input"]
-                    if self.evaluate_output and "output" in step:
-                        tool_call_kwargs["output"] = step["output"]
-                    expected_tools.append(ToolCall(**tool_call_kwargs))
+                # TrajectoryStep has: tool, args, expected_output
+                tool_call_kwargs = {"name": step.tool}
+                if self.evaluate_input and step.args:
+                    tool_call_kwargs["input"] = step.args
+                if self.evaluate_output and step.expected_output:
+                    tool_call_kwargs["output"] = step.expected_output
+                expected_tools.append(ToolCall(**tool_call_kwargs))
 
         # Build kwargs for test case
         kwargs = {
@@ -536,44 +524,26 @@ class DeepEvalArgumentCorrectnessEvaluator(DeepEvalBaseEvaluator):
     evaluator_type = "agent"
     version = "1.0"
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         """Evaluate if the agent generated correct arguments for tool calls."""
+        ArgumentCorrectnessMetric = _get_deepeval_metric_class("ArgumentCorrectnessMetric")
 
-        try:
-            ArgumentCorrectnessMetric = _get_deepeval_metric_class("ArgumentCorrectnessMetric")
+        # Create metric
+        metric = ArgumentCorrectnessMetric(
+            threshold=self.threshold,
+            model=self.model,
+            include_reason=self.include_reason,
+            strict_mode=self.strict_mode,
+            verbose_mode=self.verbose_mode,
+        )
 
-            # Create metric
-            metric = ArgumentCorrectnessMetric(
-                threshold=self.threshold,
-                model=self.model,
-                include_reason=self.include_reason,
-                strict_mode=self.strict_mode,
-                verbose_mode=self.verbose_mode,
-            )
+        # Build test case with tool call details
+        test_case = self._build_argument_test_case(observation, task)
 
-            # Build test case with tool call details
-            test_case = self._build_argument_test_case(observation, task)
+        # Measure
+        metric.measure(test_case)
 
-            # Measure
-            metric.measure(test_case)
-
-            return self._convert_deepeval_result(metric)
-
-        except ImportError as e:
-            return EvalResult(
-                score=0.0,
-                passed=False,
-                explanation=f"DeepEval not installed: {e}",
-                details={"error": str(e)},
-            )
-        except Exception as e:
-            logger.error(f"ArgumentCorrectness evaluation failed: {e}")
-            return EvalResult(
-                score=0.0,
-                passed=False,
-                explanation=f"Evaluation failed: {e}",
-                details={"error": str(e)},
-            )
+        return self._convert_deepeval_result(metric)
 
     def _build_argument_test_case(self, observation: Observation, task: Optional[Task] = None) -> Any:
         """Build test case with tool argument information."""
@@ -655,56 +625,36 @@ class DeepEvalTaskCompletionEvaluator(DeepEvalBaseEvaluator):
         self.custom_task = custom_task
         # Set default aggregations
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         """Evaluate if the agent completed the task."""
+        TaskCompletionMetric = _get_deepeval_metric_class("TaskCompletionMetric")
 
+        # Create metric
+        metric_kwargs = {
+            "threshold": self.threshold,
+            "model": self.model,
+            "include_reason": self.include_reason,
+            "strict_mode": self.strict_mode,
+            "verbose_mode": self.verbose_mode,
+        }
+
+        metric = TaskCompletionMetric(**metric_kwargs)
+
+        # Build test case
+        test_case = self._build_deepeval_test_case(observation, task)
+
+        # Measure with better error handling
         try:
-            TaskCompletionMetric = _get_deepeval_metric_class("TaskCompletionMetric")
-
-            # Create metric
-            metric_kwargs = {
-                "threshold": self.threshold,
-                "model": self.model,
-                "include_reason": self.include_reason,
-                "strict_mode": self.strict_mode,
-                "verbose_mode": self.verbose_mode,
-            }
-
-            metric = TaskCompletionMetric(**metric_kwargs)
-
-            # Build test case
-            test_case = self._build_deepeval_test_case(observation, task)
-
-            # Measure with better error handling
-            try:
-                metric.measure(test_case)
-            except TypeError as te:
-                # DeepEval sometimes has internal errors with missing data
-                logger.warning(f"TaskCompletion metric measure failed: {te}")
-                return EvalResult(
-                    score=0.0,
-                    passed=False,
-                    error=f"Cannot evaluate: {te}",
-                    details={"error": str(te)},
-                )
-
-            return self._convert_deepeval_result(metric)
-
-        except ImportError as e:
-            return EvalResult(
-                score=0.0,
-                passed=False,
-                explanation=f"DeepEval not installed: {e}",
-                details={"error": str(e)},
+            metric.measure(test_case)
+        except TypeError as te:
+            # DeepEval sometimes has internal errors with missing data
+            logger.warning(f"TaskCompletion metric measure failed: {te}")
+            return EvalResult.skip(
+                f"Cannot evaluate: {te}",
+                details={"error": str(te)},
             )
-        except Exception as e:
-            logger.error(f"TaskCompletion evaluation failed: {e}")
-            return EvalResult(
-                score=0.0,
-                passed=False,
-                explanation=f"Evaluation failed: {e}",
-                details={"error": str(e)},
-            )
+
+        return self._convert_deepeval_result(metric)
 
 
 class DeepEvalStepEfficiencyEvaluator(DeepEvalBaseEvaluator):
@@ -734,51 +684,31 @@ class DeepEvalStepEfficiencyEvaluator(DeepEvalBaseEvaluator):
     evaluator_type = "agent"
     version = "1.0"
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         """Evaluate if the agent completed the task efficiently."""
+        StepEfficiencyMetric = _get_deepeval_metric_class("StepEfficiencyMetric")
 
+        # Create metric
+        metric = StepEfficiencyMetric(
+            threshold=self.threshold,
+            model=self.model,
+            include_reason=self.include_reason,
+            strict_mode=self.strict_mode,
+            verbose_mode=self.verbose_mode,
+        )
+
+        # Build test case
+        test_case = self._build_deepeval_test_case(observation, task)
+
+        # Measure with better error handling
         try:
-            StepEfficiencyMetric = _get_deepeval_metric_class("StepEfficiencyMetric")
-
-            # Create metric
-            metric = StepEfficiencyMetric(
-                threshold=self.threshold,
-                model=self.model,
-                include_reason=self.include_reason,
-                strict_mode=self.strict_mode,
-                verbose_mode=self.verbose_mode,
-            )
-
-            # Build test case
-            test_case = self._build_deepeval_test_case(observation, task)
-
-            # Measure with better error handling
-            try:
-                metric.measure(test_case)
-            except (UnboundLocalError, AttributeError, TypeError) as e:
-                # DeepEval sometimes has internal errors with step analysis
-                logger.warning(f"StepEfficiency metric measure failed: {e}")
-                return EvalResult(
-                    score=0.0,
-                    passed=False,
-                    error=f"Cannot evaluate: {e}",
-                    details={"error": str(e)},
-                )
-
-            return self._convert_deepeval_result(metric)
-
-        except ImportError as e:
-            return EvalResult(
-                score=0.0,
-                passed=False,
-                explanation=f"DeepEval not installed: {e}",
+            metric.measure(test_case)
+        except (UnboundLocalError, AttributeError, TypeError) as e:
+            # DeepEval sometimes has internal errors with step analysis
+            logger.warning(f"StepEfficiency metric measure failed: {e}")
+            return EvalResult.skip(
+                f"Cannot evaluate: {e}",
                 details={"error": str(e)},
             )
-        except Exception as e:
-            logger.error(f"StepEfficiency evaluation failed: {e}")
-            return EvalResult(
-                score=0.0,
-                passed=False,
-                explanation=f"Evaluation failed: {e}",
-                details={"error": str(e)},
-            )
+
+        return self._convert_deepeval_result(metric)

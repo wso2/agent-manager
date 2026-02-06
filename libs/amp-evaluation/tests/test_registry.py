@@ -52,7 +52,7 @@ class TestRegistryAggregations:
 
         @self.registry.register("test-no-agg")
         def evaluator(trace: Trajectory) -> EvalResult:
-            return EvalResult(evaluator_name="test-no-agg", target_id=trace.trace_id, target_type="trace", score=1.0)
+            return EvalResult(score=1.0)
 
         # Get evaluator instance
         eval_instance = self.registry.get("test-no-agg")
@@ -65,9 +65,7 @@ class TestRegistryAggregations:
 
         @self.registry.register("test-single-agg", aggregations=[AggregationType.MEDIAN])
         def evaluator(trace: Trajectory) -> EvalResult:
-            return EvalResult(
-                evaluator_name="test-single-agg", target_id=trace.trace_id, target_type="trace", score=0.5
-            )
+            return EvalResult(score=0.5)
 
         eval_instance = self.registry.get("test-single-agg")
 
@@ -82,7 +80,7 @@ class TestRegistryAggregations:
             "test-multi-agg", aggregations=[AggregationType.MEAN, AggregationType.MEDIAN, AggregationType.P95]
         )
         def evaluator(trace: Trajectory) -> EvalResult:
-            return EvalResult(evaluator_name="test-multi-agg", target_id=trace.trace_id, target_type="trace", score=0.8)
+            return EvalResult(score=0.75)
 
         eval_instance = self.registry.get("test-multi-agg")
 
@@ -104,9 +102,7 @@ class TestRegistryAggregations:
             ],
         )
         def evaluator(trace: Trajectory) -> EvalResult:
-            return EvalResult(
-                evaluator_name="test-param-agg", target_id=trace.trace_id, target_type="trace", score=0.85
-            )
+            return EvalResult(score=0.8)
 
         eval_instance = self.registry.get("test-param-agg")
 
