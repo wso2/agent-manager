@@ -30,6 +30,3 @@ prometheus:
 opentelemetryCollectorCustomizations:
   tailSampling:
     spansPerSecond: 100000
-
-fluent-bit:
-  enabled: true

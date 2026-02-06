@@ -288,7 +288,7 @@ check_docker_permissions() {
 }
 
 # Check prerequisites
-log_step "Step 1/10: Verifying prerequisites"
+log_step "Step 1/11: Verifying prerequisites"
 
 # Check Docker access first
 if ! check_docker_permissions; then
@@ -322,7 +322,7 @@ log_success "All prerequisites verified"
 # Step 2: Setup k3d Cluster
 # ============================================================================
 
-log_step "Step 2/10: Setting up k3d cluster"
+log_step "Step 2/11: Setting up k3d cluster"
 
 # Check if cluster already exists
 if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
@@ -485,29 +485,10 @@ helm_install_idempotent \
 wait_for_pods "cert-manager" 300
 
 # ============================================================================
-# Step 5: Install AMP Thunder Extension
+# Step 5: Install OpenChoreo Control Plane
 # ============================================================================
 
-log_step "Step 5/11: Installing WSO2 AMP Thunder Extension"
-
-log_info "Installing WSO2 AMP Thunder Extension..."
-if ! install_amp_thunder_extension; then
-    log_warning "AMP Thunder Extension installation failed (non-fatal)"
-    echo "The installation will continue but thunder extension features may not work."
-    echo ""
-    echo "Troubleshooting steps:"
-    echo "  1. Check Helm release: helm list -n amp-thunder"
-    echo "  2. Check pod status: kubectl get pods -n amp-thunder"
-else
-    log_success "AMP Thunder Extension installed successfully"
-fi
-echo ""
-
-# ============================================================================
-# Step 6: Install OpenChoreo Control Plane
-# ============================================================================
-
-log_step "Step 6/11: Installing OpenChoreo Control Plane"
+log_step "Step 5/11: Installing OpenChoreo Control Plane"
 
 helm_install_idempotent \
     "openchoreo-control-plane" \
@@ -542,10 +523,10 @@ else
 fi
 
 # ============================================================================
-# Step 7: Install OpenChoreo Data Plane
+# Step 6: Install OpenChoreo Data Plane
 # ============================================================================
 
-log_step "Step 7/11: Installing OpenChoreo Data Plane"
+log_step "Step 6/11: Installing OpenChoreo Data Plane"
 
 helm_install_idempotent \
     "openchoreo-data-plane" \
@@ -627,10 +608,10 @@ fi
 wait_for_pods "openchoreo-data-plane" "${TIMEOUT_DATA_PLANE}"
 
 # ============================================================================
-# Step 8: Install OpenChoreo Build Plane
+# Step 7: Install OpenChoreo Build Plane
 # ============================================================================
 
-log_step "Step 8/11: Installing OpenChoreo Build Plane"
+log_step "Step 7/11: Installing OpenChoreo Build Plane"
 
 # Install Docker Registry for Build Plane
 log_info "Installing Docker Registry for Build Plane..."
@@ -705,10 +686,10 @@ fi
 wait_for_deployments "openchoreo-build-plane" "${TIMEOUT_BUILD_PLANE}"
 
 # ============================================================================
-# Step 9: Install OpenChoreo Observability Plane
+# Step 8: Install OpenChoreo Observability Plane
 # ============================================================================
 
-log_step "Step 9/11: Installing OpenChoreo Observability Plane"
+log_step "Step 8/11: Installing OpenChoreo Observability Plane"
 
 # Create namespace (idempotent)
 log_info "Ensuring OpenChoreo Observability Plane namespace exists..."
@@ -823,11 +804,11 @@ else
 fi
 
 # ============================================================================
-# Step 10: Install Gateway Operator
+# Step 9: Install Gateway Operator
 # ============================================================================
 
 
-log_step "Step 10/11: Installing Gateway Operator"
+log_step "Step 9/11: Installing Gateway Operator"
 log_info "Installing Gateway Operator..."
 helm_install_idempotent \
     "gateway-operator" \
@@ -892,6 +873,26 @@ else
 fi
 
 log_success "Gateway Operator setup complete"
+
+# ============================================================================
+# Step 10: Install AMP Thunder Extension
+# ============================================================================
+
+log_step "Step 10/11: Installing WSO2 AMP Thunder Extension"
+
+log_info "Installing WSO2 AMP Thunder Extension..."
+log_info "Gateway API CRDs and Gateway Operator are now available"
+if ! install_amp_thunder_extension; then
+    log_warning "AMP Thunder Extension installation failed (non-fatal)"
+    echo "The installation will continue but thunder extension features may not work."
+    echo ""
+    echo "Troubleshooting steps:"
+    echo "  1. Check Helm release: helm list -n amp-thunder"
+    echo "  2. Check pod status: kubectl get pods -n amp-thunder"
+else
+    log_success "AMP Thunder Extension installed successfully"
+fi
+echo ""
 
 # ============================================================================
 # Step 11: Install Agent Management Platform
