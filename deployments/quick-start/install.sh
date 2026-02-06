@@ -498,7 +498,7 @@ helm_install_idempotent \
     "openchoreo-control-plane" \
     "${TIMEOUT_CONTROL_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
-    --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/single-cluster/values-cp.yaml"
+    --values "https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/single-cluster/values-cp.yaml"
 
 wait_for_pods "openchoreo-control-plane" "${TIMEOUT_CONTROL_PLANE}"
 
@@ -536,7 +536,7 @@ helm_install_idempotent \
     "${DATA_PLANE_NS}" \
     "${TIMEOUT_DATA_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
-    --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/single-cluster/values-dp.yaml"
+    --values "https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/single-cluster/values-dp.yaml"
 
 
 log_info "Applying HTTPRoute CRD..."
@@ -648,7 +648,7 @@ helm_install_idempotent \
     "${BUILD_CI_NS}" \
     "${TIMEOUT_BUILD_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
-    --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/single-cluster/values-bp.yaml" \
+    --values "https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/single-cluster/values-bp.yaml" \
 
 
 # Register Build Plane with Control Plane
@@ -708,7 +708,7 @@ fi
 
 # Apply OpenTelemetry Collector ConfigMap (idempotent)
 log_info "Applying Custom OpenTelemetry Collector configuration..."
-CONFIGMAP_FILE="https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/values/oc-collector-configmap.yaml"
+CONFIGMAP_FILE="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/oc-collector-configmap.yaml"
 
 if kubectl apply -f "${CONFIGMAP_FILE}" -n "${OBSERVABILITY_NS}" &>/dev/null; then
     log_success "OpenTelemetry Collector configuration applied successfully"
@@ -730,7 +730,7 @@ helm_install_idempotent \
     "${OBSERVABILITY_NS}" \
     "${TIMEOUT_OBSERVABILITY_PLANE}" \
     --version "${OPENCHOREO_VERSION}" \
-    --values "https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/single-cluster/values-op.yaml"
+    --values "https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/single-cluster/values-op.yaml"
 
 
 # Register Observability Plane with Control Plane
@@ -825,7 +825,7 @@ log_success "Gateway Operator installed"
 
 # Apply Gateway Operator Configuration
 log_info "Applying Gateway Operator Configuration..."
-GATEWAY_CONFIG_FILE="https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/values/api-platform-operator-full-config.yaml"
+GATEWAY_CONFIG_FILE="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/api-platform-operator-full-config.yaml"
 
 if kubectl apply -f "${GATEWAY_CONFIG_FILE}" &>/dev/null; then
     log_success "Gateway Operator configuration applied successfully"
@@ -843,7 +843,7 @@ fi
 log_info "Applying Gateway and API Resources..."
 
 # Apply Gateway
-GATEWAY_FILE="https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/values/obs-gateway.yaml"
+GATEWAY_FILE="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/obs-gateway.yaml"
 if kubectl apply -f "${GATEWAY_FILE}" &>/dev/null; then
     log_success "Gateway resource applied"
 else
@@ -859,7 +859,7 @@ else
 fi
 
 # Apply RestApi
-RESTAPI_FILE="https://raw.githubusercontent.com/wso2/ai-agent-management-platform/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml"
+RESTAPI_FILE="https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml"
 if kubectl apply -f "${RESTAPI_FILE}" &>/dev/null; then
     log_success "RestApi resource applied"
 else
