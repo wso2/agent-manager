@@ -51,6 +51,8 @@ var serviceProviderSet = wire.NewSet(
 	services.NewObservabilityManager,
 	services.NewAgentTokenManagerService,
 	services.NewRepositoryService,
+	services.NewEnvironmentService,
+	services.NewGatewayService,
 )
 
 var controllerProviderSet = wire.NewSet(
@@ -59,6 +61,8 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewObservabilityController,
 	controllers.NewAgentTokenController,
 	controllers.NewRepositoryController,
+	controllers.NewEnvironmentController,
+	controllers.NewGatewayController,
 )
 
 var testClientProviderSet = wire.NewSet(
@@ -101,6 +105,10 @@ var loggerProviderSet = wire.NewSet(
 	ProvideLogger,
 )
 
+var gatewayProviderSet = wire.NewSet(
+	ProvideGatewayAdapter,
+)
+
 // ProvideTestOpenChoreoClient extracts the OpenChoreoClient from TestClients
 func ProvideTestOpenChoreoClient(testClients TestClients) occlient.OpenChoreoClient {
 	return testClients.OpenChoreoClient
@@ -121,6 +129,7 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 		configProviderSet,
 		clientProviderSet,
 		loggerProviderSet,
+		gatewayProviderSet,
 		serviceProviderSet,
 		controllerProviderSet,
 		ProvideAuthMiddleware, ProvideJWTSigningConfig, wire.Struct(new(AppParams), "*"),
@@ -132,6 +141,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 	wire.Build(
 		testClientProviderSet,
 		loggerProviderSet,
+		gatewayProviderSet,
 		serviceProviderSet,
 		controllerProviderSet, configProviderSet,
 		ProvideJWTSigningConfig, wire.Struct(new(AppParams), "*"),

@@ -24,6 +24,24 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/gateway/adapter/onpremise"
 )
 
+// ProvideGatewayAdapter provides a gateway adapter for dependency injection
+// TODO: Phase 5 will integrate with configuration to select adapter type based on config
+// For now, we use the mock adapter for development/testing
+func ProvideGatewayAdapter(logger *slog.Logger) gateway.IGatewayAdapter {
+	// Create adapter directly (bypass factory for Phase 4 simplicity)
+	// In Phase 5, we'll use the factory with proper config
+	adapter, err := mock.NewMockAdapter("mock", false, logger)
+	if err != nil {
+		// This should never happen with the mock adapter
+		// If it does, we'll create a basic mock adapter directly
+		return &mock.MockAdapter{
+			AdapterType: "mock",
+			ShouldFail:  false,
+		}
+	}
+	return adapter
+}
+
 // InitGatewayAdapters initializes the gateway factory with built-in adapters
 // This function should be called during application initialization
 func InitGatewayAdapters(factory *gateway.AdapterFactory, logger *slog.Logger) {

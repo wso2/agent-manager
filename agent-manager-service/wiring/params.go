@@ -32,6 +32,8 @@ type AppParams struct {
 	ObservabilityController controllers.ObservabilityController
 	AgentTokenController    controllers.AgentTokenController
 	RepositoryController    controllers.RepositoryController
+	EnvironmentController   controllers.EnvironmentController
+	GatewayController       controllers.GatewayController
 }
 
 // TestClients contains all mock clients needed for testing
