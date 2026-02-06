@@ -31,7 +31,7 @@ function HomepageHeader() {
             </Link>
             <Link
               className="button button--outline button--lg margin-left--md"
-              to="https://github.com/wso2/ai-agent-management-platform">
+              to="https://github.com/wso2/agent-manager">
               ⭐ Star us on GitHub
             </Link>
           </div>
