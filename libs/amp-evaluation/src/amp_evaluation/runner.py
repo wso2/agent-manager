@@ -101,25 +101,6 @@ class RunType(str, Enum):
 
 
 # ============================================================================
-# TASK RESULT (intermediate structure for experiment runs)
-# ============================================================================
-
-
-@dataclass
-class TaskResult:
-    """
-    Intermediate result for a single task trial during an experiment run.
-
-    Tracks the full lifecycle: invocation result + matched trace.
-    Eliminates tuple juggling between phases of _run_with_invoker.
-    """
-
-    task: Task
-    trial_id: str
-    invoke_result: "InvokeResult"
-
-
-# ============================================================================
 # RUN RESULT
 # ============================================================================
 
@@ -252,7 +233,7 @@ class BaseRunner(ABC):
             3. Default Config (from environment variables)
         """
         # Store or create config (from environment)
-        self.config = config if config is not None else Config.from_env()
+        self.config = config if config is not None else Config()
 
         # Trace fetcher (lazy initialization)
         self._trace_fetcher = trace_fetcher
@@ -638,6 +619,19 @@ class Experiment(BaseRunner):
         self.trials_per_task = trials_per_task
         self.trace_fetch_wait_seconds = trace_fetch_wait_seconds
 
+    @dataclass
+    class _TaskResult:
+        """
+        Internal structure for a single task trial during an experiment run.
+
+        Tracks the full lifecycle: invocation result + matched trace.
+        Eliminates tuple juggling between phases of _run_with_invoker.
+        """
+
+        task: Task
+        trial_id: str
+        invoke_result: "InvokeResult"
+
     @property
     def run_type(self) -> RunType:
         return RunType.EXPERIMENT
@@ -761,7 +755,7 @@ class Experiment(BaseRunner):
             logger.warning("OpenTelemetry not available - baggage propagation disabled")
             otel_available = False
 
-        task_results: List[TaskResult] = []
+        task_results: List[Experiment._TaskResult] = []
         errors: List[str] = []
 
         experiment_start_time = datetime.now(timezone.utc)
@@ -784,7 +778,7 @@ class Experiment(BaseRunner):
                     if result is None:
                         result = InvokeResult(input=task.input)
 
-                    task_results.append(TaskResult(task=task, trial_id=trial_id, invoke_result=result))
+                    task_results.append(Experiment._TaskResult(task=task, trial_id=trial_id, invoke_result=result))
 
                     if result.error:
                         errors.append(f"Task {task.task_id} trial {trial}: {result.error}")
@@ -792,7 +786,7 @@ class Experiment(BaseRunner):
                 except Exception as e:
                     errors.append(f"Task {task.task_id} trial {trial}: {e}")
                     task_results.append(
-                        TaskResult(
+                        Experiment._TaskResult(
                             task=task,
                             trial_id=trial_id,
                             invoke_result=InvokeResult(input=task.input, error=str(e)),
@@ -807,7 +801,7 @@ class Experiment(BaseRunner):
 
     def _fetch_and_match_traces(
         self,
-        task_results: List[TaskResult],
+        task_results: List["Experiment._TaskResult"],
         experiment_start: "datetime",
         experiment_end: "datetime",
         dataset: Dataset,
@@ -822,7 +816,7 @@ class Experiment(BaseRunner):
           may be truncated or missing)
 
         Args:
-            task_results: List of TaskResult from invocation phase (mutated in place)
+            task_results: List of _TaskResult from invocation phase (mutated in place)
             experiment_start: UTC start time of invocations
             experiment_end: UTC end time of invocations
             dataset: Dataset (for sizing the fetch limit)
