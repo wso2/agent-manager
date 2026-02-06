@@ -62,7 +62,7 @@ helm install openchoreo-control-plane \
   --version 0.9.0 \
   --namespace openchoreo-control-plane \
   --create-namespace \
-  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/v0.0.0-dev/deployments/single-cluster/values-cp.yaml
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.3.0/deployments/single-cluster/values-cp.yaml
 ```
 
 #### Install OpenChoreo Build Plane
@@ -74,7 +74,7 @@ helm install openchoreo-build-plane \
   --version 0.9.0 \
   --namespace openchoreo-build-plane \
   --create-namespace \
-  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/v0.0.0-dev/deployments/single-cluster/values-bp.yaml
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.3.0/deployments/single-cluster/values-bp.yaml
 ```
 
 #### Install OpenChoreo Data Plane
@@ -86,7 +86,7 @@ helm install openchoreo-data-plane \
   --version 0.9.0 \
   --namespace openchoreo-data-plane \
   --create-namespace \
-  --values https://raw.githubusercontent.com/wso2/ai-agent-management-platform/v0.0.0-dev/deployments/single-cluster/values-dp.yaml
+  --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.3.0/deployments/single-cluster/values-dp.yaml
 ```
 
 #### Install OpenChoreo Observability Plane
@@ -105,23 +105,16 @@ For complete OpenChoreo installation instructions, refer to the [OpenChoreo docu
 
 Once OpenChoreo is installed and running, you can install the Agent Management Platform.
 
-### Step 1: Add Helm Repository
-
-```bash
-helm repo add wso2 https://wso2.github.io/ai-agent-management-platform/charts
-helm repo update
-```
-
-### Step 2: Install the Platform
+### Step 1: Install the Platform
 
 ```bash
 helm install wso2-amp wso2/wso2-ai-agent-management-platform \
-  --version v0.0.0-dev \
+  --version v0.3.0 \
   --namespace amp-system \
   --create-namespace
 ```
 
-### Step 3: Verify Installation
+### Step 2: Verify Installation
 
 Check that all pods are running:
 
