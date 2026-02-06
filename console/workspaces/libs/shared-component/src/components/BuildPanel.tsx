@@ -16,35 +16,38 @@
  * under the License.
  */
 
-import { useBuildAgent, useGetAgent, useListBranches, useListCommits } from "@agent-management-platform/api-client";
+import {
+  useBuildAgent,
+  useGetAgent,
+  useListCommits,
+} from "@agent-management-platform/api-client";
 import { Wrench } from "@wso2/oxygen-ui-icons-react";
 import {
-    Box,
-    Button,
-    Typography,
-    Select,
-    MenuItem,
-    SelectChangeEvent,
-    CircularProgress,
-    FormControl,
-    InputLabel,
-    FormHelperText,
-    Chip,
+  Box,
+  Button,
+  Typography,
+  Select,
+  MenuItem,
+  SelectChangeEvent,
+  CircularProgress,
+  FormControl,
+  InputLabel,
+  FormHelperText,
+  Chip,
 } from "@wso2/oxygen-ui";
 import { FormProvider, useForm } from "react-hook-form";
 import { DrawerHeader, DrawerContent } from "@agent-management-platform/views";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 
 interface BuildPanelProps {
-    onClose: () => void;
-    orgName: string;
-    projName: string;
-    agentName: string;
+  onClose: () => void;
+  orgName: string;
+  projName: string;
+  agentName: string;
 }
 
 interface BuildFormData {
-    branch: string;
-    commitId?: string;
+  commitId?: string;
 }
 
 /**
@@ -55,245 +58,205 @@ interface BuildFormData {
  * - git@github.com:owner/repo.git
  */
 function parseGitHubUrl(url: string): { owner: string; repo: string } | null {
-    if (!url) return null;
+  if (!url) return null;
 
-    // Handle HTTPS URLs: https://github.com/owner/repo or https://github.com/owner/repo.git
-    const httpsMatch = url.match(/github\.com\/([^/]+)\/([^/.]+)/);
-    if (httpsMatch) {
-        return { owner: httpsMatch[1], repo: httpsMatch[2] };
-    }
+  // Handle HTTPS URLs: https://github.com/owner/repo or https://github.com/owner/repo.git
+  const httpsMatch = url.match(/github\.com\/([^/]+)\/([^/.]+)/);
+  if (httpsMatch) {
+    return { owner: httpsMatch[1], repo: httpsMatch[2] };
+  }
 
-    // Handle SSH URLs: git@github.com:owner/repo.git
-    const sshMatch = url.match(/github\.com:([^/]+)\/([^/.]+)/);
-    if (sshMatch) {
-        return { owner: sshMatch[1], repo: sshMatch[2] };
-    }
+  // Handle SSH URLs: git@github.com:owner/repo.git
+  const sshMatch = url.match(/github\.com:([^/]+)\/([^/.]+)/);
+  if (sshMatch) {
+    return { owner: sshMatch[1], repo: sshMatch[2] };
+  }
 
-    return null;
+  return null;
 }
 
 export function BuildPanel({
-    onClose,
+  onClose,
+  orgName,
+  projName,
+  agentName,
+}: BuildPanelProps) {
+  const { mutate: buildAgent, isPending } = useBuildAgent();
+  const { data: agent, isLoading: isLoadingAgent } = useGetAgent({
     orgName,
     projName,
     agentName,
-}: BuildPanelProps) {
-    const { mutate: buildAgent, isPending } = useBuildAgent();
-    const { data: agent, isLoading: isLoadingAgent } = useGetAgent({
-        orgName,
-        projName,
-        agentName,
-    });
+  });
 
-    const methods = useForm<BuildFormData>({
-        defaultValues: {
-            branch: "",
-            commitId: "",
-        },
-    });
+  const methods = useForm<BuildFormData>({
+    defaultValues: {
+      commitId: "",
+    },
+  });
 
-    const selectedBranch = methods.watch("branch");
+  // Get the branch from the agent's repository configuration
+  const selectedBranch = agent?.provisioning?.repository?.branch || "";
 
-    // Parse repository URL to get owner and repo name
-    const repoInfo = useMemo(() => {
-        const repoUrl = agent?.provisioning?.repository?.url;
-        return repoUrl ? parseGitHubUrl(repoUrl) : null;
-    }, [agent?.provisioning?.repository?.url]);
+  // Parse repository URL to get owner and repo name
+  const repoInfo = useMemo(() => {
+    const repoUrl = agent?.provisioning?.repository?.url;
+    return repoUrl ? parseGitHubUrl(repoUrl) : null;
+  }, [agent?.provisioning?.repository?.url]);
 
-    // Fetch branches
-    const {
-        data: branchesData,
-        isLoading: isLoadingBranches,
-    } = useListBranches(
+  // Fetch commits for selected branch
+  const { data: commitsData, isLoading: isLoadingCommits } = useListCommits(
+    {
+      owner: repoInfo?.owner || "",
+      repo: repoInfo?.repo || "",
+      branch: selectedBranch || undefined,
+    },
+    { limit: 50 },
+    !!repoInfo && !!selectedBranch,
+  );
+
+  // Keep commitId empty to use latest commit (backend will determine)
+  // User can explicitly select a specific commit if needed
+
+  const handleCommitChange = (event: SelectChangeEvent<string>) => {
+    methods.setValue("commitId", event.target.value);
+  };
+
+  const handleBuild = async () => {
+    try {
+      const formData = methods.getValues();
+      buildAgent(
         {
-            owner: repoInfo?.owner || "",
-            repository: repoInfo?.repo || "",
+          params: {
+            orgName,
+            projName,
+            agentName,
+          },
+          query: {
+            commitId: formData.commitId || "",
+          },
         },
-        { limit: 100 },
-        !!repoInfo,
-    );
-
-    // Fetch commits for selected branch
-    const {
-        data: commitsData,
-        isLoading: isLoadingCommits,
-    } = useListCommits(
         {
-            owner: repoInfo?.owner || "",
-            repo: repoInfo?.repo || "",
-            branch: selectedBranch || undefined,
+          onSuccess: () => {
+            onClose();
+          },
         },
-        { limit: 50 },
-        !!repoInfo && !!selectedBranch,
-    );
+      );
+    } catch {
+      // Build trigger failed - error handling can be added here if needed
+    }
+  };
 
-    // Set default branch when branches are loaded
-    useEffect(() => {
-        if (branchesData?.branches && !methods.getValues("branch")) {
-            const defaultBranch = branchesData.branches.find(b => b.isDefault);
-            if (defaultBranch) {
-                methods.setValue("branch", defaultBranch.name);
-            } else if (branchesData.branches.length > 0) {
-                methods.setValue("branch", branchesData.branches[0].name);
-            }
-        }
-    }, [branchesData?.branches, methods]);
+  const commits = commitsData?.commits || [];
 
-    // Set first commit (latest) when commits are loaded or branch changes
-    useEffect(() => {
-        if (commitsData?.commits && commitsData.commits.length > 0) {
-            methods.setValue("commitId", commitsData.commits[0].sha);
-        } else {
-            methods.setValue("commitId", "");
-        }
-    }, [commitsData?.commits, methods]);
+  return (
+    <FormProvider {...methods}>
+      <Box display="flex" flexDirection="column" height="100%">
+        <DrawerHeader
+          icon={<Wrench size={24} />}
+          title="Trigger Build"
+          onClose={onClose}
+        />
+        <DrawerContent>
+          <Typography variant="body2" color="text.secondary">
+            Build {agent?.displayName || agentName} from a specific commit.
+          </Typography>
 
-    const handleBranchChange = (event: SelectChangeEvent<string>) => {
-        methods.setValue("branch", event.target.value);
-    };
-
-    const handleCommitChange = (event: SelectChangeEvent<string>) => {
-        methods.setValue("commitId", event.target.value);
-    };
-
-    const handleBuild = async () => {
-        try {
-            const formData = methods.getValues();
-            buildAgent({
-                params: {
-                    orgName,
-                    projName,
-                    agentName,
-                },
-                query: {
-                    commitId: formData.commitId || "",
-                },
-            }, {
-                onSuccess: () => {
-                    onClose();
-                },
-            });
-        }
-        catch {
-            // Build trigger failed - error handling can be added here if needed
-        }
-    };
-
-    const branches = branchesData?.branches || [];
-    const commits = commitsData?.commits || [];
-
-    return (
-        <FormProvider {...methods}>
-            <Box display="flex" flexDirection="column" height="100%">
-                <DrawerHeader
-                    icon={<Wrench size={24} />}
-                    title="Trigger Build"
-                    onClose={onClose}
-                />
-                <DrawerContent>
+          <Box display="flex" flexDirection="column" gap={2}>
+            <FormControl fullWidth size="small">
+              <InputLabel id="commit-select-label" shrink>
+                Commit
+              </InputLabel>
+              <Select
+                notched
+                displayEmpty
+                labelId="commit-select-label"
+                id="commit-select"
+                value={methods.watch("commitId") || ""}
+                label="Commit"
+                onChange={handleCommitChange}
+                disabled={isLoadingCommits || !selectedBranch}
+                renderValue={(selected) => {
+                  if (!selected) {
+                    return (
+                      <Typography variant="body2" color="text.secondary">
+                        Using latest commit
+                      </Typography>
+                    );
+                  }
+                  const commit = commits.find((c) => c.sha === selected);
+                  if (commit) {
+                    return (
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Typography variant="body2" noWrap>
+                          {commit.message?.split("\n")[0] || commit.shortSha}
+                        </Typography>
+                      </Box>
+                    );
+                  }
+                  return selected;
+                }}
+                endAdornment={
+                  isLoadingCommits ? (
+                    <CircularProgress size={20} sx={{ mr: 2 }} />
+                  ) : undefined
+                }
+                MenuProps={{
+                  PaperProps: {
+                    style: {
+                      maxHeight: 300,
+                    },
+                  },
+                }}
+              >
+                {commits.length === 0 && (
+                  <MenuItem value="" disabled>
                     <Typography variant="body2" color="text.secondary">
-                        Build {agent?.displayName || agentName} from a specific branch and commit.
+                      Using latest commit
                     </Typography>
-
-                <Box display="flex" flexDirection="column" gap={2}>
-                    <FormControl fullWidth size="small">
-                        <InputLabel id="branch-select-label" shrink>Branch</InputLabel>
-                        <Select
-                            notched
-                            labelId="branch-select-label"
-                            id="branch-select"
-                            value={selectedBranch}
-                            label="Branch"
-                            onChange={handleBranchChange}
-                            disabled={isLoadingBranches || !repoInfo}
-                            endAdornment={
-                                isLoadingBranches
-                                    ? <CircularProgress size={20} sx={{ mr: 2 }} />
-                                    : undefined
-                            }
-                            MenuProps={{
-                                PaperProps: {
-                                    style: {
-                                        maxHeight: 300,
-                                    },
-                                },
-                            }}
+                  </MenuItem>
+                )}
+                {commits.map((commit, index) => (
+                  <MenuItem key={commit.sha} value={commit.sha}>
+                    <Box display="flex" flexDirection="column" width="100%">
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Typography
+                          variant="body2"
+                          noWrap
+                          sx={{ maxWidth: 350 }}
                         >
-                            {branches.map((branch) => (
-                                <MenuItem key={branch.name} value={branch.name}>
-                                    {branch.name}
-                                    {branch.isDefault && " (default)"}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <FormHelperText>Select the branch to build from</FormHelperText>
-                    </FormControl>
+                          {commit.message?.split("\n")[0] || ""}
+                        </Typography>
+                        {index === 0 && (
+                          <Chip label="Latest" size="small" color="primary" />
+                        )}
+                      </Box>
+                      <Typography variant="caption" color="text.secondary">
+                        {commit.shortSha}
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+              <FormHelperText>Select the commit to build</FormHelperText>
+            </FormControl>
+          </Box>
 
-                    <FormControl fullWidth size="small">
-                        <InputLabel id="commit-select-label" shrink>Commit</InputLabel>
-                        <Select
-                            notched
-                            labelId="commit-select-label"
-                            id="commit-select"
-                            value={methods.watch("commitId") || ""}
-                            label="Commit"
-                            onChange={handleCommitChange}
-                            disabled={isLoadingCommits || !selectedBranch}
-                            endAdornment={
-                                isLoadingCommits
-                                    ? <CircularProgress size={20} sx={{ mr: 2 }} />
-                                    : undefined
-                            }
-                            MenuProps={{
-                                PaperProps: {
-                                    style: {
-                                        maxHeight: 300,
-                                    },
-                                },
-                            }}
-                        >
-                            {commits.map((commit, index) => (
-                                <MenuItem key={commit.sha} value={commit.sha}>
-                                    <Box display="flex" flexDirection="column" width="100%">
-                                        <Box display="flex" alignItems="center" gap={1}>
-                                            <Typography variant="body2" noWrap sx={{ maxWidth: 350 }}>
-                                                {commit.message?.split('\n')[0] || ""}
-                                            </Typography>
-                                            {index === 0 && (
-                                                <Chip label="Latest" size="small" color="primary" />
-                                            )}
-                                        </Box>
-                                        <Typography variant="caption" color="text.secondary">
-                                            {commit.shortSha}
-                                        </Typography>
-                                    </Box>
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <FormHelperText>Select the commit to build</FormHelperText>
-                    </FormControl>
-                </Box>
-
-                <Box display="flex" gap={1} justifyContent="flex-end" width="100%">
-                    <Button
-                        variant="outlined"
-                        color="primary"
-                        onClick={onClose}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={handleBuild}
-                        startIcon={<Wrench size={16} />}
-                        disabled={isPending || isLoadingAgent || !selectedBranch}
-                    >
-                        Trigger Build
-                    </Button>
-                </Box>
-            </DrawerContent>
-        </Box>
-        </FormProvider>
-    );
+          <Box display="flex" gap={1} justifyContent="flex-end" width="100%">
+            <Button variant="outlined" color="primary" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleBuild}
+              startIcon={<Wrench size={16} />}
+              disabled={isPending || isLoadingAgent || !selectedBranch}
+            >
+              Trigger Build
+            </Button>
+          </Box>
+        </DrawerContent>
+      </Box>
+    </FormProvider>
+  );
 }
