@@ -1,0 +1,50 @@
+---
+# ReferenceGrant to allow HTTPRoute in openchoreo-control-plane to reference Service in amp-thunder
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: amp-thunder-backend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: thunder
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: openchoreo-control-plane
+  to:
+    - group: ""
+      kind: Service
+---
+# HTTPRoute in openchoreo-control-plane namespace to route traffic to Thunder
+# This is required because the gateway-default Gateway only allows HTTPRoutes from the same namespace
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .Release.Name }}
+  namespace: openchoreo-control-plane
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: thunder
+spec:
+  hostnames:
+    - {{ .Values.thunder.ocIngress.hostname }}
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: gateway-default
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: {{ .Release.Name }}-service
+          namespace: {{ .Release.Namespace }}
+          port: {{ .Values.thunder.service.port }}
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /

@@ -32,7 +32,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
@@ -72,9 +72,9 @@ type KeyPair struct {
 }
 
 type agentTokenManagerService struct {
-	openChoreoClient openchoreosvc.OpenChoreoSvcClient
-	config           config.JWTSigningConfig
-	logger           *slog.Logger
+	ocClient client.OpenChoreoClient
+	config   config.JWTSigningConfig
+	logger   *slog.Logger
 
 	// Key management
 	keyPairs     map[string]*KeyPair
@@ -84,16 +84,16 @@ type agentTokenManagerService struct {
 
 // NewAgentTokenManagerService creates a new AgentTokenManagerService instance
 func NewAgentTokenManagerService(
-	openChoreoClient openchoreosvc.OpenChoreoSvcClient,
+	ocClient client.OpenChoreoClient,
 	cfg config.JWTSigningConfig,
 	logger *slog.Logger,
 ) (AgentTokenManagerService, error) {
 	service := &agentTokenManagerService{
-		openChoreoClient: openChoreoClient,
-		config:           cfg,
-		logger:           logger,
-		keyPairs:         make(map[string]*KeyPair),
-		activeKeyID:      cfg.ActiveKeyID,
+		ocClient:    ocClient,
+		config:      cfg,
+		logger:      logger,
+		keyPairs:    make(map[string]*KeyPair),
+		activeKeyID: cfg.ActiveKeyID,
 	}
 
 	// Load keys on initialization
@@ -237,7 +237,7 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 	)
 
 	// Fetch component UID from OpenChoreo
-	component, err := s.openChoreoClient.GetAgentComponent(ctx, req.OrgName, req.ProjectName, req.AgentName)
+	component, err := s.ocClient.GetComponent(ctx, req.OrgName, req.ProjectName, req.AgentName)
 	if err != nil {
 		s.logger.Error("Failed to get agent component", "agentName", req.AgentName, "error", err)
 		return nil, fmt.Errorf("failed to get agent component: %w", err)
@@ -250,14 +250,14 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 	}
 
 	// Fetch environment UID from OpenChoreo
-	environment, err := s.openChoreoClient.GetEnvironment(ctx, req.OrgName, environmentName)
+	environment, err := s.ocClient.GetEnvironment(ctx, req.OrgName, environmentName)
 	if err != nil {
 		s.logger.Error("Failed to get environment", "environment", environmentName, "error", err)
 		return nil, fmt.Errorf("failed to get environment: %w", err)
 	}
 
 	// Fetch project UID
-	project, err := s.openChoreoClient.GetProject(ctx, req.ProjectName, req.OrgName)
+	project, err := s.ocClient.GetProject(ctx, req.ProjectName, req.OrgName)
 	if err != nil {
 		s.logger.Error("Failed to get project", "projectName", req.ProjectName, "error", err)
 		return nil, fmt.Errorf("failed to get project: %w", err)

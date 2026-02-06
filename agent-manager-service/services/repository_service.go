@@ -65,9 +65,14 @@ func (s *repositoryService) ListBranches(ctx context.Context, req spec.ListBranc
 	}
 
 	// List branches
+	includeDefault := false
+	if req.IncludeDefault != nil {
+		includeDefault = *req.IncludeDefault
+	}
 	result, err := provider.ListBranches(ctx, req.Owner, req.Repository, gitprovider.ListBranchesOptions{
-		Page:    page,
-		PerPage: perPage,
+		Page:           page,
+		PerPage:        perPage,
+		IncludeDefault: includeDefault,
 	})
 	if err != nil {
 		return nil, err

@@ -64,6 +64,15 @@ type Config struct {
 
 	// GitHub configuration for repository API access
 	GitHub GitHubConfig
+
+	// OpenChoreo API configuration
+	OpenChoreo OpenChoreoConfig
+}
+
+// OpenChoreoConfig holds OpenChoreo API configuration
+type OpenChoreoConfig struct {
+	// BaseURL is the OpenChoreo API base URL
+	BaseURL string
 }
 
 // GitHubConfig holds GitHub API configuration

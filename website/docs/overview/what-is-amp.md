@@ -37,7 +37,7 @@ Deploy WSO2 Agent Manager on Kubernetes using our Helm charts:
 
 | Chart | Description |
 |-------|-------------|
-| `wso2-ai-agent-management-platform` | Main platform deployment |
+| `wso2-agent-manager` | Main platform deployment |
 | `wso2-amp-build-extension` | Build extension for OpenChoreo |
 | `wso2-amp-observability-extension` | Observability stack extension for OpenChoreo |
 

@@ -19,6 +19,7 @@ package utils
 import "errors"
 
 var (
+	// Resource not found errors
 	ErrProjectNotFound            = errors.New("project not found")
 	ErrAgentAlreadyExists         = errors.New("agent already exists")
 	ErrAgentNotFound              = errors.New("agent not found")
@@ -31,4 +32,14 @@ var (
 	ErrProjectHasAssociatedAgents = errors.New("project has associated agents")
 	ErrInvalidInput               = errors.New("invalid input")
 	ErrImmutableFieldChange       = errors.New("cannot change immutable field")
+
+	// Request errors
+	ErrBadRequest = errors.New("bad request")
+
+	// Authorization errors
+	ErrUnauthorized = errors.New("unauthorized")
+	ErrForbidden    = errors.New("forbidden")
+
+	// Server errors
+	ErrServiceUnavailable = errors.New("service unavailable")
 )

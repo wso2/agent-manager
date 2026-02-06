@@ -43,10 +43,10 @@ const (
 
 	// Rate limit retry configuration
 	// Reference: https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately
-	gitHubRetryWaitMin     = 60 * time.Second // GitHub recommends minimum 1 minute wait
-	gitHubRetryWaitMax     = 5 * time.Minute  // Maximum wait between retries
+	gitHubRetryWaitMin     = 5 * time.Second  // GitHub recommends minimum 1 minute wait
+	gitHubRetryWaitMax     = 10 * time.Second // Maximum wait between retries
 	gitHubRetryAttemptsMax = 3                // Maximum retry attempts
-	gitHubAttemptTimeout   = 30 * time.Second // Timeout for individual requests
+	gitHubAttemptTimeout   = 60 * time.Second // Timeout for individual requests (increased to handle slow responses)
 )
 
 // gitHubRetryConfig returns the retry configuration for GitHub API requests
@@ -61,15 +61,17 @@ func gitHubRetryConfig() requests.RequestRetryConfig {
 
 // GitHubProvider implements the Provider interface for GitHub
 type GitHubProvider struct {
-	token   string
-	baseURL string
+	token      string
+	baseURL    string
+	httpClient requests.HttpClient
 }
 
 // NewGitHubProvider creates a new GitHub provider
 func NewGitHubProvider(cfg Config) (*GitHubProvider, error) {
 	return &GitHubProvider{
-		token:   cfg.Token,
-		baseURL: GitHubAPIBaseURL,
+		token:      cfg.Token,
+		baseURL:    GitHubAPIBaseURL,
+		httpClient: requests.NewRetryableHTTPClient(&http.Client{}, gitHubRetryConfig()),
 	}, nil
 }
 
@@ -83,12 +85,15 @@ func (g *GitHubProvider) GetProviderType() ProviderType {
 func (g *GitHubProvider) ListBranches(ctx context.Context, owner, repo string, opts ListBranchesOptions) (*ListBranchesResponse, error) {
 	perPage, page := normalizePagination(opts.PerPage, opts.Page)
 
-	// Get default branch from repository info
-	defaultBranch, err := g.getDefaultBranch(ctx, owner, repo)
-	if err != nil {
-		return nil, err
+	var defaultBranch string
+	if opts.IncludeDefault {
+		// Get default branch from repository info
+		var err error
+		defaultBranch, err = g.getDefaultBranch(ctx, owner, repo)
+		if err != nil {
+			return nil, err
+		}
 	}
-
 	req := (&requests.HttpRequest{
 		Name:   "github.ListBranches",
 		URL:    fmt.Sprintf("%s/repos/%s/%s/branches", g.baseURL, owner, repo),
@@ -104,7 +109,7 @@ func (g *GitHubProvider) ListBranches(ctx context.Context, owner, repo string, o
 	}
 
 	var ghBranches []githubBranch
-	result := requests.SendRequest(ctx, http.DefaultClient, req, gitHubRetryConfig())
+	result := requests.SendRequest(ctx, g.httpClient, req)
 	if err := result.ScanResponse(&ghBranches, http.StatusOK); err != nil {
 		return nil, fmt.Errorf("failed to list branches: %w", err)
 	}
@@ -143,7 +148,7 @@ func (g *GitHubProvider) getDefaultBranch(ctx context.Context, owner, repo strin
 	var repoInfo struct {
 		DefaultBranch string `json:"default_branch"`
 	}
-	result := requests.SendRequest(ctx, http.DefaultClient, req, gitHubRetryConfig())
+	result := requests.SendRequest(ctx, g.httpClient, req)
 	if err := result.ScanResponse(&repoInfo, http.StatusOK); err != nil {
 		return "", fmt.Errorf("failed to get repository info: %w", err)
 	}
@@ -186,7 +191,7 @@ func (g *GitHubProvider) ListCommits(ctx context.Context, owner, repo string, op
 	}
 
 	var ghCommits []githubCommit
-	result := requests.SendRequest(ctx, http.DefaultClient, req, gitHubRetryConfig())
+	result := requests.SendRequest(ctx, g.httpClient, req)
 	if err := result.ScanResponse(&ghCommits, http.StatusOK); err != nil {
 		return nil, fmt.Errorf("failed to list commits: %w", err)
 	}

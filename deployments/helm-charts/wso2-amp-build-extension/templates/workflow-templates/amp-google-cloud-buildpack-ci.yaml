@@ -1,0 +1,329 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: amp-google-cloud-buildpack-ci
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "15"
+  labels:
+{{- include "amp-build-extension.labels" . | nindent 4 }}
+spec:
+  entrypoint: build-workflow
+  activeDeadlineSeconds: 3600
+  templates:
+    - name: build-workflow
+      steps:
+        - - name: clone-step
+            template: clone-step
+        - - name: build-step
+            template: build-step
+            arguments:
+              parameters:
+                - name: git-revision
+                  value: '{{ "{{" }}steps.clone-step.outputs.parameters.git-revision{{ "}}" }}'
+        - - name: publish-image
+            template: publish-image
+            arguments:
+              parameters:
+                - name: git-revision
+                  value: '{{ "{{" }}steps.clone-step.outputs.parameters.git-revision{{ "}}" }}'
+        - - name: generate-workload-cr
+            template: generate-workload-cr
+            arguments:
+              parameters:
+                - name: image
+                  value: '{{ "{{" }}steps.publish-image.outputs.parameters.image{{ "}}" }}'
+    - name: clone-step
+      outputs:
+        parameters:
+          - name: git-revision
+            valueFrom:
+              path: /tmp/git-revision.txt
+      container:
+        args:
+          - |-
+            set -e
+
+            BRANCH={{ "{{" }}workflow.parameters.branch{{ "}}" }}
+            REPO={{ "{{" }}workflow.parameters.git-repo{{ "}}" }}
+            COMMIT={{ "{{" }}workflow.parameters.commit{{ "}}" }}
+
+            if [[ -n "$COMMIT" ]]; then
+                echo "Cloning specific commit: $COMMIT"
+                git clone --no-checkout --depth 1 "$REPO" /mnt/vol/source
+                cd /mnt/vol/source
+                git config --global advice.detachedHead false
+                git fetch --depth 1 origin "$COMMIT"
+                git checkout "$COMMIT"
+                echo -n "$COMMIT" | cut -c1-8 > /tmp/git-revision.txt
+            else
+                echo "Cloning branch: $BRANCH with latest commit"
+                git clone --single-branch --branch $BRANCH --depth 1 "$REPO" /mnt/vol/source
+                cd /mnt/vol/source
+                COMMIT_SHA=$(git rev-parse HEAD)
+                echo -n "$COMMIT_SHA" | cut -c1-8 > /tmp/git-revision.txt
+            fi
+        command:
+          - sh
+          - -c
+        image: alpine/git
+        name: ""
+        volumeMounts:
+          - mountPath: /mnt/vol
+            name: workspace
+    - name: build-step
+      inputs:
+        parameters:
+          - name: git-revision
+      container:
+        args:
+          - |-
+            set -e
+
+            WORKDIR=/mnt/vol/source
+
+            IMAGE="{{ "{{" }}workflow.parameters.image-name{{ "}}" }}:{{ "{{" }}workflow.parameters.image-tag{{ "}}" }}-{{ "{{" }}inputs.parameters.git-revision{{ "}}" }}"
+            APP_PATH="{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
+
+            # Set Google Buildpack entrypoint if provided
+            GOOGLE_ENTRYPOINT="{{ "{{" }}workflow.parameters.google-entry-point{{ "}}" }}"
+            LANGUAGE_VERSION="{{ "{{" }}workflow.parameters.language-version{{ "}}" }}"
+            LANGUAGE_VERSION_ENV_VAR_NAME="{{ "{{" }}workflow.parameters.language-version-key{{ "}}" }}"
+
+            #####################################################################
+            # 1. Podman daemon + storage.conf
+            #####################################################################
+            mkdir -p /etc/containers
+            cat > /etc/containers/storage.conf <<EOF
+            [storage]
+            driver = "overlay"
+            runroot = "/run/containers/storage"
+            graphroot = "/var/lib/containers/storage"
+            [storage.options.overlay]
+            mount_program = "/usr/bin/fuse-overlayfs"
+            EOF
+
+            podman system service --time=0 &
+            until podman info --format '{{ "{{" }}.Host.RemoteSocket.Exists{{ "}}" }}' 2>/dev/null | grep -q true; do sleep 1; done
+
+
+            #####################################################################
+            # 2. Build with Google Buildpacks
+            #####################################################################
+            BUILDER="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "google-builder" "context" .) }}"
+            RUN_IMG="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "google-run" "context" .) }}"
+            LIFECYCLE_IMG="{{ include "openchoreo-build-plane.buildpackImage" (dict "id" "lifecycle" "context" .) }}"
+
+
+            {{- if .Values.global.defaultResources.buildpackCache.enabled }}
+            echo "Pulling cached builder: $BUILDER"
+            podman pull --tls-verify={{ .Values.global.defaultResources.registry.tlsVerify }} "$BUILDER"
+
+            echo "Pulling cached run image: $RUN_IMG"
+            podman pull --tls-verify={{ .Values.global.defaultResources.registry.tlsVerify }} "$RUN_IMG"
+
+            echo "Pulling cached lifecycle: $LIFECYCLE_IMG"
+            podman pull --tls-verify={{ .Values.global.defaultResources.registry.tlsVerify }} "$LIFECYCLE_IMG"
+
+            # Tag lifecycle image to expected name (referenced by builder image metadata)
+            podman tag "$LIFECYCLE_IMG" "docker.io/buildpacksio/lifecycle:0.20.5"
+            {{- end }}
+
+
+            #####################################################################
+            # 3. Build with Google Buildpacks
+            #####################################################################
+
+            # Build with Google Buildpacks - create pack command with proper environment variables
+            CMD_ARGS="--builder $BUILDER --docker-host inherit --path $WORKDIR$APP_PATH --pull-policy if-not-present"
+
+            if [ -n "$GOOGLE_ENTRYPOINT" ]; then
+              echo "Setting GOOGLE_ENTRYPOINT=$GOOGLE_ENTRYPOINT"
+              CMD_ARGS="$CMD_ARGS --env GOOGLE_ENTRYPOINT=\"$GOOGLE_ENTRYPOINT\""
+            fi
+            if [ -n "$LANGUAGE_VERSION" ]; then
+              echo "Setting $LANGUAGE_VERSION_ENV_VAR_NAME=$LANGUAGE_VERSION"
+              CMD_ARGS="$CMD_ARGS --env $LANGUAGE_VERSION_ENV_VAR_NAME=$LANGUAGE_VERSION"
+            fi
+
+            # Execute pack build command
+            echo "Building image $IMAGE with CMD ARGS: $CMD_ARGS"
+
+            # Run build using eval to handle quoted arguments properly
+            eval "/usr/local/bin/pack build \"$IMAGE\" $CMD_ARGS"
+
+            podman save -o /mnt/vol/app-image.tar "$IMAGE"
+        command:
+          - sh
+          - -c
+        image: ghcr.io/openchoreo/podman-runner:v1.0
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - mountPath: /mnt/vol
+            name: workspace
+          - mountPath: /shared/podman/cache
+            name: podman-cache
+    - name: publish-image
+      inputs:
+        parameters:
+          - name: git-revision
+      outputs:
+        parameters:
+          - name: image
+            valueFrom:
+              path: /tmp/image.txt
+      container:
+        args:
+          - |-
+            set -e
+
+            #####################################################################
+            # 1. Inputs
+            #####################################################################
+            GIT_REVISION={{ "{{" }}inputs.parameters.git-revision{{ "}}" }}
+            IMAGE_NAME={{ "{{" }}workflow.parameters.image-name{{ "}}" }}
+            IMAGE_TAG={{ "{{" }}workflow.parameters.image-tag{{ "}}" }}
+            SRC_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}-${GIT_REVISION}"
+
+            #####################################################################
+            # 2. Registry
+            #####################################################################
+            REGISTRY_ENDPOINT="{{ include "openchoreo-build-plane.registryEndpoint" . }}"
+
+            #####################################################################
+            # 3. Podman storage configuration
+            #####################################################################
+            mkdir -p /etc/containers
+            cat <<EOF > /etc/containers/storage.conf
+            [storage]
+            driver = "overlay"
+            runroot = "/run/containers/storage"
+            graphroot = "/var/lib/containers/storage"
+            [storage.options.overlay]
+            mount_program = "/usr/bin/fuse-overlayfs"
+            EOF
+
+            #####################################################################
+            # 4. Load the tarred image and push to the selected registry
+            #####################################################################
+            podman load -i /mnt/vol/app-image.tar
+
+            podman tag "$SRC_IMAGE" "$REGISTRY_ENDPOINT/$SRC_IMAGE"
+            podman push --tls-verify=false "$REGISTRY_ENDPOINT/$SRC_IMAGE"
+
+            #####################################################################
+            # 5. Emit image reference (for later steps/kubelet pulls)
+            #####################################################################
+            echo -n "$REGISTRY_ENDPOINT/$SRC_IMAGE" > /tmp/image.txt
+        command:
+          - sh
+          - -c
+        image: ghcr.io/openchoreo/podman-runner:v1.0
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - mountPath: /mnt/vol
+            name: workspace
+    - name: generate-workload-cr
+      inputs:
+        parameters:
+          - name: image
+      outputs:
+        parameters:
+          - name: workload-cr
+            valueFrom:
+              path: /mnt/vol/workload-cr.yaml
+      container:
+        image: alpine:3.20
+        command: [sh, -c]
+        args:
+          - |-
+            set -e
+
+            # Install jq
+            apk add --no-cache jq
+
+            # Variables
+            IMAGE={{ "{{" }}inputs.parameters.image{{ "}}" }}
+            PROJECT_NAME={{ "{{" }}workflow.parameters.project-name{{ "}}" }}
+            COMPONENT_NAME={{ "{{" }}workflow.parameters.component-name{{ "}}" }}
+            NAMESPACE={{ "{{" }}workflow.namespace{{ "}}" }}
+            # Strip 'openchoreo-ci-' prefix to get the actual namespace
+            NAMESPACE=${NAMESPACE#openchoreo-ci-}
+            ENDPOINTS='{{ "{{" }}workflow.parameters.endpoints{{ "}}" }}'
+            ENV_VARS='{{ "{{" }}workflow.parameters.environment-variables{{ "}}" }}'
+            SOURCE_PATH="/mnt/vol/source/{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
+            OUT="/mnt/vol/workload-cr.yaml"
+
+            # Base workload
+            echo "apiVersion: openchoreo.dev/v1alpha1" > "$OUT"
+            echo "kind: Workload" >> "$OUT"
+            echo "metadata:" >> "$OUT"
+            echo "  name: ${COMPONENT_NAME}-workload" >> "$OUT"
+            echo "  namespace: ${NAMESPACE}" >> "$OUT"
+            echo "spec:" >> "$OUT"
+            echo "  owner:" >> "$OUT"
+            echo "    projectName: ${PROJECT_NAME}" >> "$OUT"
+            echo "    componentName: ${COMPONENT_NAME}" >> "$OUT"
+            echo "  containers:" >> "$OUT"
+            echo "    main:" >> "$OUT"
+            echo "      image: ${IMAGE}" >> "$OUT"
+
+            # Environment variables
+            if [ -n "$ENV_VARS" ] && [ "$ENV_VARS" != "null" ] && [ "$ENV_VARS" != "[]" ]; then
+              echo "      env:" >> "$OUT"
+              echo "$ENV_VARS" | jq -r '.[] | "        - key: \(.name)\n          value: \(.value | tostring | @json)"' >> "$OUT"
+            fi
+
+            # Endpoints
+            if [ -n "$ENDPOINTS" ] && [ "$ENDPOINTS" != "null" ] && [ "$ENDPOINTS" != "[]" ]; then
+              echo "  endpoints:" >> "$OUT"
+              while read -r ep; do
+                NAME=$(echo "$ep" | jq -r '.name')
+                TYPE=$(echo "$ep" | jq -r '.type // "HTTP"')
+                PORT=$(echo "$ep" | jq -r '.port')
+                SCHEMA_TYPE=$(echo "$ep" | jq -r '.schemaType // "REST"')
+                SCHEMA_FILE_PATH=$(echo "$ep" | jq -r '.schemaFilePath // empty')
+                SCHEMA_CONTENT=$(echo "$ep" | jq -r '.schemaContent // empty')
+
+                echo "    ${NAME}:" >> "$OUT"
+                echo "      type: ${TYPE}" >> "$OUT"
+                echo "      port: ${PORT}" >> "$OUT"
+
+                if [ -n "$SCHEMA_CONTENT" ]; then
+                  echo "      schema:" >> "$OUT"
+                  echo "        type: ${SCHEMA_TYPE}" >> "$OUT"
+                  echo "        content: |" >> "$OUT"
+                  echo "$SCHEMA_CONTENT" | sed 's/^/          /' >> "$OUT"
+                elif [ -n "$SCHEMA_FILE_PATH" ] && [ -f "$SOURCE_PATH$SCHEMA_FILE_PATH" ]; then
+                  echo "      schema:" >> "$OUT"
+                  echo "        type: ${SCHEMA_TYPE}" >> "$OUT"
+                  echo "        content: |" >> "$OUT"
+                  sed 's/^/          /' "$SOURCE_PATH$SCHEMA_FILE_PATH" >> "$OUT"
+                fi
+              done < <(echo "$ENDPOINTS" | jq -c '.[]')
+            fi
+
+            echo "Workload CR saved to $OUT"
+        volumeMounts:
+          - name: workspace
+            mountPath: /mnt/vol
+  ttlStrategy:
+    secondsAfterFailure: 3600
+    secondsAfterSuccess: 3600
+  volumeClaimTemplates:
+    - metadata:
+        creationTimestamp: null
+        name: workspace
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+  volumes:
+    - hostPath:
+        path: /shared/podman/cache
+        type: DirectoryOrCreate
+      name: podman-cache

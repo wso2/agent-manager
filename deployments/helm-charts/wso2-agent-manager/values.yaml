@@ -1,0 +1,343 @@
+# Default values for agent-management-platform
+global:
+  imagePullSecrets: []
+  storageClass: ""
+
+# PostgreSQL Database Configuration
+postgresql:
+  enabled: true
+  external:
+    host: ""
+    port: 5432
+    database: agentmanager
+    username: agentmanager
+    password: ""
+    existingSecret: ""
+    existingSecretPasswordKey: "password"
+  # Image configuration - use stable PostgreSQL 16 image
+  auth:
+    database: agentmanager
+    username: agentmanager
+    password: "agentmanager"
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 512Mi
+        cpu: 500m
+
+# Agent Manager Service Configuration
+agentManagerService:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: ghcr.io/wso2/amp-api
+    tag: "0.0.0-dev"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: LoadBalancer
+    port: 9000
+    targetPort: 8080
+    annotations: {}
+
+  observer:
+    url: "http://observer.openchoreo-observability-plane.svc.cluster.local:8080"
+    username: "admin"
+    password: "admin"
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: ~
+
+  # Health checks
+  livenessProbe:
+    tcpSocket:
+      port: 8080
+    initialDelaySeconds: 15
+    periodSeconds: 10
+
+  readinessProbe:
+      tcpSocket:
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 10
+
+  # Application configuration
+  config:
+    serverHost: "0.0.0.0"
+    logLevel: "INFO"
+    autoMaxProcsEnabled: "true"
+    authHeader: "Authorization"
+    dbOperationTimeout: 30
+    healthCheckTimeout: 5
+    corsAllowedOrigin: "*"
+    observerURL: "http://observer.openchoreo-observability-plane.svc.cluster.local:8080"
+    traceObserverURL: "http://amp-traces-observer.openchoreo-observability-plane.svc.cluster.local:9098"
+  
+    # API Key configuration
+    apiKey:
+      header: "X-API-Key"
+      value: "abc-def-123"
+      existingSecret: ""
+      existingSecretKey: "api-key"
+
+    # Kubeconfig (empty for in-cluster, or provide config)
+    kubeconfig: ""
+
+    # OpenTelemetry configuration
+    otel:
+      traceContent: "true"
+      exporterEndpoint: "http://opentelemetry-collector.openchoreo-observability-plane.svc.cluster.local:4318"
+
+    # Key Manager configuration
+    keyManager:
+      issuer: "Agent Management Platform Local"
+      audience: "localhost"
+      jwksUrl: ""
+      defaultIssuer: "Agent Management Platform Local"
+
+    # On-premise deployment flag
+    isOnPremDeployment: "true"
+
+    # OIDC configuration for Thunder integration
+    oidc:
+      tokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"
+      clientId: "amp-api-client"
+      clientSecret: "amp-api-client-secret"
+    # JWT Signing configuration
+    jwtSigning:
+      privateKeyPath: "/app/keys/private.pem"
+      publicKeysConfig: "/app/keys/public-keys-config.json"
+      activeKeyId: "key-1"
+      defaultExpiry: "8760h"
+      issuer: "agent-manager-service"
+      defaultEnvironment: "default"
+    # GitHub configuration for repository API access
+    github:
+      token: ""
+      existingSecret: ""
+      existingSecretKey: "github-token"
+    
+    # OpenChoreo API configuration
+    openChoreo:
+      baseURL: "http://openchoreo-api.openchoreo-control-plane:8080/api/v1"
+      
+  agentWorkload:
+    cors:
+      allowedOrigin: "http://localhost:3000"
+      allowedMethods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
+      allowedHeaders: "authorization,Content-Type,Origin"
+
+  # Pod-level configurations
+  podAnnotations: {}
+  podLabels: {}
+  # Pod security context - defaults to fsGroup: 1000 if not specified
+  # Note: If you encounter "too many open files" errors, this is typically caused by
+  # the Kubernetes client watching too many resources. Consider:
+  # 1. Reducing the number of watched resources in the application
+  # 2. Implementing resource filtering in watchers
+  # 3. Increasing limits at the node/cluster level
+  podSecurityContext: {}
+  # Container security context - defaults to secure settings if not specified
+  securityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Console (Frontend) Configuration
+console:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: ghcr.io/wso2/amp-console
+    tag: "0.0.0-dev"
+    pullPolicy: Always
+
+  service:
+    type: LoadBalancer
+    port: 3000
+    targetPort: 3000
+
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 256Mi
+      cpu: 200m
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: ~
+
+  # Health checks
+  livenessProbe: null
+  readinessProbe: null
+
+  # Frontend configuration
+  config:
+    # Authentication (set to "" to disable)
+    auth:
+      clientId: ""
+      baseUrl: ""
+      signInRedirectURL: ""
+      signOutRedirectURL: ""
+      existingSecret: ""
+      validateIDToken: "false"
+      clockTolerance: 300
+
+    # Disable auth for development
+    disableAuth: "true"
+
+    # Backend API URLs (will be auto-configured if empty)
+    apiBaseUrl: "http://localhost:9000"
+    instrumentationUrl: "https://localhost:22894/otel"
+
+  # Pod-level configurations
+  podAnnotations: {}
+  podLabels: {}
+  # Pod security context - optional, no defaults to allow image to use its own user
+  # If you need to set fsGroup or other pod-level security settings, specify them here
+  podSecurityContext: {}
+  # Container security context - defaults to secure settings (without runAsUser to allow image default)
+  # If you need to set runAsUser or other container-level security settings, specify them here
+  securityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Database Migration Job Configuration
+dbMigration:
+  enabled: true
+
+  image:
+    repository: ghcr.io/wso2/amp-api
+    tag: "0.0.0-dev"
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 256Mi
+      cpu: 200m
+
+  backoffLimit: 3
+  podSecurityContext: {}
+  securityContext: {}
+
+# JWT Keys Generation Job Configuration
+jwtKeysGeneration:
+  enabled: true
+  backoffLimit: 3
+  
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 128Mi
+      cpu: 100m
+  
+  podSecurityContext: {}
+  securityContext: {}
+
+# JWT Signing Keys Configuration
+jwtSigning:
+  # Specify an existing secret containing JWT keys (optional)
+  # If not specified, keys will be auto-generated by the jwt-keys-generation job
+  existingSecret: ""
+
+# Ingress Configuration
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+  - host: amp.local
+    http:
+      paths:
+      - path: /v1/traces
+        pathType: Prefix
+        backend:
+          service:
+            name: data-prepper-external
+            port:
+              number: 21893
+
+      - path: /api/trace
+        pathType: Prefix
+        backend:
+          service:
+            name: amp-traces-observer-external
+            port:
+              number: 9098
+
+      - path: /api/v1
+        pathType: Prefix
+        backend:
+          service:
+            name: amp-api
+            port:
+              number: 8080
+
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: amp-console
+            port:
+              number: 3000
+  tls: []
+
+# ServiceAccount Configuration
+serviceAccount:
+  create: true
+  name: "agent-management-platform"
+  annotations: {}
+  automount: true
+
+# RBAC Configuration
+rbac:
+  create: true
+  # Rules for managing agents and k8s resources
+  # Full permissions for agent management operations
+  rules:
+    - apiGroups: ["*"]
+      resources: ["*"]
+      verbs: ["*"]
+
+# Global volume mounts and volumes (optional)
+volumeMounts: []
+volumes: []
+
+# Common labels to add to all resources
+commonLabels: {}

@@ -212,9 +212,9 @@ export function BuildTable() {
               variant="outlined"
               color="primary"
               disabled={
-                row.status === "BuildTriggered" ||
-                row.status === "BuildRunning" ||
-                row.status === "BuildFailed"
+                row.status === "Pending" ||
+                row.status === "Running" ||
+                row.status === "Failed"
               }
               component={Link}
               to={`${generatePath(
@@ -224,15 +224,14 @@ export function BuildTable() {
               )}?deployPanel=open&selectedBuild=${row.id}`}
               size="small"
               startIcon={
-                row.status === "BuildRunning" ||
-                row.status === "BuildTriggered" ? (
+                row.status === "Running" || row.status === "Pending" ? (
                   <CircularProgress color="inherit" size={14} />
                 ) : (
                   <Rocket size={16} />
                 )
               }
             >
-              {row.status === "BuildRunning" || row.status === "BuildTriggered"
+              {row.status === "Running" || row.status === "Pending"
                 ? "Building"
                 : "Deploy"}
             </Button>

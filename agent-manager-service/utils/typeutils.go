@@ -42,6 +42,13 @@ func BoolAsString(v bool) string {
 	return strconv.FormatBool(v)
 }
 
+func BoolPointerAsBool(v *bool, defaultValue bool) bool {
+	if v == nil {
+		return defaultValue
+	}
+	return *v
+}
+
 func IntPointerAsInt(v *int32, defaultValue int32) int32 {
 	if v == nil {
 		return defaultValue

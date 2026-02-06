@@ -69,6 +69,7 @@ After installation completes, use the following endpoints to access the platform
 
 ## See Also
 
-- [Single Cluster Installation](./install/single-cluster.md) - Install on existing OpenChoreo cluster
+- [Installation on self hosted kubernetes cluster](./install/self-hosted-cluster.md)
+- [Installation on managed kubernetes cluster](./install/managed-cluster.md)
 - [README](../README.md) - Project overview and architecture
 

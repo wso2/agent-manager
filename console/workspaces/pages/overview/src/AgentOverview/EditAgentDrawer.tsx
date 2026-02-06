@@ -80,13 +80,8 @@ export function EditAgentDrawer({ open, onClose, agent, orgId, projectId }: Edit
 
   const handleSubmit = (data: EditAgentFormValues) => {
     const payload: UpdateAgentRequest = {
-      name: data.name,
       displayName: data.displayName,
       description: data.description,
-      provisioning: agent.provisioning,
-      agentType: agent.agentType,
-      runtimeConfigs: agent.runtimeConfigs,
-      inputInterface: agent.inputInterface,
     };
 
     updateAgent(

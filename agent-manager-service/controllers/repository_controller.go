@@ -65,15 +65,10 @@ func (c *repositoryController) ListBranches(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Validate required fields
-	if reqBody.Owner == "" {
-		log.Error("ListBranches: owner is required")
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing required field: owner")
-		return
-	}
-	if reqBody.Repository == "" {
-		log.Error("ListBranches: repository is required")
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing required field: repository")
+	// Validate request body
+	if err := utils.ValidateListBranchesRequest(&reqBody); err != nil {
+		log.Error("ListBranches: invalid request payload", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -110,15 +105,10 @@ func (c *repositoryController) ListCommits(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Validate required fields
-	if reqBody.Owner == "" {
-		log.Error("ListCommits: owner is required")
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing required field: owner")
-		return
-	}
-	if reqBody.Repo == "" {
-		log.Error("ListCommits: repo is required")
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing required field: repo")
+	// Validate request body
+	if err := utils.ValidateListCommitsRequest(&reqBody); err != nil {
+		log.Error("ListCommits: invalid request payload", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

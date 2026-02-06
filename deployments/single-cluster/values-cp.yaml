@@ -5,13 +5,11 @@ global:
   defaultResources:
     enabled: false
 
-# Traefik ingress configuration
-traefik:
-  ports:
-    web:
-      exposedPort: 8080
-    websecure:
-      exposedPort: 8443
+gateway:
+  httpPort: 80
+  httpsPort: 443
+  envoy:
+    mountTmpVolume: true
 
 # Backstage configuration
 backstage:

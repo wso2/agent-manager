@@ -18,7 +18,7 @@ package wiring
 
 import (
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
-	clients "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc"
+	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
@@ -36,7 +36,7 @@ type AppParams struct {
 
 // TestClients contains all mock clients needed for testing
 type TestClients struct {
-	OpenChoreoSvcClient    clients.OpenChoreoSvcClient
+	OpenChoreoClient       occlient.OpenChoreoClient
 	ObservabilitySvcClient observabilitysvc.ObservabilitySvcClient
 	TraceObserverClient    traceobserversvc.TraceObserverClient
 }

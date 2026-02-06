@@ -5,8 +5,9 @@ gateway:
   httpPort: 19080
   httpsPort: 19443
   envoy:
-    # Required for k3d/Docker Desktop
     mountTmpVolume: true
+  selfSignedIssuer:
+    enabled: false
 
 # External Secrets Operator
 external-secrets:
@@ -14,4 +15,7 @@ external-secrets:
 
 # API Platform (APIM integration)
 api-platform:
+  enabled: false
+
+gatewayController:
   enabled: false
