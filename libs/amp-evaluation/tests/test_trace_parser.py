@@ -322,9 +322,9 @@ class TestTraceParser:
         assert eval_trace.metrics.error_count == 1
 
         # Check aggregated tokens
-        assert eval_trace.metrics.total_token_usage.input_tokens == 18
-        assert eval_trace.metrics.total_token_usage.output_tokens == 9
-        assert eval_trace.metrics.total_token_usage.total_tokens == 27
+        assert eval_trace.metrics.token_usage.input_tokens == 18
+        assert eval_trace.metrics.token_usage.output_tokens == 9
+        assert eval_trace.metrics.token_usage.total_tokens == 27
 
         # Check duration
         assert eval_trace.metrics.total_duration_ms == 230.0
@@ -433,7 +433,7 @@ class TestTraceParser:
         assert len(eval_trace.retriever_spans) == 0
 
         # But embedding tokens should be counted
-        assert eval_trace.metrics.total_token_usage.total_tokens == 5
+        assert eval_trace.metrics.token_usage.total_tokens == 5
 
     def test_parse_multiple_traces(self):
         """Test batch parsing of multiple traces."""

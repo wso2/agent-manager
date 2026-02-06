@@ -184,17 +184,24 @@ class EvalResult:
     Examples:
         return EvalResult(score=0.8, explanation="Good response")
         return EvalResult(score=1.0, passed=True, details={"tokens": 100})
+        return EvalResult(score=0.0, passed=False, error="Missing required data")
     """
 
     score: float  # 0.0 to 1.0
     explanation: str = ""
     details: Optional[Dict[str, Any]] = None
     passed: Optional[bool] = None
+    error: Optional[str] = None  # Set if evaluation cannot be performed
 
     def __post_init__(self):
         """Auto-calculate passed if not provided."""
         if self.passed is None:
             self.passed = self.score >= 0.5
+
+    @property
+    def is_error(self) -> bool:
+        """Check if this result represents an evaluation error."""
+        return self.error is not None
 
 
 @dataclass

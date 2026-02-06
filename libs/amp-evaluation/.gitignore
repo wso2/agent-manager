@@ -32,3 +32,6 @@ htmlcov/
 # Virtual environment
 .venv
 venv/
+
+# DeepEval evaluator artifacts
+.deepeval

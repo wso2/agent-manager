@@ -123,7 +123,7 @@ class TraceMetrics:
     total_duration_ms: float = 0.0
 
     # Token aggregates
-    total_token_usage: TokenUsage = field(default_factory=TokenUsage)
+    token_usage: TokenUsage = field(default_factory=TokenUsage)
 
     # Observable counts
     total_span_count: int = 0  # All spans parsed (excluding skipped)
@@ -409,86 +409,29 @@ class Trajectory:
         return not self.has_errors
 
     # ========================================================================
-    # TYPED GETTERS (Filter by span type)
-    # ========================================================================
-
-    def get_llm_steps(self) -> List[LLMSpan]:
-        """Get all LLM spans in execution order."""
-        return [s for s in self.steps if isinstance(s, LLMSpan)]
-
-    def get_tool_steps(self) -> List[ToolSpan]:
-        """Get all tool spans in execution order."""
-        return [s for s in self.steps if isinstance(s, ToolSpan)]
-
-    def get_retriever_steps(self) -> List[RetrieverSpan]:
-        """Get all retriever spans in execution order."""
-        return [s for s in self.steps if isinstance(s, RetrieverSpan)]
-
-    def get_agent_steps(self) -> List[AgentSpan]:
-        """Get all agent spans in execution order."""
-        return [s for s in self.steps if isinstance(s, AgentSpan)]
-
-    # ========================================================================
-    # LEGACY COMPATIBILITY (for backward compatibility with old code)
+    # SPAN ACCESSORS (Filter by span type)
     # ========================================================================
 
     @property
     def llm_spans(self) -> List[LLMSpan]:
-        """Legacy property: Get all LLM spans."""
-        return self.get_llm_steps()
+        """Get all LLM spans in execution order."""
+        return [s for s in self.steps if isinstance(s, LLMSpan)]
 
     @property
     def tool_spans(self) -> List[ToolSpan]:
-        """Legacy property: Get all tool spans."""
-        return self.get_tool_steps()
+        """Get all tool spans in execution order."""
+        return [s for s in self.steps if isinstance(s, ToolSpan)]
 
     @property
     def retriever_spans(self) -> List[RetrieverSpan]:
-        """Legacy property: Get all retriever spans."""
-        return self.get_retriever_steps()
+        """Get all retriever spans in execution order."""
+        return [s for s in self.steps if isinstance(s, RetrieverSpan)]
 
     @property
     def agent_span(self) -> Optional[AgentSpan]:
-        """Legacy property: Get first agent span (if any)."""
-        agent_steps = self.get_agent_steps()
+        """Get first agent span (if any)."""
+        agent_steps = [s for s in self.steps if isinstance(s, AgentSpan)]
         return agent_steps[0] if agent_steps else None
-
-    # ========================================================================
-    # SEQUENCE ANALYSIS
-    # ========================================================================
-
-    def get_step_types_sequence(self) -> List[str]:
-        """
-        Get the sequence of step types (useful for pattern analysis).
-
-        Returns:
-            List of step type names in execution order.
-            Example: ["llm", "tool", "retriever", "llm", "tool"]
-        """
-        type_map = {LLMSpan: "llm", ToolSpan: "tool", RetrieverSpan: "retriever", AgentSpan: "agent"}
-        return [type_map.get(type(step), "unknown") for step in self.steps]
-
-    def get_step_names_sequence(self) -> List[str]:
-        """
-        Get the sequence of step names (tools/models used).
-
-        Returns:
-            List of step names in execution order.
-            Example: ["gpt-4", "search_tool", "rag_retriever", "gpt-4", "booking_tool"]
-        """
-        names = []
-        for step in self.steps:
-            if isinstance(step, LLMSpan):
-                names.append(step.model or "llm")
-            elif isinstance(step, ToolSpan):
-                names.append(step.name or "tool")
-            elif isinstance(step, RetrieverSpan):
-                names.append(step.vector_db or "retriever")
-            elif isinstance(step, AgentSpan):
-                names.append(step.name or "agent")
-            else:
-                names.append("unknown")
-        return names
 
     # ========================================================================
     # CONVENIENT DATA ACCESS
@@ -497,7 +440,7 @@ class Trajectory:
     @property
     def all_tool_names(self) -> List[str]:
         """Get list of all tools used in this trajectory (in order)."""
-        return [t.name for t in self.get_tool_steps()]
+        return [t.name for t in self.tool_spans]
 
     @property
     def unique_tool_names(self) -> List[str]:
@@ -513,86 +456,29 @@ class Trajectory:
     @property
     def all_tool_results(self) -> List[Any]:
         """Get list of all tool results in execution order."""
-        return [t.result for t in self.get_tool_steps()]
+        return [t.result for t in self.tool_spans]
 
     @property
     def all_llm_responses(self) -> List[str]:
         """Get list of all LLM responses in execution order."""
-        return [llm.response for llm in self.get_llm_steps()]
+        return [llm.response for llm in self.llm_spans]
 
     @property
     def unique_models_used(self) -> List[str]:
         """Get list of unique models used."""
         models = set()
-        for llm in self.get_llm_steps():
+        for llm in self.llm_spans:
             if llm.model:
                 models.add(llm.model)
-        for agent in self.get_agent_steps():
-            if agent.model:
-                models.add(agent.model)
+        for agent_step in self.steps:
+            if isinstance(agent_step, AgentSpan) and agent_step.model:
+                models.add(agent_step.model)
         return list(models)
 
     @property
     def framework(self) -> str:
         """Get the agent framework used (if detected)."""
-        agent_steps = self.get_agent_steps()
-        if agent_steps:
-            return agent_steps[0].framework
-        return ""
-
-    # ========================================================================
-    # LOOKUP METHODS
-    # ========================================================================
-
-    def get_step_by_id(self, span_id: str) -> Optional[Span]:
-        """Get any span by ID."""
         for step in self.steps:
-            if step.span_id == span_id:
-                return step
-        return None
-
-    def get_llm_span(self, span_id: str) -> Optional[LLMSpan]:
-        """Get an LLM span by ID (legacy method)."""
-        for span in self.llm_spans:
-            if span.span_id == span_id:
-                return span
-        return None
-
-    def get_tool_span(self, span_id: str) -> Optional[ToolSpan]:
-        """Get a tool span by ID (legacy method)."""
-        for span in self.tool_spans:
-            if span.span_id == span_id:
-                return span
-        return None
-
-    def get_tool_spans_by_name(self, name: str) -> List[ToolSpan]:
-        """Get all tool spans with a specific name (in execution order)."""
-        return [t for t in self.get_tool_steps() if t.name == name]
-
-    def get_steps_between(self, start_idx: int, end_idx: int) -> List[Span]:
-        """Get a slice of steps between two indices (inclusive)."""
-        return self.steps[start_idx : end_idx + 1]
-
-    def find_pattern(self, pattern: List[str]) -> List[int]:
-        """
-        Find indices where a specific sequence pattern occurs.
-
-        Args:
-            pattern: List of step types to match (e.g., ["llm", "tool", "llm"])
-
-        Returns:
-            List of starting indices where the pattern was found.
-
-        Example:
-            # Find all "think -> act -> observe" patterns
-            indices = trajectory.find_pattern(["llm", "tool", "retriever"])
-        """
-        sequence = self.get_step_types_sequence()
-        pattern_len = len(pattern)
-        matches = []
-
-        for i in range(len(sequence) - pattern_len + 1):
-            if sequence[i : i + pattern_len] == pattern:
-                matches.append(i)
-
-        return matches
+            if isinstance(step, AgentSpan):
+                return step.framework
+        return ""

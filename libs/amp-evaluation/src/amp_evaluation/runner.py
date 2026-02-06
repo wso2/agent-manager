@@ -101,6 +101,25 @@ class RunType(str, Enum):
 
 
 # ============================================================================
+# TASK RESULT (intermediate structure for experiment runs)
+# ============================================================================
+
+
+@dataclass
+class TaskResult:
+    """
+    Intermediate result for a single task trial during an experiment run.
+
+    Tracks the full lifecycle: invocation result + matched trace.
+    Eliminates tuple juggling between phases of _run_with_invoker.
+    """
+
+    task: Task
+    trial_id: str
+    invoke_result: "InvokeResult"
+
+
+# ============================================================================
 # RUN RESULT
 # ============================================================================
 
@@ -394,6 +413,7 @@ class BaseRunner(ABC):
                     task_id=task.task_id if task else None,
                     trial_id=trial_id,
                     metadata=eval_result.details or {},
+                    error=eval_result.error,  # Propagate error field from EvalResult
                 )
                 scores[evaluator.name] = evaluator_score
 
@@ -662,181 +682,41 @@ class Experiment(BaseRunner):
         """
         Run experiment using AgentInvoker pattern.
 
-        Uses time-based trace fetching with bagging parameters (task_id, trial_id)
-        for trace-to-task matching instead of trace context propagation.
-
-        Flow:
-        1. Record start time
-        2. Invoke agent for all tasks (propagates task_id and trial_id via OpenTelemetry baggage)
-        3. Record end time, wait for traces to be exported
-        4. Bulk fetch all traces in time window via /traces/export
-        5. Match traces to tasks using task_id and trial_id from span attributes
+        Orchestrates the experiment lifecycle:
+        1. Invoke agent for all tasks, collect results
+        2. Fetch traces and match to tasks using baggage (task_id, trial_id)
+        3. Stamp authoritative input/output from invoker onto trajectories
+        4. Evaluate all traces with registered evaluators
+        5. Build and return RunResult
         """
-        from .invokers import InvokeResult
-        from .trace import parse_trace_for_evaluation
-        import time
-        from datetime import datetime, timezone, timedelta
-        import uuid
-
-        # Import OpenTelemetry baggage for propagating task_id and trial_id
-        try:
-            from opentelemetry import baggage, context
-            from opentelemetry.context import attach, detach
-            from opentelemetry.instrumentation.requests import RequestsInstrumentor
-
-            # Enable HTTP instrumentation to inject baggage into requests
-            RequestsInstrumentor().instrument()
-            otel_available = True
-        except ImportError:
-            logger.warning("OpenTelemetry not available - baggage propagation disabled")
-            otel_available = False
-
-        traces: List[Trajectory] = []
-        tasks_by_trace_id: Dict[str, Task] = {}
         errors: List[str] = []
 
-        # Phase 1: Invoke agent for all tasks, collect results
-        all_results: List[tuple[Task, "InvokeResult", str]] = []  # (task, result, trial_id)
+        # Phase 1: Invoke agent for all tasks
+        task_results, invoke_errors, experiment_start, experiment_end = self._invoke_all(dataset)
+        errors.extend(invoke_errors)
 
-        # Record start time for trace fetching
-        experiment_start_time = datetime.now(timezone.utc)
-        logger.info(f"Experiment started at {experiment_start_time.isoformat()}")
+        # Phase 2: Fetch traces and match to task results
+        match_errors = self._fetch_and_match_traces(task_results, experiment_start, experiment_end, dataset)
+        errors.extend(match_errors)
 
-        for task in dataset.tasks:
-            for trial in range(self.trials_per_task):
-                # Generate unique trial_id using UUID
-                trial_id = f"trial-{uuid.uuid4()}"
+        # Phase 3: Collect trajectories for evaluation
+        traces: List[Trajectory] = []
+        tasks_by_trace_id: Dict[str, Task] = {}
+        trial_info_by_trace: Dict[str, str] = {}
 
-                # Set task.id and trial.id in OpenTelemetry baggage context
-                # Using dotted notation following OpenTelemetry semantic conventions
-                # This will be automatically propagated in HTTP headers
-                token = None
-                if otel_available:
-                    ctx = context.get_current()
-                    ctx = baggage.set_baggage("task.id", task.task_id, context=ctx)
-                    ctx = baggage.set_baggage("trial.id", trial_id, context=ctx)
-                    token = attach(ctx)
-
-                try:
-                    # Invoke agent - baggage is propagated automatically
-                    result = self.invoker.invoke(task)
-
-                    if result is None:
-                        result = InvokeResult()
-
-                    all_results.append((task, result, trial_id))
-
-                    if result.error:
-                        errors.append(f"Task {task.task_id} trial {trial}: {result.error}")
-
-                except Exception as e:
-                    errors.append(f"Task {task.task_id} trial {trial}: {e}")
-                    all_results.append((task, InvokeResult(error=str(e)), trial_id))
-                finally:
-                    # Detach baggage context
-                    if token is not None:
-                        detach(token)
-
-        # Record end time
-        experiment_end_time = datetime.now(timezone.utc)
-
-        # Add buffer to time window to ensure we capture all traces
-        # Traces might be timestamped slightly before/after invocation due to processing delays
-        fetch_start_time = experiment_start_time - timedelta(seconds=5)
-        fetch_end_time = experiment_end_time + timedelta(seconds=5)
-
-        # Phase 2: Bulk fetch all traces in the time window and match to tasks
-        # using task_id and trial_id from span attributes
-
-        try:
-            fetcher = self._get_fetcher()
-
-            # Wait for traces to be exported to the trace service
-            if self.trace_fetch_wait_seconds > 0:
-                logger.info(f"Waiting {self.trace_fetch_wait_seconds}s for traces to be exported...")
-                time.sleep(self.trace_fetch_wait_seconds)
-
-            # Calculate expected number of traces based on experiment size
-            # Add buffer for potential retries or additional spans
-            expected_traces = len(dataset.tasks) * self.trials_per_task
-            fetch_limit = max(expected_traces * 2, 100)  # At least 100, or 2x expected
-
-            # Fetch all traces in the experiment time window
-            fetched_traces = fetcher.fetch_traces(
-                start_time=fetch_start_time.isoformat(), end_time=fetch_end_time.isoformat(), limit=fetch_limit
-            )
-
-            logger.info(
-                f"Fetched {len(fetched_traces)} traces from trace service (expected: {expected_traces}, limit: {fetch_limit})"
-            )
-
-            # Build a lookup map: (task_id, trial_id) -> Trace
-            trace_by_baggage: Dict[tuple[str, str], Any] = {}
-
-            for trace in fetched_traces:
-                # Extract task_id and trial_id from trace-level fields (populated by trace service)
-                task_id = trace.taskId
-                trial_id = trace.trialId
-
-                if task_id and trial_id:
-                    trace_by_baggage[(task_id, trial_id)] = trace
-                    logger.debug(f"Trace {trace.traceId}: taskId={task_id}, trialId={trial_id}")
-                else:
-                    logger.warning(f"Trace {trace.traceId} missing taskId={task_id} or trialId={trial_id}")
-
-            logger.info(f"Matched {len(trace_by_baggage)} traces to tasks using baggage parameters")
-
-            # Match fetched traces to tasks
-            updated_results: List[tuple[Task, InvokeResult]] = []
-            for task, result, trial_id in all_results:
-                baggage_key = (task.task_id, trial_id)
-
-                if baggage_key in trace_by_baggage:
-                    otel_trace = trace_by_baggage[baggage_key]
-                    trajectory = parse_trace_for_evaluation(otel_trace)
-                    updated_results.append(
-                        (
-                            task,
-                            InvokeResult(
-                                output=result.output,
-                                trajectory=trajectory,
-                                metadata=result.metadata,
-                                error=result.error,
-                            ),
-                        )
-                    )
-                else:
-                    # No matching trace found
-                    logger.warning(f"No trace found for task_id={task.task_id}, trial_id={trial_id}")
-                    errors.append(
-                        f"Task {task.task_id} trial {trial_id}: No trace found with matching task_id/trial_id"
-                    )
-                    updated_results.append((task, result))
-
-            all_results = [(task, result, "") for task, result in updated_results]
-
-        except ValueError as e:
-            # No fetcher available
-            logger.warning(f"Cannot fetch traces: {e}")
-            errors.append(f"Trace fetching failed: {e}")
-        except Exception as e:
-            logger.error(f"Error during trace fetching: {e}", exc_info=True)
-            errors.append(f"Trace fetching error: {e}")
-
-        # Phase 3: Collect trajectories and track trial info
-        trial_info_by_trace: Dict[str, str] = {}  # trace_id -> trial_id
-        for task, result, trial_id in all_results:
+        for tr in task_results:
+            result = tr.invoke_result
             if result.has_trajectory:
                 traces.append(result.trajectory)
-                tasks_by_trace_id[result.trajectory.trace_id] = task
-                if trial_id:
-                    trial_info_by_trace[result.trajectory.trace_id] = trial_id
+                tasks_by_trace_id[result.trajectory.trace_id] = tr.task
+                if tr.trial_id:
+                    trial_info_by_trace[result.trajectory.trace_id] = tr.trial_id
             elif result.error:
-                pass  # Already logged
+                pass  # Already captured in errors
             else:
-                errors.append(f"Task {task.task_id}: No trajectory available")
+                errors.append(f"Task {tr.task.task_id}: No trajectory available")
 
-        # Evaluate all traces
+        # Phase 4: Evaluate all traces
         run_result = self._evaluate_traces(
             traces=traces,
             tasks=tasks_by_trace_id,
@@ -851,6 +731,192 @@ class Experiment(BaseRunner):
 
         run_result.errors.extend(errors)
         return run_result
+
+    def _invoke_all(self, dataset: Dataset) -> tuple:
+        """
+        Phase 1: Invoke agent for all tasks, collect results.
+
+        Sets OpenTelemetry baggage (task_id, trial_id) on each invocation
+        for trace-to-task matching.
+
+        Args:
+            dataset: Dataset with tasks to invoke
+
+        Returns:
+            Tuple of (task_results, errors, start_time, end_time)
+        """
+        from .invokers import InvokeResult
+        from datetime import datetime, timezone
+        import uuid
+
+        # Import OpenTelemetry baggage for propagating task_id and trial_id
+        try:
+            from opentelemetry import baggage, context
+            from opentelemetry.context import attach, detach
+            from opentelemetry.instrumentation.requests import RequestsInstrumentor
+
+            RequestsInstrumentor().instrument()
+            otel_available = True
+        except ImportError:
+            logger.warning("OpenTelemetry not available - baggage propagation disabled")
+            otel_available = False
+
+        task_results: List[TaskResult] = []
+        errors: List[str] = []
+
+        experiment_start_time = datetime.now(timezone.utc)
+        logger.info(f"Experiment started at {experiment_start_time.isoformat()}")
+
+        for task in dataset.tasks:
+            for trial in range(self.trials_per_task):
+                trial_id = f"trial-{uuid.uuid4()}"
+
+                # Set baggage context for trace matching
+                token = None
+                if otel_available:
+                    ctx = context.get_current()
+                    ctx = baggage.set_baggage("task.id", task.task_id, context=ctx)
+                    ctx = baggage.set_baggage("trial.id", trial_id, context=ctx)
+                    token = attach(ctx)
+
+                try:
+                    result = self.invoker.invoke(task.input)
+                    if result is None:
+                        result = InvokeResult(input=task.input)
+
+                    task_results.append(TaskResult(task=task, trial_id=trial_id, invoke_result=result))
+
+                    if result.error:
+                        errors.append(f"Task {task.task_id} trial {trial}: {result.error}")
+
+                except Exception as e:
+                    errors.append(f"Task {task.task_id} trial {trial}: {e}")
+                    task_results.append(
+                        TaskResult(
+                            task=task,
+                            trial_id=trial_id,
+                            invoke_result=InvokeResult(input=task.input, error=str(e)),
+                        )
+                    )
+                finally:
+                    if token is not None:
+                        detach(token)
+
+        experiment_end_time = datetime.now(timezone.utc)
+        return task_results, errors, experiment_start_time, experiment_end_time
+
+    def _fetch_and_match_traces(
+        self,
+        task_results: List[TaskResult],
+        experiment_start: "datetime",
+        experiment_end: "datetime",
+        dataset: Dataset,
+    ) -> List[str]:
+        """
+        Phase 2: Fetch traces from trace service and match to task results.
+
+        For each matched trace:
+        - Parses the OTEL trace into a Trajectory
+        - Stamps the invoker's authoritative input/output onto the trajectory
+          (the invoker knows exactly what was sent/received; trace-parsed values
+          may be truncated or missing)
+
+        Args:
+            task_results: List of TaskResult from invocation phase (mutated in place)
+            experiment_start: UTC start time of invocations
+            experiment_end: UTC end time of invocations
+            dataset: Dataset (for sizing the fetch limit)
+
+        Returns:
+            List of error messages encountered during fetching/matching
+        """
+        from .invokers import InvokeResult
+        from .trace import parse_trace_for_evaluation
+        from datetime import timedelta
+        import time
+
+        errors: List[str] = []
+
+        # Buffer the time window to account for processing delays
+        fetch_start = experiment_start - timedelta(seconds=5)
+        fetch_end = experiment_end + timedelta(seconds=5)
+
+        try:
+            fetcher = self._get_fetcher()
+
+            # Wait for traces to be exported
+            if self.trace_fetch_wait_seconds > 0:
+                logger.info(f"Waiting {self.trace_fetch_wait_seconds}s for traces to be exported...")
+                time.sleep(self.trace_fetch_wait_seconds)
+
+            expected_count = len(dataset.tasks) * self.trials_per_task
+            fetch_limit = max(expected_count * 2, 100)
+
+            fetched_traces = fetcher.fetch_traces(
+                start_time=fetch_start.isoformat(),
+                end_time=fetch_end.isoformat(),
+                limit=fetch_limit,
+            )
+
+            logger.info(
+                f"Fetched {len(fetched_traces)} traces from trace service "
+                f"(expected: {expected_count}, limit: {fetch_limit})"
+            )
+
+            # Build lookup: (task_id, trial_id) -> OTEL Trace
+            trace_by_baggage: Dict[tuple[str, str], Any] = {}
+            for trace in fetched_traces:
+                task_id = trace.taskId
+                trial_id = trace.trialId
+
+                if task_id and trial_id:
+                    trace_by_baggage[(task_id, trial_id)] = trace
+                    logger.debug(f"Trace {trace.traceId}: taskId={task_id}, trialId={trial_id}")
+                else:
+                    logger.warning(f"Trace {trace.traceId} missing taskId={task_id} or trialId={trial_id}")
+
+            logger.info(f"Matched {len(trace_by_baggage)} traces to tasks using baggage parameters")
+
+            # Match traces to task results and stamp input/output
+            for tr in task_results:
+                baggage_key = (tr.task.task_id, tr.trial_id)
+
+                if baggage_key in trace_by_baggage:
+                    otel_trace = trace_by_baggage[baggage_key]
+                    trajectory = parse_trace_for_evaluation(otel_trace)
+
+                    # Stamp authoritative input/output from invoker onto trajectory.
+                    # Evaluators access observation.input / observation.output which
+                    # delegate to trajectory.input / trajectory.output. The invoker
+                    # values are the ground truth of what was actually sent/received.
+                    # Only override if invoker has non-None values; otherwise keep trace-parsed values.
+                    if tr.invoke_result.input is not None:
+                        trajectory.input = str(tr.invoke_result.input)
+                    if tr.invoke_result.output is not None:
+                        trajectory.output = str(tr.invoke_result.output)
+
+                    # Update the invoke result with the matched trajectory
+                    tr.invoke_result = InvokeResult(
+                        input=tr.invoke_result.input,
+                        output=tr.invoke_result.output,
+                        trajectory=trajectory,
+                        metadata=tr.invoke_result.metadata,
+                        error=tr.invoke_result.error,
+                    )
+                else:
+                    logger.warning(f"No trace found for task_id={tr.task.task_id}, trial_id={tr.trial_id}")
+                    errors.append(
+                        f"Task {tr.task.task_id} trial {tr.trial_id}: No trace found with matching task_id/trial_id"
+                    )
+
+        except ValueError as e:
+            logger.warning(f"Cannot fetch traces: {e}")
+            errors.append(f"Trace fetching failed: {e}")
+        except Exception as e:
+            logger.error(f"Error during trace fetching: {e}", exc_info=True)
+            errors.append(f"Trace fetching error: {e}")
+
+        return errors
 
 
 # ============================================================================

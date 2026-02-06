@@ -18,7 +18,7 @@
 Registry system for evaluators with validation and metadata tracking.
 """
 
-from typing import Dict, Union, Callable, Optional, Type, List
+from typing import Dict, Callable, Optional, List
 from functools import wraps
 import inspect
 import logging
@@ -39,32 +39,55 @@ class EvaluatorRegistry:
     - Metadata tracking (description, tags, type)
     - Validation of evaluator signatures
     - Global and instance registries
+    - Lazy loading of built-in evaluators
+
+    Built-in Evaluators:
+        Built-in evaluators (like "deepeval/plan-quality") are NOT automatically
+        registered. They are loaded on-demand when requested via get() or
+        explicitly registered via register_builtin().
     """
 
     def __init__(self):
-        self._evaluators: Dict[str, Union[Type[BaseEvaluator], BaseEvaluator]] = {}
-        self._metadata: Dict[str, dict] = {}
+        self._evaluators: Dict[str, BaseEvaluator] = {}
 
-    def register_evaluator(
-        self, name: str, evaluator: Union[Type[BaseEvaluator], BaseEvaluator, Callable], metadata: Optional[dict] = None
-    ):
+    def register_evaluator(self, evaluator: BaseEvaluator):
         """
-        Register an evaluator.
+        Register an evaluator instance.
 
         Args:
-            name: Unique evaluator name
-            evaluator: Evaluator class, instance, or function
-            metadata: Optional metadata (description, tags, etc.)
+            evaluator: Evaluator instance (name is taken from evaluator.name)
         """
+        name = evaluator.name
         if name in self._evaluators:
             logger.warning(f"Overwriting existing evaluator '{name}'")
 
         self._evaluators[name] = evaluator
-        self._metadata[name] = metadata or {}
+
+    def register_builtin(self, name: str, **kwargs) -> None:
+        """
+        Register a built-in evaluator by name with optional configuration.
+
+        This makes the evaluator available in list_evaluators() and enables
+        tag-based filtering. The evaluator is loaded using convention-based discovery.
+
+        Args:
+            name: Built-in evaluator name (e.g., "deepeval/plan-quality")
+            **kwargs: Configuration parameters to store with the evaluator.
+                     These will be used as defaults when get() is called.
+
+        Raises:
+            ValueError: If the evaluator is not found
+            ImportError: If the evaluator's dependencies are not installed
+        """
+        from .evaluators.builtin import get_builtin_evaluator
+
+        # Get and store the configured evaluator instance
+        instance = get_builtin_evaluator(name, **kwargs)
+        self.register_evaluator(instance)
 
     def get(self, name: str) -> BaseEvaluator:
         """
-        Get an evaluator by name.
+        Get an evaluator by name from the registry.
 
         Args:
             name: Evaluator name
@@ -74,62 +97,60 @@ class EvaluatorRegistry:
 
         Raises:
             ValueError: If evaluator not found
+
+        Examples:
+            >>> # Get registered evaluator
+            >>> evaluator = registry.get("latency")
         """
-        if name not in self._evaluators:
-            available = list(self._evaluators.keys())
-            raise ValueError(f"Evaluator '{name}' not found.\nAvailable evaluators: {available}")
+        # Check if registered
+        if name in self._evaluators:
+            return self._evaluators[name]
 
-        evaluator = self._evaluators[name]
-        metadata = self._metadata.get(name, {})
-
-        # If it's a class, instantiate it
-        if isinstance(evaluator, type):
-            instance = evaluator()
-            instance.name = name
-            # Set aggregations if defined in registration
-            if hasattr(evaluator, "_registered_aggregations") and evaluator._registered_aggregations:
-                instance.aggregations = evaluator._registered_aggregations
-            elif metadata.get("aggregations"):
-                instance.aggregations = metadata["aggregations"]
-            return instance
-
-        # For instances, ensure aggregations are set from metadata if not already
-        if evaluator.aggregations is None and metadata.get("aggregations"):
-            evaluator.aggregations = metadata["aggregations"]
-
-        return evaluator
+        # Not found
+        available = list(self._evaluators.keys())
+        raise ValueError(f"Evaluator '{name}' not found.\nRegistered evaluators: {available}\n")
 
     def list_evaluators(self) -> List[str]:
-        """List all registered evaluator names."""
+        """List all registered evaluator names (does not include unregistered built-ins)."""
         return list(self._evaluators.keys())
 
     def get_metadata(self, name: str) -> dict:
-        """Get metadata for an evaluator."""
-        return self._metadata.get(name, {})
+        """
+        Get metadata for an evaluator.
+
+        For registered evaluators, gets metadata from the instance.
+        Raises ValueError if evaluator not found.
+        """
+        # Check if registered
+        if name in self._evaluators:
+            return self._evaluators[name].get_metadata()
+
+        # Not found
+        available = list(self._evaluators.keys())
+        raise ValueError(f"Evaluator '{name}' not found.\nRegistered evaluators: {available}\n")
 
     def list_by_tag(self, tag: str) -> List[str]:
-        """List evaluators by tag."""
-        return [name for name, meta in self._metadata.items() if tag in meta.get("tags", [])]
-
-    def list_by_type(self, evaluator_type: str) -> List[str]:
-        """List evaluators by type (trace, trajectory, outcome, etc.)."""
-        return [name for name, meta in self._metadata.items() if meta.get("evaluator_type") == evaluator_type]
+        """List registered evaluators by tag."""
+        result = []
+        for name in self._evaluators.keys():
+            metadata = self.get_metadata(name)
+            if tag in metadata.get("tags", []):
+                result.append(name)
+        return result
 
     def register(
         self,
         name: str,
-        evaluator_type: str = "trace",
         description: Optional[str] = None,
         tags: Optional[List[str]] = None,
         version: Optional[str] = None,
         aggregations: Optional[List] = None,
     ):
         """
-        Decorator to register an evaluator.
+        Decorator to register an evaluator instance to the registry.
 
         Args:
             name: Unique evaluator name
-            evaluator_type: Type of evaluator ("trace", "trajectory", "outcome", "trial", "task")
             description: Human-readable description
             tags: Tags for categorization (e.g., ["quality", "rag"])
             version: Evaluator version
@@ -138,9 +159,9 @@ class EvaluatorRegistry:
 
         Examples:
             # Function-based evaluator with aggregations
-            from amp_eval import AggregationType, Aggregation
+            from amp_evaluation import evaluator, AggregationType, Aggregation
 
-            @register(
+            @evaluator(
                 "answer-length",
                 description="Check minimum answer length",
                 aggregations=[
@@ -149,49 +170,52 @@ class EvaluatorRegistry:
                     Aggregation(AggregationType.PASS_RATE, threshold=0.7)
                 ]
             )
-            def check_length(trace: Trace) -> float:
-                return 1.0 if len(trace.output) > 50 else 0.5
+            def check_length(observation, task=None) -> EvalResult:
+                return EvalResult(score=1.0 if len(observation.output) > 50 else 0.5)
 
             # Class-based evaluator
-            @register(
+            @evaluator(
                 "hallucination-check",
                 tags=["quality", "rag"],
                 aggregations=[AggregationType.MEAN, AggregationType.P95]
             )
-            class HallucinationDetector(TraceEvaluator):
-                def evaluate_trace(self, trace):
+            class HallucinationDetector(BaseEvaluator):
+                def evaluate(self, observation, task=None) -> EvalResult:
                     # ... logic ...
                     return EvalResult(...)
         """
 
         def decorator(evaluator_or_func):
-            metadata = {
-                "evaluator_type": evaluator_type,
-                "description": description or "",
-                "tags": tags or [],
-                "version": version or "1.0",
-                "aggregations": aggregations,
-            }
-
             # If it's a class
             if isinstance(evaluator_or_func, type):
                 if not issubclass(evaluator_or_func, BaseEvaluator):
                     raise TypeError(
-                        f"Class '{evaluator_or_func.__name__}' must inherit from BaseEvaluator "
-                        f"or one of its subclasses.\n"
-                        f"Valid base classes: TraceEvaluator, TrajectoryEvaluator, "
-                        f"OutcomeEvaluator, TrialEvaluator, TaskEvaluator\n"
+                        f"Class '{evaluator_or_func.__name__}' must inherit from BaseEvaluator.\n"
                         f"Example:\n"
                         f"  @register('{name}')\n"
-                        f"  class {evaluator_or_func.__name__}(TraceEvaluator):\n"
-                        f"      def evaluate_trace(self, trace: Trace) -> EvalResult:\n"
+                        f"  class {evaluator_or_func.__name__}(BaseEvaluator):\n"
+                        f"      name = '{name}'\n"
+                        f"      description = '...'\n"
+                        f"      tags = ['...']\n"
+                        f"      \n"
+                        f"      def evaluate(self, observation, task=None) -> EvalResult:\n"
                         f"          ..."
                     )
 
-                # Store aggregations on the class for later access
-                evaluator_or_func._registered_aggregations = aggregations
+                # Create instance and override metadata if provided via decorator
+                instance = evaluator_or_func()
+                if name:
+                    instance.name = name
+                if description:
+                    instance.description = description
+                if tags:
+                    instance.tags = tags
+                if version:
+                    instance.version = version
+                if aggregations:
+                    instance.aggregations = aggregations
 
-                self.register_evaluator(name, evaluator_or_func, metadata)
+                self.register_evaluator(instance)
                 return evaluator_or_func
 
             # If it's a function, validate and wrap
@@ -202,14 +226,15 @@ class EvaluatorRegistry:
                 result = evaluator_or_func(observation, task)
                 return _normalize_result(result)
 
-            # Wrap in FunctionEvaluator
+            # Wrap in FunctionEvaluator and set metadata as instance attributes
             func_eval = FunctionEvaluator(wrapper, name=name)
-            if version:
-                func_eval.version = version
+            func_eval.description = description or ""
+            func_eval.tags = tags or []
+            func_eval.version = version or "1.0"
             if aggregations:
                 func_eval.aggregations = aggregations
 
-            self.register_evaluator(name, func_eval, metadata)
+            self.register_evaluator(func_eval)
             return wrapper
 
         return decorator
@@ -294,7 +319,6 @@ def _normalize_result(result) -> EvalResult:
 
 def evaluator(
     name: str,
-    evaluator_type: str = "trace",
     description: Optional[str] = None,
     tags: Optional[List[str]] = None,
     version: Optional[str] = None,
@@ -307,22 +331,110 @@ def evaluator(
 
     Args:
         name: Unique evaluator name
-        evaluator_type: Type of evaluator
         description: Human-readable description
         tags: Tags for categorization
         version: Evaluator version
         aggregations: List of aggregations (AggregationType, Aggregation, or callable)
     """
-    return _global_registry.register(name, evaluator_type, description, tags, version, aggregations)
+    return _global_registry.register(name, description, tags, version, aggregations)
+
+
+def register_evaluator(evaluator: BaseEvaluator) -> None:
+    """
+    Register an evaluator instance to the global registry.
+
+    Args:
+        evaluator: Evaluator instance (name is taken from evaluator.name)
+    """
+    _global_registry.register_evaluator(evaluator)
+
+
+def register_builtin(name: str, **kwargs) -> None:
+    """
+    Register a built-in evaluator to the global registry with optional configuration.
+
+    This makes the evaluator available in list_evaluators() and get_evaluator().
+
+    This is useful when you want to:
+    - Include built-in evaluators in tag-based filtering
+    - Make them visible in list_evaluators()
+    - Use them with Experiment.from_evaluators() by name
+    - Pre-configure evaluators with custom parameters
+
+    Args:
+        name: Built-in evaluator name (e.g., "deepeval/plan-quality")
+        **kwargs: Configuration parameters for the evaluator.
+                 The instance is created and stored with these parameters.
+
+    Raises:
+        ValueError: If the evaluator is not a known built-in
+        ImportError: If the evaluator's dependencies are not installed
+
+    Example:
+        # Register with default configuration
+        register_builtin("deepeval/plan-quality")
+
+        # Register with custom configuration
+        register_builtin("latency", max_latency_ms=500)
+        register_builtin("deepeval/tool-correctness", threshold=0.8, evaluate_input=True)
+
+        # Now they appear in list_evaluators() and can be retrieved
+        print(list_evaluators())  # [..., "deepeval/plan-quality", "latency", ...]
+
+        evaluator = get_evaluator("latency")  # Returns instance with max_latency_ms=500
+    """
+    _global_registry.register_builtin(name, **kwargs)
+
+
+def list_builtin_evaluators() -> List[str]:
+    """
+    List all available built-in evaluator names.
+
+    These are evaluators that can be loaded on-demand or registered
+    with register_builtin().
+
+    Returns:
+        List of built-in evaluator names
+    """
+    from .evaluators.builtin import list_builtin_evaluators as _list_builtin
+
+    evaluators = _list_builtin()
+    return [ev["name"] for ev in evaluators]
 
 
 def get_evaluator(name: str) -> BaseEvaluator:
-    """Get an evaluator by name from the global registry."""
+    """
+    Get an evaluator by name from the global registry.
+
+    For registered evaluators, returns the stored instance.
+    To configure built-in evaluators, use register_builtin() first with kwargs.
+
+    Args:
+        name: Evaluator name (e.g., "latency", "deepeval/plan-quality")
+
+    Returns:
+        Evaluator instance
+
+    Raises:
+        ValueError: If evaluator not found
+
+    Examples:
+        >>> # Get registered evaluator
+        >>> evaluator = get_evaluator("latency")
+
+        >>> # For custom configuration, register first
+        >>> register_builtin("latency", max_latency_ms=500)
+        >>> evaluator = get_evaluator("latency")
+
+        >>> # Or use direct import for type safety
+        >>> from amp_evaluation.evaluators.builtin.standard import LatencyEvaluator
+        >>> evaluator = LatencyEvaluator(max_latency_ms=500)
+    """
     return _global_registry.get(name)
 
 
 def list_evaluators() -> List[str]:
-    """List all registered evaluators."""
+    """List all registered evaluators (does not include unregistered built-ins)."""
     return _global_registry.list_evaluators()
 
 
@@ -334,11 +446,6 @@ def get_evaluator_metadata(name: str) -> dict:
 def list_by_tag(tag: str) -> List[str]:
     """List evaluators by tag."""
     return _global_registry.list_by_tag(tag)
-
-
-def list_by_type(evaluator_type: str) -> List[str]:
-    """List evaluators by type."""
-    return _global_registry.list_by_type(evaluator_type)
 
 
 # Export the global registry for advanced use cases
