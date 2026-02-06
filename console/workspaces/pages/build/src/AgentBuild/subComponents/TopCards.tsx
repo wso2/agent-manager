@@ -41,14 +41,14 @@ export interface TopCardsProps {
 }
 const getBuildIcon = (status: BuildStatus) => {
   switch (status) {
-    case "BuildCompleted":
-    case "WorkloadUpdated":
+    case "Completed":
+    case "Succeeded":
       return <CheckCircleIcon size={20} />;
-    case "BuildTriggered":
+    case "Pending":
       return <PlayArrow size={20} />;
-    case "BuildRunning":
+    case "Running":
       return <CircularProgress size={20} color="inherit" />;
-    case "BuildFailed":
+    case "Failed":
       return <ErrorIcon size={20} />;
     default:
       return <ErrorIcon size={20} />;
@@ -83,14 +83,14 @@ const getBuildIconVariant = (
   status: BuildStatus
 ): "success" | "warning" | "error" | "info" => {
   switch (status) {
-    case "BuildCompleted":
-    case "WorkloadUpdated":
+    case "Completed":
+    case "Succeeded":
       return "success"; // greenish for success
-    case "BuildTriggered":
+    case "Pending":
       return "warning";
-    case "BuildRunning":
+    case "Running":
       return "warning";
-    case "BuildFailed":
+    case "Failed":
       return "error"; // red for failed
     default:
       return "info";
@@ -100,14 +100,14 @@ const getTagVariant = (
   status: BuildStatus
 ): "success" | "warning" | "error" | "info" | "default" => {
   switch (status) {
-    case "BuildCompleted":
-    case "WorkloadUpdated":
+    case "Completed":
+    case "Succeeded":
       return "success";
-    case "BuildTriggered":
+    case "Pending":
       return "warning";
-    case "BuildRunning":
+    case "Running":
       return "warning";
-    case "BuildFailed":
+    case "Failed":
       return "error";
     default:
       return "default";
@@ -150,10 +150,10 @@ export const TopCards: React.FC = () => {
   const succesfullBuildCount =
     builds?.builds.filter(
       (build) =>
-        build.status === "BuildCompleted" || build.status === "WorkloadUpdated"
+        build.status === "Completed" || build.status === "Succeeded"
     ).length ?? 0;
   const failedBuildCount =
-    builds?.builds.filter((build) => build.status === "BuildFailed").length ??
+    builds?.builds.filter((build) => build.status === "Failed").length ??
     0;
 
   if (isLoading) {
