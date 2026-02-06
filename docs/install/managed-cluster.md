@@ -52,12 +52,18 @@ curl --version
 
 Ensure your cluster has the following components installed:
 
-- **cert-manager** - Required for TLS certificate management
+- **cert-manager** (v1.18.4+) - Required for TLS certificate management
 
 Install cert-manager if not already installed:
 
 ```bash
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
+# Install cert-manager with CRDs enabled
+helm install cert-manager \
+  oci://quay.io/jetstack/charts/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --version v1.18.4 \
+  --set crds.enabled=true
 
 # Wait for cert-manager to be ready
 kubectl wait --for=condition=Available \
@@ -78,336 +84,65 @@ Ensure you have sufficient permissions to:
 
 ## Phase 1: OpenChoreo Platform Setup
 
-The Agent Manager requires a complete OpenChoreo platform installation consisting of four planes:
+The Agent Manager requires a complete OpenChoreo platform installation.
 
-1. **Control Plane** - Core orchestration and management
-2. **Data Plane** - Runtime environment for agents
-3. **Build Plane** - Build and CI/CD capabilities
-4. **Observability Plane** - Monitoring and observability stack
+**📚 Base Installation Guide: [OpenChoreo Managed Kubernetes Installation](https://openchoreo.dev/docs/getting-started/try-it-out/on-managed-kubernetes/)**
 
-### Step 1: Install OpenChoreo Control Plane
+### Important: Agent Manager-Specific Configuration
 
-The Control Plane provides the core orchestration layer.
+While following the OpenChoreo installation guide, apply these Agent Manager-specific configurations:
+
+| Configuration | When to Apply | Purpose |
+|--------------|---------------|---------|
+| **Custom OTel Collector ConfigMap** | Before/After Observability Plane installation | Required for Agent Manager trace ingestion |
+| **Observability Integration** | After all planes are installed | Links DataPlane and BuildPlane to ObservabilityPlane |
+
+### Installation Steps
 
 ```bash
-# Install Control Plane with a placeholder domain
-helm install openchoreo-control-plane \
-  oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
-  --version 0.9.0 \
-  --namespace openchoreo-control-plane \
-  --create-namespace \
-  --set baseDomain=openchoreo.example.com
-
-# Wait for Control Plane to be ready
-kubectl wait --for=condition=Available \
-  deployment -l app.kubernetes.io/name=openchoreo-control-plane \
-  -n openchoreo-control-plane --timeout=600s
+# Set version variable for Agent Manager configuration files
+export VERSION="0.0.0-dev"  # Replace with your desired version
 ```
 
-### Step 2: Configure Control Plane Domain and TLS
+Follow the **[OpenChoreo Managed Kubernetes Installation Guide](https://openchoreo.dev/docs/getting-started/try-it-out/on-managed-kubernetes/)** and apply the Agent Manager-specific configurations below at the appropriate steps.
 
-After the Control Plane is deployed, you need to obtain the LoadBalancer IP and configure the domain.
+### Agent Manager-Specific OpenChoreo Configuration
 
-**For most cloud providers (GKE, AKS, etc.):**
+After completing the base OpenChoreo installation, apply these Agent Manager-specific configurations:
+
+#### 1. Apply Custom OpenTelemetry Collector Configuration
+
+The Agent Manager requires a custom OpenTelemetry collector configuration for trace ingestion:
 
 ```bash
-# Get the LoadBalancer IP
-export CP_IP=$(kubectl get svc -n openchoreo-control-plane \
-  -l app.kubernetes.io/name=openchoreo-control-plane \
-  -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}')
-
-echo "Control Plane LoadBalancer IP: ${CP_IP}"
-
-# Convert IP to nip.io format (e.g., 192.168.1.1 -> 192-168-1-1)
-export CP_DOMAIN="openchoreo.$(echo ${CP_IP} | tr '.' '-').nip.io"
-echo "Control Plane Domain: ${CP_DOMAIN}"
+# Apply custom OpenTelemetry Collector ConfigMap
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/oc-collector-configmap.yaml \
+  -n openchoreo-observability-plane
 ```
 
-**For AWS EKS (special handling required):**
+#### 2. Configure Observability Integration
 
-AWS EKS LoadBalancers are private by default and return a hostname instead of an IP. You need to patch the service first:
+Link the Data Plane and Build Plane to the Observability Plane:
 
 ```bash
-# Make the LoadBalancer internet-facing
-kubectl patch svc -n openchoreo-control-plane \
-  -l app.kubernetes.io/name=openchoreo-control-plane \
-  --type='json' \
-  -p='[{"op": "add", "path": "/metadata/annotations/service.beta.kubernetes.io~1aws-load-balancer-scheme", "value": "internet-facing"}]'
+# Configure DataPlane to use observability plane
+kubectl patch dataplane default -n default --type merge \
+  -p '{"spec":{"observabilityPlaneRef":"default"}}'
 
-# Get the LoadBalancer hostname
-export CP_HOSTNAME=$(kubectl get svc -n openchoreo-control-plane \
-  -l app.kubernetes.io/name=openchoreo-control-plane \
-  -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}')
-
-echo "Control Plane LoadBalancer Hostname: ${CP_HOSTNAME}"
-
-# Resolve hostname to IP
-export CP_IP=$(dig +short ${CP_HOSTNAME} | head -n1)
-echo "Control Plane IP: ${CP_IP}"
-
-# Convert IP to nip.io format
-export CP_DOMAIN="openchoreo.$(echo ${CP_IP} | tr '.' '-').nip.io"
-echo "Control Plane Domain: ${CP_DOMAIN}"
+# Configure BuildPlane to use observability plane
+kubectl patch buildplane default -n default --type merge \
+  -p '{"spec":{"observabilityPlaneRef":"default"}}'
 ```
 
-**Create Let's Encrypt ClusterIssuer:**
+#### 3. Save Registry Endpoint
+
+Make note of the registry endpoint configured during Build Plane installation. You'll need this value when installing the Agent Manager Build Extension:
 
 ```bash
-# Create ClusterIssuer for Let's Encrypt
-cat <<EOF | kubectl apply -f -
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: letsencrypt-prod
-spec:
-  acme:
-    server: https://acme-v02.api.letsencrypt.org/directory
-    email: admin@example.com  # Replace with your email
-    privateKeySecretRef:
-      name: letsencrypt-prod
-    solvers:
-    - http01:
-        ingress:
-          class: nginx
-EOF
-```
-
-**Upgrade Control Plane with the correct domain:**
-
-```bash
-# Upgrade Control Plane with the resolved domain
-helm upgrade openchoreo-control-plane \
-  oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
-  --version 0.9.0 \
-  --namespace openchoreo-control-plane \
-  --reuse-values \
-  --set baseDomain=${CP_DOMAIN} \
-  --set tls.enabled=true \
-  --set tls.issuer=letsencrypt-prod
-
-# Wait for the upgrade to complete
-kubectl rollout status deployment -l app.kubernetes.io/name=openchoreo-control-plane \
-  -n openchoreo-control-plane --timeout=300s
-```
-
-**Wait for TLS certificate to be issued:**
-
-```bash
-# Check certificate status
-kubectl get certificate -n openchoreo-control-plane
-
-# Wait for certificate to be ready
-kubectl wait --for=condition=Ready \
-  certificate -l app.kubernetes.io/name=openchoreo-control-plane \
-  -n openchoreo-control-plane --timeout=300s
-```
-
-**Verify Control Plane Access:**
-
-```bash
-# Test access to the Control Plane
-echo "Control Plane URL: https://${CP_DOMAIN}"
-curl -v https://${CP_DOMAIN}
-```
-
-### Step 3: Install OpenChoreo Data Plane
-
-The Data Plane provides the runtime environment for deployed agents.
-
-```bash
-# Install Data Plane
-helm install openchoreo-data-plane \
-  oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
-  --version 0.9.0 \
-  --namespace openchoreo-data-plane \
-  --create-namespace \
-  --set controlPlane.url=https://${CP_DOMAIN}
-
-# Wait for Data Plane to be ready
-kubectl wait --for=condition=Available \
-  deployment -l app.kubernetes.io/name=openchoreo-data-plane \
-  -n openchoreo-data-plane --timeout=600s
-```
-
-**Note:** The Data Plane will have its own LoadBalancer IP, different from the Control Plane.
-
-**Get Data Plane LoadBalancer IP:**
-
-```bash
-# For most cloud providers (GKE, AKS, etc.)
-export DP_IP=$(kubectl get svc -n openchoreo-data-plane \
-  -l app.kubernetes.io/name=openchoreo-data-plane \
-  -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}')
-
-echo "Data Plane LoadBalancer IP: ${DP_IP}"
-
-# For AWS EKS
-# export DP_HOSTNAME=$(kubectl get svc -n openchoreo-data-plane \
-#   -l app.kubernetes.io/name=openchoreo-data-plane \
-#   -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}')
-# export DP_IP=$(dig +short ${DP_HOSTNAME} | head -n1)
-
-# Convert IP to nip.io format
-export DP_DOMAIN="dataplane.$(echo ${DP_IP} | tr '.' '-').nip.io"
-echo "Data Plane Domain: ${DP_DOMAIN}"
-```
-
-**Important:** The Data Plane uses HTTP-01 validation which cannot issue wildcard certificates. By default, the Data Plane will use self-signed certificates. For production, you'll need to configure proper TLS certificates.
-
-**Register Data Plane with Control Plane:**
-
-Create and apply the DataPlane custom resource:
-
-```bash
-cat <<EOF | kubectl apply -f -
-apiVersion: openchoreo.dev/v1alpha1
-kind: DataPlane
-metadata:
-  name: default
-  namespace: default
-spec:
-  planeID: default-dataplane  # Must match clusterAgent.planeId in Helm values
-  controlPlaneRef: default
-  endpoint: https://${DP_DOMAIN}
-EOF
-```
-
-**Critical:** The `planeID` in the DataPlane CR must match the `clusterAgent.planeId` Helm value.
-
-### Step 4: Install OpenChoreo Build Plane
-
-The Build Plane enables CI/CD capabilities for building container images and deploys a container registry.
-
-**Install Build Plane with Registry Configuration:**
-
-For managed Kubernetes, you have two options for the container registry:
-
-**Option 1: Use OpenChoreo's Built-in Registry (Exploration/Development)**
-
-The Build Plane includes a built-in Docker registry. When using nip.io domains, configure the registry to be accessible via the Control Plane domain:
-
-```bash
-# Install Build Plane with built-in registry
-helm install openchoreo-build-plane \
-  oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane \
-  --version 0.9.0 \
-  --namespace openchoreo-build-plane \
-  --create-namespace \
-  --set controlPlane.url=https://${CP_DOMAIN} \
-  --set global.baseDomain=${CP_DOMAIN} \
-  --set global.defaultResources.registry.endpoint=registry.${CP_DOMAIN}
-
-# Wait for Build Plane to be ready
-kubectl wait --for=condition=Available \
-  deployment -l app.kubernetes.io/name=openchoreo-build-plane \
-  -n openchoreo-build-plane --timeout=600s
-
-# Wait for registry to be ready
-kubectl wait --for=condition=Available \
-  deployment/registry -n openchoreo-build-plane --timeout=300s
-
-# Save the registry endpoint for later use
+# If using OpenChoreo's built-in registry:
 export REGISTRY_ENDPOINT="registry.${CP_DOMAIN}"
-echo "Registry endpoint: ${REGISTRY_ENDPOINT}"
-```
 
-**Option 2: Use External Cloud Registry (Recommended for Production)**
-
-For production deployments, use cloud provider registries:
-
-```bash
-# Set your cloud registry endpoint
-# For AWS ECR:
-export REGISTRY_ENDPOINT="<account-id>.dkr.ecr.<region>.amazonaws.com"
-
-# For Google GCR/Artifact Registry:
-# export REGISTRY_ENDPOINT="gcr.io/<project-id>"
-# export REGISTRY_ENDPOINT="<region>-docker.pkg.dev/<project-id>/<repository>"
-
-# For Azure ACR:
-# export REGISTRY_ENDPOINT="<registry-name>.azurecr.io"
-
-# Install Build Plane with external registry
-helm install openchoreo-build-plane \
-  oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane \
-  --version 0.9.0 \
-  --namespace openchoreo-build-plane \
-  --create-namespace \
-  --set controlPlane.url=https://${CP_DOMAIN} \
-  --set global.defaultResources.registry.endpoint=${REGISTRY_ENDPOINT} \
-  --set registry.enabled=false
-
-# Wait for Build Plane to be ready
-kubectl wait --for=condition=Available \
-  deployment -l app.kubernetes.io/name=openchoreo-build-plane \
-  -n openchoreo-build-plane --timeout=600s
-
-echo "Registry endpoint: ${REGISTRY_ENDPOINT}"
-```
-
-**Important - Registry Endpoint:**
-
-The `REGISTRY_ENDPOINT` value you configure here will be used later when installing the Agent Manager Build Extension in Phase 2, Step 6. Make note of this value.
-
-**Registry Authentication (for External Registries):**
-
-If using cloud registries, configure authentication:
-
-- **AWS ECR**: Use IAM roles for service accounts (IRSA) or create image pull secrets
-- **Google GCR**: Use Workload Identity or service account keys
-- **Azure ACR**: Use Azure AD pod identity or service principal
-
-**Register Build Plane with Control Plane:**
-
-```bash
-cat <<EOF | kubectl apply -f -
-apiVersion: openchoreo.dev/v1alpha1
-kind: BuildPlane
-metadata:
-  name: default
-  namespace: default
-spec:
-  planeID: default-buildplane  # Must match clusterAgent.planeId in Helm values
-  controlPlaneRef: default
-EOF
-```
-
-For detailed Build Plane configuration and registry setup, refer to the [OpenChoreo Managed Kubernetes Guide](https://openchoreo.dev/docs/v0.9.x/getting-started/try-it-out/on-managed-kubernetes/).
-
-### Step 5: Install OpenChoreo Observability Plane
-
-The Observability Plane integrates with OpenSearch for monitoring and observability.
-
-```bash
-# Create namespace
-kubectl create namespace openchoreo-observability-plane
-
-# Install Observability Plane
-helm install openchoreo-observability-plane \
-  oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-  --version 0.9.0 \
-  --namespace openchoreo-observability-plane \
-  --set controlPlane.url=https://${CP_DOMAIN}
-
-# Wait for Observability Plane to be ready
-kubectl wait --for=condition=Available \
-  deployment -l app.kubernetes.io/name=openchoreo-observability-plane \
-  -n openchoreo-observability-plane --timeout=600s
-```
-
-**Register Observability Plane with Control Plane:**
-
-```bash
-cat <<EOF | kubectl apply -f -
-apiVersion: openchoreo.dev/v1alpha1
-kind: ObservabilityPlane
-metadata:
-  name: default
-  namespace: default
-spec:
-  planeID: default-observability  # Must match clusterAgent.planeId in Helm values
-  controlPlaneRef: default
-EOF
+# If using cloud registries, use the endpoint you configured (e.g., AWS ECR, GCR, ACR)
 ```
 
 ### Verify OpenChoreo Installation
@@ -476,7 +211,75 @@ export DEFAULT_NS="default"
 export DATA_PLANE_NS="openchoreo-data-plane"
 ```
 
-### Step 1: Install Agent Manager
+### Step 1: Install Gateway Operator
+
+The Gateway Operator manages API Gateway resources and enables secure trace ingestion to the Observability Plane.
+
+```bash
+# Install Gateway Operator
+helm install gateway-operator \
+  oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator \
+  --version 0.2.0 \
+  --namespace ${DATA_PLANE_NS} \
+  --set logging.level=debug \
+  --set gateway.helm.chartVersion=0.3.0 \
+  --timeout 600s
+
+# Wait for Gateway Operator deployment
+kubectl wait --for=condition=Available \
+  deployment -l app.kubernetes.io/name=gateway-operator \
+  -n ${DATA_PLANE_NS} --timeout=300s
+```
+
+**Apply Gateway Operator Configuration:**
+
+This configuration sets up API authentication (using JWT/JWKS) and rate limiting policies:
+
+```bash
+# Apply Gateway Operator configuration
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/api-platform-operator-full-config.yaml
+```
+
+### Step 2: Create Gateway and API Resources
+
+Deploy the observability gateway and trace API endpoint for secure trace ingestion:
+
+```bash
+# Apply Observability Gateway
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/obs-gateway.yaml
+
+# Wait for Gateway to be programmed
+kubectl wait --for=condition=Programmed \
+  gateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
+
+# Apply OTEL Collector RestApi
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/otel-collector-rest-api.yaml
+
+# Wait for RestApi to be programmed
+kubectl wait --for=condition=Programmed \
+  restapi/traces-api-secure -n ${DATA_PLANE_NS} --timeout=120s
+```
+
+### Step 3: Install AMP Thunder Extension
+
+The AMP Thunder Extension provides additional identity and authentication features for the Agent Management Platform.
+
+```bash
+# Set Thunder namespace
+export THUNDER_NS="amp-thunder"
+
+# Install AMP Thunder Extension
+helm install amp-thunder-extension \
+  oci://${HELM_CHART_REGISTRY}/wso2-amp-thunder-extension \
+  --version ${VERSION} \
+  --namespace ${THUNDER_NS} \
+  --create-namespace \
+  --timeout 1800s
+```
+
+**Note:** This extension is optional. The platform will function without it, but Thunder extension features may not be available.
+
+### Step 4: Install Agent Manager
 
 The core platform includes:
 
@@ -486,15 +289,28 @@ The core platform includes:
 
 **Installation:**
 
+Get the observability gateway endpoint for console instrumentation:
+
 ```bash
-# Install the platform Helm chart
+# Get the observability gateway LoadBalancer IP/hostname
+OBS_GATEWAY_IP=$(kubectl get svc obs-gateway-gateway-router -n ${DATA_PLANE_NS} \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || \
+  kubectl get svc obs-gateway-gateway-router -n ${DATA_PLANE_NS} \
+  -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null)
+
+echo "Observability Gateway: ${OBS_GATEWAY_IP}"
+
+# Install the platform Helm chart with instrumentation URL configured
 helm install amp \
   oci://${HELM_CHART_REGISTRY}/wso2-agent-manager \
   --version ${VERSION} \
   --namespace ${AMP_NS} \
   --create-namespace \
+  --set console.config.instrumentationUrl="http://${OBS_GATEWAY_IP}:22893/otel" \
   --timeout 1800s
 ```
+
+**Note:** If you're using port-forwarding or exposing the gateway differently, update the `console.config.instrumentationUrl` accordingly.
 
 **Wait for components to be ready:**
 
@@ -512,7 +328,7 @@ kubectl wait --for=condition=Available \
   deployment/amp-console -n ${AMP_NS} --timeout=600s
 ```
 
-### Step 2: Install Platform Resources Extension
+### Step 5: Install Platform Resources Extension
 
 The Platform Resources Extension creates default resources:
 
@@ -534,15 +350,16 @@ helm install amp-platform-resources \
 
 **Note:** This extension is non-fatal if installation fails. The platform will function, but default resources may not be available.
 
-### Step 3: Install Observability Extension
+### Step 6: Install Observability Extension
 
 The observability extension includes the Traces Observer service for querying traces from OpenSearch.
 
-**Create OpenTelemetry Collector ConfigMap:**
+**Note:** The OpenTelemetry Collector ConfigMap should have been applied in Phase 1, Step 5. If you skipped it, apply it now:
 
 ```bash
-# Create the OpenTelemetry collector config map
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/oc-collector-configmap.yaml
+# Verify or apply the OpenTelemetry collector config map
+kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/values/oc-collector-configmap.yaml \
+  -n ${OBSERVABILITY_NS}
 ```
 
 **Installation:**
@@ -566,62 +383,7 @@ kubectl wait --for=condition=Available \
 
 **Note:** This extension is non-fatal if installation fails. The platform will function, but observability features may not work.
 
-### Step 4: Install and Configure Gateway Operator
-
-The Gateway Operator manages API Gateway resources and enables secure trace ingestion.
-
-```bash
-# Install Gateway Operator
-helm install gateway-operator \
-  oci://ghcr.io/wso2/api-platform/helm-charts/gateway-operator \
-  --version 0.2.0 \
-  --namespace ${DATA_PLANE_NS} \
-  --create-namespace \
-  --set logging.level=debug \
-  --set gateway.helm.chartVersion=0.3.0
-
-# Wait for Gateway Operator deployment
-kubectl wait --for=condition=Available \
-  deployment -l app.kubernetes.io/name=gateway-operator \
-  -n ${DATA_PLANE_NS} --timeout=300s
-
-# Apply the Gateway Operator configuration for API authentication and rate limiting
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/api-platform-operator-full-config.yaml
-```
-
-**Create Gateway and API Resources:**
-
-```bash
-# Apply Observability Gateway
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/obs-gateway.yaml
-
-# Wait for Gateway to be programmed
-kubectl wait --for=condition=Programmed \
-  gateway/obs-gateway -n ${DATA_PLANE_NS} --timeout=180s
-
-# Apply OTEL Collector RestApi
-kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/otel-collector-rest-api.yaml
-
-# Wait for RestApi to be programmed
-kubectl wait --for=condition=Programmed \
-  restapi/traces-api-secure -n ${DATA_PLANE_NS} --timeout=120s
-```
-
-### Step 5: Configure Observability Integration
-
-Configure the DataPlane and BuildPlane to use the observability plane:
-
-```bash
-# Configure DataPlane observer
-kubectl patch dataplane default -n default --type merge \
-  -p '{"spec":{"observabilityPlaneRef":"default"}}'
-
-# Configure BuildPlane observer
-kubectl patch buildplane default -n default --type merge \
-  -p '{"spec":{"observabilityPlaneRef":"default"}}'
-```
-
-### Step 6: Install Build Extension
+### Step 7: Install Build Extension
 
 Install workflow templates for building container images. The Build Extension must be configured to use the **same container registry** that was configured when installing OpenChoreo Build Plane.
 
@@ -686,7 +448,7 @@ This should show the registry endpoint that OpenChoreo Build Plane is using. Ens
 - The same value configured in Phase 1, Step 4 during OpenChoreo Build Plane installation
 - Properly authenticated if using external cloud registries (ECR/GCR/ACR)
 
-**Note:** This extension is non-fatal if installation fails. The platform will function, but build CI features may not work.
+**Note:** This extension is optional. The platform will function without it, but build CI features may not work.
 
 ## Verification
 
@@ -913,10 +675,25 @@ kubectl get svc -n <namespace> -o jsonpath='{.metadata.annotations}'
 aws ec2 describe-security-groups --filters "Name=tag:kubernetes.io/cluster/<cluster-name>,Values=owned"
 ```
 
+## Reference Configuration Files
+
+All configuration values files used in this guide are available in the repository:
+
+- **Control Plane Values**: [deployments/single-cluster/values-cp.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/single-cluster/values-cp.yaml)
+- **Data Plane Values**: [deployments/single-cluster/values-dp.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/single-cluster/values-dp.yaml)
+- **Build Plane Values**: [deployments/single-cluster/values-bp.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/single-cluster/values-bp.yaml)
+- **Observability Plane Values**: [deployments/single-cluster/values-op.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/single-cluster/values-op.yaml)
+- **Gateway Operator Config**: [deployments/values/api-platform-operator-full-config.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/values/api-platform-operator-full-config.yaml)
+- **Observability Gateway**: [deployments/values/obs-gateway.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/values/obs-gateway.yaml)
+- **OTEL Collector ConfigMap**: [deployments/values/oc-collector-configmap.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/values/oc-collector-configmap.yaml)
+- **OTEL Collector RestApi**: [deployments/values/otel-collector-rest-api.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/values/otel-collector-rest-api.yaml)
+
+You can customize these files for your specific deployment needs.
+
 ## See Also
 
 - [Self Hosted Kubernetes Cluster](./self-hosted-cluster.md) - Installation on self-hosted Kubernetes
 - [Quick Start Guide](../quick-start.md) - Complete automated setup with k3d and OpenChoreo
 - [Main README](../../README.md) - Project overview and architecture
-- [OpenChoreo Documentation](https://openchoreo.dev/docs/v0.9.x/) - Official OpenChoreo setup and configuration
-- [OpenChoreo Managed Kubernetes Guide](https://openchoreo.dev/docs/v0.9.x/getting-started/try-it-out/on-managed-kubernetes/) - Detailed OpenChoreo deployment guide for managed Kubernetes
+- [OpenChoreo Documentation](https://openchoreo.dev/docs/) - Official OpenChoreo setup and configuration
+- [OpenChoreo Managed Kubernetes Guide](https://openchoreo.dev/docs/getting-started/try-it-out/on-managed-kubernetes/) - Detailed OpenChoreo deployment guide for managed Kubernetes
