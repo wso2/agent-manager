@@ -67,6 +67,9 @@ type Config struct {
 
 	// OpenChoreo API configuration
 	OpenChoreo OpenChoreoConfig
+
+	// Gateway configuration
+	Gateway GatewayConfig
 }
 
 // OpenChoreoConfig holds OpenChoreo API configuration
@@ -182,4 +185,14 @@ type PublicKeyConfig struct {
 // PublicKeysConfig represents the structure of the public keys JSON configuration file
 type PublicKeysConfig struct {
 	Keys []PublicKeyConfig `json:"keys"`
+}
+
+// GatewayConfig holds gateway management configuration
+type GatewayConfig struct {
+	AdapterType        string // "on-premise" or "cloud"
+	DefaultTimeout     int    // Default timeout in seconds
+	HealthCheckTimeout int    // Health check timeout in seconds
+	MaxRetries         int    // Maximum number of retries
+	RetryBackoff       int    // Retry backoff in seconds
+	EncryptionKey      string // Base64-encoded encryption key
 }
