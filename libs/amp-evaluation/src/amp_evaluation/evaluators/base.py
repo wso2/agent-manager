@@ -46,8 +46,20 @@ class BaseEvaluator(ABC):
     The runner automatically enriches EvalResult into EvaluatorScore
     with metadata (trace ID, timestamp, task ID, trial ID).
 
-    Example (Monitor-compatible):
+    Class Attributes for Metadata:
+        name: Unique evaluator name (defaults to class name)
+        description: Human-readable description of what the evaluator does
+        tags: List of tags for categorization (e.g., ["quality", "rag", "deepeval"])
+        version: Evaluator version string
+        aggregations: Default aggregations to compute for this evaluator
+
+    Example (Built-in evaluator with metadata):
         class LatencyEvaluator(BaseEvaluator):
+            name = "latency"
+            description = "Checks if response latency is within acceptable limits"
+            tags = ["performance", "sla"]
+            version = "1.0"
+
             def __init__(self, max_latency_ms: float = 5000):
                 super().__init__()
                 self.max_latency = max_latency_ms
@@ -62,6 +74,10 @@ class BaseEvaluator(ABC):
 
     Example (Experiment-only):
         class ExactMatchEvaluator(BaseEvaluator):
+            name = "exact-match"
+            description = "Checks if output exactly matches expected output"
+            tags = ["accuracy"]
+
             def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
                 if not task or not task.expected_output:
                     raise ValueError("ExactMatchEvaluator requires task with expected_output")
@@ -71,31 +87,25 @@ class BaseEvaluator(ABC):
                     score=1.0 if matches else 0.0,
                     explanation=f"Exact match: {matches}"
                 )
-
-    Example (Flexible):
-        class SemanticSimilarityEvaluator(BaseEvaluator):
-            def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
-                if task and task.expected_output:
-                    # Experiment mode - compare with expected
-                    score = similarity(observation.output, task.expected_output)
-                else:
-                    # Monitor mode - standalone quality check
-                    score = quality_score(observation.output)
-                return EvalResult(score=score)
     """
 
+    # Class-level metadata attributes (can be overridden by subclasses or instances)
+    name: str = ""  # Defaults to class name if not set
+    description: str = ""
+    tags: List[str] = []
+    version: str = "1.0"
+    evaluator_type: str = "trace"
+
     def __init__(self):
-        self._name: Optional[str] = None
+        # Set default name to class name if not already set
+        if not self.name:
+            self.name = self.__class__.__name__
+
         self._aggregations: Optional[List] = None
 
-    @property
-    def name(self) -> str:
-        """Evaluator name. Defaults to class name."""
-        return self._name or self.__class__.__name__
-
-    @name.setter
-    def name(self, value: str):
-        self._name = value
+        # Check if class has default aggregations set via decorator
+        if hasattr(self.__class__, "_default_aggregations") and self.__class__._default_aggregations:
+            self._aggregations = self.__class__._default_aggregations
 
     @property
     def aggregations(self) -> Optional[List]:
@@ -106,6 +116,21 @@ class BaseEvaluator(ABC):
     def aggregations(self, value: List):
         """Set aggregations for this evaluator."""
         self._aggregations = value
+
+    def get_metadata(self) -> dict:
+        """
+        Get evaluator metadata.
+
+        Returns metadata from instance attributes if set (e.g., for FunctionEvaluator),
+        otherwise from class attributes.
+        """
+        return {
+            "name": self.name,
+            "description": getattr(self, "description", ""),
+            "tags": list(getattr(self, "tags", [])),  # Copy to avoid mutation
+            "version": getattr(self, "version", "1.0"),
+            "evaluator_type": getattr(self, "evaluator_type", "trace"),
+        }
 
     @abstractmethod
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
@@ -273,7 +298,7 @@ class FunctionEvaluator(BaseEvaluator):
     def __init__(self, func: Callable[[Observation, Optional[Task]], any], name: Optional[str] = None):
         super().__init__()
         self.func = func
-        self._name = name or func.__name__
+        self.name = name or func.__name__
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         """Call the wrapped function."""

@@ -15,16 +15,44 @@
 # under the License.
 
 """
-Evaluation framework for AI agents supporting:
-- Tasks and Datasets
-- Multiple evaluator types (trace, trajectory)
-- Aggregation and benchmarking
-- Local and cloud execution
+Evaluation framework for AI agents.
+
+Import Structure:
+-----------------
+
+Main module (amp_evaluation):
+    Core models, runners, config, and convenience decorators.
+
+    >>> from amp_evaluation import (
+    ...     # Core models
+    ...     Observation, Task, Dataset, EvalResult, Agent,
+    ...     # Runners
+    ...     Experiment, Monitor,
+    ...     # Config
+    ...     Config,
+    ...     # Convenience decorators (allowed here for ergonomics)
+    ...     evaluator, aggregator,
+    ...     # Registry functions
+    ...     register_builtin, get_evaluator, list_evaluators,
+    ... )
+
+Submodules for domain-specific types:
+
+    >>> from amp_evaluation.evaluators import BaseEvaluator, FunctionEvaluator
+    >>> from amp_evaluation.evaluators.builtin.standard import LatencyEvaluator
+    >>> from amp_evaluation.evaluators.builtin.deepeval import DeepEvalToolCorrectnessEvaluator
+
+    >>> from amp_evaluation.trace import Trajectory, LLMSpan, ToolSpan, TokenUsage
+    >>> from amp_evaluation.trace import parse_trace_for_evaluation, TraceFetcher
+
+    >>> from amp_evaluation.aggregators import AggregationType, Aggregation
 """
 
 __version__ = "0.0.0-dev"
 
-# Core models
+# ============================================================================
+# CORE MODELS
+# ============================================================================
 from .models import (
     # Exceptions
     DataNotAvailableError,
@@ -43,164 +71,119 @@ from .models import (
     generate_id,
 )
 
-# Dataset schema (JSON loading) - Constraints is the single source of truth
+# Dataset schema (JSON loading)
 from .dataset_schema import DatasetSchema, Constraints
 
+# ============================================================================
+# RUNNERS
+# ============================================================================
+from .runner import BaseRunner, Experiment, Monitor, RunResult, RunType
 
-# Evaluator base classes
-from .evaluators.base import BaseEvaluator, LLMAsJudgeEvaluator, FunctionEvaluator
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+from .config import Config, AgentConfig, PlatformConfig, get_config, reload_config
 
-# Registry
+# ============================================================================
+# AGENT INVOCATION
+# ============================================================================
+from .invokers import AgentInvoker, InvokeResult, HttpAgentInvoker
+
+# ============================================================================
+# LOADERS
+# ============================================================================
+from .loaders import DatasetLoader
+
+# ============================================================================
+# CONVENIENCE DECORATORS (allowed in main module for ergonomics)
+# ============================================================================
+# @evaluator decorator - for registering custom evaluators
+from .registry import evaluator
+
+# @aggregator decorator - for registering custom aggregators
+from .aggregators.base import aggregator
+
+# ============================================================================
+# REGISTRY FUNCTIONS (convenience access)
+# ============================================================================
 from .registry import (
-    evaluator,
     get_evaluator,
     list_evaluators,
     get_evaluator_metadata,
     list_by_tag,
-    list_by_type,
     get_registry,
     EvaluatorRegistry,
+    register_evaluator,
+    register_builtin,
+    list_builtin_evaluators,
 )
 
-# Aggregation system
-from .aggregators.base import (
-    Aggregation,
-    AggregationType,
-    aggregator,
-    register_aggregator,
-    list_aggregators,
-    normalize_aggregations,
-    DEFAULT_AGGREGATIONS,
-)
-
-# Evaluation runners
-from .runner import BaseRunner, Experiment, Monitor, RunResult, RunType
-
-# Agent invocation
-from .invokers import AgentInvoker, InvokeResult, HttpAgentInvoker
-
-# Loaders
-from .loaders import (
-    DatasetLoader,
-)
-
-# Trace module - evaluation-optimized trace structures
-from .trace import (
-    # Core trace
-    Trajectory,
-    # Span types
-    LLMSpan,
-    ToolSpan,
-    RetrieverSpan,
-    AgentSpan,
-    # Metrics
-    TraceMetrics,
-    SpanMetrics,
-    LLMMetrics,
-    ToolMetrics,
-    RetrieverMetrics,
-    AgentMetrics,
-    TokenUsage,
-    # Supporting types
-    Message,
-    ToolCall as EvalToolCall,  # Renamed to avoid conflict with models.ToolCall
-    RetrievedDoc,
-    # Parser functions
-    parse_trace_for_evaluation,
-    parse_traces_for_evaluation,
-    # Fetcher
-    TraceFetcher,
-    TraceFetchConfig,
-    TraceLoader,
-)
-
-# Configuration
-from .config import Config, AgentConfig, PlatformConfig, get_config, reload_config
-
-# Built-in evaluators (auto-register on import)
-from .evaluators import builtin  # noqa: F401
+# ============================================================================
+# AUTO-REGISTER BUILT-IN EVALUATORS
+# ============================================================================
+# Import evaluators package to trigger auto-registration of built-ins
+from . import evaluators as _evaluators  # noqa: F401
 
 
 __all__ = [
     # Version
     "__version__",
+    # -------------------------------------------------------------------------
     # Core models
+    # -------------------------------------------------------------------------
     "Observation",
     "Task",
-    "Constraints",
     "Dataset",
-    "DatasetSchema",
     "Agent",
-    "generate_id",
-    "DataNotAvailableError",
-    # Results & Context
     "EvalResult",
     "EvaluatorScore",
     "EvaluatorSummary",
-    "Observation",
-    "Task",
-    # Evaluators
-    "BaseEvaluator",
-    "LLMAsJudgeEvaluator",
-    "FunctionEvaluator",
-    # Registry
-    "evaluator",
-    "get_evaluator",
-    "list_evaluators",
-    "get_evaluator_metadata",
-    "list_by_tag",
-    "list_by_type",
-    "get_registry",
-    "EvaluatorRegistry",
-    # Aggregation system
-    "Aggregation",
-    "AggregationType",
-    "aggregator",
-    "register_aggregator",
-    "list_aggregators",
-    "normalize_aggregations",
-    "DEFAULT_AGGREGATIONS",
+    "DataNotAvailableError",
+    "generate_id",
+    # Dataset schema
+    "DatasetSchema",
+    "Constraints",
+    # -------------------------------------------------------------------------
     # Runners
+    # -------------------------------------------------------------------------
     "BaseRunner",
     "Experiment",
     "Monitor",
     "RunResult",
     "RunType",
-    # Agent invocation
-    "AgentInvoker",
-    "InvokeResult",
-    "HttpAgentInvoker",
-    # Loaders
-    "DatasetLoader",
-    # Trace fetching
-    "TraceFetcher",
-    "TraceFetchConfig",
-    "TraceLoader",
-    # Trace module - evaluation-optimized structures
-    "Trajectory",
-    "LLMSpan",
-    "ToolSpan",
-    "RetrieverSpan",
-    "AgentSpan",
-    # Metrics
-    "TraceMetrics",
-    "SpanMetrics",
-    "LLMMetrics",
-    "ToolMetrics",
-    "RetrieverMetrics",
-    "AgentMetrics",
-    "TokenUsage",
-    # Supporting types
-    "Message",
-    "EvalToolCall",
-    "RetrievedDoc",
-    # Parser functions
-    "parse_trace_for_evaluation",
-    "parse_traces_for_evaluation",
+    # -------------------------------------------------------------------------
     # Configuration
+    # -------------------------------------------------------------------------
     "Config",
     "AgentConfig",
     "PlatformConfig",
     "get_config",
     "reload_config",
+    # -------------------------------------------------------------------------
+    # Agent invocation
+    # -------------------------------------------------------------------------
+    "AgentInvoker",
+    "InvokeResult",
+    "HttpAgentInvoker",
+    # -------------------------------------------------------------------------
+    # Loaders
+    # -------------------------------------------------------------------------
+    "DatasetLoader",
+    # -------------------------------------------------------------------------
+    # Convenience decorators (allowed in main module)
+    # -------------------------------------------------------------------------
+    "evaluator",
+    "aggregator",
+    # -------------------------------------------------------------------------
+    # Registry functions
+    # -------------------------------------------------------------------------
+    "get_evaluator",
+    "list_evaluators",
+    "get_evaluator_metadata",
+    "list_by_tag",
+    "get_registry",
+    "EvaluatorRegistry",
+    "register_evaluator",
+    "register_builtin",
+    "list_builtin_evaluators",
 ]

@@ -33,44 +33,38 @@ Two invocation patterns:
    - Can return trajectory directly from instrumentation
    - Skips trace fetching step
 
-Example (HTTP Agent):
+Example (HTTP Agent - simple):
     invoker = HttpAgentInvoker(
         base_url="http://localhost:8000",
         endpoint="/chat",
-        http_client=requests  # or httpx, etc.
     )
 
-    # Framework automatically:
-    # 1. Propagates task_id and trial_id via baggage
-    # 2. Batch-fetches traces after all invocations
-    # 3. Matches traces to tasks using baggage attributes
+Example (HTTP Agent - with options):
+    invoker = HttpAgentInvoker(
+        base_url="http://localhost:8000",
+        endpoint="/chat",
+        method="POST",
+        timeout=120,
+        headers={"Authorization": "Bearer xxx"},
+    )
 
 Example (In-Process Agent):
     class InProcessInvoker(AgentInvoker):
-        def invoke(self, task: Task) -> InvokeResult:
-            response = my_agent.run(task.input)
+        def invoke(self, input: Any) -> InvokeResult:
+            response = my_agent.run(input)
             trajectory = get_current_trajectory()  # From instrumentation
-            return InvokeResult(output=response, trajectory=trajectory)
+            return InvokeResult(input=input, output=response, trajectory=trajectory)
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any, Protocol, Callable
+from typing import Optional, List, Dict, Any, Callable
 import logging
 
-from .models import Task
 from .trace import Trajectory
 
 
 logger = logging.getLogger(__name__)
-
-
-class HttpClient(Protocol):
-    """Protocol for HTTP client (requests, httpx, etc.)."""
-
-    def post(self, url: str, **kwargs) -> Any:
-        """Make a POST request."""
-        ...
 
 
 @dataclass
@@ -85,12 +79,14 @@ class InvokeResult:
     trace fetching step.
 
     Attributes:
+        input: The input that was sent to the agent
         output: The agent's response (string, dict, or any serializable type)
         error: Error message if invocation failed (None if successful)
         trajectory: Direct Trajectory object (optional, for in-process agents)
         metadata: Optional metadata about the invocation
     """
 
+    input: Any = None
     output: Any = None
     error: Optional[str] = None
     trajectory: Optional[Trajectory] = None
@@ -114,6 +110,10 @@ class AgentInvoker(ABC):
     Extend this class and implement `invoke()` to define how your agent
     is called during evaluation.
 
+    The invoke method receives only the task input (not the full Task object)
+    to prevent data leakage of ground truth (expected_output, success_criteria, etc.)
+    into the agent.
+
     The framework handles trace collection automatically via:
     - OpenTelemetry baggage propagation (task_id, trial_id)
     - Time-based bulk trace fetching after invocations
@@ -126,81 +126,80 @@ class AgentInvoker(ABC):
             def __init__(self, endpoint: str):
                 self.endpoint = endpoint
 
-            def invoke(self, task: Task) -> InvokeResult:
-                response = requests.post(f"{self.endpoint}/chat", json=task.input)
-                return InvokeResult(output=response.json())
+            def invoke(self, input: Any) -> InvokeResult:
+                response = requests.post(f"{self.endpoint}/chat", json=input)
+                return InvokeResult(input=input, output=response.json())
     """
 
     @abstractmethod
-    def invoke(self, task: Task) -> InvokeResult:
+    def invoke(self, input: Any) -> InvokeResult:
         """
-        Invoke the agent with a task.
+        Invoke the agent with the given input.
 
-        Implement this method to define how your agent is called.
+        Only the task input is passed to prevent data leakage of ground truth
+        (expected_output, expected_trajectory, success_criteria, etc.).
 
         Args:
-            task: The task containing input and metadata
+            input: The task input (string, dict, or any serializable type)
 
         Returns:
-            InvokeResult with output and optionally error or trajectory
+            InvokeResult with input, output, and optionally error or trajectory
         """
         pass
 
-    def invoke_batch(self, tasks: List[Task]) -> List[InvokeResult]:
+    def invoke_batch(self, inputs: List[Any]) -> List[InvokeResult]:
         """
-        Invoke the agent with multiple tasks.
+        Invoke the agent with multiple inputs.
 
-        Default implementation calls invoke() for each task sequentially.
+        Default implementation calls invoke() for each input sequentially.
         Override for parallel execution or batch optimization.
 
         Args:
-            tasks: List of tasks to invoke
+            inputs: List of inputs to invoke with
 
         Returns:
-            List of InvokeResults in same order as tasks
+            List of InvokeResults in same order as inputs
         """
         results = []
-        for task in tasks:
+        for input in inputs:
             try:
-                result = self.invoke(task)
+                result = self.invoke(input)
                 results.append(result)
             except Exception as e:
-                logger.error(f"Task {task.task_id} invocation failed: {e}")
-                results.append(InvokeResult(error=str(e)))
+                logger.error(f"Invocation failed: {e}")
+                results.append(InvokeResult(input=input, error=str(e)))
         return results
 
 
 class HttpAgentInvoker(AgentInvoker):
     """
-    HTTP-based agent invoker with flexible client support.
+    HTTP-based agent invoker using the requests library.
 
-    Supports any HTTP client that follows the protocol (requests, httpx, etc.).
-    The framework automatically propagates task_id and trial_id via baggage.
+    Simple and clean interface for invoking HTTP agents. Uses the `requests`
+    library internally - no need to pass an HTTP client.
 
     Args:
         base_url: Base URL of the agent endpoint (e.g., "http://localhost:8000")
-        endpoint: API endpoint path (e.g., "/chat" or "/invoke")
-        http_client: HTTP client module (requests, httpx, etc.)
+        endpoint: API endpoint path (default: "/chat")
+        method: HTTP method (default: "POST"). Supports "GET", "POST", "PUT", "PATCH"
         timeout: Request timeout in seconds (default: 60)
         headers: Additional HTTP headers to include in all requests
         payload_builder: Optional function to build request payload from task.input
                         Default: uses task.input as-is if dict, else wraps as {"input": task.input}
 
-    Example (with requests):
-        import requests
+    Example (simple):
         invoker = HttpAgentInvoker(
             base_url="http://localhost:8000",
             endpoint="/chat",
-            http_client=requests
         )
 
-    Example (with httpx):
-        import httpx
-        client = httpx.Client()
+    Example (with options):
         invoker = HttpAgentInvoker(
             base_url="http://localhost:8000",
-            endpoint="/chat",
-            http_client=client
+            endpoint="/invoke",
+            method="POST",
+            timeout=120,
+            headers={"Authorization": "Bearer xxx"},
         )
 
     Example (with custom payload builder):
@@ -213,26 +212,35 @@ class HttpAgentInvoker(AgentInvoker):
         invoker = HttpAgentInvoker(
             base_url="http://localhost:8000",
             endpoint="/chat",
-            http_client=requests,
-            payload_builder=build_payload
+            payload_builder=build_payload,
         )
     """
 
     def __init__(
         self,
         base_url: str,
-        endpoint: str,
-        http_client: Any,
+        endpoint: str = "/chat",
+        method: str = "POST",
         timeout: float = 60.0,
         headers: Optional[Dict[str, str]] = None,
         payload_builder: Optional[Callable[[Any], Dict[str, Any]]] = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.endpoint = endpoint if endpoint.startswith("/") else f"/{endpoint}"
-        self.http_client = http_client
+        self.method = method.upper()
         self.timeout = timeout
         self.headers = headers or {}
         self.payload_builder = payload_builder or self._default_payload_builder
+
+        # Import requests here to fail fast if not installed
+        try:
+            import requests
+
+            self._session = requests.Session()
+        except ImportError:
+            raise ImportError(
+                "The 'requests' library is required for HttpAgentInvoker. Install it with: pip install requests"
+            )
 
     def _default_payload_builder(self, task_input: Any) -> Dict[str, Any]:
         """Default payload builder: use input as-is if dict, else wrap it."""
@@ -240,34 +248,38 @@ class HttpAgentInvoker(AgentInvoker):
             return task_input
         return {"input": task_input}
 
-    def invoke(self, task: Task) -> InvokeResult:
+    def invoke(self, input: Any) -> InvokeResult:
         """
-        Invoke HTTP agent with task.
+        Invoke HTTP agent with input.
 
         The framework automatically propagates task_id and trial_id via
         OpenTelemetry baggage in HTTP headers.
         """
         url = f"{self.base_url}{self.endpoint}"
-        payload = self.payload_builder(task.input)
+        payload = self.payload_builder(input)
 
         # Merge headers (default + user headers)
         request_headers = {"Content-Type": "application/json", **self.headers}
 
         try:
-            response = self.http_client.post(url, json=payload, headers=request_headers, timeout=self.timeout)
+            # Make request based on method
+            if self.method == "GET":
+                response = self._session.get(url, params=payload, headers=request_headers, timeout=self.timeout)
+            elif self.method in ("POST", "PUT", "PATCH"):
+                response = self._session.request(
+                    self.method, url, json=payload, headers=request_headers, timeout=self.timeout
+                )
+            else:
+                return InvokeResult(input=input, error=f"Unsupported HTTP method: {self.method}")
 
             # Check for HTTP errors
-            if hasattr(response, "raise_for_status"):
-                response.raise_for_status()
+            response.raise_for_status()
 
             # Parse response
-            if hasattr(response, "json"):
-                output = response.json()
-            else:
-                output = response
+            output = response.json()
 
-            return InvokeResult(output=output)
+            return InvokeResult(input=input, output=output)
 
         except Exception as e:
-            logger.error(f"HTTP invocation failed for task {task.task_id}: {e}")
-            return InvokeResult(error=str(e))
+            logger.error(f"HTTP invocation failed: {e}")
+            return InvokeResult(input=input, error=str(e))

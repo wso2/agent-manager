@@ -28,8 +28,8 @@ import logging
 import re
 from typing import List, Optional, Set
 
-from .base import BaseEvaluator
-from ..models import Observation, Task, EvalResult
+from amp_evaluation.evaluators.base import BaseEvaluator
+from amp_evaluation.models import Observation, Task, EvalResult
 
 
 logger = logging.getLogger(__name__)
@@ -43,9 +43,10 @@ logger = logging.getLogger(__name__)
 class AnswerLengthEvaluator(BaseEvaluator):
     """Evaluates if the answer length is within acceptable bounds."""
 
-    def __init__(self, min_length: int = 1, max_length: int = 10000, name: str = "answer_length"):
+    name = "answer_length"
+
+    def __init__(self, min_length: int = 1, max_length: int = 10000):
         super().__init__()
-        self._name = name
         self.min_length = min_length
         self.max_length = max_length
 
@@ -79,9 +80,10 @@ class AnswerLengthEvaluator(BaseEvaluator):
 class AnswerRelevancyEvaluator(BaseEvaluator):
     """Evaluates if the answer is relevant to the input query."""
 
-    def __init__(self, min_overlap_ratio: float = 0.1, name: str = "answer_relevancy"):
+    name = "answer_relevancy"
+
+    def __init__(self, min_overlap_ratio: float = 0.1):
         super().__init__()
-        self._name = name
         self.min_overlap_ratio = min_overlap_ratio
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
@@ -110,15 +112,15 @@ class AnswerRelevancyEvaluator(BaseEvaluator):
 class RequiredContentEvaluator(BaseEvaluator):
     """Evaluates if the output contains all required content."""
 
+    name = "required_content"
+
     def __init__(
         self,
         required_strings: Optional[List[str]] = None,
         required_patterns: Optional[List[str]] = None,
         case_sensitive: bool = False,
-        name: str = "required_content",
     ):
         super().__init__()
-        self._name = name
         self.required_strings = required_strings or []
         self.required_patterns = required_patterns or []
         self.case_sensitive = case_sensitive
@@ -159,16 +161,16 @@ class RequiredContentEvaluator(BaseEvaluator):
 class ProhibitedContentEvaluator(BaseEvaluator):
     """Evaluates if the output avoids prohibited content."""
 
+    name = "prohibited_content"
+
     def __init__(
         self,
         prohibited_strings: Optional[List[str]] = None,
         prohibited_patterns: Optional[List[str]] = None,
         case_sensitive: bool = False,
         use_context_prohibited: bool = True,
-        name: str = "prohibited_content",
     ):
         super().__init__()
-        self._name = name
         self.prohibited_strings = prohibited_strings or []
         self.prohibited_patterns = prohibited_patterns or []
         self.case_sensitive = case_sensitive
@@ -209,9 +211,10 @@ class ProhibitedContentEvaluator(BaseEvaluator):
 class ExactMatchEvaluator(BaseEvaluator):
     """Evaluates if the output exactly matches the reference output."""
 
-    def __init__(self, case_sensitive: bool = True, strip_whitespace: bool = True, name: str = "exact_match"):
+    name = "exact_match"
+
+    def __init__(self, case_sensitive: bool = True, strip_whitespace: bool = True):
         super().__init__()
-        self._name = name
         self.case_sensitive = case_sensitive
         self.strip_whitespace = strip_whitespace
 
@@ -245,9 +248,10 @@ class ExactMatchEvaluator(BaseEvaluator):
 class ContainsMatchEvaluator(BaseEvaluator):
     """Evaluates if the output contains the reference output."""
 
-    def __init__(self, case_sensitive: bool = False, name: str = "contains_match"):
+    name = "contains_match"
+
+    def __init__(self, case_sensitive: bool = False):
         super().__init__()
-        self._name = name
         self.case_sensitive = case_sensitive
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
@@ -276,12 +280,13 @@ class ContainsMatchEvaluator(BaseEvaluator):
 class ToolSequenceEvaluator(BaseEvaluator):
     """Evaluates if tools were called in the expected sequence."""
 
+    name = "tool_sequence"
+
     def __init__(
         self,
         expected_sequence: Optional[List[str]] = None,
         strict: bool = False,
         use_context_trajectory: bool = True,
-        name: str = "tool_sequence",
     ):
         """
         Args:
@@ -290,7 +295,6 @@ class ToolSequenceEvaluator(BaseEvaluator):
             use_context_trajectory: If True, uses task.expected_trajectory
         """
         super().__init__()
-        self._name = name
         self.expected_sequence = expected_sequence or []
         self.strict = strict
         self.use_context_trajectory = use_context_trajectory
@@ -309,7 +313,7 @@ class ToolSequenceEvaluator(BaseEvaluator):
             return EvalResult(score=1.0, passed=True, explanation="No expected sequence specified", details={})
 
         # Extract actual tool sequence
-        actual_sequence = [step.tool_name for step in trajectory.steps if step.tool_name]
+        actual_sequence = [step.name for step in trajectory.tool_spans if step.name]
 
         if self.strict:
             # Exact match
@@ -336,9 +340,10 @@ class ToolSequenceEvaluator(BaseEvaluator):
 class RequiredToolsEvaluator(BaseEvaluator):
     """Evaluates if all required tools were used."""
 
-    def __init__(self, required_tools: Optional[Set[str]] = None, name: str = "required_tools"):
+    name = "required_tools"
+
+    def __init__(self, required_tools: Optional[Set[str]] = None):
         super().__init__()
-        self._name = name
         self.required_tools = set(required_tools) if required_tools else set()
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
@@ -357,7 +362,7 @@ class RequiredToolsEvaluator(BaseEvaluator):
             return EvalResult(score=1.0, passed=True, explanation="No required tools specified", details={})
 
         # Get actually used tools
-        used_tools = {step.tool_name for step in trajectory.steps if step.tool_name}
+        used_tools = {step.name for step in trajectory.tool_spans if step.name}
 
         missing_tools = required - used_tools
         found_tools = required.intersection(used_tools)
@@ -380,9 +385,10 @@ class RequiredToolsEvaluator(BaseEvaluator):
 class StepSuccessRateEvaluator(BaseEvaluator):
     """Evaluates the success rate of trajectory steps."""
 
-    def __init__(self, min_success_rate: float = 0.8, name: str = "step_success_rate"):
+    name = "step_success_rate"
+
+    def __init__(self, min_success_rate: float = 0.8):
         super().__init__()
-        self._name = name
         self.min_success_rate = min_success_rate
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
@@ -391,7 +397,7 @@ class StepSuccessRateEvaluator(BaseEvaluator):
         if not trajectory.steps:
             return EvalResult(score=1.0, passed=True, explanation="No steps to evaluate", details={"step_count": 0})
 
-        successful_steps = sum(1 for step in trajectory.steps if step.success)
+        successful_steps = sum(1 for step in trajectory.steps if not step.error)
         total_steps = len(trajectory.steps)
         success_rate = successful_steps / total_steps
 
@@ -413,11 +419,10 @@ class StepSuccessRateEvaluator(BaseEvaluator):
 class LatencyEvaluator(BaseEvaluator):
     """Evaluates if the trace completed within latency constraints."""
 
-    def __init__(
-        self, max_latency_ms: Optional[float] = None, use_context_constraint: bool = True, name: str = "latency"
-    ):
+    name = "latency"
+
+    def __init__(self, max_latency_ms: Optional[float] = None, use_context_constraint: bool = True):
         super().__init__()
-        self._name = name
         self.max_latency_ms = max_latency_ms
         self.use_context_constraint = use_context_constraint
 
@@ -458,11 +463,10 @@ class LatencyEvaluator(BaseEvaluator):
 class TokenEfficiencyEvaluator(BaseEvaluator):
     """Evaluates if token usage is within constraints."""
 
-    def __init__(
-        self, max_tokens: Optional[int] = None, use_context_constraint: bool = True, name: str = "token_efficiency"
-    ):
+    name = "token_efficiency"
+
+    def __init__(self, max_tokens: Optional[int] = None, use_context_constraint: bool = True):
         super().__init__()
-        self._name = name
         self.max_tokens = max_tokens
         self.use_context_constraint = use_context_constraint
 
@@ -479,10 +483,14 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
                 score=1.0,
                 passed=True,
                 explanation="No token constraint specified",
-                details={"actual_tokens": observation.metrics.total_token_usage},
+                details={
+                    "actual_tokens": observation.metrics.token_usage.total_tokens
+                    if observation.metrics.token_usage
+                    else 0
+                },
             )
 
-        actual_tokens = observation.metrics.total_token_usage or 0
+        actual_tokens = observation.metrics.token_usage.total_tokens if observation.metrics.token_usage else 0
         passed = actual_tokens <= max_tokens
 
         # Score: 1.0 if within limit, decreasing as we exceed
@@ -502,11 +510,10 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
 class IterationCountEvaluator(BaseEvaluator):
     """Evaluates if the agent completed within iteration constraints."""
 
-    def __init__(
-        self, max_iterations: Optional[int] = None, use_context_constraint: bool = True, name: str = "iteration_count"
-    ):
+    name = "iteration_count"
+
+    def __init__(self, max_iterations: Optional[int] = None, use_context_constraint: bool = True):
         super().__init__()
-        self._name = name
         self.max_iterations = max_iterations
         self.use_context_constraint = use_context_constraint
 
@@ -556,9 +563,7 @@ class ExpectedOutcomeEvaluator(BaseEvaluator):
     Compares observation.success with task.expected_outcome.
     """
 
-    def __init__(self, name: str = "expected_outcome"):
-        super().__init__()
-        self._name = name
+    name = "expected_outcome"
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         expected = task.expected_outcome  # Raises if not available

@@ -75,19 +75,15 @@ def clean_registry():
     registry = get_registry()
     # Store original evaluators
     original = registry._evaluators.copy()
-    original_meta = registry._metadata.copy()
 
     # Clear for test
     registry._evaluators.clear()
-    registry._metadata.clear()
 
     yield registry
 
     # Restore after test
     registry._evaluators.clear()
-    registry._metadata.clear()
     registry._evaluators.update(original)
-    registry._metadata.update(original_meta)
 
 
 @pytest.fixture
@@ -98,24 +94,20 @@ def sample_traces():
             trace_id="trace_1",
             input="What is 2+2?",
             output="4",
-            metrics=TraceMetrics(
-                total_duration_ms=100.0, total_token_usage=TokenUsage(total_tokens=50), llm_call_count=1
-            ),
+            metrics=TraceMetrics(total_duration_ms=100.0, token_usage=TokenUsage(total_tokens=50), llm_call_count=1),
         ),
         Trajectory(
             trace_id="trace_2",
             input="Hello",
             output="Hi there!",
-            metrics=TraceMetrics(
-                total_duration_ms=200.0, total_token_usage=TokenUsage(total_tokens=30), llm_call_count=1
-            ),
+            metrics=TraceMetrics(total_duration_ms=200.0, token_usage=TokenUsage(total_tokens=30), llm_call_count=1),
         ),
         Trajectory(
             trace_id="trace_3",
             input="Bad input",
             output="",  # Empty output
             metrics=TraceMetrics(
-                total_duration_ms=500.0, total_token_usage=TokenUsage(total_tokens=100), llm_call_count=2, error_count=1
+                total_duration_ms=500.0, token_usage=TokenUsage(total_tokens=100), llm_call_count=2, error_count=1
             ),
         ),
     ]

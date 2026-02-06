@@ -82,7 +82,7 @@ def parse_trace_for_evaluation(trace: OTELTrace) -> Trajectory:
     agent_span: Optional[AgentSpan] = None
 
     # Metrics accumulators
-    total_tokens = TokenUsage()
+    token_usage = TokenUsage()
     total_duration_ms = 0.0
     error_count = trace.status.errorCount if trace.status else 0
     agent_span_count = 0
@@ -98,7 +98,7 @@ def parse_trace_for_evaluation(trace: OTELTrace) -> Trajectory:
             llm = _parse_llm_span_from_otel(otel_span)
             if llm:
                 llm_spans.append(llm)
-                total_tokens = total_tokens + llm.metrics.token_usage
+                token_usage = token_usage + llm.metrics.token_usage
                 total_duration_ms += llm.metrics.duration_ms
 
         elif semantic_kind == "tool":
@@ -129,14 +129,14 @@ def parse_trace_for_evaluation(trace: OTELTrace) -> Trajectory:
                 input_tokens = token_data.get("inputTokens", 0)
                 output_tokens = token_data.get("outputTokens", 0)
                 total = token_data.get("totalTokens", input_tokens + output_tokens)
-                total_tokens = total_tokens + TokenUsage(
+                token_usage = token_usage + TokenUsage(
                     input_tokens=input_tokens, output_tokens=output_tokens, total_tokens=total
                 )
 
     # Build trace metrics
     metrics = TraceMetrics(
         total_duration_ms=total_duration_ms,
-        total_token_usage=total_tokens,
+        token_usage=token_usage,
         llm_call_count=len(llm_spans),
         tool_call_count=len(tool_spans),
         retrieval_count=len(retriever_spans),

@@ -14,43 +14,35 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Evaluators subpackage."""
+"""
+Evaluators subpackage.
 
+Import Strategy:
+----------------
+
+1. Base classes (always available, no dependencies):
+   >>> from amp_evaluation.evaluators import BaseEvaluator, FunctionEvaluator
+
+2. Standard evaluators (no external dependencies):
+   >>> from amp_evaluation.evaluators.builtin.standard import LatencyEvaluator, TokenEfficiencyEvaluator
+
+3. DeepEval evaluators (requires deepeval package):
+   >>> from amp_evaluation.evaluators.builtin.deepeval import PlanQualityEvaluator
+
+4. Registry-based access (lazy loading, recommended):
+   >>> from amp_evaluation import get_evaluator
+   >>> evaluator = get_evaluator("deepeval/plan-quality")
+
+The base classes are always imported. Built-in evaluators are in the builtin/
+subpackage and are auto-discovered via the registry for lazy loading.
+"""
+
+# Base classes - always available
 from .base import BaseEvaluator, LLMAsJudgeEvaluator, FunctionEvaluator
-
-from .builtin import (
-    AnswerLengthEvaluator,
-    AnswerRelevancyEvaluator,
-    RequiredContentEvaluator,
-    ProhibitedContentEvaluator,
-    ExactMatchEvaluator,
-    ContainsMatchEvaluator,
-    ToolSequenceEvaluator,
-    RequiredToolsEvaluator,
-    StepSuccessRateEvaluator,
-    LatencyEvaluator,
-    TokenEfficiencyEvaluator,
-    IterationCountEvaluator,
-    ExpectedOutcomeEvaluator,
-)
 
 __all__ = [
     # Base classes
     "BaseEvaluator",
     "LLMAsJudgeEvaluator",
     "FunctionEvaluator",
-    # Built-in evaluators
-    "AnswerLengthEvaluator",
-    "AnswerRelevancyEvaluator",
-    "RequiredContentEvaluator",
-    "ProhibitedContentEvaluator",
-    "ExactMatchEvaluator",
-    "ContainsMatchEvaluator",
-    "ToolSequenceEvaluator",
-    "RequiredToolsEvaluator",
-    "StepSuccessRateEvaluator",
-    "LatencyEvaluator",
-    "TokenEfficiencyEvaluator",
-    "IterationCountEvaluator",
-    "ExpectedOutcomeEvaluator",
 ]
