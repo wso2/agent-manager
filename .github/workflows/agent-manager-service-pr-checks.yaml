@@ -96,12 +96,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build
-        working-directory: ./agent-manager-service
-        run: go build -v ./...
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./agent-manager-service
+          file: ./agent-manager-service/Dockerfile
+          push: false
+          tags: agent-manager-service:pr-check
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   codegen-format:
     name: Code Generation & Format Check
