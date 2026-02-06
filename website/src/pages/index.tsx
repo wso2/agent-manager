@@ -214,8 +214,8 @@ function QuickStartSection() {
               </Link>
               <Link
                 className="button button--secondary button--lg margin-left--md"
-                to="/docs/getting-started/single-cluster-installation">
-                Single Cluster Installation
+                to="/docs/getting-started/self-hosted-cluster">
+                Self-Hosted Cluster Installation
               </Link>
             </div>
           </div>

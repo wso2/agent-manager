@@ -60,8 +60,8 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/wso2/ai-agent-management-platform/issues)
+- **Issues**: [GitHub Issues](https://github.com/wso2/agent-manager/issues)
 - **Community**: [WSO2 Community](https://wso2.com/community/)
 
 ---
-(c) Copyright 2012 - 2025 [WSO2 LLC](https://wso2.com/).
+(c) Copyright 2012 - 2026 [WSO2 LLC](https://wso2.com/).
