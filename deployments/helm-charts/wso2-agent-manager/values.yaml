@@ -146,12 +146,6 @@ agentManagerService:
       allowedMethods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
       allowedHeaders: "authorization,Content-Type,Origin"
 
-  agentWorkload:
-    cors:
-      allowedOrigin: "http://localhost:3000"
-      allowedMethods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-      allowedHeaders: "authorization,Content-Type,Origin"
-
   # Pod-level configurations
   podAnnotations: {}
   podLabels: {}
