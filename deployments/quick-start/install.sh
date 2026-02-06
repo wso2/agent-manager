@@ -452,6 +452,8 @@ fi
 # Step 3: Generate Machine IDs for observability
 # ============================================================================
 
+log_step "Step 3/11: Generating Machine IDs for observability"
+
 log_info "Generating Machine IDs for Fluent Bit observability..."
 NODES=$(k3d node list -o json | grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"name"[[:space:]]*:[[:space:]]*"//;s/"$//' | grep "^k3d-$CLUSTER_NAME-")
 if [[ -z "$NODES" ]]; then

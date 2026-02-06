@@ -100,7 +100,7 @@ func (c *RetryableHTTPClient) Do(req *http.Request) (*http.Response, error) {
 			}
 		}
 	}
-	panic("unreachable: retry loop exited without returning a response or error")
+	return nil, fmt.Errorf("unreachable: retry loop exited without returning a response or error")
 }
 
 func (c *RetryableHTTPClient) doAttempt(ctx context.Context, req *http.Request, cfg RequestRetryConfig, attempt int, isLastAttempt bool, log *slog.Logger) (*http.Response, error) {

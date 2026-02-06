@@ -153,11 +153,17 @@ func (c *openChoreoClient) GetDeployments(ctx context.Context, orgName, pipeline
 			if err != nil {
 				return nil, fmt.Errorf("failed to get release for environment %s: %w", envName, err)
 			}
-
-			var release *gen.ReleaseResponse
-			if releaseResp.StatusCode() == http.StatusOK && releaseResp.JSON200 != nil {
-				release = releaseResp.JSON200.Data
+			if releaseResp.StatusCode() != http.StatusOK {
+				return nil, handleErrorResponse(releaseResp.StatusCode(), releaseResp.Body, ErrorContext{
+					NotFoundErr: utils.ErrAgentNotFound,
+				})
 			}
+
+			if releaseResp.JSON200 == nil || releaseResp.JSON200.Data == nil {
+				return nil, fmt.Errorf("empty release response")
+			}
+
+			release := releaseResp.JSON200.Data
 
 			deploymentDetail, err := toDeploymentDetailsResponse(releaseBinding, release, environmentMap, promotionTargetEnv)
 			if err != nil {
