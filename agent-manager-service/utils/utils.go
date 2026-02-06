@@ -580,28 +580,34 @@ func isValidGitHubIdentifier(value string) bool {
 	return true
 }
 
-// isValidGitHubBranch validates that a branch name contains only safe characters
+// isValidGitHubBranch validates branch names
 func isValidGitHubBranch(branch string) bool {
 	if branch == "" {
 		return false
 	}
-	// Branch names can contain alphanumeric, hyphens, underscores, periods, and forward slashes
-	// But reject path traversal patterns
-	validPattern := regexp.MustCompile(`^[a-zA-Z0-9._/-]+$`)
-	if !validPattern.MatchString(branch) {
-		return false
-	}
-	// Reject path traversal patterns
+
+	// Reject path traversal
 	if strings.Contains(branch, "..") {
 		return false
 	}
-	return true
+
+	// Reject control characters and null bytes (prevents injection attacks)
+	controlChars := regexp.MustCompile(`[\x00-\x1f\x7f]`)
+	if controlChars.MatchString(branch) {
+		return false
+	}
+
+	// Reject Git special characters and whitespace
+	// Still allows @, +, and other characters that are valid in branch names
+	gitSpecialChars := regexp.MustCompile(`[\s~^:?*\[\\]`)
+	return !gitSpecialChars.MatchString(branch)
 }
 
 // ValidateListBranchesRequest validates the ListBranchesRequest payload
-func ValidateListBranchesRequest(payload spec.ListBranchesRequest) error {
-	// Validate owner is not empty or whitespace
-	if strings.TrimSpace(payload.Owner) == "" {
+func ValidateListBranchesRequest(payload *spec.ListBranchesRequest) error {
+	// Normalize and validate owner
+	payload.Owner = strings.TrimSpace(payload.Owner)
+	if payload.Owner == "" {
 		return fmt.Errorf("owner cannot be empty")
 	}
 
@@ -610,8 +616,9 @@ func ValidateListBranchesRequest(payload spec.ListBranchesRequest) error {
 		return fmt.Errorf("owner contains invalid characters or path traversal patterns")
 	}
 
-	// Validate repository is not empty or whitespace
-	if strings.TrimSpace(payload.Repository) == "" {
+	// Normalize and validate repository
+	payload.Repository = strings.TrimSpace(payload.Repository)
+	if payload.Repository == "" {
 		return fmt.Errorf("repository cannot be empty")
 	}
 
@@ -624,9 +631,10 @@ func ValidateListBranchesRequest(payload spec.ListBranchesRequest) error {
 }
 
 // ValidateListCommitsRequest validates the ListCommitsRequest payload
-func ValidateListCommitsRequest(payload spec.ListCommitsRequest) error {
-	// Validate required fields
-	if strings.TrimSpace(payload.Owner) == "" {
+func ValidateListCommitsRequest(payload *spec.ListCommitsRequest) error {
+	// Normalize and validate owner
+	payload.Owner = strings.TrimSpace(payload.Owner)
+	if payload.Owner == "" {
 		return fmt.Errorf("owner cannot be empty")
 	}
 
@@ -635,7 +643,9 @@ func ValidateListCommitsRequest(payload spec.ListCommitsRequest) error {
 		return fmt.Errorf("owner contains invalid characters or path traversal patterns")
 	}
 
-	if strings.TrimSpace(payload.Repo) == "" {
+	// Normalize and validate repo
+	payload.Repo = strings.TrimSpace(payload.Repo)
+	if payload.Repo == "" {
 		return fmt.Errorf("repo cannot be empty")
 	}
 
@@ -644,7 +654,7 @@ func ValidateListCommitsRequest(payload spec.ListCommitsRequest) error {
 		return fmt.Errorf("repo contains invalid characters or path traversal patterns")
 	}
 
-	// Validate optional branch field if provided
+	// Normalize and validate optional branch field if provided
 	if payload.Branch != nil {
 		branchVal := strings.TrimSpace(*payload.Branch)
 		if branchVal == "" {
@@ -653,9 +663,10 @@ func ValidateListCommitsRequest(payload spec.ListCommitsRequest) error {
 		if !isValidGitHubBranch(branchVal) {
 			return fmt.Errorf("branch contains invalid characters or path traversal patterns")
 		}
+		*payload.Branch = branchVal // Normalize by writing back trimmed value
 	}
 
-	// Validate optional path field if provided
+	// Normalize and validate optional path field if provided
 	if payload.Path != nil {
 		pathVal := strings.TrimSpace(*payload.Path)
 		if pathVal == "" {
@@ -665,9 +676,10 @@ func ValidateListCommitsRequest(payload spec.ListCommitsRequest) error {
 		if strings.Contains(pathVal, "..") {
 			return fmt.Errorf("path contains path traversal patterns")
 		}
+		*payload.Path = pathVal // Normalize by writing back trimmed value
 	}
 
-	// Validate optional author field if provided
+	// Normalize and validate optional author field if provided
 	if payload.Author != nil {
 		authorVal := strings.TrimSpace(*payload.Author)
 		if authorVal == "" {
@@ -678,6 +690,7 @@ func ValidateListCommitsRequest(payload spec.ListCommitsRequest) error {
 		if strings.Contains(authorVal, "..") || strings.Contains(authorVal, "/") {
 			return fmt.Errorf("author contains invalid characters or path traversal patterns")
 		}
+		*payload.Author = authorVal // Normalize by writing back trimmed value
 	}
 
 	// Validate time fields if both are provided

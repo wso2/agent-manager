@@ -66,7 +66,7 @@ func (c *repositoryController) ListBranches(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Validate request body
-	if err := utils.ValidateListBranchesRequest(reqBody); err != nil {
+	if err := utils.ValidateListBranchesRequest(&reqBody); err != nil {
 		log.Error("ListBranches: invalid request payload", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
@@ -106,7 +106,7 @@ func (c *repositoryController) ListCommits(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Validate request body
-	if err := utils.ValidateListCommitsRequest(reqBody); err != nil {
+	if err := utils.ValidateListCommitsRequest(&reqBody); err != nil {
 		log.Error("ListCommits: invalid request payload", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
