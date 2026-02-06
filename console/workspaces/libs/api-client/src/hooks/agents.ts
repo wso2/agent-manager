@@ -17,7 +17,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createAgent, deleteAgent, getAgent, listAgents, generateAgentToken, updateAgent } from "../apis";
+import { createAgent, deleteAgent, getAgent, listAgents, generateAgentToken, updateAgent, updateAgentBuildParameters } from "../apis";
 import {
   AgentListResponse,
   AgentResponse,
@@ -29,6 +29,8 @@ import {
   ListAgentsQuery,
   UpdateAgentPathParams,
   UpdateAgentRequest,
+  UpdateAgentBuildParametersPathParams,
+  UpdateAgentBuildParametersRequest,
   GenerateAgentTokenPathParams,
   GenerateAgentTokenQuery,
   TokenRequest,
@@ -81,6 +83,22 @@ export function useUpdateAgent() {
     { params: UpdateAgentPathParams; body: UpdateAgentRequest }
   >({
     mutationFn: ({ params, body }) => updateAgent(params, body, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
+      queryClient.invalidateQueries({ queryKey: ['agent'] });
+    },
+  });
+}
+
+export function useUpdateAgentBuildParameters() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useMutation<
+    AgentResponse,
+    unknown,
+    { params: UpdateAgentBuildParametersPathParams; body: UpdateAgentBuildParametersRequest }
+  >({
+    mutationFn: ({ params, body }) => updateAgentBuildParameters(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] });
       queryClient.invalidateQueries({ queryKey: ['agent'] });

@@ -361,7 +361,6 @@ func ConvertToProjectResponse(project *models.ProjectResponse) spec.ProjectRespo
 	if project == nil {
 		return spec.ProjectResponse{}
 	}
-
 	return spec.ProjectResponse{
 		Uuid:               project.UUID,
 		Name:               project.Name,

@@ -46,11 +46,9 @@ thunder:
   pdb:
     minAvailable: "50%"
   ingress:
-    className: openchoreo-traefik
+    enabled: false
+  ocIngress:
     hostname: "thunder.amp.localhost"
-    paths:
-      - path: /
-        pathType: Prefix
   configuration:
     server:
       port: 8090

@@ -56,3 +56,37 @@ Returns external endpoint if global.baseDomain is set, otherwise uses configured
   {{- .Values.global.registry.endpoint -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Get buildpack image by ID
+Returns the appropriate image reference based on buildpackCache.enabled setting.
+When caching is enabled, returns the cached image path prefixed with registry endpoint.
+When caching is disabled, returns the remote image reference directly.
+
+Usage:
+  {{ include "openchoreo-build-plane.buildpackImage" (dict "id" "google-builder" "context" .) }}
+
+Parameters:
+  - id: The unique identifier of the buildpack image (e.g., "google-builder", "ballerina-run")
+  - context: The Helm context (usually .)
+*/}}
+{{- define "openchoreo-build-plane.buildpackImage" -}}
+{{- $id := .id -}}
+{{- $ctx := .context -}}
+{{- $cacheEnabled := $ctx.Values.global.defaultResources.buildpackCache.enabled -}}
+{{- $registryEndpoint := include "openchoreo-build-plane.registryEndpoint" $ctx -}}
+{{- $found := false -}}
+{{- range $ctx.Values.global.defaultResources.buildpackCache.images -}}
+  {{- if eq .id $id -}}
+    {{- $found = true -}}
+    {{- if $cacheEnabled -}}
+      {{- printf "%s/%s" $registryEndpoint .cachedImage -}}
+    {{- else -}}
+      {{- .remoteImage -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- if not $found -}}
+  {{- fail (printf "Buildpack image with id '%s' not found in buildpackCache.images" $id) -}}
+{{- end -}}
+{{- end -}}

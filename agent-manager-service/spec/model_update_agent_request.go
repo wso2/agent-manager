@@ -20,13 +20,13 @@ var _ MappedNullable = &UpdateAgentRequest{}
 // UpdateAgentRequest struct for UpdateAgentRequest
 type UpdateAgentRequest struct {
 	// Unique name of the agent
-	Name string `json:"name"`
+	Name *string `json:"name,omitempty"`
 	// Display name of the agent
-	DisplayName  string       `json:"displayName"`
-	Provisioning Provisioning `json:"provisioning"`
+	DisplayName  *string       `json:"displayName,omitempty"`
+	Provisioning *Provisioning `json:"provisioning,omitempty"`
 	// Description of the agent
 	Description    *string               `json:"description,omitempty"`
-	AgentType      AgentType             `json:"agentType"`
+	AgentType      *AgentType            `json:"agentType,omitempty"`
 	RuntimeConfigs *RuntimeConfiguration `json:"runtimeConfigs,omitempty"`
 	InputInterface *InputInterface       `json:"inputInterface,omitempty"`
 }
@@ -35,12 +35,8 @@ type UpdateAgentRequest struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewUpdateAgentRequest(name string, displayName string, provisioning Provisioning, agentType AgentType) *UpdateAgentRequest {
+func NewUpdateAgentRequest() *UpdateAgentRequest {
 	this := UpdateAgentRequest{}
-	this.Name = name
-	this.DisplayName = displayName
-	this.Provisioning = provisioning
-	this.AgentType = agentType
 	return &this
 }
 
@@ -52,76 +48,100 @@ func NewUpdateAgentRequestWithDefaults() *UpdateAgentRequest {
 	return &this
 }
 
-// GetName returns the Name field value
+// GetName returns the Name field value if set, zero value otherwise.
 func (o *UpdateAgentRequest) GetName() string {
-	if o == nil {
+	if o == nil || IsNil(o.Name) {
 		var ret string
 		return ret
 	}
-
-	return o.Name
+	return *o.Name
 }
 
-// GetNameOk returns a tuple with the Name field value
+// GetNameOk returns a tuple with the Name field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *UpdateAgentRequest) GetNameOk() (*string, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.Name) {
 		return nil, false
 	}
-	return &o.Name, true
+	return o.Name, true
 }
 
-// SetName sets field value
+// HasName returns a boolean if a field has been set.
+func (o *UpdateAgentRequest) HasName() bool {
+	if o != nil && !IsNil(o.Name) {
+		return true
+	}
+
+	return false
+}
+
+// SetName gets a reference to the given string and assigns it to the Name field.
 func (o *UpdateAgentRequest) SetName(v string) {
-	o.Name = v
+	o.Name = &v
 }
 
-// GetDisplayName returns the DisplayName field value
+// GetDisplayName returns the DisplayName field value if set, zero value otherwise.
 func (o *UpdateAgentRequest) GetDisplayName() string {
-	if o == nil {
+	if o == nil || IsNil(o.DisplayName) {
 		var ret string
 		return ret
 	}
-
-	return o.DisplayName
+	return *o.DisplayName
 }
 
-// GetDisplayNameOk returns a tuple with the DisplayName field value
+// GetDisplayNameOk returns a tuple with the DisplayName field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *UpdateAgentRequest) GetDisplayNameOk() (*string, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.DisplayName) {
 		return nil, false
 	}
-	return &o.DisplayName, true
+	return o.DisplayName, true
 }
 
-// SetDisplayName sets field value
+// HasDisplayName returns a boolean if a field has been set.
+func (o *UpdateAgentRequest) HasDisplayName() bool {
+	if o != nil && !IsNil(o.DisplayName) {
+		return true
+	}
+
+	return false
+}
+
+// SetDisplayName gets a reference to the given string and assigns it to the DisplayName field.
 func (o *UpdateAgentRequest) SetDisplayName(v string) {
-	o.DisplayName = v
+	o.DisplayName = &v
 }
 
-// GetProvisioning returns the Provisioning field value
+// GetProvisioning returns the Provisioning field value if set, zero value otherwise.
 func (o *UpdateAgentRequest) GetProvisioning() Provisioning {
-	if o == nil {
+	if o == nil || IsNil(o.Provisioning) {
 		var ret Provisioning
 		return ret
 	}
-
-	return o.Provisioning
+	return *o.Provisioning
 }
 
-// GetProvisioningOk returns a tuple with the Provisioning field value
+// GetProvisioningOk returns a tuple with the Provisioning field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *UpdateAgentRequest) GetProvisioningOk() (*Provisioning, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.Provisioning) {
 		return nil, false
 	}
-	return &o.Provisioning, true
+	return o.Provisioning, true
 }
 
-// SetProvisioning sets field value
+// HasProvisioning returns a boolean if a field has been set.
+func (o *UpdateAgentRequest) HasProvisioning() bool {
+	if o != nil && !IsNil(o.Provisioning) {
+		return true
+	}
+
+	return false
+}
+
+// SetProvisioning gets a reference to the given Provisioning and assigns it to the Provisioning field.
 func (o *UpdateAgentRequest) SetProvisioning(v Provisioning) {
-	o.Provisioning = v
+	o.Provisioning = &v
 }
 
 // GetDescription returns the Description field value if set, zero value otherwise.
@@ -156,28 +176,36 @@ func (o *UpdateAgentRequest) SetDescription(v string) {
 	o.Description = &v
 }
 
-// GetAgentType returns the AgentType field value
+// GetAgentType returns the AgentType field value if set, zero value otherwise.
 func (o *UpdateAgentRequest) GetAgentType() AgentType {
-	if o == nil {
+	if o == nil || IsNil(o.AgentType) {
 		var ret AgentType
 		return ret
 	}
-
-	return o.AgentType
+	return *o.AgentType
 }
 
-// GetAgentTypeOk returns a tuple with the AgentType field value
+// GetAgentTypeOk returns a tuple with the AgentType field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *UpdateAgentRequest) GetAgentTypeOk() (*AgentType, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.AgentType) {
 		return nil, false
 	}
-	return &o.AgentType, true
+	return o.AgentType, true
 }
 
-// SetAgentType sets field value
+// HasAgentType returns a boolean if a field has been set.
+func (o *UpdateAgentRequest) HasAgentType() bool {
+	if o != nil && !IsNil(o.AgentType) {
+		return true
+	}
+
+	return false
+}
+
+// SetAgentType gets a reference to the given AgentType and assigns it to the AgentType field.
 func (o *UpdateAgentRequest) SetAgentType(v AgentType) {
-	o.AgentType = v
+	o.AgentType = &v
 }
 
 // GetRuntimeConfigs returns the RuntimeConfigs field value if set, zero value otherwise.
@@ -254,13 +282,21 @@ func (o UpdateAgentRequest) MarshalJSON() ([]byte, error) {
 
 func (o UpdateAgentRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["name"] = o.Name
-	toSerialize["displayName"] = o.DisplayName
-	toSerialize["provisioning"] = o.Provisioning
+	if !IsNil(o.Name) {
+		toSerialize["name"] = o.Name
+	}
+	if !IsNil(o.DisplayName) {
+		toSerialize["displayName"] = o.DisplayName
+	}
+	if !IsNil(o.Provisioning) {
+		toSerialize["provisioning"] = o.Provisioning
+	}
 	if !IsNil(o.Description) {
 		toSerialize["description"] = o.Description
 	}
-	toSerialize["agentType"] = o.AgentType
+	if !IsNil(o.AgentType) {
+		toSerialize["agentType"] = o.AgentType
+	}
 	if !IsNil(o.RuntimeConfigs) {
 		toSerialize["runtimeConfigs"] = o.RuntimeConfigs
 	}

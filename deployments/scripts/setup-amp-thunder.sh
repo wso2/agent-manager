@@ -7,8 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Change to script directory to ensure consistent working directory
 cd "$SCRIPT_DIR"
 
-CLUSTER_NAME="openchoreo-local-v0.9"
-CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
+source "$SCRIPT_DIR/env.sh"
 
 echo "=== Installing WSO2 AMP Thunder Extension ==="
 

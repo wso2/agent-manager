@@ -92,7 +92,7 @@ func loadEnvs() {
 
 	// HTTP Server timeout configurations
 	config.ReadTimeoutSeconds = int(r.readOptionalInt64("HTTP_READ_TIMEOUT_SECONDS", 10))
-	config.WriteTimeoutSeconds = int(r.readOptionalInt64("HTTP_WRITE_TIMEOUT_SECONDS", 30))
+	config.WriteTimeoutSeconds = int(r.readOptionalInt64("HTTP_WRITE_TIMEOUT_SECONDS", 90))
 	config.IdleTimeoutSeconds = int(r.readOptionalInt64("HTTP_IDLE_TIMEOUT_SECONDS", 60))
 	config.MaxHeaderBytes = int(r.readOptionalInt64("HTTP_MAX_HEADER_BYTES", 65536)) // 1024 * 64
 
@@ -161,6 +161,9 @@ func loadEnvs() {
 	// GitHub configuration for repository API access
 	config.GitHub = GitHubConfig{
 		Token: r.readOptionalString("GITHUB_TOKEN", ""),
+	}
+	config.OpenChoreo = OpenChoreoConfig{
+		BaseURL: r.readRequiredString("OPEN_CHOREO_BASE_URL"),
 	}
 
 	// Validate HTTP server configurations

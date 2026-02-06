@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { type AgentPathParams, type RuntimeConfiguration, type ListQuery, type OrgProjPathParams, type PaginationMeta, type RepositoryConfig } from './common';
+import { type AgentPathParams, type RuntimeConfiguration, type RuntimeConfigurationWithoutEnv, type ListQuery, type OrgProjPathParams, type PaginationMeta, type RepositoryConfig } from './common';
 
 // Requests
 interface AgentRequestBase {
@@ -29,9 +29,21 @@ interface AgentRequestBase {
   inputInterface?: InputInterface;
 }
 
+interface UpdateAgentBasicInfoRequest {
+  displayName: string;
+  description?: string;
+}
+
+interface UpdateAgentBuildParametersRequest {
+  provisioning: Provisioning;
+  agentType?: AgentType;
+  runtimeConfigs?: RuntimeConfigurationWithoutEnv;
+  inputInterface?: InputInterface;
+}
 
 export type CreateAgentRequest = AgentRequestBase;
-export type UpdateAgentRequest = AgentRequestBase;
+export type UpdateAgentRequest = UpdateAgentBasicInfoRequest;
+export type { UpdateAgentBasicInfoRequest, UpdateAgentBuildParametersRequest };
 
 export type InputInterfaceType = 'DEFAULT' | 'CUSTOM';
 
@@ -80,6 +92,8 @@ export type CreateAgentPathParams = OrgProjPathParams;
 export type GetAgentPathParams = AgentPathParams;
 export type DeleteAgentPathParams = AgentPathParams;
 export type UpdateAgentPathParams = AgentPathParams;
+export type UpdateAgentBasicInfoPathParams = AgentPathParams;
+export type UpdateAgentBuildParametersPathParams = AgentPathParams;
 export type ListAgentsQuery = ListQuery;
 
 // Agent Token

@@ -24,121 +24,54 @@ import (
 	"log/slog"
 	"net/http"
 	"reflect"
-	"slices"
-	"time"
-
-	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 )
 
+// HttpClient interface for making HTTP requests.
+// Use RetryableHTTPClient for retry support.
 type HttpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+// Compile-time check that http.Client implements HttpClient
 var _ HttpClient = (*http.Client)(nil)
 
-func SendRequest(ctx context.Context, client HttpClient, req *HttpRequest, opts ...RequestRetryConfig) *Result {
-	var retryConfig RequestRetryConfig
-	if len(opts) > 0 {
-		retryConfig = opts[0]
-	}
-	retryConfig = retryConfig.withDefaults(req)
-	checkRetry := retryConfig.makeCheckRetry()
+// SendRequest builds and sends an HTTP request, returning a Result for response handling.
+func SendRequest(ctx context.Context, client HttpClient, req *HttpRequest) *Result {
 	log := logger.GetLogger(ctx).With(slog.String("request", req.Name))
-	// RetryAttemptsMax=0: attempt 1
-	// RetryAttemptsMax=2: attempt 1, 2, 3
-	for attempt := 1; attempt < retryConfig.RetryAttemptsMax+2; attempt++ {
-		isLastAttempt := attempt == retryConfig.RetryAttemptsMax+1
 
-		// Execute attempt in a function to ensure proper cleanup via defer
-		result := func() *Result {
-			attemptCtx, cancel := context.WithTimeout(ctx, retryConfig.AttemptTimeout)
-			defer cancel() // Cleanup happens at end of each iteration
-
-			httpReq, err := req.buildHttpRequest(attemptCtx)
-			if err != nil {
-				return &Result{err: fmt.Errorf("failed to build http request: %w", err)}
-			}
-			start := time.Now()
-			resp, err := client.Do(httpReq)
-			if err != nil {
-				// Check if parent context was cancelled
-				if ctx.Err() != nil {
-					return &Result{err: fmt.Errorf("parent context cancelled or timed out: %w", ctx.Err())}
-				}
-				// Check if attempt context timed out
-				if attemptCtx.Err() != nil {
-					log.Info("HTTP request attempt timed out, will retry",
-						slog.Int("attempt", attempt),
-						slog.Int("maxAttempts", retryConfig.RetryAttemptsMax+1),
-						slog.Duration("timeout", retryConfig.AttemptTimeout))
-					if isLastAttempt {
-						return &Result{response: resp, err: fmt.Errorf("request failed with: %w", err)}
-					}
-					return nil // Signal to retry
-				}
-				if isLastAttempt {
-					return &Result{response: resp, err: fmt.Errorf("request failed with: %w", err)}
-				}
-				log.Info("HTTP request failed, will retry",
-					slog.Int("attempt", attempt),
-					slog.Int("maxAttempts", retryConfig.RetryAttemptsMax+1),
-					slog.String("error", err.Error()))
-				return nil // Signal to retry
-			}
-			elapsedTime := time.Since(start)
-
-			// Read response body and close immediately to avoid resource leaks
-			respBody, err := io.ReadAll(resp.Body)
-			closeErr := resp.Body.Close()
-			if closeErr != nil {
-				log.Warn("failed to close response body", slog.String("error", closeErr.Error()))
-			}
-			if err != nil {
-				return &Result{err: fmt.Errorf("failed to read response body: %w", err)}
-			}
-			// using parent context to check if the request should be retried
-			// as client timeout shouldn't affect the retry logic.
-			shouldRetry, shouldRetryErr := checkRetry(ctx, resp, err)
-			if !shouldRetry && shouldRetryErr == nil {
-				// Request completed successfully (non-retryable response received)
-				return &Result{response: resp, err: nil, responseBody: respBody}
-			}
-			if isLastAttempt {
-				return &Result{response: resp, err: shouldRetryErr, responseBody: respBody}
-			}
-			log.Info("HTTP request returned retryable status, will retry",
-				slog.Int("attempt", attempt),
-				slog.Int("maxAttempts", retryConfig.RetryAttemptsMax+1),
-				slog.Duration("duration", elapsedTime),
-				slog.Int("status", resp.StatusCode))
-
-			// Wait before retry
-			waitDuration := retryablehttp.DefaultBackoff(retryConfig.RetryWaitMin, retryConfig.RetryWaitMax, attempt, resp)
-			select {
-			case <-time.After(waitDuration):
-				return nil // Signal to retry
-			case <-ctx.Done():
-				return &Result{err: fmt.Errorf("parent context cancelled during retry wait: %w", ctx.Err())}
-			}
-		}()
-
-		// If result is not nil, we have a final result to return
-		if result != nil {
-			return result
-		}
-		// Otherwise, continue to next retry attempt
+	httpReq, err := req.buildHttpRequest(ctx)
+	if err != nil {
+		return &Result{err: fmt.Errorf("failed to build http request: %w", err)}
 	}
-	return &Result{err: fmt.Errorf("unexpected error: reached max retry attempts: %d", retryConfig.RetryAttemptsMax)}
+
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return &Result{err: fmt.Errorf("request failed: %w", err)}
+	}
+
+	// Read response body and close immediately to avoid resource leaks
+	respBody, err := io.ReadAll(resp.Body)
+	closeErr := resp.Body.Close()
+	if closeErr != nil {
+		log.Warn("failed to close response body", slog.String("error", closeErr.Error()))
+	}
+	if err != nil {
+		return &Result{err: fmt.Errorf("failed to read response body: %w", err)}
+	}
+
+	return &Result{response: resp, responseBody: respBody}
 }
 
+// Result holds the response from SendRequest.
 type Result struct {
 	responseBody []byte
 	response     *http.Response
 	err          error
 }
 
+// ScanResponse unmarshals the response body into the provided struct if status matches.
 func (r *Result) ScanResponse(body any, successStatus int) error {
 	if r.err != nil {
 		return r.err
@@ -156,30 +89,12 @@ func (r *Result) ScanResponse(body any, successStatus int) error {
 		}
 	}
 	if err := json.Unmarshal(r.responseBody, body); err != nil {
-		// if decoding fails, we should not lose the status code.
-		// As the request was successful & may contain sensitive information,
-		// response body should not be logged or returned as error.
 		return fmt.Errorf("failed to decode response body for status %d: %w", r.response.StatusCode, err)
 	}
 	return nil
 }
 
-func (r *Result) CheckStatus(successStatuses ...int) (int, error) {
-	if r.err != nil {
-		return 0, r.err
-	}
-	status := r.response.StatusCode
-	if !slices.Contains(successStatuses, status) {
-		return status, &HttpError{
-			StatusCode: r.response.StatusCode,
-			Body:       string(r.responseBody),
-		}
-	}
-	return status, nil
-}
-
 // GetHeader returns the value of a response header.
-// Returns empty string if the header is not present or if there was an error.
 func (r *Result) GetHeader(key string) string {
 	if r.err != nil || r.response == nil {
 		return ""

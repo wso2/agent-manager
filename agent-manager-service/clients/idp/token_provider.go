@@ -36,7 +36,7 @@ type TokenProvider interface {
 
 type tokenProvider struct {
 	config     config.IDPConfig
-	httpClient *http.Client
+	httpClient requests.HttpClient
 
 	mu          sync.RWMutex
 	accessToken string
@@ -57,10 +57,8 @@ const expiryBuffer = 30 * time.Second
 // NewTokenProvider creates a new token provider with the given configuration
 func NewTokenProvider(cfg config.IDPConfig) TokenProvider {
 	return &tokenProvider{
-		config: cfg,
-		httpClient: &http.Client{
-			Timeout: 15 * time.Second,
-		},
+		config:     cfg,
+		httpClient: requests.NewRetryableHTTPClient(&http.Client{}),
 	}
 }
 
