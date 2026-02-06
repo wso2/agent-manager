@@ -130,12 +130,17 @@ jobs:
       - name: Commit version updates
         id: commit-changes
         run: |
-          git add "./deployments/quick-start/install-helpers.sh" "./deployments/helm-charts/*/Chart.yaml" "./deployments/helm-charts/*/values.yaml" "./docs/quick-start.md" "./docs/install/single-cluster.md" 2>/dev/null || true
-          
+          # Add all changed files from version update scripts
+          git add -A
+
           if git diff --staged --quiet; then
             echo "No changes to commit"
             echo "committed=false" >> $GITHUB_OUTPUT
           else
+            # Show what files will be committed
+            echo "Files to be committed:"
+            git diff --staged --name-only
+
             git commit -m "chore: update versions for release amp/v${{ inputs.target-release }}"
             echo "committed=true" >> $GITHUB_OUTPUT
             echo "✅ Committed version updates"
