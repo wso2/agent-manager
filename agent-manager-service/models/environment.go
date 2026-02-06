@@ -77,8 +77,8 @@ func (e *Environment) ToResponse() *GatewayEnvironmentResponse {
 	}
 }
 
-// GatewayEnvironmentListResponse is the paginated list response
-type GatewayEnvironmentListResponse struct {
+// EnvironmentListResponse is the paginated list response
+type EnvironmentListResponse struct {
 	Environments []GatewayEnvironmentResponse `json:"environments"`
 	Total        int32                        `json:"total"`
 	Limit        int32                        `json:"limit"`

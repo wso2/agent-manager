@@ -43,9 +43,11 @@ var (
 	// Server errors
 	ErrServiceUnavailable = errors.New("service unavailable")
 	// Gateway-related errors
-	ErrGatewayNotFound      = errors.New("gateway not found")
-	ErrGatewayAlreadyExists = errors.New("gateway already exists")
-	ErrInvalidAdapterType   = errors.New("invalid adapter type")
-	ErrGatewayUnreachable   = errors.New("gateway unreachable")
-	ErrInvalidGatewayConfig = errors.New("invalid gateway configuration")
+	ErrGatewayNotFound         = errors.New("gateway not found")
+	ErrGatewayAlreadyExists    = errors.New("gateway already exists")
+	ErrInvalidAdapterType      = errors.New("invalid adapter type")
+	ErrGatewayUnreachable      = errors.New("gateway unreachable")
+	ErrInvalidGatewayConfig    = errors.New("invalid gateway configuration")
+	ErrEnvironmentAlreadyExists = errors.New("environment already exists")
+	ErrEnvironmentHasGateways   = errors.New("environment has associated gateways")
 )
