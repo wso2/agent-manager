@@ -1,8 +1,10 @@
 # Traces Observer Service
 
+## Overview
+
 Traces Observer Service is a lightweight backend that provides an HTTP API for querying traces collected in the observability plane. It communicates with OpenSearch to retrieve and aggregate tracing data produced by agents(components) across the platform, and exposes simple endpoints for the console. It is planned to migrate this service and functionality to the OpenChoreo Observability Plane Observer service later.
 
-## Key responsibilities
+## Features
 
 - Query traces and span documents stored in OpenSearch
 - Support time-range filtering and pagination

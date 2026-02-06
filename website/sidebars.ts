@@ -33,7 +33,8 @@ const sidebars: SidebarsConfig = {
           label: 'Installation',
           collapsed: false,
           items: [
-            'getting-started/single-cluster-installation',
+            'getting-started/self-hosted-cluster',
+            'getting-started/managed-cluster',
           ],
         },
       ],

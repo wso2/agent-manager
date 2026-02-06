@@ -29,7 +29,7 @@ The quick-start includes a dev container with all required tools pre-installed (
 docker run --rm -it --name amp-quick-start \
   -v /var/run/docker.sock:/var/run/docker.sock \
   --network=host \
-  ghcr.io/wso2/amp-quick-start:v0.4.0
+  ghcr.io/wso2/amp-quick-start:v0.5.0
 ```
 
 ### Step 2: Run Installation Inside Container
@@ -73,4 +73,4 @@ After installation completes, use the following endpoints to access the platform
 
 ## See Also
 
-- [Single Cluster Installation](./single-cluster-installation.md) - Install on existing OpenChoreo cluster
+- [Self-Hosted Cluster Installation](./self-hosted-cluster.md) - Install on existing OpenChoreo cluster

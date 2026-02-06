@@ -1,7 +1,7 @@
 {/* This file stores constants used across the documentation */}
 
 export const versions = {
-  platform: 'v0.4.0',
+  platform: 'v0.5.0',
   pythonInstrumentation: '0.0.1',
   openChoreo: '0.9.0',
   dockerTag: 'v0.4.0',
