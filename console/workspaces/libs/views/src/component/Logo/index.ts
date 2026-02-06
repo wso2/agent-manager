@@ -16,4 +16,4 @@
  * under the License.
  */
 
-import '@testing-library/jest-dom';
+export * from './Logo';
