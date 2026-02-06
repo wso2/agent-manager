@@ -47,12 +47,11 @@ jobs:
           done
 
           # 3. Convert to JSON for the matrix
-          CHARTS_JSON=$(echo "$DETECTED_CHARTS" | xargs -n1 | jq -R . | jq -s -c .)
-
-          if [ "$CHARTS_JSON" == "[]" ] || [ -z "$DETECTED_CHARTS" ]; then
+          if [ -z "$DETECTED_CHARTS" ]; then
             echo "has-changes=false" >> $GITHUB_OUTPUT
             echo "charts=[]" >> $GITHUB_OUTPUT
           else
+            CHARTS_JSON=$(echo "$DETECTED_CHARTS" | xargs -n1 | jq -R . | jq -s -c .)
             echo "Detected charts: $CHARTS_JSON"
             echo "has-changes=true" >> $GITHUB_OUTPUT
             echo "charts=$CHARTS_JSON" >> $GITHUB_OUTPUT
