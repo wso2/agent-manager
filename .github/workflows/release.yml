@@ -385,7 +385,7 @@ jobs:
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-quick-start:v${{ inputs.target-release }}`
             
             ### Helm Charts
-            - `${{ env.HELM_REGISTRY }}/wso2-ai-agent-management-platform:${{ inputs.target-release }}`
+            - `${{ env.HELM_REGISTRY }}/wso2-agent-manager:${{ inputs.target-release }}`
             - `${{ env.HELM_REGISTRY }}/wso2-amp-build-extension:${{ inputs.target-release }}`
             - `${{ env.HELM_REGISTRY }}/wso2-amp-observability-extension:${{ inputs.target-release }}`
 
