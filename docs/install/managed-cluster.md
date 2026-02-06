@@ -94,10 +94,10 @@ While following the OpenChoreo installation guide, apply these Agent Manager-spe
 
 | Component | Required Values File |
 |-----------|---------------------|
-| **Build Plane** | [values-bp.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/single-cluster/values-bp.yaml) |
-| **Observability Plane** | [values-op.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/single-cluster/values-op.yaml) |
-| **Control Plane** | [values-cp.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/single-cluster/values-cp.yaml) |
-| **Data Plane** | [values-dp.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/single-cluster/values-dp.yaml) |
+| **Build Plane** | [values-bp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-bp.yaml) |
+| **Observability Plane** | [values-op.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-op.yaml) |
+| **Control Plane** | [values-cp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-cp.yaml) |
+| **Data Plane** | [values-dp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-dp.yaml) |
 
 ### Installation Steps
 
@@ -750,14 +750,14 @@ aws ec2 describe-security-groups --filters "Name=tag:kubernetes.io/cluster/<clus
 
 All configuration values files used in this guide are available in the repository:
 
-- **Control Plane Values**: [deployments/single-cluster/values-cp.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/single-cluster/values-cp.yaml)
-- **Data Plane Values**: [deployments/single-cluster/values-dp.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/single-cluster/values-dp.yaml)
-- **Build Plane Values**: [deployments/single-cluster/values-bp.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/single-cluster/values-bp.yaml)
-- **Observability Plane Values**: [deployments/single-cluster/values-op.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/single-cluster/values-op.yaml)
-- **Gateway Operator Config**: [deployments/values/api-platform-operator-full-config.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/values/api-platform-operator-full-config.yaml)
-- **Observability Gateway**: [deployments/values/obs-gateway.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/values/obs-gateway.yaml)
-- **OTEL Collector ConfigMap**: [deployments/values/oc-collector-configmap.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/values/oc-collector-configmap.yaml)
-- **OTEL Collector RestApi**: [deployments/values/otel-collector-rest-api.yaml](https://github.com/wso2/agent-manager/tree/main/deployments/values/otel-collector-rest-api.yaml)
+- **Control Plane Values**: [deployments/single-cluster/values-cp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-cp.yaml)
+- **Data Plane Values**: [deployments/single-cluster/values-dp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-dp.yaml)
+- **Build Plane Values**: [deployments/single-cluster/values-bp.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-bp.yaml)
+- **Observability Plane Values**: [deployments/single-cluster/values-op.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-op.yaml)
+- **Gateway Operator Config**: [deployments/values/api-platform-operator-full-config.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/api-platform-operator-full-config.yaml)
+- **Observability Gateway**: [deployments/values/obs-gateway.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/obs-gateway.yaml)
+- **OTEL Collector ConfigMap**: [deployments/values/oc-collector-configmap.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/oc-collector-configmap.yaml)
+- **OTEL Collector RestApi**: [deployments/values/otel-collector-rest-api.yaml](https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/values/otel-collector-rest-api.yaml)
 
 You can customize these files for your specific deployment needs.
 
