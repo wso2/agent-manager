@@ -20,7 +20,8 @@ Tests for base evaluator coverage - aiming for 90%+.
 
 import pytest
 from amp_evaluation.evaluators.base import BaseEvaluator, LLMAsJudgeEvaluator, FunctionEvaluator
-from amp_evaluation.models import EvalResult, Observation, Task
+from amp_evaluation.models import EvalResult, Observation
+from amp_evaluation.dataset import Task
 from amp_evaluation.trace import Trajectory, TraceMetrics, TokenUsage
 
 

@@ -58,12 +58,6 @@ from .models import (
     DataNotAvailableError,
     # Observation
     Observation,
-    # Task & Dataset (re-exported from dataset module)
-    Task,
-    Dataset,
-    Constraints,
-    TrajectoryStep,
-    generate_id,
     # Results
     EvalResult,
     EvaluatorScore,

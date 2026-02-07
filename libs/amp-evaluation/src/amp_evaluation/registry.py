@@ -24,7 +24,8 @@ import inspect
 import logging
 
 from .evaluators.base import BaseEvaluator, FunctionEvaluator
-from .models import EvalResult, Observation, Task
+from .models import EvalResult, Observation
+from .dataset.schema import Task
 
 
 logger = logging.getLogger(__name__)

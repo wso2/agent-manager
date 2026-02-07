@@ -77,7 +77,8 @@ import logging
 from .trace import Trajectory, parse_trace_for_evaluation, TraceFetcher
 from .registry import get_registry, get_evaluator
 from .evaluators.base import BaseEvaluator
-from .models import Task, Dataset, EvaluatorSummary, EvaluatorScore
+from .models import EvaluatorSummary, EvaluatorScore
+from .dataset.schema import Task, Dataset
 from .aggregators.base import normalize_aggregations
 from .config import Config
 
@@ -470,7 +471,7 @@ class BaseRunner(ABC):
         Returns:
             RunResult with aggregated scores
         """
-        from .models import generate_id
+        from .dataset import generate_id
 
         run_id = generate_id("run")
         started_at = datetime.now()

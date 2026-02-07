@@ -40,13 +40,14 @@ from amp_evaluation.evaluators.builtin.deepeval import (
     DeepEvalTaskCompletionEvaluator,
     DeepEvalStepEfficiencyEvaluator,
 )
-from amp_evaluation.models import Observation, Task
+from amp_evaluation.models import Observation
 from amp_evaluation.trace import (
     Trajectory,
     TraceMetrics,
     TokenUsage,
     ToolSpan,
 )
+from amp_evaluation.dataset.schema import Task
 
 
 # ============================================================================
@@ -456,10 +457,9 @@ class TestDeepEvalStepEfficiencyEvaluator:
 
     def test_evaluator_initialization(self):
         """Test evaluator initialization."""
-        evaluator = DeepEvalStepEfficiencyEvaluator(threshold=0.75, verbose_mode=True)
+        evaluator = DeepEvalStepEfficiencyEvaluator(threshold=0.75)
 
         assert evaluator.threshold == 0.75
-        assert evaluator.verbose_mode is True
         assert evaluator.name == "deepeval/step-efficiency"
 
     def test_efficient_execution(self, observation_with_tools):

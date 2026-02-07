@@ -22,9 +22,6 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from amp_evaluation.trace.models import ToolSpan
 
-# Import all dataset-related models from dataset module for re-export
-from .dataset import Task, Dataset, Constraints, TrajectoryStep, generate_id  # noqa: F401
-
 if TYPE_CHECKING:
     from .trace.models import Trajectory
 

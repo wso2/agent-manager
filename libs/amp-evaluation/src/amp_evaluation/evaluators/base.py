@@ -23,10 +23,13 @@ Two-parameter architecture: evaluate(observation, task)
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Callable, TYPE_CHECKING
+from typing import List, Optional, Callable, TYPE_CHECKING, Any, Dict
 import logging
+import inspect
 
-from ..models import EvalResult, Observation, Task
+from ..models import EvalResult, Observation
+from ..dataset.schema import Task
+from .config import Config
 
 if TYPE_CHECKING:
     pass
@@ -94,9 +97,8 @@ class BaseEvaluator(ABC):
     description: str = ""
     tags: List[str] = ()  # Immutable default; subclasses should override with a list
     version: str = "1.0"
-    evaluator_type: str = "trace"
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         # Set default name to class name if not already set
         if not self.name:
             self.name = self.__class__.__name__
@@ -111,6 +113,108 @@ class BaseEvaluator(ABC):
         if hasattr(self.__class__, "_default_aggregations") and self.__class__._default_aggregations:
             self._aggregations = self.__class__._default_aggregations
 
+        # Initialize Config descriptors from kwargs
+        self._init_config_from_kwargs(kwargs)
+
+        # Validate that built-in evaluators use Config descriptors properly
+        self._validate_config_usage()
+
+    def _init_config_from_kwargs(self, kwargs: Dict[str, Any]):
+        """
+        Initialize Config descriptors from kwargs.
+
+        This allows evaluators to be instantiated with:
+            evaluator = MyEvaluator(threshold=0.8, model="gpt-4")
+
+        Even when the evaluator uses Config descriptors instead of __init__ parameters.
+
+        Raises:
+            TypeError: If unknown kwargs are passed
+        """
+        # Find all Config descriptors on the class
+        valid_config_names = set()
+        for attr_name in dir(type(self)):
+            attr = getattr(type(self), attr_name, None)
+            if isinstance(attr, Config):
+                valid_config_names.add(attr_name)
+                # If a value was passed in kwargs, set it
+                if attr_name in kwargs:
+                    setattr(self, attr_name, kwargs[attr_name])
+
+        # Check for unknown kwargs
+        unknown_kwargs = set(kwargs.keys()) - valid_config_names
+        if unknown_kwargs:
+            raise TypeError(
+                f"{self.__class__.__name__}.__init__() got unexpected keyword argument(s): "
+                f"{', '.join(sorted(unknown_kwargs))}"
+            )
+
+    def _validate_config_usage(self):
+        """
+        Validate that built-in evaluators use Config descriptors instead of __init__ params.
+
+        This ensures all built-in evaluators follow the declarative Config pattern.
+        Only validates evaluators in the amp_evaluation.evaluators.builtin package.
+
+        Raises:
+            ValueError: If a built-in evaluator has __init__ parameters that aren't Config descriptors
+        """
+        # Only validate built-in evaluators
+        module_name = self.__class__.__module__
+        if not module_name.startswith("amp_evaluation.evaluators.builtin"):
+            return  # Skip validation for user-defined evaluators
+
+        # Get the __init__ signature of the concrete class (not BaseEvaluator)
+        init_method = self.__class__.__init__
+        sig = inspect.signature(init_method)
+
+        # Get all Config descriptors on the class
+        config_attrs = set()
+        for attr_name in dir(type(self)):
+            attr = getattr(type(self), attr_name, None)
+            if isinstance(attr, Config):
+                config_attrs.add(attr_name)
+
+        # Check for __init__ parameters that aren't Config descriptors
+        invalid_params = []
+        for param_name, param in sig.parameters.items():
+            # Skip 'self' and 'kwargs'
+            if param_name in ("self", "kwargs"):
+                continue
+
+            # If it's not a Config descriptor, it's invalid
+            if param_name not in config_attrs:
+                invalid_params.append(param_name)
+
+        if invalid_params:
+            raise ValueError(
+                f"Built-in evaluator '{self.__class__.__name__}' has __init__ parameters "
+                f"{invalid_params} that are not defined as Config descriptors. "
+                f"Built-in evaluators must use Config descriptors for all configuration. "
+                f"Example:\n"
+                f"  class {self.__class__.__name__}(BaseEvaluator):\n"
+                f"      {invalid_params[0]} = Config(type, default=..., description='...')\n"
+                f"      def __init__(self, **kwargs):\n"
+                f"          super().__init__(**kwargs)"
+            )
+
+    def _extract_config_schema(self) -> List[Dict[str, Any]]:
+        """
+        Extract configuration schema from Config descriptors.
+
+        Scans the evaluator class for Config descriptors and builds
+        a schema describing what parameters this evaluator accepts.
+        """
+        schema = []
+
+        # Find all Config descriptors on the class
+        for attr_name in dir(type(self)):
+            attr = getattr(type(self), attr_name, None)
+            if isinstance(attr, Config):
+                schema.append(attr.to_schema())
+
+        return schema
+
     @property
     def aggregations(self) -> Optional[List]:
         """Get configured aggregations for this evaluator."""
@@ -123,18 +227,22 @@ class BaseEvaluator(ABC):
 
     def get_metadata(self) -> dict:
         """
-        Get evaluator metadata.
+        Get evaluator metadata including configuration schema.
 
-        Returns metadata from instance attributes if set (e.g., for FunctionEvaluator),
-        otherwise from class attributes.
+        For class-based evaluators, the config schema is derived from
+        Config descriptors defined as class attributes.
+
+        Excludes internal fields (name, description, tags, version)
+        and fields starting with underscore.
         """
-        return {
+        metadata = {
             "name": self.name,
             "description": getattr(self, "description", ""),
-            "tags": list(getattr(self, "tags", [])),  # Copy to avoid mutation
+            "tags": list(getattr(self, "tags", [])),
             "version": getattr(self, "version", "1.0"),
-            "evaluator_type": getattr(self, "evaluator_type", "trace"),
+            "config_schema": self._extract_config_schema(),
         }
+        return metadata
 
     @abstractmethod
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
@@ -205,6 +313,7 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
         prompt_template: Optional[str] = None,
         criteria: Optional[str] = None,
         prompt_builder: Optional[Callable] = None,
+        **kwargs,
     ):
         """
         Initialize LLM-as-judge evaluator.
@@ -216,7 +325,7 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
             prompt_builder: Optional function(observation, task) -> dict of template variables
                            Allows custom logic to prepare prompt context
         """
-        super().__init__()
+        super().__init__(**kwargs)
         self.model = model
         self.prompt_template = prompt_template or self._default_prompt_template()
         self.criteria = criteria or "quality, accuracy, and helpfulness"
@@ -299,8 +408,8 @@ Explanation: <your reasoning>
 class FunctionEvaluator(BaseEvaluator):
     """Wraps a simple function as an evaluator."""
 
-    def __init__(self, func: Callable[[Observation, Optional[Task]], any], name: Optional[str] = None):
-        super().__init__()
+    def __init__(self, func: Callable[[Observation, Optional[Task]], any], name: Optional[str] = None, **kwargs):
+        super().__init__(**kwargs)
         self.func = func
         self.name = name or func.__name__
 
