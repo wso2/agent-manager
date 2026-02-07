@@ -26,10 +26,12 @@ All evaluators use the two-parameter interface:
 
 import logging
 import re
-from typing import List, Optional, Set
+from typing import Optional
 
 from amp_evaluation.evaluators.base import BaseEvaluator
-from amp_evaluation.models import Observation, Task, EvalResult
+from amp_evaluation.evaluators.config import Config
+from amp_evaluation.models import Observation, EvalResult
+from amp_evaluation.dataset.schema import Task
 
 
 logger = logging.getLogger(__name__)
@@ -44,11 +46,14 @@ class AnswerLengthEvaluator(BaseEvaluator):
     """Evaluates if the answer length is within acceptable bounds."""
 
     name = "answer_length"
+    description = "Checks if the answer length is within acceptable bounds"
 
-    def __init__(self, min_length: int = 1, max_length: int = 10000):
-        super().__init__()
-        self.min_length = min_length
-        self.max_length = max_length
+    # Declarative configuration using Config descriptors
+    min_length = Config(int, default=1, min=0, description="Minimum acceptable length")
+    max_length = Config(int, default=10000, min=1, description="Maximum acceptable length")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         output_length = len(observation.output) if observation.output else 0
@@ -81,10 +86,12 @@ class AnswerRelevancyEvaluator(BaseEvaluator):
     """Evaluates if the answer is relevant to the input query."""
 
     name = "answer_relevancy"
+    description = "Checks if the answer is relevant to the input query using word overlap"
 
-    def __init__(self, min_overlap_ratio: float = 0.1):
-        super().__init__()
-        self.min_overlap_ratio = min_overlap_ratio
+    min_overlap_ratio = Config(float, default=0.1, min=0.0, max=1.0, description="Minimum word overlap ratio")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         input_text = observation.input.lower() if observation.input else ""
@@ -113,17 +120,19 @@ class RequiredContentEvaluator(BaseEvaluator):
     """Evaluates if the output contains all required content."""
 
     name = "required_content"
+    description = "Checks if the output contains all required strings and patterns"
 
-    def __init__(
-        self,
-        required_strings: Optional[List[str]] = None,
-        required_patterns: Optional[List[str]] = None,
-        case_sensitive: bool = False,
-    ):
-        super().__init__()
-        self.required_strings = required_strings or []
-        self.required_patterns = required_patterns or []
-        self.case_sensitive = case_sensitive
+    required_strings = Config(list, default=None, description="List of required strings")
+    required_patterns = Config(list, default=None, description="List of required regex patterns")
+    case_sensitive = Config(bool, default=False, description="Whether to use case-sensitive matching")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Ensure lists are initialized
+        if self.required_strings is None:
+            self.required_strings = []
+        if self.required_patterns is None:
+            self.required_patterns = []
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         output = observation.output if observation.output else ""
@@ -162,19 +171,20 @@ class ProhibitedContentEvaluator(BaseEvaluator):
     """Evaluates if the output avoids prohibited content."""
 
     name = "prohibited_content"
+    description = "Checks if the output avoids prohibited strings and patterns"
 
-    def __init__(
-        self,
-        prohibited_strings: Optional[List[str]] = None,
-        prohibited_patterns: Optional[List[str]] = None,
-        case_sensitive: bool = False,
-        use_context_prohibited: bool = True,
-    ):
-        super().__init__()
-        self.prohibited_strings = prohibited_strings or []
-        self.prohibited_patterns = prohibited_patterns or []
-        self.case_sensitive = case_sensitive
-        self.use_context_prohibited = use_context_prohibited
+    prohibited_strings = Config(list, default=None, description="List of prohibited strings")
+    prohibited_patterns = Config(list, default=None, description="List of prohibited regex patterns")
+    case_sensitive = Config(bool, default=False, description="Whether to use case-sensitive matching")
+    use_context_prohibited = Config(bool, default=True, description="Whether to use task.prohibited_content")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Ensure lists are initialized
+        if self.prohibited_strings is None:
+            self.prohibited_strings = []
+        if self.prohibited_patterns is None:
+            self.prohibited_patterns = []
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         output = observation.output if observation.output else ""
@@ -212,11 +222,13 @@ class ExactMatchEvaluator(BaseEvaluator):
     """Evaluates if the output exactly matches the reference output."""
 
     name = "exact_match"
+    description = "Checks if the output exactly matches the expected output"
 
-    def __init__(self, case_sensitive: bool = True, strip_whitespace: bool = True):
-        super().__init__()
-        self.case_sensitive = case_sensitive
-        self.strip_whitespace = strip_whitespace
+    case_sensitive = Config(bool, default=True, description="Whether to use case-sensitive matching")
+    strip_whitespace = Config(bool, default=True, description="Whether to strip whitespace before comparing")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         # Get expected output from context (raises DataNotAvailableError if not available)
@@ -260,10 +272,12 @@ class ContainsMatchEvaluator(BaseEvaluator):
     """Evaluates if the output contains the reference output."""
 
     name = "contains_match"
+    description = "Checks if the output contains the expected output"
 
-    def __init__(self, case_sensitive: bool = False):
-        super().__init__()
-        self.case_sensitive = case_sensitive
+    case_sensitive = Config(bool, default=False, description="Whether to use case-sensitive matching")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         expected = task.expected_output
@@ -292,23 +306,23 @@ class ToolSequenceEvaluator(BaseEvaluator):
     """Evaluates if tools were called in the expected sequence."""
 
     name = "tool_sequence"
+    description = "Checks if tools were called in the expected order"
 
-    def __init__(
-        self,
-        expected_sequence: Optional[List[str]] = None,
-        strict: bool = False,
-        use_context_trajectory: bool = True,
-    ):
+    expected_sequence = Config(list, default=None, description="List of tool names in expected order")
+    strict = Config(bool, default=False, description="If True, requires exact sequence. If False, allows extra tools")
+    use_context_trajectory = Config(bool, default=True, description="If True, uses task.expected_trajectory")
+
+    def __init__(self, **kwargs):
         """
         Args:
             expected_sequence: List of tool names in expected order
             strict: If True, requires exact sequence. If False, allows extra tools
             use_context_trajectory: If True, uses task.expected_trajectory
         """
-        super().__init__()
-        self.expected_sequence = expected_sequence or []
-        self.strict = strict
-        self.use_context_trajectory = use_context_trajectory
+        super().__init__(**kwargs)
+        # Ensure list is initialized
+        if self.expected_sequence is None:
+            self.expected_sequence = []
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         trajectory = observation.trajectory
@@ -355,10 +369,17 @@ class RequiredToolsEvaluator(BaseEvaluator):
     """Evaluates if all required tools were used."""
 
     name = "required_tools"
+    description = "Checks if all required tools were used during execution"
 
-    def __init__(self, required_tools: Optional[Set[str]] = None):
-        super().__init__()
-        self.required_tools = set(required_tools) if required_tools else set()
+    required_tools = Config(set, default=None, description="Set of required tool names")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Ensure set is initialized
+        if self.required_tools is None:
+            self.required_tools = set()
+        elif not isinstance(self.required_tools, set):
+            self.required_tools = set(self.required_tools)
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         trajectory = observation.trajectory
@@ -403,10 +424,12 @@ class StepSuccessRateEvaluator(BaseEvaluator):
     """Evaluates the success rate of trajectory steps."""
 
     name = "step_success_rate"
+    description = "Checks the success rate of trajectory steps"
 
-    def __init__(self, min_success_rate: float = 0.8):
-        super().__init__()
-        self.min_success_rate = min_success_rate
+    min_success_rate = Config(float, default=0.8, min=0.0, max=1.0, description="Minimum required success rate")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         trajectory = observation.trajectory
@@ -437,11 +460,13 @@ class LatencyEvaluator(BaseEvaluator):
     """Evaluates if the trace completed within latency constraints."""
 
     name = "latency"
+    description = "Checks if the trace completed within latency constraints"
 
-    def __init__(self, max_latency_ms: Optional[float] = None, use_task_constraint: bool = True):
-        super().__init__()
-        self.max_latency_ms = max_latency_ms
-        self.use_task_constraint = use_task_constraint
+    max_latency_ms = Config(float, default=None, min=0.0, description="Maximum allowed latency in milliseconds")
+    use_task_constraint = Config(bool, default=True, description="Whether to use task.constraints.max_latency_ms")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         # Determine max latency
@@ -478,11 +503,13 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
     """Evaluates if token usage is within constraints."""
 
     name = "token_efficiency"
+    description = "Checks if token usage is within constraints"
 
-    def __init__(self, max_tokens: Optional[int] = None, use_context_constraint: bool = True):
-        super().__init__()
-        self.max_tokens = max_tokens
-        self.use_context_constraint = use_context_constraint
+    max_tokens = Config(int, default=None, min=1, description="Maximum allowed tokens")
+    use_context_constraint = Config(bool, default=True, description="Whether to use task.constraints.max_tokens")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         # Determine max tokens
@@ -523,11 +550,13 @@ class IterationCountEvaluator(BaseEvaluator):
     """Evaluates if the agent completed within iteration constraints."""
 
     name = "iteration_count"
+    description = "Checks if the agent completed within iteration constraints"
 
-    def __init__(self, max_iterations: Optional[int] = None, use_context_constraint: bool = True):
-        super().__init__()
-        self.max_iterations = max_iterations
-        self.use_context_constraint = use_context_constraint
+    max_iterations = Config(int, default=None, min=1, description="Maximum allowed iterations")
+    use_context_constraint = Config(bool, default=True, description="Whether to use task.constraints.max_iterations")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
         trajectory = observation.trajectory

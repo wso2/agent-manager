@@ -39,10 +39,13 @@ subpackage and are auto-discovered via the registry for lazy loading.
 
 # Base classes - always available
 from .base import BaseEvaluator, LLMAsJudgeEvaluator, FunctionEvaluator
+from .config import Config
 
 __all__ = [
     # Base classes
     "BaseEvaluator",
     "LLMAsJudgeEvaluator",
     "FunctionEvaluator",
+    # Configuration
+    "Config",
 ]

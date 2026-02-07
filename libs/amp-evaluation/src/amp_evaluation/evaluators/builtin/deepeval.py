@@ -41,7 +41,9 @@ import logging
 from typing import Optional, List, Any
 
 from amp_evaluation.evaluators.base import BaseEvaluator
-from amp_evaluation.models import Observation, Task, EvalResult
+from amp_evaluation.evaluators.config import Config
+from amp_evaluation.models import Observation, EvalResult
+from amp_evaluation.dataset.schema import Task
 
 logger = logging.getLogger(__name__)
 
@@ -82,15 +84,13 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
     # Default tags - subclasses can extend
     TAGS: List[str] = DEEPEVAL_AGENT_TAGS
 
-    def __init__(
-        self,
-        threshold: float = 0.7,
-        model: str = "gpt-4o",
-        include_reason: bool = True,
-        strict_mode: bool = False,
-        verbose_mode: bool = False,
-        name: Optional[str] = None,
-    ):
+    # Config descriptors
+    threshold = Config(float, default=0.7, min=0.0, max=1.0, description="Minimum score for passing")
+    model = Config(str, default="gpt-4o", description="LLM model to use for evaluation")
+    include_reason = Config(bool, default=True, description="Whether to include reasoning in the result")
+    strict_mode = Config(bool, default=False, description="If True, use binary scoring (0 or 1)")
+
+    def __init__(self, **kwargs):
         """
         Initialize DeepEval evaluator wrapper.
 
@@ -99,17 +99,8 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
             model: LLM model to use for evaluation (e.g., "gpt-4o", "gpt-4o-mini")
             include_reason: Whether to include reasoning in the result
             strict_mode: If True, use binary scoring (0 or 1)
-            verbose_mode: If True, print verbose output during evaluation
-            name: Custom name for the evaluator
         """
-        super().__init__()
-        if name is not None:
-            self.name = name
-        self.threshold = threshold
-        self.model = model
-        self.include_reason = include_reason
-        self.strict_mode = strict_mode
-        self.verbose_mode = verbose_mode
+        super().__init__(**kwargs)
 
         # Verify deepeval is available
         if not _check_deepeval_installed():
@@ -291,7 +282,6 @@ class DeepEvalPlanQualityEvaluator(DeepEvalBaseEvaluator):
             model=self.model,
             include_reason=self.include_reason,
             strict_mode=self.strict_mode,
-            verbose_mode=self.verbose_mode,
         )
 
         # Build test case
@@ -339,7 +329,6 @@ class DeepEvalPlanAdherenceEvaluator(DeepEvalBaseEvaluator):
             model=self.model,
             include_reason=self.include_reason,
             strict_mode=self.strict_mode,
-            verbose_mode=self.verbose_mode,
         )
 
         # Build test case
@@ -385,19 +374,14 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
     evaluator_type = "agent"
     version = "1.0"
 
-    def __init__(
-        self,
-        threshold: float = 0.7,
-        model: str = "gpt-4o",
-        include_reason: bool = True,
-        strict_mode: bool = False,
-        verbose_mode: bool = False,
-        evaluate_input: bool = False,
-        evaluate_output: bool = False,
-        evaluate_order: bool = False,
-        exact_match: bool = False,
-        available_tools: Optional[List[str]] = None,
-    ):
+    # Additional Config descriptors beyond base class
+    evaluate_input = Config(bool, default=False, description="If True, also check input arguments match")
+    evaluate_output = Config(bool, default=False, description="If True, also check outputs match")
+    evaluate_order = Config(bool, default=False, description="If True, enforce call sequence")
+    exact_match = Config(bool, default=False, description="If True, require exact match of tools called vs expected")
+    available_tools = Config(list, default=None, description="List of available tool names for LLM-based evaluation")
+
+    def __init__(self, **kwargs):
         """
         Initialize ToolCorrectness evaluator.
 
@@ -406,25 +390,13 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
             model: LLM model to use for evaluation
             include_reason: Whether to include reasoning in the result
             strict_mode: If True, use binary scoring (0 or 1)
-            verbose_mode: If True, print verbose output during evaluation
             evaluate_input: If True, also check input arguments match
             evaluate_output: If True, also check outputs match
             evaluate_order: If True, enforce call sequence
             exact_match: If True, require exact match of tools called vs expected
             available_tools: List of available tool names for LLM-based evaluation
         """
-        super().__init__(
-            threshold=threshold,
-            model=model,
-            include_reason=include_reason,
-            strict_mode=strict_mode,
-            verbose_mode=verbose_mode,
-        )
-        self.evaluate_input = evaluate_input
-        self.evaluate_output = evaluate_output
-        self.evaluate_order = evaluate_order
-        self.exact_match = exact_match
-        self.available_tools = available_tools
+        super().__init__(**kwargs)
         # Set default aggregations
 
     def _evaluate_with_deepeval(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
@@ -440,9 +412,6 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
         if self.available_tools:
             metric_kwargs["model"] = self.model
             metric_kwargs["include_reason"] = self.include_reason
-
-        if self.verbose_mode:
-            metric_kwargs["verbose_mode"] = self.verbose_mode
 
         metric = ToolCorrectnessMetric(**metric_kwargs)
 
@@ -534,7 +503,6 @@ class DeepEvalArgumentCorrectnessEvaluator(DeepEvalBaseEvaluator):
             model=self.model,
             include_reason=self.include_reason,
             strict_mode=self.strict_mode,
-            verbose_mode=self.verbose_mode,
         )
 
         # Build test case with tool call details
@@ -595,15 +563,10 @@ class DeepEvalTaskCompletionEvaluator(DeepEvalBaseEvaluator):
     evaluator_type = "agent"
     version = "1.0"
 
-    def __init__(
-        self,
-        threshold: float = 0.7,
-        model: str = "gpt-4o",
-        include_reason: bool = True,
-        strict_mode: bool = False,
-        verbose_mode: bool = False,
-        custom_task: Optional[str] = None,
-    ):
+    # Additional Config descriptor beyond base class
+    custom_task = Config(str, default=None, description="Optional custom task description (overrides auto-inference)")
+
+    def __init__(self, **kwargs):
         """
         Initialize TaskCompletion evaluator.
 
@@ -612,17 +575,9 @@ class DeepEvalTaskCompletionEvaluator(DeepEvalBaseEvaluator):
             model: LLM model to use for evaluation
             include_reason: Whether to include reasoning in the result
             strict_mode: If True, use binary scoring (0 or 1)
-            verbose_mode: If True, print verbose output during evaluation
             custom_task: Optional custom task description (overrides auto-inference)
         """
-        super().__init__(
-            threshold=threshold,
-            model=model,
-            include_reason=include_reason,
-            strict_mode=strict_mode,
-            verbose_mode=verbose_mode,
-        )
-        self.custom_task = custom_task
+        super().__init__(**kwargs)
         # Set default aggregations
 
     def _evaluate_with_deepeval(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
@@ -635,7 +590,6 @@ class DeepEvalTaskCompletionEvaluator(DeepEvalBaseEvaluator):
             "model": self.model,
             "include_reason": self.include_reason,
             "strict_mode": self.strict_mode,
-            "verbose_mode": self.verbose_mode,
         }
 
         metric = TaskCompletionMetric(**metric_kwargs)
@@ -694,7 +648,6 @@ class DeepEvalStepEfficiencyEvaluator(DeepEvalBaseEvaluator):
             model=self.model,
             include_reason=self.include_reason,
             strict_mode=self.strict_mode,
-            verbose_mode=self.verbose_mode,
         )
 
         # Build test case

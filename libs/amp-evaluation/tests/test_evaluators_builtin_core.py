@@ -41,7 +41,8 @@ from amp_evaluation.evaluators.builtin.standard import (
     TokenEfficiencyEvaluator,
     IterationCountEvaluator,
 )
-from amp_evaluation.models import Observation, Task
+from amp_evaluation.models import Observation
+from amp_evaluation.dataset import Task
 from amp_evaluation.trace import (
     Trajectory,
     TraceMetrics,
