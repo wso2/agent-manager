@@ -1,0 +1,56 @@
+[project]
+authors = [
+  {name = "WSO2", email = "nadheesh@wso2.org"},
+]
+description = "Comprehensive evaluation framework for AI agents, monitored via WSO2 Agent Management Platform"
+keywords = ["ai", "agents", "evaluation", "testing", "llm", "benchmark"]
+license = {text = "Apache-2.0"}
+maintainers = [
+  {name = "WSO2", email = "nadheesh@wso2.org"},
+]
+name = "amp-evaluation"
+readme = "README.md"
+requires-python = ">=3.10"
+version = "0.0.0-dev"
+
+dependencies = [
+  "requests>=2.31.0",
+  "opentelemetry-api>=1.20.0",
+  "opentelemetry-sdk>=1.20.0",
+  "opentelemetry-instrumentation-requests>=0.41b0",
+  "pydantic>=2.0.0",
+  "pydantic-settings>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.0",
+  "pytest-cov>=4.0",
+  "black>=23.0",
+  "ruff>=0.1.0",
+]
+
+[project.urls]
+Repository = "https://github.com/wso2/ai-agent-management-platform"
+
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling>=1.27"]
+
+[tool.hatchling.build.targets.wheel]
+packages = ["src/amp_evaluation"]
+
+[tool.black]
+line-length = 120
+target-version = ['py39', 'py310', 'py311']
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.pytest.ini_options]
+addopts = "-v --cov=amp_evaluation --cov-report=term-missing"
+python_classes = "Test*"
+python_files = "test_*.py"
+python_functions = "test_*"
+testpaths = ["tests"]

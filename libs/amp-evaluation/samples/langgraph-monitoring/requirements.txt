@@ -1,0 +1,2 @@
+amp-evaluation>=0.1.0
+openai>=1.0.0              # Optional: only needed for llm-hallucination-judge
