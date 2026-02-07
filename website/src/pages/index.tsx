@@ -31,7 +31,7 @@ function HomepageHeader() {
             </Link>
             <Link
               className="button button--outline button--lg margin-left--md"
-              to="https://github.com/wso2/ai-agent-management-platform">
+              to="https://github.com/wso2/agent-manager">
               ⭐ Star us on GitHub
             </Link>
           </div>
@@ -214,8 +214,8 @@ function QuickStartSection() {
               </Link>
               <Link
                 className="button button--secondary button--lg margin-left--md"
-                to="/docs/getting-started/single-cluster-installation">
-                Single Cluster Installation
+                to="/docs/getting-started/self-hosted-cluster">
+                Self-Hosted Cluster Installation
               </Link>
             </div>
           </div>

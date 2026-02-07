@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Update version references in documentation files
-# Usage: update-docs-versions.sh <target-version> <registry-org>
+# Usage: update-docs-versions.sh <target-version>
 
 set -euo pipefail
 
@@ -14,34 +14,31 @@ fi
 
 echo "Updating documentation files with version $TARGET_VERSION"
 
-# Update quick-start.md - Docker image version
-if [ -f "./docs/quick-start.md" ]; then
-  # Update the amp-quick-start image version (handles wso2 registry)
-  # Use # as delimiter to avoid conflict with | in the pattern
-  sed -i.bak -E "s#v0.0.0-dev#v${TARGET_VERSION}#g" "./docs/quick-start.md"
-  if grep -q "${TARGET_VERSION}" "./docs/quick-start.md"; then
-    echo "✅ Updated docs/quick-start.md"
-  else
-    echo "⚠️ Warning: Version pattern may not have been found in ./docs/quick-start.md"
-  fi
-  rm -f "./docs/quick-start.md.bak"
-else
-  echo "⚠️ File not found: ./docs/quick-start.md, skipping"
-fi
+# Counter for tracking updates
+updated_count=0
 
-# Update single-cluster.md - Chart versions and registry
-if [ -f "./docs/install/single-cluster.md" ]; then
-  # Update HELM_CHART_REGISTRY (handles wso2 registry)
-  sed -i.bak -E "s#0.0.0-dev#${TARGET_VERSION}#g" "./docs/install/single-cluster.md"
-  if grep -q "${TARGET_VERSION}" "./docs/install/single-cluster.md"; then
-    echo "✅ Updated docs/install/single-cluster.md"
-  else
-    echo "⚠️ Warning: Version pattern may not have been found in ./docs/install/single-cluster.md"
-  fi
-  rm -f "./docs/install/single-cluster.md.bak"
-else
-  echo "⚠️ File not found: ./docs/install/single-cluster.md, skipping"
-fi
+# Find all markdown files in docs directory and update version references
+# Use process substitution to avoid subshell issues with updated_count
+while read -r doc_file; do
+  # Check if file contains version patterns before attempting replacement
+  if grep -q "0\.0\.0-dev\|v0\.0\.0-dev" "$doc_file" 2>/dev/null; then
+    # Replace version: 0.0.0-dev with TARGET_VERSION (without v prefix)
+    sed -i.bak "s|0\.0\.0-dev|${TARGET_VERSION}|g" "$doc_file"
 
-echo "✅ Updated all documentation files with version ${TARGET_VERSION}"
+    # Replace version: v0.0.0-dev with vTARGET_VERSION (with v prefix)
+    sed -i.bak "s|v0\.0\.0-dev|v${TARGET_VERSION}|g" "$doc_file"
+
+    # Remove backup file
+    rm -f "${doc_file}.bak"
+
+    echo "✅ Updated $(basename "$doc_file")"
+    updated_count=$((updated_count + 1))
+  fi
+done < <(find ./docs -name "*.md" -type f)
+
+if [ $updated_count -eq 0 ]; then
+  echo "⚠️ No files with version patterns found in ./docs"
+else
+  echo "✅ Updated $updated_count documentation file(s) with version ${TARGET_VERSION}"
+fi
 
