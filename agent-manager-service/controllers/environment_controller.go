@@ -244,11 +244,30 @@ func getIntQueryParam(r *http.Request, key string, defaultValue int) int {
 	return defaultValue
 }
 
-// Placeholder function for organization lookup
-// This will be replaced with proper integration in Phase 5
+// getOrgUUIDFromName looks up an organization UUID by name
+// TODO: Integrate with OpenChoreo client for proper organization lookup
+// Currently returns a placeholder UUID - this will be updated when
+// the gateway management feature is fully integrated with the authentication
+// and organization management system.
+//
+// For now, this allows the gateway management APIs to be functional
+// for testing with direct UUID access. The full integration will use
+// the OpenChoreo client (similar to infraResourceController.GetOrganization).
 func getOrgUUIDFromName(ctx context.Context, orgName string) (uuid.UUID, error) {
-	// TODO: Integrate with OpenChoreo client or database lookup
-	// For now, return a placeholder
-	// This is a temporary implementation
+	// TODO: Phase 6+ - Integrate with OpenChoreo client
+	//
+	// Integration pattern:
+	// 1. Inject OpenChoreo client into controller constructors
+	// 2. Use client.GetOrganization(ctx, orgName) to lookup organization
+	// 3. Extract and return the organization UUID
+	//
+	// Example:
+	//   org, err := c.ocClient.GetOrganization(ctx, orgName)
+	//   if err != nil {
+	//       return uuid.UUID{}, err
+	//   }
+	//   return org.UUID, nil
+	//
+	// For now, return a placeholder to allow API testing
 	return uuid.Parse("00000000-0000-0000-0000-000000000001")
 }

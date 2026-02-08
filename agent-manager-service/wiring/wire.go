@@ -107,6 +107,7 @@ var loggerProviderSet = wire.NewSet(
 
 var gatewayProviderSet = wire.NewSet(
 	ProvideGatewayAdapter,
+	ProvideGatewayEncryptionKey,
 )
 
 // ProvideTestOpenChoreoClient extracts the OpenChoreoClient from TestClients

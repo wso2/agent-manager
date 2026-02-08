@@ -56,15 +56,17 @@ type GatewayFilter struct {
 }
 
 type gatewayService struct {
-	adapter gateway.IGatewayAdapter
-	logger  *slog.Logger
+	adapter      gateway.IGatewayAdapter
+	encryptionKey []byte
+	logger       *slog.Logger
 }
 
 // NewGatewayService creates a new gateway service
-func NewGatewayService(adapter gateway.IGatewayAdapter, logger *slog.Logger) GatewayService {
+func NewGatewayService(adapter gateway.IGatewayAdapter, encryptionKey []byte, logger *slog.Logger) GatewayService {
 	return &gatewayService{
-		adapter: adapter,
-		logger:  logger,
+		adapter:      adapter,
+		encryptionKey: encryptionKey,
+		logger:       logger,
 	}
 }
 
@@ -107,6 +109,16 @@ func (s *gatewayService) RegisterGateway(ctx context.Context, orgUUID uuid.UUID,
 		AdapterConfig:    req.AdapterConfig,
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
+	}
+
+	// Encrypt credentials if provided
+	if req.Credentials != nil {
+		encryptedCreds, err := utils.EncryptCredentials(req.Credentials, s.encryptionKey)
+		if err != nil {
+			s.logger.Error("Failed to encrypt credentials", "error", err)
+			return nil, fmt.Errorf("failed to encrypt credentials: %w", err)
+		}
+		gw.CredentialsEncrypted = encryptedCreds
 	}
 
 	if err := db.DB(ctx).Create(gw).Error; err != nil {
@@ -221,6 +233,17 @@ func (s *gatewayService) UpdateGateway(ctx context.Context, orgUUID uuid.UUID, g
 			gw.AdapterConfig[k] = v
 		}
 	}
+
+	// Encrypt and update credentials if provided
+	if req.Credentials != nil {
+		encryptedCreds, err := utils.EncryptCredentials(req.Credentials, s.encryptionKey)
+		if err != nil {
+			s.logger.Error("Failed to encrypt credentials", "error", err)
+			return nil, fmt.Errorf("failed to encrypt credentials: %w", err)
+		}
+		gw.CredentialsEncrypted = encryptedCreds
+	}
+
 	gw.UpdatedAt = time.Now()
 
 	if err := db.DB(ctx).Save(&gw).Error; err != nil {

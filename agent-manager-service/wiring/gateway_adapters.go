@@ -17,37 +17,84 @@
 package wiring
 
 import (
+	"context"
+	"encoding/base64"
+	"fmt"
 	"log/slog"
 
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/gateway"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/gateway/adapter/mock"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/gateway/adapter/onpremise"
 )
 
-// ProvideGatewayAdapter provides a gateway adapter for dependency injection
-// TODO: Phase 5 will integrate with configuration to select adapter type based on config
-// For now, we use the mock adapter for development/testing
-func ProvideGatewayAdapter(logger *slog.Logger) gateway.IGatewayAdapter {
-	// Create adapter directly (bypass factory for Phase 4 simplicity)
-	// In Phase 5, we'll use the factory with proper config
-	adapter, err := mock.NewMockAdapter("mock", false, logger)
-	if err != nil {
-		// This should never happen with the mock adapter
-		// If it does, we'll create a basic mock adapter directly
-		return &mock.MockAdapter{
-			AdapterType: "mock",
-			ShouldFail:  false,
-		}
+// ProvideGatewayEncryptionKey provides the encryption key for gateway credentials
+func ProvideGatewayEncryptionKey(cfg config.Config) ([]byte, error) {
+	if cfg.Gateway.EncryptionKey == "" {
+		return nil, fmt.Errorf("GATEWAY_ENCRYPTION_KEY is required")
 	}
+
+	// Decode base64-encoded key
+	key, err := base64.StdEncoding.DecodeString(cfg.Gateway.EncryptionKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode GATEWAY_ENCRYPTION_KEY: %w", err)
+	}
+
+	// Validate key size (32 bytes for AES-256)
+	if len(key) != 32 {
+		return nil, fmt.Errorf("GATEWAY_ENCRYPTION_KEY must be 32 bytes (base64-encoded), got %d bytes", len(key))
+	}
+
+	return key, nil
+}
+
+// ProvideGatewayAdapter provides a gateway adapter for dependency injection
+// Uses configuration to select the appropriate adapter type
+func ProvideGatewayAdapter(cfg config.Config, encryptionKey []byte, logger *slog.Logger) gateway.IGatewayAdapter {
+	// Create adapter factory
+	factory := gateway.NewAdapterFactory(logger)
+
+	// Initialize adapters
+	InitGatewayAdapters(factory, encryptionKey, logger)
+
+	// Create adapter config from environment config
+	adapterConfig := gateway.AdapterConfig{
+		Type: cfg.Gateway.AdapterType,
+		Parameters: make(map[string]interface{}),
+	}
+
+	// Add on-premise specific parameters
+	if cfg.Gateway.AdapterType == "on-premise" {
+		adapterConfig.Parameters["defaultTimeout"] = cfg.Gateway.DefaultTimeout
+		adapterConfig.Parameters["healthCheckTimeout"] = cfg.Gateway.HealthCheckTimeout
+		adapterConfig.Parameters["maxRetries"] = cfg.Gateway.MaxRetries
+		adapterConfig.Parameters["retryBackoff"] = cfg.Gateway.RetryBackoff
+	}
+
+	// Create adapter using factory
+	adapter, err := factory.CreateAdapter(adapterConfig)
+	if err != nil {
+		// Fall back to mock adapter if there's an error
+		logger.Error("Failed to create configured gateway adapter, falling back to mock",
+			"adapterType", cfg.Gateway.AdapterType,
+			"error", err)
+		adapter, _ = mock.NewMockAdapter("mock-fallback", false, logger)
+		return adapter
+	}
+
+	logger.Info("Gateway adapter initialized", "adapterType", adapter.GetAdapterType())
 	return adapter
 }
 
 // InitGatewayAdapters initializes the gateway factory with built-in adapters
 // This function should be called during application initialization
-func InitGatewayAdapters(factory *gateway.AdapterFactory, logger *slog.Logger) {
+func InitGatewayAdapters(factory *gateway.AdapterFactory, encryptionKey []byte, logger *slog.Logger) {
 	// Register on-premise adapter
 	factory.Register("on-premise", func(config gateway.AdapterConfig, logger *slog.Logger) (gateway.IGatewayAdapter, error) {
-		return onpremise.NewOnPremiseAdapter(config, logger)
+		// Get DB instance from global db package
+		dbInstance := db.DB(context.Background())
+		return onpremise.NewOnPremiseAdapter(config, dbInstance, encryptionKey, logger)
 	})
 
 	// Register mock adapter for testing
@@ -65,7 +112,7 @@ func InitGatewayAdapters(factory *gateway.AdapterFactory, logger *slog.Logger) {
 	})
 
 	// Cloud adapter will be registered in future implementations
-	// factory.Register("cloud", func(config gateway.AdapterConfig, logger *slog.Logger) (gateway.IGatewayAdapter, error) {
-	//     return cloud.NewCloudAdapter(config, logger)
+	// factory.Register("cloud", func(config gateway.AdapterConfig, encryptionKey []byte, logger *slog.Logger) (gateway.IGatewayAdapter, error) {
+	//     return cloud.NewCloudAdapter(config, encryptionKey, logger)
 	// })
 }

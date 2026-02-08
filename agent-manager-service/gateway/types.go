@@ -50,3 +50,43 @@ type CloudConfig struct {
 	ClientSecret string
 	Region       string
 }
+
+// ========================================================================
+// LLM Provider Types (Phase 7)
+// ========================================================================
+
+// ProviderDeploymentConfig holds the configuration for deploying a provider
+type ProviderDeploymentConfig struct {
+	Handle        string                 `json:"handle"`
+	DisplayName   string                 `json:"displayName"`
+	Template      string                 `json:"template"`
+	Configuration map[string]interface{} `json:"configuration"`
+}
+
+// ProviderDeploymentResult holds the result of a provider deployment operation
+type ProviderDeploymentResult struct {
+	DeploymentID string    `json:"deploymentId"`
+	Status       string    `json:"status"`
+	DeployedAt   time.Time `json:"deployedAt"`
+	ErrorMessage string    `json:"errorMessage,omitempty"`
+}
+
+// ProviderStatus holds the current status of a provider on a gateway
+type ProviderStatus struct {
+	ID           string                 `json:"id"`
+	Name         string                 `json:"name"`
+	Kind         string                 `json:"kind"`
+	Status       string                 `json:"status"`
+	Spec         map[string]interface{} `json:"spec,omitempty"`
+	CreatedAt    time.Time              `json:"createdAt"`
+	DeployedAt   *time.Time             `json:"deployedAt,omitempty"`
+	ErrorMessage string                 `json:"errorMessage,omitempty"`
+}
+
+// PolicyInfo holds information about an available policy
+type PolicyInfo struct {
+	Name        string                 `json:"name"`
+	Version     string                 `json:"version"`
+	Description string                 `json:"description"`
+	Parameters  map[string]interface{} `json:"parameters,omitempty"`
+}

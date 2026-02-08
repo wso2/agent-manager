@@ -51,8 +51,12 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	repositoryController := controllers.NewRepositoryController(repositoryService)
 	environmentService := services.NewEnvironmentService(logger)
 	environmentController := controllers.NewEnvironmentController(environmentService)
-	iGatewayAdapter := ProvideGatewayAdapter(logger)
-	gatewayService := services.NewGatewayService(iGatewayAdapter, logger)
+	v, err := ProvideGatewayEncryptionKey(configConfig)
+	if err != nil {
+		return nil, err
+	}
+	iGatewayAdapter := ProvideGatewayAdapter(configConfig, v, logger)
+	gatewayService := services.NewGatewayService(iGatewayAdapter, v, logger)
 	gatewayController := controllers.NewGatewayController(gatewayService)
 	appParams := &AppParams{
 		AuthMiddleware:          middleware,
@@ -89,8 +93,12 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 	repositoryController := controllers.NewRepositoryController(repositoryService)
 	environmentService := services.NewEnvironmentService(logger)
 	environmentController := controllers.NewEnvironmentController(environmentService)
-	iGatewayAdapter := ProvideGatewayAdapter(logger)
-	gatewayService := services.NewGatewayService(iGatewayAdapter, logger)
+	v, err := ProvideGatewayEncryptionKey(configConfig)
+	if err != nil {
+		return nil, err
+	}
+	iGatewayAdapter := ProvideGatewayAdapter(configConfig, v, logger)
+	gatewayService := services.NewGatewayService(iGatewayAdapter, v, logger)
 	gatewayController := controllers.NewGatewayController(gatewayService)
 	appParams := &AppParams{
 		AuthMiddleware:          authMiddleware,
@@ -162,6 +170,7 @@ var loggerProviderSet = wire.NewSet(
 
 var gatewayProviderSet = wire.NewSet(
 	ProvideGatewayAdapter,
+	ProvideGatewayEncryptionKey,
 )
 
 // ProvideTestOpenChoreoClient extracts the OpenChoreoClient from TestClients

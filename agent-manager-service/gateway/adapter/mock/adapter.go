@@ -22,6 +22,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/gateway"
 )
 
@@ -92,4 +94,112 @@ func (m *MockAdapter) CheckHealth(ctx context.Context, controlPlaneURL string) (
 	}
 
 	return status, nil
+}
+
+// ========================================================================
+// LLM Provider Management (Phase 7) - Mock Implementations
+// ========================================================================
+
+// DeployProvider deploys an LLM provider configuration to a gateway (mock)
+func (m *MockAdapter) DeployProvider(ctx context.Context, gatewayID string, config *gateway.ProviderDeploymentConfig) (*gateway.ProviderDeploymentResult, error) {
+	if m.ShouldFail {
+		return nil, fmt.Errorf("%s: failed to deploy provider", m.FailMessage)
+	}
+
+	m.logger.Debug("mock provider deployed", "gatewayID", gatewayID, "handle", config.Handle)
+
+	return &gateway.ProviderDeploymentResult{
+		DeploymentID: uuid.New().String(),
+		Status:       "deployed",
+		DeployedAt:   time.Now(),
+	}, nil
+}
+
+// UpdateProvider updates an existing LLM provider on a gateway (mock)
+func (m *MockAdapter) UpdateProvider(ctx context.Context, gatewayID string, providerID string, config *gateway.ProviderDeploymentConfig) (*gateway.ProviderDeploymentResult, error) {
+	if m.ShouldFail {
+		return nil, fmt.Errorf("%s: failed to update provider", m.FailMessage)
+	}
+
+	m.logger.Debug("mock provider updated", "gatewayID", gatewayID, "providerID", providerID)
+
+	return &gateway.ProviderDeploymentResult{
+		DeploymentID: providerID,
+		Status:       "deployed",
+		DeployedAt:   time.Now(),
+	}, nil
+}
+
+// UndeployProvider removes an LLM provider from a gateway (mock)
+func (m *MockAdapter) UndeployProvider(ctx context.Context, gatewayID string, providerID string) error {
+	if m.ShouldFail {
+		return fmt.Errorf("%s: failed to undeploy provider", m.FailMessage)
+	}
+
+	m.logger.Debug("mock provider undeployed", "gatewayID", gatewayID, "providerID", providerID)
+	return nil
+}
+
+// GetProviderStatus retrieves the status of a provider deployment on a gateway (mock)
+func (m *MockAdapter) GetProviderStatus(ctx context.Context, gatewayID string, providerID string) (*gateway.ProviderStatus, error) {
+	if m.ShouldFail {
+		return nil, fmt.Errorf("%s: failed to get provider status", m.FailMessage)
+	}
+
+	now := time.Now()
+	return &gateway.ProviderStatus{
+		ID:         providerID,
+		Name:       "mock-provider",
+		Kind:       "LlmProvider",
+		Status:     "deployed",
+		Spec:       make(map[string]interface{}),
+		DeployedAt: &now,
+	}, nil
+}
+
+// ListProviders lists all LLM providers deployed on a gateway (mock)
+func (m *MockAdapter) ListProviders(ctx context.Context, gatewayID string) ([]*gateway.ProviderStatus, error) {
+	if m.ShouldFail {
+		return nil, fmt.Errorf("%s: failed to list providers", m.FailMessage)
+	}
+
+	now := time.Now()
+	return []*gateway.ProviderStatus{
+		{
+			ID:         uuid.New().String(),
+			Name:       "mock-provider-1",
+			Kind:       "LlmProvider",
+			Status:     "deployed",
+			DeployedAt: &now,
+		},
+		{
+			ID:         uuid.New().String(),
+			Name:       "mock-provider-2",
+			Kind:       "LlmProvider",
+			Status:     "deployed",
+			DeployedAt: &now,
+		},
+	}, nil
+}
+
+// GetPolicies retrieves available policies from a gateway (mock)
+func (m *MockAdapter) GetPolicies(ctx context.Context, gatewayID string) ([]*gateway.PolicyInfo, error) {
+	if m.ShouldFail {
+		return nil, fmt.Errorf("%s: failed to get policies", m.FailMessage)
+	}
+
+	return []*gateway.PolicyInfo{
+		{
+			Name:        "pii-masking-regex",
+			Version:     "v1.0.0",
+			Description: "Masks PII using regex patterns",
+			Parameters:  make(map[string]interface{}),
+		},
+		{
+			Name:        "basic-ratelimit",
+			Version:     "v0.1.1",
+			Description: "Basic rate limiting policy",
+			Parameters:  make(map[string]interface{}),
+		},
+	}, nil
 }
