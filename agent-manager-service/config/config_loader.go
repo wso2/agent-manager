@@ -166,6 +166,16 @@ func loadEnvs() {
 		BaseURL: r.readRequiredString("OPEN_CHOREO_BASE_URL"),
 	}
 
+	// Gateway configuration
+	config.Gateway = GatewayConfig{
+		AdapterType:        r.readOptionalString("GATEWAY_ADAPTER_TYPE", "on-premise"),
+		DefaultTimeout:     int(r.readOptionalInt64("GATEWAY_DEFAULT_TIMEOUT_SECONDS", 30)),
+		HealthCheckTimeout: int(r.readOptionalInt64("GATEWAY_HEALTH_CHECK_TIMEOUT_SECONDS", 5)),
+		MaxRetries:         int(r.readOptionalInt64("GATEWAY_MAX_RETRIES", 3)),
+		RetryBackoff:       int(r.readOptionalInt64("GATEWAY_RETRY_BACKOFF_SECONDS", 2)),
+		EncryptionKey:      r.readRequiredString("GATEWAY_ENCRYPTION_KEY"),
+	}
+
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)
 

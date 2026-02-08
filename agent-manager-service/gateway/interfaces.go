@@ -38,4 +38,26 @@ type IGatewayAdapter interface {
 
 	// CheckHealth performs a health check on a gateway
 	CheckHealth(ctx context.Context, controlPlaneURL string) (*HealthStatus, error)
+
+	// ========================================================================
+	// LLM Provider Management (Phase 7)
+	// ========================================================================
+
+	// DeployProvider deploys an LLM provider configuration to a gateway
+	DeployProvider(ctx context.Context, gatewayID string, config *ProviderDeploymentConfig) (*ProviderDeploymentResult, error)
+
+	// UpdateProvider updates an existing LLM provider on a gateway
+	UpdateProvider(ctx context.Context, gatewayID string, providerID string, config *ProviderDeploymentConfig) (*ProviderDeploymentResult, error)
+
+	// UndeployProvider removes an LLM provider from a gateway
+	UndeployProvider(ctx context.Context, gatewayID string, providerID string) error
+
+	// GetProviderStatus retrieves the status of a provider deployment on a gateway
+	GetProviderStatus(ctx context.Context, gatewayID string, providerID string) (*ProviderStatus, error)
+
+	// ListProviders lists all LLM providers deployed on a gateway
+	ListProviders(ctx context.Context, gatewayID string) ([]*ProviderStatus, error)
+
+	// GetPolicies retrieves available policies from a gateway
+	GetPolicies(ctx context.Context, gatewayID string) ([]*PolicyInfo, error)
 }
