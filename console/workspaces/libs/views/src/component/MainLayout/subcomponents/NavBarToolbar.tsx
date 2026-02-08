@@ -18,20 +18,36 @@
 
 import React, { ReactNode } from 'react';
 import {
-  Typography,
-  Box,
   Avatar,
-  useTheme,
+  Box,
   ButtonBase,
-  Layout,
   ColorSchemeToggle,
-  AppBar,
+  ComplexSelect,
+  Divider,
+  Header,
+  Typography,
 } from '@wso2/oxygen-ui';
 import { ChevronDown } from '@wso2/oxygen-ui-icons-react';
 import { User } from './UserMenu';
-import { TopSelecter, TopSelecterProps } from './TopSelecter';
 import { Link } from 'react-router-dom';
 import { Logo } from '../../Logo/Logo';
+
+export interface HeaderSelectOption {
+  id: string;
+  label: string;
+  typeLabel?: string;
+  avatar?: ReactNode;
+  icon?: ReactNode;
+  description?: string;
+}
+
+export interface HeaderSelectProps {
+  label: string;
+  onChange: (value: string) => void;
+  options: HeaderSelectOption[];
+  selectedId?: string;
+}
+
 export interface NavBarToolbarProps {
   /** Whether the sidebar is collapsed (icons only) */
   sidebarOpen?: boolean;
@@ -49,8 +65,8 @@ export interface NavBarToolbarProps {
   onSidebarToggle?: () => void;
   /** Callback when user menu is opened */
   onUserMenuOpen?: (event: React.MouseEvent<HTMLElement>) => void;
-  /** Top selectors Props */
-  topSelectorsProps?: TopSelecterProps[];
+  /** Header select props */
+  headerSelects?: HeaderSelectProps[];
   /** Home path */
   homePath?: string;
   /** Whether to disable user menu */
@@ -59,137 +75,165 @@ export interface NavBarToolbarProps {
 
 export function NavBarToolbar({
   disableUserMenu,
-  leftElements,
   rightElements,
+  sidebarOpen,
+  onSidebarToggle,
   user,
   onUserMenuOpen,
-  topSelectorsProps,
+  headerSelects,
   homePath,
 }: NavBarToolbarProps) {
-  const theme = useTheme();
   return (
-    <Layout.Navbar>
-      <AppBar
-        position="static"
-        sx={{ zIndex: theme.zIndex.drawer + 1, borderRadius: 0 }}
-      >
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            width: '100%',
-            height: theme.spacing(8),
-          }}
-        >
-          <Box
-            paddingRight={1}
+    <Header>
+      {onSidebarToggle && (
+        <Header.Toggle collapsed={!sidebarOpen} onToggle={onSidebarToggle} />
+      )}
+      <Header.Brand>
+        <Header.BrandLogo>
+          <ButtonBase
             sx={{
               display: 'flex',
               alignItems: 'center',
-              height: '100%',
+              gap: 2,
+            }}
+            component={Link}
+            to={homePath ?? '/'}
+          >
+            <Logo width={200} />
+          </ButtonBase>
+        </Header.BrandLogo>
+      </Header.Brand>
+     
+      <Header.Switchers showDivider={false}>
+        {headerSelects?.map((selectProps) => {
+          const { label, options, selectedId, onChange } = selectProps;
+          if (options.length === 0) {
+            return null;
+          }
+          const currentValue = selectedId ?? '';
+          const selectedOption = options.find(
+            (option) => option.id === currentValue
+          );
+          if (!currentValue) {
+            return null;
+          }
+          return (
+            <ComplexSelect
+              key={label}
+              size="small"
+              value={currentValue}
+              label={label}
+              onChange={(event) => {
+                const value = event.target.value as string;
+                onChange(value);
+              }}
+              renderValue={() => {
+                const primaryText = selectedOption?.label ?? `Select ${label}`;
+                return (
+                  <Box display="flex" alignItems="center" gap={1}>
+                    {selectedOption?.icon && (
+                      <ComplexSelect.MenuItem.Icon>
+                        {selectedOption.icon}
+                      </ComplexSelect.MenuItem.Icon>
+                    )}
+                    
+                    {selectedOption?.avatar && (
+                      <ComplexSelect.MenuItem.Avatar>
+                        {selectedOption.avatar}
+                      </ComplexSelect.MenuItem.Avatar>
+                    )}
+                    <Box display="flex" flexDirection="column">
+                      <Typography variant="caption" color="text.secondary">
+                        {label}
+                      </Typography>
+                      <ComplexSelect.MenuItem.Text
+                        primary={primaryText}
+                        secondary={
+                          selectedOption?.description ??
+                          selectedOption?.typeLabel ?? 'No  Description'
+                        }
+                      />
+                    </Box>
+                  </Box>
+                );
+              }}
+              sx={{ minWidth: 200 }}
+            >
+              <ComplexSelect.ListHeader>{label}</ComplexSelect.ListHeader>
+              {options.map((option) => (
+                <ComplexSelect.MenuItem key={option.id} value={option.id}>
+                  {option.icon && (
+                    <ComplexSelect.MenuItem.Icon>
+                      {option.icon}
+                    </ComplexSelect.MenuItem.Icon>
+                  )}
+                  <ComplexSelect.MenuItem.Text
+                    primary={option.label}
+                    secondary={option.description ?? option.typeLabel}
+                  />
+                </ComplexSelect.MenuItem>
+              ))}
+            </ComplexSelect>
+          );
+        })}
+      </Header.Switchers>
+      <Header.Spacer />
+      <Header.Actions>
+        {rightElements && (
+          <Box sx={{ mr: 2, display: 'flex', alignItems: 'center' }}>
+            {rightElements}
+          </Box>
+        )}
+        <ColorSchemeToggle />
+        {user && (
+          <Divider
+            orientation="vertical"
+            flexItem
+            sx={{ mx: 1, display: { xs: 'none', sm: 'block' } }}
+          />
+        )}
+        {user && (
+          <ButtonBase
+            onClick={onUserMenuOpen}
+            disabled={disableUserMenu}
+            sx={{
+              padding: 1,
+              borderRadius: 1,
             }}
           >
-            <ButtonBase
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                padding: 1,
-                marginY: 1,
-                borderRadius: 1,
-              }}
-              component={Link}
-              to={homePath ?? '/'}
-            >
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1.5,
-                }}
-              >
-                <Box
+            <Box display="flex" alignItems="center" gap={1}>
+              {user.avatar ? (
+                <Avatar
+                  src={user.avatar}
+                  alt={user.name}
+                  variant="circular"
                   sx={{
-                    width: theme.spacing(24),
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    height: 40,
+                    width: 40,
+                  }}
+                />
+              ) : (
+                <Avatar
+                  variant="circular"
+                  color="primary"
+                  sx={{
+                    height: 40,
+                    width: 40,
                   }}
                 >
-                  <Logo />
-                </Box>
-              </Box>
-            </ButtonBase>
-          </Box>
-          <Box display="flex" alignItems="center" gap={1}>
-            {topSelectorsProps?.map((tsProps) => (
-              <TopSelecter key={tsProps.label} {...tsProps} />
-            ))}
-          </Box>
-
-          {/* Left Elements */}
-          {leftElements && (
-            <Box sx={{ ml: 2, display: 'flex', alignItems: 'center' }}>
-              {leftElements}
-            </Box>
-          )}
-
-          {/* Spacer */}
-          <Box sx={{ flexGrow: 1 }} />
-
-          {/* Right Elements */}
-          {rightElements && (
-            <Box sx={{ mr: 2, display: 'flex', alignItems: 'center' }}>
-              {rightElements}
-            </Box>
-          )}
-          <ColorSchemeToggle />
-          {/* User Menu */}
-          {user && (
-            <ButtonBase
-              onClick={onUserMenuOpen}
-              disabled={disableUserMenu}
-              sx={{
-                padding: 1,
-                borderRadius: 1,
-              }}
-            >
-              <Box display="flex" alignItems="center" gap={1}>
-                {user.avatar}
-                {user.avatar ? (
-                  <Avatar
-                    src={user.avatar}
-                    alt={user.name}
-                    variant="circular"
-                    sx={{
-                      height: 40,
-                      width: 40,
-                    }}
-                  />
-                ) : (
-                  <Avatar
-                    variant="circular"
-                    color="primary"
-                    sx={{
-                      height: 40,
-                      width: 40,
-                    }}
-                  >
-                    {user.name
-                      .split(' ')
-                      .map((name) => name.charAt(0).toUpperCase())
-                      .join('')}
-                  </Avatar>
-                )}
+                  {user.name
+                    .split(' ')
+                    .map((name) => name.charAt(0).toUpperCase())
+                    .join('')}
+                </Avatar>
+              )}
               <Typography variant="caption" color="text.secondary">
                 <ChevronDown size={16} />
               </Typography>
-              </Box>
-            </ButtonBase>
-          )}
-        </Box>
-      </AppBar>
-    </Layout.Navbar>
+            </Box>
+          </ButtonBase>
+        )}
+      </Header.Actions>
+    </Header>
   );
 }

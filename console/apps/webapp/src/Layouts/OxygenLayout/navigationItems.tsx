@@ -40,6 +40,10 @@ import { metaData as logsMetadata } from "@agent-management-platform/logs";
 import { metaData as metricsMetadata } from "@agent-management-platform/metrics";
 import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
 
+/**
+ * TODO: Use nav bar instead of navigate to the items.
+ */
+
 export function useNavigationItems(): Array<
   NavigationSection | NavigationItem
 > {
@@ -70,7 +74,7 @@ export function useNavigationItems(): Array<
       {
         label: overviewMetadata.title,
         type: "item",
-        icon: <overviewMetadata.icon  />,
+        icon: <overviewMetadata.icon  size={20} />,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents.path,
           pathname
@@ -88,7 +92,7 @@ export function useNavigationItems(): Array<
           {
             label: tracesMetadata.title,
             type: "item",
-            icon: <tracesMetadata.icon  />,
+            icon: <tracesMetadata.icon  size={20} />,
             isActive: !!matchPath(
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.environment.children.observability.children.traces.wildPath,
@@ -110,7 +114,7 @@ export function useNavigationItems(): Array<
       {
         label: overviewMetadata.title,
         type: "item",
-        icon: <overviewMetadata.icon  />,
+        icon: <overviewMetadata.icon  size={20} />,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents.path,
           pathname
@@ -123,7 +127,7 @@ export function useNavigationItems(): Array<
       {
         label: buildMetadata.title,
         type: "item",
-        icon: <buildMetadata.icon  />,
+        icon: <buildMetadata.icon  size={20} />,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.build.wildPath,
@@ -138,7 +142,7 @@ export function useNavigationItems(): Array<
       {
         label: deploymentMetadata.title,
         type: "item",
-        icon: <deploymentMetadata.icon  />,
+        icon: <deploymentMetadata.icon  size={20} />,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.deployment.wildPath,
@@ -153,7 +157,7 @@ export function useNavigationItems(): Array<
       {
         label: testMetadata.title,
         type: "item",
-        icon: <testMetadata.icon  />,
+        icon: <testMetadata.icon  size={20} />,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.environment.children.tryOut.wildPath,
@@ -173,7 +177,7 @@ export function useNavigationItems(): Array<
           {
             label: tracesMetadata.title,
             type: "item",
-            icon: <tracesMetadata.icon  />,
+            icon: <tracesMetadata.icon  size={20} />,
             isActive: !!matchPath(
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.environment.children.observability.children.traces
@@ -190,7 +194,7 @@ export function useNavigationItems(): Array<
           {
             label: logsMetadata.title,
             type: "item",
-            icon: <logsMetadata.icon  />,
+            icon: <logsMetadata.icon  size={20} />,
             isActive: !!matchPath(
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.environment.children.observability.children.logs
@@ -207,7 +211,7 @@ export function useNavigationItems(): Array<
           {
             label: metricsMetadata.title,
             type: "item",
-            icon: <metricsMetadata.icon  />,
+            icon: <metricsMetadata.icon  size={20} />,
             isActive: !!matchPath(
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.environment.children.observability.children.metrics
@@ -230,7 +234,7 @@ export function useNavigationItems(): Array<
       {
         label: "Agents",
         type: "item",
-        icon: <overviewMetadata.icon  />,
+        icon: <overviewMetadata.icon  size={20} />,
         href: generatePath(
           absoluteRouteMap.children.org.children.projects.path,
           { orgId, projectId }
@@ -253,7 +257,7 @@ export function useNavigationItems(): Array<
       {
         label: "Projects",
         type: "item",
-        icon: <overviewMetadata.icon  />,
+        icon: <overviewMetadata.icon  size={20} />,
         href: generatePath(absoluteRouteMap.children.org.path, { orgId }),
         isActive: !!matchPath(absoluteRouteMap.children.org.path, pathname),
       },

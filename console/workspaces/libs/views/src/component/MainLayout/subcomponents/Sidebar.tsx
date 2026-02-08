@@ -16,27 +16,19 @@
  * under the License.
  */
 
-import { ReactNode, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import {
   Box,
-  List,
-  ListItemButton,
-  ListItemText,
-  useTheme,
-  Collapse,
-  Tooltip,
+  Link,
+  Sidebar as OxygenSidebar,
   Skeleton,
-  Layout,
-  ListItemIcon,
+  useTheme,
 } from '@wso2/oxygen-ui';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
-  ChevronDown as ArrowDropDownOutlined,
-  ChevronUp as ArrowDropUpOutlined,
   ChevronLeft as ChevronLeftOutlined,
   ChevronRight as ChevronRightOutlined,
-  Menu,
 } from '@wso2/oxygen-ui-icons-react';
-import { NavigationItemButton } from './NavigationItemButton';
 export interface NavigationItem {
   label: string;
   icon?: ReactNode;
@@ -63,62 +55,11 @@ export interface SidebarProps {
   isMobile?: boolean;
   /** Callback when navigation item is clicked */
   onNavigationClick?: () => void;
-  /** Drawer width */
-  drawerWidth: number | string;
 }
 
-// Action Button Component (internal to Sidebar, for buttons without href)
-interface ActionButtonProps {
-  icon?: ReactNode;
-  title: string;
-  onClick?: () => void;
-  isSelected?: boolean;
-  sidebarOpen?: boolean;
-  subIcon?: ReactNode;
-}
-
-function ActionButton({
-  icon,
-  title,
-  onClick,
-  isSelected = false,
-  sidebarOpen = true,
-  subIcon,
-}: ActionButtonProps) {
-  return (
-    <Tooltip title={title} placement="right" disableHoverListener={sidebarOpen}>
-      <ListItemButton
-        onClick={onClick}
-        selected={isSelected}
-        sx={{
-          px: 1.5,
-          height: 44,
-        }}
-      >
-        {icon && (
-          <ListItemIcon sx={{ minWidth: 40 }}>
-            {icon}
-            {subIcon && (
-              <Box
-                sx={{ position: 'absolute', right: 6, top: 12, opacity: 0.5 }}
-              >
-                {subIcon}
-              </Box>
-            )}
-          </ListItemIcon>
-        )}
-        {sidebarOpen && (
-          <ListItemText
-            sx={{
-              textWrap: 'nowrap',
-            }}
-            primary={title}
-          />
-        )}
-      </ListItemButton>
-    </Tooltip>
-  );
-}
+const SIDEBAR_WIDTH = 240;
+const COLLAPSED_SIDEBAR_WIDTH = 64;
+const COLLAPSE_TOGGLE_ID = '__sidebar_toggle__';
 
 export function Sidebar({
   sidebarOpen = true,
@@ -126,154 +67,151 @@ export function Sidebar({
   navigationSections,
   isMobile = false,
   onNavigationClick,
-  drawerWidth,
 }: SidebarProps) {
   const theme = useTheme();
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set()
+  const navigate = useNavigate();
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>(
+    {}
   );
 
-  const handleSectionToggle = (sectionTitle: string) => {
-    setExpandedSections((prev) => {
-      const newSet = new Set(prev);
-      if (prev.has(sectionTitle)) {
-        newSet.delete(sectionTitle);
-      } else {
-        newSet.add(sectionTitle);
-      }
-      return newSet;
-    });
+  const flatItems = useMemo(
+    () =>
+      navigationSections.flatMap((navItem) =>
+        navItem.type === 'section' ? navItem.items : [navItem]
+      ),
+    [navigationSections]
+  );
+
+  const activeItemId = useMemo(
+    () => flatItems.find((item) => item.isActive)?.label,
+    [flatItems]
+  );
+
+  const handleToggleExpand = (id: string) => {
+    setExpandedMenus((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
   };
 
-  const isSectionExpanded = (sectionTitle: string) =>
-    expandedSections.has(sectionTitle);
+  const handleSelect = (id: string) => {
+    if (id === COLLAPSE_TOGGLE_ID) {
+      onSidebarToggle?.();
+      return;
+    }
+    const targetItem = flatItems.find((item) => item.label === id);
+    if (!targetItem) {
+      return;
+    }
+    targetItem.onClick?.();
+    if (targetItem.href) {
+      navigate(targetItem.href);
+    }
+    if (isMobile) {
+      onNavigationClick?.();
+    }
+  };
 
   return (
-    <Layout.Sidebar
+    <OxygenSidebar
+      collapsed={!sidebarOpen}
+      activeItem={activeItemId}
+      expandedMenus={expandedMenus}
+      onSelect={handleSelect}
+      onToggleExpand={handleToggleExpand}
+      width={SIDEBAR_WIDTH}
+      collapsedWidth={COLLAPSED_SIDEBAR_WIDTH}
       sx={{
-        width: drawerWidth,
-        minWidth: drawerWidth,
         pt: 1,
         px: 1,
-        display: 'flex',
-        borderRight: 1, 
-        borderColor: 'divider' ,
-        justifyContent: 'space-between',
-        flexDirection: 'column',
-        backgroundColor: "background.paper",
+        borderRight: 1,
+        borderColor: 'divider',
+        backgroundColor: 'background.paper',
         transition: theme.transitions.create('all', {
           duration: theme.transitions.duration.short,
         }),
       }}
     >
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          width: '100%',
-          gap: 1,
-        }}
-      >
-        {navigationSections.length === 0 && (
-          <Box display="flex" flexDirection="column" gap={1}>
-            <Skeleton
-              variant="rounded"
-              height={44}
-              width="100%"
-            />
-            <Skeleton
-              variant="rounded"
-              height={44}
-              width="100%"
-            />
-            <Skeleton
-              variant="rounded"
-              height={44}
-              width="100%"
-            />
-          </Box>
-        )}
-        {navigationSections.map((navItem) =>
-          navItem.type === 'section' ? (
-            <Box
-              key={navItem.title}
-              display="flex"
-              flexDirection="column"
-              sx={{
-                borderRadius: 0.5,
-              }}
-            >
-              <ActionButton
-                title={navItem.title}
-                icon={navItem.icon ?? <Menu size={16} />}
-                onClick={() => handleSectionToggle(navItem.title)}
-                sidebarOpen={sidebarOpen}
-                subIcon={
-                  isSectionExpanded(navItem.title) ? (
-                    <ArrowDropUpOutlined size={16} />
-                  ) : (
-                    <ArrowDropDownOutlined size={16} />
-                  )
-                }
-                isSelected={
-                  navItem.items.some((item) => item.isActive) &&
-                  !isSectionExpanded(navItem.title)
-                }
-              />
-              <Collapse
-                in={isSectionExpanded(navItem.title)}
-                timeout="auto"
-                unmountOnExit
-              >
-                <List
-                  key={navItem.title}
-                >
-                  {navItem.items.map((item, itemIndex) => (
-                    <NavigationItemButton
-                      subButton
-                      key={itemIndex}
-                      item={item}
-                      sidebarOpen={sidebarOpen}
-                      isMobile={isMobile}
-                      onNavigationClick={onNavigationClick}
-                    />
-                  ))}
-                </List>
-              </Collapse>
+      <OxygenSidebar.Nav>
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            width: '100%',
+            gap: 1,
+          }}
+        >
+          {navigationSections.length === 0 && (
+            <Box display="flex" flexDirection="column" gap={1}>
+              <Skeleton variant="rounded" height={44} width="100%" />
+              <Skeleton variant="rounded" height={44} width="100%" />
+              <Skeleton variant="rounded" height={44} width="100%" />
             </Box>
-          ) : (
-              <NavigationItemButton
-                key={navItem.label}
-                item={{
-                  label: navItem.label,
-                  icon: navItem.icon,
-                  onClick: navItem.onClick,
-                  href: navItem.href,
-                  isActive: navItem.isActive,
-                  type: 'item',
-                }}
-                sidebarOpen={sidebarOpen}
-                isMobile={isMobile}
-                onNavigationClick={onNavigationClick}
-              />
-       
-          )
-        )}
-      </Box>
-      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
-        <ActionButton
-          icon={
-            sidebarOpen ? (
-              <ChevronLeftOutlined fontSize="medium" />
+          )}
+          {navigationSections.map((navItem) =>
+            navItem.type === 'section' ? (
+              <OxygenSidebar.Category key={navItem.title}>
+                <OxygenSidebar.CategoryLabel>
+                  {navItem.title}
+                </OxygenSidebar.CategoryLabel>
+                {navItem.items.map((item) => (
+                  <Link
+                    key={item.label}
+                    component={RouterLink}
+                    to={item.href ?? ''}
+                    sx={{ textDecoration: 'none' }}
+                  >
+                    <OxygenSidebar.Item id={item.label}>
+                      {item.icon && (
+                        <OxygenSidebar.ItemIcon>
+                          {item.icon}
+                        </OxygenSidebar.ItemIcon>
+                      )}
+                      <OxygenSidebar.ItemLabel>
+                        {item.label}
+                      </OxygenSidebar.ItemLabel>
+                    </OxygenSidebar.Item>
+                  </Link>
+                ))}
+              </OxygenSidebar.Category>
             ) : (
-              <ChevronRightOutlined fontSize="small" />
+              <Link
+                key={navItem.label}
+                component={RouterLink}
+                to={navItem.href ?? ''}
+                sx={{ textDecoration: 'none' }}
+              >
+                <OxygenSidebar.Item id={navItem.label}>
+                  {navItem.icon && (
+                    <OxygenSidebar.ItemIcon>
+                      {navItem.icon}
+                    </OxygenSidebar.ItemIcon>
+                  )}
+                  <OxygenSidebar.ItemLabel>
+                    {navItem.label}
+                  </OxygenSidebar.ItemLabel>
+                </OxygenSidebar.Item>
+              </Link>
             )
-          }
-          title={sidebarOpen ? 'Collapse' : 'Expand'}
-          onClick={onSidebarToggle}
-          sidebarOpen={sidebarOpen}
-        />
-      </Box>
-    </Layout.Sidebar>
+          )}
+        </Box>
+      </OxygenSidebar.Nav>
+      <OxygenSidebar.Footer>
+        <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+          <OxygenSidebar.Item id={COLLAPSE_TOGGLE_ID}>
+            <OxygenSidebar.ItemIcon>
+              {sidebarOpen ? (
+                <ChevronLeftOutlined fontSize="medium" />
+              ) : (
+                <ChevronRightOutlined fontSize="small" />
+              )}
+            </OxygenSidebar.ItemIcon>
+            <OxygenSidebar.ItemLabel>
+              {sidebarOpen ? 'Collapse' : 'Expand'}
+            </OxygenSidebar.ItemLabel>
+          </OxygenSidebar.Item>
+        </Box>
+      </OxygenSidebar.Footer>
+    </OxygenSidebar>
   );
 }

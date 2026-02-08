@@ -19,7 +19,7 @@
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { Outlet, useParams, useNavigate, generatePath } from "react-router-dom";
 import { Box } from "@wso2/oxygen-ui";
-import { useNavigationItems } from "./navigationItems";
+import { useNavigationItems } from "./OxygenLayout/navigationItems";
 import { createUserMenuItems } from "./userMenuItems";
 import {
   displayProvisionTypes,
@@ -45,12 +45,6 @@ export function Layout() {
 
   const { data: organizations } = useListOrganizations();
 
-  const homePath = useMemo(() => {
-    return generatePath(absoluteRouteMap.children.org.path, {
-      orgId: organizations?.organizations?.[0]?.name ?? "",
-    });
-  }, [organizations]);
-
   // Get all projects for the organization
   const { data: projects } = useListProjects({
     orgName: orgId,
@@ -62,6 +56,12 @@ export function Layout() {
     projName: projectId,
   });
 
+  const homePath = useMemo(() => {
+    return generatePath(absoluteRouteMap.children.org.path, {
+      orgId: organizations?.organizations?.[0]?.name ?? "",
+    });
+  }, [organizations]);
+
   return (
     <MainLayout
       sidebarCollapsed={false}
@@ -70,45 +70,27 @@ export function Layout() {
         email: userInfo?.username ?? userInfo?.orgHandle ?? "",
       }}
       homePath={homePath}
-      topSelectorsProps={[
+      headerSelects={[
         {
-          label: "Project",
+          label: "Projects",
           selectedId: projectId,
           options:
             projects?.projects?.map((project) => ({
               id: project.name,
               label: project.displayName,
+              description: project.name,
             })) ?? [],
           onChange: (value) => {
             navigate(
               generatePath(
                 absoluteRouteMap.children.org.children.projects.path,
-                { orgId, projectId: value }
-              )
+                { orgId, projectId: value },
+              ),
             );
           },
-          disableClose: false,
-          onClick: () => {
-            navigate(
-              generatePath(
-                absoluteRouteMap.children.org.children.projects.path,
-                { orgId, projectId }
-              )
-            );
-          },
-          onClose: () => {
-            navigate(
-              generatePath(absoluteRouteMap.children.org.path, { orgId })
-            );
-          },
-          onCreate: ()=>{
-            navigate(
-              generatePath(absoluteRouteMap.children.org.children.newProject.path, {orgId})
-            )
-          }
         },
         {
-          label: "Agent",
+          label: "Agents",
           selectedId: agentId,
           options:
             agents?.agents?.map((agent) => ({
@@ -124,42 +106,17 @@ export function Layout() {
               generatePath(
                 absoluteRouteMap.children.org.children.projects.children.agents
                   .path,
-                { orgId, projectId, agentId: value }
-              )
-            );
-          },
-          disableClose: false,
-          onClick: () => {
-            navigate(
-              generatePath(
-                absoluteRouteMap.children.org.children.projects.children.agents
-                  .path,
-                { orgId, projectId }
-              )
-            );
-          },
-          onCreate: () => {
-            navigate(
-              generatePath(
-                absoluteRouteMap.children.org.children.projects.children
-                  .newAgent.path,
-                { orgId, projectId }
-              )
-            );
-          },
-          onClose: () => {
-            navigate(
-              generatePath(
-                absoluteRouteMap.children.org.children.projects.path,
-                { orgId, projectId }
-              )
+                { orgId, projectId, agentId: value },
+              ),
             );
           },
         },
       ]}
-      userMenuItems={createUserMenuItems({ logout: async () => {
-        await logout();
-      } })}
+      userMenuItems={createUserMenuItems({
+        logout: async () => {
+          await logout();
+        },
+      })}
       navigationItems={navigationItems}
     >
       <Box p={1} flexGrow={1}>

@@ -17,7 +17,7 @@
  */
 
 import React, { useState, ReactNode } from 'react';
-import { Layout } from '@wso2/oxygen-ui';
+import { AppShell, Box, Footer } from '@wso2/oxygen-ui';
 import {
   Sidebar,
   UserMenu,
@@ -27,7 +27,7 @@ import {
   UserMenuItem as UserMenuItemType,
   NavigationItem,
 } from './subcomponents';
-import { TopSelecterProps } from './subcomponents/TopSelecter';
+import { HeaderSelectProps } from './subcomponents/NavBarToolbar';
 
 export interface MainLayoutProps {
   /** User information for the user menu */
@@ -46,8 +46,8 @@ export interface MainLayoutProps {
   onSidebarToggle?: (collapsed: boolean) => void;
   /** Children to display inside the main content area */
   children?: ReactNode;
-  /** Top selectors Props */
-  topSelectorsProps?: TopSelecterProps[];
+  /** Header select props */
+  headerSelects?: HeaderSelectProps[];
   /** Home path */
   homePath?: string;
 }
@@ -61,7 +61,7 @@ export function MainLayout({
   sidebarCollapsed = true,
   onSidebarToggle,
   children,
-  topSelectorsProps,
+  headerSelects,
   homePath,
 }: MainLayoutProps) {
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(
@@ -83,40 +83,49 @@ export function MainLayout({
     setUserMenuAnchor(null);
   };
 
-  const drawerWidth = sidebarOpen ? 240 : 64; // 240px : 64px
-
   return (
-    <Layout sx={{ height: '100vh', flexDirection: 'column' }}>
-      <NavBarToolbar
-        homePath={homePath}
-        leftElements={leftElements}
-        rightElements={rightElements}
-        user={user}
-        disableUserMenu={userMenuItems?.length === 0}
-        onSidebarToggle={handleSidebarToggle}
-        onUserMenuOpen={handleUserMenuOpen}
-        topSelectorsProps={topSelectorsProps}
-      />
-      <Layout sx={{ flex: 1 }}>
-        <Sidebar
-          drawerWidth={drawerWidth}
-          onSidebarToggle={handleSidebarToggle}
-          sidebarOpen={sidebarOpen}
-          navigationSections={navigationItems}
-          onNavigationClick={() => handleSidebarToggle()}
-        />
-        {user && (
-          <UserMenu
-            userMenuItems={userMenuItems}
-            anchorEl={userMenuAnchor}
-            open={Boolean(userMenuAnchor)}
-            onClose={handleUserMenuClose}
+    <>
+      <Box sx={{ height: '100vh' }}>
+        <AppShell>
+        <AppShell.Navbar>
+          <NavBarToolbar
+            homePath={homePath}
+            leftElements={leftElements}
+            rightElements={rightElements}
+            sidebarOpen={sidebarOpen}
+            user={user}
+            disableUserMenu={userMenuItems?.length === 0}
+            onSidebarToggle={handleSidebarToggle}
+            onUserMenuOpen={handleUserMenuOpen}
+            headerSelects={headerSelects}
           />
-        )}
-        <Layout.Content sx={{ height: 'calc(100vh - 72px)', overflowY: 'auto', flexGrow: 1 }}>
-              {children}
-        </Layout.Content>
-      </Layout>
-    </Layout>
+        </AppShell.Navbar>
+        <AppShell.Sidebar>
+          <Sidebar
+            onSidebarToggle={handleSidebarToggle}
+            sidebarOpen={sidebarOpen}
+            navigationSections={navigationItems}
+            onNavigationClick={() => handleSidebarToggle()}
+          />
+        </AppShell.Sidebar>
+        <AppShell.Main>
+          <Box sx={{ height: 'calc(100vh - 72px)', overflowY: 'auto' }}>
+            {children}
+          </Box>
+        </AppShell.Main>
+        <AppShell.Footer>
+          <Footer companyName="WSO2 LLC" />
+        </AppShell.Footer>
+        </AppShell>
+      </Box>
+      {user && (
+        <UserMenu
+          userMenuItems={userMenuItems}
+          anchorEl={userMenuAnchor}
+          open={Boolean(userMenuAnchor)}
+          onClose={handleUserMenuClose}
+        />
+      )}
+    </>
   );
 }

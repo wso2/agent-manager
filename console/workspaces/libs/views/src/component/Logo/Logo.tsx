@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useColorScheme } from '@mui/material';
+import {useColorScheme} from '@wso2/oxygen-ui';
 import React from 'react';
 
 export type LogoProps = React.SVGProps<SVGSVGElement>;
@@ -31,6 +31,7 @@ export function Logo(props: LogoProps) {
       aria-label="Agent Manager logo"
       role="img"
       fill={color}
+      style={{ transition: 'fill 0.5s ease' }}
       {...props}
     >
       <g>

@@ -18,7 +18,7 @@
 
 import { Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Layout } from "../Layouts";
+import { Layout, OxygenLayout } from "../Layouts";
 import { Protected } from "../Providers/Protected";
 import {
   Login,
@@ -48,7 +48,7 @@ export function RootRouter() {
           path={"/"}
           element={
             <Protected>
-              <Layout />
+              <OxygenLayout />
             </Protected>
           }
         >
