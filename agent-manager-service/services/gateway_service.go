@@ -21,11 +21,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/gateway"
@@ -60,6 +61,12 @@ type gatewayService struct {
 	adapter       gateway.IGatewayAdapter
 	encryptionKey []byte
 	logger        *slog.Logger
+}
+
+// isValidGatewayStatus validates if the given status is a valid gateway status
+func isValidGatewayStatus(status string) bool {
+	validStatuses := []string{"ACTIVE", "INACTIVE", "MAINTENANCE"}
+	return slices.Contains(validStatuses, status)
 }
 
 // NewGatewayService creates a new gateway service
@@ -223,6 +230,9 @@ func (s *gatewayService) UpdateGateway(ctx context.Context, orgUUID uuid.UUID, g
 		gw.IsCritical = *req.IsCritical
 	}
 	if req.Status != nil {
+		if !isValidGatewayStatus(*req.Status) {
+			return nil, errors.New("invalid gateway status")
+		}
 		gw.Status = *req.Status
 	}
 	if req.AdapterConfig != nil {
@@ -315,14 +325,10 @@ func (s *gatewayService) AssignGatewayToEnvironment(ctx context.Context, orgUUID
 		CreatedAt:       time.Now(),
 	}
 
-	result := db.DB(ctx).Create(mapping)
+	// Use GORM's OnConflict clause to handle duplicate assignments gracefully
+	// This is DB-dialect-agnostic and avoids brittle string matching
+	result := db.DB(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(mapping)
 	if result.Error != nil {
-		// Check for unique constraint violation (already assigned)
-		errMsg := result.Error.Error()
-		if strings.Contains(errMsg, "UNIQUE constraint failed") ||
-			strings.Contains(errMsg, "duplicate key") {
-			return nil // Already assigned, not an error
-		}
 		return fmt.Errorf("failed to assign gateway to environment: %w", result.Error)
 	}
 
@@ -339,6 +345,15 @@ func (s *gatewayService) RemoveGatewayFromEnvironment(ctx context.Context, orgUU
 	envUUID, err := uuid.Parse(envID)
 	if err != nil {
 		return utils.ErrInvalidInput
+	}
+
+	// Verify gateway exists and belongs to the organization
+	var gw models.Gateway
+	if err := db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", gwUUID, orgUUID).First(&gw).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return utils.ErrGatewayNotFound
+		}
+		return fmt.Errorf("failed to get gateway: %w", err)
 	}
 
 	result := db.DB(ctx).Where("gateway_uuid = ? AND environment_uuid = ?", gwUUID, envUUID).Delete(&models.GatewayEnvironmentMapping{})
@@ -409,20 +424,29 @@ func (s *gatewayService) CheckGatewayHealth(ctx context.Context, orgUUID uuid.UU
 	}
 
 	health, err := s.adapter.CheckHealth(ctx, gw.ControlPlaneURL)
-	if err != nil {
-		return &models.HealthStatusResponse{
+
+	// If health struct is returned (even with error status), encode it in response
+	if health != nil {
+		response := &models.HealthStatusResponse{
 			GatewayID:    gatewayID,
-			Status:       "ERROR",
-			ErrorMessage: err.Error(),
-			CheckedAt:    time.Now().Format(time.RFC3339),
-		}, err
+			Status:       health.Status,
+			ResponseTime: health.ResponseTime.String(),
+			ErrorMessage: health.ErrorMessage,
+			CheckedAt:    health.CheckedAt.Format(time.RFC3339),
+		}
+		return response, nil // Return response with nil error
 	}
 
+	// Only return error if no health information available
+	if err != nil {
+		return nil, fmt.Errorf("failed to check gateway health: %w", err)
+	}
+
+	// Fallback (should not happen)
 	return &models.HealthStatusResponse{
 		GatewayID:    gatewayID,
-		Status:       health.Status,
-		ResponseTime: health.ResponseTime.String(),
-		ErrorMessage: health.ErrorMessage,
-		CheckedAt:    health.CheckedAt.Format(time.RFC3339),
+		Status:       "UNKNOWN",
+		ErrorMessage: "Health check returned no data",
+		CheckedAt:    time.Now().Format(time.RFC3339),
 	}, nil
 }

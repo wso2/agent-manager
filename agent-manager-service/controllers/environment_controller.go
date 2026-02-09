@@ -160,6 +160,10 @@ func (c *environmentController) ListEnvironments(w http.ResponseWriter, r *http.
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter")
 		return
 	}
+	if offset < 0 {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter")
+		return
+	}
 
 	envList, err := c.environmentService.ListEnvironments(ctx, orgUUID, int32(limit), int32(offset))
 	if err != nil {
@@ -310,9 +314,15 @@ func getOrgUUIDFromName(ctx context.Context, orgName string) (uuid.UUID, error) 
 	//       return uuid.UUID{}, err
 	//   }
 	//   return org.UUID, nil
-	//
-	// For now, return a placeholder to allow API testing
-	return uuid.Parse("00000000-0000-0000-0000-000000000001")
+
+	if orgName == "" {
+		return uuid.UUID{}, errors.New("organization name cannot be empty")
+	}
+
+	// Generate deterministic UUID from orgName using SHA-1 in DNS namespace
+	// This ensures different orgNames produce different UUIDs, preventing
+	// cross-tenant data access until OpenChoreo integration is complete
+	return uuid.NewSHA1(uuid.NameSpaceDNS, []byte(orgName)), nil
 }
 
 // convertToSpecEnvironmentResponse converts internal environment response to spec response

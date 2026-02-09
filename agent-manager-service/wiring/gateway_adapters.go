@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
@@ -66,10 +67,10 @@ func ProvideGatewayAdapter(cfg config.Config, encryptionKey []byte, logger *slog
 
 	// Add on-premise specific parameters
 	if cfg.Gateway.AdapterType == "on-premise" {
-		adapterConfig.Parameters["defaultTimeout"] = cfg.Gateway.DefaultTimeout
-		adapterConfig.Parameters["healthCheckTimeout"] = cfg.Gateway.HealthCheckTimeout
+		adapterConfig.Parameters["defaultTimeout"] = time.Duration(cfg.Gateway.DefaultTimeout) * time.Second
+		adapterConfig.Parameters["healthCheckTimeout"] = time.Duration(cfg.Gateway.HealthCheckTimeout) * time.Second
 		adapterConfig.Parameters["maxRetries"] = cfg.Gateway.MaxRetries
-		adapterConfig.Parameters["retryBackoff"] = cfg.Gateway.RetryBackoff
+		adapterConfig.Parameters["retryBackoff"] = time.Duration(cfg.Gateway.RetryBackoff) * time.Second
 	}
 
 	// Create adapter using factory

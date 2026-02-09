@@ -185,7 +185,8 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 		Offset: int32(offset),
 	}
 
-	if gatewayType := r.URL.Query().Get("gatewayType"); gatewayType != "" {
+	// Query parameter names match OpenAPI spec
+	if gatewayType := r.URL.Query().Get("type"); gatewayType != "" {
 		filter.GatewayType = &gatewayType
 	}
 
@@ -193,11 +194,9 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 		filter.Status = &status
 	}
 
-	if region := r.URL.Query().Get("region"); region != "" {
-		filter.Region = &region
-	}
+	// Note: 'region' parameter removed as it's not in OpenAPI spec
 
-	if envID := r.URL.Query().Get("environmentId"); envID != "" {
+	if envID := r.URL.Query().Get("environment"); envID != "" {
 		filter.EnvironmentID = &envID
 	}
 
@@ -328,7 +327,16 @@ func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r 
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusCreated, "")
+	// Fetch updated gateway to return per OpenAPI spec
+	gateway, err := c.gatewayService.GetGateway(ctx, orgUUID, gatewayID)
+	if err != nil {
+		log.Error("AssignGatewayToEnvironment: failed to retrieve gateway after assignment", "error", err)
+		handleGatewayErrors(w, err, "Failed to retrieve gateway")
+		return
+	}
+
+	response := convertToSpecGatewayResponse(gateway)
+	utils.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
 func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, r *http.Request) {

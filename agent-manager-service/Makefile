@@ -70,8 +70,8 @@ gen-observer-client: ## Generate Observer API client from OpenChoreo GitHub repo
 	@echo "Observer client generated successfully"
 
 .PHONY: gen-gw-client
-gen-gw-client: ## Generate OpenChoreo API client from upstream OpenAPI spec.
-	@echo "Generating OpenChoreo client"
+gen-gw-client: ## Generate Gateway API client from upstream OpenAPI spec.
+	@echo "Generating Gateway client"
 	@curl -sL "https://raw.githubusercontent.com/wso2/api-platform/refs/heads/main/gateway/gateway-controller/api/openapi.yaml" -o /tmp/gw-api.yaml
 	@oapi-codegen -config clients/gatewaysvc/gen/oapi-codegen.yaml /tmp/gw-api.yaml
 	@oapi-codegen -config clients/gatewaysvc/gen/oapi-codegen-client.yaml /tmp/gw-api.yaml

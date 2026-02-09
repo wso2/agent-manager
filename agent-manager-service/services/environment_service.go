@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -55,16 +56,6 @@ func NewEnvironmentService(logger *slog.Logger) EnvironmentService {
 func (s *environmentService) CreateEnvironment(ctx context.Context, orgUUID uuid.UUID, req *models.CreateEnvironmentRequest) (*models.GatewayEnvironmentResponse, error) {
 	s.logger.Info("Creating environment", "name", req.Name, "orgUUID", orgUUID)
 
-	// Check if environment already exists
-	var existing models.Environment
-	err := db.DB(ctx).Where("organization_uuid = ? AND name = ?", orgUUID, req.Name).First(&existing).Error
-	if err == nil {
-		return nil, utils.ErrEnvironmentAlreadyExists
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("failed to check existing environment: %w", err)
-	}
-
 	env := &models.Environment{
 		UUID:             uuid.New(),
 		OrganizationUUID: orgUUID,
@@ -75,9 +66,34 @@ func (s *environmentService) CreateEnvironment(ctx context.Context, orgUUID uuid
 		UpdatedAt:        time.Now(),
 	}
 
-	if err := db.DB(ctx).Create(env).Error; err != nil {
+	// Wrap in transaction to handle potential race conditions
+	err := db.DB(ctx).Transaction(func(tx *gorm.DB) error {
+		// Check if environment already exists within the transaction
+		var existing models.Environment
+		err := tx.Where("organization_uuid = ? AND name = ?", orgUUID, req.Name).First(&existing).Error
+		if err == nil {
+			return utils.ErrEnvironmentAlreadyExists
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("failed to check existing environment: %w", err)
+		}
+
+		// Create the environment
+		if err := tx.Create(env).Error; err != nil {
+			// Handle unique constraint violation from database
+			if strings.Contains(strings.ToLower(err.Error()), "unique") || strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+				return utils.ErrEnvironmentAlreadyExists
+			}
+			return fmt.Errorf("failed to create environment: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, utils.ErrEnvironmentAlreadyExists) {
+			return nil, utils.ErrEnvironmentAlreadyExists
+		}
 		s.logger.Error("Failed to create environment", "error", err)
-		return nil, fmt.Errorf("failed to create environment: %w", err)
+		return nil, err
 	}
 
 	s.logger.Info("Environment created successfully", "uuid", env.UUID)
@@ -173,21 +189,34 @@ func (s *environmentService) DeleteEnvironment(ctx context.Context, orgUUID uuid
 		return utils.ErrInvalidInput
 	}
 
-	// Check if environment has associated gateways
-	var count int64
-	if err := db.DB(ctx).Model(&models.GatewayEnvironmentMapping{}).Where("environment_uuid = ?", envUUID).Count(&count).Error; err != nil {
-		return fmt.Errorf("failed to check gateway associations: %w", err)
-	}
-	if count > 0 {
-		return utils.ErrEnvironmentHasGateways
-	}
+	// Wrap in transaction to handle race conditions with gateway assignments
+	err = db.DB(ctx).Transaction(func(tx *gorm.DB) error {
+		// Check if environment has associated gateways within the transaction
+		var count int64
+		if err := tx.Model(&models.GatewayEnvironmentMapping{}).Where("environment_uuid = ?", envUUID).Count(&count).Error; err != nil {
+			return fmt.Errorf("failed to check gateway associations: %w", err)
+		}
+		if count > 0 {
+			return utils.ErrEnvironmentHasGateways
+		}
 
-	result := db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", envUUID, orgUUID).Delete(&models.Environment{})
-	if result.Error != nil {
-		return fmt.Errorf("failed to delete environment: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return utils.ErrEnvironmentNotFound
+		// Delete the environment
+		result := tx.Where("uuid = ? AND organization_uuid = ?", envUUID, orgUUID).Delete(&models.Environment{})
+		if result.Error != nil {
+			return fmt.Errorf("failed to delete environment: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return utils.ErrEnvironmentNotFound
+		}
+
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, utils.ErrEnvironmentHasGateways) || errors.Is(err, utils.ErrEnvironmentNotFound) {
+			return err
+		}
+		s.logger.Error("Failed to delete environment", "error", err)
+		return err
 	}
 
 	return nil
