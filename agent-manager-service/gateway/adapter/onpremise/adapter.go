@@ -18,6 +18,8 @@ package onpremise
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -27,7 +29,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/gatewaysvc/gen"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/gateway"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
@@ -41,7 +43,7 @@ const (
 // OnPremiseAdapter implements IGatewayAdapter for on-premise deployments
 type OnPremiseAdapter struct {
 	httpClient    *http.Client
-	gatewayClient clients.GatewayControllerClient
+	gatewayClient *gen.Client
 	db            *gorm.DB
 	encryptionKey []byte
 	config        gateway.AdapterConfig
@@ -55,6 +57,17 @@ func NewOnPremiseAdapter(config gateway.AdapterConfig, db *gorm.DB, encryptionKe
 		timeout = params
 	}
 
+	// Create gateway client with timeout configuration
+	gatewayClient, err := gen.NewClient("", func(c *gen.Client) error {
+		c.Client = &http.Client{
+			Timeout: timeout,
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gateway client: %w", err)
+	}
+
 	adapter := &OnPremiseAdapter{
 		config:        config,
 		db:            db,
@@ -63,7 +76,7 @@ func NewOnPremiseAdapter(config gateway.AdapterConfig, db *gorm.DB, encryptionKe
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
-		gatewayClient: clients.NewGatewayControllerClient(),
+		gatewayClient: gatewayClient,
 	}
 
 	return adapter, nil
@@ -124,9 +137,15 @@ func (a *OnPremiseAdapter) CheckHealth(ctx context.Context, controlPlaneURL stri
 	return status, nil
 }
 
-// ========================================================================
-// LLM Provider Management (Phase 7)
-// ========================================================================
+// createAuthEditor creates a RequestEditorFn that adds Basic Authentication
+func createAuthEditor(username, password string) gen.RequestEditorFn {
+	return func(ctx context.Context, req *http.Request) error {
+		auth := username + ":" + password
+		encoded := base64.StdEncoding.EncodeToString([]byte(auth))
+		req.Header.Set("Authorization", "Basic "+encoded)
+		return nil
+	}
+}
 
 // getGatewayWithCredentials retrieves gateway data with decrypted credentials
 func (a *OnPremiseAdapter) getGatewayWithCredentials(ctx context.Context, gatewayID string) (*models.Gateway, *models.GatewayCredentials, error) {
@@ -171,21 +190,49 @@ func (a *OnPremiseAdapter) DeployProvider(ctx context.Context, gatewayID string,
 		return nil, fmt.Errorf("controlPlaneUrl not found in gateway adapter config")
 	}
 
-	// Create request credentials
-	reqCreds := &clients.RequestCredentials{
-		Username: creds.Username,
-		Password: creds.Password,
+	// Update client server URL
+	a.gatewayClient.Server = controlPlaneURL
+
+	// Convert configuration map to LLMProviderConfiguration
+	// The config.Configuration should already be a proper structure matching the API
+	var providerConfig gen.LLMProviderConfiguration
+	configBytes, err := json.Marshal(config.Configuration)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal configuration: %w", err)
+	}
+	if err := json.Unmarshal(configBytes, &providerConfig); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
 	}
 
 	// Deploy provider via gateway client
-	resp, err := a.gatewayClient.CreateLLMProvider(ctx, controlPlaneURL, config.Configuration, reqCreds)
+	resp, err := a.gatewayClient.CreateLLMProvider(ctx, providerConfig, createAuthEditor(creds.Username, creds.Password))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create provider on gateway: %w", err)
 	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("create provider failed with status %d", resp.StatusCode)
+	}
+
+	var createResp gen.LLMProviderCreateResponse
+	if err := json.NewDecoder(resp.Body).Decode(&createResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	status := ""
+	if createResp.Status != nil {
+		status = *createResp.Status
+	}
+
+	deploymentID := ""
+	if createResp.Id != nil {
+		deploymentID = *createResp.Id
+	}
 
 	return &gateway.ProviderDeploymentResult{
-		DeploymentID: resp.ID,
-		Status:       resp.Status,
+		DeploymentID: deploymentID,
+		Status:       status,
 		DeployedAt:   time.Now(),
 	}, nil
 }
@@ -204,19 +251,50 @@ func (a *OnPremiseAdapter) UpdateProvider(ctx context.Context, gatewayID string,
 		return nil, fmt.Errorf("controlPlaneUrl not found in gateway adapter config")
 	}
 
-	reqCreds := &clients.RequestCredentials{
-		Username: creds.Username,
-		Password: creds.Password,
+	a.gatewayClient.Server = controlPlaneURL
+
+	// Convert configuration map to LLMProviderConfiguration
+	var providerConfig gen.LLMProviderConfiguration
+	configBytes, err := json.Marshal(config.Configuration)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal configuration: %w", err)
+	}
+	if err := json.Unmarshal(configBytes, &providerConfig); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
 	}
 
-	resp, err := a.gatewayClient.UpdateLLMProvider(ctx, controlPlaneURL, providerID, config.Configuration, reqCreds)
+	resp, err := a.gatewayClient.UpdateLLMProvider(ctx, providerID, providerConfig, createAuthEditor(creds.Username, creds.Password))
 	if err != nil {
 		return nil, fmt.Errorf("failed to update provider on gateway: %w", err)
 	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("provider not found: %s", providerID)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("update provider failed with status %d", resp.StatusCode)
+	}
+
+	var updateResp gen.LLMProviderUpdateResponse
+	if err := json.NewDecoder(resp.Body).Decode(&updateResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	status := ""
+	if updateResp.Status != nil {
+		status = *updateResp.Status
+	}
+
+	deploymentID := ""
+	if updateResp.Id != nil {
+		deploymentID = *updateResp.Id
+	}
 
 	return &gateway.ProviderDeploymentResult{
-		DeploymentID: resp.ID,
-		Status:       resp.Status,
+		DeploymentID: deploymentID,
+		Status:       status,
 		DeployedAt:   time.Now(),
 	}, nil
 }
@@ -235,13 +313,20 @@ func (a *OnPremiseAdapter) UndeployProvider(ctx context.Context, gatewayID strin
 		return fmt.Errorf("controlPlaneUrl not found in gateway adapter config")
 	}
 
-	reqCreds := &clients.RequestCredentials{
-		Username: creds.Username,
-		Password: creds.Password,
+	a.gatewayClient.Server = controlPlaneURL
+
+	resp, err := a.gatewayClient.DeleteLLMProvider(ctx, providerID, createAuthEditor(creds.Username, creds.Password))
+	if err != nil {
+		return fmt.Errorf("failed to delete provider on gateway: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("provider not found: %s", providerID)
 	}
 
-	if err := a.gatewayClient.DeleteLLMProvider(ctx, controlPlaneURL, providerID, reqCreds); err != nil {
-		return fmt.Errorf("failed to delete provider on gateway: %w", err)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("delete provider failed with status %d", resp.StatusCode)
 	}
 
 	return nil
@@ -259,31 +344,59 @@ func (a *OnPremiseAdapter) GetProviderStatus(ctx context.Context, gatewayID stri
 		return nil, fmt.Errorf("controlPlaneUrl not found in gateway adapter config")
 	}
 
-	reqCreds := &clients.RequestCredentials{
-		Username: creds.Username,
-		Password: creds.Password,
-	}
+	a.gatewayClient.Server = controlPlaneURL
 
-	resp, err := a.gatewayClient.GetLLMProvider(ctx, controlPlaneURL, providerID, reqCreds)
+	resp, err := a.gatewayClient.GetLLMProviderById(ctx, providerID, createAuthEditor(creds.Username, creds.Password))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider status: %w", err)
 	}
+	defer resp.Body.Close()
 
-	var deployedAt *time.Time
-	if resp.DeployedAt != "" {
-		if t, err := time.Parse(time.RFC3339, resp.DeployedAt); err == nil {
-			deployedAt = &t
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("get provider failed with status %d", resp.StatusCode)
+	}
+
+	var detailResp gen.LLMProviderDetailResponse
+	if err := json.NewDecoder(resp.Body).Decode(&detailResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if detailResp.Provider == nil {
+		return nil, fmt.Errorf("provider data not found in response")
+	}
+
+	providerStatus := &gateway.ProviderStatus{}
+
+	if detailResp.Provider.Id != nil {
+		providerStatus.ID = *detailResp.Provider.Id
+	}
+
+	if detailResp.Provider.Configuration != nil {
+		providerStatus.Name = detailResp.Provider.Configuration.Metadata.Name
+	}
+
+	if detailResp.Provider.Configuration != nil {
+		providerStatus.Kind = string(detailResp.Provider.Configuration.Kind)
+	}
+
+	if detailResp.Provider.DeploymentStatus != nil {
+		providerStatus.Status = string(*detailResp.Provider.DeploymentStatus)
+	}
+
+	if detailResp.Provider.Metadata != nil && detailResp.Provider.Metadata.DeployedAt != nil {
+		providerStatus.DeployedAt = detailResp.Provider.Metadata.DeployedAt
+	}
+
+	// Convert spec to map
+	if detailResp.Provider.Configuration != nil {
+		specBytes, _ := json.Marshal(detailResp.Provider.Configuration.Spec)
+		var specMap map[string]interface{}
+		if err := json.Unmarshal(specBytes, &specMap); err == nil {
+			providerStatus.Spec = specMap
 		}
 	}
 
-	return &gateway.ProviderStatus{
-		ID:         resp.ID,
-		Name:       resp.Name,
-		Kind:       resp.Kind,
-		Status:     resp.Status,
-		Spec:       resp.Spec,
-		DeployedAt: deployedAt,
-	}, nil
+	return providerStatus, nil
 }
 
 // ListProviders lists all LLM providers deployed on a gateway
@@ -298,33 +411,50 @@ func (a *OnPremiseAdapter) ListProviders(ctx context.Context, gatewayID string) 
 		return nil, fmt.Errorf("controlPlaneUrl not found in gateway adapter config")
 	}
 
-	reqCreds := &clients.RequestCredentials{
-		Username: creds.Username,
-		Password: creds.Password,
-	}
+	a.gatewayClient.Server = controlPlaneURL
 
-	resp, err := a.gatewayClient.ListLLMProviders(ctx, controlPlaneURL, reqCreds)
+	params := &gen.ListLLMProvidersParams{}
+	resp, err := a.gatewayClient.ListLLMProviders(ctx, params, createAuthEditor(creds.Username, creds.Password))
 	if err != nil {
 		return nil, fmt.Errorf("failed to list providers: %w", err)
 	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("list providers failed with status %d", resp.StatusCode)
+	}
+
+	var listResp struct {
+		Providers []gen.LLMProviderListItem `json:"providers"`
+		Status    *string                   `json:"status"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&listResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
 
 	var providers []*gateway.ProviderStatus
-	for _, p := range resp.Providers {
-		var deployedAt *time.Time
-		if p.DeployedAt != "" {
-			if t, err := time.Parse(time.RFC3339, p.DeployedAt); err == nil {
-				deployedAt = &t
-			}
+	for _, p := range listResp.Providers {
+		providerStatus := &gateway.ProviderStatus{}
+
+		if p.Id != nil {
+			providerStatus.ID = *p.Id
 		}
 
-		providers = append(providers, &gateway.ProviderStatus{
-			ID:         p.ID,
-			Name:       p.Name,
-			Kind:       p.Kind,
-			Status:     p.Status,
-			Spec:       p.Spec,
-			DeployedAt: deployedAt,
-		})
+		if p.DisplayName != nil {
+			providerStatus.Name = *p.DisplayName
+		}
+
+		if p.Template != nil {
+			providerStatus.Kind = *p.Template
+		}
+
+		if p.Status != nil {
+			providerStatus.Status = string(*p.Status)
+		}
+
+		providerStatus.DeployedAt = p.CreatedAt
+
+		providers = append(providers, providerStatus)
 	}
 
 	return providers, nil
@@ -342,24 +472,42 @@ func (a *OnPremiseAdapter) GetPolicies(ctx context.Context, gatewayID string) ([
 		return nil, fmt.Errorf("controlPlaneUrl not found in gateway adapter config")
 	}
 
-	reqCreds := &clients.RequestCredentials{
-		Username: creds.Username,
-		Password: creds.Password,
+	a.gatewayClient.Server = controlPlaneURL
+
+	resp, err := a.gatewayClient.ListPolicies(ctx, createAuthEditor(creds.Username, creds.Password))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list policies: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("list policies failed with status %d", resp.StatusCode)
 	}
 
-	resp, err := a.gatewayClient.GetPolicies(ctx, controlPlaneURL, reqCreds)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get policies: %w", err)
+	var policiesResp gen.PolicyListResponse
+	if err := json.NewDecoder(resp.Body).Decode(&policiesResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	var policies []*gateway.PolicyInfo
-	for _, p := range resp.Policies {
-		policies = append(policies, &gateway.PolicyInfo{
-			Name:        p.Name,
-			Version:     p.Version,
-			Description: p.Description,
-			Parameters:  p.Parameters,
-		})
+	if policiesResp.Policies != nil {
+		for _, p := range *policiesResp.Policies {
+			policyInfo := &gateway.PolicyInfo{
+				Name:    p.Name,
+				Version: "", // Version not provided in list response
+			}
+
+			if p.Description != nil {
+				policyInfo.Description = *p.Description
+			}
+
+			// Convert parameters to map
+			if p.Parameters != nil {
+				policyInfo.Parameters = *p.Parameters
+			}
+
+			policies = append(policies, policyInfo)
+		}
 	}
 
 	return policies, nil
