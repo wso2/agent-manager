@@ -1,9 +1,5 @@
 # Helm values for OpenChoreo Build Plane in k3d single-cluster setup
 
-# External Secrets Operator
-external-secrets:
-  enabled: false
-
 # Registry configuration
 global:
   defaultResources:
@@ -11,3 +7,7 @@ global:
       # k3d registry endpoint
       host: host.k3d.internal:10082
       tlsVerify: false
+openbao:
+  server:
+    dev:
+      enabled: true

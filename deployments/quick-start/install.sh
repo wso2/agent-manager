@@ -17,7 +17,8 @@ set -euo pipefail
 # Configuration
 CLUSTER_NAME="amp-local"
 CLUSTER_CONTEXT="k3d-${CLUSTER_NAME}"
-OPENCHOREO_VERSION="0.13.0"
+OPENCHOREO_VERSION="0.14.0"
+OPENCHOREO_PATCH_VERSION="0.0.0-b53c6dc3"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K3D_CONFIG="${SCRIPT_DIR}/k3d-config.yaml"
 
@@ -471,11 +472,13 @@ fi
 log_success "Machine ID generation complete"
 
 # ============================================================================
-# Step 4: Install Cert Manager
+# Step 4: Install Cluster Prerequisites
 # ============================================================================
 
-log_step "Step 4/11: Installing Cert Manager"
+log_step "Step 4/11: Installing Cluster Prerequisites (Cert Manager, Gateway API CRDs, External Secrets)"
 
+# Install Cert Manager
+log_info "Installing Cert Manager..."
 helm_install_idempotent \
     "cert-manager" \
     "oci://quay.io/jetstack/charts/cert-manager" \
@@ -485,6 +488,38 @@ helm_install_idempotent \
     --set crds.enabled=true
 
 wait_for_pods "cert-manager" 300
+
+# Install Gateway API CRDs
+log_info "Installing Gateway API CRDs..."
+GATEWAY_API_CRD="https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/experimental-install.yaml"
+if kubectl apply --server-side --force-conflicts -f "${GATEWAY_API_CRD}" &>/dev/null; then
+    log_success "Gateway API CRDs applied successfully"
+else
+    log_error "Failed to apply Gateway API CRDs"
+fi
+
+# Install External Secrets Operator
+log_info "Installing External Secret Operator..."
+if helm upgrade --install external-secrets oci://ghcr.io/external-secrets/charts/external-secrets \
+    --kube-context ${CLUSTER_CONTEXT} \
+    --namespace external-secrets \
+    --create-namespace \
+    --version 1.3.2 \
+    --set installCRDs=true \
+    --timeout 180s &>/dev/null; then
+    log_success "External Secret Operator installed successfully"
+else
+    log_error "Failed to install External Secret Operator"
+    exit 1
+fi
+
+log_info "Waiting for External Secret Operator to be ready..."
+if kubectl wait --for=condition=Available deployment/external-secrets -n external-secrets --context ${CLUSTER_CONTEXT} --timeout=180s 2>/dev/null; then
+    log_success "External Secret Operator is ready"
+else
+    log_warning "External Secret Operator may still be starting (non-fatal)"
+fi
+
 
 # ============================================================================
 # Step 5: Install OpenChoreo Control Plane
@@ -525,10 +560,10 @@ else
 fi
 
 # ============================================================================
-# Step 6: Install OpenChoreo Data Plane
+# Step 7: Install OpenChoreo Data Plane
 # ============================================================================
 
-log_step "Step 6/11: Installing OpenChoreo Data Plane"
+log_step "Step 7/11: Installing OpenChoreo Data Plane"
 
 helm_install_idempotent \
     "openchoreo-data-plane" \
@@ -539,13 +574,6 @@ helm_install_idempotent \
     --values "https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/single-cluster/values-dp.yaml"
 
 
-log_info "Applying HTTPRoute CRD..."
-HTTP_ROUTE_CRD="https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/refs/tags/v1.4.1/config/crd/experimental/gateway.networking.k8s.io_httproutes.yaml"
-if kubectl apply  --server-side --force-conflicts -f "${HTTP_ROUTE_CRD}" &>/dev/null; then
-    log_success "HTTPRoute CRD applied successfully"
-else
-    log_error "Failed to apply HTTPRoute CRD"
-fi
 
 # Create TLS Certificate for OpenChoreo Gateway
 log_info "Creating TLS certificate for OpenChoreo Gateway..."
@@ -610,10 +638,10 @@ fi
 wait_for_pods "openchoreo-data-plane" "${TIMEOUT_DATA_PLANE}"
 
 # ============================================================================
-# Step 7: Install OpenChoreo Build Plane
+# Step 8: Install OpenChoreo Build Plane
 # ============================================================================
 
-log_step "Step 7/11: Installing OpenChoreo Build Plane"
+log_step "Step 8/11: Installing OpenChoreo Build Plane"
 
 # Install Docker Registry for Build Plane
 log_info "Installing Docker Registry for Build Plane..."
@@ -664,6 +692,8 @@ metadata:
   namespace: default
 spec:
   planeID: "default-buildplane"
+  secretStoreRef:
+    name: openbao
   clusterAgent:
     clientCA:
       value: |
@@ -688,10 +718,10 @@ fi
 wait_for_deployments "openchoreo-build-plane" "${TIMEOUT_BUILD_PLANE}"
 
 # ============================================================================
-# Step 8: Install OpenChoreo Observability Plane
+# Step 9: Install OpenChoreo Observability Plane
 # ============================================================================
 
-log_step "Step 8/11: Installing OpenChoreo Observability Plane"
+log_step "Step 9/11: Installing OpenChoreo Observability Plane"
 
 # Create namespace (idempotent)
 log_info "Ensuring OpenChoreo Observability Plane namespace exists..."

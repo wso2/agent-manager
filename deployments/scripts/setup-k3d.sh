@@ -119,4 +119,28 @@ echo "🔍 Cluster Nodes:"
 kubectl get nodes
 
 echo ""
+echo "🔧 Installing Gateway API CRDs..."
+GATEWAY_API_CRD="https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/experimental-install.yaml"
+if kubectl apply --server-side --force-conflicts -f "${GATEWAY_API_CRD}" &>/dev/null; then
+    echo "✅ Gateway API CRDs applied successfully"
+else
+    echo "❌ Failed to apply Gateway API CRDs"
+fi
+
+echo ""
+echo "🔧 Installing External Secret Operator..."
+helm upgrade --install external-secrets oci://ghcr.io/external-secrets/charts/external-secrets \
+    --kube-context ${CLUSTER_CONTEXT} \
+    --namespace external-secrets \
+    --create-namespace \
+    --version 1.3.2 \
+    --set installCRDs=true
+
+echo ""
+echo "⏳ Waiting for External Secret Operator to be ready..."
+kubectl wait --for=condition=Available deployment/external-secrets -n external-secrets --context ${CLUSTER_CONTEXT} --timeout=180s
+
+echo "✅ External Secret Operator is ready!"
+
+echo ""
 echo "✅ Setup complete! You can now proceed with OpenChoreo installation."
