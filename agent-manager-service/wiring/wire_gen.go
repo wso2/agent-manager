@@ -57,7 +57,10 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	if err != nil {
 		return nil, err
 	}
-	iGatewayAdapter := ProvideGatewayAdapter(configConfig, v, logger)
+	iGatewayAdapter, err := ProvideGatewayAdapter(configConfig, v, logger)
+	if err != nil {
+		return nil, err
+	}
 	gatewayService := services.NewGatewayService(iGatewayAdapter, v, logger)
 	gatewayController := controllers.NewGatewayController(gatewayService)
 	appParams := &AppParams{
@@ -99,7 +102,10 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 	if err != nil {
 		return nil, err
 	}
-	iGatewayAdapter := ProvideGatewayAdapter(configConfig, v, logger)
+	iGatewayAdapter, err := ProvideGatewayAdapter(configConfig, v, logger)
+	if err != nil {
+		return nil, err
+	}
 	gatewayService := services.NewGatewayService(iGatewayAdapter, v, logger)
 	gatewayController := controllers.NewGatewayController(gatewayService)
 	appParams := &AppParams{

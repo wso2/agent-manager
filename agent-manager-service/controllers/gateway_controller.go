@@ -20,10 +20,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
@@ -81,21 +83,52 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var req models.CreateGatewayRequest
+	var req spec.CreateGatewayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("RegisterGateway: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	gateway, err := c.gatewayService.RegisterGateway(ctx, orgUUID, &req)
+	// Convert spec request to internal model
+	internalReq := &models.CreateGatewayRequest{
+		Name:          req.Name,
+		DisplayName:   req.DisplayName,
+		GatewayType:   string(req.GatewayType),
+		VHost:         req.Vhost,
+		IsCritical:    req.GetIsCritical(),
+		AdapterConfig: req.AdapterConfig,
+	}
+
+	if req.Region != nil {
+		internalReq.Region = *req.Region
+	}
+
+	if req.Credentials != nil {
+		internalReq.Credentials = &models.GatewayCredentials{}
+		if req.Credentials.Username != nil {
+			internalReq.Credentials.Username = *req.Credentials.Username
+		}
+		if req.Credentials.Password != nil {
+			internalReq.Credentials.Password = *req.Credentials.Password
+		}
+		if req.Credentials.ApiKey != nil {
+			internalReq.Credentials.APIKey = *req.Credentials.ApiKey
+		}
+		if req.Credentials.Token != nil {
+			internalReq.Credentials.Token = *req.Credentials.Token
+		}
+	}
+
+	gateway, err := c.gatewayService.RegisterGateway(ctx, orgUUID, internalReq)
 	if err != nil {
 		log.Error("RegisterGateway: failed to register gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to register gateway")
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusCreated, gateway)
+	response := convertToSpecGatewayResponse(gateway)
+	utils.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
 func (c *gatewayController) GetGateway(w http.ResponseWriter, r *http.Request) {
@@ -119,7 +152,8 @@ func (c *gatewayController) GetGateway(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, gateway)
+	response := convertToSpecGatewayResponse(gateway)
+	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request) {
@@ -167,14 +201,27 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 		filter.EnvironmentID = &envID
 	}
 
-	gateways, err := c.gatewayService.ListGateways(ctx, orgUUID, filter)
+	gatewayList, err := c.gatewayService.ListGateways(ctx, orgUUID, filter)
 	if err != nil {
 		log.Error("ListGateways: failed to list gateways", "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list gateways")
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, gateways)
+	// Convert to spec responses
+	specGateways := make([]spec.GatewayResponse, len(gatewayList.Gateways))
+	for i := range gatewayList.Gateways {
+		specGateways[i] = convertToSpecGatewayResponse(&gatewayList.Gateways[i])
+	}
+
+	response := spec.GatewayListResponse{
+		Gateways: specGateways,
+		Total:    gatewayList.Total,
+		Limit:    gatewayList.Limit,
+		Offset:   gatewayList.Offset,
+	}
+
+	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request) {
@@ -191,21 +238,50 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	var req models.UpdateGatewayRequest
+	var req spec.UpdateGatewayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateGateway: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	gateway, err := c.gatewayService.UpdateGateway(ctx, orgUUID, gatewayID, &req)
+	// Convert spec request to internal model
+	internalReq := &models.UpdateGatewayRequest{
+		DisplayName:   req.DisplayName,
+		IsCritical:    req.IsCritical,
+		AdapterConfig: req.AdapterConfig,
+	}
+
+	if req.Status != nil {
+		status := string(*req.Status)
+		internalReq.Status = &status
+	}
+
+	if req.Credentials != nil {
+		internalReq.Credentials = &models.GatewayCredentials{}
+		if req.Credentials.Username != nil {
+			internalReq.Credentials.Username = *req.Credentials.Username
+		}
+		if req.Credentials.Password != nil {
+			internalReq.Credentials.Password = *req.Credentials.Password
+		}
+		if req.Credentials.ApiKey != nil {
+			internalReq.Credentials.APIKey = *req.Credentials.ApiKey
+		}
+		if req.Credentials.Token != nil {
+			internalReq.Credentials.Token = *req.Credentials.Token
+		}
+	}
+
+	gateway, err := c.gatewayService.UpdateGateway(ctx, orgUUID, gatewayID, internalReq)
 	if err != nil {
 		log.Error("UpdateGateway: failed to update gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to update gateway")
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, gateway)
+	response := convertToSpecGatewayResponse(gateway)
+	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request) {
@@ -300,7 +376,17 @@ func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *htt
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, environments)
+	// Convert to spec responses
+	specEnvs := make([]spec.GatewayEnvironmentResponse, len(environments))
+	for i := range environments {
+		specEnvs[i] = convertToSpecEnvironmentResponse(&environments[i])
+	}
+
+	response := spec.GetGatewayEnvironments200Response{
+		Environments: specEnvs,
+	}
+
+	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *gatewayController) CheckGatewayHealth(w http.ResponseWriter, r *http.Request) {
@@ -324,5 +410,30 @@ func (c *gatewayController) CheckGatewayHealth(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, health)
+	// Convert internal response to spec response
+	response := spec.HealthStatusResponse{
+		GatewayId: health.GatewayID,
+		Status:    health.Status,
+		CheckedAt: parseTimeString(health.CheckedAt),
+	}
+
+	if health.ResponseTime != "" {
+		response.ResponseTime = &health.ResponseTime
+	}
+
+	if health.ErrorMessage != "" {
+		response.ErrorMessage = &health.ErrorMessage
+	}
+
+	utils.WriteSuccessResponse(w, http.StatusOK, response)
+}
+
+// parseTimeString converts a time string to time.Time
+// Falls back to current time if parsing fails
+func parseTimeString(timeStr string) time.Time {
+	t, err := time.Parse(time.RFC3339, timeStr)
+	if err != nil {
+		return time.Now()
+	}
+	return t
 }

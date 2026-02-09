@@ -1284,37 +1284,871 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  # ============================================
+  # GATEWAY ENVIRONMENT ENDPOINTS
+  # ============================================
+
   /orgs/{orgName}/environments:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          minLength: 1
+          maxLength: 64
+
     get:
-      summary: List all environments in an organization
-      description: Retrieves all environments available in the specified organization
+      tags:
+        - Environments
+      summary: List all environments
+      description: Retrieve a paginated list of all environments for the organization
       operationId: listEnvironments
       parameters:
-        - name: orgName
-          in: path
-          description: Organization name
-          required: true
+        - name: limit
+          in: query
+          description: Maximum number of results to return
           schema:
-            type: string
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of results to skip
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
       responses:
-        "200":
-          description: List of environments
+        '200':
+          description: Successfully retrieved environment list
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EnvironmentListResponse"
-        "404":
-          description: Organization not found
+                $ref: '#/components/schemas/EnvironmentListResponse'
+        '400':
+          description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Environments
+      summary: Create a new environment
+      description: |
+        Create a new gateway environment for the organization.
+
+        Environment names must be unique within an organization and should be lowercase
+        alphanumeric with hyphens (e.g., dev, staging, production).
+      operationId: createEnvironment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEnvironmentRequest'
+      responses:
+        '201':
+          description: Environment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayEnvironmentResponse'
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict - resource already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /orgs/{orgName}/environments/{envID}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          minLength: 1
+          maxLength: 64
+      - name: envID
+        in: path
+        required: true
+        description: Environment UUID or name
+        schema:
+          type: string
+
+    get:
+      tags:
+        - Environments
+      summary: Get environment details
+      description: Retrieve detailed information about a specific environment
+      operationId: getEnvironment
+      responses:
+        '200':
+          description: Successfully retrieved environment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayEnvironmentResponse'
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - Environments
+      summary: Update environment
+      description: |
+        Update an existing environment's properties.
+
+        You can update the display name and description. The environment name cannot be changed.
+      operationId: updateEnvironment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEnvironmentRequest'
+      responses:
+        '200':
+          description: Environment updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayEnvironmentResponse'
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Environments
+      summary: Delete environment
+      description: |
+        Soft delete an environment. This will also remove all gateway-environment mappings
+        associated with this environment.
+
+        The environment can be restored if needed by contacting support.
+      operationId: deleteEnvironment
+      responses:
+        '204':
+          description: Environment deleted successfully
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /orgs/{orgName}/environments/{envID}/gateways:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          minLength: 1
+          maxLength: 64
+      - name: envID
+        in: path
+        required: true
+        description: Environment UUID or name
+        schema:
+          type: string
+
+    get:
+      tags:
+        - Environments
+      summary: Get environment gateways
+      description: |
+        List all gateways mapped to a specific environment.
+
+        This endpoint returns all gateways that are available in this environment,
+        useful for understanding which gateways can be used by agents in this environment.
+      operationId: getEnvironmentGateways
+      responses:
+        '200':
+          description: Successfully retrieved gateway list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  gateways:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GatewayResponse'
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ============================================
+  # AI GATEWAY ENDPOINTS
+  # ============================================
+
+  /orgs/{orgName}/gateways:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          minLength: 1
+          maxLength: 64
+
+    get:
+      tags:
+        - Gateways
+      summary: List all gateways
+      description: |
+        Retrieve a paginated list of all gateways for the organization.
+
+        Supports filtering by gateway type, status, and environment.
+      operationId: listGateways
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of results to return
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of results to skip
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
+        - name: type
+          in: query
+          description: Filter by gateway type
+          schema:
+            type: string
+            enum:
+              - INGRESS
+              - EGRESS
+        - name: status
+          in: query
+          description: Filter by gateway status
+          schema:
+            type: string
+            enum:
+              - ACTIVE
+              - INACTIVE
+              - PROVISIONING
+              - ERROR
+        - name: environment
+          in: query
+          description: Filter by environment name
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved gateway list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayListResponse'
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Gateways
+      summary: Register a new gateway
+      description: |
+        Register a new AI gateway with the platform.
+
+        **Gateway Types:**
+        - INGRESS: Handles incoming API traffic
+        - EGRESS: Handles outgoing LLM/MCP traffic (used for AI agents)
+
+        **Security Note:**
+        - Gateway credentials are encrypted before storage
+        - Credentials are never returned in API responses
+        - Use a strong encryption key configured in GATEWAY_ENCRYPTION_KEY
+      operationId: registerGateway
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGatewayRequest'
+      responses:
+        '201':
+          description: Gateway registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayResponse'
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict - resource already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /orgs/{orgName}/gateways/{gatewayID}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          minLength: 1
+          maxLength: 64
+      - name: gatewayID
+        in: path
+        required: true
+        description: Gateway UUID or name
+        schema:
+          type: string
+
+    get:
+      tags:
+        - Gateways
+      summary: Get gateway details
+      description: |
+        Retrieve detailed information about a specific gateway, including mapped environments.
+
+        **Security Note:** Credentials are never returned in the response.
+      operationId: getGateway
+      responses:
+        '200':
+          description: Successfully retrieved gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayResponse'
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - Gateways
+      summary: Update gateway
+      description: |
+        Update an existing gateway's properties.
+
+        **Updatable Fields:**
+        - Display name
+        - Critical flag
+        - Status
+        - Adapter configuration
+        - Credentials (re-encrypted on update)
+
+        **Immutable Fields:**
+        - Gateway name
+        - Gateway type
+        - VHost
+        - Organization
+      operationId: updateGateway
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGatewayRequest'
+      responses:
+        '200':
+          description: Gateway updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayResponse'
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Gateways
+      summary: Deregister gateway
+      description: |
+        Soft delete a gateway. This will:
+        - Mark the gateway as deleted
+        - Remove all gateway-environment mappings
+        - Preserve gateway data for audit/recovery
+
+        The gateway can be restored if needed by contacting support.
+
+        **Warning:** This operation will affect all environments using this gateway.
+      operationId: deleteGateway
+      responses:
+        '204':
+          description: Gateway deregistered successfully
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /orgs/{orgName}/gateways/{gatewayID}/environments:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          minLength: 1
+          maxLength: 64
+      - name: gatewayID
+        in: path
+        required: true
+        description: Gateway UUID or name
+        schema:
+          type: string
+
+    get:
+      tags:
+        - Gateway-Environment Mappings
+      summary: Get gateway environments
+      description: |
+        List all environments mapped to a specific gateway.
+
+        This shows which environments can use this gateway for routing traffic.
+      operationId: getGatewayEnvironments
+      responses:
+        '200':
+          description: Successfully retrieved environment list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  environments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GatewayEnvironmentResponse'
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          minLength: 1
+          maxLength: 64
+      - name: gatewayID
+        in: path
+        required: true
+        description: Gateway UUID or name
+        schema:
+          type: string
+      - name: envID
+        in: path
+        required: true
+        description: Environment UUID or name
+        schema:
+          type: string
+
+    post:
+      tags:
+        - Gateway-Environment Mappings
+      summary: Assign gateway to environment
+      description: |
+        Create a mapping between a gateway and an environment.
+
+        This makes the gateway available for use in the specified environment.
+        A gateway can be mapped to multiple environments, and an environment can have
+        multiple gateways.
+      operationId: assignGatewayToEnvironment
+      responses:
+        '201':
+          description: Mapping created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayResponse'
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Mapping already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Gateway-Environment Mappings
+      summary: Remove gateway from environment
+      description: |
+        Remove the mapping between a gateway and an environment.
+
+        This makes the gateway unavailable in the specified environment.
+
+        **Warning:** If agents in this environment are using this gateway, they may
+        experience routing failures after this operation.
+      operationId: removeGatewayFromEnvironment
+      responses:
+        '204':
+          description: Mapping removed successfully
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Gateway, environment, or mapping not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /orgs/{orgName}/gateways/{gatewayID}/health:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          minLength: 1
+          maxLength: 64
+      - name: gatewayID
+        in: path
+        required: true
+        description: Gateway UUID or name
+        schema:
+          type: string
+
+    get:
+      tags:
+        - Health
+      summary: Check gateway health
+      description: |
+        Perform a health check on the gateway by communicating with it via the configured adapter.
+
+        This endpoint will:
+        - Verify connectivity to the gateway
+        - Check gateway operational status
+        - Measure response time
+        - Return detailed health information
+      operationId: checkGatewayHealth
+      responses:
+        '200':
+          description: Health check completed (status in response body)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatusResponse'
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /orgs/{orgName}/data-planes:
     get:
       summary: List all data planes in an organization
@@ -3775,3 +4609,371 @@ components:
           type: string
           description: URL to the author's avatar image
           example: "https://avatars.githubusercontent.com/u/583231?v=4"
+
+    # ============================================
+    # GATEWAY ENVIRONMENT MANAGEMENT SCHEMAS
+    # ============================================
+
+    GatewayEnvironmentResponse:
+      type: object
+      required:
+        - id
+        - organizationId
+        - name
+        - displayName
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the environment
+          example: 550e8400-e29b-41d4-a716-446655440000
+        organizationId:
+          type: string
+          description: Organization UUID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        name:
+          type: string
+          description: Unique environment name (lowercase, alphanumeric with hyphens)
+          pattern: '^[a-z0-9-]+$'
+          maxLength: 64
+          example: production
+        displayName:
+          type: string
+          description: Human-readable display name
+          maxLength: 128
+          example: Production Environment
+        description:
+          type: string
+          description: Optional description of the environment
+          example: Production environment for critical AI agents
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the environment was created
+          example: '2026-01-15T10:30:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the environment was last updated
+          example: '2026-01-20T14:45:00Z'
+
+    CreateEnvironmentRequest:
+      type: object
+      required:
+        - name
+        - displayName
+      properties:
+        name:
+          type: string
+          description: Unique environment name (lowercase, alphanumeric with hyphens)
+          pattern: '^[a-z0-9-]+$'
+          minLength: 1
+          maxLength: 64
+          example: production
+        displayName:
+          type: string
+          description: Human-readable display name
+          minLength: 1
+          maxLength: 128
+          example: Production Environment
+        description:
+          type: string
+          description: Optional description of the environment
+          example: Production environment for critical AI agents
+
+    UpdateEnvironmentRequest:
+      type: object
+      minProperties: 1
+      properties:
+        displayName:
+          type: string
+          description: Updated display name
+          minLength: 1
+          maxLength: 128
+          example: Production Environment (US-East)
+        description:
+          type: string
+          description: Updated description
+          nullable: true
+          example: Production environment for US East region
+
+    # ============================================
+    # AI GATEWAY MANAGEMENT SCHEMAS
+    # ============================================
+
+    GatewayType:
+      type: string
+      enum:
+        - INGRESS
+        - EGRESS
+      description: |
+        Gateway type:
+        - INGRESS: Handles incoming API traffic
+        - EGRESS: Handles outgoing LLM/MCP traffic (used for AI agents)
+      example: EGRESS
+
+    GatewayStatus:
+      type: string
+      enum:
+        - ACTIVE
+        - INACTIVE
+        - PROVISIONING
+        - ERROR
+      description: |
+        Gateway operational status:
+        - ACTIVE: Gateway is operational and ready
+        - INACTIVE: Gateway is registered but not active
+        - PROVISIONING: Gateway is being set up
+        - ERROR: Gateway has encountered an error
+      example: ACTIVE
+
+    GatewayCredentials:
+      type: object
+      description: |
+        Authentication credentials for gateway access.
+
+        **Security:**
+        - At least one credential type should be provided
+        - Credentials are encrypted before storage
+        - Never returned in API responses
+        - Re-encrypted when updated
+
+        **Supported Credential Types:**
+        - Basic auth: username + password
+        - API key: apiKey
+        - Bearer token: token
+      properties:
+        username:
+          type: string
+          description: Basic authentication username
+          example: admin
+        password:
+          type: string
+          description: Basic authentication password
+          format: password
+          example: secure-password-123
+        apiKey:
+          type: string
+          description: API key for authentication
+          example: sk-1234567890abcdef
+        token:
+          type: string
+          description: Bearer token for authentication
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+    GatewayResponse:
+      type: object
+      required:
+        - uuid
+        - organizationId
+        - name
+        - displayName
+        - gatewayType
+        - vhost
+        - isCritical
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        uuid:
+          type: string
+          description: Unique identifier for the gateway
+          example: 7c4a8d09-ca3f-4b0a-82e9-2e85b96dd8a7
+        organizationId:
+          type: string
+          description: Organization UUID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        name:
+          type: string
+          description: Unique gateway name (lowercase, alphanumeric with hyphens)
+          pattern: '^[a-z0-9-]+$'
+          maxLength: 64
+          example: ai-gateway-prod
+        displayName:
+          type: string
+          description: Human-readable display name
+          maxLength: 128
+          example: Production AI Gateway
+        gatewayType:
+          $ref: '#/components/schemas/GatewayType'
+        controlPlaneUrl:
+          type: string
+          format: uri
+          description: URL of the gateway's control plane (if applicable)
+          example: https://gateway-control.example.com
+        vhost:
+          type: string
+          description: Virtual host for the gateway
+          maxLength: 253
+          example: api.production.example.com
+        region:
+          type: string
+          description: Deployment region
+          example: us-east-1
+        isCritical:
+          type: boolean
+          description: Flag indicating if this is a critical production gateway
+          example: true
+        status:
+          $ref: '#/components/schemas/GatewayStatus'
+        adapterConfig:
+          type: object
+          description: Adapter-specific configuration (structure varies by adapter type)
+          additionalProperties: true
+          example:
+            apiEndpoint: https://gateway.example.com/api
+            timeout: 30s
+            retryCount: 3
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the gateway was registered
+          example: '2026-01-15T10:30:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the gateway was last updated
+          example: '2026-02-01T08:00:00Z'
+        environments:
+          type: array
+          description: List of environments mapped to this gateway
+          items:
+            $ref: '#/components/schemas/GatewayEnvironmentResponse'
+
+    CreateGatewayRequest:
+      type: object
+      required:
+        - name
+        - displayName
+        - gatewayType
+        - vhost
+      properties:
+        name:
+          type: string
+          description: Unique gateway name (lowercase, alphanumeric with hyphens)
+          pattern: '^[a-z0-9-]+$'
+          minLength: 1
+          maxLength: 64
+          example: ai-gateway-prod
+        displayName:
+          type: string
+          description: Human-readable display name
+          minLength: 1
+          maxLength: 128
+          example: Production AI Gateway
+        gatewayType:
+          $ref: '#/components/schemas/GatewayType'
+        vhost:
+          type: string
+          description: Virtual host for the gateway (FQDN or IP)
+          minLength: 1
+          maxLength: 253
+          example: api.production.example.com
+        region:
+          type: string
+          description: Deployment region (optional)
+          example: us-east-1
+        isCritical:
+          type: boolean
+          description: Flag indicating if this is a critical production gateway
+          default: false
+          example: true
+        adapterConfig:
+          type: object
+          description: Adapter-specific configuration (structure varies by adapter type)
+          additionalProperties: true
+          example:
+            apiEndpoint: https://gateway.example.com/api
+            timeout: 30s
+            retryCount: 3
+        credentials:
+          $ref: '#/components/schemas/GatewayCredentials'
+
+    UpdateGatewayRequest:
+      type: object
+      minProperties: 1
+      description: Update request for gateway properties (all fields optional, but at least one must be provided)
+      properties:
+        displayName:
+          type: string
+          description: Updated display name
+          minLength: 1
+          maxLength: 128
+          example: Production AI Gateway (Updated)
+        isCritical:
+          type: boolean
+          description: Updated critical flag
+          example: false
+        status:
+          $ref: '#/components/schemas/GatewayStatus'
+        adapterConfig:
+          type: object
+          description: Updated adapter configuration
+          additionalProperties: true
+          example:
+            apiEndpoint: https://gateway-new.example.com/api
+            timeout: 60s
+        credentials:
+          $ref: '#/components/schemas/GatewayCredentials'
+
+    GatewayListResponse:
+      type: object
+      required:
+        - gateways
+        - total
+        - limit
+        - offset
+      properties:
+        gateways:
+          type: array
+          items:
+            $ref: '#/components/schemas/GatewayResponse'
+        total:
+          type: integer
+          format: int32
+          description: Total number of gateways matching the filter
+          example: 5
+        limit:
+          type: integer
+          format: int32
+          description: Number of results per page
+          example: 20
+        offset:
+          type: integer
+          format: int32
+          description: Number of results skipped
+          example: 0
+
+    HealthStatusResponse:
+      type: object
+      required:
+        - gatewayId
+        - status
+        - checkedAt
+      properties:
+        gatewayId:
+          type: string
+          description: UUID of the gateway that was checked
+          example: 7c4a8d09-ca3f-4b0a-82e9-2e85b96dd8a7
+        status:
+          type: string
+          description: Health check result status
+          enum:
+            - HEALTHY
+            - UNHEALTHY
+            - UNREACHABLE
+          example: HEALTHY
+        responseTime:
+          type: string
+          description: Response time from the gateway (if reachable)
+          example: 45ms
+        errorMessage:
+          type: string
+          description: Error message if health check failed
+          example: Connection timeout after 30s
+        checkedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the health check was performed
+          example: '2026-02-08T15:30:00Z'

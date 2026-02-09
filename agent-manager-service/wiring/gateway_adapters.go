@@ -51,7 +51,7 @@ func ProvideGatewayEncryptionKey(cfg config.Config) ([]byte, error) {
 
 // ProvideGatewayAdapter provides a gateway adapter for dependency injection
 // Uses configuration to select the appropriate adapter type
-func ProvideGatewayAdapter(cfg config.Config, encryptionKey []byte, logger *slog.Logger) gateway.IGatewayAdapter {
+func ProvideGatewayAdapter(cfg config.Config, encryptionKey []byte, logger *slog.Logger) (gateway.IGatewayAdapter, error) {
 	// Create adapter factory
 	factory := gateway.NewAdapterFactory(logger)
 
@@ -76,15 +76,29 @@ func ProvideGatewayAdapter(cfg config.Config, encryptionKey []byte, logger *slog
 	adapter, err := factory.CreateAdapter(adapterConfig)
 	if err != nil {
 		// Fall back to mock adapter if there's an error
-		logger.Error("Failed to create configured gateway adapter, falling back to mock",
+		logger.Error("Failed to create configured gateway adapter, attempting mock fallback",
 			"adapterType", cfg.Gateway.AdapterType,
 			"error", err)
-		adapter, _ = mock.NewMockAdapter("mock-fallback", false, logger)
-		return adapter
+
+		mockAdapter, mockErr := mock.NewMockAdapter("mock-fallback", false, logger)
+		if mockErr != nil {
+			// Both factory and mock adapter creation failed
+			logger.Error("Failed to create mock fallback adapter",
+				"adapterType", cfg.Gateway.AdapterType,
+				"factoryError", err,
+				"mockError", mockErr)
+			return nil, fmt.Errorf("failed to create gateway adapter (type: %s): %w; mock fallback also failed: %w",
+				cfg.Gateway.AdapterType, err, mockErr)
+		}
+
+		logger.Warn("Using mock adapter as fallback",
+			"requestedType", cfg.Gateway.AdapterType,
+			"actualType", mockAdapter.GetAdapterType())
+		return mockAdapter, nil
 	}
 
 	logger.Info("Gateway adapter initialized", "adapterType", adapter.GetAdapterType())
-	return adapter
+	return adapter, nil
 }
 
 // InitGatewayAdapters initializes the gateway factory with built-in adapters

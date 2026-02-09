@@ -24,9 +24,11 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
+
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
@@ -82,21 +84,33 @@ func (c *environmentController) CreateEnvironment(w http.ResponseWriter, r *http
 		return
 	}
 
-	var req models.CreateEnvironmentRequest
+	var req spec.CreateEnvironmentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("CreateEnvironment: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	env, err := c.environmentService.CreateEnvironment(ctx, orgUUID, &req)
+	// Convert spec request to internal model
+	internalReq := &models.CreateEnvironmentRequest{
+		Name:        req.Name,
+		DisplayName: req.DisplayName,
+	}
+
+	if req.Description != nil {
+		internalReq.Description = *req.Description
+	}
+
+	env, err := c.environmentService.CreateEnvironment(ctx, orgUUID, internalReq)
 	if err != nil {
 		log.Error("CreateEnvironment: failed to create environment", "error", err)
 		handleEnvironmentErrors(w, err, "Failed to create environment")
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusCreated, env)
+	// Convert internal response to spec response
+	response := convertToSpecEnvironmentResponse(env)
+	utils.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
 func (c *environmentController) GetEnvironment(w http.ResponseWriter, r *http.Request) {
@@ -120,7 +134,8 @@ func (c *environmentController) GetEnvironment(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, env)
+	response := convertToSpecEnvironmentResponse(env)
+	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *environmentController) ListEnvironments(w http.ResponseWriter, r *http.Request) {
@@ -146,14 +161,20 @@ func (c *environmentController) ListEnvironments(w http.ResponseWriter, r *http.
 		return
 	}
 
-	envs, err := c.environmentService.ListEnvironments(ctx, orgUUID, int32(limit), int32(offset))
+	envList, err := c.environmentService.ListEnvironments(ctx, orgUUID, int32(limit), int32(offset))
 	if err != nil {
 		log.Error("ListEnvironments: failed to list environments", "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list environments")
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, envs)
+	// Convert to spec responses
+	specEnvs := make([]spec.GatewayEnvironmentResponse, len(envList.Environments))
+	for i, env := range envList.Environments {
+		specEnvs[i] = convertToSpecEnvironmentResponse(&env)
+	}
+
+	utils.WriteSuccessResponse(w, http.StatusOK, specEnvs)
 }
 
 func (c *environmentController) UpdateEnvironment(w http.ResponseWriter, r *http.Request) {
@@ -170,21 +191,33 @@ func (c *environmentController) UpdateEnvironment(w http.ResponseWriter, r *http
 		return
 	}
 
-	var req models.UpdateEnvironmentRequest
+	var req spec.UpdateEnvironmentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateEnvironment: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	env, err := c.environmentService.UpdateEnvironment(ctx, orgUUID, envID, &req)
+	// Convert spec request to internal model
+	var description *string
+	if req.Description.IsSet() {
+		description = req.Description.Get()
+	}
+
+	internalReq := &models.UpdateEnvironmentRequest{
+		DisplayName: req.DisplayName,
+		Description: description,
+	}
+
+	env, err := c.environmentService.UpdateEnvironment(ctx, orgUUID, envID, internalReq)
 	if err != nil {
 		log.Error("UpdateEnvironment: failed to update environment", "error", err)
 		handleEnvironmentErrors(w, err, "Failed to update environment")
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, env)
+	response := convertToSpecEnvironmentResponse(env)
+	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *environmentController) DeleteEnvironment(w http.ResponseWriter, r *http.Request) {
@@ -224,14 +257,24 @@ func (c *environmentController) GetEnvironmentGateways(w http.ResponseWriter, r 
 		return
 	}
 
-	gateways, err := c.environmentService.GetEnvironmentGateways(ctx, orgUUID, envID)
+	gatewayList, err := c.environmentService.GetEnvironmentGateways(ctx, orgUUID, envID)
 	if err != nil {
 		log.Error("GetEnvironmentGateways: failed to get gateways", "error", err)
 		handleEnvironmentErrors(w, err, "Failed to get environment gateways")
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, gateways)
+	// Convert to spec responses
+	specGateways := make([]spec.GatewayResponse, len(gatewayList))
+	for i, gw := range gatewayList {
+		specGateways[i] = convertToSpecGatewayResponse(&gw)
+	}
+
+	response := spec.GetEnvironmentGateways200Response{
+		Gateways: specGateways,
+	}
+
+	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 // Helper function to get int query param with default value
@@ -270,4 +313,61 @@ func getOrgUUIDFromName(ctx context.Context, orgName string) (uuid.UUID, error) 
 	//
 	// For now, return a placeholder to allow API testing
 	return uuid.Parse("00000000-0000-0000-0000-000000000001")
+}
+
+// convertToSpecEnvironmentResponse converts internal environment response to spec response
+func convertToSpecEnvironmentResponse(env *models.GatewayEnvironmentResponse) spec.GatewayEnvironmentResponse {
+	response := spec.GatewayEnvironmentResponse{
+		Id:             env.UUID,
+		OrganizationId: env.OrganizationID,
+		Name:           env.Name,
+		DisplayName:    env.DisplayName,
+		CreatedAt:      env.CreatedAt,
+		UpdatedAt:      env.UpdatedAt,
+	}
+
+	if env.Description != "" {
+		response.Description = &env.Description
+	}
+
+	return response
+}
+
+// convertToSpecGatewayResponse converts internal gateway response to spec response
+func convertToSpecGatewayResponse(gw *models.GatewayResponse) spec.GatewayResponse {
+	response := spec.GatewayResponse{
+		Uuid:           gw.UUID,
+		OrganizationId: gw.OrganizationID,
+		Name:           gw.Name,
+		DisplayName:    gw.DisplayName,
+		GatewayType:    spec.GatewayType(gw.GatewayType),
+		Vhost:          gw.VHost,
+		IsCritical:     gw.IsCritical,
+		Status:         spec.GatewayStatus(gw.Status),
+		CreatedAt:      gw.CreatedAt,
+		UpdatedAt:      gw.UpdatedAt,
+	}
+
+	if gw.ControlPlaneURL != "" {
+		response.ControlPlaneUrl = &gw.ControlPlaneURL
+	}
+
+	if gw.Region != "" {
+		response.Region = &gw.Region
+	}
+
+	if len(gw.AdapterConfig) > 0 {
+		response.AdapterConfig = gw.AdapterConfig
+	}
+
+	// Convert environments if present
+	if len(gw.Environments) > 0 {
+		specEnvs := make([]spec.GatewayEnvironmentResponse, len(gw.Environments))
+		for i := range gw.Environments {
+			specEnvs[i] = convertToSpecEnvironmentResponse(&gw.Environments[i])
+		}
+		response.Environments = specEnvs
+	}
+
+	return response
 }
