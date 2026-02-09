@@ -248,7 +248,7 @@ export const TracesComponent: React.FC = () => {
         >
           <DrawerHeader
             title="Trace Details"
-            icon={<Workflow size={16} />}
+            icon={<Workflow size={24} />}
             onClose={() => setSearchParams(new URLSearchParams())}
           />
           <DrawerContent>

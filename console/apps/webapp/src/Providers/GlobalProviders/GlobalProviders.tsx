@@ -18,7 +18,7 @@
 
 import { AuthProvider } from "@agent-management-platform/auth";
 import { ClientProvider } from "@agent-management-platform/api-client";
-import { OxygenUIThemeProvider, ClassicTheme } from "@wso2/oxygen-ui";
+import { OxygenUIThemeProvider, AcrylicOrangeTheme } from "@wso2/oxygen-ui";
 import { ConfirmationDialogProvider } from "@agent-management-platform/shared-component";
 
 export const GlobalProviders = ({
@@ -27,7 +27,7 @@ export const GlobalProviders = ({
   children: React.ReactNode;
 }) => {
   return (
-    <OxygenUIThemeProvider theme={ClassicTheme}>
+    <OxygenUIThemeProvider theme={AcrylicOrangeTheme}>
       <AuthProvider>
         <ClientProvider>
           <ConfirmationDialogProvider>{children}</ConfirmationDialogProvider>
