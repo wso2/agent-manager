@@ -52,7 +52,7 @@ This installs everything you need:
 4. **Cluster Prerequisites**: Installs Cert Manager, Gateway API CRDs, and External Secrets Operator
 5. **OpenChoreo Installation**: Installs OpenChoreo Control Plane, Data Plane, Build Plane, and Observability Plane
 6. **AMP Thunder Extension**: Installs WSO2 AMP Thunder Extension
-11. **Agent Management Platform**: Installs core platform (PostgreSQL, API, Console) and extensions (Platform Resources, Observability, Build)
+7. **Agent Management Platform**: Installs core platform (PostgreSQL, API, Console) and extensions (Platform Resources, Observability, Build)
 
 ## Access Your Platform
 
