@@ -21,7 +21,6 @@ import {
   DrawerContent,
   DrawerHeader,
   DrawerWrapper,
-  FadeIn,
   PageLayout,
 } from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
@@ -31,27 +30,14 @@ import {
   getTimeRange,
 } from "@agent-management-platform/types";
 import {
-  CircularProgress,
-  IconButton,
-  InputAdornment,
-  MenuItem,
-  Select,
-  Skeleton,
-  Stack,
-  Button,
   Snackbar,
   Alert,
 } from "@mui/material";
 import {
-  Clock,
-  RefreshCcw,
-  SortAsc,
-  SortDesc,
   Workflow,
-  Download,
 } from "@wso2/oxygen-ui-icons-react";
 import { useTraceList, useExportTraces } from "@agent-management-platform/api-client";
-import { TraceDetails, TracesTable, TracesTopCards } from "./subComponents";
+import { TraceDetails, TracesView } from "./subComponents";
 
 const TIME_RANGE_OPTIONS = [
   { value: TraceListTimeRange.TEN_MINUTES, label: "10 Minutes" },
@@ -206,90 +192,54 @@ export const TracesComponent: React.FC = () => {
     }
   }, [orgId, projectId, agentId, envId, timeRange, sortOrder, exportTracesAsync]);
 
+  const handleTimeRangeChange = useCallback(
+    (newTimeRange: string) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("timeRange", newTimeRange as TraceListTimeRange);
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const handleSortOrderChange = useCallback(
+    (newSortOrder: "asc" | "desc") => {
+      const next = new URLSearchParams(searchParams);
+      next.set("sortOrder", newSortOrder);
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const handleRefresh = useCallback(() => {
+    refetch();
+  }, [refetch]);
+
   return (
-    <FadeIn>
+    <>
       <PageLayout
         title="Traces"
-        actions={
-          <Stack direction="row" gap={1} alignItems="center">
-            <Select
-              size="small"
-              variant="outlined"
-              value={timeRange}
-              startAdornment={
-                <InputAdornment position="start">
-                  <Clock size={16} />
-                </InputAdornment>
-              }
-              onChange={(e) => {
-                const next = new URLSearchParams(searchParams);
-                next.set("timeRange", e.target.value as TraceListTimeRange);
-                setSearchParams(next);
-              }}
-            >
-              {TIME_RANGE_OPTIONS.map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </Select>
-            <IconButton
-              size="small"
-              disabled={isRefetching}
-              onClick={() => {
-                refetch();
-              }}
-            >
-              {isRefetching ? (
-                <CircularProgress size={16} />
-              ) : (
-                <RefreshCcw size={16} />
-              )}
-            </IconButton>
-            <IconButton
-              size="small"
-              onClick={() => {
-                const next = new URLSearchParams(searchParams);
-                next.set("sortOrder", sortOrder === "desc" ? "asc" : "desc");
-                setSearchParams(next);
-              }}
-            >
-              {sortOrder === "desc" ? (
-                <SortAsc size={16} />
-              ) : (
-                <SortDesc size={16} />
-              )}
-            </IconButton>
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={isExporting ? <CircularProgress size={16} /> : <Download size={16} />}
-              onClick={handleExportTraces}
-              disabled={isExporting || isLoading || !traceData || traceData.totalCount === 0}
-            >
-              Export
-            </Button>
-          </Stack>
-        }
         disableIcon
       >
-        <Stack direction="column" gap={4}>
-          <TracesTopCards timeRange={timeRange} />
-          {isLoading ? (
-            <Skeleton variant="rounded" height={500} width="100%" />
-          ) : (
-            <TracesTable
-              traces={traceData?.traces ?? []}
-              onTraceSelect={handleTraceSelect}
-              count={count}
-              page={page}
-              rowsPerPage={rowsPerPage}
-              onPageChange={handlePageChange}
-              onRowsPerPageChange={handleRowsPerPageChange}
-              selectedTrace={selectedTrace}
-            />
-          )}
-        </Stack>
+        <TracesView
+          traces={traceData?.traces ?? []}
+          count={count}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          isLoading={isLoading}
+          selectedTrace={selectedTrace}
+          onTraceSelect={handleTraceSelect}
+          onPageChange={handlePageChange}
+          onRowsPerPageChange={handleRowsPerPageChange}
+          timeRange={timeRange}
+          timeRangeOptions={TIME_RANGE_OPTIONS}
+          onTimeRangeChange={handleTimeRangeChange}
+          sortOrder={sortOrder}
+          onSortOrderChange={handleSortOrderChange}
+          onRefresh={handleRefresh}
+          isRefreshing={isRefetching}
+          onExport={handleExportTraces}
+          isExporting={isExporting}
+        />
         <DrawerWrapper
           open={!!selectedTrace}
           disableScroll
@@ -316,6 +266,6 @@ export const TracesComponent: React.FC = () => {
           {exportError}
         </Alert>
       </Snackbar>
-    </FadeIn>
+    </>
   );
 };

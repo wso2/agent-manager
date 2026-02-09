@@ -36,9 +36,7 @@ export const LazyOverviewComponent = overviewMetadata.levels.component as FC;
 export const LazyBuildComponent = buildMetadata.levels.component as FC;
 
 export const LazyDeploymentComponent: FC = () => (
-  <PageLayout title={deploymentMetadata.title} disableIcon>
     <deploymentMetadata.levels.component />
-  </PageLayout>
 );
 
 export const LazyTestComponent = testMetadata.levels.component as FC;

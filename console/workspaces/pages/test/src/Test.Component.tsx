@@ -19,7 +19,6 @@
 import React from "react";
 import { AgentChat } from "./AgentTest/AgentChat";
 import {
-  FadeIn,
   NoDataFound,
   PageLayout,
 } from "@agent-management-platform/views";
@@ -108,11 +107,9 @@ export const TestComponent: React.FC = () => {
   }
 
   return (
-    <FadeIn>
-      <PageLayout title={"Try your agent"} disableIcon>
+      <PageLayout title={"Try your agent"} disableIcon >
         {isChatAgent ? <AgentChat /> : <Swagger />}
       </PageLayout>
-    </FadeIn>
   );
 };
 

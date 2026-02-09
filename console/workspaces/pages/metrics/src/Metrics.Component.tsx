@@ -17,21 +17,12 @@
  */
 
 import React, { useCallback, useMemo } from "react";
-import { FadeIn, PageLayout } from "@agent-management-platform/views";
+import { PageLayout } from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
   TraceListTimeRange,
   getTimeRange,
 } from "@agent-management-platform/types";
-import {
-  CircularProgress,
-  IconButton,
-  InputAdornment,
-  MenuItem,
-  Select,
-  Stack,
-} from "@mui/material";
-import { Clock, RefreshCcw } from "@wso2/oxygen-ui-icons-react";
 import { useGetAgentMetrics } from "@agent-management-platform/api-client";
 import { MetricsView } from "./components/MetricsView/MetricsView";
 
@@ -93,52 +84,32 @@ export const MetricsComponent: React.FC = () => {
     refetch();
   }, [refetch]);
 
+  const handleTimeRangeChange = useCallback(
+    (newTimeRange: string) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("timeRange", newTimeRange as TraceListTimeRange);
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams],
+  );
+
   return (
-    <FadeIn>
       <PageLayout
         title="Metrics"
-        actions={
-          <Stack direction="row" gap={1} alignItems="center">
-            <Select
-              size="small"
-              variant="outlined"
-              value={timeRange}
-              startAdornment={
-                <InputAdornment position="start">
-                  <Clock size={16} />
-                </InputAdornment>
-              }
-              onChange={(e) => {
-                const next = new URLSearchParams(searchParams);
-                next.set("timeRange", e.target.value as TraceListTimeRange);
-                setSearchParams(next);
-              }}
-            >
-              {TIME_RANGE_OPTIONS.map((opt) => (
-                <MenuItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </MenuItem>
-              ))}
-            </Select>
-            <IconButton
-              size="small"
-              disabled={isRefetching}
-              onClick={handleRefresh}
-              aria-label="Refresh"
-            >
-              {isRefetching ? (
-                <CircularProgress size={16} />
-              ) : (
-                <RefreshCcw size={16} />
-              )}
-            </IconButton>
-          </Stack>
-        }
         disableIcon
       >
-        <MetricsView metrics={metrics} isLoading={isLoading} error={error} />
+        <MetricsView
+          metrics={metrics}
+          isLoading={isLoading}
+          error={error}
+          timeRange={timeRange}
+          timeRangeOptions={TIME_RANGE_OPTIONS}
+          onTimeRangeChange={handleTimeRangeChange}
+          onRefresh={handleRefresh}
+          isRefreshing={isRefetching}
+        />
       </PageLayout>
-    </FadeIn>
+
   );
 };
 

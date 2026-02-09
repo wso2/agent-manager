@@ -6,12 +6,12 @@
  * in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
+ * KIND, either express or implied. See the License for the
  * specific language governing permissions and limitations
  * under the License.
  */
@@ -25,17 +25,28 @@ import {
   Card,
   CardContent,
   CardHeader,
+  CircularProgress,
   Grid,
+  IconButton,
+  InputAdornment,
+  MenuItem,
+  Select,
   Skeleton,
   Stack,
   Typography,
   useTheme,
 } from "@wso2/oxygen-ui";
+import { Clock, RefreshCcw } from "@wso2/oxygen-ui-icons-react";
 import { LineChart, ChartTooltip } from "@wso2/oxygen-ui-charts-react";
 import type {
   MetricDataPoint,
   MetricsResponse,
 } from "@agent-management-platform/types";
+
+export interface TimeRangeOption {
+  value: string;
+  label: string;
+}
 
 const toGib = (value: number) => value / 1024 ** 3;
 
@@ -137,12 +148,24 @@ export interface MetricsViewProps {
   metrics?: MetricsResponse;
   isLoading?: boolean;
   error?: unknown;
+
+  // Time and refresh controls
+  timeRange?: string;
+  timeRangeOptions?: TimeRangeOption[];
+  onTimeRangeChange?: (timeRange: string) => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export const MetricsView: React.FC<MetricsViewProps> = ({
   metrics,
   isLoading,
   error,
+  timeRange,
+  timeRangeOptions = [],
+  onTimeRangeChange,
+  onRefresh,
+  isRefreshing = false,
 }) => {
   const theme = useTheme();
   const hasData = useMemo(
@@ -174,7 +197,58 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
   }
 
   return (
-    <Grid container spacing={3}>
+    <Stack direction="column" gap={3}>
+      {/* Filters and Controls */}
+      {(timeRangeOptions.length > 0 || onRefresh) && (
+        <Card variant="outlined">
+          <CardContent>
+            <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+              <Box sx={{ flexGrow: 1 }} />
+
+              {/* Time Range Selector */}
+              {timeRangeOptions.length > 0 && onTimeRangeChange && (
+                <Select
+                  size="small"
+                  variant="outlined"
+                  value={timeRange}
+                  onChange={(e) => onTimeRangeChange(e.target.value)}
+                  startAdornment={
+                    <InputAdornment position="start">
+                      <Clock size={16} />
+                    </InputAdornment>
+                  }
+                  sx={{ minWidth: 150 }}
+                >
+                  {timeRangeOptions.map((opt) => (
+                    <MenuItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              )}
+
+              {/* Refresh Button */}
+              {onRefresh && (
+                <IconButton
+                  size="small"
+                  disabled={isRefreshing}
+                  onClick={onRefresh}
+                  aria-label="Refresh"
+                >
+                  {isRefreshing ? (
+                    <CircularProgress size={16} />
+                  ) : (
+                    <RefreshCcw size={16} />
+                  )}
+                </IconButton>
+              )}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Charts Grid */}
+      <Grid container spacing={3}>
       <Grid size={{ xs: 12, md: 6 }}>
         <Card variant="outlined" sx={{ height: "100%" }}>
           <CardHeader title="CPU Usage" />
@@ -245,7 +319,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
       </Grid>
       <Grid size={{ xs: 12, md: 6 }}>
         <Card variant="outlined" sx={{ height: "100%" }}>
-          <CardHeader title="Memory" />
+          <CardHeader title="Memory Usage" />
           <CardContent
             sx={{
               display: "flex",
@@ -323,6 +397,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
           </CardContent>
         </Card>
       </Grid>
-    </Grid>
+      </Grid>
+    </Stack>
   );
 };

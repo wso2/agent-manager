@@ -184,7 +184,7 @@ export function AgentChat() {
           alignItems="center"
           width="100%"
           flexDirection="column"
-          minHeight="calc(100vh - 350px)"
+          minHeight="calc(100vh - 550px)"
           gap={2}
         >
           <Box
@@ -242,12 +242,11 @@ export function AgentChat() {
       <Box
         display="flex"
         flexDirection="column"
-        minHeight="calc(100vh - 250px)"
+        height="calc(100vh - 320px)"
         width="100%"
       >
         <Box
           flex={1}
-          overflow="auto"
           display="flex"
           flexDirection="column"
           justifyContent="flex-end"
@@ -302,7 +301,7 @@ export function AgentChat() {
           justifyContent="flex-end"
           alignItems="center"
           gap={1}
-          pt={2}
+          py={2}
         >
           <TextField
             fullWidth
