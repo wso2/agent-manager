@@ -60,7 +60,7 @@ func ProvideGatewayAdapter(cfg config.Config, encryptionKey []byte, logger *slog
 
 	// Create adapter config from environment config
 	adapterConfig := gateway.AdapterConfig{
-		Type: cfg.Gateway.AdapterType,
+		Type:       cfg.Gateway.AdapterType,
 		Parameters: make(map[string]interface{}),
 	}
 

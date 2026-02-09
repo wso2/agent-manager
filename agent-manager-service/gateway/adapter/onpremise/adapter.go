@@ -18,6 +18,7 @@ package onpremise
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -39,12 +40,12 @@ const (
 
 // OnPremiseAdapter implements IGatewayAdapter for on-premise deployments
 type OnPremiseAdapter struct {
-	httpClient      *http.Client
-	gatewayClient   clients.GatewayControllerClient
-	db              *gorm.DB
-	encryptionKey   []byte
-	config          gateway.AdapterConfig
-	logger          *slog.Logger
+	httpClient    *http.Client
+	gatewayClient clients.GatewayControllerClient
+	db            *gorm.DB
+	encryptionKey []byte
+	config        gateway.AdapterConfig
+	logger        *slog.Logger
 }
 
 // NewOnPremiseAdapter creates a new on-premise adapter instance
@@ -91,7 +92,9 @@ func (a *OnPremiseAdapter) ValidateGatewayEndpoint(ctx context.Context, controlP
 	if err != nil {
 		return fmt.Errorf("gateway endpoint unreachable: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("gateway health check failed with status %d", resp.StatusCode)
@@ -134,7 +137,7 @@ func (a *OnPremiseAdapter) getGatewayWithCredentials(ctx context.Context, gatewa
 
 	var gw models.Gateway
 	if err := a.db.WithContext(ctx).Where("uuid = ?", gatewayUUID).First(&gw).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil, utils.ErrGatewayNotFound
 		}
 		return nil, nil, fmt.Errorf("failed to query gateway: %w", err)

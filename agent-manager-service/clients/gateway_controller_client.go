@@ -103,7 +103,9 @@ func (c *gatewayControllerClient) HealthCheck(ctx context.Context, controlPlaneU
 	if err != nil {
 		return fmt.Errorf("health check request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check failed with status %d", resp.StatusCode)
@@ -135,7 +137,9 @@ func (c *gatewayControllerClient) CreateLLMProvider(ctx context.Context, baseURL
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		return nil, fmt.Errorf("create provider failed with status %d", resp.StatusCode)
@@ -166,7 +170,9 @@ func (c *gatewayControllerClient) GetLLMProvider(ctx context.Context, baseURL st
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("provider not found: %s", providerID)
@@ -201,7 +207,9 @@ func (c *gatewayControllerClient) ListLLMProviders(ctx context.Context, baseURL 
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("list providers failed with status %d", resp.StatusCode)
@@ -238,7 +246,9 @@ func (c *gatewayControllerClient) UpdateLLMProvider(ctx context.Context, baseURL
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("provider not found: %s", providerID)
@@ -273,7 +283,9 @@ func (c *gatewayControllerClient) DeleteLLMProvider(ctx context.Context, baseURL
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("provider not found: %s", providerID)
@@ -303,7 +315,9 @@ func (c *gatewayControllerClient) GetPolicies(ctx context.Context, baseURL strin
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("get policies failed with status %d", resp.StatusCode)
