@@ -1,0 +1,7 @@
+# oapi-codegen configuration for OpenChoreo types generation
+package: gen
+output: clients/gatewaysvc/gen/types.gen.go
+generate:
+  models: true
+  client: false
+  embedded-spec: false
