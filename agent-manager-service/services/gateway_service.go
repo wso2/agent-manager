@@ -134,6 +134,47 @@ func (s *gatewayService) RegisterGateway(ctx context.Context, orgName string, re
 		return nil, fmt.Errorf("failed to create gateway: %w", err)
 	}
 
+	// Assign gateway to environments if provided
+	if len(req.EnvironmentIDs) > 0 {
+		s.logger.Info("Assigning gateway to environments", "gatewayUUID", gw.UUID, "environmentCount", len(req.EnvironmentIDs))
+
+		// Validate all environment IDs first
+		for _, envID := range req.EnvironmentIDs {
+			envUUID, err := uuid.Parse(envID)
+			if err != nil {
+				return nil, fmt.Errorf("invalid environment UUID %s: %w", envID, utils.ErrInvalidInput)
+			}
+
+			// Verify environment exists and belongs to the organization
+			var env models.Environment
+			if err := db.DB(ctx).Where("uuid = ? AND organization_name = ?", envUUID, orgName).First(&env).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, fmt.Errorf("environment %s not found: %w", envID, utils.ErrEnvironmentNotFound)
+				}
+				return nil, fmt.Errorf("failed to validate environment %s: %w", envID, err)
+			}
+
+			// Create mapping (ignore duplicates)
+			mapping := &models.GatewayEnvironmentMapping{
+				GatewayUUID:     gw.UUID,
+				EnvironmentUUID: envUUID,
+				CreatedAt:       time.Now(),
+			}
+
+			if err := db.DB(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(mapping).Error; err != nil {
+				s.logger.Warn("Failed to create environment mapping", "gatewayUUID", gw.UUID, "envUUID", envUUID, "error", err)
+				// Continue with other assignments even if one fails
+			} else {
+				s.logger.Info("Gateway assigned to environment", "gatewayUUID", gw.UUID, "envUUID", envUUID)
+			}
+		}
+
+		// Reload gateway with environments
+		if err := db.DB(ctx).Preload("Environments").First(gw, "uuid = ?", gw.UUID).Error; err != nil {
+			s.logger.Warn("Failed to reload gateway with environments", "error", err)
+		}
+	}
+
 	s.logger.Info("Gateway registered successfully", "uuid", gw.UUID)
 	return gw.ToResponse(), nil
 }

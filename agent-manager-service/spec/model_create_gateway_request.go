@@ -33,6 +33,8 @@ type CreateGatewayRequest struct {
 	// Adapter-specific configuration (structure varies by adapter type)
 	AdapterConfig map[string]interface{} `json:"adapterConfig,omitempty"`
 	Credentials   *GatewayCredentials    `json:"credentials,omitempty"`
+	// List of environment UUIDs to assign the gateway to during creation
+	EnvironmentIds []string `json:"environmentIds,omitempty"`
 }
 
 // NewCreateGatewayRequest instantiates a new CreateGatewayRequest object
@@ -284,6 +286,38 @@ func (o *CreateGatewayRequest) SetCredentials(v GatewayCredentials) {
 	o.Credentials = &v
 }
 
+// GetEnvironmentIds returns the EnvironmentIds field value if set, zero value otherwise.
+func (o *CreateGatewayRequest) GetEnvironmentIds() []string {
+	if o == nil || IsNil(o.EnvironmentIds) {
+		var ret []string
+		return ret
+	}
+	return o.EnvironmentIds
+}
+
+// GetEnvironmentIdsOk returns a tuple with the EnvironmentIds field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *CreateGatewayRequest) GetEnvironmentIdsOk() ([]string, bool) {
+	if o == nil || IsNil(o.EnvironmentIds) {
+		return nil, false
+	}
+	return o.EnvironmentIds, true
+}
+
+// HasEnvironmentIds returns a boolean if a field has been set.
+func (o *CreateGatewayRequest) HasEnvironmentIds() bool {
+	if o != nil && !IsNil(o.EnvironmentIds) {
+		return true
+	}
+
+	return false
+}
+
+// SetEnvironmentIds gets a reference to the given []string and assigns it to the EnvironmentIds field.
+func (o *CreateGatewayRequest) SetEnvironmentIds(v []string) {
+	o.EnvironmentIds = v
+}
+
 func (o CreateGatewayRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -309,6 +343,9 @@ func (o CreateGatewayRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Credentials) {
 		toSerialize["credentials"] = o.Credentials
+	}
+	if !IsNil(o.EnvironmentIds) {
+		toSerialize["environmentIds"] = o.EnvironmentIds
 	}
 	return toSerialize, nil
 }

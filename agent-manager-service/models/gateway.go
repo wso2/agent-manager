@@ -78,6 +78,7 @@ type CreateGatewayRequest struct {
 	IsCritical       bool                   `json:"isCritical"`
 	AdapterConfig    map[string]interface{} `json:"adapterConfig,omitempty"`
 	Credentials      *GatewayCredentials    `json:"credentials,omitempty"`
+	EnvironmentIDs   []string               `json:"environmentIds,omitempty"`
 }
 
 // UpdateGatewayRequest is the API request for updating a gateway
