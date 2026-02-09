@@ -97,6 +97,11 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		internalReq.Region = *req.Region
 	}
 
+	// Handle environment IDs if provided
+	if len(req.GetEnvironmentIds()) > 0 {
+		internalReq.EnvironmentIDs = req.GetEnvironmentIds()
+	}
+
 	if req.Credentials != nil {
 		internalReq.Credentials = &models.GatewayCredentials{}
 		if req.Credentials.Username != nil {
@@ -182,7 +187,7 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 	gatewayList, err := c.gatewayService.ListGateways(ctx, orgName, filter)
 	if err != nil {
 		log.Error("ListGateways: failed to list gateways", "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list gateways")
+		handleGatewayErrors(w, err, "Failed to list gateways")
 		return
 	}
 
