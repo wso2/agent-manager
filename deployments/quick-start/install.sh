@@ -496,6 +496,7 @@ if kubectl apply --server-side --force-conflicts -f "${GATEWAY_API_CRD}" &>/dev/
     log_success "Gateway API CRDs applied successfully"
 else
     log_error "Failed to apply Gateway API CRDs"
+    exit 1
 fi
 
 # Install External Secrets Operator
@@ -532,7 +533,7 @@ helm_install_idempotent \
     "oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane" \
     "openchoreo-control-plane" \
     "${TIMEOUT_CONTROL_PLANE}" \
-    --version "${OPENCHOREO_VERSION}" \
+    --version "${OPENCHOREO_PATCH_VERSION}" \
     --values "https://raw.githubusercontent.com/wso2/agent-manager/amp/v${VERSION}/deployments/single-cluster/values-cp.yaml"
 
 wait_for_pods "openchoreo-control-plane" "${TIMEOUT_CONTROL_PLANE}"
@@ -560,10 +561,10 @@ else
 fi
 
 # ============================================================================
-# Step 7: Install OpenChoreo Data Plane
+# Step 6: Install OpenChoreo Data Plane
 # ============================================================================
 
-log_step "Step 7/11: Installing OpenChoreo Data Plane"
+log_step "Step 6/11: Installing OpenChoreo Data Plane"
 
 helm_install_idempotent \
     "openchoreo-data-plane" \
@@ -638,10 +639,10 @@ fi
 wait_for_pods "openchoreo-data-plane" "${TIMEOUT_DATA_PLANE}"
 
 # ============================================================================
-# Step 8: Install OpenChoreo Build Plane
+# Step 7: Install OpenChoreo Build Plane
 # ============================================================================
 
-log_step "Step 8/11: Installing OpenChoreo Build Plane"
+log_step "Step 7/11: Installing OpenChoreo Build Plane"
 
 # Install Docker Registry for Build Plane
 log_info "Installing Docker Registry for Build Plane..."
@@ -718,10 +719,10 @@ fi
 wait_for_deployments "openchoreo-build-plane" "${TIMEOUT_BUILD_PLANE}"
 
 # ============================================================================
-# Step 9: Install OpenChoreo Observability Plane
+# Step 8: Install OpenChoreo Observability Plane
 # ============================================================================
 
-log_step "Step 9/11: Installing OpenChoreo Observability Plane"
+log_step "Step 8/11: Installing OpenChoreo Observability Plane"
 
 # Create namespace (idempotent)
 log_info "Ensuring OpenChoreo Observability Plane namespace exists..."

@@ -125,6 +125,7 @@ if kubectl apply --server-side --force-conflicts -f "${GATEWAY_API_CRD}" &>/dev/
     echo "✅ Gateway API CRDs applied successfully"
 else
     echo "❌ Failed to apply Gateway API CRDs"
+    exit 1
 fi
 
 echo ""
