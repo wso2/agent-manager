@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
 
@@ -211,7 +212,7 @@ func TestEncryptDecryptRoundTrip(t *testing.T) {
 		key := make([]byte, 32)
 
 		testCases := []struct {
-			name string
+			name  string
 			creds *models.GatewayCredentials
 		}{
 			{

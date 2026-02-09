@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -60,7 +61,7 @@ func (s *environmentService) CreateEnvironment(ctx context.Context, orgUUID uuid
 	if err == nil {
 		return nil, utils.ErrEnvironmentAlreadyExists
 	}
-	if err != gorm.ErrRecordNotFound {
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("failed to check existing environment: %w", err)
 	}
 
@@ -94,7 +95,7 @@ func (s *environmentService) GetEnvironment(ctx context.Context, orgUUID uuid.UU
 	var env models.Environment
 	err = db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", envUUID, orgUUID).First(&env).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrEnvironmentNotFound
 		}
 		return nil, fmt.Errorf("failed to get environment: %w", err)
@@ -143,7 +144,7 @@ func (s *environmentService) UpdateEnvironment(ctx context.Context, orgUUID uuid
 	var env models.Environment
 	err = db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", envUUID, orgUUID).First(&env).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrEnvironmentNotFound
 		}
 		return nil, fmt.Errorf("failed to get environment: %w", err)
@@ -203,7 +204,7 @@ func (s *environmentService) GetEnvironmentGateways(ctx context.Context, orgUUID
 	// Verify environment exists
 	var env models.Environment
 	if err := db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", envUUID, orgUUID).First(&env).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrEnvironmentNotFound
 		}
 		return nil, fmt.Errorf("failed to get environment: %w", err)

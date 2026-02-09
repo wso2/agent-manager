@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -56,17 +57,17 @@ type GatewayFilter struct {
 }
 
 type gatewayService struct {
-	adapter      gateway.IGatewayAdapter
+	adapter       gateway.IGatewayAdapter
 	encryptionKey []byte
-	logger       *slog.Logger
+	logger        *slog.Logger
 }
 
 // NewGatewayService creates a new gateway service
 func NewGatewayService(adapter gateway.IGatewayAdapter, encryptionKey []byte, logger *slog.Logger) GatewayService {
 	return &gatewayService{
-		adapter:      adapter,
+		adapter:       adapter,
 		encryptionKey: encryptionKey,
-		logger:       logger,
+		logger:        logger,
 	}
 }
 
@@ -79,7 +80,7 @@ func (s *gatewayService) RegisterGateway(ctx context.Context, orgUUID uuid.UUID,
 	if err == nil {
 		return nil, utils.ErrGatewayAlreadyExists
 	}
-	if err != gorm.ErrRecordNotFound {
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("failed to check existing gateway: %w", err)
 	}
 
@@ -141,7 +142,7 @@ func (s *gatewayService) GetGateway(ctx context.Context, orgUUID uuid.UUID, gate
 	var gw models.Gateway
 	err = db.DB(ctx).Preload("Environments").Where("uuid = ? AND organization_uuid = ?", gwUUID, orgUUID).First(&gw).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrGatewayNotFound
 		}
 		return nil, fmt.Errorf("failed to get gateway: %w", err)
@@ -209,7 +210,7 @@ func (s *gatewayService) UpdateGateway(ctx context.Context, orgUUID uuid.UUID, g
 	var gw models.Gateway
 	err = db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", gwUUID, orgUUID).First(&gw).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrGatewayNotFound
 		}
 		return nil, fmt.Errorf("failed to get gateway: %w", err)
@@ -292,7 +293,7 @@ func (s *gatewayService) AssignGatewayToEnvironment(ctx context.Context, orgUUID
 	// Verify gateway exists
 	var gw models.Gateway
 	if err := db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", gwUUID, orgUUID).First(&gw).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return utils.ErrGatewayNotFound
 		}
 		return fmt.Errorf("failed to get gateway: %w", err)
@@ -301,7 +302,7 @@ func (s *gatewayService) AssignGatewayToEnvironment(ctx context.Context, orgUUID
 	// Verify environment exists
 	var env models.Environment
 	if err := db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", envUUID, orgUUID).First(&env).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return utils.ErrEnvironmentNotFound
 		}
 		return fmt.Errorf("failed to get environment: %w", err)
@@ -359,7 +360,7 @@ func (s *gatewayService) GetGatewayEnvironments(ctx context.Context, orgUUID uui
 	// Verify gateway exists
 	var gw models.Gateway
 	if err := db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", gwUUID, orgUUID).First(&gw).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrGatewayNotFound
 		}
 		return nil, fmt.Errorf("failed to get gateway: %w", err)
@@ -392,7 +393,7 @@ func (s *gatewayService) CheckGatewayHealth(ctx context.Context, orgUUID uuid.UU
 
 	var gw models.Gateway
 	if err := db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", gwUUID, orgUUID).First(&gw).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrGatewayNotFound
 		}
 		return nil, fmt.Errorf("failed to get gateway: %w", err)
@@ -414,7 +415,7 @@ func (s *gatewayService) CheckGatewayHealth(ctx context.Context, orgUUID uuid.UU
 			Status:       "ERROR",
 			ErrorMessage: err.Error(),
 			CheckedAt:    time.Now().Format(time.RFC3339),
-		}, nil
+		}, err
 	}
 
 	return &models.HealthStatusResponse{
