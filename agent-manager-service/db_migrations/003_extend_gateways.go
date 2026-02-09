@@ -30,7 +30,7 @@ var migration003 = migration{
 
 			CREATE TABLE gateways (
 				uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-				organization_uuid UUID NOT NULL,
+				organization_name VARCHAR(100) NOT NULL,
 				name VARCHAR(64) NOT NULL,
 				display_name VARCHAR(128) NOT NULL,
 				gateway_type gateway_type NOT NULL DEFAULT 'EGRESS',
@@ -45,10 +45,10 @@ var migration003 = migration{
 				updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
 				deleted_at TIMESTAMP,
 
-				UNIQUE(organization_uuid, name)
+				UNIQUE(organization_name, name)
 			);
 
-			CREATE INDEX idx_gateways_org ON gateways(organization_uuid);
+			CREATE INDEX idx_gateways_org ON gateways(organization_name);
 			CREATE INDEX idx_gateways_type ON gateways(gateway_type);
 			CREATE INDEX idx_gateways_status ON gateways(status);
 			CREATE INDEX idx_gateways_deleted ON gateways(deleted_at);

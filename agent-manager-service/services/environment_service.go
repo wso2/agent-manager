@@ -34,12 +34,12 @@ import (
 
 // EnvironmentService defines the interface for environment operations
 type EnvironmentService interface {
-	CreateEnvironment(ctx context.Context, orgUUID uuid.UUID, req *models.CreateEnvironmentRequest) (*models.GatewayEnvironmentResponse, error)
-	GetEnvironment(ctx context.Context, orgUUID uuid.UUID, envID string) (*models.GatewayEnvironmentResponse, error)
-	ListEnvironments(ctx context.Context, orgUUID uuid.UUID, limit, offset int32) (*models.EnvironmentListResponse, error)
-	UpdateEnvironment(ctx context.Context, orgUUID uuid.UUID, envID string, req *models.UpdateEnvironmentRequest) (*models.GatewayEnvironmentResponse, error)
-	DeleteEnvironment(ctx context.Context, orgUUID uuid.UUID, envID string) error
-	GetEnvironmentGateways(ctx context.Context, orgUUID uuid.UUID, envID string) ([]models.GatewayResponse, error)
+	CreateEnvironment(ctx context.Context, orgName string, req *models.CreateEnvironmentRequest) (*models.GatewayEnvironmentResponse, error)
+	GetEnvironment(ctx context.Context, orgName string, envID string) (*models.GatewayEnvironmentResponse, error)
+	ListEnvironments(ctx context.Context, orgName string, limit, offset int32) (*models.EnvironmentListResponse, error)
+	UpdateEnvironment(ctx context.Context, orgName string, envID string, req *models.UpdateEnvironmentRequest) (*models.GatewayEnvironmentResponse, error)
+	DeleteEnvironment(ctx context.Context, orgName string, envID string) error
+	GetEnvironmentGateways(ctx context.Context, orgName string, envID string) ([]models.GatewayResponse, error)
 }
 
 type environmentService struct {
@@ -53,12 +53,12 @@ func NewEnvironmentService(logger *slog.Logger) EnvironmentService {
 	}
 }
 
-func (s *environmentService) CreateEnvironment(ctx context.Context, orgUUID uuid.UUID, req *models.CreateEnvironmentRequest) (*models.GatewayEnvironmentResponse, error) {
-	s.logger.Info("Creating environment", "name", req.Name, "orgUUID", orgUUID)
+func (s *environmentService) CreateEnvironment(ctx context.Context, orgName string, req *models.CreateEnvironmentRequest) (*models.GatewayEnvironmentResponse, error) {
+	s.logger.Info("Creating environment", "name", req.Name, "orgName", orgName)
 
 	env := &models.Environment{
 		UUID:             uuid.New(),
-		OrganizationUUID: orgUUID,
+		OrganizationName: orgName,
 		Name:             req.Name,
 		DisplayName:      req.DisplayName,
 		Description:      req.Description,
@@ -70,7 +70,7 @@ func (s *environmentService) CreateEnvironment(ctx context.Context, orgUUID uuid
 	err := db.DB(ctx).Transaction(func(tx *gorm.DB) error {
 		// Check if environment already exists within the transaction
 		var existing models.Environment
-		err := tx.Where("organization_uuid = ? AND name = ?", orgUUID, req.Name).First(&existing).Error
+		err := tx.Where("organization_name = ? AND name = ?", req.OrganizationName, req.Name).First(&existing).Error
 		if err == nil {
 			return utils.ErrEnvironmentAlreadyExists
 		}
@@ -100,8 +100,8 @@ func (s *environmentService) CreateEnvironment(ctx context.Context, orgUUID uuid
 	return env.ToResponse(), nil
 }
 
-func (s *environmentService) GetEnvironment(ctx context.Context, orgUUID uuid.UUID, envID string) (*models.GatewayEnvironmentResponse, error) {
-	s.logger.Info("Getting environment", "envID", envID, "orgUUID", orgUUID)
+func (s *environmentService) GetEnvironment(ctx context.Context, orgName string, envID string) (*models.GatewayEnvironmentResponse, error) {
+	s.logger.Info("Getting environment", "envID", envID, "orgName", orgName)
 
 	envUUID, err := uuid.Parse(envID)
 	if err != nil {
@@ -109,7 +109,7 @@ func (s *environmentService) GetEnvironment(ctx context.Context, orgUUID uuid.UU
 	}
 
 	var env models.Environment
-	err = db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", envUUID, orgUUID).First(&env).Error
+	err = db.DB(ctx).Where("uuid = ? AND organization_name = ?", envUUID, orgName).First(&env).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrEnvironmentNotFound
@@ -120,13 +120,13 @@ func (s *environmentService) GetEnvironment(ctx context.Context, orgUUID uuid.UU
 	return env.ToResponse(), nil
 }
 
-func (s *environmentService) ListEnvironments(ctx context.Context, orgUUID uuid.UUID, limit, offset int32) (*models.EnvironmentListResponse, error) {
-	s.logger.Info("Listing environments", "orgUUID", orgUUID, "limit", limit, "offset", offset)
+func (s *environmentService) ListEnvironments(ctx context.Context, orgName string, limit, offset int32) (*models.EnvironmentListResponse, error) {
+	s.logger.Info("Listing environments", "orgName", orgName, "limit", limit, "offset", offset)
 
 	var environments []models.Environment
 	var total int64
 
-	query := db.DB(ctx).Model(&models.Environment{}).Where("organization_uuid = ?", orgUUID)
+	query := db.DB(ctx).Model(&models.Environment{}).Where("organization_name = ?", orgName)
 
 	if err := query.Count(&total).Error; err != nil {
 		return nil, fmt.Errorf("failed to count environments: %w", err)
@@ -149,8 +149,8 @@ func (s *environmentService) ListEnvironments(ctx context.Context, orgUUID uuid.
 	}, nil
 }
 
-func (s *environmentService) UpdateEnvironment(ctx context.Context, orgUUID uuid.UUID, envID string, req *models.UpdateEnvironmentRequest) (*models.GatewayEnvironmentResponse, error) {
-	s.logger.Info("Updating environment", "envID", envID, "orgUUID", orgUUID)
+func (s *environmentService) UpdateEnvironment(ctx context.Context, orgName string, envID string, req *models.UpdateEnvironmentRequest) (*models.GatewayEnvironmentResponse, error) {
+	s.logger.Info("Updating environment", "envID", envID, "orgName", orgName)
 
 	envUUID, err := uuid.Parse(envID)
 	if err != nil {
@@ -158,7 +158,7 @@ func (s *environmentService) UpdateEnvironment(ctx context.Context, orgUUID uuid
 	}
 
 	var env models.Environment
-	err = db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", envUUID, orgUUID).First(&env).Error
+	err = db.DB(ctx).Where("uuid = ? AND organization_name = ?", envUUID, orgName).First(&env).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrEnvironmentNotFound
@@ -181,8 +181,8 @@ func (s *environmentService) UpdateEnvironment(ctx context.Context, orgUUID uuid
 	return env.ToResponse(), nil
 }
 
-func (s *environmentService) DeleteEnvironment(ctx context.Context, orgUUID uuid.UUID, envID string) error {
-	s.logger.Info("Deleting environment", "envID", envID, "orgUUID", orgUUID)
+func (s *environmentService) DeleteEnvironment(ctx context.Context, orgName string, envID string) error {
+	s.logger.Info("Deleting environment", "envID", envID, "orgName", orgName)
 
 	envUUID, err := uuid.Parse(envID)
 	if err != nil {
@@ -201,7 +201,7 @@ func (s *environmentService) DeleteEnvironment(ctx context.Context, orgUUID uuid
 		}
 
 		// Delete the environment
-		result := tx.Where("uuid = ? AND organization_uuid = ?", envUUID, orgUUID).Delete(&models.Environment{})
+		result := tx.Where("uuid = ? AND organization_name = ?", envUUID, orgName).Delete(&models.Environment{})
 		if result.Error != nil {
 			return fmt.Errorf("failed to delete environment: %w", result.Error)
 		}
@@ -222,8 +222,8 @@ func (s *environmentService) DeleteEnvironment(ctx context.Context, orgUUID uuid
 	return nil
 }
 
-func (s *environmentService) GetEnvironmentGateways(ctx context.Context, orgUUID uuid.UUID, envID string) ([]models.GatewayResponse, error) {
-	s.logger.Info("Getting environment gateways", "envID", envID, "orgUUID", orgUUID)
+func (s *environmentService) GetEnvironmentGateways(ctx context.Context, orgName string, envID string) ([]models.GatewayResponse, error) {
+	s.logger.Info("Getting environment gateways", "envID", envID, "orgName", orgName)
 
 	envUUID, err := uuid.Parse(envID)
 	if err != nil {
@@ -232,7 +232,7 @@ func (s *environmentService) GetEnvironmentGateways(ctx context.Context, orgUUID
 
 	// Verify environment exists
 	var env models.Environment
-	if err := db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", envUUID, orgUUID).First(&env).Error; err != nil {
+	if err := db.DB(ctx).Where("uuid = ? AND organization_name = ?", envUUID, orgName).First(&env).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrEnvironmentNotFound
 		}

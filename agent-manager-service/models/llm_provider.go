@@ -37,7 +37,7 @@ const (
 // OrgLLMProvider is the database model for organization LLM providers
 type OrgLLMProvider struct {
 	UUID             uuid.UUID              `gorm:"column:uuid;primaryKey"`
-	OrganizationUUID uuid.UUID              `gorm:"column:organization_uuid"`
+	OrganizationName string                 `gorm:"column:organization_name"`
 	Handle           string                 `gorm:"column:handle"`
 	DisplayName      string                 `gorm:"column:display_name"`
 	Template         string                 `gorm:"column:template"`

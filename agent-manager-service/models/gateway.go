@@ -51,32 +51,33 @@ type GatewayCredentials struct {
 
 // GatewayResponse is the API response DTO
 type GatewayResponse struct {
-	UUID            string                       `json:"uuid"`
-	OrganizationID  string                       `json:"organizationId"`
-	Name            string                       `json:"name"`
-	DisplayName     string                       `json:"displayName"`
-	GatewayType     string                       `json:"gatewayType"`
-	ControlPlaneURL string                       `json:"controlPlaneUrl,omitempty"`
-	VHost           string                       `json:"vhost"`
-	Region          string                       `json:"region,omitempty"`
-	IsCritical      bool                         `json:"isCritical"`
-	Status          string                       `json:"status"`
-	AdapterConfig   map[string]interface{}       `json:"adapterConfig,omitempty"`
-	CreatedAt       time.Time                    `json:"createdAt"`
-	UpdatedAt       time.Time                    `json:"updatedAt"`
-	Environments    []GatewayEnvironmentResponse `json:"environments,omitempty"`
+	UUID             string                       `json:"uuid"`
+	OrganizationName string                       `json:"organizationName"`
+	Name             string                       `json:"name"`
+	DisplayName      string                       `json:"displayName"`
+	GatewayType      string                       `json:"gatewayType"`
+	ControlPlaneURL  string                       `json:"controlPlaneUrl,omitempty"`
+	VHost            string                       `json:"vhost"`
+	Region           string                       `json:"region,omitempty"`
+	IsCritical       bool                         `json:"isCritical"`
+	Status           string                       `json:"status"`
+	AdapterConfig    map[string]interface{}       `json:"adapterConfig,omitempty"`
+	CreatedAt        time.Time                    `json:"createdAt"`
+	UpdatedAt        time.Time                    `json:"updatedAt"`
+	Environments     []GatewayEnvironmentResponse `json:"environments,omitempty"`
 }
 
 // CreateGatewayRequest is the API request for registering a gateway
 type CreateGatewayRequest struct {
-	Name          string                 `json:"name" validate:"required,max=64"`
-	DisplayName   string                 `json:"displayName" validate:"required,max=128"`
-	GatewayType   string                 `json:"gatewayType" validate:"required,oneof=INGRESS EGRESS"`
-	VHost         string                 `json:"vhost" validate:"required,max=253"`
-	Region        string                 `json:"region,omitempty"`
-	IsCritical    bool                   `json:"isCritical"`
-	AdapterConfig map[string]interface{} `json:"adapterConfig,omitempty"`
-	Credentials   *GatewayCredentials    `json:"credentials,omitempty"`
+	OrganizationName string                 `json:"organizationName" validate:"required,max=100"`
+	Name             string                 `json:"name" validate:"required,max=64"`
+	DisplayName      string                 `json:"displayName" validate:"required,max=128"`
+	GatewayType      string                 `json:"gatewayType" validate:"required,oneof=INGRESS EGRESS"`
+	VHost            string                 `json:"vhost" validate:"required,max=253"`
+	Region           string                 `json:"region,omitempty"`
+	IsCritical       bool                   `json:"isCritical"`
+	AdapterConfig    map[string]interface{} `json:"adapterConfig,omitempty"`
+	Credentials      *GatewayCredentials    `json:"credentials,omitempty"`
 }
 
 // UpdateGatewayRequest is the API request for updating a gateway
@@ -91,7 +92,7 @@ type UpdateGatewayRequest struct {
 // Gateway is the database model
 type Gateway struct {
 	UUID                 uuid.UUID              `gorm:"column:uuid;primaryKey"`
-	OrganizationUUID     uuid.UUID              `gorm:"column:organization_uuid"`
+	OrganizationName     string                 `gorm:"column:organization_name"`
 	Name                 string                 `gorm:"column:name"`
 	DisplayName          string                 `gorm:"column:display_name"`
 	GatewayType          string                 `gorm:"column:gateway_type"`
@@ -116,19 +117,19 @@ func (Gateway) TableName() string {
 // ToResponse converts the database model to API response
 func (g *Gateway) ToResponse() *GatewayResponse {
 	resp := &GatewayResponse{
-		UUID:            g.UUID.String(),
-		OrganizationID:  g.OrganizationUUID.String(),
-		Name:            g.Name,
-		DisplayName:     g.DisplayName,
-		GatewayType:     g.GatewayType,
-		ControlPlaneURL: g.ControlPlaneURL,
-		VHost:           g.VHost,
-		Region:          g.Region,
-		IsCritical:      g.IsCritical,
-		Status:          g.Status,
-		AdapterConfig:   g.AdapterConfig,
-		CreatedAt:       g.CreatedAt,
-		UpdatedAt:       g.UpdatedAt,
+		UUID:             g.UUID.String(),
+		OrganizationName: g.OrganizationName,
+		Name:             g.Name,
+		DisplayName:      g.DisplayName,
+		GatewayType:      g.GatewayType,
+		ControlPlaneURL:  g.ControlPlaneURL,
+		VHost:            g.VHost,
+		Region:           g.Region,
+		IsCritical:       g.IsCritical,
+		Status:           g.Status,
+		AdapterConfig:    g.AdapterConfig,
+		CreatedAt:        g.CreatedAt,
+		UpdatedAt:        g.UpdatedAt,
 	}
 
 	if len(g.Environments) > 0 {

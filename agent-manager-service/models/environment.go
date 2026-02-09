@@ -25,20 +25,21 @@ import (
 
 // GatewayEnvironmentResponse is the API response DTO
 type GatewayEnvironmentResponse struct {
-	UUID           string    `json:"uuid"`
-	OrganizationID string    `json:"organizationId"`
-	Name           string    `json:"name"`
-	DisplayName    string    `json:"displayName"`
-	Description    string    `json:"description,omitempty"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
+	UUID             string    `json:"uuid"`
+	OrganizationName string    `json:"organizationName"`
+	Name             string    `json:"name"`
+	DisplayName      string    `json:"displayName"`
+	Description      string    `json:"description,omitempty"`
+	CreatedAt        time.Time `json:"createdAt"`
+	UpdatedAt        time.Time `json:"updatedAt"`
 }
 
 // CreateEnvironmentRequest is the API request for creating an environment
 type CreateEnvironmentRequest struct {
-	Name        string `json:"name" validate:"required,max=64"`
-	DisplayName string `json:"displayName" validate:"required,max=128"`
-	Description string `json:"description,omitempty"`
+	OrganizationName string `json:"organizationName" validate:"required,max=100"`
+	Name             string `json:"name" validate:"required,max=64"`
+	DisplayName      string `json:"displayName" validate:"required,max=128"`
+	Description      string `json:"description,omitempty"`
 }
 
 // UpdateEnvironmentRequest is the API request for updating an environment
@@ -50,7 +51,7 @@ type UpdateEnvironmentRequest struct {
 // Environment is the database model
 type Environment struct {
 	UUID             uuid.UUID      `gorm:"column:uuid;primaryKey"`
-	OrganizationUUID uuid.UUID      `gorm:"column:organization_uuid"`
+	OrganizationName string         `gorm:"column:organization_name"`
 	Name             string         `gorm:"column:name"`
 	DisplayName      string         `gorm:"column:display_name"`
 	Description      string         `gorm:"column:description"`
@@ -66,15 +67,16 @@ func (Environment) TableName() string {
 
 // ToResponse converts the database model to API response
 func (e *Environment) ToResponse() *GatewayEnvironmentResponse {
-	return &GatewayEnvironmentResponse{
-		UUID:           e.UUID.String(),
-		OrganizationID: e.OrganizationUUID.String(),
-		Name:           e.Name,
-		DisplayName:    e.DisplayName,
-		Description:    e.Description,
-		CreatedAt:      e.CreatedAt,
-		UpdatedAt:      e.UpdatedAt,
+	resp := &GatewayEnvironmentResponse{
+		UUID:             e.UUID.String(),
+		OrganizationName: e.OrganizationName,
+		Name:             e.Name,
+		DisplayName:      e.DisplayName,
+		Description:      e.Description,
+		CreatedAt:        e.CreatedAt,
+		UpdatedAt:        e.UpdatedAt,
 	}
+	return resp
 }
 
 // EnvironmentListResponse is the paginated list response

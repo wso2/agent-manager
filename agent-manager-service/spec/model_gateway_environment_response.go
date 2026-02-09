@@ -23,7 +23,7 @@ type GatewayEnvironmentResponse struct {
 	// Unique identifier for the environment
 	Id string `json:"id"`
 	// Organization UUID
-	OrganizationId string `json:"organizationId"`
+	OrganizationName string `json:"organizationName"`
 	// Unique environment name (lowercase, alphanumeric with hyphens)
 	Name string `json:"name"`
 	// Human-readable display name
@@ -40,10 +40,10 @@ type GatewayEnvironmentResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewGatewayEnvironmentResponse(id string, organizationId string, name string, displayName string, createdAt time.Time, updatedAt time.Time) *GatewayEnvironmentResponse {
+func NewGatewayEnvironmentResponse(id string, organizationName string, name string, displayName string, createdAt time.Time, updatedAt time.Time) *GatewayEnvironmentResponse {
 	this := GatewayEnvironmentResponse{}
 	this.Id = id
-	this.OrganizationId = organizationId
+	this.OrganizationName = organizationName
 	this.Name = name
 	this.DisplayName = displayName
 	this.CreatedAt = createdAt
@@ -83,28 +83,28 @@ func (o *GatewayEnvironmentResponse) SetId(v string) {
 	o.Id = v
 }
 
-// GetOrganizationId returns the OrganizationId field value
-func (o *GatewayEnvironmentResponse) GetOrganizationId() string {
+// GetOrganizationName returns the OrganizationName field value
+func (o *GatewayEnvironmentResponse) GetOrganizationName() string {
 	if o == nil {
 		var ret string
 		return ret
 	}
 
-	return o.OrganizationId
+	return o.OrganizationName
 }
 
-// GetOrganizationIdOk returns a tuple with the OrganizationId field value
+// GetOrganizationNameOk returns a tuple with the OrganizationName field value
 // and a boolean to check if the value has been set.
-func (o *GatewayEnvironmentResponse) GetOrganizationIdOk() (*string, bool) {
+func (o *GatewayEnvironmentResponse) GetOrganizationNameOk() (*string, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.OrganizationId, true
+	return &o.OrganizationName, true
 }
 
-// SetOrganizationId sets field value
-func (o *GatewayEnvironmentResponse) SetOrganizationId(v string) {
-	o.OrganizationId = v
+// SetOrganizationName sets field value
+func (o *GatewayEnvironmentResponse) SetOrganizationName(v string) {
+	o.OrganizationName = v
 }
 
 // GetName returns the Name field value
@@ -246,7 +246,7 @@ func (o GatewayEnvironmentResponse) MarshalJSON() ([]byte, error) {
 func (o GatewayEnvironmentResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["id"] = o.Id
-	toSerialize["organizationId"] = o.OrganizationId
+	toSerialize["organizationName"] = o.OrganizationName
 	toSerialize["name"] = o.Name
 	toSerialize["displayName"] = o.DisplayName
 	if !IsNil(o.Description) {

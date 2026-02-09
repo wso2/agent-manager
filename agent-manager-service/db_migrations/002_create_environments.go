@@ -27,7 +27,7 @@ var migration002 = migration{
 		createEnvironmentsSQL := `
 			CREATE TABLE environments (
 				uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-				organization_uuid UUID NOT NULL,
+				organization_name VARCHAR(100) NOT NULL,
 				name VARCHAR(64) NOT NULL,
 				display_name VARCHAR(128) NOT NULL,
 				description TEXT,
@@ -35,10 +35,10 @@ var migration002 = migration{
 				updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
 				deleted_at TIMESTAMP,
 
-				UNIQUE(organization_uuid, name)
+				UNIQUE(organization_name, name)
 			);
 
-			CREATE INDEX idx_environments_org ON environments(organization_uuid);
+			CREATE INDEX idx_environments_org ON environments(organization_name);
 			CREATE INDEX idx_environments_deleted ON environments(deleted_at);
 		`
 		return db.Transaction(func(tx *gorm.DB) error {

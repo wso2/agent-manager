@@ -4618,7 +4618,7 @@ components:
       type: object
       required:
         - id
-        - organizationId
+        - organizationName
         - name
         - displayName
         - createdAt
@@ -4628,7 +4628,7 @@ components:
           type: string
           description: Unique identifier for the environment
           example: 550e8400-e29b-41d4-a716-446655440000
-        organizationId:
+        organizationName:
           type: string
           description: Organization UUID
           example: 123e4567-e89b-12d3-a456-426614174000
@@ -4766,7 +4766,7 @@ components:
       type: object
       required:
         - uuid
-        - organizationId
+        - organizationName
         - name
         - displayName
         - gatewayType
@@ -4780,7 +4780,7 @@ components:
           type: string
           description: Unique identifier for the gateway
           example: 7c4a8d09-ca3f-4b0a-82e9-2e85b96dd8a7
-        organizationId:
+        organizationName:
           type: string
           description: Organization UUID
           example: 123e4567-e89b-12d3-a456-426614174000

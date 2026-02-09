@@ -27,7 +27,7 @@ var migration005 = migration{
 		createOrgLLMProvidersSQL := `
 			CREATE TABLE org_llm_providers (
 				uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-				organization_uuid UUID NOT NULL,
+				organization_name VARCHAR(100) NOT NULL,
 				handle VARCHAR(64) NOT NULL,
 				display_name VARCHAR(128) NOT NULL,
 				template VARCHAR(64) NOT NULL,
@@ -40,10 +40,10 @@ var migration005 = migration{
 				deleted_at TIMESTAMP,
 				created_by VARCHAR(255) NOT NULL,
 
-				UNIQUE(organization_uuid, handle)
+				UNIQUE(organization_name, handle)
 			);
 
-			CREATE INDEX idx_org_llm_providers_org ON org_llm_providers(organization_uuid);
+			CREATE INDEX idx_org_llm_providers_org ON org_llm_providers(organization_name);
 			CREATE INDEX idx_org_llm_providers_status ON org_llm_providers(status);
 			CREATE INDEX idx_org_llm_providers_template ON org_llm_providers(template);
 			CREATE INDEX idx_org_llm_providers_deleted ON org_llm_providers(deleted_at);

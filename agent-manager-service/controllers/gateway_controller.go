@@ -76,13 +76,6 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 
 	orgName := r.PathValue(utils.PathParamOrgName)
 
-	orgUUID, err := getOrgUUIDFromName(ctx, orgName)
-	if err != nil {
-		log.Error("RegisterGateway: failed to get organization", "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		return
-	}
-
 	var req spec.CreateGatewayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("RegisterGateway: failed to decode request", "error", err)
@@ -120,7 +113,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	gateway, err := c.gatewayService.RegisterGateway(ctx, orgUUID, internalReq)
+	gateway, err := c.gatewayService.RegisterGateway(ctx, orgName, internalReq)
 	if err != nil {
 		log.Error("RegisterGateway: failed to register gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to register gateway")
@@ -138,14 +131,7 @@ func (c *gatewayController) GetGateway(w http.ResponseWriter, r *http.Request) {
 	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := r.PathValue("gatewayID")
 
-	orgUUID, err := getOrgUUIDFromName(ctx, orgName)
-	if err != nil {
-		log.Error("GetGateway: failed to get organization", "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		return
-	}
-
-	gateway, err := c.gatewayService.GetGateway(ctx, orgUUID, gatewayID)
+	gateway, err := c.gatewayService.GetGateway(ctx, orgName, gatewayID)
 	if err != nil {
 		log.Error("GetGateway: failed to get gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to get gateway")
@@ -161,13 +147,6 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue(utils.PathParamOrgName)
-
-	orgUUID, err := getOrgUUIDFromName(ctx, orgName)
-	if err != nil {
-		log.Error("ListGateways: failed to get organization", "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		return
-	}
 
 	// Parse pagination parameters
 	limit := getIntQueryParam(r, "limit", utils.DefaultLimit)
@@ -200,7 +179,7 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 		filter.EnvironmentID = &envID
 	}
 
-	gatewayList, err := c.gatewayService.ListGateways(ctx, orgUUID, filter)
+	gatewayList, err := c.gatewayService.ListGateways(ctx, orgName, filter)
 	if err != nil {
 		log.Error("ListGateways: failed to list gateways", "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list gateways")
@@ -229,13 +208,6 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 
 	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := r.PathValue("gatewayID")
-
-	orgUUID, err := getOrgUUIDFromName(ctx, orgName)
-	if err != nil {
-		log.Error("UpdateGateway: failed to get organization", "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		return
-	}
 
 	var req spec.UpdateGatewayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -272,7 +244,7 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	gateway, err := c.gatewayService.UpdateGateway(ctx, orgUUID, gatewayID, internalReq)
+	gateway, err := c.gatewayService.UpdateGateway(ctx, orgName, gatewayID, internalReq)
 	if err != nil {
 		log.Error("UpdateGateway: failed to update gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to update gateway")
@@ -290,14 +262,7 @@ func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request
 	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := r.PathValue("gatewayID")
 
-	orgUUID, err := getOrgUUIDFromName(ctx, orgName)
-	if err != nil {
-		log.Error("DeleteGateway: failed to get organization", "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		return
-	}
-
-	if err := c.gatewayService.DeleteGateway(ctx, orgUUID, gatewayID); err != nil {
+	if err := c.gatewayService.DeleteGateway(ctx, orgName, gatewayID); err != nil {
 		log.Error("DeleteGateway: failed to delete gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to delete gateway")
 		return
@@ -314,21 +279,14 @@ func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r 
 	gatewayID := r.PathValue("gatewayID")
 	envID := r.PathValue("envID")
 
-	orgUUID, err := getOrgUUIDFromName(ctx, orgName)
-	if err != nil {
-		log.Error("AssignGatewayToEnvironment: failed to get organization", "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		return
-	}
-
-	if err := c.gatewayService.AssignGatewayToEnvironment(ctx, orgUUID, gatewayID, envID); err != nil {
+	if err := c.gatewayService.AssignGatewayToEnvironment(ctx, orgName, gatewayID, envID); err != nil {
 		log.Error("AssignGatewayToEnvironment: failed to assign gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to assign gateway to environment")
 		return
 	}
 
 	// Fetch updated gateway to return per OpenAPI spec
-	gateway, err := c.gatewayService.GetGateway(ctx, orgUUID, gatewayID)
+	gateway, err := c.gatewayService.GetGateway(ctx, orgName, gatewayID)
 	if err != nil {
 		log.Error("AssignGatewayToEnvironment: failed to retrieve gateway after assignment", "error", err)
 		handleGatewayErrors(w, err, "Failed to retrieve gateway")
@@ -347,14 +305,7 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 	gatewayID := r.PathValue("gatewayID")
 	envID := r.PathValue("envID")
 
-	orgUUID, err := getOrgUUIDFromName(ctx, orgName)
-	if err != nil {
-		log.Error("RemoveGatewayFromEnvironment: failed to get organization", "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		return
-	}
-
-	if err := c.gatewayService.RemoveGatewayFromEnvironment(ctx, orgUUID, gatewayID, envID); err != nil {
+	if err := c.gatewayService.RemoveGatewayFromEnvironment(ctx, orgName, gatewayID, envID); err != nil {
 		log.Error("RemoveGatewayFromEnvironment: failed to remove gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to remove gateway from environment")
 		return
@@ -370,14 +321,7 @@ func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *htt
 	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := r.PathValue("gatewayID")
 
-	orgUUID, err := getOrgUUIDFromName(ctx, orgName)
-	if err != nil {
-		log.Error("GetGatewayEnvironments: failed to get organization", "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		return
-	}
-
-	environments, err := c.gatewayService.GetGatewayEnvironments(ctx, orgUUID, gatewayID)
+	environments, err := c.gatewayService.GetGatewayEnvironments(ctx, orgName, gatewayID)
 	if err != nil {
 		log.Error("GetGatewayEnvironments: failed to get environments", "error", err)
 		handleGatewayErrors(w, err, "Failed to get gateway environments")
@@ -404,14 +348,7 @@ func (c *gatewayController) CheckGatewayHealth(w http.ResponseWriter, r *http.Re
 	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := r.PathValue("gatewayID")
 
-	orgUUID, err := getOrgUUIDFromName(ctx, orgName)
-	if err != nil {
-		log.Error("CheckGatewayHealth: failed to get organization", "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		return
-	}
-
-	health, err := c.gatewayService.CheckGatewayHealth(ctx, orgUUID, gatewayID)
+	health, err := c.gatewayService.CheckGatewayHealth(ctx, orgName, gatewayID)
 	if err != nil {
 		log.Error("CheckGatewayHealth: failed to check health", "error", err)
 		handleGatewayErrors(w, err, "Failed to check gateway health")

@@ -36,15 +36,15 @@ import (
 
 // GatewayService defines the interface for gateway operations
 type GatewayService interface {
-	RegisterGateway(ctx context.Context, orgUUID uuid.UUID, req *models.CreateGatewayRequest) (*models.GatewayResponse, error)
-	GetGateway(ctx context.Context, orgUUID uuid.UUID, gatewayID string) (*models.GatewayResponse, error)
-	ListGateways(ctx context.Context, orgUUID uuid.UUID, filter GatewayFilter) (*models.GatewayListResponse, error)
-	UpdateGateway(ctx context.Context, orgUUID uuid.UUID, gatewayID string, req *models.UpdateGatewayRequest) (*models.GatewayResponse, error)
-	DeleteGateway(ctx context.Context, orgUUID uuid.UUID, gatewayID string) error
-	AssignGatewayToEnvironment(ctx context.Context, orgUUID uuid.UUID, gatewayID, envID string) error
-	RemoveGatewayFromEnvironment(ctx context.Context, orgUUID uuid.UUID, gatewayID, envID string) error
-	GetGatewayEnvironments(ctx context.Context, orgUUID uuid.UUID, gatewayID string) ([]models.GatewayEnvironmentResponse, error)
-	CheckGatewayHealth(ctx context.Context, orgUUID uuid.UUID, gatewayID string) (*models.HealthStatusResponse, error)
+	RegisterGateway(ctx context.Context, orgName string, req *models.CreateGatewayRequest) (*models.GatewayResponse, error)
+	GetGateway(ctx context.Context, orgName string, gatewayID string) (*models.GatewayResponse, error)
+	ListGateways(ctx context.Context, orgName string, filter GatewayFilter) (*models.GatewayListResponse, error)
+	UpdateGateway(ctx context.Context, orgName string, gatewayID string, req *models.UpdateGatewayRequest) (*models.GatewayResponse, error)
+	DeleteGateway(ctx context.Context, orgName string, gatewayID string) error
+	AssignGatewayToEnvironment(ctx context.Context, orgName string, gatewayID, envID string) error
+	RemoveGatewayFromEnvironment(ctx context.Context, orgName string, gatewayID, envID string) error
+	GetGatewayEnvironments(ctx context.Context, orgName string, gatewayID string) ([]models.GatewayEnvironmentResponse, error)
+	CheckGatewayHealth(ctx context.Context, orgName string, gatewayID string) (*models.HealthStatusResponse, error)
 }
 
 // GatewayFilter defines filter options for listing gateways
@@ -78,12 +78,12 @@ func NewGatewayService(adapter gateway.IGatewayAdapter, encryptionKey []byte, lo
 	}
 }
 
-func (s *gatewayService) RegisterGateway(ctx context.Context, orgUUID uuid.UUID, req *models.CreateGatewayRequest) (*models.GatewayResponse, error) {
-	s.logger.Info("Registering gateway", "name", req.Name, "orgUUID", orgUUID)
+func (s *gatewayService) RegisterGateway(ctx context.Context, orgName string, req *models.CreateGatewayRequest) (*models.GatewayResponse, error) {
+	s.logger.Info("Registering gateway", "name", req.Name, "orgName", orgName)
 
 	// Check if gateway already exists
 	var existing models.Gateway
-	err := db.DB(ctx).Where("organization_uuid = ? AND name = ?", orgUUID, req.Name).First(&existing).Error
+	err := db.DB(ctx).Where("organization_name = ? AND name = ?", orgName, req.Name).First(&existing).Error
 	if err == nil {
 		return nil, utils.ErrGatewayAlreadyExists
 	}
@@ -105,7 +105,7 @@ func (s *gatewayService) RegisterGateway(ctx context.Context, orgUUID uuid.UUID,
 
 	gw := &models.Gateway{
 		UUID:             uuid.New(),
-		OrganizationUUID: orgUUID,
+		OrganizationName: orgName,
 		Name:             req.Name,
 		DisplayName:      req.DisplayName,
 		GatewayType:      req.GatewayType,
@@ -138,8 +138,8 @@ func (s *gatewayService) RegisterGateway(ctx context.Context, orgUUID uuid.UUID,
 	return gw.ToResponse(), nil
 }
 
-func (s *gatewayService) GetGateway(ctx context.Context, orgUUID uuid.UUID, gatewayID string) (*models.GatewayResponse, error) {
-	s.logger.Info("Getting gateway", "gatewayID", gatewayID, "orgUUID", orgUUID)
+func (s *gatewayService) GetGateway(ctx context.Context, orgName string, gatewayID string) (*models.GatewayResponse, error) {
+	s.logger.Info("Getting gateway", "gatewayID", gatewayID, "orgName", orgName)
 
 	gwUUID, err := uuid.Parse(gatewayID)
 	if err != nil {
@@ -147,7 +147,7 @@ func (s *gatewayService) GetGateway(ctx context.Context, orgUUID uuid.UUID, gate
 	}
 
 	var gw models.Gateway
-	err = db.DB(ctx).Preload("Environments").Where("uuid = ? AND organization_uuid = ?", gwUUID, orgUUID).First(&gw).Error
+	err = db.DB(ctx).Preload("Environments").Where("uuid = ? AND organization_name = ?", gwUUID, orgName).First(&gw).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrGatewayNotFound
@@ -158,13 +158,13 @@ func (s *gatewayService) GetGateway(ctx context.Context, orgUUID uuid.UUID, gate
 	return gw.ToResponse(), nil
 }
 
-func (s *gatewayService) ListGateways(ctx context.Context, orgUUID uuid.UUID, filter GatewayFilter) (*models.GatewayListResponse, error) {
-	s.logger.Info("Listing gateways", "orgUUID", orgUUID, "filter", filter)
+func (s *gatewayService) ListGateways(ctx context.Context, orgName string, filter GatewayFilter) (*models.GatewayListResponse, error) {
+	s.logger.Info("Listing gateways", "orgName", orgName, "filter", filter)
 
 	var gateways []models.Gateway
 	var total int64
 
-	query := db.DB(ctx).Model(&models.Gateway{}).Where("organization_uuid = ?", orgUUID)
+	query := db.DB(ctx).Model(&models.Gateway{}).Where("organization_name = ?", orgName)
 
 	// Apply filters
 	if filter.GatewayType != nil {
@@ -206,8 +206,8 @@ func (s *gatewayService) ListGateways(ctx context.Context, orgUUID uuid.UUID, fi
 	}, nil
 }
 
-func (s *gatewayService) UpdateGateway(ctx context.Context, orgUUID uuid.UUID, gatewayID string, req *models.UpdateGatewayRequest) (*models.GatewayResponse, error) {
-	s.logger.Info("Updating gateway", "gatewayID", gatewayID, "orgUUID", orgUUID)
+func (s *gatewayService) UpdateGateway(ctx context.Context, orgName string, gatewayID string, req *models.UpdateGatewayRequest) (*models.GatewayResponse, error) {
+	s.logger.Info("Updating gateway", "gatewayID", gatewayID, "orgName", orgName)
 
 	gwUUID, err := uuid.Parse(gatewayID)
 	if err != nil {
@@ -215,7 +215,7 @@ func (s *gatewayService) UpdateGateway(ctx context.Context, orgUUID uuid.UUID, g
 	}
 
 	var gw models.Gateway
-	err = db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", gwUUID, orgUUID).First(&gw).Error
+	err = db.DB(ctx).Where("uuid = ? AND organization_name = ?", gwUUID, orgName).First(&gw).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrGatewayNotFound
@@ -269,15 +269,15 @@ func (s *gatewayService) UpdateGateway(ctx context.Context, orgUUID uuid.UUID, g
 	return gw.ToResponse(), nil
 }
 
-func (s *gatewayService) DeleteGateway(ctx context.Context, orgUUID uuid.UUID, gatewayID string) error {
-	s.logger.Info("Deleting gateway", "gatewayID", gatewayID, "orgUUID", orgUUID)
+func (s *gatewayService) DeleteGateway(ctx context.Context, orgName string, gatewayID string) error {
+	s.logger.Info("Deleting gateway", "gatewayID", gatewayID, "orgName", orgName)
 
 	gwUUID, err := uuid.Parse(gatewayID)
 	if err != nil {
 		return utils.ErrInvalidInput
 	}
 
-	result := db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", gwUUID, orgUUID).Delete(&models.Gateway{})
+	result := db.DB(ctx).Where("uuid = ? AND organization_name = ?", gwUUID, orgName).Delete(&models.Gateway{})
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete gateway: %w", result.Error)
 	}
@@ -288,7 +288,7 @@ func (s *gatewayService) DeleteGateway(ctx context.Context, orgUUID uuid.UUID, g
 	return nil
 }
 
-func (s *gatewayService) AssignGatewayToEnvironment(ctx context.Context, orgUUID uuid.UUID, gatewayID, envID string) error {
+func (s *gatewayService) AssignGatewayToEnvironment(ctx context.Context, orgName string, gatewayID, envID string) error {
 	s.logger.Info("Assigning gateway to environment", "gatewayID", gatewayID, "envID", envID)
 
 	gwUUID, err := uuid.Parse(gatewayID)
@@ -302,7 +302,7 @@ func (s *gatewayService) AssignGatewayToEnvironment(ctx context.Context, orgUUID
 
 	// Verify gateway exists
 	var gw models.Gateway
-	if err := db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", gwUUID, orgUUID).First(&gw).Error; err != nil {
+	if err := db.DB(ctx).Where("uuid = ? AND organization_name = ?", gwUUID, orgName).First(&gw).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return utils.ErrGatewayNotFound
 		}
@@ -311,7 +311,7 @@ func (s *gatewayService) AssignGatewayToEnvironment(ctx context.Context, orgUUID
 
 	// Verify environment exists
 	var env models.Environment
-	if err := db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", envUUID, orgUUID).First(&env).Error; err != nil {
+	if err := db.DB(ctx).Where("uuid = ? AND organization_name = ?", envUUID, orgName).First(&env).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return utils.ErrEnvironmentNotFound
 		}
@@ -335,7 +335,7 @@ func (s *gatewayService) AssignGatewayToEnvironment(ctx context.Context, orgUUID
 	return nil
 }
 
-func (s *gatewayService) RemoveGatewayFromEnvironment(ctx context.Context, orgUUID uuid.UUID, gatewayID, envID string) error {
+func (s *gatewayService) RemoveGatewayFromEnvironment(ctx context.Context, orgName string, gatewayID, envID string) error {
 	s.logger.Info("Removing gateway from environment", "gatewayID", gatewayID, "envID", envID)
 
 	gwUUID, err := uuid.Parse(gatewayID)
@@ -349,7 +349,7 @@ func (s *gatewayService) RemoveGatewayFromEnvironment(ctx context.Context, orgUU
 
 	// Verify gateway exists and belongs to the organization
 	var gw models.Gateway
-	if err := db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", gwUUID, orgUUID).First(&gw).Error; err != nil {
+	if err := db.DB(ctx).Where("uuid = ? AND organization_name = ?", gwUUID, orgName).First(&gw).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return utils.ErrGatewayNotFound
 		}
@@ -364,7 +364,7 @@ func (s *gatewayService) RemoveGatewayFromEnvironment(ctx context.Context, orgUU
 	return nil
 }
 
-func (s *gatewayService) GetGatewayEnvironments(ctx context.Context, orgUUID uuid.UUID, gatewayID string) ([]models.GatewayEnvironmentResponse, error) {
+func (s *gatewayService) GetGatewayEnvironments(ctx context.Context, orgName string, gatewayID string) ([]models.GatewayEnvironmentResponse, error) {
 	s.logger.Info("Getting gateway environments", "gatewayID", gatewayID)
 
 	gwUUID, err := uuid.Parse(gatewayID)
@@ -374,7 +374,7 @@ func (s *gatewayService) GetGatewayEnvironments(ctx context.Context, orgUUID uui
 
 	// Verify gateway exists
 	var gw models.Gateway
-	if err := db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", gwUUID, orgUUID).First(&gw).Error; err != nil {
+	if err := db.DB(ctx).Where("uuid = ? AND organization_name = ?", gwUUID, orgName).First(&gw).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrGatewayNotFound
 		}
@@ -398,7 +398,7 @@ func (s *gatewayService) GetGatewayEnvironments(ctx context.Context, orgUUID uui
 	return responses, nil
 }
 
-func (s *gatewayService) CheckGatewayHealth(ctx context.Context, orgUUID uuid.UUID, gatewayID string) (*models.HealthStatusResponse, error) {
+func (s *gatewayService) CheckGatewayHealth(ctx context.Context, orgName string, gatewayID string) (*models.HealthStatusResponse, error) {
 	s.logger.Info("Checking gateway health", "gatewayID", gatewayID)
 
 	gwUUID, err := uuid.Parse(gatewayID)
@@ -407,7 +407,7 @@ func (s *gatewayService) CheckGatewayHealth(ctx context.Context, orgUUID uuid.UU
 	}
 
 	var gw models.Gateway
-	if err := db.DB(ctx).Where("uuid = ? AND organization_uuid = ?", gwUUID, orgUUID).First(&gw).Error; err != nil {
+	if err := db.DB(ctx).Where("uuid = ? AND organization_name = ?", gwUUID, orgName).First(&gw).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrGatewayNotFound
 		}
