@@ -125,11 +125,19 @@ export function OxygenLayout() {
       </AppShell.Sidebar>
 
       <AppShell.Main>
-          <Outlet />
+        <Outlet />
       </AppShell.Main>
 
       <AppShell.Footer>
-        <Footer companyName="WSO2 LLC" />
+        <Footer>
+          <Footer.Copyright>
+            © {new Date().getFullYear()} WSO2 LLC. All rights reserved.
+          </Footer.Copyright>
+          <Footer.Divider />
+          <Footer.Link href="#terms">Terms & Conditions</Footer.Link>
+          <Footer.Link href="#privacy">Privacy Policy</Footer.Link>
+        </Footer>
+
       </AppShell.Footer>
     </AppShell>
   );
