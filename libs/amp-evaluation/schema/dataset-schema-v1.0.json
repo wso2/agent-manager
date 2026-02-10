@@ -1,0 +1,593 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://wso2.com/schemas/agent-evaluation/dataset/v1.0",
+  "title": "WSO2 Agent Evaluation Dataset Schema",
+  "description": "Schema for defining evaluation datasets for AI agents. Supports both simple Q&A tasks and complex multi-step agent evaluations with trajectories, outcomes, and constraints.",
+  "type": "object",
+  "required": ["name", "tasks"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Human-readable name of the dataset. Used for identification and reporting.",
+      "minLength": 1,
+      "examples": ["Customer Support Benchmark v1.0", "Simple QA Dataset"]
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description of the dataset's purpose, scope, and evaluation goals."
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version of the dataset (e.g., '1.0.0'). Used to track dataset iterations and changes.",
+      "pattern": "^\\d+\\.\\d+(\\.\\d+)?$",
+      "default": "1.0",
+      "examples": ["1.0.0", "2.1", "1.0"]
+    },
+    "schema_version": {
+      "type": "string",
+      "description": "Version of this schema specification. Currently '1.0'. Allows for schema evolution.",
+      "const": "1.0"
+    },
+    "dataset_id": {
+      "type": "string",
+      "description": "Unique identifier for the dataset. Auto-generated if not provided.",
+      "minLength": 1,
+      "examples": ["ds-abc123", "customer-support-benchmark"]
+    },
+    "dataset_type": {
+      "type": "string",
+      "description": "Type/source of the dataset. Indicates how the dataset was created.",
+      "enum": ["golden_set", "production_traces", "synthetic", "human_annotated"],
+      "default": "golden_set",
+      "examples": ["golden_set", "production_traces"]
+    },
+    "domain": {
+      "type": "string",
+      "description": "Domain or industry vertical this dataset targets.",
+      "examples": ["customer_support", "medical", "legal", "finance", "e-commerce"]
+    },
+    "tags": {
+      "type": "array",
+      "description": "Searchable tags for categorizing and filtering datasets.",
+      "items": { "type": "string" },
+      "examples": [["booking", "cancellation"], ["rag", "retrieval"]]
+    },
+    "source": {
+      "type": "string",
+      "description": "Source of the dataset (file path, API endpoint, DB query). Primarily for production_traces type.",
+      "examples": ["/data/traces/2024-01.jsonl", "https://api.example.com/traces"]
+    },
+    "source_filters": {
+      "type": "object",
+      "description": "Query filters used when sourcing production traces. Free-form object.",
+      "additionalProperties": true,
+      "examples": [
+        {"date_range": "2024-01-01/2024-01-31", "status": "completed"},
+        {"agent_id": "agent-xyz", "min_turns": 3}
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Dataset-level metadata for authorship, classification, and discovery.",
+      "properties": {
+        "created_by": {
+          "type": "string",
+          "description": "Author or team that created the dataset.",
+          "examples": ["evaluation-team", "john.doe@example.com"]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when the dataset was created.",
+          "examples": ["2024-01-26T10:30:00Z"]
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when the dataset was last updated.",
+          "examples": ["2024-01-27T14:20:00Z"]
+        },
+        "domain": {
+          "type": "string",
+          "description": "Additional domain metadata (distinct from root-level domain).",
+          "examples": ["customer-service"]
+        },
+        "tags": {
+          "type": "array",
+          "description": "Additional metadata-level tags.",
+          "items": { "type": "string" }
+        },
+        "description": {
+          "type": "string",
+          "description": "Additional descriptive metadata (distinct from root-level description)."
+        }
+      },
+      "additionalProperties": true,
+      "examples": [{
+        "created_by": "evaluation-team",
+        "created_at": "2024-01-26T10:30:00Z",
+        "domain": "customer-service",
+        "tags": ["booking", "cancellation", "inquiry"]
+      }]
+    },
+    "defaults": {
+      "type": "object",
+      "description": "Default constraints, success criteria, and settings applied to all tasks unless overridden at task level. Useful for setting dataset-wide performance expectations and safety requirements.",
+      "properties": {
+        "constraints": {
+          "type": "object",
+          "description": "Default performance and resource constraints applied to all tasks.",
+          "properties": {
+            "max_latency_ms": {
+              "type": "number",
+              "description": "Default maximum acceptable latency in milliseconds.",
+              "minimum": 0,
+              "examples": [5000, 10000]
+            },
+            "max_tokens": {
+              "type": "number",
+              "description": "Default maximum token budget (input + output).",
+              "minimum": 0,
+              "examples": [4096, 8192]
+            },
+            "max_iterations": {
+              "type": "number",
+              "description": "Default maximum agent iterations/steps. Prevents infinite loops.",
+              "minimum": 1,
+              "examples": [10, 20]
+            },
+            "max_cost": {
+              "type": "number",
+              "description": "Default maximum cost budget for a task (in USD or arbitrary unit).",
+              "minimum": 0,
+              "examples": [0.50, 1.00]
+            }
+          },
+          "additionalProperties": false
+        },
+        "success_criteria": {
+          "type": "string",
+          "description": "Default success criteria applied to all tasks. Used by LLM-as-judge evaluators. Can be overridden per task.",
+          "examples": [
+            "Agent should provide accurate, helpful responses without hallucination.",
+            "All tool calls must be valid and responses must be grounded in retrieved context."
+          ]
+        },
+        "prohibited_content": {
+          "type": "array",
+          "description": "Default list of strings/patterns that should NOT appear in agent outputs. Applied to all tasks unless overridden.",
+          "items": { "type": "string" },
+          "examples": [["error", "sorry", "cannot"], ["REDACTED", "CONFIDENTIAL"]]
+        }
+      },
+      "additionalProperties": false
+    },
+    "tasks": {
+      "type": "array",
+      "description": "List of evaluation tasks/test cases. Each task represents one unit of evaluation.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["task_id", "input"],
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "Unique identifier for the task within this dataset. Used for tracking and reporting.",
+            "minLength": 1,
+            "examples": ["task-001", "booking-flight-nyc-to-la"]
+          },
+          "name": {
+            "type": "string",
+            "description": "Short human-readable name for the task. Displayed in UIs and reports.",
+            "examples": ["Flight Booking", "Cancel Reservation", "Simple Addition"]
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed description of what the task tests. Helps evaluators understand context.",
+            "examples": ["User wants to book a flight from NYC to LA on March 15"]
+          },
+          "input": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "Simple string query/prompt."
+              },
+              {
+                "type": "object",
+                "description": "Structured input as key-value pairs (e.g., multi-modal or parameterized input).",
+                "additionalProperties": true
+              }
+            ],
+            "description": "The user query/prompt that triggers the agent. Can be a simple string or a structured JSON object for complex inputs.",
+            "examples": [
+              "Book me a flight from NYC to LA on March 15",
+              "What is 2 + 2?",
+              {"query": "Summarize this document", "context": "...", "language": "en"}
+            ]
+          },
+          "expected_output": {
+            "type": "string",
+            "description": "Expected final output/response from the agent. Used by output comparison evaluators. This is the ground truth answer.",
+            "examples": [
+              "I've booked your flight from NYC to LA on March 15. Confirmation #ABC123.",
+              "4"
+            ]
+          },
+          "expected_trajectory": {
+            "type": "array",
+            "description": "Expected sequence of tool calls the agent should make. Used to evaluate whether the agent follows the correct execution path. Each step defines a tool call with its arguments.",
+            "items": {
+              "type": "object",
+              "required": ["tool"],
+              "properties": {
+                "tool": {
+                  "type": "string",
+                  "description": "Name of the tool/function that should be called.",
+                  "examples": ["search_flights", "book_flight", "send_email"]
+                },
+                "args": {
+                  "type": "object",
+                  "description": "Expected arguments passed to the tool. Can be exact match or pattern.",
+                  "default": {},
+                  "examples": [{"from": "NYC", "to": "LA", "date": "2024-03-15"}]
+                },
+                "expected_output": {
+                  "type": "string",
+                  "description": "Expected output from this specific tool call."
+                }
+              },
+              "additionalProperties": false
+            },
+            "examples": [[
+              {"tool": "search_flights", "args": {"from": "NYC", "to": "LA", "date": "2024-03-15"}},
+              {"tool": "book_flight", "args": {"flight_id": "FL123"}}
+            ]]
+          },
+          "expected_outcome": {
+            "type": "object",
+            "description": "Expected side effects or state changes in the external environment (not just LLM output). Verifies that the agent actually accomplished the task. Examples: database record created, API called, file written. Free-form object — structure depends on your outcome validators.",
+            "additionalProperties": true,
+            "examples": [
+              {"booking_created": true, "confirmation_number": "ABC123"},
+              {"email_sent": true, "recipient": "user@example.com"},
+              {"file_path": "/tmp/output.txt", "file_exists": true}
+            ]
+          },
+          "success_criteria": {
+            "type": "string",
+            "description": "Human-readable description of what constitutes success for this task. Used by LLM-as-judge evaluators to guide their assessment. Overrides dataset-level defaults.success_criteria.",
+            "examples": [
+              "Agent should search for available flights and complete the booking. User should receive a confirmation number.",
+              "Output should be a single number with no explanation.",
+              "Agent must use the calculator tool and show step-by-step reasoning."
+            ]
+          },
+          "prohibited_content": {
+            "type": "array",
+            "description": "Task-specific list of strings/patterns that should NOT appear in the output. Overrides dataset defaults.prohibited_content for this task.",
+            "items": { "type": "string" },
+            "examples": [["error", "cannot", "unable", "sorry"], ["password", "secret", "api_key"]]
+          },
+          "constraints": {
+            "type": "object",
+            "description": "Task-specific performance and resource constraints. Override dataset defaults.constraints for this task.",
+            "properties": {
+              "max_latency_ms": {
+                "type": "number",
+                "description": "Maximum acceptable latency for this task in milliseconds.",
+                "minimum": 0,
+                "examples": [3000]
+              },
+              "max_tokens": {
+                "type": "number",
+                "description": "Maximum token budget for this task.",
+                "minimum": 0,
+                "examples": [2048]
+              },
+              "max_iterations": {
+                "type": "number",
+                "description": "Maximum agent iterations for this task.",
+                "minimum": 1,
+                "examples": [5]
+              },
+              "max_cost": {
+                "type": "number",
+                "description": "Maximum cost budget for this task (in USD or arbitrary unit).",
+                "minimum": 0,
+                "examples": [0.25]
+              }
+            },
+            "additionalProperties": false
+          },
+          "task_type": {
+            "type": "string",
+            "description": "Type/category of the task. Used for grouping and specialized evaluators.",
+            "enum": ["general", "qa", "code_gen", "rag", "tool_use", "math", "reasoning", "multi_step"],
+            "default": "general",
+            "examples": ["qa", "tool_use", "rag"]
+          },
+          "difficulty": {
+            "type": "string",
+            "description": "Subjective difficulty rating. Used for analysis and stratified evaluation.",
+            "enum": ["easy", "medium", "hard", "expert"],
+            "default": "medium"
+          },
+          "domain": {
+            "type": "string",
+            "description": "Task-specific domain (can differ from dataset domain).",
+            "examples": ["medical", "legal", "technical", "finance"]
+          },
+          "tags": {
+            "type": "array",
+            "description": "Task-specific tags for filtering and analysis.",
+            "items": { "type": "string" },
+            "examples": [["multi-step", "requires-calculator"], ["edge-case", "regression-test"]]
+          },
+          "custom": {
+            "type": "object",
+            "description": "Arbitrary task-specific metadata. Passed through to evaluators via EvalContext. Use for custom evaluator logic, priority, categories, etc.",
+            "additionalProperties": true,
+            "examples": [
+              {"difficulty": "medium", "category": "booking", "priority": 1},
+              {"expected_reasoning_steps": 3, "requires_internet": true}
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Task-level metadata for tracking, authorship, and review workflow. NOT passed to evaluators (unlike 'custom').",
+            "properties": {
+              "author": {
+                "type": "string",
+                "description": "Who created this task.",
+                "examples": ["john@example.com"]
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When this task was created.",
+                "examples": ["2024-01-26T10:30:00Z"]
+              },
+              "created_by": {
+                "type": "string",
+                "description": "Author identifier (alternative to 'author').",
+                "examples": ["john@example.com"]
+              },
+              "reviewed_by": {
+                "type": "string",
+                "description": "Who reviewed/approved this task.",
+                "examples": ["jane@example.com"]
+              },
+              "last_updated": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When this task was last modified.",
+                "examples": ["2024-01-27T14:20:00Z"]
+              },
+              "dataset_id": {
+                "type": "string",
+                "description": "Parent dataset ID. Auto-populated when task is added to a dataset.",
+                "examples": ["ds-abc123"]
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "$comment": "Example 1: Minimal simple QA dataset",
+      "name": "Simple QA",
+      "tasks": [
+        {
+          "task_id": "task-001",
+          "input": "What is 2 + 2?",
+          "expected_output": "4"
+        }
+      ]
+    },
+    {
+      "$comment": "Example 2: Simple QA with success criteria and prohibited content",
+      "name": "Math QA with Criteria",
+      "version": "1.0",
+      "schema_version": "1.0",
+      "defaults": {
+        "constraints": {
+          "max_latency_ms": 3000,
+          "max_tokens": 1024
+        },
+        "success_criteria": "Output should be a single number with no explanation.",
+        "prohibited_content": ["sorry", "I cannot"]
+      },
+      "tasks": [
+        {
+          "task_id": "math-001",
+          "input": "What is 2 + 2?",
+          "expected_output": "4",
+          "task_type": "math",
+          "difficulty": "easy"
+        },
+        {
+          "task_id": "math-002",
+          "input": "What is the square root of 144?",
+          "expected_output": "12",
+          "success_criteria": "Output must be the exact integer, no decimal.",
+          "task_type": "math",
+          "difficulty": "easy"
+        }
+      ]
+    },
+    {
+      "$comment": "Example 3: RAG evaluation with structured input",
+      "name": "RAG Retrieval Benchmark",
+      "version": "1.0.0",
+      "schema_version": "1.0",
+      "dataset_type": "golden_set",
+      "domain": "customer_support",
+      "defaults": {
+        "constraints": {
+          "max_latency_ms": 5000,
+          "max_tokens": 4096,
+          "max_iterations": 5
+        },
+        "prohibited_content": ["I don't know", "I'm not sure"]
+      },
+      "tasks": [
+        {
+          "task_id": "rag-001",
+          "name": "Refund Policy Lookup",
+          "input": {
+            "query": "What is the refund policy for premium members?",
+            "context_hint": "policies/refund-policy.md"
+          },
+          "expected_output": "Premium members are eligible for a full refund within 30 days of purchase.",
+          "success_criteria": "Answer must be grounded in the refund policy document and mention the 30-day window for premium members.",
+          "task_type": "rag",
+          "difficulty": "medium",
+          "tags": ["retrieval", "policy"]
+        }
+      ]
+    },
+    {
+      "$comment": "Example 4: Complex multi-step agent evaluation with full fields",
+      "name": "Agent Benchmark v1.0",
+      "description": "Comprehensive agent evaluation dataset for customer service workflows including bookings, cancellations, and inquiries.",
+      "version": "1.0.0",
+      "schema_version": "1.0",
+      "dataset_id": "ds-agent-bench-001",
+      "dataset_type": "human_annotated",
+      "domain": "customer_support",
+      "tags": ["booking", "cancellation", "inquiry", "multi-step"],
+      "metadata": {
+        "created_by": "evaluation-team",
+        "created_at": "2024-01-26T10:30:00Z",
+        "updated_at": "2024-02-15T09:00:00Z",
+        "domain": "customer-service",
+        "tags": ["booking", "cancellation", "inquiry"]
+      },
+      "defaults": {
+        "constraints": {
+          "max_latency_ms": 5000,
+          "max_tokens": 4096,
+          "max_iterations": 10,
+          "max_cost": 1.00
+        },
+        "success_criteria": "Agent should complete the requested action and provide a clear confirmation to the user.",
+        "prohibited_content": ["internal error", "stack trace", "null pointer"]
+      },
+      "tasks": [
+        {
+          "task_id": "task-001",
+          "name": "Flight Booking - NYC to LA",
+          "description": "User wants to book a direct flight from NYC to LA on March 15. Tests search + booking tool chain.",
+          "input": "Book me a flight from NYC to LA on March 15",
+          "expected_output": "I've booked your flight from NYC to LA on March 15. Confirmation #ABC123.",
+          "expected_trajectory": [
+            {
+              "tool": "search_flights",
+              "args": {"from": "NYC", "to": "LA", "date": "2024-03-15"}
+            },
+            {
+              "tool": "book_flight",
+              "args": {"flight_id": "FL123"}
+            }
+          ],
+          "expected_outcome": {
+            "booking_created": true,
+            "confirmation_number": "ABC123",
+            "booking_details": {
+              "from": "NYC",
+              "to": "LA",
+              "date": "2024-03-15",
+              "flight_id": "FL123"
+            }
+          },
+          "success_criteria": "Agent should search for available flights, select an appropriate option, and complete the booking. User should receive a confirmation number in the response.",
+          "prohibited_content": ["error", "cannot", "unable", "sorry", "no flights available"],
+          "constraints": {
+            "max_latency_ms": 3000,
+            "max_tokens": 2048,
+            "max_iterations": 5,
+            "max_cost": 0.50
+          },
+          "task_type": "tool_use",
+          "difficulty": "medium",
+          "domain": "travel",
+          "tags": ["booking", "flight", "multi-step"],
+          "custom": {
+            "category": "booking",
+            "priority": 1,
+            "expected_tool_count": 2
+          },
+          "metadata": {
+            "author": "john@example.com",
+            "created_at": "2024-01-26T10:30:00Z",
+            "reviewed_by": "jane@example.com",
+            "last_updated": "2024-02-01T08:00:00Z"
+          }
+        },
+        {
+          "task_id": "task-002",
+          "name": "Cancel Reservation",
+          "description": "User wants to cancel an existing hotel reservation. Tests lookup + cancellation flow.",
+          "input": "Cancel my hotel reservation #HTL-789",
+          "expected_output": "Your hotel reservation #HTL-789 has been cancelled. A refund of $250 will be processed within 5-7 business days.",
+          "expected_trajectory": [
+            {
+              "tool": "lookup_reservation",
+              "args": {"reservation_id": "HTL-789"}
+            },
+            {
+              "tool": "cancel_reservation",
+              "args": {"reservation_id": "HTL-789", "reason": "customer_request"}
+            },
+            {
+              "tool": "process_refund",
+              "args": {"reservation_id": "HTL-789", "amount": 250.00}
+            }
+          ],
+          "expected_outcome": {
+            "reservation_cancelled": true,
+            "refund_initiated": true,
+            "refund_amount": 250.00
+          },
+          "success_criteria": "Agent must look up the reservation, cancel it, and initiate a refund. The response should confirm cancellation and provide refund details.",
+          "prohibited_content": ["cannot cancel", "no reservation found"],
+          "constraints": {
+            "max_latency_ms": 4000,
+            "max_iterations": 6
+          },
+          "task_type": "multi_step",
+          "difficulty": "hard",
+          "domain": "hospitality",
+          "tags": ["cancellation", "refund", "multi-step"],
+          "custom": {
+            "category": "cancellation",
+            "priority": 2,
+            "expected_tool_count": 3
+          },
+          "metadata": {
+            "author": "john@example.com",
+            "created_at": "2024-01-27T11:00:00Z"
+          }
+        },
+        {
+          "task_id": "task-003",
+          "name": "Simple FAQ - No Tools Required",
+          "description": "User asks a simple question that doesn't require tool use. Tests that agent doesn't over-use tools.",
+          "input": "What are your business hours?",
+          "expected_output": "Our business hours are Monday through Friday, 9 AM to 5 PM EST.",
+          "success_criteria": "Agent should answer directly without calling any tools. Response must include days and times.",
+          "prohibited_content": ["I don't have that information"],
+          "task_type": "qa",
+          "difficulty": "easy",
+          "tags": ["faq", "no-tools"]
+        }
+      ]
+    }
+  ]
+}

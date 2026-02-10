@@ -54,11 +54,11 @@ def fetch_user_flight_information(config: RunnableConfig) -> list[dict]:
 
 @tool
 def search_flights(
-        departure_airport: Optional[str] = None,
-        arrival_airport: Optional[str] = None,
-        start_time: Optional[date | datetime] = None,
-        end_time: Optional[date | datetime] = None,
-        limit: int = 20,
+    departure_airport: Optional[str] = None,
+    arrival_airport: Optional[str] = None,
+    start_time: Optional[date | datetime] = None,
+    end_time: Optional[date | datetime] = None,
+    limit: int = 20,
 ) -> list[dict]:
     """Search for flights based on departure airport, arrival airport, and departure time range."""
     conn = get_db_connection()
@@ -97,7 +97,7 @@ def search_flights(
 
 @tool
 def update_ticket_to_new_flight(
-        ticket_no: str, new_flight_id: int, *, config: RunnableConfig
+    ticket_no: str, new_flight_id: int, *, config: RunnableConfig
 ) -> str:
     """Update the user's ticket to a new valid flight."""
     configuration = config.get("configurable", {})

@@ -226,7 +226,9 @@ type FullTrace struct {
 	Status          *TraceStatus `json:"status,omitempty"`
 	Input           interface{}  `json:"input,omitempty"`
 	Output          interface{}  `json:"output,omitempty"`
-	Spans           []Span       `json:"spans"` // All spans with full details
+	TaskId          string       `json:"taskId,omitempty"`  // Task ID from baggage (for evaluation experiments)
+	TrialId         string       `json:"trialId,omitempty"` // Trial ID from baggage (for evaluation experiments)
+	Spans           []Span       `json:"spans"`             // All spans with full details
 }
 
 // TraceExportResponse represents the response for trace export queries

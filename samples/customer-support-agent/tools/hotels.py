@@ -8,11 +8,11 @@ from setup.db_config import get_db_connection
 
 @tool
 def search_hotels(
-        location: Optional[str] = None,
-        name: Optional[str] = None,
-        price_tier: Optional[str] = None,
-        checkin_date: Optional[Union[datetime, date]] = None,
-        checkout_date: Optional[Union[datetime, date]] = None,
+    location: Optional[str] = None,
+    name: Optional[str] = None,
+    price_tier: Optional[str] = None,
+    checkin_date: Optional[Union[datetime, date]] = None,
+    checkout_date: Optional[Union[datetime, date]] = None,
 ) -> list[dict]:
     """
     Search for hotels based on location, name, price tier, check-in date, and check-out date.
@@ -77,9 +77,9 @@ def book_hotel(hotel_id: int) -> str:
 
 @tool
 def update_hotel(
-        hotel_id: int,
-        checkin_date: Optional[Union[datetime, date]] = None,
-        checkout_date: Optional[Union[datetime, date]] = None,
+    hotel_id: int,
+    checkin_date: Optional[Union[datetime, date]] = None,
+    checkout_date: Optional[Union[datetime, date]] = None,
 ) -> str:
     """
     Update a hotel's check-in and check-out dates by its ID.
@@ -97,7 +97,8 @@ def update_hotel(
 
     if checkin_date:
         cursor.execute(
-            "UPDATE hotels SET checkin_date = %s WHERE id = %s", (checkin_date, hotel_id)
+            "UPDATE hotels SET checkin_date = %s WHERE id = %s",
+            (checkin_date, hotel_id),
         )
     if checkout_date:
         cursor.execute(
