@@ -4,6 +4,8 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
+const latestVersion = 'v0.5.0';
+
 const config: Config = {
   title: 'WSO2 Agent Manager',
   tagline: 'Build, Deploy, and Manage AI Agents at Scale',
@@ -49,14 +51,17 @@ const config: Config = {
   // Enable mermaid theme
   themes: ['@docusaurus/theme-mermaid'],
 
-  plugins: ['@signalwire/docusaurus-plugin-llms-txt'],
+  plugins: [
+    '@signalwire/docusaurus-plugin-llms-txt',
+    './plugins/docusaurus-plugin-markdown-export',
+  ],
 
   presets: [
     [
       'classic',
       {
         docs: {
-          lastVersion: 'v0.5.0',
+          lastVersion: latestVersion,
           versions: {
             current: {
               label: 'Next',
@@ -92,6 +97,12 @@ const config: Config = {
     //   contextualSearch: true,
     //   searchParameters: {},
     // },
+    announcementBar: {
+      id: `release_${latestVersion.replace(/\./g, '_')}`,
+      content:
+        `🎉️ WSO2 Agent Manager <a target="_blank" rel="noopener noreferrer" href="https://github.com/wso2/agent-manager/releases/tag/amp%2F${latestVersion}">${latestVersion}</a> has been released! Explore what's new. 🎉`,
+      isCloseable: true,
+    },
     colorMode: {
       respectPrefersColorScheme: true,
     },
