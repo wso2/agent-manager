@@ -161,19 +161,19 @@ export function ConfigureBuildDrawer({
           ? "CUSTOM"
           : "DEFAULT";
   const repo = agent.provisioning?.repository;
-  const runtimeConfigs = agent.runtimeConfigs;
+  const buildpackConfig = agent.build?.type === 'buildpack' ? agent.build.buildpack : undefined;
   const inputInterface = agent.inputInterface;
   const buildDefaults = useMemo(
     () => ({
       repositoryUrl: repo?.url || "",
       branch: repo?.branch || "",
       appPath: repo?.appPath ?? "",
-      runCommand: runtimeConfigs?.runCommand ?? "python main.py",
+      runCommand: buildpackConfig?.runCommand ?? "python main.py",
       language:
-        runtimeConfigs?.language && runtimeConfigs.language !== ""
-          ? runtimeConfigs?.language
+        buildpackConfig?.language && buildpackConfig.language !== ""
+          ? buildpackConfig?.language
           : "python",
-      languageVersion: runtimeConfigs?.languageVersion ?? "3.11",
+      languageVersion: buildpackConfig?.languageVersion ?? "3.11",
       interfaceType: resolvedInterfaceType,
       port: inputInterface?.port,
       basePath: inputInterface?.basePath ?? "",
@@ -183,9 +183,9 @@ export function ConfigureBuildDrawer({
       repo?.url,
       repo?.branch,
       repo?.appPath,
-      runtimeConfigs?.runCommand,
-      runtimeConfigs?.language,
-      runtimeConfigs?.languageVersion,
+      buildpackConfig?.runCommand,
+      buildpackConfig?.language,
+      buildpackConfig?.languageVersion,
       inputInterface?.port,
       inputInterface?.basePath,
       inputInterface?.schema?.path,
@@ -247,10 +247,13 @@ export function ConfigureBuildDrawer({
         },
       },
       agentType: nextAgentType,
-      runtimeConfigs: {
-        language: data.language || "python",
-        languageVersion: data.languageVersion || "",
-        runCommand: data.runCommand,
+      build: {
+        type: "buildpack",
+        buildpack: {
+          language: data.language || "python",
+          languageVersion: data.languageVersion || "",
+          runCommand: data.runCommand,
+        },
       },
       inputInterface: {
         type: "HTTP",

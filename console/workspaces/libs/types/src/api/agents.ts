@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { type AgentPathParams, type RuntimeConfiguration, type RuntimeConfigurationWithoutEnv, type ListQuery, type OrgProjPathParams, type PaginationMeta, type RepositoryConfig } from './common';
+import { type AgentPathParams, type Build, type Configurations, type ListQuery, type OrgProjPathParams, type PaginationMeta, type RepositoryConfig } from './common';
 
 // Requests
 interface AgentRequestBase {
@@ -25,7 +25,8 @@ interface AgentRequestBase {
   description?: string;
   provisioning: Provisioning;
   agentType?: AgentType;
-  runtimeConfigs?: RuntimeConfiguration;
+  build?: Build;
+  configurations?: Configurations;
   inputInterface?: InputInterface;
 }
 
@@ -37,7 +38,7 @@ interface UpdateAgentBasicInfoRequest {
 interface UpdateAgentBuildParametersRequest {
   provisioning: Provisioning;
   agentType?: AgentType;
-  runtimeConfigs?: RuntimeConfigurationWithoutEnv;
+  build?: Build;
   inputInterface?: InputInterface;
 }
 
@@ -77,7 +78,8 @@ export interface AgentResponse {
   status?: string;
   provisioning: Provisioning;
   agentType?: AgentType;
-  runtimeConfigs?: RuntimeConfiguration;
+  build?: Build;
+  configurations?: Configurations;
   inputInterface?: InputInterface;
   uuid?: string;
 }

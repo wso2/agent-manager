@@ -45,10 +45,15 @@ export const buildAgentCreationPayload = (
           type: "agent-api",
           subType: data.interfaceType === "CUSTOM" ? "custom-api" : "chat-api",
         },
-        runtimeConfigs: {
-          language: data.language ?? "python",
-          languageVersion: data.languageVersion ?? "3.11",
-          runCommand: data.runCommand ?? "",
+        build: {
+          type: "buildpack",
+          buildpack: {
+            language: data.language ?? "python",
+            languageVersion: data.languageVersion ?? "3.11",
+            runCommand: data.runCommand ?? "",
+          },
+        },
+        configurations: {
           env: data.env
             .filter((envVar) => envVar.key && envVar.value)
             .map((envVar) => ({ key: envVar.key!, value: envVar.value! })),
