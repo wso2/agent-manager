@@ -31,6 +31,7 @@ import {
   CircularProgress,
   ListingTable,
   TablePagination,
+  DataGrid,
 } from "@wso2/oxygen-ui";
 import {
   Plus as Add,
@@ -41,9 +42,10 @@ import {
   Edit,
   Bot,
 } from "@wso2/oxygen-ui-icons-react";
+
+const { DataGrid: DataGridComponent } = DataGrid;
 import {
   PageLayout,
-  NoDataFound,
   FadeIn,
   displayProvisionTypes,
 } from "@agent-management-platform/views";
@@ -213,7 +215,6 @@ export const AgentsList: React.FC = () => {
   );
 
   if (
-    isLoading ||
     isProjectLoading ||
     (isRefetching && !data?.agents?.length) ||
     isDeletingAgent
@@ -313,7 +314,18 @@ export const AgentsList: React.FC = () => {
             </Alert>
           )}
 
-          {!isLoading && !!data?.agents?.length && (
+          {isLoading ? (
+            <DataGridComponent
+              rows={[]}
+              columns={[
+                { field: 'name', headerName: 'Agent Name', flex: 1 },
+                { field: 'description', headerName: 'Description', flex: 2 },
+                { field: 'lastUpdated', headerName: 'Last Updated', flex: 1 },
+              ]}
+              loading
+              hideFooter
+            />
+          ) : !!data?.agents?.length && agentsWithHref.length > 0 ? (
             <ListingTable.Container sx={{ minWidth: 600 }} disablePaper>
               <ListingTable variant="card">
                 <ListingTable.Head>
@@ -422,33 +434,41 @@ export const AgentsList: React.FC = () => {
                 }}
               />
             </ListingTable.Container>
-          )}
-
-          {!isLoading && !data?.agents?.length && !isRefetching && (
-            <NoDataFound
-              message="No agents found"
-              iconElement={User}
-              subtitle="Create a new agent to get started"
-              action={
-                <Button
-                  variant="contained"
-                  color="primary"
-                  startIcon={<Add />}
-                  onClick={() =>
-                    navigate(
-                      generatePath(
-                        absoluteRouteMap.children.org.children.projects.children
-                          .newAgent.path,
-                        { orgId: orgId ?? "", projectId: projectId ?? "" }
+          ) : !!data?.agents?.length && agentsWithHref.length === 0 ? (
+            <ListingTable.Container>
+              <ListingTable.EmptyState
+                illustration={<User size={64} />}
+                title="No agents found"
+                description="No agents match your search criteria. Try adjusting your search."
+              />
+            </ListingTable.Container>
+          ) : !data?.agents?.length && !isRefetching ? (
+            <ListingTable.Container>
+              <ListingTable.EmptyState
+                illustration={<User size={64} />}
+                title="No agents found"
+                description="Create a new agent to get started"
+                action={
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={<Add />}
+                    onClick={() =>
+                      navigate(
+                        generatePath(
+                          absoluteRouteMap.children.org.children.projects.children
+                            .newAgent.path,
+                          { orgId: orgId ?? "", projectId: projectId ?? "" }
+                        )
                       )
-                    )
-                  }
-                >
-                  Add New Agent
-                </Button>
-              }
-            />
-          )}
+                    }
+                  >
+                    Add New Agent
+                  </Button>
+                }
+              />
+            </ListingTable.Container>
+          ) : null}
         </Stack>
         <Box>
           <AgentTypeSummery />

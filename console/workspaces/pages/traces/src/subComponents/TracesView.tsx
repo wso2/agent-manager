@@ -18,18 +18,14 @@
 
 import React from "react";
 import {
-  Box,
   Button,
-  Card,
-  CardContent,
   CircularProgress,
   IconButton,
   InputAdornment,
   MenuItem,
+  Paper,
   Select,
-  Skeleton,
   Stack,
-  Typography,
 } from "@wso2/oxygen-ui";
 import {
   Clock,
@@ -101,110 +97,92 @@ export const TracesView: React.FC<TracesViewProps> = ({
   };
 
   return (
-    <Stack direction="column" gap={3}>
+    <Stack direction="column" gap={2}>
       {/* Filters and Controls */}
-      <Card variant="outlined">
-        <CardContent>
-          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-            <Box sx={{ flexGrow: 1 }} />
+      <Paper >
+        <Stack direction="row" p={2} spacing={2} alignItems="center" justifyContent="flex-end" flexWrap="wrap">
+          {/* Time Range Selector */}
+          <Select
+            size="small"
+            variant="outlined"
+            value={timeRange}
+            onChange={(e) => onTimeRangeChange(e.target.value)}
+            startAdornment={
+              <InputAdornment position="start">
+                <Clock size={16} />
+              </InputAdornment>
+            }
+            sx={{ minWidth: 150 }}
+          >
+            {timeRangeOptions.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </MenuItem>
+            ))}
+          </Select>
 
-            {/* Time Range Selector */}
-            <Select
+          {/* Sort Toggle */}
+          <IconButton
+            size="small"
+            onClick={handleSortToggle}
+            aria-label={
+              sortOrder === "desc" ? "Sort ascending" : "Sort descending"
+            }
+          >
+            {sortOrder === "desc" ? (
+              <SortDesc size={16} />
+            ) : (
+              <SortAsc size={16} />
+            )}
+          </IconButton>
+
+          {/* Refresh Button */}
+          <IconButton
+            size="small"
+            disabled={isRefreshing}
+            onClick={onRefresh}
+            aria-label="Refresh"
+          >
+            {isRefreshing ? (
+              <CircularProgress size={16} />
+            ) : (
+              <RefreshCcw size={16} />
+            )}
+          </IconButton>
+
+          {/* Export Button */}
+          {onExport && (
+            <Button
               size="small"
               variant="outlined"
-              value={timeRange}
-              onChange={(e) => onTimeRangeChange(e.target.value)}
-              startAdornment={
-                <InputAdornment position="start">
-                  <Clock size={16} />
-                </InputAdornment>
+              startIcon={
+                isExporting ? (
+                  <CircularProgress size={16} />
+                ) : (
+                  <Download size={16} />
+                )
               }
-              sx={{ minWidth: 150 }}
+              onClick={onExport}
+              disabled={isExporting || isLoading || traces.length === 0}
             >
-              {timeRangeOptions.map((opt) => (
-                <MenuItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </MenuItem>
-              ))}
-            </Select>
+              Export
+            </Button>
+          )}
+        </Stack>
+      </Paper>
 
-            {/* Sort Toggle */}
-            <IconButton
-              size="small"
-              onClick={handleSortToggle}
-              aria-label={
-                sortOrder === "desc" ? "Sort ascending" : "Sort descending"
-              }
-            >
-              {sortOrder === "desc" ? (
-                <SortDesc size={16} />
-              ) : (
-                <SortAsc size={16} />
-              )}
-            </IconButton>
+        <TracesTable
+          isLoading={isLoading}
+          traces={traces}
+          onTraceSelect={onTraceSelect}
+          count={count}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          onPageChange={onPageChange}
+          onRowsPerPageChange={onRowsPerPageChange}
+          selectedTrace={selectedTrace}
+        />
 
-            {/* Refresh Button */}
-            <IconButton
-              size="small"
-              disabled={isRefreshing}
-              onClick={onRefresh}
-              aria-label="Refresh"
-            >
-              {isRefreshing ? (
-                <CircularProgress size={16} />
-              ) : (
-                <RefreshCcw size={16} />
-              )}
-            </IconButton>
-
-            {/* Export Button */}
-            {onExport && (
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={
-                  isExporting ? (
-                    <CircularProgress size={16} />
-                  ) : (
-                    <Download size={16} />
-                  )
-                }
-                onClick={onExport}
-                disabled={isExporting || isLoading || traces.length === 0}
-              >
-                Export
-              </Button>
-            )}
-          </Stack>
-        </CardContent>
-      </Card>
-
-      {/* Trace Count Summary */}
-      {!isLoading && traces.length > 0 && (
-        <Box sx={{ textAlign: "center" }}>
-          <Typography variant="body2" color="text.secondary">
-            Showing {traces.length} of {count} total {count === 1 ? "trace" : "traces"}
-          </Typography>
-        </Box>
-      )}
-
-      {/* Traces Table */}
-      <Box>
-        {isLoading ? (
-          <Skeleton variant="rounded" height={500} width="100%" />
-        ) : (
-          <TracesTable
-            traces={traces}
-            onTraceSelect={onTraceSelect}
-            count={count}
-            page={page}
-            rowsPerPage={rowsPerPage}
-            onPageChange={onPageChange}
-            onRowsPerPageChange={onRowsPerPageChange}
-            selectedTrace={selectedTrace}
-          />
-        )}
-      </Box>
     </Stack>
   );
 };
