@@ -70,6 +70,9 @@ type Config struct {
 
 	// Gateway configuration
 	Gateway GatewayConfig
+
+	// WebSocket configuration
+	WebSocket WebSocketConfig
 }
 
 // OpenChoreoConfig holds OpenChoreo API configuration
@@ -195,4 +198,11 @@ type GatewayConfig struct {
 	MaxRetries         int    // Maximum number of retries
 	RetryBackoff       int    // Retry backoff in seconds
 	EncryptionKey      string // Base64-encoded encryption key
+}
+
+// WebSocketConfig holds WebSocket gateway registration configuration
+type WebSocketConfig struct {
+	MaxConnections    int // Maximum concurrent WebSocket connections (default: 1000)
+	ConnectionTimeout int // Heartbeat timeout in seconds (default: 30)
+	RateLimitPerMin   int // Connection attempts per IP per minute (default: 10)
 }

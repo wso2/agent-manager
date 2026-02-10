@@ -24,18 +24,22 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	ws "github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
 )
 
 type AppParams struct {
-	AuthMiddleware          jwtassertion.Middleware
-	AgentController         controllers.AgentController
-	InfraResourceController controllers.InfraResourceController
-	ObservabilityController controllers.ObservabilityController
-	AgentTokenController    controllers.AgentTokenController
-	RepositoryController    controllers.RepositoryController
-	EnvironmentController   controllers.EnvironmentController
-	GatewayController       controllers.GatewayController
-	EnvironmentSyncer       services.EnvironmentSynchronizer
+	AuthMiddleware             jwtassertion.Middleware
+	AgentController            controllers.AgentController
+	InfraResourceController    controllers.InfraResourceController
+	ObservabilityController    controllers.ObservabilityController
+	AgentTokenController       controllers.AgentTokenController
+	RepositoryController       controllers.RepositoryController
+	EnvironmentController      controllers.EnvironmentController
+	GatewayController          controllers.GatewayController
+	WebSocketGatewayController controllers.WebSocketGatewayController
+	GatewayEventsService       services.GatewayEventsService
+	WebSocketManager           *ws.Manager
+	EnvironmentSyncer          services.EnvironmentSynchronizer
 }
 
 // TestClients contains all mock clients needed for testing

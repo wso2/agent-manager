@@ -283,6 +283,7 @@ func convertToSpecGatewayResponse(gw *models.GatewayResponse) spec.GatewayRespon
 		Status:           spec.GatewayStatus(gw.Status),
 		CreatedAt:        gw.CreatedAt,
 		UpdatedAt:        gw.UpdatedAt,
+		ApiKey:           &gw.APIKey,
 	}
 
 	if gw.ControlPlaneURL != "" {

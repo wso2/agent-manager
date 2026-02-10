@@ -45,6 +45,9 @@ type GatewayService interface {
 	RemoveGatewayFromEnvironment(ctx context.Context, orgName string, gatewayID, envID string) error
 	GetGatewayEnvironments(ctx context.Context, orgName string, gatewayID string) ([]models.GatewayEnvironmentResponse, error)
 	CheckGatewayHealth(ctx context.Context, orgName string, gatewayID string) (*models.HealthStatusResponse, error)
+	// WebSocket-related methods
+	VerifyToken(ctx context.Context, apiKey string) (*models.Gateway, error)
+	UpdateGatewayActiveStatus(ctx context.Context, gatewayID string, active bool) error
 }
 
 // GatewayFilter defines filter options for listing gateways
@@ -119,15 +122,20 @@ func (s *gatewayService) RegisterGateway(ctx context.Context, orgName string, re
 		UpdatedAt:        time.Now(),
 	}
 
-	// Encrypt credentials if provided
-	if req.Credentials != nil {
-		encryptedCreds, err := utils.EncryptCredentials(req.Credentials, s.encryptionKey)
-		if err != nil {
-			s.logger.Error("Failed to encrypt credentials", "error", err)
-			return nil, fmt.Errorf("failed to encrypt credentials: %w", err)
-		}
-		gw.CredentialsEncrypted = encryptedCreds
+	// Generate and hash API key for WebSocket authentication
+	apiKey, err := utils.GenerateAPIKey()
+	if err != nil {
+		s.logger.Error("Failed to generate API key", "error", err)
+		return nil, fmt.Errorf("failed to generate API key: %w", err)
 	}
+
+	// Hash the API key for storage
+	apiKeyHash, err := utils.HashAPIKey(apiKey)
+	if err != nil {
+		s.logger.Error("Failed to hash API key", "error", err)
+		return nil, fmt.Errorf("failed to hash API key: %w", err)
+	}
+	gw.APIKeyHash = apiKeyHash
 
 	if err := db.DB(ctx).Create(gw).Error; err != nil {
 		s.logger.Error("Failed to create gateway", "error", err)
@@ -175,8 +183,10 @@ func (s *gatewayService) RegisterGateway(ctx context.Context, orgName string, re
 		}
 	}
 
-	s.logger.Info("Gateway registered successfully", "uuid", gw.UUID)
-	return gw.ToResponse(), nil
+	s.logger.Info("Gateway registered successfully", "uuid", gw.UUID, "apiKey", apiKey)
+	resp := gw.ToResponse()
+	resp.APIKey = apiKey // Only returned during registration
+	return resp, nil
 }
 
 func (s *gatewayService) GetGateway(ctx context.Context, orgName string, gatewayID string) (*models.GatewayResponse, error) {
@@ -284,16 +294,6 @@ func (s *gatewayService) UpdateGateway(ctx context.Context, orgName string, gate
 		for k, v := range req.AdapterConfig {
 			gw.AdapterConfig[k] = v
 		}
-	}
-
-	// Encrypt and update credentials if provided
-	if req.Credentials != nil {
-		encryptedCreds, err := utils.EncryptCredentials(req.Credentials, s.encryptionKey)
-		if err != nil {
-			s.logger.Error("Failed to encrypt credentials", "error", err)
-			return nil, fmt.Errorf("failed to encrypt credentials: %w", err)
-		}
-		gw.CredentialsEncrypted = encryptedCreds
 	}
 
 	gw.UpdatedAt = time.Now()
@@ -490,4 +490,65 @@ func (s *gatewayService) CheckGatewayHealth(ctx context.Context, orgName string,
 		ErrorMessage: "Health check returned no data",
 		CheckedAt:    time.Now().Format(time.RFC3339),
 	}, nil
+}
+
+// VerifyToken verifies an API key and returns the associated gateway
+func (s *gatewayService) VerifyToken(ctx context.Context, apiKey string) (*models.Gateway, error) {
+	s.logger.Debug("Verifying API key for gateway connection")
+
+	// Query database for gateway with API key hash
+	var gateway models.Gateway
+	err := db.DB(ctx).Where("api_key_hash IS NOT NULL").Find(&gateway).Error
+	if err != nil {
+		s.logger.Error("Failed to query gateways", "error", err)
+		return nil, fmt.Errorf("failed to query gateways: %w", err)
+	}
+
+	// We need to manually check each gateway since we can't query by hash directly
+	// Get all gateways with API keys and verify one by one
+	var gateways []models.Gateway
+	err = db.DB(ctx).Where("api_key_hash IS NOT NULL").Find(&gateways).Error
+	if err != nil {
+		s.logger.Error("Failed to query gateways", "error", err)
+		return nil, fmt.Errorf("failed to query gateways: %w", err)
+	}
+
+	// Check each gateway's API key hash
+	for _, gw := range gateways {
+		if gw.APIKeyHash == nil {
+			continue
+		}
+		// Verify the API key against the stored hash
+		if err := utils.VerifyAPIKey(apiKey, gw.APIKeyHash); err == nil {
+			// API key matches - allow connection (status will be updated after connection)
+			s.logger.Debug("API key verified successfully", "gatewayId", gw.UUID, "currentStatus", gw.Status)
+			return &gw, nil
+		}
+	}
+
+	s.logger.Warn("No gateway found matching the provided API key")
+	return nil, utils.ErrGatewayNotFound
+}
+
+// UpdateGatewayActiveStatus updates the active status of a gateway
+func (s *gatewayService) UpdateGatewayActiveStatus(ctx context.Context, gatewayID string, active bool) error {
+	gwUUID, err := uuid.Parse(gatewayID)
+	if err != nil {
+		return fmt.Errorf("invalid gateway ID: %w", err)
+	}
+
+	status := "ACTIVE"
+	if !active {
+		status = "INACTIVE"
+	}
+
+	err = db.DB(ctx).Model(&models.Gateway{}).
+		Where("uuid = ?", gwUUID).
+		Update("status", status).Error
+	if err != nil {
+		return fmt.Errorf("failed to update gateway status: %w", err)
+	}
+
+	s.logger.Debug("Gateway active status updated", "gatewayId", gatewayID, "active", active)
+	return nil
 }

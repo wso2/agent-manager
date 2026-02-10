@@ -176,6 +176,13 @@ func loadEnvs() {
 		EncryptionKey:      r.readRequiredString("GATEWAY_ENCRYPTION_KEY"),
 	}
 
+	// WebSocket configuration
+	config.WebSocket = WebSocketConfig{
+		MaxConnections:    int(r.readOptionalInt64("WS_MAX_CONNECTIONS", 1000)),
+		ConnectionTimeout: int(r.readOptionalInt64("WS_CONNECTION_TIMEOUT_SECONDS", 30)),
+		RateLimitPerMin:   int(r.readOptionalInt64("WS_RATE_LIMIT_PER_MINUTE", 10)),
+	}
+
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)
 

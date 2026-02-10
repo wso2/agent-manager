@@ -21,6 +21,7 @@ package wiring
 
 import (
 	"log/slog"
+	"time"
 
 	"github.com/google/wire"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	ws "github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
 )
 
 var configProviderSet = wire.NewSet(
@@ -54,6 +56,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewEnvironmentService,
 	services.NewGatewayService,
 	services.NewEnvironmentSyncer,
+	services.NewGatewayEventsService,
 )
 
 var controllerProviderSet = wire.NewSet(
@@ -64,6 +67,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewRepositoryController,
 	controllers.NewEnvironmentController,
 	controllers.NewGatewayController,
+	controllers.NewWebSocketGatewayController,
 )
 
 var testClientProviderSet = wire.NewSet(
@@ -111,6 +115,11 @@ var gatewayProviderSet = wire.NewSet(
 	ProvideGatewayEncryptionKey,
 )
 
+var webSocketProviderSet = wire.NewSet(
+	ProvideWebSocketManager,
+	ProvideWebSocketRateLimit,
+)
+
 // ProvideTestOpenChoreoClient extracts the OpenChoreoClient from TestClients
 func ProvideTestOpenChoreoClient(testClients TestClients) occlient.OpenChoreoClient {
 	return testClients.OpenChoreoClient
@@ -126,12 +135,28 @@ func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.Tr
 	return testClients.TraceObserverClient
 }
 
+// ProvideWebSocketManager creates a new WebSocket manager with the configured settings
+func ProvideWebSocketManager(cfg config.Config, logger *slog.Logger) *ws.Manager {
+	wsConfig := ws.ManagerConfig{
+		MaxConnections:    cfg.WebSocket.MaxConnections,
+		HeartbeatInterval: 20 * time.Second,
+		HeartbeatTimeout:  time.Duration(cfg.WebSocket.ConnectionTimeout) * time.Second,
+	}
+	return ws.NewManager(wsConfig, logger)
+}
+
+// ProvideWebSocketRateLimit provides the WebSocket rate limit from config
+func ProvideWebSocketRateLimit(cfg config.Config) int {
+	return cfg.WebSocket.RateLimitPerMin
+}
+
 func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	wire.Build(
 		configProviderSet,
 		clientProviderSet,
 		loggerProviderSet,
 		gatewayProviderSet,
+		webSocketProviderSet,
 		serviceProviderSet,
 		controllerProviderSet,
 		ProvideAuthMiddleware, ProvideJWTSigningConfig, wire.Struct(new(AppParams), "*"),
@@ -144,6 +169,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 		testClientProviderSet,
 		loggerProviderSet,
 		gatewayProviderSet,
+		webSocketProviderSet,
 		serviceProviderSet,
 		controllerProviderSet, configProviderSet,
 		ProvideJWTSigningConfig, wire.Struct(new(AppParams), "*"),

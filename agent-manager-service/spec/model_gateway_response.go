@@ -46,6 +46,8 @@ type GatewayResponse struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 	// List of environments mapped to this gateway
 	Environments []GatewayEnvironmentResponse `json:"environments,omitempty"`
+	// API key for the gateway
+	ApiKey *string `json:"apiKey,omitempty"`
 }
 
 // NewGatewayResponse instantiates a new GatewayResponse object
@@ -443,6 +445,38 @@ func (o *GatewayResponse) SetEnvironments(v []GatewayEnvironmentResponse) {
 	o.Environments = v
 }
 
+// GetApiKey returns the ApiKey field value if set, zero value otherwise.
+func (o *GatewayResponse) GetApiKey() string {
+	if o == nil || IsNil(o.ApiKey) {
+		var ret string
+		return ret
+	}
+	return *o.ApiKey
+}
+
+// GetApiKeyOk returns a tuple with the ApiKey field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *GatewayResponse) GetApiKeyOk() (*string, bool) {
+	if o == nil || IsNil(o.ApiKey) {
+		return nil, false
+	}
+	return o.ApiKey, true
+}
+
+// HasApiKey returns a boolean if a field has been set.
+func (o *GatewayResponse) HasApiKey() bool {
+	if o != nil && !IsNil(o.ApiKey) {
+		return true
+	}
+
+	return false
+}
+
+// SetApiKey gets a reference to the given string and assigns it to the ApiKey field.
+func (o *GatewayResponse) SetApiKey(v string) {
+	o.ApiKey = &v
+}
+
 func (o GatewayResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -474,6 +508,9 @@ func (o GatewayResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["updatedAt"] = o.UpdatedAt
 	if !IsNil(o.Environments) {
 		toSerialize["environments"] = o.Environments
+	}
+	if !IsNil(o.ApiKey) {
+		toSerialize["apiKey"] = o.ApiKey
 	}
 	return toSerialize, nil
 }

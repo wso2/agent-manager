@@ -122,6 +122,10 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
+		// Shutdown WebSocket connections first
+		slog.Info("Shutting down WebSocket connections")
+		dependencies.WebSocketManager.Shutdown()
+
 		if err := server.Shutdown(ctx); err != nil {
 			slog.Error("forced shutdown after timeout", "error", err)
 		}

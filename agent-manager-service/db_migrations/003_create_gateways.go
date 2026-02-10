@@ -25,22 +25,19 @@ var migration003 = migration{
 	ID: 3,
 	Migrate: func(db *gorm.DB) error {
 		sql := `
-			CREATE TYPE gateway_type AS ENUM ('INGRESS', 'EGRESS');
-			CREATE TYPE gateway_status AS ENUM ('ACTIVE', 'INACTIVE', 'PROVISIONING', 'ERROR');
-
 			CREATE TABLE gateways (
 				uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 				organization_name VARCHAR(100) NOT NULL,
 				name VARCHAR(64) NOT NULL,
 				display_name VARCHAR(128) NOT NULL,
-				gateway_type gateway_type NOT NULL DEFAULT 'EGRESS',
+				gateway_type VARCHAR(10) NOT NULL DEFAULT 'EGRESS',
 				control_plane_url TEXT,
 				vhost VARCHAR(253) NOT NULL,
 				region VARCHAR(64),
 				is_critical BOOLEAN NOT NULL DEFAULT false,
-				status gateway_status NOT NULL DEFAULT 'ACTIVE',
+				status VARCHAR(10) NOT NULL DEFAULT 'ACTIVE',
 				adapter_config JSONB,
-				credentials_encrypted BYTEA,
+				api_key_hash BYTEA,
 				created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 				updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
 				deleted_at TIMESTAMP,

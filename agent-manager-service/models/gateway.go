@@ -65,6 +65,7 @@ type GatewayResponse struct {
 	CreatedAt        time.Time                    `json:"createdAt"`
 	UpdatedAt        time.Time                    `json:"updatedAt"`
 	Environments     []GatewayEnvironmentResponse `json:"environments,omitempty"`
+	APIKey           string                       `json:"apiKey,omitempty"` // Only returned during registration
 }
 
 // CreateGatewayRequest is the API request for registering a gateway
@@ -92,22 +93,22 @@ type UpdateGatewayRequest struct {
 
 // Gateway is the database model
 type Gateway struct {
-	UUID                 uuid.UUID              `gorm:"column:uuid;primaryKey"`
-	OrganizationName     string                 `gorm:"column:organization_name"`
-	Name                 string                 `gorm:"column:name"`
-	DisplayName          string                 `gorm:"column:display_name"`
-	GatewayType          string                 `gorm:"column:gateway_type"`
-	ControlPlaneURL      string                 `gorm:"column:control_plane_url"`
-	VHost                string                 `gorm:"column:vhost"`
-	Region               string                 `gorm:"column:region"`
-	IsCritical           bool                   `gorm:"column:is_critical"`
-	Status               string                 `gorm:"column:status"`
-	AdapterConfig        map[string]interface{} `gorm:"column:adapter_config;type:jsonb;serializer:json"`
-	CredentialsEncrypted []byte                 `gorm:"column:credentials_encrypted"`
-	CreatedAt            time.Time              `gorm:"column:created_at"`
-	UpdatedAt            time.Time              `gorm:"column:updated_at"`
-	DeletedAt            gorm.DeletedAt         `gorm:"column:deleted_at"`
-	Environments         []Environment          `gorm:"many2many:gateway_environment_mappings;foreignKey:UUID;joinForeignKey:gateway_uuid;References:UUID;joinReferences:environment_uuid"`
+	UUID             uuid.UUID              `gorm:"column:uuid;primaryKey"`
+	OrganizationName string                 `gorm:"column:organization_name"`
+	Name             string                 `gorm:"column:name"`
+	DisplayName      string                 `gorm:"column:display_name"`
+	GatewayType      string                 `gorm:"column:gateway_type"`
+	ControlPlaneURL  string                 `gorm:"column:control_plane_url"`
+	VHost            string                 `gorm:"column:vhost"`
+	Region           string                 `gorm:"column:region"`
+	IsCritical       bool                   `gorm:"column:is_critical"`
+	Status           string                 `gorm:"column:status"`
+	AdapterConfig    map[string]interface{} `gorm:"column:adapter_config;type:jsonb;serializer:json"`
+	APIKeyHash       []byte                 `gorm:"column:api_key_hash"` // Hashed API key for WebSocket authentication
+	CreatedAt        time.Time              `gorm:"column:created_at"`
+	UpdatedAt        time.Time              `gorm:"column:updated_at"`
+	DeletedAt        gorm.DeletedAt         `gorm:"column:deleted_at"`
+	Environments     []Environment          `gorm:"many2many:gateway_environment_mappings;foreignKey:UUID;joinForeignKey:gateway_uuid;References:UUID;joinReferences:environment_uuid"`
 }
 
 // TableName returns the table name for GORM

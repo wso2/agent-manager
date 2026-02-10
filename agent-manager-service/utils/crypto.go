@@ -20,10 +20,14 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
@@ -35,6 +39,8 @@ var (
 	ErrInvalidKeySize = errors.New("invalid key size: must be 32 bytes for AES-256")
 	// ErrInvalidCredentials is returned when credentials are nil
 	ErrInvalidCredentials = errors.New("credentials cannot be nil")
+	// ErrInvalidAPIKey is returned when API key verification fails
+	ErrInvalidAPIKey = errors.New("invalid API key")
 )
 
 const (
@@ -42,6 +48,10 @@ const (
 	KeySize = 32
 	// NonceSize is the size of the nonce for GCM
 	NonceSize = 12
+	// APIKeyLength is the length of the generated API key in bytes
+	APIKeyLength = 32
+	// APIKeyHashCost is the bcrypt cost factor for API key hashing
+	APIKeyHashCost = bcrypt.DefaultCost
 )
 
 // EncryptCredentials encrypts gateway credentials using AES-256-GCM.
@@ -136,4 +146,50 @@ func GenerateEncryptionKey() ([]byte, error) {
 		return nil, fmt.Errorf("failed to generate encryption key: %w", err)
 	}
 	return key, nil
+}
+
+// GenerateAPIKey generates a cryptographically secure random API key for gateway authentication.
+// The API key is returned as a plain string (to be shown to the user once).
+func GenerateAPIKey() (string, error) {
+	keyBytes := make([]byte, APIKeyLength)
+	if _, err := io.ReadFull(rand.Reader, keyBytes); err != nil {
+		return "", fmt.Errorf("failed to generate API key: %w", err)
+	}
+	// Return as hex string for easier usage
+	return hex.EncodeToString(keyBytes), nil
+}
+
+// HashAPIKey hashes an API key using bcrypt for secure storage.
+// The resulting hash should be stored in the database, not the plain API key.
+func HashAPIKey(apiKey string) ([]byte, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(apiKey), APIKeyHashCost)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash API key: %w", err)
+	}
+	return hash, nil
+}
+
+// VerifyAPIKey verifies a plain API key against a stored hash.
+// Returns nil if the key matches, ErrInvalidAPIKey otherwise.
+func VerifyAPIKey(apiKey string, hash []byte) error {
+	err := bcrypt.CompareHashAndPassword(hash, []byte(apiKey))
+	if err != nil {
+		return ErrInvalidAPIKey
+	}
+	return nil
+}
+
+// GenerateAPIKeyToken generates a base64-encoded token containing the API key.
+// This is used for returning the API key in the registration response.
+func GenerateAPIKeyToken(apiKey string) string {
+	return base64.StdEncoding.EncodeToString([]byte(apiKey))
+}
+
+// ParseAPIKeyToken parses a base64-encoded API key token.
+func ParseAPIKeyToken(token string) (string, error) {
+	decoded, err := base64.StdEncoding.DecodeString(token)
+	if err != nil {
+		return "", fmt.Errorf("invalid API key token format: %w", err)
+	}
+	return string(decoded), nil
 }

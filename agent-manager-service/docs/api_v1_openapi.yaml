@@ -4875,6 +4875,10 @@ components:
           description: List of environments mapped to this gateway
           items:
             $ref: '#/components/schemas/GatewayEnvironmentResponse'
+        apiKey:
+          type: string
+          description: API key for the gateway
+          example: sk-1234567890abcdef
 
     CreateGatewayRequest:
       type: object

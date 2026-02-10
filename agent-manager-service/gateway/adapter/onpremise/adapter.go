@@ -159,11 +159,11 @@ func (a *OnPremiseAdapter) getGatewayWithCredentials(ctx context.Context, gatewa
 	}
 
 	// Decrypt credentials
-	if len(gw.CredentialsEncrypted) == 0 {
+	if len(gw.APIKeyHash) == 0 {
 		return nil, nil, fmt.Errorf("gateway has no credentials stored")
 	}
 
-	creds, err := utils.DecryptCredentials(gw.CredentialsEncrypted, a.encryptionKey)
+	creds, err := utils.DecryptCredentials(gw.APIKeyHash, a.encryptionKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to decrypt credentials: %w", err)
 	}
