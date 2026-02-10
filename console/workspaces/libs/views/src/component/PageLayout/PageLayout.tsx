@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, PageTitle, PageContent } from '@wso2/oxygen-ui';
+import { Box, PageTitle, PageContent, Skeleton, Stack } from '@wso2/oxygen-ui';
 import { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
@@ -31,6 +31,7 @@ export interface PageLayoutProps {
   disableIcon?: boolean;
   actions?: ReactNode;
   disablePadding?: boolean;
+  isLoading?: boolean;
 }
 export function PageLayout({
   children,
@@ -42,8 +43,49 @@ export function PageLayout({
   actions,
   disablePadding = false,
   disableIcon = false,
+  isLoading,
 }: PageLayoutProps) {
   useDocumentTitle(title);
+
+  if (isLoading) {
+    return (
+      <PageContent fullWidth={!disablePadding}>
+        <PageTitle>
+          {backHref && (
+            <PageTitle.BackButton component={<Link to={backHref} />}>
+              {backLabel || 'Back'}
+            </PageTitle.BackButton>
+          )}
+
+          {!disableIcon && (
+            <PageTitle.Avatar>
+            <Skeleton variant="circular" width={80} height={80} />
+            </PageTitle.Avatar>
+          )}
+
+          <PageTitle.Header>
+            <Skeleton variant="text" width={200} height={32} />
+          </PageTitle.Header>
+
+          {description && (
+            <PageTitle.SubHeader>
+              <Skeleton variant="text" width={300} height={20} />
+            </PageTitle.SubHeader>
+          )}
+
+          {actions && (
+            <PageTitle.Actions>
+              <Stack direction="row" spacing={1}>
+                <Skeleton variant="circular" width={32} height={32} />
+                <Skeleton variant="circular" width={32} height={32} />
+              </Stack>
+            </PageTitle.Actions>
+          )}
+        </PageTitle>
+        {children}
+      </PageContent>
+    );
+  }
 
   return (
     <PageContent fullWidth={!disablePadding}>

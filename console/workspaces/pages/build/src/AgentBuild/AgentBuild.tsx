@@ -17,7 +17,7 @@
  */
 
 import React from "react";
-import { Box, Skeleton, Stack } from "@wso2/oxygen-ui";
+import { Box, Skeleton, DataGrid, Stack } from "@wso2/oxygen-ui";
 import { TopCards } from "./subComponents/TopCards";
 import { BuildTable } from "./subComponents/BuildTable";
 import { FadeIn } from "@agent-management-platform/views";
@@ -32,7 +32,20 @@ export function AgentBuildSkeleton() {
         <Skeleton variant="rounded" width="100%" height={120} />
         <Skeleton variant="rounded" width="100%" height={120} />
       </Box>
-      <Skeleton variant="rounded" width="100%" height={500} />
+      <DataGrid.DataGrid
+        rows={[]}
+        columns={[
+          { field: 'buildNumber', headerName: 'Build', flex: 0.5 },
+          { field: 'status', headerName: 'Status', flex: 0.8 },
+          { field: 'branch', headerName: 'Branch', flex: 1 },
+          { field: 'commit', headerName: 'Commit', flex: 1 },
+          { field: 'startedAt', headerName: 'Started', flex: 1 },
+          { field: 'duration', headerName: 'Duration', flex: 0.8 },
+          { field: 'actions', headerName: 'Actions', flex: 0.8 },
+        ]}
+        loading
+        hideFooter
+      />
     </Box>
   );
 }
