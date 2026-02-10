@@ -70,7 +70,7 @@ func (s *environmentService) CreateEnvironment(ctx context.Context, orgName stri
 	err := db.DB(ctx).Transaction(func(tx *gorm.DB) error {
 		// Check if environment already exists within the transaction
 		var existing models.Environment
-		err := tx.Where("organization_name = ? AND name = ?", req.OrganizationName, req.Name).First(&existing).Error
+		err := tx.Where("organization_name = ? AND name = ?", orgName, req.Name).First(&existing).Error
 		if err == nil {
 			return utils.ErrEnvironmentAlreadyExists
 		}
