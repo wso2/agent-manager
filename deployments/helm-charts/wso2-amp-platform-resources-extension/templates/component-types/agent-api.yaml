@@ -12,6 +12,7 @@ spec:
   allowedWorkflows:
     - amp-google-cloud-buildpacks
     - amp-ballerina-buildpack
+    - amp-docker
   allowedTraits:
     - python-otel-instrumentation-trait
   schema:
