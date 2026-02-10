@@ -4621,6 +4621,9 @@ components:
         - organizationName
         - name
         - displayName
+        - dataplaneRef
+        - dnsPrefix
+        - isProduction
         - createdAt
         - updatedAt
       properties:
@@ -4647,6 +4650,20 @@ components:
           type: string
           description: Optional description of the environment
           example: Production environment for critical AI agents
+        dataplaneRef:
+          type: string
+          description: Reference to the dataplane
+          maxLength: 100
+          example: default
+        dnsPrefix:
+          type: string
+          description: DNS prefix for the environment
+          maxLength: 100
+          example: default
+        isProduction:
+          type: boolean
+          description: Whether this is a production environment
+          example: false
         createdAt:
           type: string
           format: date-time
@@ -4663,6 +4680,8 @@ components:
       required:
         - name
         - displayName
+        - dataplaneRef
+        - dnsPrefix
       properties:
         name:
           type: string
@@ -4681,6 +4700,22 @@ components:
           type: string
           description: Optional description of the environment
           example: Production environment for critical AI agents
+        dataplaneRef:
+          type: string
+          description: Reference to the dataplane
+          minLength: 1
+          maxLength: 100
+          example: default
+        dnsPrefix:
+          type: string
+          description: DNS prefix for the environment
+          minLength: 1
+          maxLength: 100
+          example: default
+        isProduction:
+          type: boolean
+          description: Whether this is a production environment
+          example: false
 
     UpdateEnvironmentRequest:
       type: object

@@ -40,7 +40,7 @@ var migration006 = migration{
 				updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
 
 				UNIQUE(provider_uuid, gateway_uuid),
-				FOREIGN KEY (provider_uuid) REFERENCES org_llm_providers(uuid) ON DELETE CASCADE,
+				FOREIGN KEY (provider_uuid) REFERENCES llm_providers(uuid) ON DELETE CASCADE,
 				FOREIGN KEY (gateway_uuid) REFERENCES gateways(uuid) ON DELETE CASCADE
 			);
 

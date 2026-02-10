@@ -30,6 +30,12 @@ type GatewayEnvironmentResponse struct {
 	DisplayName string `json:"displayName"`
 	// Optional description of the environment
 	Description *string `json:"description,omitempty"`
+	// Reference to the dataplane
+	DataplaneRef string `json:"dataplaneRef"`
+	// DNS prefix for the environment
+	DnsPrefix string `json:"dnsPrefix"`
+	// Whether this is a production environment
+	IsProduction bool `json:"isProduction"`
 	// Timestamp when the environment was created
 	CreatedAt time.Time `json:"createdAt"`
 	// Timestamp when the environment was last updated
@@ -40,12 +46,15 @@ type GatewayEnvironmentResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewGatewayEnvironmentResponse(id string, organizationName string, name string, displayName string, createdAt time.Time, updatedAt time.Time) *GatewayEnvironmentResponse {
+func NewGatewayEnvironmentResponse(id string, organizationName string, name string, displayName string, dataplaneRef string, dnsPrefix string, isProduction bool, createdAt time.Time, updatedAt time.Time) *GatewayEnvironmentResponse {
 	this := GatewayEnvironmentResponse{}
 	this.Id = id
 	this.OrganizationName = organizationName
 	this.Name = name
 	this.DisplayName = displayName
+	this.DataplaneRef = dataplaneRef
+	this.DnsPrefix = dnsPrefix
+	this.IsProduction = isProduction
 	this.CreatedAt = createdAt
 	this.UpdatedAt = updatedAt
 	return &this
@@ -187,6 +196,78 @@ func (o *GatewayEnvironmentResponse) SetDescription(v string) {
 	o.Description = &v
 }
 
+// GetDataplaneRef returns the DataplaneRef field value
+func (o *GatewayEnvironmentResponse) GetDataplaneRef() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.DataplaneRef
+}
+
+// GetDataplaneRefOk returns a tuple with the DataplaneRef field value
+// and a boolean to check if the value has been set.
+func (o *GatewayEnvironmentResponse) GetDataplaneRefOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.DataplaneRef, true
+}
+
+// SetDataplaneRef sets field value
+func (o *GatewayEnvironmentResponse) SetDataplaneRef(v string) {
+	o.DataplaneRef = v
+}
+
+// GetDnsPrefix returns the DnsPrefix field value
+func (o *GatewayEnvironmentResponse) GetDnsPrefix() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.DnsPrefix
+}
+
+// GetDnsPrefixOk returns a tuple with the DnsPrefix field value
+// and a boolean to check if the value has been set.
+func (o *GatewayEnvironmentResponse) GetDnsPrefixOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.DnsPrefix, true
+}
+
+// SetDnsPrefix sets field value
+func (o *GatewayEnvironmentResponse) SetDnsPrefix(v string) {
+	o.DnsPrefix = v
+}
+
+// GetIsProduction returns the IsProduction field value
+func (o *GatewayEnvironmentResponse) GetIsProduction() bool {
+	if o == nil {
+		var ret bool
+		return ret
+	}
+
+	return o.IsProduction
+}
+
+// GetIsProductionOk returns a tuple with the IsProduction field value
+// and a boolean to check if the value has been set.
+func (o *GatewayEnvironmentResponse) GetIsProductionOk() (*bool, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.IsProduction, true
+}
+
+// SetIsProduction sets field value
+func (o *GatewayEnvironmentResponse) SetIsProduction(v bool) {
+	o.IsProduction = v
+}
+
 // GetCreatedAt returns the CreatedAt field value
 func (o *GatewayEnvironmentResponse) GetCreatedAt() time.Time {
 	if o == nil {
@@ -252,6 +333,9 @@ func (o GatewayEnvironmentResponse) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Description) {
 		toSerialize["description"] = o.Description
 	}
+	toSerialize["dataplaneRef"] = o.DataplaneRef
+	toSerialize["dnsPrefix"] = o.DnsPrefix
+	toSerialize["isProduction"] = o.IsProduction
 	toSerialize["createdAt"] = o.CreatedAt
 	toSerialize["updatedAt"] = o.UpdatedAt
 	return toSerialize, nil

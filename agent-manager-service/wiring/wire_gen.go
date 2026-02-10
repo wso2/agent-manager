@@ -7,10 +7,7 @@
 package wiring
 
 import (
-	"log/slog"
-
 	"github.com/google/wire"
-
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
@@ -19,6 +16,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	"log/slog"
 )
 
 // Injectors from wire.go:
@@ -63,6 +61,7 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	}
 	gatewayService := services.NewGatewayService(iGatewayAdapter, v, logger)
 	gatewayController := controllers.NewGatewayController(gatewayService)
+	environmentSyncer := services.NewEnvironmentSyncer(openChoreoClient, logger)
 	appParams := &AppParams{
 		AuthMiddleware:          middleware,
 		AgentController:         agentController,
@@ -72,6 +71,7 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 		RepositoryController:    repositoryController,
 		EnvironmentController:   environmentController,
 		GatewayController:       gatewayController,
+		EnvironmentSyncer:       environmentSyncer,
 	}
 	return appParams, nil
 }
@@ -108,6 +108,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 	}
 	gatewayService := services.NewGatewayService(iGatewayAdapter, v, logger)
 	gatewayController := controllers.NewGatewayController(gatewayService)
+	environmentSyncer := services.NewEnvironmentSyncer(openChoreoClient, logger)
 	appParams := &AppParams{
 		AuthMiddleware:          authMiddleware,
 		AgentController:         agentController,
@@ -117,6 +118,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 		RepositoryController:    repositoryController,
 		EnvironmentController:   environmentController,
 		GatewayController:       gatewayController,
+		EnvironmentSyncer:       environmentSyncer,
 	}
 	return appParams, nil
 }
@@ -132,7 +134,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideOCClient,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewEnvironmentService, services.NewGatewayService)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewEnvironmentService, services.NewGatewayService, services.NewEnvironmentSyncer)
 
 var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController)
 

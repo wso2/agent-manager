@@ -17,13 +17,10 @@
 package controllers
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
-
-	"github.com/google/uuid"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -83,12 +80,18 @@ func (c *environmentController) CreateEnvironment(w http.ResponseWriter, r *http
 
 	// Convert spec request to internal model
 	internalReq := &models.CreateEnvironmentRequest{
-		Name:        req.Name,
-		DisplayName: req.DisplayName,
+		Name:         req.Name,
+		DisplayName:  req.DisplayName,
+		DataplaneRef: req.DataplaneRef,
+		DNSPrefix:    req.DnsPrefix,
+		IsProduction: false,
 	}
 
 	if req.Description != nil {
 		internalReq.Description = *req.Description
+	}
+	if req.IsProduction != nil {
+		internalReq.IsProduction = *req.IsProduction
 	}
 
 	env, err := c.environmentService.CreateEnvironment(ctx, orgName, internalReq)
@@ -246,40 +249,6 @@ func getIntQueryParam(r *http.Request, key string, defaultValue int) int {
 	return defaultValue
 }
 
-// getOrgUUIDFromName looks up an organization UUID by name
-// TODO: Integrate with OpenChoreo client for proper organization lookup
-// Currently returns a placeholder UUID - this will be updated when
-// the gateway management feature is fully integrated with the authentication
-// and organization management system.
-//
-// For now, this allows the gateway management APIs to be functional
-// for testing with direct UUID access. The full integration will use
-// the OpenChoreo client (similar to infraResourceController.GetOrganization).
-func getOrgUUIDFromName(ctx context.Context, orgName string) (uuid.UUID, error) {
-	// TODO: Phase 6+ - Integrate with OpenChoreo client
-	//
-	// Integration pattern:
-	// 1. Inject OpenChoreo client into controller constructors
-	// 2. Use client.GetOrganization(ctx, orgName) to lookup organization
-	// 3. Extract and return the organization UUID
-	//
-	// Example:
-	//   org, err := c.ocClient.GetOrganization(ctx, orgName)
-	//   if err != nil {
-	//       return uuid.UUID{}, err
-	//   }
-	//   return org.UUID, nil
-
-	if orgName == "" {
-		return uuid.UUID{}, errors.New("organization name cannot be empty")
-	}
-
-	// Generate deterministic UUID from orgName using SHA-1 in DNS namespace
-	// This ensures different orgNames produce different UUIDs, preventing
-	// cross-tenant data access until OpenChoreo integration is complete
-	return uuid.NewSHA1(uuid.NameSpaceDNS, []byte(orgName)), nil
-}
-
 // convertToSpecEnvironmentResponse converts internal environment response to spec response
 func convertToSpecEnvironmentResponse(env *models.GatewayEnvironmentResponse) spec.GatewayEnvironmentResponse {
 	response := spec.GatewayEnvironmentResponse{
@@ -287,6 +256,9 @@ func convertToSpecEnvironmentResponse(env *models.GatewayEnvironmentResponse) sp
 		OrganizationName: env.OrganizationName,
 		Name:             env.Name,
 		DisplayName:      env.DisplayName,
+		DataplaneRef:     env.DataplaneRef,
+		DnsPrefix:        env.DNSPrefix,
+		IsProduction:     env.IsProduction,
 		CreatedAt:        env.CreatedAt,
 		UpdatedAt:        env.UpdatedAt,
 	}

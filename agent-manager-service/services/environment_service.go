@@ -62,6 +62,9 @@ func (s *environmentService) CreateEnvironment(ctx context.Context, orgName stri
 		Name:             req.Name,
 		DisplayName:      req.DisplayName,
 		Description:      req.Description,
+		DataplaneRef:     req.DataplaneRef,
+		DNSPrefix:        req.DNSPrefix,
+		IsProduction:     req.IsProduction,
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
 	}

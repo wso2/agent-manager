@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 // ProviderStatus enum
@@ -34,8 +33,8 @@ const (
 	ProviderStatusArchived ProviderStatus = "ARCHIVED"
 )
 
-// OrgLLMProvider is the database model for organization LLM providers
-type OrgLLMProvider struct {
+// LLMProvider is the database model for organization LLM providers
+type LLMProvider struct {
 	UUID             uuid.UUID              `gorm:"column:uuid;primaryKey"`
 	OrganizationName string                 `gorm:"column:organization_name"`
 	Handle           string                 `gorm:"column:handle"`
@@ -43,28 +42,23 @@ type OrgLLMProvider struct {
 	Template         string                 `gorm:"column:template"`
 	Configuration    map[string]interface{} `gorm:"column:configuration;type:jsonb;serializer:json"`
 	Status           string                 `gorm:"column:status"`
-	ApprovedBy       *string                `gorm:"column:approved_by"`
-	ApprovedAt       *time.Time             `gorm:"column:approved_at"`
 	CreatedAt        time.Time              `gorm:"column:created_at"`
 	UpdatedAt        time.Time              `gorm:"column:updated_at"`
-	DeletedAt        gorm.DeletedAt         `gorm:"column:deleted_at"`
 	CreatedBy        string                 `gorm:"column:created_by"`
 }
 
-func (OrgLLMProvider) TableName() string {
-	return "org_llm_providers"
+func (LLMProvider) TableName() string {
+	return "llm_providers"
 }
 
-// OrgLLMProviderResponse is the API response DTO
-type OrgLLMProviderResponse struct {
+// LLMProviderResponse is the API response DTO
+type LLMProviderResponse struct {
 	UUID          string                 `json:"uuid"`
 	Handle        string                 `json:"handle"`
 	DisplayName   string                 `json:"displayName"`
 	Template      string                 `json:"template"`
 	Configuration map[string]interface{} `json:"configuration"`
 	Status        string                 `json:"status"`
-	ApprovedBy    *string                `json:"approvedBy,omitempty"`
-	ApprovedAt    *time.Time             `json:"approvedAt,omitempty"`
 	CreatedAt     time.Time              `json:"createdAt"`
 	UpdatedAt     time.Time              `json:"updatedAt"`
 	CreatedBy     string                 `json:"createdBy"`
@@ -86,16 +80,14 @@ type UpdateProviderRequest struct {
 }
 
 // ToResponse converts the database model to API response
-func (p *OrgLLMProvider) ToResponse() *OrgLLMProviderResponse {
-	return &OrgLLMProviderResponse{
+func (p *LLMProvider) ToResponse() *LLMProviderResponse {
+	return &LLMProviderResponse{
 		UUID:          p.UUID.String(),
 		Handle:        p.Handle,
 		DisplayName:   p.DisplayName,
 		Template:      p.Template,
 		Configuration: p.Configuration,
 		Status:        p.Status,
-		ApprovedBy:    p.ApprovedBy,
-		ApprovedAt:    p.ApprovedAt,
 		CreatedAt:     p.CreatedAt,
 		UpdatedAt:     p.UpdatedAt,
 		CreatedBy:     p.CreatedBy,
@@ -104,8 +96,8 @@ func (p *OrgLLMProvider) ToResponse() *OrgLLMProviderResponse {
 
 // ProviderListResponse is the paginated list response
 type ProviderListResponse struct {
-	Providers []OrgLLMProviderResponse `json:"providers"`
-	Total     int32                    `json:"total"`
-	Limit     int32                    `json:"limit"`
-	Offset    int32                    `json:"offset"`
+	Providers []LLMProviderResponse `json:"providers"`
+	Total     int32                 `json:"total"`
+	Limit     int32                 `json:"limit"`
+	Offset    int32                 `json:"offset"`
 }

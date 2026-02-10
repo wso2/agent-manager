@@ -30,6 +30,9 @@ type GatewayEnvironmentResponse struct {
 	Name             string    `json:"name"`
 	DisplayName      string    `json:"displayName"`
 	Description      string    `json:"description,omitempty"`
+	DataplaneRef     string    `json:"dataplaneRef"`
+	DNSPrefix        string    `json:"dnsPrefix"`
+	IsProduction     bool      `json:"isProduction"`
 	CreatedAt        time.Time `json:"createdAt"`
 	UpdatedAt        time.Time `json:"updatedAt"`
 }
@@ -40,6 +43,9 @@ type CreateEnvironmentRequest struct {
 	Name             string `json:"name" validate:"required,max=64"`
 	DisplayName      string `json:"displayName" validate:"required,max=128"`
 	Description      string `json:"description,omitempty"`
+	DataplaneRef     string `json:"dataplaneRef" validate:"required,max=100"`
+	DNSPrefix        string `json:"dnsPrefix" validate:"required,max=100"`
+	IsProduction     bool   `json:"isProduction"`
 }
 
 // UpdateEnvironmentRequest is the API request for updating an environment
@@ -55,6 +61,9 @@ type Environment struct {
 	Name             string         `gorm:"column:name"`
 	DisplayName      string         `gorm:"column:display_name"`
 	Description      string         `gorm:"column:description"`
+	DataplaneRef     string         `gorm:"column:dataplane_ref;default:'default'"`
+	DNSPrefix        string         `gorm:"column:dns_prefix;default:'default'"`
+	IsProduction     bool           `gorm:"column:is_production;default:false"`
 	CreatedAt        time.Time      `gorm:"column:created_at"`
 	UpdatedAt        time.Time      `gorm:"column:updated_at"`
 	DeletedAt        gorm.DeletedAt `gorm:"column:deleted_at"`
@@ -73,6 +82,9 @@ func (e *Environment) ToResponse() *GatewayEnvironmentResponse {
 		Name:             e.Name,
 		DisplayName:      e.DisplayName,
 		Description:      e.Description,
+		DataplaneRef:     e.DataplaneRef,
+		DNSPrefix:        e.DNSPrefix,
+		IsProduction:     e.IsProduction,
 		CreatedAt:        e.CreatedAt,
 		UpdatedAt:        e.UpdatedAt,
 	}

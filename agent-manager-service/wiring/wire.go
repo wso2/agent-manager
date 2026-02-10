@@ -53,6 +53,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewRepositoryService,
 	services.NewEnvironmentService,
 	services.NewGatewayService,
+	services.NewEnvironmentSyncer,
 )
 
 var controllerProviderSet = wire.NewSet(

@@ -20,12 +20,12 @@ import (
 	"gorm.io/gorm"
 )
 
-// Create org_llm_providers table for organization-level LLM provider registry
+// Create llm_providers table for LLM provider registry
 var migration005 = migration{
 	ID: 5,
 	Migrate: func(db *gorm.DB) error {
-		createOrgLLMProvidersSQL := `
-			CREATE TABLE org_llm_providers (
+		createLLMProvidersSQL := `
+			CREATE TABLE llm_providers (
 				uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 				organization_name VARCHAR(100) NOT NULL,
 				handle VARCHAR(64) NOT NULL,
@@ -33,24 +33,19 @@ var migration005 = migration{
 				template VARCHAR(64) NOT NULL,
 				configuration JSONB NOT NULL,
 				status VARCHAR(32) NOT NULL,
-				approved_by VARCHAR(255),
-				approved_at TIMESTAMP,
 				created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 				updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-				deleted_at TIMESTAMP,
 				created_by VARCHAR(255) NOT NULL,
-
 				UNIQUE(organization_name, handle)
 			);
 
-			CREATE INDEX idx_org_llm_providers_org ON org_llm_providers(organization_name);
-			CREATE INDEX idx_org_llm_providers_status ON org_llm_providers(status);
-			CREATE INDEX idx_org_llm_providers_template ON org_llm_providers(template);
-			CREATE INDEX idx_org_llm_providers_deleted ON org_llm_providers(deleted_at);
-			CREATE INDEX idx_org_llm_providers_configuration ON org_llm_providers USING GIN (configuration);
+			CREATE INDEX idx_llm_providers_org ON llm_providers(organization_name);
+			CREATE INDEX idx_llm_providers_status ON llm_providers(status);
+			CREATE INDEX idx_llm_providers_template ON llm_providers(template);
+			CREATE INDEX idx_llm_providers_configuration ON llm_providers USING GIN (configuration);
 		`
 		return db.Transaction(func(tx *gorm.DB) error {
-			return runSQL(tx, createOrgLLMProvidersSQL)
+			return runSQL(tx, createLLMProvidersSQL)
 		})
 	},
 }
