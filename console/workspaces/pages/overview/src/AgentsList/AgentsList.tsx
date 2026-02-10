@@ -70,24 +70,43 @@ dayjs.extend(relativeTime);
 
 export function ListPageSkeleton() {
   return (
-    <Box display="flex" flexDirection="column" gap={2} p={2}>
-      <Box
-        display="flex"
-        flexDirection="row"
-        justifyContent="space-between"
-        gap={2}
-      >
-        <Box display="flex" gap={2}>
-          <Skeleton variant="rounded" width={100} height={100} />
-          <Skeleton variant="rounded" width={400} height={100} />
+    <Stack direction="row" justifyContent="space-between" gap={4}>
+      <Stack direction="column" sx={{ flexGrow: 1 }} spacing={4}>
+        {/* Search and Add Agent button skeleton */}
+        <Stack direction="row" spacing={1}>
+          <Box flexGrow={1}>
+            <Skeleton variant="rounded" width="100%" height={40} />
+          </Box>
+          <Skeleton variant="rounded" width={120} height={40} />
+        </Stack>
+
+        {/* Table skeleton */}
+        <Box display="flex" flexDirection="column" gap={1}>
+          {/* Table header */}
+          <Skeleton variant="rounded" width="100%" height={48} />
+          
+          {/* Table rows */}
+          {Array.from({ length: 5 }).map((_, index) => (
+            <Skeleton
+              key={index}
+              variant="rounded"
+              width="100%"
+              height={72}
+            />
+          ))}
         </Box>
-        <Skeleton variant="rounded" height={40} width={150} />
+
+        {/* Pagination skeleton */}
+        <Box display="flex" justifyContent="flex-end">
+          <Skeleton variant="rounded" width={300} height={40} />
+        </Box>
+      </Stack>
+
+      {/* Agent Type Summary skeleton */}
+      <Box width={250}>
+        <Skeleton variant="rounded" width="100%" height={200} />
       </Box>
-      <Box display="flex" flexDirection="column" gap={2}>
-        <Skeleton variant="rounded" width="100%" height={40} />
-        <Skeleton variant="rounded" width="100%" height={450} />
-      </Box>
-    </Box>
+    </Stack>
   );
 }
 
@@ -214,13 +233,9 @@ export const AgentsList: React.FC = () => {
     [agentsWithHref, page, rowsPerPage]
   );
 
-  if (
-    isProjectLoading ||
+  const isPageLoading = isProjectLoading ||
     (isRefetching && !data?.agents?.length) ||
-    isDeletingAgent
-  ) {
-    return <ListPageSkeleton />;
-  }
+    isDeletingAgent;
 
   return (
     <>
@@ -230,6 +245,7 @@ export const AgentsList: React.FC = () => {
           project?.description ??
           "Manage and monitor all your AI agents across environments"
         }
+        isLoading={isPageLoading}
         titleTail={
           <Box
             display="flex"
@@ -262,6 +278,9 @@ export const AgentsList: React.FC = () => {
           </Box>
         }
       >
+      {isLoading ? (
+        <ListPageSkeleton />
+      ) : (
       <Stack
         direction="row"
         justifyContent="space-between"
@@ -474,6 +493,7 @@ export const AgentsList: React.FC = () => {
           <AgentTypeSummery />
         </Box>
       </Stack>
+      )}
     </PageLayout>
 
       {project && (

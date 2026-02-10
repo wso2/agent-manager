@@ -33,30 +33,19 @@ import {
 
 const SkeletonTestPageLayout: React.FC = () => {
   return (
-    <Stack spacing={3} sx={{ padding: 3 }}>
-      {/* Page Title Skeleton */}
-      <Box
-        display="flex"
-        alignItems="center"
-        justifyContent="space-between"
-        gap={1}
-      >
-        <Stack spacing={1}>
-          <Skeleton variant="rounded" width={200} height={36} />
-        </Stack>
-      </Box>
-
-      {/* Content Area Skeleton */}
-      <Box
-        display="flex"
-        flexDirection="column"
-        alignItems="center"
-        justifyContent="center"
-        gap={2}
-      >
-        <Skeleton variant="rounded" width="100%" height="70vh" />
-      </Box>
-    </Stack>
+    <Box
+      display="flex"
+      flexDirection="column"
+      alignItems="center"
+      justifyContent="center"
+      gap={2}
+      height="60vh"
+    >
+      <Skeleton variant="circular" width={80} height={80} />
+      <Skeleton variant="text" width={250} height={32} />
+      <Skeleton variant="text" width={350} height={20} />
+      <Skeleton variant="rounded" width={500} height={48} sx={{ mt: 2 }} />
+    </Box>
   );
 };
 
@@ -84,11 +73,9 @@ export const TestComponent: React.FC = () => {
     });
   const currentDeployment = deployments?.[envId ?? ""];
 
-  if (isDeploymentsLoading || isAgentLoading) {
-    return <SkeletonTestPageLayout />;
-  }
+  const isLoading = isDeploymentsLoading || isAgentLoading;
 
-  if (currentDeployment?.status !== "active") {
+  if (!isLoading && currentDeployment?.status !== "active") {
     return (
       <Box
         height="50vh"
@@ -107,9 +94,13 @@ export const TestComponent: React.FC = () => {
   }
 
   return (
-      <PageLayout title={"Try your agent"} disableIcon >
-        {isChatAgent ? <AgentChat /> : <Swagger />}
-      </PageLayout>
+    <PageLayout title={"Try your agent"} disableIcon isLoading={isLoading}>
+      {isLoading ? (
+        <SkeletonTestPageLayout />
+      ) : (
+        <>{isChatAgent ? <AgentChat /> : <Swagger />}</>
+      )}
+    </PageLayout>
   );
 };
 
