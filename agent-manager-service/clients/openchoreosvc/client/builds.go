@@ -121,38 +121,43 @@ func (c *openChoreoClient) ListBuilds(ctx context.Context, orgName, projectName,
 }
 
 func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBuildParametersRequest) error {
-	// Get existing component to fetch current workflow configuration
-	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, projectName, componentName, nil)
+	// Fetch the full component CR with server-managed fields removed
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
 	if err != nil {
-		return fmt.Errorf("failed to get component: %w", err)
+		return fmt.Errorf("failed to get component resource: %w", err)
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
-		})
+	// Navigate to spec in the CR
+	spec, ok := componentCR["spec"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("invalid spec in component CR")
 	}
 
-	if resp.JSON200 == nil || resp.JSON200.Data == nil {
-		return fmt.Errorf("empty response from get component")
+	// Get or create workflow section
+	workflow, ok := spec["workflow"].(map[string]interface{})
+	if !ok {
+		workflow = make(map[string]interface{})
+		spec["workflow"] = workflow
 	}
 
-	component := resp.JSON200.Data
+	// Get existing workflow parameters or create new map
+	existingParams := make(map[string]any)
+	if params, ok := workflow["parameters"].(map[string]interface{}); ok {
+		existingParams = params
+	}
 
-	// Build updated workflow parameters
-	workflowParams, err := buildUpdatedWorkflowParameters(component, req)
+	// Build updated workflow parameters from the existing ones
+	workflowParams, err := buildUpdatedWorkflowParametersFromCR(componentCR, existingParams, req)
 	if err != nil {
 		return fmt.Errorf("failed to build workflow parameters: %w", err)
 	}
 
-	// Build workflow section for the component CR
-	workflowSection := map[string]interface{}{
-		"parameters": workflowParams,
-	}
+	// Update workflow parameters
+	workflow["parameters"] = workflowParams
 
-	// If repository is updated, include systemParameters
+	// If repository is updated, update systemParameters
 	if req.Repository != nil {
-		workflowSection["systemParameters"] = map[string]interface{}{
+		workflow["systemParameters"] = map[string]interface{}{
 			"repository": map[string]interface{}{
 				"url": req.Repository.URL,
 				"revision": map[string]interface{}{
@@ -163,21 +168,8 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 		}
 	}
 
-	// Build the ApplyResource request body
-	body := gen.ApplyResourceJSONRequestBody{
-		"apiVersion": ResourceAPIVersion,
-		"kind":       ResourceKindComponent,
-		"metadata": map[string]interface{}{
-			"name":      componentName,
-			"namespace": namespaceName,
-		},
-		"spec": map[string]interface{}{
-			"workflow": workflowSection,
-		},
-	}
-
-	// Apply the updated component
-	applyResp, err := c.ocClient.ApplyResourceWithResponse(ctx, body)
+	// Apply the updated component CR
+	applyResp, err := c.ocClient.ApplyResourceWithResponse(ctx, componentCR)
 	if err != nil {
 		return fmt.Errorf("failed to update component build parameters: %w", err)
 	}
@@ -191,12 +183,16 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 	return nil
 }
 
-// buildUpdatedWorkflowParameters builds workflow parameters based on the update request
-func buildUpdatedWorkflowParameters(component *gen.ComponentResponse, req UpdateComponentBuildParametersRequest) (map[string]any, error) {
-	// Start with existing workflow parameters if available
-	existingParams := make(map[string]any)
-	if component.ComponentWorkflow != nil && component.ComponentWorkflow.Parameters != nil {
-		existingParams = *component.ComponentWorkflow.Parameters
+// buildUpdatedWorkflowParametersFromCR builds workflow parameters from the full CR
+func buildUpdatedWorkflowParametersFromCR(componentCR map[string]interface{}, existingParams map[string]any, req UpdateComponentBuildParametersRequest) (map[string]any, error) {
+	// Extract component name from metadata
+	metadata, ok := componentCR["metadata"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid metadata in component CR")
+	}
+	componentName, ok := metadata["name"].(string)
+	if !ok {
+		return nil, fmt.Errorf("component name not found in metadata")
 	}
 
 	// Update buildpack configs if RuntimeConfigs provided
@@ -219,7 +215,7 @@ func buildUpdatedWorkflowParameters(component *gen.ComponentResponse, req Update
 
 	// Update endpoints if InputInterface provided
 	if req.InputInterface != nil {
-		endpoints, err := buildEndpointsFromInputInterface(component.Name, req.InputInterface)
+		endpoints, err := buildEndpointsFromInputInterface(componentName, req.InputInterface)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build endpoints: %w", err)
 		}
@@ -236,13 +232,13 @@ func buildEndpointsFromInputInterface(componentName string, inputInterface *Inpu
 			"name": fmt.Sprintf("%s-endpoint", componentName),
 			"type": inputInterface.Type,
 			"port": inputInterface.Port,
+			// schemaFilePath is only applicable for custom-api type, so we add it conditionally below
 		},
 	}
 
 	if inputInterface.SchemaPath != "" {
 		endpoints[0]["schemaFilePath"] = inputInterface.SchemaPath
 	}
-
 	return endpoints, nil
 }
 
