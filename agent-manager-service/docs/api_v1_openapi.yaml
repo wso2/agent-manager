@@ -1933,6 +1933,70 @@ components:
           type: string
           description: Sub-type of the agent
 
+    BuildpackConfig:
+      type: object
+      required:
+        - language
+      properties:
+        language:
+          type: string
+          description: Programming language for the buildpack
+        languageVersion:
+          type: string
+          description: Version of the language runtime (optional, not needed for languages like Ballerina)
+        runCommand:
+          type: string
+          description: Command to run the application (optional, not needed for languages like Ballerina)
+
+    DockerConfig:
+      type: object
+      required:
+        - dockerfilePath
+        - contextPath
+      properties:
+        dockerfilePath:
+          type: string
+          description: Path to the Dockerfile relative to the repository root
+        contextPath:
+          type: string
+          description: Docker build context path
+
+    BuildpackBuild:
+      type: object
+      required:
+        - type
+        - buildpack
+      properties:
+        type:
+          type: string
+          enum: [buildpack]
+          description: Build method for the component
+        buildpack:
+          $ref: "#/components/schemas/BuildpackConfig"
+
+    DockerBuild:
+      type: object
+      required:
+        - type
+        - docker
+      properties:
+        type:
+          type: string
+          enum: [docker]
+          description: Build method for the component
+        docker:
+          $ref: "#/components/schemas/DockerConfig"
+
+    Build:
+      oneOf:
+        - $ref: "#/components/schemas/BuildpackBuild"
+        - $ref: "#/components/schemas/DockerBuild"
+      discriminator:
+        propertyName: type
+        mapping:
+          buildpack: "#/components/schemas/BuildpackBuild"
+          docker: "#/components/schemas/DockerBuild"
+
     CreateAgentRequest:
       type: object
       required:
@@ -1954,29 +2018,10 @@ components:
           description: Description of the agent
         agentType:
           $ref: "#/components/schemas/AgentType"
-        runtimeConfigs:
-          $ref: "#/components/schemas/RuntimeConfiguration"
-        inputInterface:
-          $ref: "#/components/schemas/InputInterface"
-
-    UpdateAgentRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          description: Unique name of the agent
-        displayName:
-          type: string
-          description: Display name of the agent
-        provisioning:
-          $ref: "#/components/schemas/Provisioning"
-        description:
-          type: string
-          description: Description of the agent
-        agentType:
-          $ref: "#/components/schemas/AgentType"
-        runtimeConfigs:
-          $ref: "#/components/schemas/RuntimeConfiguration"
+        build:
+          $ref: "#/components/schemas/Build"
+        configurations:
+          $ref: "#/components/schemas/Configurations"
         inputInterface:
           $ref: "#/components/schemas/InputInterface"
 
@@ -1998,15 +2043,15 @@ components:
       required:
         - provisioning
         - agentType
-        - runtimeConfigs
+        - build
         - inputInterface
       properties:
         provisioning:
           $ref: "#/components/schemas/Provisioning"
         agentType:
           $ref: "#/components/schemas/AgentType"
-        runtimeConfigs:
-          $ref: "#/components/schemas/RuntimeConfigurationWithoutEnv"
+        build:
+          $ref: "#/components/schemas/Build"
         inputInterface:
           $ref: "#/components/schemas/InputInterface"
 
@@ -2113,10 +2158,12 @@ components:
           $ref: "#/components/schemas/Provisioning"
         agentType:
           $ref: "#/components/schemas/AgentType"
-        runtimeConfigs:
-          $ref: "#/components/schemas/RuntimeConfiguration"
+        configurations:
+          $ref: "#/components/schemas/Configurations"
         inputInterface:
           $ref: "#/components/schemas/InputInterface"
+        build:
+          $ref: "#/components/schemas/Build"
       required:
         - uuid
         - name
@@ -2380,7 +2427,7 @@ components:
             $ref: "#/components/schemas/EnvironmentVariable"
       required:
         - imageId
-    RuntimeConfiguration:
+    Configurations:
       type: object
       properties:
         env:
@@ -2388,25 +2435,6 @@ components:
           description: Environment variables
           items:
             $ref: "#/components/schemas/EnvironmentVariable"
-        runCommand:
-          type: string
-        languageVersion:
-          type: string
-        language:
-          type: string
-      required:
-        - language
-    RuntimeConfigurationWithoutEnv:
-      type: object
-      properties:
-        runCommand:
-          type: string
-        languageVersion:
-          type: string
-        language:
-          type: string
-      required:
-        - language
     EnvironmentVariable:
       type: object
       required:

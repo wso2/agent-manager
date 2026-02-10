@@ -214,7 +214,8 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		ProjectName:    projName,
 		Provisioning:   payload.Provisioning,
 		AgentType:      payload.AgentType,
-		RuntimeConfigs: payload.RuntimeConfigs,
+		Configurations: payload.Configurations,
+		Build: payload.Build,
 		CreatedAt:      time.Now(),
 	}
 

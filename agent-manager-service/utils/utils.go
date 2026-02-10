@@ -1,3 +1,21 @@
+//
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+//
+
 // Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
@@ -29,12 +47,12 @@ import (
 )
 
 type agentPayload struct {
-	name         string
-	displayName  string
-	provisioning spec.Provisioning
-	agentType    spec.AgentType
-
-	runtimeConfigs *spec.RuntimeConfiguration
+	name           string
+	displayName    string
+	provisioning   spec.Provisioning
+	agentType      spec.AgentType
+	build          *spec.Build
+	configuration  *spec.Configurations
 	inputInterface *spec.InputInterface
 }
 
@@ -47,30 +65,23 @@ func ValidateAgentBasicInfoUpdatePayload(payload spec.UpdateAgentBasicInfoReques
 
 func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildParametersRequest) error {
 	// Validate agent provisioning
-	if err := validateAgentProvisioning(payload.Provisioning); err != nil {
-		return fmt.Errorf("invalid agent provisioning: %w", err)
+	if payload.Provisioning.Type != string(InternalAgent) {
+		return fmt.Errorf("provisioning type must be either internal")
 	}
-	// Validate agent type and subtype
-	if err := validateAgentType(payload.AgentType); err != nil {
-		return fmt.Errorf("invalid agent type or subtype: %w", err)
+	if payload.AgentType.Type != string(AgentTypeAPI) {
+		return fmt.Errorf("unsupported agent type: %s", payload.AgentType.Type)
+	}	
+	if err := validateInternalAgentPayload(
+		agentPayload{
+			provisioning: payload.Provisioning,
+			agentType:    payload.AgentType,
+			build: &payload.Build,
+			inputInterface: &payload.InputInterface,
+		},
+	); err != nil {
+		return err
 	}
-	// Additional validations for internal agents
-	if payload.Provisioning.Type == string(InternalAgent) {
-		if err := validateInternalAgentPayload(
-			agentPayload{
-				provisioning: payload.Provisioning,
-				agentType:    payload.AgentType,
-				runtimeConfigs: &spec.RuntimeConfiguration{
-					RunCommand:      payload.RuntimeConfigs.RunCommand,
-					LanguageVersion: payload.RuntimeConfigs.LanguageVersion,
-					Language:        payload.RuntimeConfigs.Language,
-				},
-				inputInterface: &payload.InputInterface,
-			},
-		); err != nil {
-			return err
-		}
-	}
+	
 	return nil
 }
 
@@ -150,7 +161,8 @@ func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
 		displayName:    payload.DisplayName,
 		provisioning:   payload.Provisioning,
 		agentType:      payload.AgentType,
-		runtimeConfigs: payload.RuntimeConfigs,
+		build:          payload.Build,
+		configuration:  payload.Configurations,
 		inputInterface: payload.InputInterface,
 	})
 }
@@ -181,6 +193,42 @@ func validateAgentPayload(payload agentPayload) error {
 	return nil
 }
 
+// validateBuildConfiguration validates the build configuration (buildpack or docker)
+func validateBuildConfiguration(build *spec.Build) error {
+	if build == nil {
+		return fmt.Errorf("build is required for internal agents")
+	}
+
+	// Validate based on build type
+	if build.BuildpackBuild != nil {
+		// Validate buildpack language configuration
+		buildpackConfig := build.BuildpackBuild.Buildpack
+		if err := validateLanguage(buildpackConfig.Language, buildpackConfig.LanguageVersion); err != nil {
+			return fmt.Errorf("invalid language: %w", err)
+		}
+
+		// runCommand is required for all languages except Ballerina
+		if buildpackConfig.Language != string(LanguageBallerina) {
+			if buildpackConfig.RunCommand == nil || *buildpackConfig.RunCommand == "" {
+				return fmt.Errorf("runCommand is required for %s buildpack", buildpackConfig.Language)
+			}
+		}
+	} else if build.DockerBuild != nil {
+		// Validate docker configuration
+		dockerConfig := build.DockerBuild.Docker
+		if dockerConfig.DockerfilePath == "" {
+			return fmt.Errorf("dockerfilePath cannot be empty")
+		}
+		if dockerConfig.ContextPath == "" {
+			return fmt.Errorf("contextPath cannot be empty")
+		}
+	} else {
+		return fmt.Errorf("build must specify either buildpack or docker configuration")
+	}
+
+	return nil
+}
+
 // validateInternalAgentPayload performs validations specific to internal agents.
 func validateInternalAgentPayload(payload agentPayload) error {
 	// Validate Agent Type
@@ -194,18 +242,16 @@ func validateInternalAgentPayload(payload agentPayload) error {
 		}
 	}
 
-	// Validate runtime configurations
-	if payload.runtimeConfigs == nil {
-		return fmt.Errorf("runtimeConfigs is required for internal agents")
-	}
-
-	if err := validateLanguage(payload.runtimeConfigs.Language, payload.runtimeConfigs.LanguageVersion); err != nil {
-		return fmt.Errorf("invalid language: %w", err)
+	// Validate build configuration
+	if err := validateBuildConfiguration(payload.build); err != nil {
+		return fmt.Errorf("invalid build configuration: %w", err)
 	}
 
 	// Validate environment variables if present
-	if err := validateEnvironmentVariables(payload.runtimeConfigs.Env); err != nil {
-		return fmt.Errorf("invalid environment variables: %w", err)
+	if payload.configuration != nil && len(payload.configuration.Env) > 0 {
+		if err := validateEnvironmentVariables(payload.configuration.Env); err != nil {
+			return fmt.Errorf("invalid environment variables: %w", err)
+		}
 	}
 
 	return nil

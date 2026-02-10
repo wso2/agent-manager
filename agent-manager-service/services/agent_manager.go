@@ -72,6 +72,128 @@ func NewAgentManagerService(
 	}
 }
 
+// Build type constants
+const (
+	BuildTypeBuildpack = "buildpack"
+	BuildTypeDocker    = "docker"
+)
+
+// -----------------------------------------------------------------------------
+// Mapping Helper Functions
+// -----------------------------------------------------------------------------
+
+// mapBuildConfig converts spec.Build to client.BuildConfig
+func mapBuildConfig(specBuild *spec.Build) *client.BuildConfig {
+	if specBuild == nil {
+		return nil
+	}
+
+	if specBuild.BuildpackBuild != nil {
+		return &client.BuildConfig{
+			Type: BuildTypeBuildpack,
+			Buildpack: &client.BuildpackConfig{
+				Language:        specBuild.BuildpackBuild.Buildpack.Language,
+				LanguageVersion: utils.StrPointerAsStr(specBuild.BuildpackBuild.Buildpack.LanguageVersion, ""),
+				RunCommand:      utils.StrPointerAsStr(specBuild.BuildpackBuild.Buildpack.RunCommand, ""),
+			},
+		}
+	}
+
+	if specBuild.DockerBuild != nil {
+		return &client.BuildConfig{
+			Type: BuildTypeDocker,
+			Docker: &client.DockerConfig{
+				DockerfilePath: specBuild.DockerBuild.Docker.DockerfilePath,
+				ContextPath:    specBuild.DockerBuild.Docker.ContextPath,
+			},
+		}
+	}
+
+	return nil
+}
+
+// mapConfigurations converts spec.Configurations to client.Configurations
+func mapConfigurations(specConfigs *spec.Configurations) *client.Configurations {
+	if specConfigs == nil || len(specConfigs.Env) == 0 {
+		return nil
+	}
+
+	configs := &client.Configurations{
+		Env: make([]client.EnvVar, len(specConfigs.Env)),
+	}
+	for i, env := range specConfigs.Env {
+		configs.Env[i] = client.EnvVar{Key: env.Key, Value: env.Value}
+	}
+	return configs
+}
+
+// mapRepository converts spec.RepositoryConfig to client.RepositoryConfig
+func mapRepository(specRepo *spec.RepositoryConfig) *client.RepositoryConfig {
+	if specRepo == nil {
+		return nil
+	}
+	return &client.RepositoryConfig{
+		URL:     specRepo.Url,
+		Branch:  specRepo.Branch,
+		AppPath: specRepo.AppPath,
+	}
+}
+
+// mapInputInterface converts spec.InputInterface to client.InputInterfaceConfig
+func mapInputInterface(specInterface *spec.InputInterface) *client.InputInterfaceConfig {
+	if specInterface == nil {
+		return nil
+	}
+
+	config := &client.InputInterfaceConfig{
+		Type: specInterface.Type,
+	}
+
+	if specInterface.Port != nil {
+		config.Port = *specInterface.Port
+	}
+	if specInterface.BasePath != nil {
+		config.BasePath = *specInterface.BasePath
+	}
+	if specInterface.Schema != nil {
+		config.SchemaPath = specInterface.Schema.Path
+	}
+
+	return config
+}
+
+// attachTraits attaches necessary traits to the agent based on its type and build configuration
+func (s *agentManagerService) attachTraits(ctx context.Context, orgName, projectName, agentName string, agentType spec.AgentType, build *spec.Build) error {
+	// Only attach traits for API agents
+	if agentType.Type != string(utils.AgentTypeAPI) {
+		return nil
+	}
+
+	// Only attach OTEL instrumentation for buildpack builds
+	if build.BuildpackBuild == nil {
+		return nil
+	}
+
+	// Only attach for Python language
+	language := build.BuildpackBuild.Buildpack.Language
+	if language != string(utils.LanguagePython) {
+		return nil
+	}
+
+	// Attach OTEL instrumentation trait
+	if err := s.ocClient.AttachTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation); err != nil {
+		s.logger.Error("Failed to attach OTEL instrumentation trait", "agentName", agentName, "error", err)
+		// Rollback - delete the created agent
+		if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, agentName); errDeletion != nil {
+			s.logger.Error("Failed to rollback agent creation after OTEL instrumentation trait attachment failure", "agentName", agentName, "error", errDeletion)
+		}
+		return fmt.Errorf("error attaching OTEL instrumentation trait: %w", err)
+	}
+
+	s.logger.Debug("Attached OTEL instrumentation trait", "agentName", agentName)
+	return nil
+}
+
 func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, projectName string, agentName string) (*models.AgentResponse, error) {
 	s.logger.Info("Getting agent", "agentName", agentName, "orgName", orgName, "projectName", projectName)
 	// Validate organization exists
@@ -140,21 +262,16 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		return err
 	}
 
-	// For internal agents, attach OTEL instrumentation trait for Python API agents
+	// For internal agents, attach traits and trigger initial build
 	if req.Provisioning.Type == string(utils.InternalAgent) {
 		s.logger.Debug("Patched component with params successfully", "agentName", req.Name)
-		if req.AgentType.Type == string(utils.AgentTypeAPI) && req.RuntimeConfigs.Language == string(utils.LanguagePython) {
-			if err := s.ocClient.AttachTrait(ctx, orgName, projectName, req.Name, client.TraitOTELInstrumentation); err != nil {
-				s.logger.Error("Failed to attach OTEL instrumentation trait", "agentName", req.Name, "error", err)
-				// Rollback - delete the created agent
-				errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name)
-				if errDeletion != nil {
-					s.logger.Error("Failed to rollback agent creation after OTEL instrumentation trait attachment failure", "agentName", req.Name, "error", errDeletion)
-				}
-				return fmt.Errorf("error attaching OTEL instrumentation trait: %w", err)
-			}
-			s.logger.Debug("Attached OTEL instrumentation trait", "agentName", req.Name)
+
+		// Attach necessary traits based on agent type and build configuration
+		if err := s.attachTraits(ctx, orgName, projectName, req.Name, req.AgentType, req.Build); err != nil {
+			return err
 		}
+
+		// Trigger initial build
 		if err := s.triggerInitialBuild(ctx, orgName, projectName, req); err != nil {
 			s.logger.Error("Failed to trigger initial build for agent", "agentName", req.Name, "error", err)
 			return err
@@ -201,44 +318,16 @@ func toCreateAgentRequest(req *spec.CreateAgentRequest) client.CreateComponentRe
 		AgentType: client.AgentTypeConfig{
 			Type: req.AgentType.Type,
 		},
+		Repository:     mapRepository(req.Provisioning.Repository),
+		Build:          mapBuildConfig(req.Build),
+		Configurations: mapConfigurations(req.Configurations),
+		InputInterface: mapInputInterface(req.InputInterface),
 	}
+
 	if req.Provisioning.Type == string(utils.InternalAgent) {
 		result.AgentType.SubType = utils.StrPointerAsStr(req.AgentType.SubType, "")
 	}
-	if req.Provisioning.Repository != nil {
-		result.Repository = &client.RepositoryConfig{
-			URL:     req.Provisioning.Repository.Url,
-			Branch:  req.Provisioning.Repository.Branch,
-			AppPath: req.Provisioning.Repository.AppPath,
-		}
-	}
-	if req.RuntimeConfigs != nil {
-		result.RuntimeConfigs = &client.RuntimeConfigs{
-			Language:        req.RuntimeConfigs.Language,
-			LanguageVersion: utils.StrPointerAsStr(req.RuntimeConfigs.LanguageVersion, ""),
-			RunCommand:      utils.StrPointerAsStr(req.RuntimeConfigs.RunCommand, ""),
-		}
-		if len(req.RuntimeConfigs.Env) > 0 {
-			result.RuntimeConfigs.Env = make([]client.EnvVar, len(req.RuntimeConfigs.Env))
-			for i, env := range req.RuntimeConfigs.Env {
-				result.RuntimeConfigs.Env[i] = client.EnvVar{Key: env.Key, Value: env.Value}
-			}
-		}
-	}
-	if req.InputInterface != nil {
-		result.InputInterface = &client.InputInterfaceConfig{
-			Type: req.InputInterface.Type,
-		}
-		if req.InputInterface.Port != nil {
-			result.InputInterface.Port = *req.InputInterface.Port
-		}
-		if req.InputInterface.Schema != nil {
-			result.InputInterface.SchemaPath = req.InputInterface.Schema.Path
-		}
-		if req.InputInterface.BasePath != nil {
-			result.InputInterface.BasePath = *req.InputInterface.BasePath
-		}
-	}
+
 	return result
 }
 
@@ -533,44 +622,11 @@ func convertClientResourceConfigToSpec(clientConfig *client.ResourceConfig) *spe
 
 // buildUpdateBuildParametersRequest converts spec request to client request
 func buildUpdateBuildParametersRequest(req *spec.UpdateAgentBuildParametersRequest) client.UpdateComponentBuildParametersRequest {
-	updateReq := client.UpdateComponentBuildParametersRequest{}
-
-	// Map Repository
-	if req.Provisioning.Repository != nil {
-		updateReq.Repository = &client.RepositoryConfig{
-			URL:     req.Provisioning.Repository.Url,
-			Branch:  req.Provisioning.Repository.Branch,
-			AppPath: req.Provisioning.Repository.AppPath,
-		}
+	return client.UpdateComponentBuildParametersRequest{
+		Repository:     mapRepository(req.Provisioning.Repository),
+		Build:          mapBuildConfig(&req.Build),
+		InputInterface: mapInputInterface(&req.InputInterface),
 	}
-
-	// Map RuntimeConfigs
-	updateReq.RuntimeConfigs = &client.RuntimeConfigs{
-		Language:        req.RuntimeConfigs.Language,
-		LanguageVersion: utils.StrPointerAsStr(req.RuntimeConfigs.LanguageVersion, ""),
-		RunCommand:      utils.StrPointerAsStr(req.RuntimeConfigs.RunCommand, ""),
-	}
-
-	// Map InputInterface
-	port := int32(0)
-	if req.InputInterface.Port != nil {
-		port = *req.InputInterface.Port
-	}
-
-	updateReq.InputInterface = &client.InputInterfaceConfig{
-		Type: req.InputInterface.Type,
-		Port: port,
-	}
-
-	if req.InputInterface.BasePath != nil {
-		updateReq.InputInterface.BasePath = *req.InputInterface.BasePath
-	}
-
-	if req.InputInterface.Schema != nil && req.InputInterface.Schema.Path != "" {
-		updateReq.InputInterface.SchemaPath = req.InputInterface.Schema.Path
-	}
-
-	return updateReq
 }
 
 func (s *agentManagerService) GenerateName(ctx context.Context, orgName string, payload spec.ResourceNameRequest) (string, error) {

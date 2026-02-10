@@ -97,14 +97,15 @@ func createComponentCRForInternalAgents(orgName, projectName string, req CreateC
 	labels := map[string]string{
 		string(LabelKeyProvisioningType):     string(req.ProvisioningType),
 		string(LabelKeyAgentSubType):         req.AgentType.SubType,
-		string(LabelKeyAgentLanguage):        req.RuntimeConfigs.Language,
-		string(LabelKeyAgentLanguageVersion): req.RuntimeConfigs.LanguageVersion,
 	}
 	componentType, err := getOpenChoreoComponentType(string(req.ProvisioningType), req.AgentType.Type)
 	if err != nil {
 		return nil, err
 	}
-	componentWorkflow := getWorkflowName(req.RuntimeConfigs.Language)
+	componentWorkflow, err := getWorkflowName(req.Build)
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine workflow name: %w", err)
+	}
 	containerPort, basePath := getInputInterfaceConfig(req)
 
 	// Create parameters as RawExtension
@@ -183,45 +184,76 @@ func getOpenChoreoComponentType(provisioningType string, agentType string) (Comp
 // Workflow parameter builders
 // -----------------------------------------------------------------------------
 
-func getWorkflowName(language string) string {
-	for _, bp := range utils.Buildpacks {
-		if bp.Language == language {
-			if bp.Provider == string(utils.BuildPackProviderGoogle) {
-				return WorkflowNameGoogleCloudBuildpacks
-			}
-			if bp.Provider == string(utils.BuildPackProviderAMPBallerina) {
-				return WorkflowNameBallerinaBuilpack
+func getWorkflowName(build *BuildConfig) (string, error) {
+	if build == nil {
+		return "", fmt.Errorf("build configuration is required")
+	}
+
+	// Check build type first
+	if build.Type == BuildTypeDocker && build.Docker != nil {
+		return WorkflowNameDocker, nil
+	}
+
+	// For buildpack, determine workflow based on language
+	if build.Type == BuildTypeBuildpack && build.Buildpack != nil {
+		language := build.Buildpack.Language
+		for _, bp := range utils.Buildpacks {
+			if bp.Language == language {
+				if bp.Provider == string(utils.BuildPackProviderGoogle) {
+					return WorkflowNameGoogleCloudBuildpacks, nil
+				}
+				if bp.Provider == string(utils.BuildPackProviderAMPBallerina) {
+					return WorkflowNameBallerinaBuilpack, nil
+				}
 			}
 		}
+		return "", fmt.Errorf("unsupported buildpack language: %s", language)
 	}
-	return ""
+
+	return "", fmt.Errorf("invalid build configuration: unsupported build type '%s'", build.Type)
 }
 
 func buildWorkflowParameters(req CreateComponentRequest) (map[string]any, error) {
-	var buildpackConfigs map[string]any
-	if isGoogleBuildpack(req.RuntimeConfigs.Language) {
-		buildpackConfigs = map[string]any{
-			"language":           req.RuntimeConfigs.Language,
-			"languageVersion":    req.RuntimeConfigs.LanguageVersion,
-			"googleEntryPoint":   req.RuntimeConfigs.RunCommand,
-			"languageVersionKey": getLanguageVersionEnvVariable(req.RuntimeConfigs.Language),
-		}
-	} else {
-		buildpackConfigs = map[string]any{
-			"language": req.RuntimeConfigs.Language,
+	params := map[string]any{
+		"environmentVariables": buildEnvironmentVariables(req),
+	}
+
+	// Add build-specific configs
+	if req.Build != nil {
+		if req.Build.Buildpack != nil {
+			// Add buildpack configs
+			var buildpackConfigs map[string]any
+			if isGoogleBuildpack(req.Build.Buildpack.Language) {
+				buildpackConfigs = map[string]any{
+					"language":           req.Build.Buildpack.Language,
+					"languageVersion":    req.Build.Buildpack.LanguageVersion,
+					"googleEntryPoint":   req.Build.Buildpack.RunCommand,
+					"languageVersionKey": getLanguageVersionEnvVariable(req.Build.Buildpack.Language),
+				}
+			} else {
+				buildpackConfigs = map[string]any{
+					"language": req.Build.Buildpack.Language,
+				}
+			}
+			params["buildpackConfigs"] = buildpackConfigs
+		} else if req.Build.Docker != nil {
+			// Add docker configs
+			dockerConfigs := map[string]any{
+				"dockerfilePath": req.Build.Docker.DockerfilePath,
+				"contextPath":    req.Build.Docker.ContextPath,
+			}
+			params["dockerConfigs"] = dockerConfigs
 		}
 	}
 
+	// Add endpoints
 	endpoints, err := buildEndpoints(req)
 	if err != nil {
 		return nil, err
 	}
+	params["endpoints"] = endpoints
 
-	return map[string]any{
-		"buildpackConfigs":     buildpackConfigs,
-		"endpoints":            endpoints,
-		"environmentVariables": buildEnvironmentVariables(req),
-	}, nil
+	return params, nil
 }
 
 func isGoogleBuildpack(language string) bool {
@@ -274,8 +306,8 @@ func buildEndpoints(req CreateComponentRequest) ([]map[string]any, error) {
 
 func buildEnvironmentVariables(req CreateComponentRequest) []map[string]any {
 	envVars := make([]map[string]any, 0)
-	if req.RuntimeConfigs != nil {
-		for _, env := range req.RuntimeConfigs.Env {
+	if req.Configurations != nil {
+		for _, env := range req.Configurations.Env {
 			envVars = append(envVars, map[string]any{
 				"name":  env.Key,
 				"value": env.Value,

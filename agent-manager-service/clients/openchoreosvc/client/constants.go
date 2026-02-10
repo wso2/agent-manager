@@ -47,12 +47,22 @@ const (
 )
 
 // -----------------------------------------------------------------------------
+// Build types
+// -----------------------------------------------------------------------------
+
+const (
+	BuildTypeDocker    = "docker"
+	BuildTypeBuildpack = "buildpack"
+)
+
+// -----------------------------------------------------------------------------
 // Workflow names
 // -----------------------------------------------------------------------------
 
 const (
 	WorkflowNameGoogleCloudBuildpacks = "amp-google-cloud-buildpacks"
 	WorkflowNameBallerinaBuilpack     = "amp-ballerina-buildpack"
+	WorkflowNameDocker                = "amp-docker-ci"
 )
 
 // -----------------------------------------------------------------------------

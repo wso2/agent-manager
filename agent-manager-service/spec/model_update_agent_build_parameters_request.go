@@ -19,21 +19,21 @@ var _ MappedNullable = &UpdateAgentBuildParametersRequest{}
 
 // UpdateAgentBuildParametersRequest struct for UpdateAgentBuildParametersRequest
 type UpdateAgentBuildParametersRequest struct {
-	Provisioning   Provisioning                   `json:"provisioning"`
-	AgentType      AgentType                      `json:"agentType"`
-	RuntimeConfigs RuntimeConfigurationWithoutEnv `json:"runtimeConfigs"`
-	InputInterface InputInterface                 `json:"inputInterface"`
+	Provisioning   Provisioning   `json:"provisioning"`
+	AgentType      AgentType      `json:"agentType"`
+	Build          Build          `json:"build"`
+	InputInterface InputInterface `json:"inputInterface"`
 }
 
 // NewUpdateAgentBuildParametersRequest instantiates a new UpdateAgentBuildParametersRequest object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewUpdateAgentBuildParametersRequest(provisioning Provisioning, agentType AgentType, runtimeConfigs RuntimeConfigurationWithoutEnv, inputInterface InputInterface) *UpdateAgentBuildParametersRequest {
+func NewUpdateAgentBuildParametersRequest(provisioning Provisioning, agentType AgentType, build Build, inputInterface InputInterface) *UpdateAgentBuildParametersRequest {
 	this := UpdateAgentBuildParametersRequest{}
 	this.Provisioning = provisioning
 	this.AgentType = agentType
-	this.RuntimeConfigs = runtimeConfigs
+	this.Build = build
 	this.InputInterface = inputInterface
 	return &this
 }
@@ -94,28 +94,28 @@ func (o *UpdateAgentBuildParametersRequest) SetAgentType(v AgentType) {
 	o.AgentType = v
 }
 
-// GetRuntimeConfigs returns the RuntimeConfigs field value
-func (o *UpdateAgentBuildParametersRequest) GetRuntimeConfigs() RuntimeConfigurationWithoutEnv {
+// GetBuild returns the Build field value
+func (o *UpdateAgentBuildParametersRequest) GetBuild() Build {
 	if o == nil {
-		var ret RuntimeConfigurationWithoutEnv
+		var ret Build
 		return ret
 	}
 
-	return o.RuntimeConfigs
+	return o.Build
 }
 
-// GetRuntimeConfigsOk returns a tuple with the RuntimeConfigs field value
+// GetBuildOk returns a tuple with the Build field value
 // and a boolean to check if the value has been set.
-func (o *UpdateAgentBuildParametersRequest) GetRuntimeConfigsOk() (*RuntimeConfigurationWithoutEnv, bool) {
+func (o *UpdateAgentBuildParametersRequest) GetBuildOk() (*Build, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.RuntimeConfigs, true
+	return &o.Build, true
 }
 
-// SetRuntimeConfigs sets field value
-func (o *UpdateAgentBuildParametersRequest) SetRuntimeConfigs(v RuntimeConfigurationWithoutEnv) {
-	o.RuntimeConfigs = v
+// SetBuild sets field value
+func (o *UpdateAgentBuildParametersRequest) SetBuild(v Build) {
+	o.Build = v
 }
 
 // GetInputInterface returns the InputInterface field value
@@ -154,7 +154,7 @@ func (o UpdateAgentBuildParametersRequest) ToMap() (map[string]interface{}, erro
 	toSerialize := map[string]interface{}{}
 	toSerialize["provisioning"] = o.Provisioning
 	toSerialize["agentType"] = o.AgentType
-	toSerialize["runtimeConfigs"] = o.RuntimeConfigs
+	toSerialize["build"] = o.Build
 	toSerialize["inputInterface"] = o.InputInterface
 	return toSerialize, nil
 }
