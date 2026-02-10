@@ -74,10 +74,13 @@ func TestCreateAgent(t *testing.T) {
 				"type":    "agent-api",
 				"subType": "chat-api",
 			},
-			"runtimeConfigs": map[string]interface{}{
-				"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-				"language":        "python",
-				"languageVersion": "3.11",
+			"build": map[string]interface{}{
+				"type": "buildpack",
+				"buildpack": map[string]interface{}{
+					"language":        "python",
+					"languageVersion": "3.11",
+					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+				},
 			},
 			"inputInterface": map[string]interface{}{
 				"type": "HTTP",
@@ -145,9 +148,12 @@ func TestCreateAgent(t *testing.T) {
 					"appPath": "/ballerina-agent",
 				},
 			},
-			"runtimeConfigs": map[string]interface{}{
-				"language": "ballerina",
-				// No languageVersion or runCommand for Ballerina
+			"build": map[string]interface{}{
+				"type": "buildpack",
+				"buildpack": map[string]interface{}{
+					"language": "ballerina",
+					// No languageVersion or runCommand for Ballerina
+				},
 			},
 			"agentType": map[string]interface{}{
 				"type":    "agent-api",
@@ -194,7 +200,87 @@ func TestCreateAgent(t *testing.T) {
 		require.Equal(t, testProjName, createComponentCall.ProjectName)
 		require.Equal(t, testAgentNameBallerina, createComponentCall.Req.Name)
 		require.Equal(t, "Test Ballerina Agent Description", createComponentCall.Req.Description)
-		require.Equal(t, "ballerina", createComponentCall.Req.RuntimeConfigs.Language)
+		require.Equal(t, "ballerina", createComponentCall.Req.Build.Buildpack.Language)
+	})
+
+	t.Run("Creating an agent with docker build should return 202", func(t *testing.T) {
+		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+		testClients := wiring.TestClients{
+			OpenChoreoClient: openChoreoClient,
+		}
+
+		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+		// Create the request body for Docker-based agent
+		testAgentNameDocker := fmt.Sprintf("nonexistent-agent-%s", uuid.New().String()[:5])
+		reqBody := new(bytes.Buffer)
+		err := json.NewEncoder(reqBody).Encode(map[string]interface{}{
+			"name":        testAgentNameDocker,
+			"displayName": "Test Docker Agent",
+			"description": "Test Docker Agent Description",
+			"provisioning": map[string]interface{}{
+				"type": "internal",
+				"repository": map[string]interface{}{
+					"url":     "https://github.com/test/test-docker-repo",
+					"branch":  "main",
+					"appPath": "/docker-agent",
+				},
+			},
+			"build": map[string]interface{}{
+				"type": "docker",
+				"docker": map[string]interface{}{
+					"dockerfilePath": "/Dockerfile",
+					"contextPath":    "/",
+				},
+			},
+			"agentType": map[string]interface{}{
+				"type":    "agent-api",
+				"subType": "chat-api",
+			},
+			"inputInterface": map[string]interface{}{
+				"type": "HTTP",
+			},
+		})
+		require.NoError(t, err)
+
+		// Send the request
+		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName)
+		req := httptest.NewRequest(http.MethodPost, url, reqBody)
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := httptest.NewRecorder()
+		app.ServeHTTP(rr, req)
+
+		// Assert response
+		require.Equal(t, http.StatusAccepted, rr.Code)
+
+		// Read and validate response body
+		b, err := io.ReadAll(rr.Body)
+		require.NoError(t, err)
+		t.Logf("response body: %s", string(b))
+
+		var payload spec.AgentResponse
+		require.NoError(t, json.Unmarshal(b, &payload))
+
+		// Validate response fields
+		require.Equal(t, testAgentNameDocker, payload.Name)
+		require.Equal(t, "Test Docker Agent Description", payload.Description)
+		require.Equal(t, testProjName, payload.ProjectName)
+		require.NotZero(t, payload.CreatedAt)
+
+		// Validate service calls
+		require.Len(t, openChoreoClient.CreateComponentCalls(), 1)
+		require.Len(t, openChoreoClient.TriggerBuildCalls(), 1)
+
+		// Validate call parameters
+		createComponentCall := openChoreoClient.CreateComponentCalls()[0]
+		require.Equal(t, testOrgName, createComponentCall.NamespaceName)
+		require.Equal(t, testProjName, createComponentCall.ProjectName)
+		require.Equal(t, testAgentNameDocker, createComponentCall.Req.Name)
+		require.Equal(t, "Test Docker Agent Description", createComponentCall.Req.Description)
+		require.Equal(t, "docker", createComponentCall.Req.Build.Type)
+		require.Equal(t, "/Dockerfile", createComponentCall.Req.Build.Docker.DockerfilePath)
+		require.Equal(t, "/", createComponentCall.Req.Build.Docker.ContextPath)
 	})
 
 	t.Run("Creating an agent with custom interface should return 202", func(t *testing.T) {
@@ -219,10 +305,15 @@ func TestCreateAgent(t *testing.T) {
 					"appPath": "/agent-sample",
 				},
 			},
-			"runtimeConfigs": map[string]interface{}{
-				"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-				"language":        "python",
-				"languageVersion": "3.11",
+			"build": map[string]interface{}{
+				"type": "buildpack",
+				"buildpack": map[string]interface{}{
+					"language":        "python",
+					"languageVersion": "3.11",
+					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+				},
+			},
+			"configurations": map[string]interface{}{
 				"env": []map[string]interface{}{
 					{
 						"key":   "DB_HOST",
@@ -281,9 +372,9 @@ func TestCreateAgent(t *testing.T) {
 		require.Equal(t, testAgentNameTwo, createComponentCall.Req.Name)
 		require.Equal(t, "Test Agent Description", createComponentCall.Req.Description)
 
-		// Validate runtime configs
-		require.Equal(t, "uvicorn app:app --host 0.0.0.0 --port 8000", createComponentCall.Req.RuntimeConfigs.RunCommand)
-		require.Equal(t, "3.11", createComponentCall.Req.RuntimeConfigs.LanguageVersion)
+		// Validate build configs
+		require.Equal(t, "uvicorn app:app --host 0.0.0.0 --port 8000", createComponentCall.Req.Build.Buildpack.RunCommand)
+		require.Equal(t, "3.11", createComponentCall.Req.Build.Buildpack.LanguageVersion)
 	})
 
 	validationTests := []struct {
@@ -309,10 +400,13 @@ func TestCreateAgent(t *testing.T) {
 						"appPath": "/agent-sample",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
 					"type":    "agent-api",
@@ -344,10 +438,13 @@ func TestCreateAgent(t *testing.T) {
 						"appPath": "/agent-sample",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
 					"type":    "agent-api",
@@ -374,10 +471,13 @@ func TestCreateAgent(t *testing.T) {
 				"provisioning": map[string]interface{}{
 					"type": "internal",
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
 					"type":    "agent-api",
@@ -409,10 +509,13 @@ func TestCreateAgent(t *testing.T) {
 						"appPath": "/sample-agent",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
 					"type":    "agent-api",
@@ -444,10 +547,13 @@ func TestCreateAgent(t *testing.T) {
 						"appPath": "/sample-agent",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
 					"type":    "agent-api",
@@ -480,10 +586,13 @@ func TestCreateAgent(t *testing.T) {
 						"appPath": "/sample-agent",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
 					"type":    "agent-api",
@@ -522,10 +631,13 @@ func TestCreateAgent(t *testing.T) {
 						"appPath": "/sample-agent",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
 					"type":    "agent-api",
@@ -562,10 +674,13 @@ func TestCreateAgent(t *testing.T) {
 						"appPath": "/sample-agent",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
 					"type":    "agent-api",
@@ -605,10 +720,13 @@ func TestCreateAgent(t *testing.T) {
 						"appPath": "/sample-agent",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "3.11",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
 					"type":    "agent-api",
@@ -640,10 +758,13 @@ func TestCreateAgent(t *testing.T) {
 						"appPath": "/agent-sample",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "rust", // Invalid language
-					"languageVersion": "1.70",
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "rust", // Invalid language
+						"languageVersion": "1.70",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
 					"type":    "agent-api",
@@ -675,10 +796,13 @@ func TestCreateAgent(t *testing.T) {
 						"appPath": "/agent-sample",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":        "python",
-					"languageVersion": "2.7", // Invalid version for python
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":        "python",
+						"languageVersion": "2.7", // Invalid version for python
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+					},
 				},
 				"agentType": map[string]interface{}{
 					"type":    "agent-api",
@@ -710,10 +834,13 @@ func TestCreateAgent(t *testing.T) {
 						"appPath": "/agent-sample",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"languageVersion": "3.11",
-					// Missing "language" field
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"languageVersion": "3.11",
+						"runCommand":      "uvicorn app:app --host 0.0.0.0 --port 8000",
+						// Missing "language" field
+					},
 				},
 				"agentType": map[string]interface{}{
 					"type":    "agent-api",
@@ -745,10 +872,13 @@ func TestCreateAgent(t *testing.T) {
 						"appPath": "/agent-sample",
 					},
 				},
-				"runtimeConfigs": map[string]interface{}{
-					"runCommand": "uvicorn app:app --host 0.0.0.0 --port 8000",
-					"language":   "python",
-					// Missing "languageVersion" field
+				"build": map[string]interface{}{
+					"type": "buildpack",
+					"buildpack": map[string]interface{}{
+						"language":   "python",
+						"runCommand": "uvicorn app:app --host 0.0.0.0 --port 8000",
+						// Missing "languageVersion" field
+					},
 				},
 				"agentType": map[string]interface{}{
 					"type":    "agent-api",
