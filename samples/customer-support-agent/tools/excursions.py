@@ -7,9 +7,9 @@ from setup.db_config import get_db_connection
 
 @tool
 def search_trip_recommendations(
-        location: Optional[str] = None,
-        name: Optional[str] = None,
-        keywords: Optional[str] = None,
+    location: Optional[str] = None,
+    name: Optional[str] = None,
+    keywords: Optional[str] = None,
 ) -> list[dict]:
     """
     Search for trip recommendations based on location, name, and keywords.
