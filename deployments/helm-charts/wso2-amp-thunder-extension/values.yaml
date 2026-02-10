@@ -10,8 +10,8 @@ thunder:
       # Read-only root filesystem. Must be false for SQLite
       readOnlyRootFilesystem: false
       enableRunAsUser: true
-      fsGroup: 802
-      runAsUser: 802
+      fsGroup: 10001
+      runAsUser: 10001
       seccompProfile:
         enabled: true
         type: RuntimeDefault
@@ -19,7 +19,7 @@ thunder:
     image:
       registry: ghcr.io/asgardeo
       repository: thunder
-      tag: "0.15.0"
+      tag: "0.21.0"
       pullPolicy: Always
     container:
       port: 8090
@@ -93,10 +93,6 @@ thunder:
         validityPeriod: 86400
       authorizationCode:
         validityPeriod: 600
-    flow:
-      defaultAuthFlowHandle: "auth_flow_config_basic"
-      maxVersionHistory: 3
-      autoInferRegistration: true
     cors:
       allowedOrigins:
         - "http://localhost:3000"
