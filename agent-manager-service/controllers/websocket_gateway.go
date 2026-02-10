@@ -114,9 +114,13 @@ func (h *websocketGatewayController) Connect(w http.ResponseWriter, r *http.Requ
 			"message": err.Error(),
 		}
 		if jsonErr, _ := json.Marshal(errorMsg); jsonErr != nil {
-			conn.WriteMessage(websocket.TextMessage, jsonErr)
+			if writeErr := conn.WriteMessage(websocket.TextMessage, jsonErr); writeErr != nil {
+				log.Error("Failed to send error message", "gatewayId", gateway.UUID, "error", writeErr)
+			}
 		}
-		conn.Close()
+		if closeErr := conn.Close(); closeErr != nil {
+			log.Error("Failed to close connection", "gatewayId", gateway.UUID, "error", closeErr)
+		}
 		return
 	}
 
@@ -242,27 +246,4 @@ func (h *websocketGatewayController) checkRateLimit(clientIP string) bool {
 	h.rateLimitMap[clientIP] = recentAttempts
 
 	return true
-}
-
-// cleanupRateLimitMap removes old entries from the rate limit map
-func (h *websocketGatewayController) cleanupRateLimitMap() {
-	h.rateLimitMu.Lock()
-	defer h.rateLimitMu.Unlock()
-
-	now := time.Now()
-	oneMinuteAgo := now.Add(-1 * time.Minute)
-
-	for ip, attempts := range h.rateLimitMap {
-		var recentAttempts []time.Time
-		for _, t := range attempts {
-			if t.After(oneMinuteAgo) {
-				recentAttempts = append(recentAttempts, t)
-			}
-		}
-		if len(recentAttempts) == 0 {
-			delete(h.rateLimitMap, ip)
-		} else {
-			h.rateLimitMap[ip] = recentAttempts
-		}
-	}
 }
