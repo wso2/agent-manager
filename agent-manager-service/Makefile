@@ -50,12 +50,10 @@ spec: ## Code gen type/client for openapi spec.
 	sh scripts/fmt.sh
 
 .PHONY: gen-oc-client
-gen-oc-client: ## Generate OpenChoreo API client from upstream OpenAPI spec.
-	@echo "Generating OpenChoreo client"
-	@curl -sL "https://raw.githubusercontent.com/openchoreo/backstage-plugins/main/packages/openchoreo-client-node/openapi/openchoreo-api.yaml" -o /tmp/openchoreo-api.yaml
-	@oapi-codegen -config clients/openchoreosvc/gen/oapi-codegen.yaml /tmp/openchoreo-api.yaml
-	@oapi-codegen -config clients/openchoreosvc/gen/oapi-codegen-client.yaml /tmp/openchoreo-api.yaml
-	@rm /tmp/openchoreo-api.yaml
+gen-oc-client: ## Generate OpenChoreo API client from local OpenAPI spec.
+	@echo "Generating OpenChoreo client from local spec"
+	@oapi-codegen -config clients/openchoreosvc/gen/oapi-codegen.yaml clients/openchoreosvc/openchoreo-api.yaml
+	@oapi-codegen -config clients/openchoreosvc/gen/oapi-codegen-client.yaml clients/openchoreosvc/openchoreo-api.yaml
 	@$(MAKE) fmt
 	@echo "OpenChoreo client generated successfully"
 

@@ -110,40 +110,43 @@ type ClientInterface interface {
 	// GetSubjectProfile request
 	GetSubjectProfile(ctx context.Context, params *GetSubjectProfileParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListRoleMappings request
-	ListRoleMappings(ctx context.Context, params *ListRoleMappingsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ListClusterRoleBindings request
+	ListClusterRoleBindings(ctx context.Context, params *ListClusterRoleBindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// AddRoleMappingWithBody request with any body
-	AddRoleMappingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// CreateClusterRoleBindingWithBody request with any body
+	CreateClusterRoleBindingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	AddRoleMapping(ctx context.Context, body AddRoleMappingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateClusterRoleBinding(ctx context.Context, body CreateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// RemoveRoleMapping request
-	RemoveRoleMapping(ctx context.Context, mappingId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// DeleteClusterRoleBinding request
+	DeleteClusterRoleBinding(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UpdateRoleMappingWithBody request with any body
-	UpdateRoleMappingWithBody(ctx context.Context, mappingId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetClusterRoleBinding request
+	GetClusterRoleBinding(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateRoleMapping(ctx context.Context, mappingId int, body UpdateRoleMappingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// UpdateClusterRoleBindingWithBody request with any body
+	UpdateClusterRoleBindingWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListRoles request
-	ListRoles(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateClusterRoleBinding(ctx context.Context, name string, body UpdateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// AddRoleWithBody request with any body
-	AddRoleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ListClusterRoles request
+	ListClusterRoles(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	AddRole(ctx context.Context, body AddRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// CreateClusterRoleWithBody request with any body
+	CreateClusterRoleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// RemoveRole request
-	RemoveRole(ctx context.Context, roleName string, params *RemoveRoleParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateClusterRole(ctx context.Context, body CreateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetRole request
-	GetRole(ctx context.Context, roleName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// DeleteClusterRole request
+	DeleteClusterRole(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UpdateRoleWithBody request with any body
-	UpdateRoleWithBody(ctx context.Context, roleName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetClusterRole request
+	GetClusterRole(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateRole(ctx context.Context, roleName string, body UpdateRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// UpdateClusterRoleWithBody request with any body
+	UpdateClusterRoleWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateClusterRole(ctx context.Context, name string, body UpdateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteResourceWithBody request with any body
 	DeleteResourceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -165,11 +168,33 @@ type ClientInterface interface {
 	// ListComponentTypes request
 	ListComponentTypes(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteComponentTypeDefinition request
+	DeleteComponentTypeDefinition(ctx context.Context, namespaceName string, ctName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetComponentTypeDefinition request
+	GetComponentTypeDefinition(ctx context.Context, namespaceName string, ctName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateComponentTypeDefinitionWithBody request with any body
+	UpdateComponentTypeDefinitionWithBody(ctx context.Context, namespaceName string, ctName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateComponentTypeDefinition(ctx context.Context, namespaceName string, ctName string, body UpdateComponentTypeDefinitionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetComponentTypeSchema request
 	GetComponentTypeSchema(ctx context.Context, namespaceName string, ctName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListComponentWorkflows request
 	ListComponentWorkflows(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteComponentWorkflowDefinition request
+	DeleteComponentWorkflowDefinition(ctx context.Context, namespaceName string, cwName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetComponentWorkflowDefinition request
+	GetComponentWorkflowDefinition(ctx context.Context, namespaceName string, cwName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateComponentWorkflowDefinitionWithBody request with any body
+	UpdateComponentWorkflowDefinitionWithBody(ctx context.Context, namespaceName string, cwName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateComponentWorkflowDefinition(ctx context.Context, namespaceName string, cwName string, body UpdateComponentWorkflowDefinitionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetComponentWorkflowSchema request
 	GetComponentWorkflowSchema(ctx context.Context, namespaceName string, cwName string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -201,6 +226,17 @@ type ClientInterface interface {
 
 	// GetRCAAgentURL request
 	GetRCAAgentURL(ctx context.Context, namespaceName string, envName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListGitSecrets request
+	ListGitSecrets(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateGitSecretWithBody request with any body
+	CreateGitSecretWithBody(ctx context.Context, namespaceName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateGitSecret(ctx context.Context, namespaceName string, body CreateGitSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteGitSecret request
+	DeleteGitSecret(ctx context.Context, namespaceName string, secretName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListObservabilityPlanes request
 	ListObservabilityPlanes(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -323,11 +359,25 @@ type ClientInterface interface {
 	// GetProjectDeploymentPipeline request
 	GetProjectDeploymentPipeline(ctx context.Context, namespaceName string, projectName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetResource request
+	GetResource(ctx context.Context, namespaceName string, kind string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListSecretReferences request
 	ListSecretReferences(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListTraits request
 	ListTraits(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteTraitDefinition request
+	DeleteTraitDefinition(ctx context.Context, namespaceName string, traitName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetTraitDefinition request
+	GetTraitDefinition(ctx context.Context, namespaceName string, traitName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateTraitDefinitionWithBody request with any body
+	UpdateTraitDefinitionWithBody(ctx context.Context, namespaceName string, traitName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateTraitDefinition(ctx context.Context, namespaceName string, traitName string, body UpdateTraitDefinitionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetTraitSchema request
 	GetTraitSchema(ctx context.Context, namespaceName string, traitName string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -335,8 +385,57 @@ type ClientInterface interface {
 	// ListWorkflows request
 	ListWorkflows(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteWorkflowDefinition request
+	DeleteWorkflowDefinition(ctx context.Context, namespaceName string, workflowName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetWorkflowDefinition request
+	GetWorkflowDefinition(ctx context.Context, namespaceName string, workflowName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateWorkflowDefinitionWithBody request with any body
+	UpdateWorkflowDefinitionWithBody(ctx context.Context, namespaceName string, workflowName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateWorkflowDefinition(ctx context.Context, namespaceName string, workflowName string, body UpdateWorkflowDefinitionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetWorkflowSchema request
 	GetWorkflowSchema(ctx context.Context, namespaceName string, workflowName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListNamespaceRoleBindings request
+	ListNamespaceRoleBindings(ctx context.Context, namespace string, params *ListNamespaceRoleBindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateNamespaceRoleBindingWithBody request with any body
+	CreateNamespaceRoleBindingWithBody(ctx context.Context, namespace string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateNamespaceRoleBinding(ctx context.Context, namespace string, body CreateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteNamespaceRoleBinding request
+	DeleteNamespaceRoleBinding(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetNamespaceRoleBinding request
+	GetNamespaceRoleBinding(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateNamespaceRoleBindingWithBody request with any body
+	UpdateNamespaceRoleBindingWithBody(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateNamespaceRoleBinding(ctx context.Context, namespace string, name string, body UpdateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListNamespaceRoles request
+	ListNamespaceRoles(ctx context.Context, namespace string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateNamespaceRoleWithBody request with any body
+	CreateNamespaceRoleWithBody(ctx context.Context, namespace string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateNamespaceRole(ctx context.Context, namespace string, body CreateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteNamespaceRole request
+	DeleteNamespaceRole(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetNamespaceRole request
+	GetNamespaceRole(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateNamespaceRoleWithBody request with any body
+	UpdateNamespaceRoleWithBody(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateNamespaceRole(ctx context.Context, namespace string, name string, body UpdateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// Ready request
 	Ready(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -459,8 +558,8 @@ func (c *Client) GetSubjectProfile(ctx context.Context, params *GetSubjectProfil
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListRoleMappings(ctx context.Context, params *ListRoleMappingsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListRoleMappingsRequest(c.Server, params)
+func (c *Client) ListClusterRoleBindings(ctx context.Context, params *ListClusterRoleBindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListClusterRoleBindingsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -471,8 +570,8 @@ func (c *Client) ListRoleMappings(ctx context.Context, params *ListRoleMappingsP
 	return c.Client.Do(req)
 }
 
-func (c *Client) AddRoleMappingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewAddRoleMappingRequestWithBody(c.Server, contentType, body)
+func (c *Client) CreateClusterRoleBindingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateClusterRoleBindingRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -483,8 +582,8 @@ func (c *Client) AddRoleMappingWithBody(ctx context.Context, contentType string,
 	return c.Client.Do(req)
 }
 
-func (c *Client) AddRoleMapping(ctx context.Context, body AddRoleMappingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewAddRoleMappingRequest(c.Server, body)
+func (c *Client) CreateClusterRoleBinding(ctx context.Context, body CreateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateClusterRoleBindingRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -495,8 +594,8 @@ func (c *Client) AddRoleMapping(ctx context.Context, body AddRoleMappingJSONRequ
 	return c.Client.Do(req)
 }
 
-func (c *Client) RemoveRoleMapping(ctx context.Context, mappingId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRemoveRoleMappingRequest(c.Server, mappingId)
+func (c *Client) DeleteClusterRoleBinding(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteClusterRoleBindingRequest(c.Server, name)
 	if err != nil {
 		return nil, err
 	}
@@ -507,8 +606,8 @@ func (c *Client) RemoveRoleMapping(ctx context.Context, mappingId int, reqEditor
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateRoleMappingWithBody(ctx context.Context, mappingId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateRoleMappingRequestWithBody(c.Server, mappingId, contentType, body)
+func (c *Client) GetClusterRoleBinding(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetClusterRoleBindingRequest(c.Server, name)
 	if err != nil {
 		return nil, err
 	}
@@ -519,8 +618,8 @@ func (c *Client) UpdateRoleMappingWithBody(ctx context.Context, mappingId int, c
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateRoleMapping(ctx context.Context, mappingId int, body UpdateRoleMappingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateRoleMappingRequest(c.Server, mappingId, body)
+func (c *Client) UpdateClusterRoleBindingWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateClusterRoleBindingRequestWithBody(c.Server, name, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -531,8 +630,8 @@ func (c *Client) UpdateRoleMapping(ctx context.Context, mappingId int, body Upda
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListRoles(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListRolesRequest(c.Server)
+func (c *Client) UpdateClusterRoleBinding(ctx context.Context, name string, body UpdateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateClusterRoleBindingRequest(c.Server, name, body)
 	if err != nil {
 		return nil, err
 	}
@@ -543,8 +642,8 @@ func (c *Client) ListRoles(ctx context.Context, reqEditors ...RequestEditorFn) (
 	return c.Client.Do(req)
 }
 
-func (c *Client) AddRoleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewAddRoleRequestWithBody(c.Server, contentType, body)
+func (c *Client) ListClusterRoles(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListClusterRolesRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -555,8 +654,8 @@ func (c *Client) AddRoleWithBody(ctx context.Context, contentType string, body i
 	return c.Client.Do(req)
 }
 
-func (c *Client) AddRole(ctx context.Context, body AddRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewAddRoleRequest(c.Server, body)
+func (c *Client) CreateClusterRoleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateClusterRoleRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -567,8 +666,8 @@ func (c *Client) AddRole(ctx context.Context, body AddRoleJSONRequestBody, reqEd
 	return c.Client.Do(req)
 }
 
-func (c *Client) RemoveRole(ctx context.Context, roleName string, params *RemoveRoleParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRemoveRoleRequest(c.Server, roleName, params)
+func (c *Client) CreateClusterRole(ctx context.Context, body CreateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateClusterRoleRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -579,8 +678,8 @@ func (c *Client) RemoveRole(ctx context.Context, roleName string, params *Remove
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetRole(ctx context.Context, roleName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetRoleRequest(c.Server, roleName)
+func (c *Client) DeleteClusterRole(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteClusterRoleRequest(c.Server, name)
 	if err != nil {
 		return nil, err
 	}
@@ -591,8 +690,8 @@ func (c *Client) GetRole(ctx context.Context, roleName string, reqEditors ...Req
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateRoleWithBody(ctx context.Context, roleName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateRoleRequestWithBody(c.Server, roleName, contentType, body)
+func (c *Client) GetClusterRole(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetClusterRoleRequest(c.Server, name)
 	if err != nil {
 		return nil, err
 	}
@@ -603,8 +702,20 @@ func (c *Client) UpdateRoleWithBody(ctx context.Context, roleName string, conten
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateRole(ctx context.Context, roleName string, body UpdateRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateRoleRequest(c.Server, roleName, body)
+func (c *Client) UpdateClusterRoleWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateClusterRoleRequestWithBody(c.Server, name, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateClusterRole(ctx context.Context, name string, body UpdateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateClusterRoleRequest(c.Server, name, body)
 	if err != nil {
 		return nil, err
 	}
@@ -699,6 +810,54 @@ func (c *Client) ListComponentTypes(ctx context.Context, namespaceName string, r
 	return c.Client.Do(req)
 }
 
+func (c *Client) DeleteComponentTypeDefinition(ctx context.Context, namespaceName string, ctName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteComponentTypeDefinitionRequest(c.Server, namespaceName, ctName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetComponentTypeDefinition(ctx context.Context, namespaceName string, ctName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetComponentTypeDefinitionRequest(c.Server, namespaceName, ctName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateComponentTypeDefinitionWithBody(ctx context.Context, namespaceName string, ctName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateComponentTypeDefinitionRequestWithBody(c.Server, namespaceName, ctName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateComponentTypeDefinition(ctx context.Context, namespaceName string, ctName string, body UpdateComponentTypeDefinitionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateComponentTypeDefinitionRequest(c.Server, namespaceName, ctName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetComponentTypeSchema(ctx context.Context, namespaceName string, ctName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetComponentTypeSchemaRequest(c.Server, namespaceName, ctName)
 	if err != nil {
@@ -713,6 +872,54 @@ func (c *Client) GetComponentTypeSchema(ctx context.Context, namespaceName strin
 
 func (c *Client) ListComponentWorkflows(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListComponentWorkflowsRequest(c.Server, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteComponentWorkflowDefinition(ctx context.Context, namespaceName string, cwName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteComponentWorkflowDefinitionRequest(c.Server, namespaceName, cwName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetComponentWorkflowDefinition(ctx context.Context, namespaceName string, cwName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetComponentWorkflowDefinitionRequest(c.Server, namespaceName, cwName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateComponentWorkflowDefinitionWithBody(ctx context.Context, namespaceName string, cwName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateComponentWorkflowDefinitionRequestWithBody(c.Server, namespaceName, cwName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateComponentWorkflowDefinition(ctx context.Context, namespaceName string, cwName string, body UpdateComponentWorkflowDefinitionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateComponentWorkflowDefinitionRequest(c.Server, namespaceName, cwName, body)
 	if err != nil {
 		return nil, err
 	}
@@ -845,6 +1052,54 @@ func (c *Client) GetEnvironmentObserverURL(ctx context.Context, namespaceName st
 
 func (c *Client) GetRCAAgentURL(ctx context.Context, namespaceName string, envName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetRCAAgentURLRequest(c.Server, namespaceName, envName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListGitSecrets(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListGitSecretsRequest(c.Server, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateGitSecretWithBody(ctx context.Context, namespaceName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateGitSecretRequestWithBody(c.Server, namespaceName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateGitSecret(ctx context.Context, namespaceName string, body CreateGitSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateGitSecretRequest(c.Server, namespaceName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteGitSecret(ctx context.Context, namespaceName string, secretName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteGitSecretRequest(c.Server, namespaceName, secretName)
 	if err != nil {
 		return nil, err
 	}
@@ -1383,6 +1638,18 @@ func (c *Client) GetProjectDeploymentPipeline(ctx context.Context, namespaceName
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetResource(ctx context.Context, namespaceName string, kind string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourceRequest(c.Server, namespaceName, kind, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListSecretReferences(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListSecretReferencesRequest(c.Server, namespaceName)
 	if err != nil {
@@ -1397,6 +1664,54 @@ func (c *Client) ListSecretReferences(ctx context.Context, namespaceName string,
 
 func (c *Client) ListTraits(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListTraitsRequest(c.Server, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteTraitDefinition(ctx context.Context, namespaceName string, traitName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteTraitDefinitionRequest(c.Server, namespaceName, traitName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetTraitDefinition(ctx context.Context, namespaceName string, traitName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTraitDefinitionRequest(c.Server, namespaceName, traitName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateTraitDefinitionWithBody(ctx context.Context, namespaceName string, traitName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateTraitDefinitionRequestWithBody(c.Server, namespaceName, traitName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateTraitDefinition(ctx context.Context, namespaceName string, traitName string, body UpdateTraitDefinitionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateTraitDefinitionRequest(c.Server, namespaceName, traitName, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1431,8 +1746,224 @@ func (c *Client) ListWorkflows(ctx context.Context, namespaceName string, reqEdi
 	return c.Client.Do(req)
 }
 
+func (c *Client) DeleteWorkflowDefinition(ctx context.Context, namespaceName string, workflowName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteWorkflowDefinitionRequest(c.Server, namespaceName, workflowName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetWorkflowDefinition(ctx context.Context, namespaceName string, workflowName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetWorkflowDefinitionRequest(c.Server, namespaceName, workflowName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateWorkflowDefinitionWithBody(ctx context.Context, namespaceName string, workflowName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateWorkflowDefinitionRequestWithBody(c.Server, namespaceName, workflowName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateWorkflowDefinition(ctx context.Context, namespaceName string, workflowName string, body UpdateWorkflowDefinitionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateWorkflowDefinitionRequest(c.Server, namespaceName, workflowName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetWorkflowSchema(ctx context.Context, namespaceName string, workflowName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetWorkflowSchemaRequest(c.Server, namespaceName, workflowName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListNamespaceRoleBindings(ctx context.Context, namespace string, params *ListNamespaceRoleBindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListNamespaceRoleBindingsRequest(c.Server, namespace, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateNamespaceRoleBindingWithBody(ctx context.Context, namespace string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNamespaceRoleBindingRequestWithBody(c.Server, namespace, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateNamespaceRoleBinding(ctx context.Context, namespace string, body CreateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNamespaceRoleBindingRequest(c.Server, namespace, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteNamespaceRoleBinding(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteNamespaceRoleBindingRequest(c.Server, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetNamespaceRoleBinding(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetNamespaceRoleBindingRequest(c.Server, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateNamespaceRoleBindingWithBody(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNamespaceRoleBindingRequestWithBody(c.Server, namespace, name, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateNamespaceRoleBinding(ctx context.Context, namespace string, name string, body UpdateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNamespaceRoleBindingRequest(c.Server, namespace, name, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListNamespaceRoles(ctx context.Context, namespace string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListNamespaceRolesRequest(c.Server, namespace)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateNamespaceRoleWithBody(ctx context.Context, namespace string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNamespaceRoleRequestWithBody(c.Server, namespace, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateNamespaceRole(ctx context.Context, namespace string, body CreateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNamespaceRoleRequest(c.Server, namespace, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteNamespaceRole(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteNamespaceRoleRequest(c.Server, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetNamespaceRole(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetNamespaceRoleRequest(c.Server, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateNamespaceRoleWithBody(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNamespaceRoleRequestWithBody(c.Server, namespace, name, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateNamespaceRole(ctx context.Context, namespace string, name string, body UpdateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNamespaceRoleRequest(c.Server, namespace, name, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1795,8 +2326,8 @@ func NewGetSubjectProfileRequest(server string, params *GetSubjectProfileParams)
 	return req, nil
 }
 
-// NewListRoleMappingsRequest generates requests for ListRoleMappings
-func NewListRoleMappingsRequest(server string, params *ListRoleMappingsParams) (*http.Request, error) {
+// NewListClusterRoleBindingsRequest generates requests for ListClusterRoleBindings
+func NewListClusterRoleBindingsRequest(server string, params *ListClusterRoleBindingsParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -1804,7 +2335,7 @@ func NewListRoleMappingsRequest(server string, params *ListRoleMappingsParams) (
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/authz/role-mappings")
+	operationPath := fmt.Sprintf("/clusterrolebindings")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1817,9 +2348,9 @@ func NewListRoleMappingsRequest(server string, params *ListRoleMappingsParams) (
 	if params != nil {
 		queryValues := queryURL.Query()
 
-		if params.Role != nil {
+		if params.RoleName != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "role", runtime.ParamLocationQuery, *params.Role); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "roleName", runtime.ParamLocationQuery, *params.RoleName); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -1865,6 +2396,22 @@ func NewListRoleMappingsRequest(server string, params *ListRoleMappingsParams) (
 
 		}
 
+		if params.Effect != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "effect", runtime.ParamLocationQuery, *params.Effect); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
@@ -1876,19 +2423,19 @@ func NewListRoleMappingsRequest(server string, params *ListRoleMappingsParams) (
 	return req, nil
 }
 
-// NewAddRoleMappingRequest calls the generic AddRoleMapping builder with application/json body
-func NewAddRoleMappingRequest(server string, body AddRoleMappingJSONRequestBody) (*http.Request, error) {
+// NewCreateClusterRoleBindingRequest calls the generic CreateClusterRoleBinding builder with application/json body
+func NewCreateClusterRoleBindingRequest(server string, body CreateClusterRoleBindingJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewAddRoleMappingRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateClusterRoleBindingRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewAddRoleMappingRequestWithBody generates requests for AddRoleMapping with any type of body
-func NewAddRoleMappingRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewCreateClusterRoleBindingRequestWithBody generates requests for CreateClusterRoleBinding with any type of body
+func NewCreateClusterRoleBindingRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -1896,7 +2443,7 @@ func NewAddRoleMappingRequestWithBody(server string, contentType string, body io
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/authz/role-mappings")
+	operationPath := fmt.Sprintf("/clusterrolebindings")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1916,13 +2463,13 @@ func NewAddRoleMappingRequestWithBody(server string, contentType string, body io
 	return req, nil
 }
 
-// NewRemoveRoleMappingRequest generates requests for RemoveRoleMapping
-func NewRemoveRoleMappingRequest(server string, mappingId int) (*http.Request, error) {
+// NewDeleteClusterRoleBindingRequest generates requests for DeleteClusterRoleBinding
+func NewDeleteClusterRoleBindingRequest(server string, name string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "mappingId", runtime.ParamLocationPath, mappingId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
 	if err != nil {
 		return nil, err
 	}
@@ -1932,7 +2479,7 @@ func NewRemoveRoleMappingRequest(server string, mappingId int) (*http.Request, e
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/authz/role-mappings/%s", pathParam0)
+	operationPath := fmt.Sprintf("/clusterrolebindings/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1950,24 +2497,13 @@ func NewRemoveRoleMappingRequest(server string, mappingId int) (*http.Request, e
 	return req, nil
 }
 
-// NewUpdateRoleMappingRequest calls the generic UpdateRoleMapping builder with application/json body
-func NewUpdateRoleMappingRequest(server string, mappingId int, body UpdateRoleMappingJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateRoleMappingRequestWithBody(server, mappingId, "application/json", bodyReader)
-}
-
-// NewUpdateRoleMappingRequestWithBody generates requests for UpdateRoleMapping with any type of body
-func NewUpdateRoleMappingRequestWithBody(server string, mappingId int, contentType string, body io.Reader) (*http.Request, error) {
+// NewGetClusterRoleBindingRequest generates requests for GetClusterRoleBinding
+func NewGetClusterRoleBindingRequest(server string, name string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "mappingId", runtime.ParamLocationPath, mappingId)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
 	if err != nil {
 		return nil, err
 	}
@@ -1977,7 +2513,52 @@ func NewUpdateRoleMappingRequestWithBody(server string, mappingId int, contentTy
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/authz/role-mappings/%s", pathParam0)
+	operationPath := fmt.Sprintf("/clusterrolebindings/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateClusterRoleBindingRequest calls the generic UpdateClusterRoleBinding builder with application/json body
+func NewUpdateClusterRoleBindingRequest(server string, name string, body UpdateClusterRoleBindingJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateClusterRoleBindingRequestWithBody(server, name, "application/json", bodyReader)
+}
+
+// NewUpdateClusterRoleBindingRequestWithBody generates requests for UpdateClusterRoleBinding with any type of body
+func NewUpdateClusterRoleBindingRequestWithBody(server string, name string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/clusterrolebindings/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1997,8 +2578,8 @@ func NewUpdateRoleMappingRequestWithBody(server string, mappingId int, contentTy
 	return req, nil
 }
 
-// NewListRolesRequest generates requests for ListRoles
-func NewListRolesRequest(server string) (*http.Request, error) {
+// NewListClusterRolesRequest generates requests for ListClusterRoles
+func NewListClusterRolesRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -2006,7 +2587,7 @@ func NewListRolesRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/authz/roles")
+	operationPath := fmt.Sprintf("/clusterroles")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2024,19 +2605,19 @@ func NewListRolesRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewAddRoleRequest calls the generic AddRole builder with application/json body
-func NewAddRoleRequest(server string, body AddRoleJSONRequestBody) (*http.Request, error) {
+// NewCreateClusterRoleRequest calls the generic CreateClusterRole builder with application/json body
+func NewCreateClusterRoleRequest(server string, body CreateClusterRoleJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewAddRoleRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateClusterRoleRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewAddRoleRequestWithBody generates requests for AddRole with any type of body
-func NewAddRoleRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewCreateClusterRoleRequestWithBody generates requests for CreateClusterRole with any type of body
+func NewCreateClusterRoleRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -2044,7 +2625,7 @@ func NewAddRoleRequestWithBody(server string, contentType string, body io.Reader
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/authz/roles")
+	operationPath := fmt.Sprintf("/clusterroles")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2064,13 +2645,13 @@ func NewAddRoleRequestWithBody(server string, contentType string, body io.Reader
 	return req, nil
 }
 
-// NewRemoveRoleRequest generates requests for RemoveRole
-func NewRemoveRoleRequest(server string, roleName string, params *RemoveRoleParams) (*http.Request, error) {
+// NewDeleteClusterRoleRequest generates requests for DeleteClusterRole
+func NewDeleteClusterRoleRequest(server string, name string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "roleName", runtime.ParamLocationPath, roleName)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
 	if err != nil {
 		return nil, err
 	}
@@ -2080,7 +2661,7 @@ func NewRemoveRoleRequest(server string, roleName string, params *RemoveRolePara
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/authz/roles/%s", pathParam0)
+	operationPath := fmt.Sprintf("/clusterroles/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2088,28 +2669,6 @@ func NewRemoveRoleRequest(server string, roleName string, params *RemoveRolePara
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Force != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "force", runtime.ParamLocationQuery, *params.Force); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
@@ -2120,13 +2679,13 @@ func NewRemoveRoleRequest(server string, roleName string, params *RemoveRolePara
 	return req, nil
 }
 
-// NewGetRoleRequest generates requests for GetRole
-func NewGetRoleRequest(server string, roleName string) (*http.Request, error) {
+// NewGetClusterRoleRequest generates requests for GetClusterRole
+func NewGetClusterRoleRequest(server string, name string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "roleName", runtime.ParamLocationPath, roleName)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
 	if err != nil {
 		return nil, err
 	}
@@ -2136,7 +2695,7 @@ func NewGetRoleRequest(server string, roleName string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/authz/roles/%s", pathParam0)
+	operationPath := fmt.Sprintf("/clusterroles/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2154,24 +2713,24 @@ func NewGetRoleRequest(server string, roleName string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewUpdateRoleRequest calls the generic UpdateRole builder with application/json body
-func NewUpdateRoleRequest(server string, roleName string, body UpdateRoleJSONRequestBody) (*http.Request, error) {
+// NewUpdateClusterRoleRequest calls the generic UpdateClusterRole builder with application/json body
+func NewUpdateClusterRoleRequest(server string, name string, body UpdateClusterRoleJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateRoleRequestWithBody(server, roleName, "application/json", bodyReader)
+	return NewUpdateClusterRoleRequestWithBody(server, name, "application/json", bodyReader)
 }
 
-// NewUpdateRoleRequestWithBody generates requests for UpdateRole with any type of body
-func NewUpdateRoleRequestWithBody(server string, roleName string, contentType string, body io.Reader) (*http.Request, error) {
+// NewUpdateClusterRoleRequestWithBody generates requests for UpdateClusterRole with any type of body
+func NewUpdateClusterRoleRequestWithBody(server string, name string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "roleName", runtime.ParamLocationPath, roleName)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
 	if err != nil {
 		return nil, err
 	}
@@ -2181,7 +2740,7 @@ func NewUpdateRoleRequestWithBody(server string, roleName string, contentType st
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/authz/roles/%s", pathParam0)
+	operationPath := fmt.Sprintf("/clusterroles/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2397,6 +2956,142 @@ func NewListComponentTypesRequest(server string, namespaceName string) (*http.Re
 	return req, nil
 }
 
+// NewDeleteComponentTypeDefinitionRequest generates requests for DeleteComponentTypeDefinition
+func NewDeleteComponentTypeDefinitionRequest(server string, namespaceName string, ctName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ctName", runtime.ParamLocationPath, ctName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/component-types/%s/definition", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetComponentTypeDefinitionRequest generates requests for GetComponentTypeDefinition
+func NewGetComponentTypeDefinitionRequest(server string, namespaceName string, ctName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ctName", runtime.ParamLocationPath, ctName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/component-types/%s/definition", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateComponentTypeDefinitionRequest calls the generic UpdateComponentTypeDefinition builder with application/json body
+func NewUpdateComponentTypeDefinitionRequest(server string, namespaceName string, ctName string, body UpdateComponentTypeDefinitionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateComponentTypeDefinitionRequestWithBody(server, namespaceName, ctName, "application/json", bodyReader)
+}
+
+// NewUpdateComponentTypeDefinitionRequestWithBody generates requests for UpdateComponentTypeDefinition with any type of body
+func NewUpdateComponentTypeDefinitionRequestWithBody(server string, namespaceName string, ctName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "ctName", runtime.ParamLocationPath, ctName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/component-types/%s/definition", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetComponentTypeSchemaRequest generates requests for GetComponentTypeSchema
 func NewGetComponentTypeSchemaRequest(server string, namespaceName string, ctName string) (*http.Request, error) {
 	var err error
@@ -2468,6 +3163,142 @@ func NewListComponentWorkflowsRequest(server string, namespaceName string) (*htt
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewDeleteComponentWorkflowDefinitionRequest generates requests for DeleteComponentWorkflowDefinition
+func NewDeleteComponentWorkflowDefinitionRequest(server string, namespaceName string, cwName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "cwName", runtime.ParamLocationPath, cwName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/component-workflows/%s/definition", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetComponentWorkflowDefinitionRequest generates requests for GetComponentWorkflowDefinition
+func NewGetComponentWorkflowDefinitionRequest(server string, namespaceName string, cwName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "cwName", runtime.ParamLocationPath, cwName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/component-workflows/%s/definition", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateComponentWorkflowDefinitionRequest calls the generic UpdateComponentWorkflowDefinition builder with application/json body
+func NewUpdateComponentWorkflowDefinitionRequest(server string, namespaceName string, cwName string, body UpdateComponentWorkflowDefinitionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateComponentWorkflowDefinitionRequestWithBody(server, namespaceName, cwName, "application/json", bodyReader)
+}
+
+// NewUpdateComponentWorkflowDefinitionRequestWithBody generates requests for UpdateComponentWorkflowDefinition with any type of body
+func NewUpdateComponentWorkflowDefinitionRequestWithBody(server string, namespaceName string, cwName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "cwName", runtime.ParamLocationPath, cwName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/component-workflows/%s/definition", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -2832,6 +3663,128 @@ func NewGetRCAAgentURLRequest(server string, namespaceName string, envName strin
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListGitSecretsRequest generates requests for ListGitSecrets
+func NewListGitSecretsRequest(server string, namespaceName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/git-secrets", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateGitSecretRequest calls the generic CreateGitSecret builder with application/json body
+func NewCreateGitSecretRequest(server string, namespaceName string, body CreateGitSecretJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateGitSecretRequestWithBody(server, namespaceName, "application/json", bodyReader)
+}
+
+// NewCreateGitSecretRequestWithBody generates requests for CreateGitSecret with any type of body
+func NewCreateGitSecretRequestWithBody(server string, namespaceName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/git-secrets", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteGitSecretRequest generates requests for DeleteGitSecret
+func NewDeleteGitSecretRequest(server string, namespaceName string, secretName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "secretName", runtime.ParamLocationPath, secretName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/git-secrets/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -4582,6 +5535,54 @@ func NewGetProjectDeploymentPipelineRequest(server string, namespaceName string,
 	return req, nil
 }
 
+// NewGetResourceRequest generates requests for GetResource
+func NewGetResourceRequest(server string, namespaceName string, kind string, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "kind", runtime.ParamLocationPath, kind)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/resources/%s/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListSecretReferencesRequest generates requests for ListSecretReferences
 func NewListSecretReferencesRequest(server string, namespaceName string) (*http.Request, error) {
 	var err error
@@ -4646,6 +5647,142 @@ func NewListTraitsRequest(server string, namespaceName string) (*http.Request, e
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewDeleteTraitDefinitionRequest generates requests for DeleteTraitDefinition
+func NewDeleteTraitDefinitionRequest(server string, namespaceName string, traitName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "traitName", runtime.ParamLocationPath, traitName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/traits/%s/definition", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetTraitDefinitionRequest generates requests for GetTraitDefinition
+func NewGetTraitDefinitionRequest(server string, namespaceName string, traitName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "traitName", runtime.ParamLocationPath, traitName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/traits/%s/definition", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateTraitDefinitionRequest calls the generic UpdateTraitDefinition builder with application/json body
+func NewUpdateTraitDefinitionRequest(server string, namespaceName string, traitName string, body UpdateTraitDefinitionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateTraitDefinitionRequestWithBody(server, namespaceName, traitName, "application/json", bodyReader)
+}
+
+// NewUpdateTraitDefinitionRequestWithBody generates requests for UpdateTraitDefinition with any type of body
+func NewUpdateTraitDefinitionRequestWithBody(server string, namespaceName string, traitName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "traitName", runtime.ParamLocationPath, traitName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/traits/%s/definition", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -4725,6 +5862,142 @@ func NewListWorkflowsRequest(server string, namespaceName string) (*http.Request
 	return req, nil
 }
 
+// NewDeleteWorkflowDefinitionRequest generates requests for DeleteWorkflowDefinition
+func NewDeleteWorkflowDefinitionRequest(server string, namespaceName string, workflowName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflowName", runtime.ParamLocationPath, workflowName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/workflows/%s/definition", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetWorkflowDefinitionRequest generates requests for GetWorkflowDefinition
+func NewGetWorkflowDefinitionRequest(server string, namespaceName string, workflowName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflowName", runtime.ParamLocationPath, workflowName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/workflows/%s/definition", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateWorkflowDefinitionRequest calls the generic UpdateWorkflowDefinition builder with application/json body
+func NewUpdateWorkflowDefinitionRequest(server string, namespaceName string, workflowName string, body UpdateWorkflowDefinitionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateWorkflowDefinitionRequestWithBody(server, namespaceName, workflowName, "application/json", bodyReader)
+}
+
+// NewUpdateWorkflowDefinitionRequestWithBody generates requests for UpdateWorkflowDefinition with any type of body
+func NewUpdateWorkflowDefinitionRequestWithBody(server string, namespaceName string, workflowName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespaceName", runtime.ParamLocationPath, namespaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflowName", runtime.ParamLocationPath, workflowName)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/workflows/%s/definition", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetWorkflowSchemaRequest generates requests for GetWorkflowSchema
 func NewGetWorkflowSchemaRequest(server string, namespaceName string, workflowName string) (*http.Request, error) {
 	var err error
@@ -4762,6 +6035,526 @@ func NewGetWorkflowSchemaRequest(server string, namespaceName string, workflowNa
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewListNamespaceRoleBindingsRequest generates requests for ListNamespaceRoleBindings
+func NewListNamespaceRoleBindingsRequest(server string, namespace string, params *ListNamespaceRoleBindingsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/rolebindings", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.RoleName != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "roleName", runtime.ParamLocationQuery, *params.RoleName); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.RoleNamespace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "roleNamespace", runtime.ParamLocationQuery, *params.RoleNamespace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Claim != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "claim", runtime.ParamLocationQuery, *params.Claim); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Value != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "value", runtime.ParamLocationQuery, *params.Value); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Effect != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "effect", runtime.ParamLocationQuery, *params.Effect); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateNamespaceRoleBindingRequest calls the generic CreateNamespaceRoleBinding builder with application/json body
+func NewCreateNamespaceRoleBindingRequest(server string, namespace string, body CreateNamespaceRoleBindingJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateNamespaceRoleBindingRequestWithBody(server, namespace, "application/json", bodyReader)
+}
+
+// NewCreateNamespaceRoleBindingRequestWithBody generates requests for CreateNamespaceRoleBinding with any type of body
+func NewCreateNamespaceRoleBindingRequestWithBody(server string, namespace string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/rolebindings", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteNamespaceRoleBindingRequest generates requests for DeleteNamespaceRoleBinding
+func NewDeleteNamespaceRoleBindingRequest(server string, namespace string, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/rolebindings/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetNamespaceRoleBindingRequest generates requests for GetNamespaceRoleBinding
+func NewGetNamespaceRoleBindingRequest(server string, namespace string, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/rolebindings/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateNamespaceRoleBindingRequest calls the generic UpdateNamespaceRoleBinding builder with application/json body
+func NewUpdateNamespaceRoleBindingRequest(server string, namespace string, name string, body UpdateNamespaceRoleBindingJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateNamespaceRoleBindingRequestWithBody(server, namespace, name, "application/json", bodyReader)
+}
+
+// NewUpdateNamespaceRoleBindingRequestWithBody generates requests for UpdateNamespaceRoleBinding with any type of body
+func NewUpdateNamespaceRoleBindingRequestWithBody(server string, namespace string, name string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/rolebindings/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListNamespaceRolesRequest generates requests for ListNamespaceRoles
+func NewListNamespaceRolesRequest(server string, namespace string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/roles", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateNamespaceRoleRequest calls the generic CreateNamespaceRole builder with application/json body
+func NewCreateNamespaceRoleRequest(server string, namespace string, body CreateNamespaceRoleJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateNamespaceRoleRequestWithBody(server, namespace, "application/json", bodyReader)
+}
+
+// NewCreateNamespaceRoleRequestWithBody generates requests for CreateNamespaceRole with any type of body
+func NewCreateNamespaceRoleRequestWithBody(server string, namespace string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/roles", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteNamespaceRoleRequest generates requests for DeleteNamespaceRole
+func NewDeleteNamespaceRoleRequest(server string, namespace string, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/roles/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetNamespaceRoleRequest generates requests for GetNamespaceRole
+func NewGetNamespaceRoleRequest(server string, namespace string, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/roles/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateNamespaceRoleRequest calls the generic UpdateNamespaceRole builder with application/json body
+func NewUpdateNamespaceRoleRequest(server string, namespace string, name string, body UpdateNamespaceRoleJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateNamespaceRoleRequestWithBody(server, namespace, name, "application/json", bodyReader)
+}
+
+// NewUpdateNamespaceRoleRequestWithBody generates requests for UpdateNamespaceRole with any type of body
+func NewUpdateNamespaceRoleRequestWithBody(server string, namespace string, name string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/namespaces/%s/roles/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -5031,40 +6824,43 @@ type ClientWithResponsesInterface interface {
 	// GetSubjectProfileWithResponse request
 	GetSubjectProfileWithResponse(ctx context.Context, params *GetSubjectProfileParams, reqEditors ...RequestEditorFn) (*GetSubjectProfileResp, error)
 
-	// ListRoleMappingsWithResponse request
-	ListRoleMappingsWithResponse(ctx context.Context, params *ListRoleMappingsParams, reqEditors ...RequestEditorFn) (*ListRoleMappingsResp, error)
+	// ListClusterRoleBindingsWithResponse request
+	ListClusterRoleBindingsWithResponse(ctx context.Context, params *ListClusterRoleBindingsParams, reqEditors ...RequestEditorFn) (*ListClusterRoleBindingsResp, error)
 
-	// AddRoleMappingWithBodyWithResponse request with any body
-	AddRoleMappingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddRoleMappingResp, error)
+	// CreateClusterRoleBindingWithBodyWithResponse request with any body
+	CreateClusterRoleBindingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterRoleBindingResp, error)
 
-	AddRoleMappingWithResponse(ctx context.Context, body AddRoleMappingJSONRequestBody, reqEditors ...RequestEditorFn) (*AddRoleMappingResp, error)
+	CreateClusterRoleBindingWithResponse(ctx context.Context, body CreateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterRoleBindingResp, error)
 
-	// RemoveRoleMappingWithResponse request
-	RemoveRoleMappingWithResponse(ctx context.Context, mappingId int, reqEditors ...RequestEditorFn) (*RemoveRoleMappingResp, error)
+	// DeleteClusterRoleBindingWithResponse request
+	DeleteClusterRoleBindingWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteClusterRoleBindingResp, error)
 
-	// UpdateRoleMappingWithBodyWithResponse request with any body
-	UpdateRoleMappingWithBodyWithResponse(ctx context.Context, mappingId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateRoleMappingResp, error)
+	// GetClusterRoleBindingWithResponse request
+	GetClusterRoleBindingWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*GetClusterRoleBindingResp, error)
 
-	UpdateRoleMappingWithResponse(ctx context.Context, mappingId int, body UpdateRoleMappingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateRoleMappingResp, error)
+	// UpdateClusterRoleBindingWithBodyWithResponse request with any body
+	UpdateClusterRoleBindingWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterRoleBindingResp, error)
 
-	// ListRolesWithResponse request
-	ListRolesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListRolesResp, error)
+	UpdateClusterRoleBindingWithResponse(ctx context.Context, name string, body UpdateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterRoleBindingResp, error)
 
-	// AddRoleWithBodyWithResponse request with any body
-	AddRoleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddRoleResp, error)
+	// ListClusterRolesWithResponse request
+	ListClusterRolesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListClusterRolesResp, error)
 
-	AddRoleWithResponse(ctx context.Context, body AddRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*AddRoleResp, error)
+	// CreateClusterRoleWithBodyWithResponse request with any body
+	CreateClusterRoleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterRoleResp, error)
 
-	// RemoveRoleWithResponse request
-	RemoveRoleWithResponse(ctx context.Context, roleName string, params *RemoveRoleParams, reqEditors ...RequestEditorFn) (*RemoveRoleResp, error)
+	CreateClusterRoleWithResponse(ctx context.Context, body CreateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterRoleResp, error)
 
-	// GetRoleWithResponse request
-	GetRoleWithResponse(ctx context.Context, roleName string, reqEditors ...RequestEditorFn) (*GetRoleResp, error)
+	// DeleteClusterRoleWithResponse request
+	DeleteClusterRoleWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteClusterRoleResp, error)
 
-	// UpdateRoleWithBodyWithResponse request with any body
-	UpdateRoleWithBodyWithResponse(ctx context.Context, roleName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateRoleResp, error)
+	// GetClusterRoleWithResponse request
+	GetClusterRoleWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*GetClusterRoleResp, error)
 
-	UpdateRoleWithResponse(ctx context.Context, roleName string, body UpdateRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateRoleResp, error)
+	// UpdateClusterRoleWithBodyWithResponse request with any body
+	UpdateClusterRoleWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterRoleResp, error)
+
+	UpdateClusterRoleWithResponse(ctx context.Context, name string, body UpdateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterRoleResp, error)
 
 	// DeleteResourceWithBodyWithResponse request with any body
 	DeleteResourceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeleteResourceResp, error)
@@ -5086,11 +6882,33 @@ type ClientWithResponsesInterface interface {
 	// ListComponentTypesWithResponse request
 	ListComponentTypesWithResponse(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*ListComponentTypesResp, error)
 
+	// DeleteComponentTypeDefinitionWithResponse request
+	DeleteComponentTypeDefinitionWithResponse(ctx context.Context, namespaceName string, ctName string, reqEditors ...RequestEditorFn) (*DeleteComponentTypeDefinitionResp, error)
+
+	// GetComponentTypeDefinitionWithResponse request
+	GetComponentTypeDefinitionWithResponse(ctx context.Context, namespaceName string, ctName string, reqEditors ...RequestEditorFn) (*GetComponentTypeDefinitionResp, error)
+
+	// UpdateComponentTypeDefinitionWithBodyWithResponse request with any body
+	UpdateComponentTypeDefinitionWithBodyWithResponse(ctx context.Context, namespaceName string, ctName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateComponentTypeDefinitionResp, error)
+
+	UpdateComponentTypeDefinitionWithResponse(ctx context.Context, namespaceName string, ctName string, body UpdateComponentTypeDefinitionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateComponentTypeDefinitionResp, error)
+
 	// GetComponentTypeSchemaWithResponse request
 	GetComponentTypeSchemaWithResponse(ctx context.Context, namespaceName string, ctName string, reqEditors ...RequestEditorFn) (*GetComponentTypeSchemaResp, error)
 
 	// ListComponentWorkflowsWithResponse request
 	ListComponentWorkflowsWithResponse(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*ListComponentWorkflowsResp, error)
+
+	// DeleteComponentWorkflowDefinitionWithResponse request
+	DeleteComponentWorkflowDefinitionWithResponse(ctx context.Context, namespaceName string, cwName string, reqEditors ...RequestEditorFn) (*DeleteComponentWorkflowDefinitionResp, error)
+
+	// GetComponentWorkflowDefinitionWithResponse request
+	GetComponentWorkflowDefinitionWithResponse(ctx context.Context, namespaceName string, cwName string, reqEditors ...RequestEditorFn) (*GetComponentWorkflowDefinitionResp, error)
+
+	// UpdateComponentWorkflowDefinitionWithBodyWithResponse request with any body
+	UpdateComponentWorkflowDefinitionWithBodyWithResponse(ctx context.Context, namespaceName string, cwName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateComponentWorkflowDefinitionResp, error)
+
+	UpdateComponentWorkflowDefinitionWithResponse(ctx context.Context, namespaceName string, cwName string, body UpdateComponentWorkflowDefinitionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateComponentWorkflowDefinitionResp, error)
 
 	// GetComponentWorkflowSchemaWithResponse request
 	GetComponentWorkflowSchemaWithResponse(ctx context.Context, namespaceName string, cwName string, reqEditors ...RequestEditorFn) (*GetComponentWorkflowSchemaResp, error)
@@ -5122,6 +6940,17 @@ type ClientWithResponsesInterface interface {
 
 	// GetRCAAgentURLWithResponse request
 	GetRCAAgentURLWithResponse(ctx context.Context, namespaceName string, envName string, reqEditors ...RequestEditorFn) (*GetRCAAgentURLResp, error)
+
+	// ListGitSecretsWithResponse request
+	ListGitSecretsWithResponse(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*ListGitSecretsResp, error)
+
+	// CreateGitSecretWithBodyWithResponse request with any body
+	CreateGitSecretWithBodyWithResponse(ctx context.Context, namespaceName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateGitSecretResp, error)
+
+	CreateGitSecretWithResponse(ctx context.Context, namespaceName string, body CreateGitSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateGitSecretResp, error)
+
+	// DeleteGitSecretWithResponse request
+	DeleteGitSecretWithResponse(ctx context.Context, namespaceName string, secretName string, reqEditors ...RequestEditorFn) (*DeleteGitSecretResp, error)
 
 	// ListObservabilityPlanesWithResponse request
 	ListObservabilityPlanesWithResponse(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*ListObservabilityPlanesResp, error)
@@ -5244,11 +7073,25 @@ type ClientWithResponsesInterface interface {
 	// GetProjectDeploymentPipelineWithResponse request
 	GetProjectDeploymentPipelineWithResponse(ctx context.Context, namespaceName string, projectName string, reqEditors ...RequestEditorFn) (*GetProjectDeploymentPipelineResp, error)
 
+	// GetResourceWithResponse request
+	GetResourceWithResponse(ctx context.Context, namespaceName string, kind string, name string, reqEditors ...RequestEditorFn) (*GetResourceResp, error)
+
 	// ListSecretReferencesWithResponse request
 	ListSecretReferencesWithResponse(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*ListSecretReferencesResp, error)
 
 	// ListTraitsWithResponse request
 	ListTraitsWithResponse(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*ListTraitsResp, error)
+
+	// DeleteTraitDefinitionWithResponse request
+	DeleteTraitDefinitionWithResponse(ctx context.Context, namespaceName string, traitName string, reqEditors ...RequestEditorFn) (*DeleteTraitDefinitionResp, error)
+
+	// GetTraitDefinitionWithResponse request
+	GetTraitDefinitionWithResponse(ctx context.Context, namespaceName string, traitName string, reqEditors ...RequestEditorFn) (*GetTraitDefinitionResp, error)
+
+	// UpdateTraitDefinitionWithBodyWithResponse request with any body
+	UpdateTraitDefinitionWithBodyWithResponse(ctx context.Context, namespaceName string, traitName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTraitDefinitionResp, error)
+
+	UpdateTraitDefinitionWithResponse(ctx context.Context, namespaceName string, traitName string, body UpdateTraitDefinitionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTraitDefinitionResp, error)
 
 	// GetTraitSchemaWithResponse request
 	GetTraitSchemaWithResponse(ctx context.Context, namespaceName string, traitName string, reqEditors ...RequestEditorFn) (*GetTraitSchemaResp, error)
@@ -5256,8 +7099,57 @@ type ClientWithResponsesInterface interface {
 	// ListWorkflowsWithResponse request
 	ListWorkflowsWithResponse(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*ListWorkflowsResp, error)
 
+	// DeleteWorkflowDefinitionWithResponse request
+	DeleteWorkflowDefinitionWithResponse(ctx context.Context, namespaceName string, workflowName string, reqEditors ...RequestEditorFn) (*DeleteWorkflowDefinitionResp, error)
+
+	// GetWorkflowDefinitionWithResponse request
+	GetWorkflowDefinitionWithResponse(ctx context.Context, namespaceName string, workflowName string, reqEditors ...RequestEditorFn) (*GetWorkflowDefinitionResp, error)
+
+	// UpdateWorkflowDefinitionWithBodyWithResponse request with any body
+	UpdateWorkflowDefinitionWithBodyWithResponse(ctx context.Context, namespaceName string, workflowName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateWorkflowDefinitionResp, error)
+
+	UpdateWorkflowDefinitionWithResponse(ctx context.Context, namespaceName string, workflowName string, body UpdateWorkflowDefinitionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateWorkflowDefinitionResp, error)
+
 	// GetWorkflowSchemaWithResponse request
 	GetWorkflowSchemaWithResponse(ctx context.Context, namespaceName string, workflowName string, reqEditors ...RequestEditorFn) (*GetWorkflowSchemaResp, error)
+
+	// ListNamespaceRoleBindingsWithResponse request
+	ListNamespaceRoleBindingsWithResponse(ctx context.Context, namespace string, params *ListNamespaceRoleBindingsParams, reqEditors ...RequestEditorFn) (*ListNamespaceRoleBindingsResp, error)
+
+	// CreateNamespaceRoleBindingWithBodyWithResponse request with any body
+	CreateNamespaceRoleBindingWithBodyWithResponse(ctx context.Context, namespace string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleBindingResp, error)
+
+	CreateNamespaceRoleBindingWithResponse(ctx context.Context, namespace string, body CreateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleBindingResp, error)
+
+	// DeleteNamespaceRoleBindingWithResponse request
+	DeleteNamespaceRoleBindingWithResponse(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*DeleteNamespaceRoleBindingResp, error)
+
+	// GetNamespaceRoleBindingWithResponse request
+	GetNamespaceRoleBindingWithResponse(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*GetNamespaceRoleBindingResp, error)
+
+	// UpdateNamespaceRoleBindingWithBodyWithResponse request with any body
+	UpdateNamespaceRoleBindingWithBodyWithResponse(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleBindingResp, error)
+
+	UpdateNamespaceRoleBindingWithResponse(ctx context.Context, namespace string, name string, body UpdateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleBindingResp, error)
+
+	// ListNamespaceRolesWithResponse request
+	ListNamespaceRolesWithResponse(ctx context.Context, namespace string, reqEditors ...RequestEditorFn) (*ListNamespaceRolesResp, error)
+
+	// CreateNamespaceRoleWithBodyWithResponse request with any body
+	CreateNamespaceRoleWithBodyWithResponse(ctx context.Context, namespace string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleResp, error)
+
+	CreateNamespaceRoleWithResponse(ctx context.Context, namespace string, body CreateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleResp, error)
+
+	// DeleteNamespaceRoleWithResponse request
+	DeleteNamespaceRoleWithResponse(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*DeleteNamespaceRoleResp, error)
+
+	// GetNamespaceRoleWithResponse request
+	GetNamespaceRoleWithResponse(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*GetNamespaceRoleResp, error)
+
+	// UpdateNamespaceRoleWithBodyWithResponse request with any body
+	UpdateNamespaceRoleWithBodyWithResponse(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleResp, error)
+
+	UpdateNamespaceRoleWithResponse(ctx context.Context, namespace string, name string, body UpdateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleResp, error)
 
 	// ReadyWithResponse request
 	ReadyWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ReadyResp, error)
@@ -5415,19 +7307,19 @@ func (r GetSubjectProfileResp) StatusCode() int {
 	return 0
 }
 
-type ListRoleMappingsResp struct {
+type ListClusterRoleBindingsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Code    *string                   `json:"code,omitempty"`
-		Data    *[]RoleEntitlementMapping `json:"data,omitempty"`
-		Error   *string                   `json:"error,omitempty"`
-		Success *bool                     `json:"success,omitempty"`
+		Code    *string               `json:"code,omitempty"`
+		Data    *[]ClusterRoleBinding `json:"data,omitempty"`
+		Error   *string               `json:"error,omitempty"`
+		Success *bool                 `json:"success,omitempty"`
 	}
 }
 
 // Status returns HTTPResponse.Status
-func (r ListRoleMappingsResp) Status() string {
+func (r ListClusterRoleBindingsResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -5435,21 +7327,26 @@ func (r ListRoleMappingsResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListRoleMappingsResp) StatusCode() int {
+func (r ListClusterRoleBindingsResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type AddRoleMappingResp struct {
+type CreateClusterRoleBindingResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *APIResponse
+	JSON201      *struct {
+		Code    *string             `json:"code,omitempty"`
+		Data    *ClusterRoleBinding `json:"data,omitempty"`
+		Error   *string             `json:"error,omitempty"`
+		Success *bool               `json:"success,omitempty"`
+	}
 }
 
 // Status returns HTTPResponse.Status
-func (r AddRoleMappingResp) Status() string {
+func (r CreateClusterRoleBindingResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -5457,20 +7354,20 @@ func (r AddRoleMappingResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r AddRoleMappingResp) StatusCode() int {
+func (r CreateClusterRoleBindingResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type RemoveRoleMappingResp struct {
+type DeleteClusterRoleBindingResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 }
 
 // Status returns HTTPResponse.Status
-func (r RemoveRoleMappingResp) Status() string {
+func (r DeleteClusterRoleBindingResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -5478,53 +7375,26 @@ func (r RemoveRoleMappingResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r RemoveRoleMappingResp) StatusCode() int {
+func (r DeleteClusterRoleBindingResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type UpdateRoleMappingResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Code    *string                 `json:"code,omitempty"`
-		Data    *RoleEntitlementMapping `json:"data,omitempty"`
-		Error   *string                 `json:"error,omitempty"`
-		Success *bool                   `json:"success,omitempty"`
-	}
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateRoleMappingResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateRoleMappingResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListRolesResp struct {
+type GetClusterRoleBindingResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Code    *string `json:"code,omitempty"`
-		Data    *[]Role `json:"data,omitempty"`
-		Error   *string `json:"error,omitempty"`
-		Success *bool   `json:"success,omitempty"`
+		Code    *string             `json:"code,omitempty"`
+		Data    *ClusterRoleBinding `json:"data,omitempty"`
+		Error   *string             `json:"error,omitempty"`
+		Success *bool               `json:"success,omitempty"`
 	}
 }
 
 // Status returns HTTPResponse.Status
-func (r ListRolesResp) Status() string {
+func (r GetClusterRoleBindingResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -5532,69 +7402,26 @@ func (r ListRolesResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListRolesResp) StatusCode() int {
+func (r GetClusterRoleBindingResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type AddRoleResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *APIResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r AddRoleResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r AddRoleResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type RemoveRoleResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-}
-
-// Status returns HTTPResponse.Status
-func (r RemoveRoleResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r RemoveRoleResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetRoleResp struct {
+type UpdateClusterRoleBindingResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Code    *string `json:"code,omitempty"`
-		Data    *Role   `json:"data,omitempty"`
-		Error   *string `json:"error,omitempty"`
-		Success *bool   `json:"success,omitempty"`
+		Code    *string             `json:"code,omitempty"`
+		Data    *ClusterRoleBinding `json:"data,omitempty"`
+		Error   *string             `json:"error,omitempty"`
+		Success *bool               `json:"success,omitempty"`
 	}
 }
 
 // Status returns HTTPResponse.Status
-func (r GetRoleResp) Status() string {
+func (r UpdateClusterRoleBindingResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -5602,26 +7429,26 @@ func (r GetRoleResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetRoleResp) StatusCode() int {
+func (r UpdateClusterRoleBindingResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type UpdateRoleResp struct {
+type ListClusterRolesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Code    *string `json:"code,omitempty"`
-		Data    *Role   `json:"data,omitempty"`
-		Error   *string `json:"error,omitempty"`
-		Success *bool   `json:"success,omitempty"`
+		Code    *string        `json:"code,omitempty"`
+		Data    *[]ClusterRole `json:"data,omitempty"`
+		Error   *string        `json:"error,omitempty"`
+		Success *bool          `json:"success,omitempty"`
 	}
 }
 
 // Status returns HTTPResponse.Status
-func (r UpdateRoleResp) Status() string {
+func (r ListClusterRolesResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -5629,7 +7456,109 @@ func (r UpdateRoleResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r UpdateRoleResp) StatusCode() int {
+func (r ListClusterRolesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateClusterRoleResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *struct {
+		Code    *string      `json:"code,omitempty"`
+		Data    *ClusterRole `json:"data,omitempty"`
+		Error   *string      `json:"error,omitempty"`
+		Success *bool        `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateClusterRoleResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateClusterRoleResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteClusterRoleResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteClusterRoleResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteClusterRoleResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetClusterRoleResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code    *string      `json:"code,omitempty"`
+		Data    *ClusterRole `json:"data,omitempty"`
+		Error   *string      `json:"error,omitempty"`
+		Success *bool        `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetClusterRoleResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetClusterRoleResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateClusterRoleResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code    *string      `json:"code,omitempty"`
+		Data    *ClusterRole `json:"data,omitempty"`
+		Error   *string      `json:"error,omitempty"`
+		Success *bool        `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateClusterRoleResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateClusterRoleResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -5797,6 +7726,89 @@ func (r ListComponentTypesResp) StatusCode() int {
 	return 0
 }
 
+type DeleteComponentTypeDefinitionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code    *string               `json:"code,omitempty"`
+		Data    *ResourceCRUDResponse `json:"data,omitempty"`
+		Error   *string               `json:"error,omitempty"`
+		Success *bool                 `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteComponentTypeDefinitionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteComponentTypeDefinitionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetComponentTypeDefinitionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code *string `json:"code,omitempty"`
+
+		// Data Full Kubernetes CRD as unstructured JSON
+		Data    *map[string]interface{} `json:"data,omitempty"`
+		Error   *string                 `json:"error,omitempty"`
+		Success *bool                   `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetComponentTypeDefinitionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetComponentTypeDefinitionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateComponentTypeDefinitionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code    *string               `json:"code,omitempty"`
+		Data    *ResourceCRUDResponse `json:"data,omitempty"`
+		Error   *string               `json:"error,omitempty"`
+		Success *bool                 `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateComponentTypeDefinitionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateComponentTypeDefinitionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetComponentTypeSchemaResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -5852,6 +7864,89 @@ func (r ListComponentWorkflowsResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ListComponentWorkflowsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteComponentWorkflowDefinitionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code    *string               `json:"code,omitempty"`
+		Data    *ResourceCRUDResponse `json:"data,omitempty"`
+		Error   *string               `json:"error,omitempty"`
+		Success *bool                 `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteComponentWorkflowDefinitionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteComponentWorkflowDefinitionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetComponentWorkflowDefinitionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code *string `json:"code,omitempty"`
+
+		// Data Full Kubernetes CRD as unstructured JSON
+		Data    *map[string]interface{} `json:"data,omitempty"`
+		Error   *string                 `json:"error,omitempty"`
+		Success *bool                   `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetComponentWorkflowDefinitionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetComponentWorkflowDefinitionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateComponentWorkflowDefinitionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code    *string               `json:"code,omitempty"`
+		Data    *ResourceCRUDResponse `json:"data,omitempty"`
+		Error   *string               `json:"error,omitempty"`
+		Success *bool                 `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateComponentWorkflowDefinitionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateComponentWorkflowDefinitionResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -6107,6 +8202,86 @@ func (r GetRCAAgentURLResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetRCAAgentURLResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListGitSecretsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code *string `json:"code,omitempty"`
+		Data *struct {
+			Items      *[]GitSecretResponse `json:"items,omitempty"`
+			Page       *int                 `json:"page,omitempty"`
+			PageSize   *int                 `json:"pageSize,omitempty"`
+			TotalCount *int                 `json:"totalCount,omitempty"`
+		} `json:"data,omitempty"`
+		Error   *string `json:"error,omitempty"`
+		Success *bool   `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r ListGitSecretsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListGitSecretsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateGitSecretResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *struct {
+		Code    *string            `json:"code,omitempty"`
+		Data    *GitSecretResponse `json:"data,omitempty"`
+		Error   *string            `json:"error,omitempty"`
+		Success *bool              `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateGitSecretResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateGitSecretResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteGitSecretResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteGitSecretResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteGitSecretResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -7036,6 +9211,36 @@ func (r GetProjectDeploymentPipelineResp) StatusCode() int {
 	return 0
 }
 
+type GetResourceResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code *string `json:"code,omitempty"`
+
+		// Data Kubernetes-style resource definition
+		Data    *map[string]interface{} `json:"data,omitempty"`
+		Error   *string                 `json:"error,omitempty"`
+		Success *bool                   `json:"success,omitempty"`
+	}
+	JSON404 *APIResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetResourceResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetResourceResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListSecretReferencesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -7094,6 +9299,89 @@ func (r ListTraitsResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ListTraitsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteTraitDefinitionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code    *string               `json:"code,omitempty"`
+		Data    *ResourceCRUDResponse `json:"data,omitempty"`
+		Error   *string               `json:"error,omitempty"`
+		Success *bool                 `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteTraitDefinitionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteTraitDefinitionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetTraitDefinitionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code *string `json:"code,omitempty"`
+
+		// Data Full Kubernetes CRD as unstructured JSON
+		Data    *map[string]interface{} `json:"data,omitempty"`
+		Error   *string                 `json:"error,omitempty"`
+		Success *bool                   `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetTraitDefinitionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetTraitDefinitionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateTraitDefinitionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code    *string               `json:"code,omitempty"`
+		Data    *ResourceCRUDResponse `json:"data,omitempty"`
+		Error   *string               `json:"error,omitempty"`
+		Success *bool                 `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateTraitDefinitionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateTraitDefinitionResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -7161,6 +9449,89 @@ func (r ListWorkflowsResp) StatusCode() int {
 	return 0
 }
 
+type DeleteWorkflowDefinitionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code    *string               `json:"code,omitempty"`
+		Data    *ResourceCRUDResponse `json:"data,omitempty"`
+		Error   *string               `json:"error,omitempty"`
+		Success *bool                 `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteWorkflowDefinitionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteWorkflowDefinitionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetWorkflowDefinitionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code *string `json:"code,omitempty"`
+
+		// Data Full Kubernetes CRD as unstructured JSON
+		Data    *map[string]interface{} `json:"data,omitempty"`
+		Error   *string                 `json:"error,omitempty"`
+		Success *bool                   `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetWorkflowDefinitionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetWorkflowDefinitionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateWorkflowDefinitionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code    *string               `json:"code,omitempty"`
+		Data    *ResourceCRUDResponse `json:"data,omitempty"`
+		Error   *string               `json:"error,omitempty"`
+		Success *bool                 `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateWorkflowDefinitionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateWorkflowDefinitionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetWorkflowSchemaResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -7184,6 +9555,264 @@ func (r GetWorkflowSchemaResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetWorkflowSchemaResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListNamespaceRoleBindingsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code    *string                 `json:"code,omitempty"`
+		Data    *[]NamespaceRoleBinding `json:"data,omitempty"`
+		Error   *string                 `json:"error,omitempty"`
+		Success *bool                   `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r ListNamespaceRoleBindingsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListNamespaceRoleBindingsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateNamespaceRoleBindingResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *struct {
+		Code    *string               `json:"code,omitempty"`
+		Data    *NamespaceRoleBinding `json:"data,omitempty"`
+		Error   *string               `json:"error,omitempty"`
+		Success *bool                 `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateNamespaceRoleBindingResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateNamespaceRoleBindingResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteNamespaceRoleBindingResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteNamespaceRoleBindingResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteNamespaceRoleBindingResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetNamespaceRoleBindingResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code    *string               `json:"code,omitempty"`
+		Data    *NamespaceRoleBinding `json:"data,omitempty"`
+		Error   *string               `json:"error,omitempty"`
+		Success *bool                 `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetNamespaceRoleBindingResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetNamespaceRoleBindingResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateNamespaceRoleBindingResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code    *string               `json:"code,omitempty"`
+		Data    *NamespaceRoleBinding `json:"data,omitempty"`
+		Error   *string               `json:"error,omitempty"`
+		Success *bool                 `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateNamespaceRoleBindingResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateNamespaceRoleBindingResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListNamespaceRolesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code    *string          `json:"code,omitempty"`
+		Data    *[]NamespaceRole `json:"data,omitempty"`
+		Error   *string          `json:"error,omitempty"`
+		Success *bool            `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r ListNamespaceRolesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListNamespaceRolesResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateNamespaceRoleResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *struct {
+		Code    *string        `json:"code,omitempty"`
+		Data    *NamespaceRole `json:"data,omitempty"`
+		Error   *string        `json:"error,omitempty"`
+		Success *bool          `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateNamespaceRoleResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateNamespaceRoleResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteNamespaceRoleResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteNamespaceRoleResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteNamespaceRoleResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetNamespaceRoleResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code    *string        `json:"code,omitempty"`
+		Data    *NamespaceRole `json:"data,omitempty"`
+		Error   *string        `json:"error,omitempty"`
+		Success *bool          `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetNamespaceRoleResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetNamespaceRoleResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateNamespaceRoleResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Code    *string        `json:"code,omitempty"`
+		Data    *NamespaceRole `json:"data,omitempty"`
+		Error   *string        `json:"error,omitempty"`
+		Success *bool          `json:"success,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateNamespaceRoleResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateNamespaceRoleResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -7410,117 +10039,126 @@ func (c *ClientWithResponses) GetSubjectProfileWithResponse(ctx context.Context,
 	return ParseGetSubjectProfileResp(rsp)
 }
 
-// ListRoleMappingsWithResponse request returning *ListRoleMappingsResp
-func (c *ClientWithResponses) ListRoleMappingsWithResponse(ctx context.Context, params *ListRoleMappingsParams, reqEditors ...RequestEditorFn) (*ListRoleMappingsResp, error) {
-	rsp, err := c.ListRoleMappings(ctx, params, reqEditors...)
+// ListClusterRoleBindingsWithResponse request returning *ListClusterRoleBindingsResp
+func (c *ClientWithResponses) ListClusterRoleBindingsWithResponse(ctx context.Context, params *ListClusterRoleBindingsParams, reqEditors ...RequestEditorFn) (*ListClusterRoleBindingsResp, error) {
+	rsp, err := c.ListClusterRoleBindings(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListRoleMappingsResp(rsp)
+	return ParseListClusterRoleBindingsResp(rsp)
 }
 
-// AddRoleMappingWithBodyWithResponse request with arbitrary body returning *AddRoleMappingResp
-func (c *ClientWithResponses) AddRoleMappingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddRoleMappingResp, error) {
-	rsp, err := c.AddRoleMappingWithBody(ctx, contentType, body, reqEditors...)
+// CreateClusterRoleBindingWithBodyWithResponse request with arbitrary body returning *CreateClusterRoleBindingResp
+func (c *ClientWithResponses) CreateClusterRoleBindingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterRoleBindingResp, error) {
+	rsp, err := c.CreateClusterRoleBindingWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseAddRoleMappingResp(rsp)
+	return ParseCreateClusterRoleBindingResp(rsp)
 }
 
-func (c *ClientWithResponses) AddRoleMappingWithResponse(ctx context.Context, body AddRoleMappingJSONRequestBody, reqEditors ...RequestEditorFn) (*AddRoleMappingResp, error) {
-	rsp, err := c.AddRoleMapping(ctx, body, reqEditors...)
+func (c *ClientWithResponses) CreateClusterRoleBindingWithResponse(ctx context.Context, body CreateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterRoleBindingResp, error) {
+	rsp, err := c.CreateClusterRoleBinding(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseAddRoleMappingResp(rsp)
+	return ParseCreateClusterRoleBindingResp(rsp)
 }
 
-// RemoveRoleMappingWithResponse request returning *RemoveRoleMappingResp
-func (c *ClientWithResponses) RemoveRoleMappingWithResponse(ctx context.Context, mappingId int, reqEditors ...RequestEditorFn) (*RemoveRoleMappingResp, error) {
-	rsp, err := c.RemoveRoleMapping(ctx, mappingId, reqEditors...)
+// DeleteClusterRoleBindingWithResponse request returning *DeleteClusterRoleBindingResp
+func (c *ClientWithResponses) DeleteClusterRoleBindingWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteClusterRoleBindingResp, error) {
+	rsp, err := c.DeleteClusterRoleBinding(ctx, name, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseRemoveRoleMappingResp(rsp)
+	return ParseDeleteClusterRoleBindingResp(rsp)
 }
 
-// UpdateRoleMappingWithBodyWithResponse request with arbitrary body returning *UpdateRoleMappingResp
-func (c *ClientWithResponses) UpdateRoleMappingWithBodyWithResponse(ctx context.Context, mappingId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateRoleMappingResp, error) {
-	rsp, err := c.UpdateRoleMappingWithBody(ctx, mappingId, contentType, body, reqEditors...)
+// GetClusterRoleBindingWithResponse request returning *GetClusterRoleBindingResp
+func (c *ClientWithResponses) GetClusterRoleBindingWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*GetClusterRoleBindingResp, error) {
+	rsp, err := c.GetClusterRoleBinding(ctx, name, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateRoleMappingResp(rsp)
+	return ParseGetClusterRoleBindingResp(rsp)
 }
 
-func (c *ClientWithResponses) UpdateRoleMappingWithResponse(ctx context.Context, mappingId int, body UpdateRoleMappingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateRoleMappingResp, error) {
-	rsp, err := c.UpdateRoleMapping(ctx, mappingId, body, reqEditors...)
+// UpdateClusterRoleBindingWithBodyWithResponse request with arbitrary body returning *UpdateClusterRoleBindingResp
+func (c *ClientWithResponses) UpdateClusterRoleBindingWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterRoleBindingResp, error) {
+	rsp, err := c.UpdateClusterRoleBindingWithBody(ctx, name, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateRoleMappingResp(rsp)
+	return ParseUpdateClusterRoleBindingResp(rsp)
 }
 
-// ListRolesWithResponse request returning *ListRolesResp
-func (c *ClientWithResponses) ListRolesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListRolesResp, error) {
-	rsp, err := c.ListRoles(ctx, reqEditors...)
+func (c *ClientWithResponses) UpdateClusterRoleBindingWithResponse(ctx context.Context, name string, body UpdateClusterRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterRoleBindingResp, error) {
+	rsp, err := c.UpdateClusterRoleBinding(ctx, name, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListRolesResp(rsp)
+	return ParseUpdateClusterRoleBindingResp(rsp)
 }
 
-// AddRoleWithBodyWithResponse request with arbitrary body returning *AddRoleResp
-func (c *ClientWithResponses) AddRoleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddRoleResp, error) {
-	rsp, err := c.AddRoleWithBody(ctx, contentType, body, reqEditors...)
+// ListClusterRolesWithResponse request returning *ListClusterRolesResp
+func (c *ClientWithResponses) ListClusterRolesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListClusterRolesResp, error) {
+	rsp, err := c.ListClusterRoles(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseAddRoleResp(rsp)
+	return ParseListClusterRolesResp(rsp)
 }
 
-func (c *ClientWithResponses) AddRoleWithResponse(ctx context.Context, body AddRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*AddRoleResp, error) {
-	rsp, err := c.AddRole(ctx, body, reqEditors...)
+// CreateClusterRoleWithBodyWithResponse request with arbitrary body returning *CreateClusterRoleResp
+func (c *ClientWithResponses) CreateClusterRoleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateClusterRoleResp, error) {
+	rsp, err := c.CreateClusterRoleWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseAddRoleResp(rsp)
+	return ParseCreateClusterRoleResp(rsp)
 }
 
-// RemoveRoleWithResponse request returning *RemoveRoleResp
-func (c *ClientWithResponses) RemoveRoleWithResponse(ctx context.Context, roleName string, params *RemoveRoleParams, reqEditors ...RequestEditorFn) (*RemoveRoleResp, error) {
-	rsp, err := c.RemoveRole(ctx, roleName, params, reqEditors...)
+func (c *ClientWithResponses) CreateClusterRoleWithResponse(ctx context.Context, body CreateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateClusterRoleResp, error) {
+	rsp, err := c.CreateClusterRole(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseRemoveRoleResp(rsp)
+	return ParseCreateClusterRoleResp(rsp)
 }
 
-// GetRoleWithResponse request returning *GetRoleResp
-func (c *ClientWithResponses) GetRoleWithResponse(ctx context.Context, roleName string, reqEditors ...RequestEditorFn) (*GetRoleResp, error) {
-	rsp, err := c.GetRole(ctx, roleName, reqEditors...)
+// DeleteClusterRoleWithResponse request returning *DeleteClusterRoleResp
+func (c *ClientWithResponses) DeleteClusterRoleWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteClusterRoleResp, error) {
+	rsp, err := c.DeleteClusterRole(ctx, name, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetRoleResp(rsp)
+	return ParseDeleteClusterRoleResp(rsp)
 }
 
-// UpdateRoleWithBodyWithResponse request with arbitrary body returning *UpdateRoleResp
-func (c *ClientWithResponses) UpdateRoleWithBodyWithResponse(ctx context.Context, roleName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateRoleResp, error) {
-	rsp, err := c.UpdateRoleWithBody(ctx, roleName, contentType, body, reqEditors...)
+// GetClusterRoleWithResponse request returning *GetClusterRoleResp
+func (c *ClientWithResponses) GetClusterRoleWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*GetClusterRoleResp, error) {
+	rsp, err := c.GetClusterRole(ctx, name, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateRoleResp(rsp)
+	return ParseGetClusterRoleResp(rsp)
 }
 
-func (c *ClientWithResponses) UpdateRoleWithResponse(ctx context.Context, roleName string, body UpdateRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateRoleResp, error) {
-	rsp, err := c.UpdateRole(ctx, roleName, body, reqEditors...)
+// UpdateClusterRoleWithBodyWithResponse request with arbitrary body returning *UpdateClusterRoleResp
+func (c *ClientWithResponses) UpdateClusterRoleWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateClusterRoleResp, error) {
+	rsp, err := c.UpdateClusterRoleWithBody(ctx, name, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateRoleResp(rsp)
+	return ParseUpdateClusterRoleResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateClusterRoleWithResponse(ctx context.Context, name string, body UpdateClusterRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateClusterRoleResp, error) {
+	rsp, err := c.UpdateClusterRole(ctx, name, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateClusterRoleResp(rsp)
 }
 
 // DeleteResourceWithBodyWithResponse request with arbitrary body returning *DeleteResourceResp
@@ -7585,6 +10223,41 @@ func (c *ClientWithResponses) ListComponentTypesWithResponse(ctx context.Context
 	return ParseListComponentTypesResp(rsp)
 }
 
+// DeleteComponentTypeDefinitionWithResponse request returning *DeleteComponentTypeDefinitionResp
+func (c *ClientWithResponses) DeleteComponentTypeDefinitionWithResponse(ctx context.Context, namespaceName string, ctName string, reqEditors ...RequestEditorFn) (*DeleteComponentTypeDefinitionResp, error) {
+	rsp, err := c.DeleteComponentTypeDefinition(ctx, namespaceName, ctName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteComponentTypeDefinitionResp(rsp)
+}
+
+// GetComponentTypeDefinitionWithResponse request returning *GetComponentTypeDefinitionResp
+func (c *ClientWithResponses) GetComponentTypeDefinitionWithResponse(ctx context.Context, namespaceName string, ctName string, reqEditors ...RequestEditorFn) (*GetComponentTypeDefinitionResp, error) {
+	rsp, err := c.GetComponentTypeDefinition(ctx, namespaceName, ctName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetComponentTypeDefinitionResp(rsp)
+}
+
+// UpdateComponentTypeDefinitionWithBodyWithResponse request with arbitrary body returning *UpdateComponentTypeDefinitionResp
+func (c *ClientWithResponses) UpdateComponentTypeDefinitionWithBodyWithResponse(ctx context.Context, namespaceName string, ctName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateComponentTypeDefinitionResp, error) {
+	rsp, err := c.UpdateComponentTypeDefinitionWithBody(ctx, namespaceName, ctName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateComponentTypeDefinitionResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateComponentTypeDefinitionWithResponse(ctx context.Context, namespaceName string, ctName string, body UpdateComponentTypeDefinitionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateComponentTypeDefinitionResp, error) {
+	rsp, err := c.UpdateComponentTypeDefinition(ctx, namespaceName, ctName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateComponentTypeDefinitionResp(rsp)
+}
+
 // GetComponentTypeSchemaWithResponse request returning *GetComponentTypeSchemaResp
 func (c *ClientWithResponses) GetComponentTypeSchemaWithResponse(ctx context.Context, namespaceName string, ctName string, reqEditors ...RequestEditorFn) (*GetComponentTypeSchemaResp, error) {
 	rsp, err := c.GetComponentTypeSchema(ctx, namespaceName, ctName, reqEditors...)
@@ -7601,6 +10274,41 @@ func (c *ClientWithResponses) ListComponentWorkflowsWithResponse(ctx context.Con
 		return nil, err
 	}
 	return ParseListComponentWorkflowsResp(rsp)
+}
+
+// DeleteComponentWorkflowDefinitionWithResponse request returning *DeleteComponentWorkflowDefinitionResp
+func (c *ClientWithResponses) DeleteComponentWorkflowDefinitionWithResponse(ctx context.Context, namespaceName string, cwName string, reqEditors ...RequestEditorFn) (*DeleteComponentWorkflowDefinitionResp, error) {
+	rsp, err := c.DeleteComponentWorkflowDefinition(ctx, namespaceName, cwName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteComponentWorkflowDefinitionResp(rsp)
+}
+
+// GetComponentWorkflowDefinitionWithResponse request returning *GetComponentWorkflowDefinitionResp
+func (c *ClientWithResponses) GetComponentWorkflowDefinitionWithResponse(ctx context.Context, namespaceName string, cwName string, reqEditors ...RequestEditorFn) (*GetComponentWorkflowDefinitionResp, error) {
+	rsp, err := c.GetComponentWorkflowDefinition(ctx, namespaceName, cwName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetComponentWorkflowDefinitionResp(rsp)
+}
+
+// UpdateComponentWorkflowDefinitionWithBodyWithResponse request with arbitrary body returning *UpdateComponentWorkflowDefinitionResp
+func (c *ClientWithResponses) UpdateComponentWorkflowDefinitionWithBodyWithResponse(ctx context.Context, namespaceName string, cwName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateComponentWorkflowDefinitionResp, error) {
+	rsp, err := c.UpdateComponentWorkflowDefinitionWithBody(ctx, namespaceName, cwName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateComponentWorkflowDefinitionResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateComponentWorkflowDefinitionWithResponse(ctx context.Context, namespaceName string, cwName string, body UpdateComponentWorkflowDefinitionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateComponentWorkflowDefinitionResp, error) {
+	rsp, err := c.UpdateComponentWorkflowDefinition(ctx, namespaceName, cwName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateComponentWorkflowDefinitionResp(rsp)
 }
 
 // GetComponentWorkflowSchemaWithResponse request returning *GetComponentWorkflowSchemaResp
@@ -7698,6 +10406,41 @@ func (c *ClientWithResponses) GetRCAAgentURLWithResponse(ctx context.Context, na
 		return nil, err
 	}
 	return ParseGetRCAAgentURLResp(rsp)
+}
+
+// ListGitSecretsWithResponse request returning *ListGitSecretsResp
+func (c *ClientWithResponses) ListGitSecretsWithResponse(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*ListGitSecretsResp, error) {
+	rsp, err := c.ListGitSecrets(ctx, namespaceName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListGitSecretsResp(rsp)
+}
+
+// CreateGitSecretWithBodyWithResponse request with arbitrary body returning *CreateGitSecretResp
+func (c *ClientWithResponses) CreateGitSecretWithBodyWithResponse(ctx context.Context, namespaceName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateGitSecretResp, error) {
+	rsp, err := c.CreateGitSecretWithBody(ctx, namespaceName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateGitSecretResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateGitSecretWithResponse(ctx context.Context, namespaceName string, body CreateGitSecretJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateGitSecretResp, error) {
+	rsp, err := c.CreateGitSecret(ctx, namespaceName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateGitSecretResp(rsp)
+}
+
+// DeleteGitSecretWithResponse request returning *DeleteGitSecretResp
+func (c *ClientWithResponses) DeleteGitSecretWithResponse(ctx context.Context, namespaceName string, secretName string, reqEditors ...RequestEditorFn) (*DeleteGitSecretResp, error) {
+	rsp, err := c.DeleteGitSecret(ctx, namespaceName, secretName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteGitSecretResp(rsp)
 }
 
 // ListObservabilityPlanesWithResponse request returning *ListObservabilityPlanesResp
@@ -8085,6 +10828,15 @@ func (c *ClientWithResponses) GetProjectDeploymentPipelineWithResponse(ctx conte
 	return ParseGetProjectDeploymentPipelineResp(rsp)
 }
 
+// GetResourceWithResponse request returning *GetResourceResp
+func (c *ClientWithResponses) GetResourceWithResponse(ctx context.Context, namespaceName string, kind string, name string, reqEditors ...RequestEditorFn) (*GetResourceResp, error) {
+	rsp, err := c.GetResource(ctx, namespaceName, kind, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetResourceResp(rsp)
+}
+
 // ListSecretReferencesWithResponse request returning *ListSecretReferencesResp
 func (c *ClientWithResponses) ListSecretReferencesWithResponse(ctx context.Context, namespaceName string, reqEditors ...RequestEditorFn) (*ListSecretReferencesResp, error) {
 	rsp, err := c.ListSecretReferences(ctx, namespaceName, reqEditors...)
@@ -8101,6 +10853,41 @@ func (c *ClientWithResponses) ListTraitsWithResponse(ctx context.Context, namesp
 		return nil, err
 	}
 	return ParseListTraitsResp(rsp)
+}
+
+// DeleteTraitDefinitionWithResponse request returning *DeleteTraitDefinitionResp
+func (c *ClientWithResponses) DeleteTraitDefinitionWithResponse(ctx context.Context, namespaceName string, traitName string, reqEditors ...RequestEditorFn) (*DeleteTraitDefinitionResp, error) {
+	rsp, err := c.DeleteTraitDefinition(ctx, namespaceName, traitName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteTraitDefinitionResp(rsp)
+}
+
+// GetTraitDefinitionWithResponse request returning *GetTraitDefinitionResp
+func (c *ClientWithResponses) GetTraitDefinitionWithResponse(ctx context.Context, namespaceName string, traitName string, reqEditors ...RequestEditorFn) (*GetTraitDefinitionResp, error) {
+	rsp, err := c.GetTraitDefinition(ctx, namespaceName, traitName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTraitDefinitionResp(rsp)
+}
+
+// UpdateTraitDefinitionWithBodyWithResponse request with arbitrary body returning *UpdateTraitDefinitionResp
+func (c *ClientWithResponses) UpdateTraitDefinitionWithBodyWithResponse(ctx context.Context, namespaceName string, traitName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTraitDefinitionResp, error) {
+	rsp, err := c.UpdateTraitDefinitionWithBody(ctx, namespaceName, traitName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateTraitDefinitionResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateTraitDefinitionWithResponse(ctx context.Context, namespaceName string, traitName string, body UpdateTraitDefinitionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTraitDefinitionResp, error) {
+	rsp, err := c.UpdateTraitDefinition(ctx, namespaceName, traitName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateTraitDefinitionResp(rsp)
 }
 
 // GetTraitSchemaWithResponse request returning *GetTraitSchemaResp
@@ -8121,6 +10908,41 @@ func (c *ClientWithResponses) ListWorkflowsWithResponse(ctx context.Context, nam
 	return ParseListWorkflowsResp(rsp)
 }
 
+// DeleteWorkflowDefinitionWithResponse request returning *DeleteWorkflowDefinitionResp
+func (c *ClientWithResponses) DeleteWorkflowDefinitionWithResponse(ctx context.Context, namespaceName string, workflowName string, reqEditors ...RequestEditorFn) (*DeleteWorkflowDefinitionResp, error) {
+	rsp, err := c.DeleteWorkflowDefinition(ctx, namespaceName, workflowName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteWorkflowDefinitionResp(rsp)
+}
+
+// GetWorkflowDefinitionWithResponse request returning *GetWorkflowDefinitionResp
+func (c *ClientWithResponses) GetWorkflowDefinitionWithResponse(ctx context.Context, namespaceName string, workflowName string, reqEditors ...RequestEditorFn) (*GetWorkflowDefinitionResp, error) {
+	rsp, err := c.GetWorkflowDefinition(ctx, namespaceName, workflowName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetWorkflowDefinitionResp(rsp)
+}
+
+// UpdateWorkflowDefinitionWithBodyWithResponse request with arbitrary body returning *UpdateWorkflowDefinitionResp
+func (c *ClientWithResponses) UpdateWorkflowDefinitionWithBodyWithResponse(ctx context.Context, namespaceName string, workflowName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateWorkflowDefinitionResp, error) {
+	rsp, err := c.UpdateWorkflowDefinitionWithBody(ctx, namespaceName, workflowName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateWorkflowDefinitionResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateWorkflowDefinitionWithResponse(ctx context.Context, namespaceName string, workflowName string, body UpdateWorkflowDefinitionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateWorkflowDefinitionResp, error) {
+	rsp, err := c.UpdateWorkflowDefinition(ctx, namespaceName, workflowName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateWorkflowDefinitionResp(rsp)
+}
+
 // GetWorkflowSchemaWithResponse request returning *GetWorkflowSchemaResp
 func (c *ClientWithResponses) GetWorkflowSchemaWithResponse(ctx context.Context, namespaceName string, workflowName string, reqEditors ...RequestEditorFn) (*GetWorkflowSchemaResp, error) {
 	rsp, err := c.GetWorkflowSchema(ctx, namespaceName, workflowName, reqEditors...)
@@ -8128,6 +10950,128 @@ func (c *ClientWithResponses) GetWorkflowSchemaWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseGetWorkflowSchemaResp(rsp)
+}
+
+// ListNamespaceRoleBindingsWithResponse request returning *ListNamespaceRoleBindingsResp
+func (c *ClientWithResponses) ListNamespaceRoleBindingsWithResponse(ctx context.Context, namespace string, params *ListNamespaceRoleBindingsParams, reqEditors ...RequestEditorFn) (*ListNamespaceRoleBindingsResp, error) {
+	rsp, err := c.ListNamespaceRoleBindings(ctx, namespace, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListNamespaceRoleBindingsResp(rsp)
+}
+
+// CreateNamespaceRoleBindingWithBodyWithResponse request with arbitrary body returning *CreateNamespaceRoleBindingResp
+func (c *ClientWithResponses) CreateNamespaceRoleBindingWithBodyWithResponse(ctx context.Context, namespace string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleBindingResp, error) {
+	rsp, err := c.CreateNamespaceRoleBindingWithBody(ctx, namespace, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNamespaceRoleBindingResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateNamespaceRoleBindingWithResponse(ctx context.Context, namespace string, body CreateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleBindingResp, error) {
+	rsp, err := c.CreateNamespaceRoleBinding(ctx, namespace, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNamespaceRoleBindingResp(rsp)
+}
+
+// DeleteNamespaceRoleBindingWithResponse request returning *DeleteNamespaceRoleBindingResp
+func (c *ClientWithResponses) DeleteNamespaceRoleBindingWithResponse(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*DeleteNamespaceRoleBindingResp, error) {
+	rsp, err := c.DeleteNamespaceRoleBinding(ctx, namespace, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteNamespaceRoleBindingResp(rsp)
+}
+
+// GetNamespaceRoleBindingWithResponse request returning *GetNamespaceRoleBindingResp
+func (c *ClientWithResponses) GetNamespaceRoleBindingWithResponse(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*GetNamespaceRoleBindingResp, error) {
+	rsp, err := c.GetNamespaceRoleBinding(ctx, namespace, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetNamespaceRoleBindingResp(rsp)
+}
+
+// UpdateNamespaceRoleBindingWithBodyWithResponse request with arbitrary body returning *UpdateNamespaceRoleBindingResp
+func (c *ClientWithResponses) UpdateNamespaceRoleBindingWithBodyWithResponse(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleBindingResp, error) {
+	rsp, err := c.UpdateNamespaceRoleBindingWithBody(ctx, namespace, name, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNamespaceRoleBindingResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateNamespaceRoleBindingWithResponse(ctx context.Context, namespace string, name string, body UpdateNamespaceRoleBindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleBindingResp, error) {
+	rsp, err := c.UpdateNamespaceRoleBinding(ctx, namespace, name, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNamespaceRoleBindingResp(rsp)
+}
+
+// ListNamespaceRolesWithResponse request returning *ListNamespaceRolesResp
+func (c *ClientWithResponses) ListNamespaceRolesWithResponse(ctx context.Context, namespace string, reqEditors ...RequestEditorFn) (*ListNamespaceRolesResp, error) {
+	rsp, err := c.ListNamespaceRoles(ctx, namespace, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListNamespaceRolesResp(rsp)
+}
+
+// CreateNamespaceRoleWithBodyWithResponse request with arbitrary body returning *CreateNamespaceRoleResp
+func (c *ClientWithResponses) CreateNamespaceRoleWithBodyWithResponse(ctx context.Context, namespace string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleResp, error) {
+	rsp, err := c.CreateNamespaceRoleWithBody(ctx, namespace, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNamespaceRoleResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateNamespaceRoleWithResponse(ctx context.Context, namespace string, body CreateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNamespaceRoleResp, error) {
+	rsp, err := c.CreateNamespaceRole(ctx, namespace, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNamespaceRoleResp(rsp)
+}
+
+// DeleteNamespaceRoleWithResponse request returning *DeleteNamespaceRoleResp
+func (c *ClientWithResponses) DeleteNamespaceRoleWithResponse(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*DeleteNamespaceRoleResp, error) {
+	rsp, err := c.DeleteNamespaceRole(ctx, namespace, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteNamespaceRoleResp(rsp)
+}
+
+// GetNamespaceRoleWithResponse request returning *GetNamespaceRoleResp
+func (c *ClientWithResponses) GetNamespaceRoleWithResponse(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*GetNamespaceRoleResp, error) {
+	rsp, err := c.GetNamespaceRole(ctx, namespace, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetNamespaceRoleResp(rsp)
+}
+
+// UpdateNamespaceRoleWithBodyWithResponse request with arbitrary body returning *UpdateNamespaceRoleResp
+func (c *ClientWithResponses) UpdateNamespaceRoleWithBodyWithResponse(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleResp, error) {
+	rsp, err := c.UpdateNamespaceRoleWithBody(ctx, namespace, name, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNamespaceRoleResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateNamespaceRoleWithResponse(ctx context.Context, namespace string, name string, body UpdateNamespaceRoleJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNamespaceRoleResp, error) {
+	rsp, err := c.UpdateNamespaceRole(ctx, namespace, name, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNamespaceRoleResp(rsp)
 }
 
 // ReadyWithResponse request returning *ReadyResp
@@ -8365,15 +11309,15 @@ func ParseGetSubjectProfileResp(rsp *http.Response) (*GetSubjectProfileResp, err
 	return response, nil
 }
 
-// ParseListRoleMappingsResp parses an HTTP response from a ListRoleMappingsWithResponse call
-func ParseListRoleMappingsResp(rsp *http.Response) (*ListRoleMappingsResp, error) {
+// ParseListClusterRoleBindingsResp parses an HTTP response from a ListClusterRoleBindingsWithResponse call
+func ParseListClusterRoleBindingsResp(rsp *http.Response) (*ListClusterRoleBindingsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListRoleMappingsResp{
+	response := &ListClusterRoleBindingsResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -8381,10 +11325,10 @@ func ParseListRoleMappingsResp(rsp *http.Response) (*ListRoleMappingsResp, error
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Code    *string                   `json:"code,omitempty"`
-			Data    *[]RoleEntitlementMapping `json:"data,omitempty"`
-			Error   *string                   `json:"error,omitempty"`
-			Success *bool                     `json:"success,omitempty"`
+			Code    *string               `json:"code,omitempty"`
+			Data    *[]ClusterRoleBinding `json:"data,omitempty"`
+			Error   *string               `json:"error,omitempty"`
+			Success *bool                 `json:"success,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -8396,22 +11340,27 @@ func ParseListRoleMappingsResp(rsp *http.Response) (*ListRoleMappingsResp, error
 	return response, nil
 }
 
-// ParseAddRoleMappingResp parses an HTTP response from a AddRoleMappingWithResponse call
-func ParseAddRoleMappingResp(rsp *http.Response) (*AddRoleMappingResp, error) {
+// ParseCreateClusterRoleBindingResp parses an HTTP response from a CreateClusterRoleBindingWithResponse call
+func ParseCreateClusterRoleBindingResp(rsp *http.Response) (*CreateClusterRoleBindingResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &AddRoleMappingResp{
+	response := &CreateClusterRoleBindingResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest APIResponse
+		var dest struct {
+			Code    *string             `json:"code,omitempty"`
+			Data    *ClusterRoleBinding `json:"data,omitempty"`
+			Error   *string             `json:"error,omitempty"`
+			Success *bool               `json:"success,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -8422,15 +11371,15 @@ func ParseAddRoleMappingResp(rsp *http.Response) (*AddRoleMappingResp, error) {
 	return response, nil
 }
 
-// ParseRemoveRoleMappingResp parses an HTTP response from a RemoveRoleMappingWithResponse call
-func ParseRemoveRoleMappingResp(rsp *http.Response) (*RemoveRoleMappingResp, error) {
+// ParseDeleteClusterRoleBindingResp parses an HTTP response from a DeleteClusterRoleBindingWithResponse call
+func ParseDeleteClusterRoleBindingResp(rsp *http.Response) (*DeleteClusterRoleBindingResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &RemoveRoleMappingResp{
+	response := &DeleteClusterRoleBindingResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -8438,15 +11387,15 @@ func ParseRemoveRoleMappingResp(rsp *http.Response) (*RemoveRoleMappingResp, err
 	return response, nil
 }
 
-// ParseUpdateRoleMappingResp parses an HTTP response from a UpdateRoleMappingWithResponse call
-func ParseUpdateRoleMappingResp(rsp *http.Response) (*UpdateRoleMappingResp, error) {
+// ParseGetClusterRoleBindingResp parses an HTTP response from a GetClusterRoleBindingWithResponse call
+func ParseGetClusterRoleBindingResp(rsp *http.Response) (*GetClusterRoleBindingResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UpdateRoleMappingResp{
+	response := &GetClusterRoleBindingResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -8454,10 +11403,10 @@ func ParseUpdateRoleMappingResp(rsp *http.Response) (*UpdateRoleMappingResp, err
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Code    *string                 `json:"code,omitempty"`
-			Data    *RoleEntitlementMapping `json:"data,omitempty"`
-			Error   *string                 `json:"error,omitempty"`
-			Success *bool                   `json:"success,omitempty"`
+			Code    *string             `json:"code,omitempty"`
+			Data    *ClusterRoleBinding `json:"data,omitempty"`
+			Error   *string             `json:"error,omitempty"`
+			Success *bool               `json:"success,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -8469,15 +11418,15 @@ func ParseUpdateRoleMappingResp(rsp *http.Response) (*UpdateRoleMappingResp, err
 	return response, nil
 }
 
-// ParseListRolesResp parses an HTTP response from a ListRolesWithResponse call
-func ParseListRolesResp(rsp *http.Response) (*ListRolesResp, error) {
+// ParseUpdateClusterRoleBindingResp parses an HTTP response from a UpdateClusterRoleBindingWithResponse call
+func ParseUpdateClusterRoleBindingResp(rsp *http.Response) (*UpdateClusterRoleBindingResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListRolesResp{
+	response := &UpdateClusterRoleBindingResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -8485,10 +11434,10 @@ func ParseListRolesResp(rsp *http.Response) (*ListRolesResp, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Code    *string `json:"code,omitempty"`
-			Data    *[]Role `json:"data,omitempty"`
-			Error   *string `json:"error,omitempty"`
-			Success *bool   `json:"success,omitempty"`
+			Code    *string             `json:"code,omitempty"`
+			Data    *ClusterRoleBinding `json:"data,omitempty"`
+			Error   *string             `json:"error,omitempty"`
+			Success *bool               `json:"success,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -8500,22 +11449,58 @@ func ParseListRolesResp(rsp *http.Response) (*ListRolesResp, error) {
 	return response, nil
 }
 
-// ParseAddRoleResp parses an HTTP response from a AddRoleWithResponse call
-func ParseAddRoleResp(rsp *http.Response) (*AddRoleResp, error) {
+// ParseListClusterRolesResp parses an HTTP response from a ListClusterRolesWithResponse call
+func ParseListClusterRolesResp(rsp *http.Response) (*ListClusterRolesResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &AddRoleResp{
+	response := &ListClusterRolesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code    *string        `json:"code,omitempty"`
+			Data    *[]ClusterRole `json:"data,omitempty"`
+			Error   *string        `json:"error,omitempty"`
+			Success *bool          `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateClusterRoleResp parses an HTTP response from a CreateClusterRoleWithResponse call
+func ParseCreateClusterRoleResp(rsp *http.Response) (*CreateClusterRoleResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateClusterRoleResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest APIResponse
+		var dest struct {
+			Code    *string      `json:"code,omitempty"`
+			Data    *ClusterRole `json:"data,omitempty"`
+			Error   *string      `json:"error,omitempty"`
+			Success *bool        `json:"success,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -8526,15 +11511,15 @@ func ParseAddRoleResp(rsp *http.Response) (*AddRoleResp, error) {
 	return response, nil
 }
 
-// ParseRemoveRoleResp parses an HTTP response from a RemoveRoleWithResponse call
-func ParseRemoveRoleResp(rsp *http.Response) (*RemoveRoleResp, error) {
+// ParseDeleteClusterRoleResp parses an HTTP response from a DeleteClusterRoleWithResponse call
+func ParseDeleteClusterRoleResp(rsp *http.Response) (*DeleteClusterRoleResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &RemoveRoleResp{
+	response := &DeleteClusterRoleResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -8542,15 +11527,15 @@ func ParseRemoveRoleResp(rsp *http.Response) (*RemoveRoleResp, error) {
 	return response, nil
 }
 
-// ParseGetRoleResp parses an HTTP response from a GetRoleWithResponse call
-func ParseGetRoleResp(rsp *http.Response) (*GetRoleResp, error) {
+// ParseGetClusterRoleResp parses an HTTP response from a GetClusterRoleWithResponse call
+func ParseGetClusterRoleResp(rsp *http.Response) (*GetClusterRoleResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetRoleResp{
+	response := &GetClusterRoleResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -8558,10 +11543,10 @@ func ParseGetRoleResp(rsp *http.Response) (*GetRoleResp, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Code    *string `json:"code,omitempty"`
-			Data    *Role   `json:"data,omitempty"`
-			Error   *string `json:"error,omitempty"`
-			Success *bool   `json:"success,omitempty"`
+			Code    *string      `json:"code,omitempty"`
+			Data    *ClusterRole `json:"data,omitempty"`
+			Error   *string      `json:"error,omitempty"`
+			Success *bool        `json:"success,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -8573,15 +11558,15 @@ func ParseGetRoleResp(rsp *http.Response) (*GetRoleResp, error) {
 	return response, nil
 }
 
-// ParseUpdateRoleResp parses an HTTP response from a UpdateRoleWithResponse call
-func ParseUpdateRoleResp(rsp *http.Response) (*UpdateRoleResp, error) {
+// ParseUpdateClusterRoleResp parses an HTTP response from a UpdateClusterRoleWithResponse call
+func ParseUpdateClusterRoleResp(rsp *http.Response) (*UpdateClusterRoleResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UpdateRoleResp{
+	response := &UpdateClusterRoleResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -8589,10 +11574,10 @@ func ParseUpdateRoleResp(rsp *http.Response) (*UpdateRoleResp, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Code    *string `json:"code,omitempty"`
-			Data    *Role   `json:"data,omitempty"`
-			Error   *string `json:"error,omitempty"`
-			Success *bool   `json:"success,omitempty"`
+			Code    *string      `json:"code,omitempty"`
+			Data    *ClusterRole `json:"data,omitempty"`
+			Error   *string      `json:"error,omitempty"`
+			Success *bool        `json:"success,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -8780,6 +11765,101 @@ func ParseListComponentTypesResp(rsp *http.Response) (*ListComponentTypesResp, e
 	return response, nil
 }
 
+// ParseDeleteComponentTypeDefinitionResp parses an HTTP response from a DeleteComponentTypeDefinitionWithResponse call
+func ParseDeleteComponentTypeDefinitionResp(rsp *http.Response) (*DeleteComponentTypeDefinitionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteComponentTypeDefinitionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code    *string               `json:"code,omitempty"`
+			Data    *ResourceCRUDResponse `json:"data,omitempty"`
+			Error   *string               `json:"error,omitempty"`
+			Success *bool                 `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetComponentTypeDefinitionResp parses an HTTP response from a GetComponentTypeDefinitionWithResponse call
+func ParseGetComponentTypeDefinitionResp(rsp *http.Response) (*GetComponentTypeDefinitionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetComponentTypeDefinitionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code *string `json:"code,omitempty"`
+
+			// Data Full Kubernetes CRD as unstructured JSON
+			Data    *map[string]interface{} `json:"data,omitempty"`
+			Error   *string                 `json:"error,omitempty"`
+			Success *bool                   `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateComponentTypeDefinitionResp parses an HTTP response from a UpdateComponentTypeDefinitionWithResponse call
+func ParseUpdateComponentTypeDefinitionResp(rsp *http.Response) (*UpdateComponentTypeDefinitionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateComponentTypeDefinitionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code    *string               `json:"code,omitempty"`
+			Data    *ResourceCRUDResponse `json:"data,omitempty"`
+			Error   *string               `json:"error,omitempty"`
+			Success *bool                 `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetComponentTypeSchemaResp parses an HTTP response from a GetComponentTypeSchemaWithResponse call
 func ParseGetComponentTypeSchemaResp(rsp *http.Response) (*GetComponentTypeSchemaResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -8838,6 +11918,101 @@ func ParseListComponentWorkflowsResp(rsp *http.Response) (*ListComponentWorkflow
 			} `json:"data,omitempty"`
 			Error   *string `json:"error,omitempty"`
 			Success *bool   `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteComponentWorkflowDefinitionResp parses an HTTP response from a DeleteComponentWorkflowDefinitionWithResponse call
+func ParseDeleteComponentWorkflowDefinitionResp(rsp *http.Response) (*DeleteComponentWorkflowDefinitionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteComponentWorkflowDefinitionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code    *string               `json:"code,omitempty"`
+			Data    *ResourceCRUDResponse `json:"data,omitempty"`
+			Error   *string               `json:"error,omitempty"`
+			Success *bool                 `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetComponentWorkflowDefinitionResp parses an HTTP response from a GetComponentWorkflowDefinitionWithResponse call
+func ParseGetComponentWorkflowDefinitionResp(rsp *http.Response) (*GetComponentWorkflowDefinitionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetComponentWorkflowDefinitionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code *string `json:"code,omitempty"`
+
+			// Data Full Kubernetes CRD as unstructured JSON
+			Data    *map[string]interface{} `json:"data,omitempty"`
+			Error   *string                 `json:"error,omitempty"`
+			Success *bool                   `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateComponentWorkflowDefinitionResp parses an HTTP response from a UpdateComponentWorkflowDefinitionWithResponse call
+func ParseUpdateComponentWorkflowDefinitionResp(rsp *http.Response) (*UpdateComponentWorkflowDefinitionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateComponentWorkflowDefinitionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code    *string               `json:"code,omitempty"`
+			Data    *ResourceCRUDResponse `json:"data,omitempty"`
+			Error   *string               `json:"error,omitempty"`
+			Success *bool                 `json:"success,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -9135,6 +12310,89 @@ func ParseGetRCAAgentURLResp(rsp *http.Response) (*GetRCAAgentURLResp, error) {
 		}
 		response.JSON200 = &dest
 
+	}
+
+	return response, nil
+}
+
+// ParseListGitSecretsResp parses an HTTP response from a ListGitSecretsWithResponse call
+func ParseListGitSecretsResp(rsp *http.Response) (*ListGitSecretsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListGitSecretsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code *string `json:"code,omitempty"`
+			Data *struct {
+				Items      *[]GitSecretResponse `json:"items,omitempty"`
+				Page       *int                 `json:"page,omitempty"`
+				PageSize   *int                 `json:"pageSize,omitempty"`
+				TotalCount *int                 `json:"totalCount,omitempty"`
+			} `json:"data,omitempty"`
+			Error   *string `json:"error,omitempty"`
+			Success *bool   `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateGitSecretResp parses an HTTP response from a CreateGitSecretWithResponse call
+func ParseCreateGitSecretResp(rsp *http.Response) (*CreateGitSecretResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateGitSecretResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest struct {
+			Code    *string            `json:"code,omitempty"`
+			Data    *GitSecretResponse `json:"data,omitempty"`
+			Error   *string            `json:"error,omitempty"`
+			Success *bool              `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteGitSecretResp parses an HTTP response from a DeleteGitSecretWithResponse call
+func ParseDeleteGitSecretResp(rsp *http.Response) (*DeleteGitSecretResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteGitSecretResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
 	}
 
 	return response, nil
@@ -10177,6 +13435,46 @@ func ParseGetProjectDeploymentPipelineResp(rsp *http.Response) (*GetProjectDeplo
 	return response, nil
 }
 
+// ParseGetResourceResp parses an HTTP response from a GetResourceWithResponse call
+func ParseGetResourceResp(rsp *http.Response) (*GetResourceResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetResourceResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code *string `json:"code,omitempty"`
+
+			// Data Kubernetes-style resource definition
+			Data    *map[string]interface{} `json:"data,omitempty"`
+			Error   *string                 `json:"error,omitempty"`
+			Success *bool                   `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListSecretReferencesResp parses an HTTP response from a ListSecretReferencesWithResponse call
 func ParseListSecretReferencesResp(rsp *http.Response) (*ListSecretReferencesResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -10238,6 +13536,101 @@ func ParseListTraitsResp(rsp *http.Response) (*ListTraitsResp, error) {
 			} `json:"data,omitempty"`
 			Error   *string `json:"error,omitempty"`
 			Success *bool   `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteTraitDefinitionResp parses an HTTP response from a DeleteTraitDefinitionWithResponse call
+func ParseDeleteTraitDefinitionResp(rsp *http.Response) (*DeleteTraitDefinitionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteTraitDefinitionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code    *string               `json:"code,omitempty"`
+			Data    *ResourceCRUDResponse `json:"data,omitempty"`
+			Error   *string               `json:"error,omitempty"`
+			Success *bool                 `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetTraitDefinitionResp parses an HTTP response from a GetTraitDefinitionWithResponse call
+func ParseGetTraitDefinitionResp(rsp *http.Response) (*GetTraitDefinitionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetTraitDefinitionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code *string `json:"code,omitempty"`
+
+			// Data Full Kubernetes CRD as unstructured JSON
+			Data    *map[string]interface{} `json:"data,omitempty"`
+			Error   *string                 `json:"error,omitempty"`
+			Success *bool                   `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateTraitDefinitionResp parses an HTTP response from a UpdateTraitDefinitionWithResponse call
+func ParseUpdateTraitDefinitionResp(rsp *http.Response) (*UpdateTraitDefinitionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateTraitDefinitionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code    *string               `json:"code,omitempty"`
+			Data    *ResourceCRUDResponse `json:"data,omitempty"`
+			Error   *string               `json:"error,omitempty"`
+			Success *bool                 `json:"success,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -10318,6 +13711,101 @@ func ParseListWorkflowsResp(rsp *http.Response) (*ListWorkflowsResp, error) {
 	return response, nil
 }
 
+// ParseDeleteWorkflowDefinitionResp parses an HTTP response from a DeleteWorkflowDefinitionWithResponse call
+func ParseDeleteWorkflowDefinitionResp(rsp *http.Response) (*DeleteWorkflowDefinitionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteWorkflowDefinitionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code    *string               `json:"code,omitempty"`
+			Data    *ResourceCRUDResponse `json:"data,omitempty"`
+			Error   *string               `json:"error,omitempty"`
+			Success *bool                 `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetWorkflowDefinitionResp parses an HTTP response from a GetWorkflowDefinitionWithResponse call
+func ParseGetWorkflowDefinitionResp(rsp *http.Response) (*GetWorkflowDefinitionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetWorkflowDefinitionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code *string `json:"code,omitempty"`
+
+			// Data Full Kubernetes CRD as unstructured JSON
+			Data    *map[string]interface{} `json:"data,omitempty"`
+			Error   *string                 `json:"error,omitempty"`
+			Success *bool                   `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateWorkflowDefinitionResp parses an HTTP response from a UpdateWorkflowDefinitionWithResponse call
+func ParseUpdateWorkflowDefinitionResp(rsp *http.Response) (*UpdateWorkflowDefinitionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateWorkflowDefinitionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code    *string               `json:"code,omitempty"`
+			Data    *ResourceCRUDResponse `json:"data,omitempty"`
+			Error   *string               `json:"error,omitempty"`
+			Success *bool                 `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetWorkflowSchemaResp parses an HTTP response from a GetWorkflowSchemaWithResponse call
 func ParseGetWorkflowSchemaResp(rsp *http.Response) (*GetWorkflowSchemaResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -10340,6 +13828,286 @@ func ParseGetWorkflowSchemaResp(rsp *http.Response) (*GetWorkflowSchemaResp, err
 			Data    *map[string]interface{} `json:"data,omitempty"`
 			Error   *string                 `json:"error,omitempty"`
 			Success *bool                   `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListNamespaceRoleBindingsResp parses an HTTP response from a ListNamespaceRoleBindingsWithResponse call
+func ParseListNamespaceRoleBindingsResp(rsp *http.Response) (*ListNamespaceRoleBindingsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListNamespaceRoleBindingsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code    *string                 `json:"code,omitempty"`
+			Data    *[]NamespaceRoleBinding `json:"data,omitempty"`
+			Error   *string                 `json:"error,omitempty"`
+			Success *bool                   `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateNamespaceRoleBindingResp parses an HTTP response from a CreateNamespaceRoleBindingWithResponse call
+func ParseCreateNamespaceRoleBindingResp(rsp *http.Response) (*CreateNamespaceRoleBindingResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateNamespaceRoleBindingResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest struct {
+			Code    *string               `json:"code,omitempty"`
+			Data    *NamespaceRoleBinding `json:"data,omitempty"`
+			Error   *string               `json:"error,omitempty"`
+			Success *bool                 `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteNamespaceRoleBindingResp parses an HTTP response from a DeleteNamespaceRoleBindingWithResponse call
+func ParseDeleteNamespaceRoleBindingResp(rsp *http.Response) (*DeleteNamespaceRoleBindingResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteNamespaceRoleBindingResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseGetNamespaceRoleBindingResp parses an HTTP response from a GetNamespaceRoleBindingWithResponse call
+func ParseGetNamespaceRoleBindingResp(rsp *http.Response) (*GetNamespaceRoleBindingResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetNamespaceRoleBindingResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code    *string               `json:"code,omitempty"`
+			Data    *NamespaceRoleBinding `json:"data,omitempty"`
+			Error   *string               `json:"error,omitempty"`
+			Success *bool                 `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateNamespaceRoleBindingResp parses an HTTP response from a UpdateNamespaceRoleBindingWithResponse call
+func ParseUpdateNamespaceRoleBindingResp(rsp *http.Response) (*UpdateNamespaceRoleBindingResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateNamespaceRoleBindingResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code    *string               `json:"code,omitempty"`
+			Data    *NamespaceRoleBinding `json:"data,omitempty"`
+			Error   *string               `json:"error,omitempty"`
+			Success *bool                 `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListNamespaceRolesResp parses an HTTP response from a ListNamespaceRolesWithResponse call
+func ParseListNamespaceRolesResp(rsp *http.Response) (*ListNamespaceRolesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListNamespaceRolesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code    *string          `json:"code,omitempty"`
+			Data    *[]NamespaceRole `json:"data,omitempty"`
+			Error   *string          `json:"error,omitempty"`
+			Success *bool            `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateNamespaceRoleResp parses an HTTP response from a CreateNamespaceRoleWithResponse call
+func ParseCreateNamespaceRoleResp(rsp *http.Response) (*CreateNamespaceRoleResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateNamespaceRoleResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest struct {
+			Code    *string        `json:"code,omitempty"`
+			Data    *NamespaceRole `json:"data,omitempty"`
+			Error   *string        `json:"error,omitempty"`
+			Success *bool          `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteNamespaceRoleResp parses an HTTP response from a DeleteNamespaceRoleWithResponse call
+func ParseDeleteNamespaceRoleResp(rsp *http.Response) (*DeleteNamespaceRoleResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteNamespaceRoleResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseGetNamespaceRoleResp parses an HTTP response from a GetNamespaceRoleWithResponse call
+func ParseGetNamespaceRoleResp(rsp *http.Response) (*GetNamespaceRoleResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetNamespaceRoleResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code    *string        `json:"code,omitempty"`
+			Data    *NamespaceRole `json:"data,omitempty"`
+			Error   *string        `json:"error,omitempty"`
+			Success *bool          `json:"success,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateNamespaceRoleResp parses an HTTP response from a UpdateNamespaceRoleWithResponse call
+func ParseUpdateNamespaceRoleResp(rsp *http.Response) (*UpdateNamespaceRoleResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateNamespaceRoleResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Code    *string        `json:"code,omitempty"`
+			Data    *NamespaceRole `json:"data,omitempty"`
+			Error   *string        `json:"error,omitempty"`
+			Success *bool          `json:"success,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err

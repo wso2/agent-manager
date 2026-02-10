@@ -20,11 +20,29 @@ const (
 	BindingStatusStatusSuspended      BindingStatusStatus = "Suspended"
 )
 
+// Defines values for ClusterRoleBindingRequestEffect.
+const (
+	ClusterRoleBindingRequestEffectAllow ClusterRoleBindingRequestEffect = "allow"
+	ClusterRoleBindingRequestEffectDeny  ClusterRoleBindingRequestEffect = "deny"
+)
+
 // Defines values for ConditionStatus.
 const (
 	False   ConditionStatus = "False"
 	True    ConditionStatus = "True"
 	Unknown ConditionStatus = "Unknown"
+)
+
+// Defines values for CreateGitSecretRequestSecretType.
+const (
+	BasicAuth CreateGitSecretRequestSecretType = "basic-auth"
+	SshAuth   CreateGitSecretRequestSecretType = "ssh-auth"
+)
+
+// Defines values for NamespaceRoleBindingRequestEffect.
+const (
+	NamespaceRoleBindingRequestEffectAllow NamespaceRoleBindingRequestEffect = "allow"
+	NamespaceRoleBindingRequestEffectDeny  NamespaceRoleBindingRequestEffect = "deny"
 )
 
 // Defines values for PolicyEffectType.
@@ -172,6 +190,56 @@ type CapabilityResource struct {
 	Constraints *map[string]interface{} `json:"constraints,omitempty"`
 	Path        string                  `json:"path"`
 }
+
+// ClusterRole defines model for ClusterRole.
+type ClusterRole struct {
+	// Actions List of actions granted by this role
+	Actions []string `json:"actions"`
+
+	// Description Optional description of the role
+	Description *string `json:"description,omitempty"`
+
+	// Name Name of the cluster role
+	Name string `json:"name"`
+}
+
+// ClusterRoleBinding defines model for ClusterRoleBinding.
+type ClusterRoleBinding struct {
+	Effect      PolicyEffectType `json:"effect"`
+	Entitlement Entitlement      `json:"entitlement"`
+
+	// Name Name of the cluster role binding
+	Name string `json:"name"`
+	Role struct {
+		// Name Name of the cluster role to bind
+		Name string `json:"name"`
+	} `json:"role"`
+}
+
+// ClusterRoleBindingRequest defines model for ClusterRoleBindingRequest.
+type ClusterRoleBindingRequest struct {
+	// Context Optional context information
+	Context *map[string]interface{} `json:"context,omitempty"`
+
+	// Effect Access control effect
+	Effect      ClusterRoleBindingRequestEffect `json:"effect"`
+	Entitlement struct {
+		// Claim The claim type (e.g., 'sub', 'email')
+		Claim string `json:"claim"`
+
+		// Value The claim value to match
+		Value string `json:"value"`
+	} `json:"entitlement"`
+
+	// Name Name of the cluster role binding
+	Name string `json:"name"`
+
+	// Role Name of the cluster role to bind
+	Role string `json:"role"`
+}
+
+// ClusterRoleBindingRequestEffect Access control effect
+type ClusterRoleBindingRequestEffect string
 
 // ComponentReleaseResponse Immutable snapshot of component configuration.
 // Note: The following fields are immutable after creation and cannot be modified:
@@ -383,6 +451,24 @@ type CreateEnvironmentRequest struct {
 	Name         string  `json:"name"`
 }
 
+// CreateGitSecretRequest defines model for CreateGitSecretRequest.
+type CreateGitSecretRequest struct {
+	// SecretName Name of the git secret to create
+	SecretName string `json:"secretName"`
+
+	// SecretType Authentication type - "basic-auth" for token-based auth, "ssh-auth" for SSH key-based auth
+	SecretType CreateGitSecretRequestSecretType `json:"secretType"`
+
+	// SshKey SSH private key for git authentication (required for ssh-auth)
+	SshKey *string `json:"sshKey,omitempty"`
+
+	// Token Git personal access token or password (required for basic-auth)
+	Token *string `json:"token,omitempty"`
+}
+
+// CreateGitSecretRequestSecretType Authentication type - "basic-auth" for token-based auth, "ssh-auth" for SSH key-based auth
+type CreateGitSecretRequestSecretType string
+
 // CreateProjectRequest defines model for CreateProjectRequest.
 type CreateProjectRequest struct {
 	DeploymentPipeline *string `json:"deploymentPipeline,omitempty"`
@@ -510,6 +596,15 @@ type FileVar struct {
 	ValueFrom *EnvVarValueFrom `json:"valueFrom,omitempty"`
 }
 
+// GitSecretResponse defines model for GitSecretResponse.
+type GitSecretResponse struct {
+	// Name Name of the git secret
+	Name string `json:"name"`
+
+	// Namespace Namespace the secret belongs to
+	Namespace string `json:"namespace"`
+}
+
 // ListResponse defines model for ListResponse.
 type ListResponse struct {
 	Items      *[]map[string]interface{} `json:"items,omitempty"`
@@ -526,6 +621,87 @@ type NamespaceResponse struct {
 	Name        string    `json:"name"`
 	Status      *string   `json:"status,omitempty"`
 }
+
+// NamespaceRole defines model for NamespaceRole.
+type NamespaceRole struct {
+	// Actions List of actions granted by this role
+	Actions []string `json:"actions"`
+
+	// Description Optional description of the role
+	Description *string `json:"description,omitempty"`
+
+	// Name Name of the namespace role
+	Name string `json:"name"`
+
+	// Namespace Namespace this role belongs to
+	Namespace string `json:"namespace"`
+}
+
+// NamespaceRoleBinding defines model for NamespaceRoleBinding.
+type NamespaceRoleBinding struct {
+	Effect      PolicyEffectType `json:"effect"`
+	Entitlement Entitlement      `json:"entitlement"`
+
+	// Hierarchy Hierarchy scope for the binding
+	Hierarchy *struct {
+		// Component Component name to scope the binding
+		Component *string `json:"component,omitempty"`
+
+		// Namespace Namespace scope of the binding
+		Namespace *string `json:"namespace,omitempty"`
+
+		// Project Project name to scope the binding
+		Project *string `json:"project,omitempty"`
+	} `json:"hierarchy,omitempty"`
+
+	// Name Name of the namespace role binding
+	Name string `json:"name"`
+
+	// Namespace Namespace this binding belongs to
+	Namespace string `json:"namespace"`
+	Role      struct {
+		// Name Name of the role to bind
+		Name string `json:"name"`
+
+		// Namespace Namespace of the role
+		Namespace *string `json:"namespace,omitempty"`
+	} `json:"role"`
+}
+
+// NamespaceRoleBindingRequest defines model for NamespaceRoleBindingRequest.
+type NamespaceRoleBindingRequest struct {
+	// Effect Access control effect
+	Effect      NamespaceRoleBindingRequestEffect `json:"effect"`
+	Entitlement struct {
+		// Claim The claim type (e.g., 'sub', 'email')
+		Claim string `json:"claim"`
+
+		// Value The claim value to match
+		Value string `json:"value"`
+	} `json:"entitlement"`
+
+	// Name Name of the namespace role binding
+	Name string `json:"name"`
+	Role struct {
+		// Name Name of the role to bind
+		Name string `json:"name"`
+
+		// Namespace Namespace of the role
+		Namespace string `json:"namespace"`
+	} `json:"role"`
+
+	// TargetPath Target path scope for the binding
+	TargetPath *struct {
+		// Component Component name to scope the binding
+		Component *string `json:"component,omitempty"`
+
+		// Project Project name to scope the binding
+		Project *string `json:"project,omitempty"`
+	} `json:"targetPath,omitempty"`
+}
+
+// NamespaceRoleBindingRequestEffect Access control effect
+type NamespaceRoleBindingRequestEffect string
 
 // ObservabilityPlaneResponse defines model for ObservabilityPlaneResponse.
 type ObservabilityPlaneResponse struct {
@@ -675,6 +851,17 @@ type Resource struct {
 	Object map[string]interface{} `json:"object"`
 }
 
+// ResourceCRUDResponse defines model for ResourceCRUDResponse.
+type ResourceCRUDResponse struct {
+	ApiVersion *string `json:"apiVersion,omitempty"`
+	Kind       *string `json:"kind,omitempty"`
+	Name       *string `json:"name,omitempty"`
+	Namespace  *string `json:"namespace,omitempty"`
+
+	// Operation The operation performed - created, updated, deleted, or not_found
+	Operation *string `json:"operation,omitempty"`
+}
+
 // ResourceStatus defines model for ResourceStatus.
 type ResourceStatus struct {
 	// Group API group of the resource (empty for core resources)
@@ -695,33 +882,6 @@ type ResourceStatus struct {
 
 // ResourceStatusHealthStatus defines model for ResourceStatus.HealthStatus.
 type ResourceStatusHealthStatus string
-
-// Role defines model for Role.
-type Role struct {
-	Actions []string `json:"actions"`
-	Name    string   `json:"name"`
-}
-
-// RoleEntitlementMapping defines model for RoleEntitlementMapping.
-type RoleEntitlementMapping struct {
-	Context     *map[string]interface{} `json:"context,omitempty"`
-	Effect      PolicyEffectType        `json:"effect"`
-	Entitlement Entitlement             `json:"entitlement"`
-	Hierarchy   AuthzResourceHierarchy  `json:"hierarchy"`
-
-	// Id Unique identifier for the mapping
-	Id   *int    `json:"id,omitempty"`
-	Role RoleRef `json:"role"`
-}
-
-// RoleRef defines model for RoleRef.
-type RoleRef struct {
-	// Name Name of the role
-	Name string `json:"name"`
-
-	// Namespace Optional namespace for the role
-	Namespace *string `json:"namespace,omitempty"`
-}
 
 // ScheduledTaskBinding defines model for ScheduledTaskBinding.
 type ScheduledTaskBinding struct {
@@ -836,12 +996,6 @@ type UpdateComponentWorkflowRequest struct {
 	WorkflowName *string `json:"workflowName,omitempty"`
 }
 
-// UpdateRoleRequest defines model for UpdateRoleRequest.
-type UpdateRoleRequest struct {
-	// Actions List of actions to assign to the role
-	Actions []string `json:"actions"`
-}
-
 // UserCapabilitiesResponse defines model for UserCapabilitiesResponse.
 type UserCapabilitiesResponse struct {
 	Capabilities *map[string]ActionCapability `json:"capabilities,omitempty"`
@@ -947,26 +1101,28 @@ type GetSubjectProfileParams struct {
 	Ou *[]string `form:"ou,omitempty" json:"ou,omitempty"`
 }
 
-// ListRoleMappingsParams defines parameters for ListRoleMappings.
-type ListRoleMappingsParams struct {
-	// Role Filter mappings by role name
-	Role *string `form:"role,omitempty" json:"role,omitempty"`
-
-	// Claim Filter mappings by entitlement claim (must be used with value)
-	Claim *string `form:"claim,omitempty" json:"claim,omitempty"`
-
-	// Value Filter mappings by entitlement value (must be used with claim)
-	Value *string `form:"value,omitempty" json:"value,omitempty"`
+// ListClusterRoleBindingsParams defines parameters for ListClusterRoleBindings.
+type ListClusterRoleBindingsParams struct {
+	RoleName *string           `form:"roleName,omitempty" json:"roleName,omitempty"`
+	Claim    *string           `form:"claim,omitempty" json:"claim,omitempty"`
+	Value    *string           `form:"value,omitempty" json:"value,omitempty"`
+	Effect   *PolicyEffectType `form:"effect,omitempty" json:"effect,omitempty"`
 }
 
-// RemoveRoleParams defines parameters for RemoveRole.
-type RemoveRoleParams struct {
-	// Force If true, force delete the role and all associated mappings
-	Force *bool `form:"force,omitempty" json:"force,omitempty"`
+// UpdateClusterRoleJSONBody defines parameters for UpdateClusterRole.
+type UpdateClusterRoleJSONBody struct {
+	Actions     *[]string `json:"actions,omitempty"`
+	Description *string   `json:"description,omitempty"`
 }
 
 // DeleteResourceJSONBody defines parameters for DeleteResource.
 type DeleteResourceJSONBody map[string]interface{}
+
+// UpdateComponentTypeDefinitionJSONBody defines parameters for UpdateComponentTypeDefinition.
+type UpdateComponentTypeDefinitionJSONBody map[string]interface{}
+
+// UpdateComponentWorkflowDefinitionJSONBody defines parameters for UpdateComponentWorkflowDefinition.
+type UpdateComponentWorkflowDefinitionJSONBody map[string]interface{}
 
 // GetComponentParams defines parameters for GetComponent.
 type GetComponentParams struct {
@@ -982,6 +1138,27 @@ type CreateComponentWorkflowRunParams struct {
 
 // CreateWorkloadJSONBody defines parameters for CreateWorkload.
 type CreateWorkloadJSONBody map[string]interface{}
+
+// UpdateTraitDefinitionJSONBody defines parameters for UpdateTraitDefinition.
+type UpdateTraitDefinitionJSONBody map[string]interface{}
+
+// UpdateWorkflowDefinitionJSONBody defines parameters for UpdateWorkflowDefinition.
+type UpdateWorkflowDefinitionJSONBody map[string]interface{}
+
+// ListNamespaceRoleBindingsParams defines parameters for ListNamespaceRoleBindings.
+type ListNamespaceRoleBindingsParams struct {
+	RoleName      *string           `form:"roleName,omitempty" json:"roleName,omitempty"`
+	RoleNamespace *string           `form:"roleNamespace,omitempty" json:"roleNamespace,omitempty"`
+	Claim         *string           `form:"claim,omitempty" json:"claim,omitempty"`
+	Value         *string           `form:"value,omitempty" json:"value,omitempty"`
+	Effect        *PolicyEffectType `form:"effect,omitempty" json:"effect,omitempty"`
+}
+
+// UpdateNamespaceRoleJSONBody defines parameters for UpdateNamespaceRole.
+type UpdateNamespaceRoleJSONBody struct {
+	Actions     *[]string `json:"actions,omitempty"`
+	Description *string   `json:"description,omitempty"`
+}
 
 // HandleBitbucketWebhookJSONBody defines parameters for HandleBitbucketWebhook.
 type HandleBitbucketWebhookJSONBody map[string]interface{}
@@ -1001,26 +1178,35 @@ type BatchEvaluateJSONRequestBody = BatchEvaluateRequest
 // EvaluateJSONRequestBody defines body for Evaluate for application/json ContentType.
 type EvaluateJSONRequestBody = EvaluateRequest
 
-// AddRoleMappingJSONRequestBody defines body for AddRoleMapping for application/json ContentType.
-type AddRoleMappingJSONRequestBody = RoleEntitlementMapping
+// CreateClusterRoleBindingJSONRequestBody defines body for CreateClusterRoleBinding for application/json ContentType.
+type CreateClusterRoleBindingJSONRequestBody = ClusterRoleBindingRequest
 
-// UpdateRoleMappingJSONRequestBody defines body for UpdateRoleMapping for application/json ContentType.
-type UpdateRoleMappingJSONRequestBody = RoleEntitlementMapping
+// UpdateClusterRoleBindingJSONRequestBody defines body for UpdateClusterRoleBinding for application/json ContentType.
+type UpdateClusterRoleBindingJSONRequestBody = ClusterRoleBindingRequest
 
-// AddRoleJSONRequestBody defines body for AddRole for application/json ContentType.
-type AddRoleJSONRequestBody = Role
+// CreateClusterRoleJSONRequestBody defines body for CreateClusterRole for application/json ContentType.
+type CreateClusterRoleJSONRequestBody = ClusterRole
 
-// UpdateRoleJSONRequestBody defines body for UpdateRole for application/json ContentType.
-type UpdateRoleJSONRequestBody = UpdateRoleRequest
+// UpdateClusterRoleJSONRequestBody defines body for UpdateClusterRole for application/json ContentType.
+type UpdateClusterRoleJSONRequestBody UpdateClusterRoleJSONBody
 
 // DeleteResourceJSONRequestBody defines body for DeleteResource for application/json ContentType.
 type DeleteResourceJSONRequestBody DeleteResourceJSONBody
+
+// UpdateComponentTypeDefinitionJSONRequestBody defines body for UpdateComponentTypeDefinition for application/json ContentType.
+type UpdateComponentTypeDefinitionJSONRequestBody UpdateComponentTypeDefinitionJSONBody
+
+// UpdateComponentWorkflowDefinitionJSONRequestBody defines body for UpdateComponentWorkflowDefinition for application/json ContentType.
+type UpdateComponentWorkflowDefinitionJSONRequestBody UpdateComponentWorkflowDefinitionJSONBody
 
 // CreateDataPlaneJSONRequestBody defines body for CreateDataPlane for application/json ContentType.
 type CreateDataPlaneJSONRequestBody = CreateDataPlaneRequest
 
 // CreateEnvironmentJSONRequestBody defines body for CreateEnvironment for application/json ContentType.
 type CreateEnvironmentJSONRequestBody = CreateEnvironmentRequest
+
+// CreateGitSecretJSONRequestBody defines body for CreateGitSecret for application/json ContentType.
+type CreateGitSecretJSONRequestBody = CreateGitSecretRequest
 
 // CreateProjectJSONRequestBody defines body for CreateProject for application/json ContentType.
 type CreateProjectJSONRequestBody = CreateProjectRequest
@@ -1054,6 +1240,24 @@ type UpdateComponentWorkflowParametersJSONRequestBody = UpdateComponentWorkflowR
 
 // CreateWorkloadJSONRequestBody defines body for CreateWorkload for application/json ContentType.
 type CreateWorkloadJSONRequestBody CreateWorkloadJSONBody
+
+// UpdateTraitDefinitionJSONRequestBody defines body for UpdateTraitDefinition for application/json ContentType.
+type UpdateTraitDefinitionJSONRequestBody UpdateTraitDefinitionJSONBody
+
+// UpdateWorkflowDefinitionJSONRequestBody defines body for UpdateWorkflowDefinition for application/json ContentType.
+type UpdateWorkflowDefinitionJSONRequestBody UpdateWorkflowDefinitionJSONBody
+
+// CreateNamespaceRoleBindingJSONRequestBody defines body for CreateNamespaceRoleBinding for application/json ContentType.
+type CreateNamespaceRoleBindingJSONRequestBody = NamespaceRoleBindingRequest
+
+// UpdateNamespaceRoleBindingJSONRequestBody defines body for UpdateNamespaceRoleBinding for application/json ContentType.
+type UpdateNamespaceRoleBindingJSONRequestBody = NamespaceRoleBindingRequest
+
+// CreateNamespaceRoleJSONRequestBody defines body for CreateNamespaceRole for application/json ContentType.
+type CreateNamespaceRoleJSONRequestBody = NamespaceRole
+
+// UpdateNamespaceRoleJSONRequestBody defines body for UpdateNamespaceRole for application/json ContentType.
+type UpdateNamespaceRoleJSONRequestBody UpdateNamespaceRoleJSONBody
 
 // HandleBitbucketWebhookJSONRequestBody defines body for HandleBitbucketWebhook for application/json ContentType.
 type HandleBitbucketWebhookJSONRequestBody HandleBitbucketWebhookJSONBody

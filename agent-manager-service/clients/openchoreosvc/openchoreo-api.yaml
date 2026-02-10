@@ -1,0 +1,5288 @@
+openapi: 3.0.3
+info:
+  title: OpenChoreo API
+  description: OpenChoreo platform API for managing namespaces, projects, components, builds, and deployments
+  version: 1.0.0
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: /api/v1
+    description: OpenChoreo API Server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # Core response wrapper types
+    APIResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          additionalProperties: true
+        error:
+          type: string
+        code:
+          type: string
+
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        totalCount:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    ComponentSchemaResponse:
+      type: object
+      description: Wrapped schema containing component-type and trait environment override schemas
+      properties:
+        componentTypeEnvOverrides:
+          type: object
+          description: JSON Schema for component-type environment overrides
+          additionalProperties: true
+        traitOverrides:
+          type: object
+          description: Object mapping trait instance names to their JSON Schemas for environment overrides
+          additionalProperties:
+            type: object
+            description: JSON Schema for a specific trait's environment overrides
+            additionalProperties: true
+
+    # Git Secret
+    GitSecretResponse:
+      type: object
+      required:
+        - name
+        - namespace
+      properties:
+        name:
+          type: string
+          description: Name of the git secret
+        namespace:
+          type: string
+          description: Namespace the secret belongs to
+
+    CreateGitSecretRequest:
+      type: object
+      required:
+        - secretName
+        - secretType
+      properties:
+        secretName:
+          type: string
+          description: Name of the git secret to create
+        secretType:
+          type: string
+          enum: [basic-auth, ssh-auth]
+          description: Authentication type - "basic-auth" for token-based auth, "ssh-auth" for SSH key-based auth
+        token:
+          type: string
+          description: Git personal access token or password (required for basic-auth)
+        sshKey:
+          type: string
+          description: SSH private key for git authentication (required for ssh-auth)
+
+    # SecretReference
+    SecretReferenceResponse:
+      type: object
+      required:
+        - name
+        - namespace
+        - createdAt
+        - status
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        secretStores:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecretStoreReference'
+        refreshInterval:
+          type: string
+          description: Duration string for refresh interval (e.g., "5m", "1h")
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecretDataSourceInfo'
+        createdAt:
+          type: string
+          format: date-time
+        lastRefreshTime:
+          type: string
+          format: date-time
+        status:
+          type: string
+
+    SecretStoreReference:
+      type: object
+      required:
+        - name
+        - namespace
+        - kind
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+        kind:
+          type: string
+
+    SecretDataSourceInfo:
+      type: object
+      required:
+        - secretKey
+        - remoteRef
+      properties:
+        secretKey:
+          type: string
+        remoteRef:
+          $ref: '#/components/schemas/RemoteReferenceInfo'
+
+    RemoteReferenceInfo:
+      type: object
+      required:
+        - key
+      properties:
+        key:
+          type: string
+        property:
+          type: string
+        version:
+          type: string
+
+    # Namespace
+    NamespaceResponse:
+      type: object
+      required:
+        - name
+        - createdAt
+      properties:
+        name:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+
+    # Project
+    ProjectResponse:
+      type: object
+      required:
+        - uid
+        - name
+        - namespaceName
+        - createdAt
+      properties:
+        uid:
+          type: string
+        name:
+          type: string
+        namespaceName:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        deploymentPipeline:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        deletionTimestamp:
+          type: string
+          format: date-time
+          description: Timestamp when the project was marked for deletion
+
+    CreateProjectRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        deploymentPipeline:
+          type: string
+
+    # DeploymentPipeline
+    DeploymentPipelineResponse:
+      type: object
+      required:
+        - name
+        - namespaceName
+        - createdAt
+      properties:
+        name:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        namespaceName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        promotionPaths:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromotionPath'
+
+    PromotionPath:
+      type: object
+      required:
+        - sourceEnvironmentRef
+        - targetEnvironmentRefs
+      properties:
+        sourceEnvironmentRef:
+          type: string
+        targetEnvironmentRefs:
+          type: array
+          items:
+            $ref: '#/components/schemas/TargetEnvironmentRef'
+
+    TargetEnvironmentRef:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        requiresApproval:
+          type: boolean
+        isManualApprovalRequired:
+          type: boolean
+
+    # Component
+    ComponentResponse:
+      type: object
+      required:
+        - uid
+        - name
+        - type
+        - projectName
+        - namespaceName
+        - createdAt
+      properties:
+        uid:
+          type: string
+        name:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        projectName:
+          type: string
+        namespaceName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        deletionTimestamp:
+          type: string
+          format: date-time
+          description: Timestamp when the component was marked for deletion
+          nullable: true
+        status:
+          type: string
+        autoDeploy:
+          type: boolean
+        service:
+          type: object
+          additionalProperties: true
+        webApplication:
+          type: object
+          additionalProperties: true
+        scheduledTask:
+          type: object
+          additionalProperties: true
+        api:
+          type: object
+          additionalProperties: true
+        workload:
+          type: object
+          additionalProperties: true
+        componentWorkflow:
+          $ref: '#/components/schemas/ComponentWorkflow'
+
+    CreateComponentRequest:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        workflow:
+          $ref: '#/components/schemas/ComponentWorkflow'
+
+    PatchComponentRequest:
+      type: object
+      properties:
+        autoDeploy:
+          type: boolean
+          description: Controls whether the component should automatically deploy to the default environment
+
+    # Component Traits
+    ComponentTraitResponse:
+      type: object
+      required:
+        - name
+        - instanceName
+      properties:
+        name:
+          type: string
+          description: Name of the Trait resource
+        instanceName:
+          type: string
+          description: Unique instance name for this trait within the component
+        parameters:
+          type: object
+          description: Trait parameter values
+          additionalProperties: true
+
+    ComponentTraitRequest:
+      type: object
+      required:
+        - name
+        - instanceName
+      properties:
+        name:
+          type: string
+          description: Name of the Trait resource to use
+        instanceName:
+          type: string
+          description: Unique instance name for this trait within the component
+        parameters:
+          type: object
+          description: Trait parameter values
+          additionalProperties: true
+
+    UpdateComponentTraitsRequest:
+      type: object
+      required:
+        - traits
+      properties:
+        traits:
+          type: array
+          description: Array of trait instances to attach to the component (replaces all existing traits)
+          items:
+            $ref: '#/components/schemas/ComponentTraitRequest'
+
+    # Environment
+    EnvironmentResponse:
+      type: object
+      required:
+        - uid
+        - name
+        - namespace
+        - isProduction
+        - createdAt
+      properties:
+        uid:
+          type: string # TODO: Make this required with v0.5.0.
+        name:
+          type: string
+        namespace:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        dataPlaneRef:
+          type: string
+        isProduction:
+          type: boolean
+        dnsPrefix:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+
+    CreateEnvironmentRequest:
+      type: object
+      required:
+        - name
+        - isProduction
+      properties:
+        name:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        dataPlaneRef:
+          type: string
+        isProduction:
+          type: boolean
+        dnsPrefix:
+          type: string
+
+    # Agent Connection Status
+    AgentConnectionStatusResponse:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        connectedAgents:
+          type: integer
+        lastConnectedTime:
+          type: string
+          format: date-time
+        lastDisconnectedTime:
+          type: string
+          format: date-time
+        lastHeartbeatTime:
+          type: string
+          format: date-time
+        message:
+          type: string
+
+    # DataPlane
+    DataPlaneResponse:
+      type: object
+      required:
+        - name
+        - namespace
+        - publicVirtualHost
+        - namespaceVirtualHost
+        - publicHTTPPort
+        - publicHTTPSPort
+        - namespaceHTTPPort
+        - namespaceHTTPSPort
+        - createdAt
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        imagePullSecretRefs:
+          type: array
+          items:
+            type: string
+        secretStoreRef:
+          type: string
+        publicVirtualHost:
+          type: string
+        namespaceVirtualHost:
+          type: string
+        publicHTTPPort:
+          type: integer
+          format: int32
+        publicHTTPSPort:
+          type: integer
+          format: int32
+        namespaceHTTPPort:
+          type: integer
+          format: int32
+        namespaceHTTPSPort:
+          type: integer
+          format: int32
+        observabilityPlaneRef:
+          type: string
+        agentConnection:
+          $ref: '#/components/schemas/AgentConnectionStatusResponse'
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+
+    CreateDataPlaneRequest:
+      type: object
+      required:
+        - name
+        - clusterAgentClientCA
+        - publicVirtualHost
+        - organizationVirtualHost
+      properties:
+        name:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        clusterAgentClientCA:
+          type: string
+        publicVirtualHost:
+          type: string
+        organizationVirtualHost:
+          type: string
+        publicHTTPPort:
+          type: integer
+          format: int32
+        publicHTTPSPort:
+          type: integer
+          format: int32
+        organizationHTTPPort:
+          type: integer
+          format: int32
+        organizationHTTPSPort:
+          type: integer
+          format: int32
+        observabilityPlaneRef:
+          type: string
+
+    # BuildPlane
+    BuildPlaneResponse:
+      type: object
+      required:
+        - name
+        - namespace
+        - createdAt
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        observabilityPlaneRef:
+          type: string
+        agentConnection:
+          $ref: '#/components/schemas/AgentConnectionStatusResponse'
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+
+    # ObservabilityPlane
+    ObservabilityPlaneResponse:
+      type: object
+      required:
+        - name
+        - namespace
+        - createdAt
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        observerURL:
+          type: string
+        agentConnection:
+          $ref: '#/components/schemas/AgentConnectionStatusResponse'
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+
+    # Build
+    BuildResponse:
+      type: object
+      required:
+        - name
+        - uuid
+        - componentName
+        - projectName
+        - namespaceName
+        - createdAt
+      properties:
+        name:
+          type: string
+        uuid:
+          type: string
+        componentName:
+          type: string
+        projectName:
+          type: string
+        namespaceName:
+          type: string
+        commit:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        image:
+          type: string
+
+    # BuildTemplate
+    BuildTemplateResponse:
+      type: object
+      required:
+        - name
+        - createdAt
+      properties:
+        name:
+          type: string
+        parameters:
+          type: array
+          items:
+            $ref: '#/components/schemas/BuildTemplateParameter'
+        createdAt:
+          type: string
+          format: date-time
+
+    BuildTemplateParameter:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        default:
+          type: string
+
+    # Resource CRUD Response (for definition endpoints)
+    ResourceCRUDResponse:
+      type: object
+      properties:
+        apiVersion:
+          type: string
+        kind:
+          type: string
+        name:
+          type: string
+        namespace:
+          type: string
+        operation:
+          type: string
+          description: The operation performed - created, updated, deleted, or not_found
+
+    # ComponentType
+    ComponentTypeResponse:
+      type: object
+      required:
+        - name
+        - workloadType
+        - createdAt
+      properties:
+        name:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        workloadType:
+          type: string
+        allowedWorkflows:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    # Workflow
+    WorkflowResponse:
+      type: object
+      required:
+        - name
+        - createdAt
+      properties:
+        name:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    # ComponentWorkflowRun
+    ComponentWorkflowRunResponse:
+      type: object
+      required:
+        - name
+        - uuid
+        - componentName
+        - projectName
+        - namespaceName
+        - createdAt
+      properties:
+        name:
+          type: string
+        uuid:
+          type: string
+        componentName:
+          type: string
+        projectName:
+          type: string
+        namespaceName:
+          type: string
+        commit:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        image:
+          type: string
+        workflow:
+          $ref: '#/components/schemas/ComponentWorkflowConfigResponse'
+
+    # ComponentWorkflowConfig
+    ComponentWorkflowConfigResponse:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        systemParameters:
+          $ref: '#/components/schemas/SystemParametersResponse'
+        parameters:
+          type: object
+          additionalProperties: true
+          description: Developer-defined workflow parameters as arbitrary JSON
+
+    # SystemParameters
+    SystemParametersResponse:
+      type: object
+      properties:
+        repository:
+          $ref: '#/components/schemas/RepositoryResponse'
+
+    # Repository
+    RepositoryResponse:
+      type: object
+      required:
+        - url
+        - appPath
+      properties:
+        url:
+          type: string
+        appPath:
+          type: string
+        revision:
+          $ref: '#/components/schemas/RepositoryRevisionResponse'
+
+    # RepositoryRevision
+    RepositoryRevisionResponse:
+      type: object
+      required:
+        - branch
+      properties:
+        branch:
+          type: string
+        commit:
+          type: string
+
+    # Trait
+    TraitResponse:
+      type: object
+      required:
+        - name
+        - createdAt
+      properties:
+        name:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    # Binding
+    BindingResponse:
+      type: object
+      required:
+        - name
+        - type
+        - componentName
+        - projectName
+        - namespaceName
+        - environment
+        - status
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        componentName:
+          type: string
+        projectName:
+          type: string
+        namespaceName:
+          type: string
+        environment:
+          type: string
+        status:
+          $ref: '#/components/schemas/BindingStatus'
+        serviceBinding:
+          $ref: '#/components/schemas/ServiceBinding'
+        webApplicationBinding:
+          $ref: '#/components/schemas/WebApplicationBinding'
+        scheduledTaskBinding:
+          $ref: '#/components/schemas/ScheduledTaskBinding'
+
+    BindingStatus:
+      type: object
+      required:
+        - reason
+        - message
+        - status
+        - lastTransitioned
+      properties:
+        reason:
+          type: string
+        message:
+          type: string
+        status:
+          type: string
+          enum: [InProgress, Active, Failed, Suspended, NotYetDeployed]
+        lastTransitioned:
+          type: string
+          format: date-time
+
+    ServiceBinding:
+      type: object
+      properties:
+        endpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/EndpointStatus'
+        image:
+          type: string
+        releaseState:
+          type: string
+
+    WebApplicationBinding:
+      type: object
+      properties:
+        endpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/EndpointStatus'
+        image:
+          type: string
+        releaseState:
+          type: string
+
+    ScheduledTaskBinding:
+      type: object
+      properties:
+        image:
+          type: string
+        releaseState:
+          type: string
+
+    EndpointStatus:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        project:
+          $ref: '#/components/schemas/ExposedEndpoint'
+        namespace:
+          $ref: '#/components/schemas/ExposedEndpoint'
+        public:
+          $ref: '#/components/schemas/ExposedEndpoint'
+
+    ExposedEndpoint:
+      type: object
+      required:
+        - host
+        - port
+      properties:
+        host:
+          type: string
+        port:
+          type: integer
+        scheme:
+          type: string
+        basePath:
+          type: string
+        uri:
+          type: string
+
+    UpdateBindingRequest:
+      type: object
+      required:
+        - releaseState
+      properties:
+        releaseState:
+          type: string
+          enum: [Active, Suspend, Undeploy]
+
+    # Promotion
+    PromoteComponentRequest:
+      type: object
+      required:
+        - sourceEnv
+        - targetEnv
+      properties:
+        sourceEnv:
+          type: string
+        targetEnv:
+          type: string
+
+    # Workload
+    WorkloadResponse:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum:
+            - Service
+            - ManualTask
+            - ScheduledTask
+            - WebApplication
+          description: The workload type determines how the workload is deployed
+        owner:
+          $ref: '#/components/schemas/WorkloadOwner'
+        metadata:
+          type: object
+          additionalProperties: true
+        spec:
+          type: object
+          additionalProperties: true
+        containers:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Container'
+        endpoints:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/WorkloadEndpoint'
+        connections:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Connection'
+
+    ComponentWorkflow:
+      type: object
+      required:
+        - name
+        - systemParameters
+      properties:
+        name:
+          type: string
+        systemParameters:
+          $ref: '#/components/schemas/ComponentWorkflowSystemParams'
+        parameters:
+          type: object
+          additionalProperties: true
+          description: Developer-defined workflow parameters as arbitrary JSON
+
+    # Observer URL
+    ObserverUrlData:
+      type: object
+      properties:
+        observerUrl:
+          type: string
+        message:
+          type: string
+          description: Message returned when observability is not configured
+
+    # RCA Agent URL
+    RCAAgentUrlData:
+      type: object
+      properties:
+        rcaAgentUrl:
+          type: string
+          description: URL to the RCA agent service for AI-powered root cause analysis
+        message:
+          type: string
+          description: Additional information or status message
+
+    # ComponentRelease
+    ComponentReleaseResponse:
+      type: object
+      description: |
+        Immutable snapshot of component configuration.
+        Note: The following fields are immutable after creation and cannot be modified:
+        - componentType
+        - traits
+        - componentProfile
+        - workload
+      required:
+        - name
+        - componentName
+        - projectName
+        - namespaceName
+        - createdAt
+      properties:
+        name:
+          type: string
+        componentName:
+          type: string
+        projectName:
+          type: string
+        namespaceName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+
+    CreateComponentReleaseRequest:
+      type: object
+      properties:
+        releaseName:
+          type: string
+
+    # ReleaseBinding
+    ReleaseBindingResponse:
+      type: object
+      required:
+        - name
+        - componentName
+        - projectName
+        - namespaceName
+        - environment
+        - releaseName
+        - createdAt
+      properties:
+        name:
+          type: string
+        componentName:
+          type: string
+        projectName:
+          type: string
+        namespaceName:
+          type: string
+        environment:
+          type: string
+        releaseName:
+          type: string
+        componentTypeEnvOverrides:
+          type: object
+          additionalProperties: true
+        traitOverrides:
+          type: object
+          additionalProperties: true
+        workloadOverrides:
+          $ref: '#/components/schemas/WorkloadOverrides'
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+
+    PatchReleaseBindingRequest:
+      type: object
+      properties:
+        releaseName:
+          type: string
+        environment:
+          type: string
+        componentTypeEnvOverrides:
+          type: object
+          additionalProperties: true
+        traitOverrides:
+          type: object
+          additionalProperties: true
+        workloadOverrides:
+          $ref: '#/components/schemas/WorkloadOverrides'
+
+    WorkloadOverrides:
+      type: object
+      properties:
+        containers:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ContainerOverride'
+
+    ContainerOverride:
+      type: object
+      properties:
+        env:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnvVar'
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileVar'
+
+    FileVar:
+      type: object
+      required:
+        - key
+        - mountPath
+      properties:
+        key:
+          type: string
+        mountPath:
+          type: string
+        value:
+          type: string
+        valueFrom:
+          $ref: '#/components/schemas/EnvVarValueFrom'
+
+    DeployReleaseRequest:
+      type: object
+      required:
+        - releaseName
+      properties:
+        releaseName:
+          type: string
+
+    EnvVar:
+      type: object
+      required:
+        - key
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+        valueFrom:
+          $ref: '#/components/schemas/EnvVarValueFrom'
+
+    EnvVarValueFrom:
+      type: object
+      properties:
+        secretRef:
+          $ref: '#/components/schemas/SecretKeyRef'
+
+    SecretKeyRef:
+      type: object
+      required:
+        - name
+        - key
+      properties:
+        name:
+          type: string
+        key:
+          type: string
+
+    Container:
+      type: object
+      required:
+        - image
+      properties:
+        image:
+          type: string
+        command:
+          type: array
+          items:
+            type: string
+        args:
+          type: array
+          items:
+            type: string
+        env:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnvVar'
+
+    WorkloadEndpoint:
+      type: object
+      required:
+        - type
+        - port
+      properties:
+        type:
+          type: string
+          enum: ['TCP', 'UDP', 'HTTP', 'REST', 'gRPC', 'Websocket', 'GraphQL']
+        port:
+          type: integer
+        schema:
+          $ref: '#/components/schemas/Schema'
+
+    Connection:
+      type: object
+      required:
+        - params
+        - type
+      properties:
+        inject:
+          $ref: '#/components/schemas/ConnectionInject'
+        params:
+          $ref: '#/components/schemas/ConnectionParams'
+        type:
+          type: string
+
+    WorkloadOwner:
+      type: object
+      required:
+        - projectName
+        - componentName
+      properties:
+        projectName:
+          type: string
+        componentName:
+          type: string
+
+    ConnectionParams:
+      type: object
+      required:
+        - componentName
+        - endpoint
+        - projectName
+      properties:
+        componentName:
+          type: string
+        endpoint:
+          type: string
+        projectName:
+          type: string
+
+    ConnectionInject:
+      type: object
+      properties:
+        env:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConnectionInjectEnv'
+
+    ConnectionInjectEnv:
+      type: object
+      required:
+        - name
+        - value
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+
+    Schema:
+      type: object
+      properties:
+        type:
+          type: string
+        content:
+          type: string
+
+    # Release (deployed state in environment)
+    ReleaseResponse:
+      type: object
+      required:
+        - spec
+        - status
+      properties:
+        spec:
+          $ref: '#/components/schemas/ReleaseSpec'
+        status:
+          $ref: '#/components/schemas/ReleaseStatus'
+
+    ReleaseSpec:
+      type: object
+      required:
+        - owner
+        - environmentName
+      properties:
+        owner:
+          $ref: '#/components/schemas/ReleaseOwner'
+        environmentName:
+          type: string
+          minLength: 1
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/Resource'
+        interval:
+          type: string
+          pattern: '^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$'
+          description: Watch interval for release resources when stable (default 5m)
+        progressingInterval:
+          type: string
+          pattern: '^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$'
+          description: Watch interval for release resources when transitioning (default 10s)
+
+    ReleaseStatus:
+      type: object
+      properties:
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceStatus'
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Condition'
+
+    ReleaseOwner:
+      type: object
+      required:
+        - projectName
+        - componentName
+      properties:
+        projectName:
+          type: string
+          minLength: 1
+        componentName:
+          type: string
+          minLength: 1
+
+    Resource:
+      type: object
+      required:
+        - id
+        - object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          description: Unique identifier for the resource
+        object:
+          type: object
+          description: Complete Kubernetes resource definition
+          additionalProperties: true
+
+    ResourceStatus:
+      type: object
+      required:
+        - id
+        - version
+        - kind
+        - name
+      properties:
+        id:
+          type: string
+          minLength: 1
+        group:
+          type: string
+          description: API group of the resource (empty for core resources)
+        version:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        namespace:
+          type: string
+          description: Namespace (empty for cluster-scoped resources)
+        status:
+          type: object
+          additionalProperties: true
+          description: Entire .status field of the resource
+        healthStatus:
+          type: string
+          enum:
+            - Unknown
+            - Progressing
+            - Healthy
+            - Suspended
+            - Degraded
+        lastObservedTime:
+          type: string
+          format: date-time
+
+    Condition:
+      type: object
+      required:
+        - type
+        - status
+        - lastTransitionTime
+      properties:
+        type:
+          type: string
+        status:
+          type: string
+          enum:
+            - 'True'
+            - 'False'
+            - Unknown
+        observedGeneration:
+          type: integer
+          format: int64
+        lastTransitionTime:
+          type: string
+          format: date-time
+        reason:
+          type: string
+        message:
+          type: string
+
+    # Request schemas
+    UpdateComponentWorkflowRequest:
+      type: object
+      properties:
+        workflowName:
+          type: string
+          description: Name of the workflow to initialize (optional, required for initialization)
+        systemParameters:
+          $ref: '#/components/schemas/ComponentWorkflowSystemParams'
+        parameters:
+          type: object
+          additionalProperties: true
+          description: Developer-defined workflow parameters as arbitrary JSON
+
+    ComponentWorkflowSystemParams:
+      type: object
+      required:
+        - repository
+      properties:
+        repository:
+          $ref: '#/components/schemas/ComponentWorkflowRepository'
+
+    ComponentWorkflowRepository:
+      type: object
+      required:
+        - url
+        - revision
+      properties:
+        url:
+          type: string
+        revision:
+          $ref: '#/components/schemas/ComponentWorkflowRepositoryRevision'
+        appPath:
+          type: string
+
+    ComponentWorkflowRepositoryRevision:
+      type: object
+      required:
+        - branch
+      properties:
+        branch:
+          type: string
+        commit:
+          type: string
+
+    # Authorization types
+    SubjectType:
+      type: string
+      enum:
+        - user
+        - service_account
+
+    PolicyEffectType:
+      type: string
+      enum:
+        - allow
+        - deny
+
+    Entitlement:
+      type: object
+      required:
+        - claim
+        - value
+      properties:
+        claim:
+          type: string
+        value:
+          type: string
+    AuthzResourceHierarchy:
+      type: object
+      properties:
+        namespace:
+          type: string
+        project:
+          type: string
+        component:
+          type: string
+    ClusterRole:
+      type: object
+      required:
+        - name
+        - actions
+      properties:
+        name:
+          type: string
+          description: Name of the cluster role
+        actions:
+          type: array
+          items:
+            type: string
+          description: List of actions granted by this role
+        description:
+          type: string
+          description: Optional description of the role
+
+    NamespaceRole:
+      type: object
+      required:
+        - name
+        - namespace
+        - actions
+      properties:
+        name:
+          type: string
+          description: Name of the namespace role
+        namespace:
+          type: string
+          description: Namespace this role belongs to
+        actions:
+          type: array
+          items:
+            type: string
+          description: List of actions granted by this role
+        description:
+          type: string
+          description: Optional description of the role
+
+    ClusterRoleBinding:
+      type: object
+      required:
+        - name
+        - role
+        - entitlement
+        - effect
+      properties:
+        name:
+          type: string
+          description: Name of the cluster role binding
+        role:
+          type: object
+          required:
+            - name
+          properties:
+            name:
+              type: string
+              description: Name of the cluster role to bind
+        entitlement:
+          $ref: '#/components/schemas/Entitlement'
+        effect:
+          $ref: '#/components/schemas/PolicyEffectType'
+
+    ClusterRoleBindingRequest:
+      type: object
+      required:
+        - name
+        - role
+        - entitlement
+        - effect
+      properties:
+        name:
+          type: string
+          description: Name of the cluster role binding
+        role:
+          type: string
+          description: Name of the cluster role to bind
+        entitlement:
+          type: object
+          required:
+            - claim
+            - value
+          properties:
+            claim:
+              type: string
+              description: The claim type (e.g., 'sub', 'email')
+            value:
+              type: string
+              description: The claim value to match
+        effect:
+          type: string
+          enum:
+            - allow
+            - deny
+          description: Access control effect
+        context:
+          type: object
+          additionalProperties: true
+          description: Optional context information
+
+    NamespaceRoleBinding:
+      type: object
+      required:
+        - name
+        - namespace
+        - role
+        - entitlement
+        - effect
+      properties:
+        name:
+          type: string
+          description: Name of the namespace role binding
+        namespace:
+          type: string
+          description: Namespace this binding belongs to
+        role:
+          type: object
+          required:
+            - name
+          properties:
+            name:
+              type: string
+              description: Name of the role to bind
+            namespace:
+              type: string
+              description: Namespace of the role
+        entitlement:
+          $ref: '#/components/schemas/Entitlement'
+        hierarchy:
+          type: object
+          description: Hierarchy scope for the binding
+          properties:
+            namespace:
+              type: string
+              description: Namespace scope of the binding
+            project:
+              type: string
+              description: Project name to scope the binding
+            component:
+              type: string
+              description: Component name to scope the binding
+        effect:
+          $ref: '#/components/schemas/PolicyEffectType'
+
+    NamespaceRoleBindingRequest:
+      type: object
+      required:
+        - name
+        - role
+        - entitlement
+        - effect
+      properties:
+        name:
+          type: string
+          description: Name of the namespace role binding
+        role:
+          type: object
+          required:
+            - name
+            - namespace
+          properties:
+            name:
+              type: string
+              description: Name of the role to bind
+            namespace:
+              type: string
+              description: Namespace of the role
+        entitlement:
+          type: object
+          required:
+            - claim
+            - value
+          properties:
+            claim:
+              type: string
+              description: The claim type (e.g., 'sub', 'email')
+            value:
+              type: string
+              description: The claim value to match
+        targetPath:
+          type: object
+          description: Target path scope for the binding
+          properties:
+            project:
+              type: string
+              description: Project name to scope the binding
+            component:
+              type: string
+              description: Component name to scope the binding
+        effect:
+          type: string
+          enum:
+            - allow
+            - deny
+          description: Access control effect
+
+    EntitlementConfig:
+      type: object
+      required:
+        - claim
+        - displayName
+      properties:
+        claim:
+          type: string
+        displayName:
+          type: string
+
+    AuthMechanismConfig:
+      type: object
+      required:
+        - type
+        - entitlement
+      properties:
+        type:
+          type: string
+          description: Authentication mechanism type (e.g., "jwt", "oauth2", "api_key")
+        entitlement:
+          $ref: '#/components/schemas/EntitlementConfig'
+
+    UserTypeConfig:
+      type: object
+      required:
+        - type
+        - displayName
+        - priority
+        - authMechanisms
+      properties:
+        type:
+          $ref: '#/components/schemas/SubjectType'
+        displayName:
+          type: string
+        priority:
+          type: integer
+        authMechanisms:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthMechanismConfig'
+
+    Subject:
+      type: object
+      required:
+        - jwt_token
+      properties:
+        jwt_token:
+          type: string
+
+    AuthzResource:
+      type: object
+      required:
+        - type
+        - hierarchy
+      properties:
+        type:
+          type: string
+        id:
+          type: string
+        hierarchy:
+          $ref: '#/components/schemas/AuthzResourceHierarchy'
+
+    EvaluateRequest:
+      type: object
+      required:
+        - subject
+        - resource
+        - action
+      properties:
+        subject:
+          $ref: '#/components/schemas/Subject'
+        resource:
+          $ref: '#/components/schemas/AuthzResource'
+        action:
+          type: string
+        context:
+          type: object
+
+    BatchEvaluateRequest:
+      type: object
+      required:
+        - requests
+      properties:
+        requests:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluateRequest'
+
+    DecisionContext:
+      type: object
+      properties:
+        reason:
+          type: string
+
+    Decision:
+      type: object
+      required:
+        - decision
+      properties:
+        decision:
+          type: boolean
+        context:
+          $ref: '#/components/schemas/DecisionContext'
+
+    BatchEvaluateResponse:
+      type: object
+      required:
+        - decisions
+      properties:
+        decisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Decision'
+
+    CapabilityResource:
+      type: object
+      required:
+        - path
+      properties:
+        path:
+          type: string
+        constraints:
+          type: object
+
+    ActionCapability:
+      type: object
+      properties:
+        allowed:
+          type: array
+          items:
+            $ref: '#/components/schemas/CapabilityResource'
+        denied:
+          type: array
+          items:
+            $ref: '#/components/schemas/CapabilityResource'
+
+    SubjectContext:
+      type: object
+      properties:
+        Type:
+          $ref: '#/components/schemas/SubjectType'
+        EntitlementClaim:
+          type: string
+        EntitlementValues:
+          type: array
+          items:
+            type: string
+
+    UserCapabilitiesResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/SubjectContext'
+        capabilities:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ActionCapability'
+        evaluatedAt:
+          type: string
+          format: date-time
+
+    # Webhook
+    WebhookEventResponse:
+      type: object
+      required:
+        - success
+        - message
+        - triggeredBuilds
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        affectedComponents:
+          type: array
+          items:
+            type: string
+        triggeredBuilds:
+          type: integer
+
+    # Version
+    VersionResponse:
+      type: object
+      required:
+        - name
+        - version
+        - gitRevision
+        - buildTime
+        - goOS
+        - goArch
+        - goVersion
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        gitRevision:
+          type: string
+        buildTime:
+          type: string
+        goOS:
+          type: string
+        goArch:
+          type: string
+        goVersion:
+          type: string
+
+security:
+  - BearerAuth: []
+
+paths:
+  # Health check
+  /health:
+    get:
+      summary: Health check endpoint
+      operationId: health
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /ready:
+    get:
+      summary: Readiness check endpoint
+      operationId: ready
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  # Version endpoint
+  /version:
+    get:
+      summary: Get server version information
+      operationId: getVersion
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: Server version information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+
+  # Webhook endpoints (public - called by Git providers)
+  /webhooks/github:
+    post:
+      summary: Handle GitHub webhook events
+      operationId: handleGitHubWebhook
+      tags:
+        - Webhooks
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Webhook processed successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/WebhookEventResponse'
+
+  /webhooks/gitlab:
+    post:
+      summary: Handle GitLab webhook events
+      operationId: handleGitLabWebhook
+      tags:
+        - Webhooks
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Webhook processed successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/WebhookEventResponse'
+
+  /webhooks/bitbucket:
+    post:
+      summary: Handle Bitbucket webhook events
+      operationId: handleBitbucketWebhook
+      tags:
+        - Webhooks
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Webhook processed successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/WebhookEventResponse'
+
+  # Apply/Delete operations (kubectl-like)
+  /apply:
+    post:
+      summary: Apply a resource (kubectl-like)
+      operationId: applyResource
+      tags:
+        - Resources
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Kubernetes-style resource definition
+              additionalProperties: true
+      responses:
+        '200':
+          description: Resource applied successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        '201':
+          description: Resource created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+
+  /delete:
+    delete:
+      summary: Delete a resource (kubectl-like)
+      operationId: deleteResource
+      tags:
+        - Resources
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Kubernetes-style resource definition
+              additionalProperties: true
+      responses:
+        '200':
+          description: Resource deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+
+  /namespaces/{namespaceName}/resources/{kind}/{name}:
+    get:
+      summary: Get a resource by kind and name
+      operationId: getResource
+      tags:
+        - Resources
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Namespace name
+        - name: kind
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Resource kind (e.g., component, project)
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Resource name
+      responses:
+        '200':
+          description: Resource retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        description: Kubernetes-style resource definition
+                        additionalProperties: true
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+
+  # Namespaces
+  /namespaces:
+    get:
+      summary: List all namespaces
+      operationId: listNamespaces
+      tags:
+        - Namespaces
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/ListResponse'
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/NamespaceResponse'
+
+  /namespaces/{namespaceName}:
+    get:
+      summary: Get a specific namespace
+      operationId: getNamespace
+      tags:
+        - Namespaces
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/NamespaceResponse'
+        '404':
+          description: Namespace not found
+
+  /namespaces/{namespaceName}/secret-references:
+    get:
+      summary: List secret references for a namespace
+      operationId: listSecretReferences
+      tags:
+        - Namespaces
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/ListResponse'
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/SecretReferenceResponse'
+        '404':
+          description: Namespace not found
+
+  # Git Secrets
+  /namespaces/{namespaceName}/git-secrets:
+    get:
+      summary: List git secrets for a namespace
+      operationId: listGitSecrets
+      tags:
+        - GitSecrets
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/ListResponse'
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/GitSecretResponse'
+        '404':
+          description: Namespace not found
+
+    post:
+      summary: Create a new git secret
+      operationId: createGitSecret
+      tags:
+        - GitSecrets
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGitSecretRequest'
+      responses:
+        '201':
+          description: Git secret created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GitSecretResponse'
+        '400':
+          description: Invalid request
+        '409':
+          description: Git secret already exists
+
+  /namespaces/{namespaceName}/git-secrets/{secretName}:
+    delete:
+      summary: Delete a git secret
+      operationId: deleteGitSecret
+      tags:
+        - GitSecrets
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: secretName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Git secret deleted successfully
+        '404':
+          description: Git secret not found
+
+  # DataPlanes
+  /namespaces/{namespaceName}/dataplanes:
+    get:
+      summary: List all data planes
+      operationId: listDataPlanes
+      tags:
+        - DataPlanes
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/ListResponse'
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/DataPlaneResponse'
+
+    post:
+      summary: Create a new data plane
+      operationId: createDataPlane
+      tags:
+        - DataPlanes
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDataPlaneRequest'
+      responses:
+        '201':
+          description: Data plane created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DataPlaneResponse'
+
+  /namespaces/{namespaceName}/dataplanes/{dpName}:
+    get:
+      summary: Get a specific data plane
+      operationId: getDataPlane
+      tags:
+        - DataPlanes
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: dpName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DataPlaneResponse'
+
+  # Environments
+  /namespaces/{namespaceName}/environments:
+    get:
+      summary: List all environments
+      operationId: listEnvironments
+      tags:
+        - Environments
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/ListResponse'
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/EnvironmentResponse'
+
+    post:
+      summary: Create a new environment
+      operationId: createEnvironment
+      tags:
+        - Environments
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEnvironmentRequest'
+      responses:
+        '201':
+          description: Environment created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/EnvironmentResponse'
+
+  /namespaces/{namespaceName}/environments/{envName}:
+    get:
+      summary: Get a specific environment
+      operationId: getEnvironment
+      tags:
+        - Environments
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: envName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/EnvironmentResponse'
+
+  /namespaces/{namespaceName}/environments/{envName}/observer-url:
+    get:
+      summary: Get environment observer URL
+      operationId: getEnvironmentObserverURL
+      tags:
+        - Observability
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: envName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ObserverUrlData'
+        '404':
+          description: Environment or DataPlane not found
+
+  /namespaces/{namespaceName}/environments/{envName}/rca-agent-url:
+    get:
+      summary: Get RCA agent URL
+      description: Returns the RCA agent URL for AI-powered root cause analysis for this environment.
+      operationId: getRCAAgentURL
+      tags:
+        - Environments
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: envName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: RCA agent URL information
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RCAAgentUrlData'
+        '404':
+          description: Environment or RCA agent not found
+
+  # BuildPlanes
+  /namespaces/{namespaceName}/buildplanes:
+    get:
+      summary: List build planes
+      operationId: listBuildPlanes
+      tags:
+        - BuildPlanes
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/BuildPlaneResponse'
+
+  # ObservabilityPlanes
+  /namespaces/{namespaceName}/observabilityplanes:
+    get:
+      summary: List observability planes
+      operationId: listObservabilityPlanes
+      tags:
+        - ObservabilityPlanes
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ObservabilityPlaneResponse'
+
+  # ComponentTypes
+  /namespaces/{namespaceName}/component-types:
+    get:
+      summary: List all component types for a namespace
+      operationId: listComponentTypes
+      tags:
+        - ComponentTypes
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/ListResponse'
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/ComponentTypeResponse'
+
+  /namespaces/{namespaceName}/component-types/{ctName}/schema:
+    get:
+      summary: Get the JSON schema for a specific component type
+      operationId: getComponentTypeSchema
+      tags:
+        - ComponentTypes
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ctName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        description: JSON Schema for the component type
+                        additionalProperties: true
+        '404':
+          description: Component type not found
+
+  /namespaces/{namespaceName}/component-types/{ctName}/definition:
+    get:
+      summary: Get the full CRD definition for a specific component type
+      operationId: getComponentTypeDefinition
+      tags:
+        - ComponentTypes
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ctName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        description: Full Kubernetes CRD as unstructured JSON
+                        additionalProperties: true
+        '404':
+          description: Component type not found
+    put:
+      summary: Create or update a component type definition
+      operationId: updateComponentTypeDefinition
+      tags:
+        - ComponentTypes
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ctName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Full Kubernetes CRD as unstructured JSON
+              additionalProperties: true
+      responses:
+        '200':
+          description: Resource applied successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResourceCRUDResponse'
+    delete:
+      summary: Delete a component type definition
+      operationId: deleteComponentTypeDefinition
+      tags:
+        - ComponentTypes
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ctName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Resource deleted successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResourceCRUDResponse'
+        '404':
+          description: Component type not found
+
+  # Workflows (generic workflows)
+  /namespaces/{namespaceName}/workflows:
+    get:
+      summary: List all workflows for a namespace
+      operationId: listWorkflows
+      tags:
+        - Workflows
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/ListResponse'
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/WorkflowResponse'
+
+  /namespaces/{namespaceName}/workflows/{workflowName}/schema:
+    get:
+      summary: Get the JSON schema for a specific workflow
+      operationId: getWorkflowSchema
+      tags:
+        - Workflows
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workflowName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        description: JSON Schema for the workflow
+                        additionalProperties: true
+        '404':
+          description: Workflow not found
+
+  /namespaces/{namespaceName}/workflows/{workflowName}/definition:
+    get:
+      summary: Get the full CRD definition for a specific workflow
+      operationId: getWorkflowDefinition
+      tags:
+        - Workflows
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workflowName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        description: Full Kubernetes CRD as unstructured JSON
+                        additionalProperties: true
+        '404':
+          description: Workflow not found
+    put:
+      summary: Create or update a workflow definition
+      operationId: updateWorkflowDefinition
+      tags:
+        - Workflows
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workflowName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Full Kubernetes CRD as unstructured JSON
+              additionalProperties: true
+      responses:
+        '200':
+          description: Resource applied successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResourceCRUDResponse'
+    delete:
+      summary: Delete a workflow definition
+      operationId: deleteWorkflowDefinition
+      tags:
+        - Workflows
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workflowName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Resource deleted successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResourceCRUDResponse'
+        '404':
+          description: Workflow not found
+
+  # ComponentWorkflows (component-specific workflows)
+  /namespaces/{namespaceName}/component-workflows:
+    get:
+      summary: List all component workflows for a namespace
+      operationId: listComponentWorkflows
+      tags:
+        - ComponentWorkflows
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/ListResponse'
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/WorkflowResponse'
+
+  /namespaces/{namespaceName}/component-workflows/{cwName}/schema:
+    get:
+      summary: Get the JSON schema for a specific component workflow
+      operationId: getComponentWorkflowSchema
+      tags:
+        - ComponentWorkflows
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cwName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        description: JSON Schema for the component workflow
+                        additionalProperties: true
+        '404':
+          description: Component workflow not found
+
+  /namespaces/{namespaceName}/component-workflows/{cwName}/definition:
+    get:
+      summary: Get the full CRD definition for a specific component workflow
+      operationId: getComponentWorkflowDefinition
+      tags:
+        - ComponentWorkflows
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cwName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        description: Full Kubernetes CRD as unstructured JSON
+                        additionalProperties: true
+        '404':
+          description: Component workflow not found
+    put:
+      summary: Create or update a component workflow definition
+      operationId: updateComponentWorkflowDefinition
+      tags:
+        - ComponentWorkflows
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cwName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Full Kubernetes CRD as unstructured JSON
+              additionalProperties: true
+      responses:
+        '200':
+          description: Resource applied successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResourceCRUDResponse'
+    delete:
+      summary: Delete a component workflow definition
+      operationId: deleteComponentWorkflowDefinition
+      tags:
+        - ComponentWorkflows
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cwName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Resource deleted successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResourceCRUDResponse'
+        '404':
+          description: Component workflow not found
+
+  # Traits
+  /namespaces/{namespaceName}/traits:
+    get:
+      summary: List all traits for a namespace
+      operationId: listTraits
+      tags:
+        - Traits
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/ListResponse'
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/TraitResponse'
+
+  /namespaces/{namespaceName}/traits/{traitName}/schema:
+    get:
+      summary: Get the JSON schema for a specific trait
+      operationId: getTraitSchema
+      tags:
+        - Traits
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: traitName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        description: JSON Schema for the trait
+                        additionalProperties: true
+        '404':
+          description: Trait not found
+
+  /namespaces/{namespaceName}/traits/{traitName}/definition:
+    get:
+      summary: Get the full CRD definition for a specific trait
+      operationId: getTraitDefinition
+      tags:
+        - Traits
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: traitName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        description: Full Kubernetes CRD as unstructured JSON
+                        additionalProperties: true
+        '404':
+          description: Trait not found
+    put:
+      summary: Create or update a trait definition
+      operationId: updateTraitDefinition
+      tags:
+        - Traits
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: traitName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Full Kubernetes CRD as unstructured JSON
+              additionalProperties: true
+      responses:
+        '200':
+          description: Resource applied successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResourceCRUDResponse'
+    delete:
+      summary: Delete a trait definition
+      operationId: deleteTraitDefinition
+      tags:
+        - Traits
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: traitName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Resource deleted successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ResourceCRUDResponse'
+        '404':
+          description: Trait not found
+
+  # Projects
+  /namespaces/{namespaceName}/projects:
+    get:
+      summary: List all projects in a namespace
+      operationId: listProjects
+      tags:
+        - Projects
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/ListResponse'
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/ProjectResponse'
+
+    post:
+      summary: Create a new project
+      operationId: createProject
+      tags:
+        - Projects
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '201':
+          description: Project created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ProjectResponse'
+
+  /namespaces/{namespaceName}/projects/{projectName}:
+    get:
+      summary: Get a specific project
+      operationId: getProject
+      tags:
+        - Projects
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ProjectResponse'
+    delete:
+      summary: Delete a project
+      operationId: deleteProject
+      tags:
+        - Projects
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Project deleted successfully
+        '404':
+          description: Project not found
+
+  /namespaces/{namespaceName}/projects/{projectName}/deployment-pipeline:
+    get:
+      summary: Get project deployment pipeline
+      operationId: getProjectDeploymentPipeline
+      tags:
+        - Projects
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DeploymentPipelineResponse'
+
+  # Components
+  /namespaces/{namespaceName}/projects/{projectName}/components:
+    get:
+      summary: List all components in a project
+      operationId: listComponents
+      tags:
+        - Components
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/ListResponse'
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/ComponentResponse'
+
+    post:
+      summary: Create a new component
+      operationId: createComponent
+      tags:
+        - Components
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateComponentRequest'
+      responses:
+        '201':
+          description: Component created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ComponentResponse'
+
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}:
+    get:
+      summary: Get a specific component
+      operationId: getComponent
+      tags:
+        - Components
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: include
+          in: query
+          required: false
+          schema:
+            type: string
+            description: Comma-separated list of additional resources to include (e.g., "type,workload")
+          description: Additional resources to include in the response. Valid values are "type" and "workload".
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ComponentResponse'
+    patch:
+      summary: Patch a component
+      operationId: patchComponent
+      tags:
+        - Components
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchComponentRequest'
+      responses:
+        '200':
+          description: Component successfully patched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ComponentResponse'
+        '400':
+          description: Bad request - invalid input
+        '404':
+          description: Component or project not found
+        '500':
+          description: Internal server error
+    delete:
+      summary: Delete a component
+      operationId: deleteComponent
+      tags:
+        - Components
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Component deleted successfully
+        '404':
+          description: Component or project not found
+
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/schema:
+    get:
+      summary: Get the JSON schema for a specific component
+      operationId: getComponentSchema
+      tags:
+        - Components
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ComponentSchemaResponse'
+        '404':
+          description: Component not found
+
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/traits:
+    get:
+      summary: List all traits attached to a component
+      operationId: listComponentTraits
+      tags:
+        - Components
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ListResponse'
+                      totalCount:
+                        type: integer
+                      page:
+                        type: integer
+                      pageSize:
+                        type: integer
+        '400':
+          description: Bad request
+        '403':
+          description: Forbidden
+        '404':
+          description: Component not found
+
+    put:
+      summary: Update all traits on a component
+      operationId: updateComponentTraits
+      tags:
+        - Components
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateComponentTraitsRequest'
+      responses:
+        '200':
+          description: Traits updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ListResponse'
+                      totalCount:
+                        type: integer
+                      page:
+                        type: integer
+                      pageSize:
+                        type: integer
+        '400':
+          description: Bad request
+        '403':
+          description: Forbidden
+        '404':
+          description: Component or trait not found
+
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/workflow-parameters:
+    patch:
+      summary: Update component workflow parameters
+      operationId: updateComponentWorkflowParameters
+      tags:
+        - ComponentWorkflows
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateComponentWorkflowRequest'
+      responses:
+        '200':
+          description: Workflow parameters updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ComponentResponse'
+
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/workflow-runs:
+    post:
+      summary: Create a component workflow run
+      operationId: createComponentWorkflowRun
+      tags:
+        - ComponentWorkflows
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: commit
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Git commit SHA (7-40 hexadecimal characters)
+      responses:
+        '201':
+          description: Component workflow run created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ComponentWorkflowRunResponse'
+        '400':
+          description: Invalid commit SHA format
+
+    get:
+      summary: List component workflow runs
+      operationId: listComponentWorkflowRuns
+      tags:
+        - ComponentWorkflows
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/ListResponse'
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/ComponentWorkflowRunResponse'
+
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/workflow-runs/{runName}:
+    get:
+      summary: Get a specific component workflow run
+      operationId: getComponentWorkflowRun
+      tags:
+        - ComponentWorkflows
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: runName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ComponentWorkflowRunResponse'
+        '404':
+          description: Component workflow run not found
+
+  # Component Bindings
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/bindings:
+    get:
+      summary: Get component bindings
+      operationId: getComponentBinding
+      tags:
+        - Bindings
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/ListResponse'
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/BindingResponse'
+
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/bindings/{bindingName}:
+    patch:
+      summary: Update a component binding
+      operationId: updateComponentBinding
+      tags:
+        - Bindings
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: bindingName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBindingRequest'
+      responses:
+        '200':
+          description: Binding updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+
+  # Component Releases
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/component-releases:
+    get:
+      summary: List component releases
+      operationId: listComponentReleases
+      tags:
+        - Releases
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/ListResponse'
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/ComponentReleaseResponse'
+
+    post:
+      summary: Create a component release
+      operationId: createComponentRelease
+      tags:
+        - Releases
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateComponentReleaseRequest'
+      responses:
+        '201':
+          description: Component release created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ComponentReleaseResponse'
+
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/component-releases/{releaseName}:
+    get:
+      summary: Get a specific component release
+      operationId: getComponentRelease
+      tags:
+        - Releases
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: releaseName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ComponentReleaseResponse'
+
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/component-releases/{releaseName}/schema:
+    get:
+      summary: Get the JSON schema for a specific component release
+      operationId: getComponentReleaseSchema
+      tags:
+        - Releases
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: releaseName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ComponentSchemaResponse'
+        '404':
+          description: Component release not found
+
+  # Release Bindings
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/release-bindings:
+    get:
+      summary: List release bindings
+      operationId: listReleaseBindings
+      tags:
+        - Releases
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/ListResponse'
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/ReleaseBindingResponse'
+
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/release-bindings/{bindingName}:
+    patch:
+      summary: Patch a release binding
+      operationId: patchReleaseBinding
+      tags:
+        - Releases
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: bindingName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchReleaseBindingRequest'
+      responses:
+        '200':
+          description: Release binding updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+
+  # Component Deployment
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/deploy:
+    post:
+      summary: Deploy a release to the lowest environment
+      operationId: deployRelease
+      tags:
+        - Deployment
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeployReleaseRequest'
+      responses:
+        '200':
+          description: Release deployed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+
+  # Component Promotion
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/promote:
+    post:
+      summary: Promote component to environment
+      operationId: promoteComponent
+      tags:
+        - Deployment
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromoteComponentRequest'
+      responses:
+        '200':
+          description: Component promoted successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/ListResponse'
+                          - type: object
+                            properties:
+                              items:
+                                type: array
+                                items:
+                                  $ref: '#/components/schemas/BindingResponse'
+
+  # Observer URLs
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/environments/{environmentName}/observer-url:
+    get:
+      summary: Get runtime logs observer URL
+      operationId: getComponentObserverURL
+      tags:
+        - Observability
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: environmentName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ObserverUrlData'
+
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/observer-url:
+    get:
+      summary: Get build logs observer URL
+      operationId: getBuildObserverURL
+      tags:
+        - Observability
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ObserverUrlData'
+
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/environments/{environmentName}/release:
+    get:
+      summary: Get environment release
+      operationId: getEnvironmentRelease
+      tags:
+        - Releases
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: environmentName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ReleaseResponse'
+        '404':
+          description: Release not found for the specified environment
+
+  # Workloads
+  /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/workloads:
+    post:
+      summary: Create or update workload
+      operationId: createWorkload
+      tags:
+        - Workloads
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Workload specification
+              additionalProperties: true
+      responses:
+        '200':
+          description: Workload created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/WorkloadResponse'
+
+    get:
+      summary: Get workload for component
+      operationId: getWorkloads
+      tags:
+        - Workloads
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projectName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: componentName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/WorkloadResponse'
+
+  /authz/actions:
+    get:
+      summary: List all available actions
+      operationId: listActions
+      tags:
+        - Authorization
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: string
+
+  # Cluster-scoped roles
+  /clusterroles:
+    get:
+      summary: List all cluster roles
+      operationId: listClusterRoles
+      tags:
+        - Authorization
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ClusterRole'
+    post:
+      summary: Create a new cluster role
+      operationId: createClusterRole
+      tags:
+        - Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClusterRole'
+      responses:
+        '201':
+          description: Cluster role created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ClusterRole'
+
+  /clusterroles/{name}:
+    get:
+      summary: Get a specific cluster role
+      operationId: getClusterRole
+      tags:
+        - Authorization
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ClusterRole'
+        '404':
+          description: Cluster role not found
+    put:
+      summary: Update a cluster role
+      operationId: updateClusterRole
+      tags:
+        - Authorization
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                actions:
+                  type: array
+                  items:
+                    type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Cluster role updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ClusterRole'
+    delete:
+      summary: Delete a cluster role
+      operationId: deleteClusterRole
+      tags:
+        - Authorization
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Cluster role deleted
+        '404':
+          description: Cluster role not found
+
+  # Namespace-scoped roles
+  /namespaces/{namespace}/roles:
+    get:
+      summary: List all namespace roles
+      operationId: listNamespaceRoles
+      tags:
+        - Authorization
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/NamespaceRole'
+    post:
+      summary: Create a new namespace role
+      operationId: createNamespaceRole
+      tags:
+        - Authorization
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NamespaceRole'
+      responses:
+        '201':
+          description: Namespace role created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/NamespaceRole'
+
+  /namespaces/{namespace}/roles/{name}:
+    get:
+      summary: Get a specific namespace role
+      operationId: getNamespaceRole
+      tags:
+        - Authorization
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/NamespaceRole'
+        '404':
+          description: Namespace role not found
+    put:
+      summary: Update a namespace role
+      operationId: updateNamespaceRole
+      tags:
+        - Authorization
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                actions:
+                  type: array
+                  items:
+                    type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Namespace role updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/NamespaceRole'
+    delete:
+      summary: Delete a namespace role
+      operationId: deleteNamespaceRole
+      tags:
+        - Authorization
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Namespace role deleted
+        '404':
+          description: Namespace role not found
+
+  # Cluster role bindings
+  /clusterrolebindings:
+    get:
+      summary: List all cluster role bindings
+      operationId: listClusterRoleBindings
+      tags:
+        - Authorization
+      parameters:
+        - name: roleName
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: claim
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: value
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: effect
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/PolicyEffectType'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ClusterRoleBinding'
+    post:
+      summary: Create a new cluster role binding
+      operationId: createClusterRoleBinding
+      tags:
+        - Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClusterRoleBindingRequest'
+      responses:
+        '201':
+          description: Cluster role binding created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ClusterRoleBinding'
+
+  /clusterrolebindings/{name}:
+    get:
+      summary: Get a specific cluster role binding
+      operationId: getClusterRoleBinding
+      tags:
+        - Authorization
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ClusterRoleBinding'
+        '404':
+          description: Cluster role binding not found
+    put:
+      summary: Update a cluster role binding
+      operationId: updateClusterRoleBinding
+      tags:
+        - Authorization
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClusterRoleBindingRequest'
+      responses:
+        '200':
+          description: Cluster role binding updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ClusterRoleBinding'
+    delete:
+      summary: Delete a cluster role binding
+      operationId: deleteClusterRoleBinding
+      tags:
+        - Authorization
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Cluster role binding deleted
+        '404':
+          description: Cluster role binding not found
+
+  # Namespace role bindings
+  /namespaces/{namespace}/rolebindings:
+    get:
+      summary: List all namespace role bindings
+      operationId: listNamespaceRoleBindings
+      tags:
+        - Authorization
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: roleName
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: roleNamespace
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: claim
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: value
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: effect
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/PolicyEffectType'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/NamespaceRoleBinding'
+    post:
+      summary: Create a new namespace role binding
+      operationId: createNamespaceRoleBinding
+      tags:
+        - Authorization
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NamespaceRoleBindingRequest'
+      responses:
+        '201':
+          description: Namespace role binding created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/NamespaceRoleBinding'
+
+  /namespaces/{namespace}/rolebindings/{name}:
+    get:
+      summary: Get a specific namespace role binding
+      operationId: getNamespaceRoleBinding
+      tags:
+        - Authorization
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/NamespaceRoleBinding'
+        '404':
+          description: Namespace role binding not found
+    put:
+      summary: Update a namespace role binding
+      operationId: updateNamespaceRoleBinding
+      tags:
+        - Authorization
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NamespaceRoleBindingRequest'
+      responses:
+        '200':
+          description: Namespace role binding updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/NamespaceRoleBinding'
+    delete:
+      summary: Delete a namespace role binding
+      operationId: deleteNamespaceRoleBinding
+      tags:
+        - Authorization
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Namespace role binding deleted
+        '404':
+          description: Namespace role binding not found
+
+  /user-types:
+    get:
+      summary: List all configured user types
+      operationId: listUserTypes
+      tags:
+        - Configuration
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/UserTypeConfig'
+
+  /authz/evaluate:
+    post:
+      summary: Evaluate a single authorization request
+      operationId: evaluate
+      tags:
+        - Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvaluateRequest'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Decision'
+
+  /authz/batch-evaluate:
+    post:
+      summary: Evaluate multiple authorization requests
+      operationId: batchEvaluate
+      tags:
+        - Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchEvaluateRequest'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BatchEvaluateResponse'
+
+  /authz/profile:
+    get:
+      summary: Get subject's authorization profile
+      operationId: getSubjectProfile
+      tags:
+        - Authorization
+      parameters:
+        - name: namespace
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Namespace scope (optional, omit for global profile)
+        - name: project
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Project name (optional)
+        - name: component
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Component name (optional)
+        - name: ou
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+          description: Namespace units scope (optional)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserCapabilitiesResponse'

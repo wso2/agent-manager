@@ -78,23 +78,38 @@ func (c *openChoreoClient) GetProject(ctx context.Context, namespaceName, projec
 }
 
 func (c *openChoreoClient) PatchProject(ctx context.Context, namespaceName, projectName string, req PatchProjectRequest) error {
-	body := ocapi.ApplyResourceJSONRequestBody{
-		"apiVersion": ResourceAPIVersion,
-		"kind":       ResourceKindProject,
-		"metadata": map[string]interface{}{
-			"name":      projectName,
-			"namespace": namespaceName,
-			"annotations": map[string]interface{}{
-				AnnotationKeyDisplayName: req.DisplayName,
-				AnnotationKeyDescription: req.Description,
-			},
-		},
-		"spec": map[string]interface{}{
-			"deploymentPipelineRef": req.DeploymentPipeline,
-		},
+	// Fetch the full project CR with server-managed fields removed
+	projectCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindProject, projectName, utils.ErrProjectNotFound)
+	if err != nil {
+		return fmt.Errorf("failed to get project resource: %w", err)
 	}
 
-	resp, err := c.ocClient.ApplyResourceWithResponse(ctx, body)
+	// Update annotations in the metadata
+	metadata, ok := projectCR["metadata"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("invalid metadata in project CR")
+	}
+
+	annotations, ok := metadata["annotations"].(map[string]interface{})
+	if !ok {
+		annotations = make(map[string]interface{})
+		metadata["annotations"] = annotations
+	}
+
+	annotations[string(AnnotationKeyDisplayName)] = req.DisplayName
+	annotations[string(AnnotationKeyDescription)] = req.Description
+
+	// Update spec
+	spec, ok := projectCR["spec"].(map[string]interface{})
+	if !ok {
+		spec = make(map[string]interface{})
+		projectCR["spec"] = spec
+	}
+
+	spec["deploymentPipelineRef"] = req.DeploymentPipeline
+
+	// Apply the updated project CR
+	resp, err := c.ocClient.ApplyResourceWithResponse(ctx, projectCR)
 	if err != nil {
 		return fmt.Errorf("failed to apply project: %w", err)
 	}

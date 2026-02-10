@@ -312,29 +312,72 @@ func (c *openChoreoClient) GetComponent(ctx context.Context, namespaceName, proj
 	return convertComponent(resp.JSON200.Data), nil
 }
 
-func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBasicInfoRequest) error {
-	annotations := map[string]string{
-		string(AnnotationKeyDisplayName): req.DisplayName,
-		string(AnnotationKeyDescription): req.Description,
-	}
-	// Build the ApplyResource request body
-	body := gen.ApplyResourceJSONRequestBody{
-		"apiVersion": ResourceAPIVersion,
-		"kind":       ResourceKindComponent,
-		"metadata": map[string]interface{}{
-			"name":        componentName,
-			"namespace":   namespaceName,
-			"annotations": annotations,
-		},
+// getCleanResourceCR fetches a resource CR and removes server-managed fields
+func (c *openChoreoClient) getCleanResourceCR(ctx context.Context, namespaceName, kind, resourceName string, notFoundErr error) (map[string]interface{}, error) {
+	resp, err := c.ocClient.GetResourceWithResponse(ctx, namespaceName, kind, resourceName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get resource: %w", err)
 	}
 
-	resp, err := c.ocClient.ApplyResourceWithResponse(ctx, body)
+	if resp.StatusCode() != http.StatusOK {
+		body := resp.Body
+		return nil, handleErrorResponse(resp.StatusCode(), body, ErrorContext{
+			NotFoundErr: notFoundErr,
+		})
+	}
+
+	if resp.JSON200 == nil || resp.JSON200.Data == nil {
+		return nil, fmt.Errorf("empty response from get resource")
+	}
+
+	// Get the component CR data
+	componentCR := *resp.JSON200.Data
+
+	// Remove server-managed fields from metadata
+	if metadata, ok := componentCR["metadata"].(map[string]interface{}); ok {
+		delete(metadata, "managedFields")
+		delete(metadata, "resourceVersion")
+		delete(metadata, "generation")
+		delete(metadata, "creationTimestamp")
+		delete(metadata, "uid")
+	}
+
+	// Remove status field (server-managed)
+	delete(componentCR, "status")
+
+	return componentCR, nil
+}
+
+func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBasicInfoRequest) error {
+	// Fetch the full component CR with server-managed fields removed
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
+	if err != nil {
+		return fmt.Errorf("failed to get component resource: %w", err)
+	}
+
+	// Update annotations in the metadata
+	metadata, ok := componentCR["metadata"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("invalid metadata in component CR")
+	}
+
+	annotations, ok := metadata["annotations"].(map[string]interface{})
+	if !ok {
+		annotations = make(map[string]interface{})
+		metadata["annotations"] = annotations
+	}
+
+	annotations[string(AnnotationKeyDisplayName)] = req.DisplayName
+	annotations[string(AnnotationKeyDescription)] = req.Description
+
+	// Apply the updated component CR
+	applyResp, err := c.ocClient.ApplyResourceWithResponse(ctx, componentCR)
 	if err != nil {
 		return fmt.Errorf("failed to update component meta details: %w", err)
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
+	if applyResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(applyResp.StatusCode(), applyResp.Body, ErrorContext{
 			NotFoundErr: utils.ErrAgentNotFound,
 		})
 	}
