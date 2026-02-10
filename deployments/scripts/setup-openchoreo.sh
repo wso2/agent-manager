@@ -43,7 +43,7 @@ echo ""
 echo "1️⃣  Installing/Upgrading OpenChoreo Control Plane..."
 echo "   This may take up to 10 minutes..."
 helm upgrade --install openchoreo-control-plane oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
---version ${OPENCHOREO_VERSION} \
+--version ${OPENCHOREO_PATCH_VERSION} \
 --namespace openchoreo-control-plane \
 --create-namespace \
 --values "${SCRIPT_DIR}/../single-cluster/values-cp.yaml"
@@ -133,15 +133,6 @@ else
 fi
 echo ""
 
-
-echo "Applying HTTPRoute CRD..."
-HTTP_ROUTE_CRD="https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/refs/tags/v1.4.1/config/crd/experimental/gateway.networking.k8s.io_httproutes.yaml"
-if kubectl apply --server-side --force-conflicts -f "${HTTP_ROUTE_CRD}" &>/dev/null; then
-    echo "✅ HTTPRoute CRD applied successfully"
-else
-    echo "❌ Failed to apply HTTPRoute CRD"
-fi
-
 # Verify DataPlane
 echo ""
 echo "🔍 Verifying DataPlane..."
@@ -189,6 +180,8 @@ metadata:
   namespace: default
 spec:
   planeID: "default-buildplane"
+  secretStoreRef:
+    name: openbao
   clusterAgent:
     clientCA:
       value: |

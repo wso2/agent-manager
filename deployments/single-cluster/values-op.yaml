@@ -7,10 +7,6 @@ openSearch:
 openSearchCluster:
   enabled: false
 
-# External Secrets Operator
-external-secrets:
-  enabled: false
-
 # OIDC security configuration (Thunder integration)
 security:
   oidc:

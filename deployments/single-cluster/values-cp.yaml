@@ -2,8 +2,6 @@
 global:
   baseDomain: openchoreo.localhost
   port: ":8080"
-  defaultResources:
-    enabled: false
 
 gateway:
   httpPort: 80

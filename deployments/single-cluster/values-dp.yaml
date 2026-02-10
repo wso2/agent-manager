@@ -9,10 +9,6 @@ gateway:
   selfSignedIssuer:
     enabled: false
 
-# External Secrets Operator
-external-secrets:
-  enabled: true
-
 # API Platform (APIM integration)
 api-platform:
   enabled: false
