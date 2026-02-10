@@ -1,10 +1,11 @@
 import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
+import fs from 'fs';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
-
-const latestVersion = 'v0.5.0';
+const versions: string[] = JSON.parse(fs.readFileSync('./versions.json', 'utf-8'));
+const latestVersion = versions[0]; // First entry is always the latest
 
 const config: Config = {
   title: 'WSO2 Agent Manager',
