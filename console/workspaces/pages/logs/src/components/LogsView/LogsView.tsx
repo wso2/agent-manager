@@ -16,9 +16,8 @@
  * under the License.
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import dayjs from "dayjs";
-import { NoDataFound } from "@agent-management-platform/views";
 import {
   ArrowUp,
   ArrowDown,
@@ -34,6 +33,7 @@ import {
   RefreshCcw,
   SortAsc,
   SortDesc,
+  Copy,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   Alert,
@@ -51,9 +51,8 @@ import {
   Select,
   MenuItem,
   InputAdornment,
-  Card,
-  CardContent,
   Collapse,
+  ListingTable,
 } from "@wso2/oxygen-ui";
 import type { LogEntry } from "@agent-management-platform/types";
 
@@ -93,6 +92,18 @@ interface LogEntryItemProps {
 
 const LogEntryItem: React.FC<LogEntryItemProps> = ({ entry }) => {
   const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(entry.log);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
 
   // Determine log level/severity from log content
   const getLogLevel = (log: string): "info" | "warning" | "error" | "success" => {
@@ -135,7 +146,7 @@ const LogEntryItem: React.FC<LogEntryItemProps> = ({ entry }) => {
   const hasDetails = entry.log.length > 100;
 
   return (
-    <Box>
+    <>
       <Box
         sx={{
           py: 1.5,
@@ -206,16 +217,29 @@ const LogEntryItem: React.FC<LogEntryItemProps> = ({ entry }) => {
             </Typography>
           </Box>
 
-          {/* Expand Icon */}
-          {hasDetails && (
-            <IconButton size="small">
-              {expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          {/* Action Buttons */}
+          <Stack direction="row" spacing={0.5}>
+            {/* Copy Button */}
+            <IconButton 
+              size="small" 
+              onClick={handleCopy}
+              aria-label="Copy log"
+              disabled={!copied}
+            >
+              <Copy size={16} />
             </IconButton>
-          )}
+
+            {/* Expand Icon */}
+            {hasDetails && (
+              <IconButton size="small">
+                {expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+              </IconButton>
+            )}
+          </Stack>
         </Stack>
       </Box>
       <Divider />
-    </Box>
+    </>
   );
 };
 
@@ -237,6 +261,15 @@ export const LogsView: React.FC<LogsViewProps> = ({
   onRefresh,
   isRefreshing = false,
 }) => {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to bottom on initial load and when logs change
+  useEffect(() => {
+    if (scrollContainerRef.current && logs && logs.length > 0 && !isLoading) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
+  }, [logs, isLoading]);
+
   if (error) {
     return (
       <Alert severity="error">
@@ -255,9 +288,8 @@ export const LogsView: React.FC<LogsViewProps> = ({
   return (
     <Stack direction="column" gap={2} height="calc(100vh - 320px)">
       {/* Filters and Controls */}
-      <Card variant="outlined">
-        <CardContent>
-          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+      <Paper>
+        <Stack direction="row" p={2} spacing={2} alignItems="center" flexWrap="wrap">
             {/* Search Field */}
             <Box sx={{ flexGrow: 1, minWidth: 250 }}>
               <TextField
@@ -331,35 +363,16 @@ export const LogsView: React.FC<LogsViewProps> = ({
               </IconButton>
             )}
           </Stack>
-        </CardContent>
-      </Card>
-
-      {/* Log Count Summary */}
-      {isShowPanel && (
-        <Box sx={{ textAlign: "center" }}>
-          <Typography variant="body2" color="text.secondary">
-            Showing {logs.length} log {logs.length === 1 ? "entry" : "entries"}
-          </Typography>
-        </Box>
-      )}
-
+        </Paper>
       {/* Empty State */}
       {isNoLogs && (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flex: 1,
-            minHeight: 300,
-          }}
-        >
-          <NoDataFound
-            message="No logs found"
-            subtitle="Try adjusting your search or time range"
-            icon={<FileText size={48} />}
+        <ListingTable.Container>
+          <ListingTable.EmptyState
+            illustration={<FileText size={64} />}
+            title="No logs found"
+            description="Try adjusting your search or time range"
           />
-        </Box>
+        </ListingTable.Container>
       )}
 
       {/* Loading Skeleton */}
@@ -385,8 +398,8 @@ export const LogsView: React.FC<LogsViewProps> = ({
           }}
         >
           {/* Scrollable Content Area */}
-          <Box sx={{ flex: 1, overflow: "auto" }}>
-            {/* Load Older Logs Button */}
+          <Box ref={scrollContainerRef} sx={{ flex: 1, overflow: "auto" }}>
+            {/* Load Up Button */}
             <Box
               sx={{
                 p: 1.5,
@@ -411,19 +424,22 @@ export const LogsView: React.FC<LogsViewProps> = ({
                   borderStyle: "dashed",
                 }}
               >
-                {isLoadingUp ? "Loading older logs..." : "Load older logs"}
+                {isLoadingUp 
+                  ? (sortOrder === "desc" ? "Loading older logs..." : "Loading newer logs...")
+                  : (sortOrder === "desc" ? "Load older logs" : "Load newer logs")
+                }
               </Button>
             </Box>
 
             {/* Log Entries */}
-            {logs.map((entry, idx) => (
+            {[...logs].reverse().map((entry, idx) => (
               <LogEntryItem
                 key={`${entry.timestamp}-${idx}`}
                 entry={entry}
               />
             ))}
 
-            {/* Load Newer Logs Button */}
+            {/* Load Down Button */}
             <Box
               sx={{
                 p: 1.5,
@@ -448,7 +464,10 @@ export const LogsView: React.FC<LogsViewProps> = ({
                   borderStyle: "dashed",
                 }}
               >
-                {isLoadingDown ? "Loading newer logs..." : "Load newer logs"}
+                {isLoadingDown 
+                  ? (sortOrder === "desc" ? "Loading newer logs..." : "Loading older logs...")
+                  : (sortOrder === "desc" ? "Load newer logs" : "Load older logs")
+                }
               </Button>
             </Box>
           </Box>

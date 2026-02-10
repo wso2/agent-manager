@@ -30,6 +30,7 @@ import {
   IconButton,
   InputAdornment,
   MenuItem,
+  Paper,
   Select,
   Skeleton,
   Stack,
@@ -48,7 +49,7 @@ export interface TimeRangeOption {
   label: string;
 }
 
-const toGib = (value: number) => value / 1024 ** 3;
+const toGb = (value: number) => value / 1024 ** 3;
 
 type SeriesDefinition = {
   key: string;
@@ -200,10 +201,8 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
     <Stack direction="column" gap={3}>
       {/* Filters and Controls */}
       {(timeRangeOptions.length > 0 || onRefresh) && (
-        <Card variant="outlined">
-          <CardContent>
-            <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-              <Box sx={{ flexGrow: 1 }} />
+        <Paper>
+          <Stack direction="row" p={2} spacing={2} alignItems="center" justifyContent="flex-end" flexWrap="wrap">
 
               {/* Time Range Selector */}
               {timeRangeOptions.length > 0 && onTimeRangeChange && (
@@ -243,8 +242,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                 </IconButton>
               )}
             </Stack>
-          </CardContent>
-        </Card>
+          </Paper>
       )}
 
       {/* Charts Grid */}
@@ -276,6 +274,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                 tooltip={{ show: false }}
                 xAxis={{ show: true, interval: "preserveStartEnd" }}
                 yAxis={{ show: true, name: "Cores" }}
+                syncId="metricsSync"
                 lines={[
                   {
                     dataKey: "cpuUsage",
@@ -339,23 +338,24 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                   {
                     key: "memoryUsage",
                     points: metrics?.memory,
-                    transform: toGib,
+                    transform: toGb,
                   },
                   {
                     key: "memoryRequests",
                     points: metrics?.memoryRequests,
-                    transform: toGib,
+                    transform: toGb,
                   },
                   {
                     key: "memoryLimits",
                     points: metrics?.memoryLimits,
-                    transform: toGib,
+                    transform: toGb,
                   },
                 ])}
                 xAxisDataKey="label"
                 xAxis={{ show: true, interval: "preserveStartEnd" }}
                 yAxis={{ show: true, name: "GiB" }}
                 tooltip={{ show: false }}
+                syncId="metricsSync"
                 lines={[
                   {
                     dataKey: "memoryUsage",
@@ -363,7 +363,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                     stroke: theme.palette.primary.main,
                     dot: false,
                     connectNulls: true,
-                    unit: " GiB",
+                    unit: " GB",
                   },
                   {
                     dataKey: "memoryRequests",
@@ -371,7 +371,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                     stroke: theme.palette.secondary.main,
                     dot: false,
                     connectNulls: true,
-                    unit: " GiB",
+                    unit: " GB",
                   },
                   {
                     dataKey: "memoryLimits",
@@ -380,7 +380,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                     dot: false,
                     connectNulls: true,
                     strokeDasharray: "0",
-                    unit: " GiB",
+                    unit: " GB",
                   },
                 ]}
               >
@@ -388,7 +388,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                   content={
                     <MetricsTooltip
                       title="Memory"
-                      formatter={(value) => `${value.toFixed(2)} GiB`}
+                      formatter={(value) => `${value.toFixed(2)} GB`}
                     />
                   }
                 />

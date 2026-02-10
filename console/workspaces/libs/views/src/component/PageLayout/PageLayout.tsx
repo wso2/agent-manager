@@ -46,40 +46,44 @@ export function PageLayout({
   useDocumentTitle(title);
 
   return (
-        <PageContent sx={{flexGrow:1}} fullWidth= {!disablePadding}>
-          <PageTitle>
-            {backHref && (
-              <PageTitle.BackButton component={<Link to={backHref} />}>
-                {backLabel || 'Back'}
-              </PageTitle.BackButton>
-            )}
+    <PageContent fullWidth={!disablePadding}>
+      <PageTitle>
+        {backHref && (
+          <PageTitle.BackButton component={<Link to={backHref} />}>
+            {backLabel || 'Back'}
+          </PageTitle.BackButton>
+        )}
 
-            {!disableIcon && (
-              <PageTitle.Avatar>
-                {title?.substring(0, 1).toUpperCase()}
-              </PageTitle.Avatar>
-            )}
+        {!disableIcon && (
+          <PageTitle.Avatar
+            sx={{
+              bgcolor: "primary.main",
+            }}
+          >
+            {title?.substring(0, 1).toUpperCase()}
+          </PageTitle.Avatar>
+        )}
 
-            <PageTitle.Header>
-              {title}
-              {titleTail && (
-                <Box
-                  component="span"
-                  sx={{ ml: 1, display: 'inline-flex', alignItems: 'center' }}
-                >
-                  {titleTail}
-                </Box>
-              )}
-            </PageTitle.Header>
+        <PageTitle.Header>
+          {title}
+          {titleTail && (
+            <Box
+              component="span"
+              sx={{ ml: 1, display: 'inline-flex', alignItems: 'center' }}
+            >
+              {titleTail}
+            </Box>
+          )}
+        </PageTitle.Header>
 
-            {description && (
-              <PageTitle.SubHeader>{description}</PageTitle.SubHeader>
-            )}
+        {description && (
+          <PageTitle.SubHeader>{description}</PageTitle.SubHeader>
+        )}
 
-            {actions && <PageTitle.Actions>{actions}</PageTitle.Actions>}
-          </PageTitle>
-            {children}
-        </PageContent>
-  
+        {actions && <PageTitle.Actions>{actions}</PageTitle.Actions>}
+      </PageTitle>
+      {children}
+    </PageContent>
+
   );
 }
