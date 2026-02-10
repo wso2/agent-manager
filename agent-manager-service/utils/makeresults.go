@@ -65,13 +65,7 @@ func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentR
 			SubType: &component.Type.SubType,
 		},
 		InputInterface: convertToInputInterface(component.InputInterface),
-	}
-	if component.RuntimeConfigs != nil {
-		response.RuntimeConfigs = &spec.RuntimeConfiguration{
-			Language:        component.RuntimeConfigs.Language,
-			LanguageVersion: &component.RuntimeConfigs.LanguageVersion,
-			RunCommand:      &component.RuntimeConfigs.RunCommand,
-		}
+		Build:          convertToBuild(component.Build),
 	}
 	return response
 }
@@ -182,6 +176,35 @@ func convertToInputInterface(input *models.InputInterface) *spec.InputInterface 
 	if input.Schema != nil {
 		result.Schema = &spec.InputInterfaceSchema{
 			Path: input.Schema.Path,
+		}
+	}
+
+	return result
+}
+
+func convertToBuild(build *models.Build) *spec.Build {
+	if build == nil {
+		return nil
+	}
+
+	result := &spec.Build{}
+
+	if build.Buildpack != nil {
+		result.BuildpackBuild = &spec.BuildpackBuild{
+			Type: build.Type,
+			Buildpack: spec.BuildpackConfig{
+				Language:        build.Buildpack.Language,
+				LanguageVersion: &build.Buildpack.LanguageVersion,
+				RunCommand:      &build.Buildpack.RunCommand,
+			},
+		}
+	} else if build.Docker != nil {
+		result.DockerBuild = &spec.DockerBuild{
+			Type: build.Type,
+			Docker: spec.DockerConfig{
+				DockerfilePath: build.Docker.DockerfilePath,
+				ContextPath:    build.Docker.ContextPath,
+			},
 		}
 	}
 

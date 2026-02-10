@@ -95,8 +95,8 @@ func createComponentCRForInternalAgents(orgName, projectName string, req CreateC
 		string(AnnotationKeyDescription): req.Description,
 	}
 	labels := map[string]string{
-		string(LabelKeyProvisioningType):     string(req.ProvisioningType),
-		string(LabelKeyAgentSubType):         req.AgentType.SubType,
+		string(LabelKeyProvisioningType): string(req.ProvisioningType),
+		string(LabelKeyAgentSubType):     req.AgentType.SubType,
 	}
 	componentType, err := getOpenChoreoComponentType(string(req.ProvisioningType), req.AgentType.Type)
 	if err != nil {
@@ -890,8 +890,8 @@ func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespa
 		return nil, fmt.Errorf("failed to get component for trait attachment: %w", err)
 	}
 	languageVersion := ""
-	if component.RuntimeConfigs != nil {
-		languageVersion = component.RuntimeConfigs.LanguageVersion
+	if component.Build != nil && component.Build.Buildpack != nil {
+		languageVersion = component.Build.Buildpack.LanguageVersion
 	}
 
 	// Get the project to find the deployment pipeline
@@ -1153,18 +1153,33 @@ func extractComponentWorkflowDetails(agent *models.AgentResponse, workflow *gen.
 
 	// Extract buildpackConfigs
 	if buildpackConfigs, ok := params["buildpackConfigs"].(map[string]interface{}); ok {
-		if agent.RuntimeConfigs == nil {
-			agent.RuntimeConfigs = &models.RuntimeConfigs{}
+		if agent.Build == nil {
+			agent.Build = &models.Build{Type: BuildTypeBuildpack}
 		}
+		agent.Build.Buildpack = &models.BuildpackConfig{}
 		if language, ok := buildpackConfigs["language"].(string); ok {
-			agent.RuntimeConfigs.Language = language
+			agent.Build.Buildpack.Language = language
 		}
 		if langVersion, ok := buildpackConfigs["languageVersion"].(string); ok {
-			agent.RuntimeConfigs.LanguageVersion = langVersion
+			agent.Build.Buildpack.LanguageVersion = langVersion
 		}
 		// googleEntryPoint is the run command for Google buildpacks
 		if runCmd, ok := buildpackConfigs["googleEntryPoint"].(string); ok {
-			agent.RuntimeConfigs.RunCommand = runCmd
+			agent.Build.Buildpack.RunCommand = runCmd
+		}
+	}
+
+	// Extract dockerConfigs
+	if dockerConfigs, ok := params["dockerConfigs"].(map[string]interface{}); ok {
+		if agent.Build == nil {
+			agent.Build = &models.Build{Type: BuildTypeDocker}
+		}
+		agent.Build.Docker = &models.DockerConfig{}
+		if dockerfilePath, ok := dockerConfigs["dockerfilePath"].(string); ok {
+			agent.Build.Docker.DockerfilePath = dockerfilePath
+		}
+		if contextPath, ok := dockerConfigs["contextPath"].(string); ok {
+			agent.Build.Docker.ContextPath = contextPath
 		}
 	}
 

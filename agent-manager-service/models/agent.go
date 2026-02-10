@@ -34,15 +34,8 @@ type AgentResponse struct {
 	Status         string          `json:"status,omitempty"`
 	Provisioning   Provisioning    `json:"provisioning,omitempty"`
 	Type           AgentType       `json:"type,omitempty"`
-	RuntimeConfigs *RuntimeConfigs `json:"runtimeConfigs,omitempty"`
+	Build          *Build          `json:"build,omitempty"`
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
-}
-
-// RuntimeConfigs contains runtime configuration for an agent (excluding env)
-type RuntimeConfigs struct {
-	Language        string `json:"language,omitempty"`
-	LanguageVersion string `json:"languageVersion,omitempty"`
-	RunCommand      string `json:"runCommand,omitempty"`
 }
 
 type AgentType struct {
@@ -61,6 +54,23 @@ type Repository struct {
 	Url     string `json:"url"`
 	AppPath string `json:"appPath"`
 	Branch  string `json:"branch"`
+}
+
+type Build struct {
+	Type      string           `json:"type"` // "buildpack" or "docker"
+	Buildpack *BuildpackConfig `json:"buildpack,omitempty"`
+	Docker    *DockerConfig    `json:"docker,omitempty"`
+}
+
+type BuildpackConfig struct {
+	Language        string `json:"language"`
+	LanguageVersion string `json:"languageVersion,omitempty"`
+	RunCommand      string `json:"runCommand,omitempty"`
+}
+
+type DockerConfig struct {
+	DockerfilePath string `json:"dockerfilePath"`
+	ContextPath    string `json:"contextPath"`
 }
 
 // DB Model
