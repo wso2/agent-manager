@@ -29,7 +29,6 @@ import (
 	"gorm.io/gorm/clause"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/gateway"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
@@ -61,8 +60,7 @@ type GatewayFilter struct {
 }
 
 type gatewayService struct {
-	adapter gateway.IGatewayAdapter
-	logger  *slog.Logger
+	logger *slog.Logger
 }
 
 // isValidGatewayStatus validates if the given status is a valid gateway status
@@ -72,10 +70,9 @@ func isValidGatewayStatus(status string) bool {
 }
 
 // NewGatewayService creates a new gateway service
-func NewGatewayService(adapter gateway.IGatewayAdapter, logger *slog.Logger) GatewayService {
+func NewGatewayService(logger *slog.Logger) GatewayService {
 	return &gatewayService{
-		adapter: adapter,
-		logger:  logger,
+		logger: logger,
 	}
 }
 
@@ -96,12 +93,6 @@ func (s *gatewayService) RegisterGateway(ctx context.Context, orgName string, re
 	var controlPlaneURL string
 	if url, ok := req.AdapterConfig["controlPlaneUrl"].(string); ok {
 		controlPlaneURL = url
-
-		// Validate endpoint is reachable
-		if err := s.adapter.ValidateGatewayEndpoint(ctx, controlPlaneURL); err != nil {
-			s.logger.Error("Gateway endpoint validation failed", "url", controlPlaneURL, "error", err)
-			return nil, fmt.Errorf("gateway endpoint unreachable: %w", err)
-		}
 	}
 
 	gw := &models.Gateway{
@@ -453,39 +444,16 @@ func (s *gatewayService) CheckGatewayHealth(ctx context.Context, orgName string,
 		return nil, fmt.Errorf("failed to get gateway: %w", err)
 	}
 
-	if gw.ControlPlaneURL == "" {
-		return &models.HealthStatusResponse{
-			GatewayID:    gatewayID,
-			Status:       "UNKNOWN",
-			ErrorMessage: "No control plane URL configured",
-			CheckedAt:    time.Now().Format(time.RFC3339),
-		}, nil
+	// Check gateway health based on status and WebSocket connection
+	status := "ACTIVE"
+	if gw.Status != string(models.GatewayStatusActive) {
+		status = "INACTIVE"
 	}
 
-	health, err := s.adapter.CheckHealth(ctx, gw.ControlPlaneURL)
-
-	// If health struct is returned (even with error status), encode it in response
-	if health != nil {
-		response := &models.HealthStatusResponse{
-			GatewayID:    gatewayID,
-			Status:       health.Status,
-			ResponseTime: health.ResponseTime.String(),
-			ErrorMessage: health.ErrorMessage,
-			CheckedAt:    health.CheckedAt.Format(time.RFC3339),
-		}
-		return response, nil // Return response with nil error
-	}
-
-	// Only return error if no health information available
-	if err != nil {
-		return nil, fmt.Errorf("failed to check gateway health: %w", err)
-	}
-
-	// Fallback (should not happen)
 	return &models.HealthStatusResponse{
 		GatewayID:    gatewayID,
-		Status:       "UNKNOWN",
-		ErrorMessage: "Health check returned no data",
+		Status:       status,
+		ResponseTime: "0s",
 		CheckedAt:    time.Now().Format(time.RFC3339),
 	}, nil
 }

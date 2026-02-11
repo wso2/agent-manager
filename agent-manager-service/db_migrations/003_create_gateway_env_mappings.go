@@ -20,23 +20,20 @@ import (
 	"gorm.io/gorm"
 )
 
-// Create gateway_environment_mappings junction table for many-to-many relationships
-var migration004 = migration{
-	ID: 4,
+var migration003 = migration{
+	ID: 3,
 	Migrate: func(db *gorm.DB) error {
 		sql := `
-			CREATE TABLE gateway_environment_mappings (
+		CREATE TABLE gateway_environment_mappings (
 				id SERIAL PRIMARY KEY,
-				gateway_uuid UUID NOT NULL REFERENCES gateways(uuid) ON DELETE CASCADE,
+				gateway_uuid UUID NOT NULL,
 				environment_uuid UUID NOT NULL REFERENCES environments(uuid) ON DELETE CASCADE,
 				created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-
 				UNIQUE(gateway_uuid, environment_uuid)
-			);
-
-			CREATE INDEX idx_gem_gateway ON gateway_environment_mappings(gateway_uuid);
-			CREATE INDEX idx_gem_environment ON gateway_environment_mappings(environment_uuid);
-		`
+		);
+		CREATE INDEX idx_gem_gateway ON gateway_environment_mappings(gateway_uuid);
+		CREATE INDEX idx_gem_environment ON gateway_environment_mappings(environment_uuid);
+	`
 		return db.Transaction(func(tx *gorm.DB) error {
 			return runSQL(tx, sql)
 		})

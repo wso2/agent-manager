@@ -1,3 +1,6 @@
+//go:build wireinject
+// +build wireinject
+
 // Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
@@ -14,17 +17,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//go:build wireinject
-// +build wireinject
-
 package wiring
 
 import (
 	"log/slog"
-	"time"
 
 	"github.com/google/wire"
+	"gorm.io/gorm"
 
+	apiplatformauth "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/auth"
+	apiplatformclient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/client"
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	ocauth "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
 	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
@@ -33,9 +35,9 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
-	ws "github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
 )
 
+// Provider sets
 var configProviderSet = wire.NewSet(
 	ProvideConfigFromPtr,
 )
@@ -45,6 +47,9 @@ var clientProviderSet = wire.NewSet(
 	traceobserversvc.NewTraceObserverClient,
 	ProvideOCAuthProvider,
 	ProvideOCClient,
+	ProvideAPIPlatformAuthProvider,
+	ProvideAPIPlatformConfig,
+	ProvideAPIPlatformClient,
 )
 
 var serviceProviderSet = wire.NewSet(
@@ -54,10 +59,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewAgentTokenManagerService,
 	services.NewRepositoryService,
 	services.NewEnvironmentService,
-	services.NewGatewayService,
 	services.NewEnvironmentSyncer,
-	services.NewGatewayEventsService,
-	services.NewGatewayInternalService,
 )
 
 var controllerProviderSet = wire.NewSet(
@@ -68,14 +70,17 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewRepositoryController,
 	controllers.NewEnvironmentController,
 	controllers.NewGatewayController,
-	controllers.NewWebSocketGatewayController,
-	controllers.NewGatewayInternalController,
+)
+
+var loggerProviderSet = wire.NewSet(
+	ProvideLogger,
 )
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
 	ProvideTestTraceObserverClient,
+	ProvideTestAPIPlatformClient,
 )
 
 // ProvideLogger provides the configured slog.Logger instance
@@ -112,69 +117,90 @@ var loggerProviderSet = wire.NewSet(
 	ProvideLogger,
 )
 
-var gatewayProviderSet = wire.NewSet(
-	ProvideGatewayAdapter,
-	ProvideGatewayEncryptionKey,
-)
+// ProvideAPIPlatformAuthProvider creates an auth provider for API Platform
+func ProvideAPIPlatformAuthProvider(cfg config.Config) apiplatformclient.AuthProvider {
+	// Only create auth provider if OAuth2 credentials are configured
+	if cfg.APIPlatform.Auth.TokenURL != "" && cfg.APIPlatform.Auth.ClientID != "" && cfg.APIPlatform.Auth.ClientSecret != "" {
+		return apiplatformauth.NewAuthProvider(apiplatformauth.Config{
+			TokenURL:     cfg.APIPlatform.Auth.TokenURL,
+			ClientID:     cfg.APIPlatform.Auth.ClientID,
+			ClientSecret: cfg.APIPlatform.Auth.ClientSecret,
+		})
+	}
+	return nil
+}
 
-var webSocketProviderSet = wire.NewSet(
-	ProvideWebSocketManager,
-	ProvideWebSocketRateLimit,
-)
+// ProvideAPIPlatformConfig extracts API Platform configuration from config
+func ProvideAPIPlatformConfig(cfg config.Config, authProvider apiplatformclient.AuthProvider) *apiplatformclient.Config {
+	return &apiplatformclient.Config{
+		BaseURL:      cfg.APIPlatform.BaseURL,
+		AuthProvider: authProvider,
+	}
+}
 
-// ProvideTestOpenChoreoClient extracts the OpenChoreoClient from TestClients
+// ProvideAPIPlatformClient creates a new API Platform client
+// Returns nil if the client cannot be created (will be checked at runtime)
+func ProvideAPIPlatformClient(cfg *apiplatformclient.Config) apiplatformclient.APIPlatformClient {
+	if cfg.BaseURL == "" || cfg.AuthProvider == nil {
+		// Return nil if not configured - services should handle nil client gracefully
+		return nil
+	}
+
+	apiPlatformClient, err := apiplatformclient.NewAPIPlatformClient(cfg)
+	if err != nil {
+		slog.Error("Failed to create API Platform client", "error", err)
+		return nil
+	}
+	return apiPlatformClient
+}
+
+// Test client providers
 func ProvideTestOpenChoreoClient(testClients TestClients) occlient.OpenChoreoClient {
 	return testClients.OpenChoreoClient
 }
 
-// ProvideTestObservabilitySvcClient extracts the ObservabilitySvcClient from TestClients
 func ProvideTestObservabilitySvcClient(testClients TestClients) observabilitysvc.ObservabilitySvcClient {
 	return testClients.ObservabilitySvcClient
 }
 
-// ProvideTestTraceObserverClient extracts the TraceObserverClient from TestClients
 func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.TraceObserverClient {
 	return testClients.TraceObserverClient
 }
 
-// ProvideWebSocketManager creates a new WebSocket manager with the configured settings
-func ProvideWebSocketManager(cfg config.Config, logger *slog.Logger) *ws.Manager {
-	wsConfig := ws.ManagerConfig{
-		MaxConnections:    cfg.WebSocket.MaxConnections,
-		HeartbeatInterval: 20 * time.Second,
-		HeartbeatTimeout:  time.Duration(cfg.WebSocket.ConnectionTimeout) * time.Second,
-	}
-	return ws.NewManager(wsConfig, logger)
+func ProvideTestAPIPlatformClient(testClients TestClients) apiplatformclient.APIPlatformClient {
+	return testClients.APIPlatformClient
 }
 
-// ProvideWebSocketRateLimit provides the WebSocket rate limit from config
-func ProvideWebSocketRateLimit(cfg config.Config) int {
-	return cfg.WebSocket.RateLimitPerMin
-}
-
-func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
+// InitializeAppParams wires up all application dependencies
+func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 	wire.Build(
 		configProviderSet,
 		clientProviderSet,
 		loggerProviderSet,
-		gatewayProviderSet,
-		webSocketProviderSet,
 		serviceProviderSet,
 		controllerProviderSet,
-		ProvideAuthMiddleware, ProvideJWTSigningConfig, wire.Struct(new(AppParams), "*"),
+		ProvideAuthMiddleware,
+		ProvideJWTSigningConfig,
+		wire.Struct(new(AppParams), "*"),
 	)
 	return &AppParams{}, nil
 }
 
-func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware jwtassertion.Middleware, testClients TestClients) (*AppParams, error) {
+// InitializeTestAppParamsWithClientMocks wires up application dependencies with test mocks
+func InitializeTestAppParamsWithClientMocks(
+	cfg *config.Config,
+	db *gorm.DB,
+	authMiddleware jwtassertion.Middleware,
+	testClients TestClients,
+) (*AppParams, error) {
 	wire.Build(
 		testClientProviderSet,
 		loggerProviderSet,
-		gatewayProviderSet,
-		webSocketProviderSet,
 		serviceProviderSet,
-		controllerProviderSet, configProviderSet,
-		ProvideJWTSigningConfig, wire.Struct(new(AppParams), "*"),
+		controllerProviderSet,
+		configProviderSet,
+		ProvideJWTSigningConfig,
+		wire.Struct(new(AppParams), "*"),
 	)
 	return &AppParams{}, nil
 }

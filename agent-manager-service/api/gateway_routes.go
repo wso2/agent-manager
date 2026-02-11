@@ -23,7 +23,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware"
 )
 
-func registerGatewayRoutes(mux *http.ServeMux, ctrl controllers.GatewayController) {
+func RegisterGatewayRoutes(mux *http.ServeMux, ctrl controllers.GatewayController) {
 	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/gateways", ctrl.RegisterGateway)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/gateways", ctrl.ListGateways)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/gateways/{gatewayID}", ctrl.GetGateway)

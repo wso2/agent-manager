@@ -69,15 +69,15 @@ gen-observer-client: ## Generate Observer API client from OpenChoreo GitHub repo
 	@$(MAKE) fmt
 	@echo "Observer client generated successfully"
 
-.PHONY: gen-gw-client
-gen-gw-client: ## Generate Gateway API client from upstream OpenAPI spec.
+.PHONY: gen-api-platform-client
+gen-api-platform-client: ## Generate API Platform API client from upstream OpenAPI spec.
 	@echo "Generating Gateway client"
-	@curl -sL "https://raw.githubusercontent.com/wso2/api-platform/refs/heads/main/gateway/gateway-controller/api/openapi.yaml" -o /tmp/gw-api.yaml
-	@oapi-codegen -config clients/gatewaysvc/gen/oapi-codegen.yaml /tmp/gw-api.yaml
-	@oapi-codegen -config clients/gatewaysvc/gen/oapi-codegen-client.yaml /tmp/gw-api.yaml
+	@curl -sL "https://raw.githubusercontent.com/wso2/api-platform/refs/heads/main/platform-api/src/resources/openapi.yaml" -o /tmp/gw-api.yaml
+	@oapi-codegen -config clients/apiplatformsvc/gen/oapi-codegen.yaml /tmp/gw-api.yaml
+	@oapi-codegen -config clients/apiplatformsvc/gen/oapi-codegen-client.yaml /tmp/gw-api.yaml
 	@rm /tmp/gw-api.yaml
 	@$(MAKE) fmt
-	@echo "Gateway client generated successfully"
+	@echo "API Platform client generated successfully"
 
 .PHONY: codegenfmt-check
 codegenfmt-check:

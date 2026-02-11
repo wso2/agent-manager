@@ -8,10 +8,12 @@ package wiring
 
 import (
 	"log/slog"
-	"time"
 
 	"github.com/google/wire"
+	"gorm.io/gorm"
 
+	auth2 "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/auth"
+	client2 "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
@@ -20,14 +22,15 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
 )
 
 // Injectors from wire.go:
 
-func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
+// InitializeAppParams wires up all application dependencies
+func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 	configConfig := ProvideConfigFromPtr(cfg)
 	middleware := ProvideAuthMiddleware(configConfig)
+	logger := ProvideLogger()
 	authProvider := ProvideOCAuthProvider(configConfig)
 	openChoreoClient, err := ProvideOCClient(configConfig, authProvider)
 	if err != nil {
@@ -55,38 +58,31 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	repositoryController := controllers.NewRepositoryController(repositoryService)
 	environmentService := services.NewEnvironmentService(logger)
 	environmentController := controllers.NewEnvironmentController(environmentService)
-	manager := ProvideWebSocketManager(configConfig, logger)
-	gatewayEventsService := services.NewGatewayEventsService(manager, logger)
-	iGatewayAdapter, err := ProvideGatewayAdapter(configConfig, gatewayEventsService, logger)
-	if err != nil {
-		return nil, err
-	}
-	gatewayService := services.NewGatewayService(iGatewayAdapter, logger)
-	gatewayController := controllers.NewGatewayController(gatewayService)
-	int2 := ProvideWebSocketRateLimit(configConfig)
-	webSocketGatewayController := controllers.NewWebSocketGatewayController(gatewayService, manager, int2, logger)
-	gatewayInternalService := services.NewGatewayInternalService(logger)
-	gatewayInternalController := controllers.NewGatewayInternalController(gatewayInternalService, gatewayService)
+	clientAuthProvider := ProvideAPIPlatformAuthProvider(configConfig)
+	clientConfig := ProvideAPIPlatformConfig(configConfig, clientAuthProvider)
+	apiPlatformClient := ProvideAPIPlatformClient(clientConfig)
+	gatewayController := controllers.NewGatewayController(apiPlatformClient, db)
 	environmentSynchronizer := services.NewEnvironmentSyncer(openChoreoClient, logger)
 	appParams := &AppParams{
-		AuthMiddleware:             middleware,
-		AgentController:            agentController,
-		InfraResourceController:    infraResourceController,
-		ObservabilityController:    observabilityController,
-		AgentTokenController:       agentTokenController,
-		RepositoryController:       repositoryController,
-		EnvironmentController:      environmentController,
-		GatewayController:          gatewayController,
-		WebSocketGatewayController: webSocketGatewayController,
-		GatewayInternalController:  gatewayInternalController,
-		GatewayEventsService:       gatewayEventsService,
-		WebSocketManager:           manager,
-		EnvironmentSyncer:          environmentSynchronizer,
+		AuthMiddleware:          middleware,
+		Logger:                  logger,
+		AgentController:         agentController,
+		InfraResourceController: infraResourceController,
+		ObservabilityController: observabilityController,
+		AgentTokenController:    agentTokenController,
+		RepositoryController:    repositoryController,
+		EnvironmentController:   environmentController,
+		GatewayController:       gatewayController,
+		EnvironmentSyncer:       environmentSynchronizer,
+		APIPlatformClient:       apiPlatformClient,
+		DB:                      db,
 	}
 	return appParams, nil
 }
 
-func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware jwtassertion.Middleware, testClients TestClients) (*AppParams, error) {
+// InitializeTestAppParamsWithClientMocks wires up application dependencies with test mocks
+func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, authMiddleware jwtassertion.Middleware, testClients TestClients) (*AppParams, error) {
+	logger := ProvideLogger()
 	openChoreoClient := ProvideTestOpenChoreoClient(testClients)
 	observabilitySvcClient := ProvideTestObservabilitySvcClient(testClients)
 	repositoryService := services.NewRepositoryService()
@@ -108,39 +104,29 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 	repositoryController := controllers.NewRepositoryController(repositoryService)
 	environmentService := services.NewEnvironmentService(logger)
 	environmentController := controllers.NewEnvironmentController(environmentService)
-	manager := ProvideWebSocketManager(configConfig, logger)
-	gatewayEventsService := services.NewGatewayEventsService(manager, logger)
-	iGatewayAdapter, err := ProvideGatewayAdapter(configConfig, gatewayEventsService, logger)
-	if err != nil {
-		return nil, err
-	}
-	gatewayService := services.NewGatewayService(iGatewayAdapter, logger)
-	gatewayController := controllers.NewGatewayController(gatewayService)
-	int2 := ProvideWebSocketRateLimit(configConfig)
-	webSocketGatewayController := controllers.NewWebSocketGatewayController(gatewayService, manager, int2, logger)
-	gatewayInternalService := services.NewGatewayInternalService(logger)
-	gatewayInternalController := controllers.NewGatewayInternalController(gatewayInternalService, gatewayService)
+	apiPlatformClient := ProvideTestAPIPlatformClient(testClients)
+	gatewayController := controllers.NewGatewayController(apiPlatformClient, db)
 	environmentSynchronizer := services.NewEnvironmentSyncer(openChoreoClient, logger)
 	appParams := &AppParams{
-		AuthMiddleware:             authMiddleware,
-		AgentController:            agentController,
-		InfraResourceController:    infraResourceController,
-		ObservabilityController:    observabilityController,
-		AgentTokenController:       agentTokenController,
-		RepositoryController:       repositoryController,
-		EnvironmentController:      environmentController,
-		GatewayController:          gatewayController,
-		WebSocketGatewayController: webSocketGatewayController,
-		GatewayInternalController:  gatewayInternalController,
-		GatewayEventsService:       gatewayEventsService,
-		WebSocketManager:           manager,
-		EnvironmentSyncer:          environmentSynchronizer,
+		AuthMiddleware:          authMiddleware,
+		Logger:                  logger,
+		AgentController:         agentController,
+		InfraResourceController: infraResourceController,
+		ObservabilityController: observabilityController,
+		AgentTokenController:    agentTokenController,
+		RepositoryController:    repositoryController,
+		EnvironmentController:   environmentController,
+		GatewayController:       gatewayController,
+		EnvironmentSyncer:       environmentSynchronizer,
+		APIPlatformClient:       apiPlatformClient,
+		DB:                      db,
 	}
 	return appParams, nil
 }
 
 // wire.go:
 
+// Provider sets
 var configProviderSet = wire.NewSet(
 	ProvideConfigFromPtr,
 )
@@ -148,16 +134,24 @@ var configProviderSet = wire.NewSet(
 var clientProviderSet = wire.NewSet(
 	ProvideObservabilitySvcClient, traceobserversvc.NewTraceObserverClient, ProvideOCAuthProvider,
 	ProvideOCClient,
+	ProvideAPIPlatformAuthProvider,
+	ProvideAPIPlatformConfig,
+	ProvideAPIPlatformClient,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewEnvironmentService, services.NewGatewayService, services.NewEnvironmentSyncer, services.NewGatewayEventsService, services.NewGatewayInternalService)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewEnvironmentService, services.NewEnvironmentSyncer)
 
-var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewWebSocketGatewayController, controllers.NewGatewayInternalController)
+var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController)
+
+var loggerProviderSet = wire.NewSet(
+	ProvideLogger,
+)
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
 	ProvideTestTraceObserverClient,
+	ProvideTestAPIPlatformClient,
 )
 
 // ProvideLogger provides the configured slog.Logger instance
@@ -194,42 +188,56 @@ var loggerProviderSet = wire.NewSet(
 	ProvideLogger,
 )
 
-var gatewayProviderSet = wire.NewSet(
-	ProvideGatewayAdapter,
-	ProvideGatewayEncryptionKey,
-)
+// ProvideAPIPlatformAuthProvider creates an auth provider for API Platform
+func ProvideAPIPlatformAuthProvider(cfg config.Config) client2.AuthProvider {
 
-var webSocketProviderSet = wire.NewSet(
-	ProvideWebSocketManager,
-	ProvideWebSocketRateLimit,
-)
+	if cfg.APIPlatform.Auth.TokenURL != "" && cfg.APIPlatform.Auth.ClientID != "" && cfg.APIPlatform.Auth.ClientSecret != "" {
+		return auth2.NewAuthProvider(auth2.Config{
+			TokenURL:     cfg.APIPlatform.Auth.TokenURL,
+			ClientID:     cfg.APIPlatform.Auth.ClientID,
+			ClientSecret: cfg.APIPlatform.Auth.ClientSecret,
+		})
+	}
+	return nil
+}
 
-// ProvideTestOpenChoreoClient extracts the OpenChoreoClient from TestClients
+// ProvideAPIPlatformConfig extracts API Platform configuration from config
+func ProvideAPIPlatformConfig(cfg config.Config, authProvider client2.AuthProvider) *client2.Config {
+	return &client2.Config{
+		BaseURL:      cfg.APIPlatform.BaseURL,
+		AuthProvider: authProvider,
+	}
+}
+
+// ProvideAPIPlatformClient creates a new API Platform client
+// Returns nil if the client cannot be created (will be checked at runtime)
+func ProvideAPIPlatformClient(cfg *client2.Config) client2.APIPlatformClient {
+	if cfg.BaseURL == "" || cfg.AuthProvider == nil {
+
+		return nil
+	}
+
+	apiPlatformClient, err := client2.NewAPIPlatformClient(cfg)
+	if err != nil {
+		slog.Error("Failed to create API Platform client", "error", err)
+		return nil
+	}
+	return apiPlatformClient
+}
+
+// Test client providers
 func ProvideTestOpenChoreoClient(testClients TestClients) client.OpenChoreoClient {
 	return testClients.OpenChoreoClient
 }
 
-// ProvideTestObservabilitySvcClient extracts the ObservabilitySvcClient from TestClients
 func ProvideTestObservabilitySvcClient(testClients TestClients) observabilitysvc.ObservabilitySvcClient {
 	return testClients.ObservabilitySvcClient
 }
 
-// ProvideTestTraceObserverClient extracts the TraceObserverClient from TestClients
 func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.TraceObserverClient {
 	return testClients.TraceObserverClient
 }
 
-// ProvideWebSocketManager creates a new WebSocket manager with the configured settings
-func ProvideWebSocketManager(cfg config.Config, logger *slog.Logger) *websocket.Manager {
-	wsConfig := websocket.ManagerConfig{
-		MaxConnections:    cfg.WebSocket.MaxConnections,
-		HeartbeatInterval: 20 * time.Second,
-		HeartbeatTimeout:  time.Duration(cfg.WebSocket.ConnectionTimeout) * time.Second,
-	}
-	return websocket.NewManager(wsConfig, logger)
-}
-
-// ProvideWebSocketRateLimit provides the WebSocket rate limit from config
-func ProvideWebSocketRateLimit(cfg config.Config) int {
-	return cfg.WebSocket.RateLimitPerMin
+func ProvideTestAPIPlatformClient(testClients TestClients) client2.APIPlatformClient {
+	return testClients.APIPlatformClient
 }

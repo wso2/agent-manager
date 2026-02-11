@@ -166,20 +166,21 @@ func loadEnvs() {
 		BaseURL: r.readRequiredString("OPEN_CHOREO_BASE_URL"),
 	}
 
-	// Gateway configuration
-	config.Gateway = GatewayConfig{
-		AdapterType:        r.readOptionalString("GATEWAY_ADAPTER_TYPE", "on-premise"),
-		DefaultTimeout:     int(r.readOptionalInt64("GATEWAY_DEFAULT_TIMEOUT_SECONDS", 30)),
-		HealthCheckTimeout: int(r.readOptionalInt64("GATEWAY_HEALTH_CHECK_TIMEOUT_SECONDS", 5)),
-		MaxRetries:         int(r.readOptionalInt64("GATEWAY_MAX_RETRIES", 3)),
-		RetryBackoff:       int(r.readOptionalInt64("GATEWAY_RETRY_BACKOFF_SECONDS", 2)),
-	}
-
-	// WebSocket configuration
-	config.WebSocket = WebSocketConfig{
-		MaxConnections:    int(r.readOptionalInt64("WS_MAX_CONNECTIONS", 1000)),
-		ConnectionTimeout: int(r.readOptionalInt64("WS_CONNECTION_TIMEOUT_SECONDS", 30)),
-		RateLimitPerMin:   int(r.readOptionalInt64("WS_RATE_LIMIT_PER_MINUTE", 10)),
+	// API Platform configuration
+	config.APIPlatform = APIPlatformConfig{
+		Enabled:     r.readOptionalBool("API_PLATFORM_ENABLED", false),
+		BaseURL:     r.readOptionalString("API_PLATFORM_BASE_URL", ""),
+		ProjectName: r.readOptionalString("API_PLATFORM_PROJECT_NAME", "gateway"),
+		Auth: APIPlatformAuthConfig{
+			Type:         r.readOptionalString("API_PLATFORM_AUTH_TYPE", "jwt"),
+			JWTTokenPath: r.readOptionalString("API_PLATFORM_JWT_TOKEN_PATH", ""),
+			ClientID:     r.readOptionalString("API_PLATFORM_CLIENT_ID", ""),
+			ClientSecret: r.readOptionalString("API_PLATFORM_CLIENT_SECRET", ""),
+			TokenURL:     r.readOptionalString("API_PLATFORM_TOKEN_URL", ""),
+		},
+		Timeout:      int(r.readOptionalInt64("API_PLATFORM_TIMEOUT_SECONDS", 30)),
+		CacheEnabled: r.readOptionalBool("API_PLATFORM_CACHE_ENABLED", true),
+		CacheTTL:     int(r.readOptionalInt64("API_PLATFORM_CACHE_TTL_SECONDS", 60)),
 	}
 
 	// Validate HTTP server configurations

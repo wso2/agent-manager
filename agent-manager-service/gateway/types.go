@@ -28,29 +28,6 @@ type HealthStatus struct {
 	CheckedAt    time.Time
 }
 
-// AdapterConfig holds configuration for creating an adapter
-type AdapterConfig struct {
-	Type       string
-	Parameters map[string]interface{}
-}
-
-// OnPremiseConfig holds on-premise adapter specific configuration
-type OnPremiseConfig struct {
-	DefaultTimeout     time.Duration
-	HealthCheckTimeout time.Duration
-	MaxRetries         int
-	RetryBackoff       time.Duration
-}
-
-// CloudConfig holds cloud adapter specific configuration (future use)
-type CloudConfig struct {
-	Provider     string
-	APIEndpoint  string
-	ClientID     string
-	ClientSecret string
-	Region       string
-}
-
 // ========================================================================
 // LLM Provider Types (Phase 7)
 // ========================================================================

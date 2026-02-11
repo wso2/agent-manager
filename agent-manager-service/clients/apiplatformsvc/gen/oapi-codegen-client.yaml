@@ -1,0 +1,9 @@
+# oapi-codegen configuration for API Platform client generation
+package: gen
+output: clients/apiplatformsvc/gen/client.gen.go
+generate:
+  models: false
+  client: true
+  embedded-spec: false
+output-options:
+  response-type-suffix: Resp

@@ -1,4 +1,4 @@
-// Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file except
@@ -14,14 +14,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package dbmigrations
+package client
 
-const latestVersion = 3
+import "context"
 
-// migration list sorted by version.  Add new migrations to the end of the list.
-// Previous migrations should not be modified.
-var migrations = []migration{
-	migration001,
-	migration002,
-	migration003,
+// AuthProvider provides authentication tokens for API Platform API calls.
+type AuthProvider interface {
+	// GetToken returns a valid access token, refreshing if necessary.
+	// Implementations should cache tokens and handle expiration.
+	GetToken(ctx context.Context) (string, error)
+
+	// InvalidateToken forces the provider to fetch a new token on the next GetToken call.
+	// Use this when a request fails with 401 Unauthorized.
+	InvalidateToken()
 }

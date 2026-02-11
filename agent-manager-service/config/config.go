@@ -68,11 +68,8 @@ type Config struct {
 	// OpenChoreo API configuration
 	OpenChoreo OpenChoreoConfig
 
-	// Gateway configuration
-	Gateway GatewayConfig
-
-	// WebSocket configuration
-	WebSocket WebSocketConfig
+	// API Platform configuration
+	APIPlatform APIPlatformConfig
 }
 
 // OpenChoreoConfig holds OpenChoreo API configuration
@@ -190,18 +187,24 @@ type PublicKeysConfig struct {
 	Keys []PublicKeyConfig `json:"keys"`
 }
 
-// GatewayConfig holds gateway management configuration
-type GatewayConfig struct {
-	AdapterType        string // "on-premise" or "cloud"
-	DefaultTimeout     int    // Default timeout in seconds
-	HealthCheckTimeout int    // Health check timeout in seconds
-	MaxRetries         int    // Maximum number of retries
-	RetryBackoff       int    // Retry backoff in seconds
+// APIPlatformConfig holds API Platform client configuration
+type APIPlatformConfig struct {
+	Enabled     bool   // Enable API Platform integration (default: false)
+	BaseURL     string // Base URL for API Platform
+	ProjectName string // Project name for gateway resources (default: "gateway")
+
+	// Auth configuration for API Platform JWT tokens
+	Auth         APIPlatformAuthConfig
+	Timeout      int  // Request timeout in seconds (default: 30)
+	CacheEnabled bool // Enable response caching (default: true)
+	CacheTTL     int  // Cache TTL in seconds (default: 60)
 }
 
-// WebSocketConfig holds WebSocket gateway registration configuration
-type WebSocketConfig struct {
-	MaxConnections    int // Maximum concurrent WebSocket connections (default: 1000)
-	ConnectionTimeout int // Heartbeat timeout in seconds (default: 30)
-	RateLimitPerMin   int // Connection attempts per IP per minute (default: 10)
+// APIPlatformAuthConfig holds authentication configuration for API Platform
+type APIPlatformAuthConfig struct {
+	Type         string // "jwt" or "service-account" (default: "jwt")
+	JWTTokenPath string // Path to JWT token file for "jwt" type
+	ClientID     string // OAuth2 client ID
+	ClientSecret string // OAuth2 client secret
+	TokenURL     string // OAuth2 token endpoint URL
 }
