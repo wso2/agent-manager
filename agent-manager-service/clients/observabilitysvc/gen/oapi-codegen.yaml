@@ -1,0 +1,7 @@
+# oapi-codegen configuration for Observer types generation
+package: gen
+output: clients/observabilitysvc/gen/types.gen.go
+generate:
+  models: true
+  client: false
+  embedded-spec: false

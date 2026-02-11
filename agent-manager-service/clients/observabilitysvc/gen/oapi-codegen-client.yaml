@@ -1,0 +1,9 @@
+# oapi-codegen configuration for Observer client generation
+package: gen
+output: clients/observabilitysvc/gen/client.gen.go
+generate:
+  models: false
+  client: true
+  embedded-spec: false
+output-options:
+  response-type-suffix: Resp
