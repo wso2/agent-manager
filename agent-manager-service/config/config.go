@@ -197,7 +197,6 @@ type GatewayConfig struct {
 	HealthCheckTimeout int    // Health check timeout in seconds
 	MaxRetries         int    // Maximum number of retries
 	RetryBackoff       int    // Retry backoff in seconds
-	EncryptionKey      string // Base64-encoded encryption key
 }
 
 // WebSocketConfig holds WebSocket gateway registration configuration

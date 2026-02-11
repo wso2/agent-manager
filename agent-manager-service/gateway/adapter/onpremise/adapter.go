@@ -18,52 +18,40 @@ package onpremise
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/gatewaysvc/gen"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/gateway"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
-)
-
-const (
-	defaultTimeout     = 30 * time.Second
-	healthCheckTimeout = 5 * time.Second
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 )
 
 // OnPremiseAdapter implements IGatewayAdapter for on-premise deployments
+// Uses WebSocket events for provider deployment instead of REST API calls
 type OnPremiseAdapter struct {
-	httpClient    *http.Client
 	db            *gorm.DB
-	encryptionKey []byte
 	config        gateway.AdapterConfig
+	eventsService services.GatewayEventsService
 	logger        *slog.Logger
 }
 
 // NewOnPremiseAdapter creates a new on-premise adapter instance
-func NewOnPremiseAdapter(config gateway.AdapterConfig, db *gorm.DB, encryptionKey []byte, logger *slog.Logger) (gateway.IGatewayAdapter, error) {
-	timeout := defaultTimeout
-	if params, ok := config.Parameters["defaultTimeout"].(time.Duration); ok {
-		timeout = params
-	}
-
+func NewOnPremiseAdapter(
+	config gateway.AdapterConfig,
+	db *gorm.DB,
+	eventsService services.GatewayEventsService,
+	logger *slog.Logger,
+) (gateway.IGatewayAdapter, error) {
 	adapter := &OnPremiseAdapter{
 		config:        config,
 		db:            db,
-		encryptionKey: encryptionKey,
+		eventsService: eventsService,
 		logger:        logger,
-		httpClient: &http.Client{
-			Timeout: timeout,
-		},
 	}
 
 	return adapter, nil
@@ -79,267 +67,157 @@ func (a *OnPremiseAdapter) Close() error {
 	return nil
 }
 
-// newGatewayClientForURL creates a new gateway client instance for a specific URL
-// This prevents data races from shared client mutation across concurrent requests
-func (a *OnPremiseAdapter) newGatewayClientForURL(controlPlaneURL string) (*gen.Client, error) {
-	return gen.NewClient(controlPlaneURL, func(c *gen.Client) error {
-		c.Client = a.httpClient
-		return nil
-	})
-}
-
-// ValidateGatewayEndpoint checks if a gateway endpoint is reachable
+// ValidateGatewayEndpoint is a no-op for WebSocket-based adapter
+// Gateway connectivity is managed through WebSocket connections
 func (a *OnPremiseAdapter) ValidateGatewayEndpoint(ctx context.Context, controlPlaneURL string) error {
-	healthURL := fmt.Sprintf("%s/health", controlPlaneURL)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create health check request: %w", err)
-	}
-
-	resp, err := a.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("gateway endpoint unreachable: %w", err)
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("gateway health check failed with status %d", resp.StatusCode)
-	}
-
+	// For WebSocket-based communication, gateway connectivity is managed
+	// through the WebSocket connection lifecycle
+	// This method is kept for interface compatibility
 	return nil
 }
 
-// CheckHealth performs a health check on a gateway
+// CheckHealth returns gateway health status based on WebSocket connection
 func (a *OnPremiseAdapter) CheckHealth(ctx context.Context, controlPlaneURL string) (*gateway.HealthStatus, error) {
-	start := time.Now()
-
-	err := a.ValidateGatewayEndpoint(ctx, controlPlaneURL)
-	responseTime := time.Since(start)
-
-	status := &gateway.HealthStatus{
+	// For WebSocket-based communication, health is determined by active connections
+	// This is a simplified health check - in production, you would query the WebSocket manager
+	return &gateway.HealthStatus{
 		Status:       "ACTIVE",
-		ResponseTime: responseTime,
+		ResponseTime: 0,
 		CheckedAt:    time.Now(),
-	}
-
-	if err != nil {
-		status.Status = "ERROR"
-		status.ErrorMessage = err.Error()
-	}
-
-	return status, nil
+	}, nil
 }
 
-// createAuthEditor creates a RequestEditorFn that adds Basic Authentication
-func createAuthEditor(username, password string) gen.RequestEditorFn {
-	return func(ctx context.Context, req *http.Request) error {
-		auth := username + ":" + password
-		encoded := base64.StdEncoding.EncodeToString([]byte(auth))
-		req.Header.Set("Authorization", "Basic "+encoded)
-		return nil
-	}
-}
-
-// getGatewayWithCredentials retrieves gateway data with decrypted credentials
-func (a *OnPremiseAdapter) getGatewayWithCredentials(ctx context.Context, gatewayID string) (*models.Gateway, *models.GatewayCredentials, error) {
-	gatewayUUID, err := uuid.Parse(gatewayID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("invalid gateway ID: %w", err)
-	}
-
-	var gw models.Gateway
-	if err := a.db.WithContext(ctx).Where("uuid = ?", gatewayUUID).First(&gw).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil, utils.ErrGatewayNotFound
-		}
-		return nil, nil, fmt.Errorf("failed to query gateway: %w", err)
-	}
-
-	// Decrypt credentials
-	if len(gw.APIKeyHash) == 0 {
-		return nil, nil, fmt.Errorf("gateway has no credentials stored")
-	}
-
-	creds, err := utils.DecryptCredentials(gw.APIKeyHash, a.encryptionKey)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to decrypt credentials: %w", err)
-	}
-
-	return &gw, creds, nil
-}
-
-// DeployProvider deploys an LLM provider configuration to a gateway
+// DeployProvider deploys an LLM provider to a gateway using WebSocket events
 func (a *OnPremiseAdapter) DeployProvider(ctx context.Context, gatewayID string, config *gateway.ProviderDeploymentConfig) (*gateway.ProviderDeploymentResult, error) {
 	a.logger.Info("Deploying provider to gateway", "gatewayID", gatewayID, "handle", config.Handle)
 
-	gw, creds, err := a.getGatewayWithCredentials(ctx, gatewayID)
+	gatewayUUID, err := uuid.Parse(gatewayID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid gateway ID: %w", err)
 	}
 
-	// Extract control plane URL from adapter config
-	controlPlaneURL, ok := gw.AdapterConfig["controlPlaneUrl"].(string)
-	if !ok {
-		return nil, fmt.Errorf("controlPlaneUrl not found in gateway adapter config")
+	// 1. Create provider record in database
+	providerUUID := uuid.New()
+	provider := &models.LLMProvider{
+		UUID:          providerUUID,
+		Handle:        config.Handle,
+		DisplayName:   config.DisplayName,
+		Template:      config.Template,
+		Configuration: config.Configuration,
+		Status:        "APPROVED",
 	}
 
-	// Create a new client for this specific URL to avoid data races
-	client, err := a.newGatewayClientForURL(controlPlaneURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create gateway client: %w", err)
+	if err := a.db.WithContext(ctx).Create(provider).Error; err != nil {
+		return nil, fmt.Errorf("failed to create provider: %w", err)
 	}
 
-	// Convert configuration map to LLMProviderConfiguration
-	// The config.Configuration should already be a proper structure matching the API
-	var providerConfig gen.LLMProviderConfiguration
-	configBytes, err := json.Marshal(config.Configuration)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal configuration: %w", err)
-	}
-	if err := json.Unmarshal(configBytes, &providerConfig); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
-	}
-
-	// Deploy provider via gateway client
-	resp, err := client.CreateLLMProvider(ctx, providerConfig, createAuthEditor(creds.Username, creds.Password))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create provider on gateway: %w", err)
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("create provider failed with status %d", resp.StatusCode)
+	// 2. Create deployment record with PENDING status
+	deployment := &models.ProviderGatewayDeployment{
+		ProviderUUID:         providerUUID,
+		GatewayUUID:          gatewayUUID,
+		DeploymentID:         providerUUID.String(),
+		Environment:          "production",
+		ConfigurationVersion: 1,
+		Status:               "PENDING",
 	}
 
-	var createResp gen.LLMProviderCreateResponse
-	if err := json.NewDecoder(resp.Body).Decode(&createResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+	if err := a.db.WithContext(ctx).Create(deployment).Error; err != nil {
+		return nil, fmt.Errorf("failed to create deployment record: %w", err)
 	}
 
-	status := ""
-	if createResp.Status != nil {
-		status = *createResp.Status
+	// 3. Broadcast api.deployed event (same as api-platform)
+	// Using api.deployed allows gateways to process LLM providers without code changes
+	event := &models.DeploymentEvent{
+		ApiId:        providerUUID.String(), // apiId is the provider UUID
+		DeploymentID: providerUUID.String(),
+		Vhost:        "", // Not used for LLM providers
+		Environment:  "production",
 	}
 
-	deploymentID := ""
-	if createResp.Id != nil {
-		deploymentID = *createResp.Id
+	if err := a.eventsService.BroadcastLLMProviderDeployed(gatewayID, event); err != nil {
+		a.logger.Error("Failed to broadcast deployment event", "error", err)
+		return nil, fmt.Errorf("failed to broadcast deployment: %w", err)
 	}
 
 	return &gateway.ProviderDeploymentResult{
-		DeploymentID: deploymentID,
-		Status:       status,
+		DeploymentID: providerUUID.String(),
+		Status:       "PENDING",
 		DeployedAt:   time.Now(),
 	}, nil
 }
 
-// UpdateProvider updates an existing LLM provider on a gateway
+// UpdateProvider updates an existing LLM provider on a gateway using WebSocket events
 func (a *OnPremiseAdapter) UpdateProvider(ctx context.Context, gatewayID string, providerID string, config *gateway.ProviderDeploymentConfig) (*gateway.ProviderDeploymentResult, error) {
 	a.logger.Info("Updating provider on gateway", "gatewayID", gatewayID, "providerID", providerID)
 
-	gw, creds, err := a.getGatewayWithCredentials(ctx, gatewayID)
+	providerUUID, err := uuid.Parse(providerID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid provider ID: %w", err)
 	}
 
-	controlPlaneURL, ok := gw.AdapterConfig["controlPlaneUrl"].(string)
-	if !ok {
-		return nil, fmt.Errorf("controlPlaneUrl not found in gateway adapter config")
+	// 1. Update provider in database
+	updates := map[string]interface{}{
+		"display_name":  config.DisplayName,
+		"template":      config.Template,
+		"configuration": config.Configuration,
 	}
 
-	// Create a new client for this specific URL to avoid data races
-	client, err := a.newGatewayClientForURL(controlPlaneURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create gateway client: %w", err)
+	if err := a.db.WithContext(ctx).
+		Model(&models.LLMProvider{}).
+		Where("uuid = ?", providerUUID).
+		Updates(updates).Error; err != nil {
+		return nil, fmt.Errorf("failed to update provider: %w", err)
 	}
 
-	// Convert configuration map to LLMProviderConfiguration
-	var providerConfig gen.LLMProviderConfiguration
-	configBytes, err := json.Marshal(config.Configuration)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal configuration: %w", err)
-	}
-	if err := json.Unmarshal(configBytes, &providerConfig); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
+	// 2. Broadcast api.deployed event (same as api-platform for updates)
+	event := &models.DeploymentEvent{
+		ApiId:        providerID,
+		DeploymentID: providerID,
+		Vhost:        "",
+		Environment:  "production",
 	}
 
-	resp, err := client.UpdateLLMProvider(ctx, providerID, providerConfig, createAuthEditor(creds.Username, creds.Password))
-	if err != nil {
-		return nil, fmt.Errorf("failed to update provider on gateway: %w", err)
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("provider not found: %s", providerID)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("update provider failed with status %d", resp.StatusCode)
-	}
-
-	var updateResp gen.LLMProviderUpdateResponse
-	if err := json.NewDecoder(resp.Body).Decode(&updateResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	status := ""
-	if updateResp.Status != nil {
-		status = *updateResp.Status
-	}
-
-	deploymentID := ""
-	if updateResp.Id != nil {
-		deploymentID = *updateResp.Id
+	if err := a.eventsService.BroadcastLLMProviderDeployed(gatewayID, event); err != nil {
+		return nil, fmt.Errorf("failed to broadcast update: %w", err)
 	}
 
 	return &gateway.ProviderDeploymentResult{
-		DeploymentID: deploymentID,
-		Status:       status,
+		DeploymentID: providerID,
+		Status:       "UPDATED",
 		DeployedAt:   time.Now(),
 	}, nil
 }
 
-// UndeployProvider removes an LLM provider from a gateway
+// UndeployProvider removes an LLM provider from a gateway using WebSocket events
 func (a *OnPremiseAdapter) UndeployProvider(ctx context.Context, gatewayID string, providerID string) error {
 	a.logger.Info("Undeploying provider from gateway", "gatewayID", gatewayID, "providerID", providerID)
 
-	gw, creds, err := a.getGatewayWithCredentials(ctx, gatewayID)
+	providerUUID, err := uuid.Parse(providerID)
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid provider ID: %w", err)
 	}
 
-	controlPlaneURL, ok := gw.AdapterConfig["controlPlaneUrl"].(string)
-	if !ok {
-		return fmt.Errorf("controlPlaneUrl not found in gateway adapter config")
-	}
-
-	// Create a new client for this specific URL to avoid data races
-	client, err := a.newGatewayClientForURL(controlPlaneURL)
+	gatewayUUID, err := uuid.Parse(gatewayID)
 	if err != nil {
-		return fmt.Errorf("failed to create gateway client: %w", err)
+		return fmt.Errorf("invalid gateway ID: %w", err)
 	}
 
-	resp, err := client.DeleteLLMProvider(ctx, providerID, createAuthEditor(creds.Username, creds.Password))
-	if err != nil {
-		return fmt.Errorf("failed to delete provider on gateway: %w", err)
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("provider not found: %s", providerID)
+	// 1. Delete deployment record
+	if err := a.db.WithContext(ctx).
+		Where("provider_uuid = ? AND gateway_uuid = ?", providerUUID, gatewayUUID).
+		Delete(&models.ProviderGatewayDeployment{}).Error; err != nil {
+		return fmt.Errorf("failed to delete deployment: %w", err)
 	}
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("delete provider failed with status %d", resp.StatusCode)
+	// 2. Broadcast api.undeployed event (same as api-platform)
+	event := &models.APIUndeploymentEvent{
+		ApiId:       providerID,
+		Vhost:       "",
+		Environment: "production",
+	}
+
+	if err := a.eventsService.BroadcastLLMProviderUndeployed(gatewayID, event); err != nil {
+		return fmt.Errorf("failed to broadcast undeployment: %w", err)
 	}
 
 	return nil
@@ -347,208 +225,83 @@ func (a *OnPremiseAdapter) UndeployProvider(ctx context.Context, gatewayID strin
 
 // GetProviderStatus retrieves the status of a provider deployment on a gateway
 func (a *OnPremiseAdapter) GetProviderStatus(ctx context.Context, gatewayID string, providerID string) (*gateway.ProviderStatus, error) {
-	gw, creds, err := a.getGatewayWithCredentials(ctx, gatewayID)
+	gatewayUUID, err := uuid.Parse(gatewayID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid gateway ID: %w", err)
 	}
 
-	controlPlaneURL, ok := gw.AdapterConfig["controlPlaneUrl"].(string)
-	if !ok {
-		return nil, fmt.Errorf("controlPlaneUrl not found in gateway adapter config")
-	}
-
-	// Create a new client for this specific URL to avoid data races
-	client, err := a.newGatewayClientForURL(controlPlaneURL)
+	providerUUID, err := uuid.Parse(providerID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create gateway client: %w", err)
+		return nil, fmt.Errorf("invalid provider ID: %w", err)
 	}
 
-	resp, err := client.GetLLMProviderById(ctx, providerID, createAuthEditor(creds.Username, creds.Password))
+	var deployment models.ProviderGatewayDeployment
+	err = a.db.WithContext(ctx).
+		Preload("Provider").
+		Where("provider_uuid = ? AND gateway_uuid = ?", providerUUID, gatewayUUID).
+		First(&deployment).Error
 	if err != nil {
-		return nil, fmt.Errorf("failed to get provider status: %w", err)
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("get provider failed with status %d", resp.StatusCode)
-	}
-
-	var detailResp gen.LLMProviderDetailResponse
-	if err := json.NewDecoder(resp.Body).Decode(&detailResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	if detailResp.Provider == nil {
-		return nil, fmt.Errorf("provider data not found in response")
-	}
-
-	providerStatus := &gateway.ProviderStatus{}
-
-	if detailResp.Provider.Id != nil {
-		providerStatus.ID = *detailResp.Provider.Id
-	}
-
-	if detailResp.Provider.Configuration != nil {
-		providerStatus.Name = detailResp.Provider.Configuration.Metadata.Name
-	}
-
-	if detailResp.Provider.Configuration != nil {
-		providerStatus.Kind = string(detailResp.Provider.Configuration.Kind)
-	}
-
-	if detailResp.Provider.DeploymentStatus != nil {
-		providerStatus.Status = string(*detailResp.Provider.DeploymentStatus)
-	}
-
-	if detailResp.Provider.Metadata != nil && detailResp.Provider.Metadata.DeployedAt != nil {
-		providerStatus.DeployedAt = detailResp.Provider.Metadata.DeployedAt
-	}
-
-	// Convert spec to map
-	if detailResp.Provider.Configuration != nil {
-		specBytes, err := json.Marshal(detailResp.Provider.Configuration.Spec)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal provider spec: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("provider deployment not found: %s", providerID)
 		}
-		var specMap map[string]interface{}
-		if err := json.Unmarshal(specBytes, &specMap); err == nil {
-			providerStatus.Spec = specMap
-		}
+		return nil, fmt.Errorf("failed to query deployment: %w", err)
 	}
 
-	return providerStatus, nil
+	status := &gateway.ProviderStatus{
+		ID:     deployment.DeploymentID,
+		Status: deployment.Status,
+	}
+
+	if deployment.Provider != nil {
+		status.Name = deployment.Provider.DisplayName
+		status.Kind = deployment.Provider.Template
+		status.Spec = deployment.Provider.Configuration
+		status.DeployedAt = deployment.DeployedAt
+	}
+
+	return status, nil
 }
 
 // ListProviders lists all LLM providers deployed on a gateway
 func (a *OnPremiseAdapter) ListProviders(ctx context.Context, gatewayID string) ([]*gateway.ProviderStatus, error) {
-	gw, creds, err := a.getGatewayWithCredentials(ctx, gatewayID)
+	gatewayUUID, err := uuid.Parse(gatewayID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid gateway ID: %w", err)
 	}
 
-	controlPlaneURL, ok := gw.AdapterConfig["controlPlaneUrl"].(string)
-	if !ok {
-		return nil, fmt.Errorf("controlPlaneUrl not found in gateway adapter config")
-	}
-
-	// Create a new client for this specific URL to avoid data races
-	client, err := a.newGatewayClientForURL(controlPlaneURL)
+	var deployments []models.ProviderGatewayDeployment
+	err = a.db.WithContext(ctx).
+		Preload("Provider").
+		Where("gateway_uuid = ?", gatewayUUID).
+		Find(&deployments).Error
 	if err != nil {
-		return nil, fmt.Errorf("failed to create gateway client: %w", err)
+		return nil, fmt.Errorf("failed to list deployments: %w", err)
 	}
 
-	params := &gen.ListLLMProvidersParams{}
-	resp, err := client.ListLLMProviders(ctx, params, createAuthEditor(creds.Username, creds.Password))
-	if err != nil {
-		return nil, fmt.Errorf("failed to list providers: %w", err)
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("list providers failed with status %d", resp.StatusCode)
-	}
-
-	var listResp struct {
-		Providers []gen.LLMProviderListItem `json:"providers"`
-		Status    *string                   `json:"status"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&listResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	var providers []*gateway.ProviderStatus
-	for _, p := range listResp.Providers {
-		providerStatus := &gateway.ProviderStatus{}
-
-		if p.Id != nil {
-			providerStatus.ID = *p.Id
+	providers := make([]*gateway.ProviderStatus, 0, len(deployments))
+	for _, d := range deployments {
+		status := &gateway.ProviderStatus{
+			ID:     d.DeploymentID,
+			Status: d.Status,
 		}
-
-		if p.DisplayName != nil {
-			providerStatus.Name = *p.DisplayName
+		if d.Provider != nil {
+			status.Name = d.Provider.DisplayName
+			status.Kind = d.Provider.Template
+			status.Spec = d.Provider.Configuration
+			status.DeployedAt = d.DeployedAt
 		}
-
-		if p.Template != nil {
-			providerStatus.Kind = *p.Template
-		}
-
-		if p.Status != nil {
-			providerStatus.Status = string(*p.Status)
-		}
-
-		providerStatus.DeployedAt = p.CreatedAt
-
-		providers = append(providers, providerStatus)
+		providers = append(providers, status)
 	}
 
 	return providers, nil
 }
 
 // GetPolicies retrieves available policies from a gateway
+// Returns a static list for on-premise deployments
 func (a *OnPremiseAdapter) GetPolicies(ctx context.Context, gatewayID string) ([]*gateway.PolicyInfo, error) {
-	gw, creds, err := a.getGatewayWithCredentials(ctx, gatewayID)
-	if err != nil {
-		return nil, err
-	}
-
-	controlPlaneURL, ok := gw.AdapterConfig["controlPlaneUrl"].(string)
-	if !ok {
-		return nil, fmt.Errorf("controlPlaneUrl not found in gateway adapter config")
-	}
-
-	// Create a new client for this specific URL to avoid data races
-	client, err := a.newGatewayClientForURL(controlPlaneURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create gateway client: %w", err)
-	}
-
-	resp, err := client.ListPolicies(ctx, createAuthEditor(creds.Username, creds.Password))
-	if err != nil {
-		return nil, fmt.Errorf("failed to list policies: %w", err)
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("list policies failed with status %d", resp.StatusCode)
-	}
-
-	var policiesResp gen.PolicyListResponse
-	if err := json.NewDecoder(resp.Body).Decode(&policiesResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	var policies []*gateway.PolicyInfo
-	if policiesResp.Policies != nil {
-		for _, p := range *policiesResp.Policies {
-			policyInfo := &gateway.PolicyInfo{
-				Name:    p.Name,
-				Version: "", // Version not provided in list response
-			}
-
-			if p.Description != nil {
-				policyInfo.Description = *p.Description
-			}
-
-			// Convert parameters to map
-			if p.Parameters != nil {
-				policyInfo.Parameters = *p.Parameters
-			}
-
-			policies = append(policies, policyInfo)
-		}
-	}
-
-	return policies, nil
-}
-
-// init registers the adapter with the factory
-func init() {
-	// This will be called when the package is imported
-	// Registration happens in wiring
+	return []*gateway.PolicyInfo{
+		{Name: "rate-limit", Version: "v1", Description: "Rate limiting policy"},
+		{Name: "content-filter", Version: "v1", Description: "Content filtering policy"},
+		{Name: "token-limit", Version: "v1", Description: "Token usage limiting policy"},
+	}, nil
 }

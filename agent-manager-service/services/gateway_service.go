@@ -61,9 +61,8 @@ type GatewayFilter struct {
 }
 
 type gatewayService struct {
-	adapter       gateway.IGatewayAdapter
-	encryptionKey []byte
-	logger        *slog.Logger
+	adapter gateway.IGatewayAdapter
+	logger  *slog.Logger
 }
 
 // isValidGatewayStatus validates if the given status is a valid gateway status
@@ -73,11 +72,10 @@ func isValidGatewayStatus(status string) bool {
 }
 
 // NewGatewayService creates a new gateway service
-func NewGatewayService(adapter gateway.IGatewayAdapter, encryptionKey []byte, logger *slog.Logger) GatewayService {
+func NewGatewayService(adapter gateway.IGatewayAdapter, logger *slog.Logger) GatewayService {
 	return &gatewayService{
-		adapter:       adapter,
-		encryptionKey: encryptionKey,
-		logger:        logger,
+		adapter: adapter,
+		logger:  logger,
 	}
 }
 

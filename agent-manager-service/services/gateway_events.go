@@ -38,6 +38,9 @@ type GatewayEventsService interface {
 	BroadcastAgentDeployed(gatewayID string, deployment *models.AgentDeploymentEvent) error
 	BroadcastAgentUndeployed(gatewayID string, undeployment *models.AgentUndeploymentEvent) error
 	BroadcastConfigUpdated(gatewayID string, config interface{}) error
+	// LLM Provider deployment methods (using api-platform compatible event types)
+	BroadcastLLMProviderDeployed(gatewayID string, deployment *models.DeploymentEvent) error
+	BroadcastLLMProviderUndeployed(gatewayID string, undeployment *models.APIUndeploymentEvent) error
 }
 
 type gatewayEventsService struct {
@@ -193,4 +196,15 @@ func (s *gatewayEventsService) BroadcastToAllGateways(eventType string, payload 
 	)
 
 	return nil
+}
+
+// BroadcastLLMProviderDeployed broadcasts an LLM provider deployment event using api.deployed
+// This allows gateways to process both APIs and LLM providers with the same handler
+func (s *gatewayEventsService) BroadcastLLMProviderDeployed(gatewayID string, deployment *models.DeploymentEvent) error {
+	return s.broadcastEvent(gatewayID, "api.deployed", deployment)
+}
+
+// BroadcastLLMProviderUndeployed broadcasts an LLM provider undeployment event using api.undeployed
+func (s *gatewayEventsService) BroadcastLLMProviderUndeployed(gatewayID string, undeployment *models.APIUndeploymentEvent) error {
+	return s.broadcastEvent(gatewayID, "api.undeployed", undeployment)
 }

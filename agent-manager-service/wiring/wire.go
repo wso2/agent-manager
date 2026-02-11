@@ -57,6 +57,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewGatewayService,
 	services.NewEnvironmentSyncer,
 	services.NewGatewayEventsService,
+	services.NewGatewayInternalService,
 )
 
 var controllerProviderSet = wire.NewSet(
@@ -68,6 +69,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewEnvironmentController,
 	controllers.NewGatewayController,
 	controllers.NewWebSocketGatewayController,
+	controllers.NewGatewayInternalController,
 )
 
 var testClientProviderSet = wire.NewSet(

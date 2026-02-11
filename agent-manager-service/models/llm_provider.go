@@ -101,3 +101,24 @@ type ProviderListResponse struct {
 	Limit     int32                 `json:"limit"`
 	Offset    int32                 `json:"offset"`
 }
+
+// ProviderGatewayDeployment tracks provider deployments to gateways
+type ProviderGatewayDeployment struct {
+	ID                   int                    `gorm:"column:id;primaryKey"`
+	ProviderUUID         uuid.UUID              `gorm:"column:provider_uuid;not null"`
+	GatewayUUID          uuid.UUID              `gorm:"column:gateway_uuid;not null"`
+	DeploymentID         string                 `gorm:"column:deployment_id;not null"`
+	Environment          string                 `gorm:"column:environment"`
+	ConfigurationVersion int                    `gorm:"column:configuration_version;not null;default:1"`
+	GatewayOverrides     map[string]interface{} `gorm:"column:gateway_specific_overrides;type:jsonb;serializer:json"`
+	Status               string                 `gorm:"column:status;not null"`
+	DeployedAt           *time.Time             `gorm:"column:deployed_at"`
+	ErrorMessage         *string                `gorm:"column:error_message;type:text"`
+	CreatedAt            time.Time              `gorm:"column:created_at;not null;default:now()"`
+	UpdatedAt            time.Time              `gorm:"column:updated_at;not null;default:now()"`
+	Provider             *LLMProvider           `gorm:"foreignKey:ProviderUUID;references:UUID"`
+}
+
+func (ProviderGatewayDeployment) TableName() string {
+	return "provider_gateway_deployments"
+}

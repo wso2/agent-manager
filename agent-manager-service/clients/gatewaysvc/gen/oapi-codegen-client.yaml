@@ -1,9 +1,0 @@
-# oapi-codegen configuration for OpenChoreo client generation
-package: gen
-output: clients/gatewaysvc/gen/client.gen.go
-generate:
-  models: false
-  client: true
-  embedded-spec: false
-output-options:
-  response-type-suffix: Resp

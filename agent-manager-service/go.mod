@@ -31,7 +31,6 @@ require (
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/net v0.49.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397 // indirect
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
@@ -57,6 +56,7 @@ require github.com/oapi-codegen/runtime v1.1.2
 require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth v0.0.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 replace github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth => ./clients/openchoreosvc/auth

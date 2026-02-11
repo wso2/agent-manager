@@ -37,6 +37,7 @@ type AppParams struct {
 	EnvironmentController      controllers.EnvironmentController
 	GatewayController          controllers.GatewayController
 	WebSocketGatewayController controllers.WebSocketGatewayController
+	GatewayInternalController  controllers.GatewayInternalController
 	GatewayEventsService       services.GatewayEventsService
 	WebSocketManager           *ws.Manager
 	EnvironmentSyncer          services.EnvironmentSynchronizer

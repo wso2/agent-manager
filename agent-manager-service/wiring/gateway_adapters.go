@@ -18,7 +18,6 @@ package wiring
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"time"
@@ -28,36 +27,34 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/gateway"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/gateway/adapter/mock"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/gateway/adapter/onpremise"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 )
 
-// ProvideGatewayEncryptionKey provides the encryption key for gateway credentials
-func ProvideGatewayEncryptionKey(cfg config.Config) ([]byte, error) {
-	if cfg.Gateway.EncryptionKey == "" {
-		return nil, fmt.Errorf("GATEWAY_ENCRYPTION_KEY is required")
-	}
+// Global accessor for GatewayEventsService
+// This allows the OnPremiseAdapter to broadcast events
+var globalEventsService services.GatewayEventsService
 
-	// Decode base64-encoded key
-	key, err := base64.StdEncoding.DecodeString(cfg.Gateway.EncryptionKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode GATEWAY_ENCRYPTION_KEY: %w", err)
-	}
+// SetGatewayEventsService sets the global GatewayEventsService instance
+// This must be called after Wire injection is complete
+func SetGatewayEventsService(eventsService services.GatewayEventsService) {
+	globalEventsService = eventsService
+}
 
-	// Validate key size (32 bytes for AES-256)
-	if len(key) != 32 {
-		return nil, fmt.Errorf("GATEWAY_ENCRYPTION_KEY must be 32 bytes (base64-encoded), got %d bytes", len(key))
-	}
-
-	return key, nil
+// GetGatewayEventsService returns the global GatewayEventsService instance
+func GetGatewayEventsService() services.GatewayEventsService {
+	return globalEventsService
 }
 
 // ProvideGatewayAdapter provides a gateway adapter for dependency injection
 // Uses configuration to select the appropriate adapter type
-func ProvideGatewayAdapter(cfg config.Config, encryptionKey []byte, logger *slog.Logger) (gateway.IGatewayAdapter, error) {
+func ProvideGatewayAdapter(cfg config.Config, eventsService services.GatewayEventsService, logger *slog.Logger) (gateway.IGatewayAdapter, error) {
+	// Set global events service for later use by adapter factory
+	SetGatewayEventsService(eventsService)
+
 	// Create adapter factory
 	factory := gateway.NewAdapterFactory(logger)
-
 	// Initialize adapters
-	InitGatewayAdapters(factory, encryptionKey, logger)
+	InitGatewayAdapters(factory, logger)
 
 	// Create adapter config from environment config
 	adapterConfig := gateway.AdapterConfig{
@@ -104,12 +101,16 @@ func ProvideGatewayAdapter(cfg config.Config, encryptionKey []byte, logger *slog
 
 // InitGatewayAdapters initializes the gateway factory with built-in adapters
 // This function should be called during application initialization
-func InitGatewayAdapters(factory *gateway.AdapterFactory, encryptionKey []byte, logger *slog.Logger) {
+func InitGatewayAdapters(factory *gateway.AdapterFactory, logger *slog.Logger) {
 	// Register on-premise adapter
 	factory.Register("on-premise", func(config gateway.AdapterConfig, logger *slog.Logger) (gateway.IGatewayAdapter, error) {
 		// Get DB instance from global db package
 		dbInstance := db.DB(context.Background())
-		return onpremise.NewOnPremiseAdapter(config, dbInstance, encryptionKey, logger)
+		eventsService := GetGatewayEventsService()
+		if eventsService == nil {
+			return nil, fmt.Errorf("gateway events service not initialized")
+		}
+		return onpremise.NewOnPremiseAdapter(config, dbInstance, eventsService, logger)
 	})
 
 	// Register mock adapter for testing
@@ -130,4 +131,11 @@ func InitGatewayAdapters(factory *gateway.AdapterFactory, encryptionKey []byte, 
 	// factory.Register("cloud", func(config gateway.AdapterConfig, encryptionKey []byte, logger *slog.Logger) (gateway.IGatewayAdapter, error) {
 	//     return cloud.NewCloudAdapter(config, encryptionKey, logger)
 	// })
+}
+
+// ProvideGatewayEncryptionKey provides the gateway encryption key from config
+// Note: With WebSocket-based communication, encryption is no longer needed
+// This provider is kept for compatibility but returns an empty key
+func ProvideGatewayEncryptionKey() []byte {
+	return []byte{}
 }

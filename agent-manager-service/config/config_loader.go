@@ -173,7 +173,6 @@ func loadEnvs() {
 		HealthCheckTimeout: int(r.readOptionalInt64("GATEWAY_HEALTH_CHECK_TIMEOUT_SECONDS", 5)),
 		MaxRetries:         int(r.readOptionalInt64("GATEWAY_MAX_RETRIES", 3)),
 		RetryBackoff:       int(r.readOptionalInt64("GATEWAY_RETRY_BACKOFF_SECONDS", 2)),
-		EncryptionKey:      r.readRequiredString("GATEWAY_ENCRYPTION_KEY"),
 	}
 
 	// WebSocket configuration
