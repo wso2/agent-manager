@@ -50,6 +50,9 @@ import (
 //			GetComponentEndpointsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) (map[string]models.EndpointsResponse, error) {
 //				panic("mock out the GetComponentEndpoints method")
 //			},
+//			GetComponentResourceConfigsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) (*client.ComponentResourceConfigsResponse, error) {
+//				panic("mock out the GetComponentResourceConfigs method")
+//			},
 //			GetDeploymentsFunc: func(ctx context.Context, namespaceName string, pipelineName string, projectName string, componentName string) ([]*models.DeploymentResponse, error) {
 //				panic("mock out the GetDeployments method")
 //			},
@@ -140,6 +143,9 @@ type OpenChoreoClientMock struct {
 
 	// GetComponentEndpointsFunc mocks the GetComponentEndpoints method.
 	GetComponentEndpointsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) (map[string]models.EndpointsResponse, error)
+
+	// GetComponentResourceConfigsFunc mocks the GetComponentResourceConfigs method.
+	GetComponentResourceConfigsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) (*client.ComponentResourceConfigsResponse, error)
 
 	// GetDeploymentsFunc mocks the GetDeployments method.
 	GetDeploymentsFunc func(ctx context.Context, namespaceName string, pipelineName string, projectName string, componentName string) ([]*models.DeploymentResponse, error)
@@ -312,6 +318,19 @@ type OpenChoreoClientMock struct {
 		}
 		// GetComponentEndpoints holds details about calls to the GetComponentEndpoints method.
 		GetComponentEndpoints []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// Environment is the environment argument value.
+			Environment string
+		}
+		// GetComponentResourceConfigs holds details about calls to the GetComponentResourceConfigs method.
+		GetComponentResourceConfigs []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// NamespaceName is the namespaceName argument value.
@@ -500,6 +519,7 @@ type OpenChoreoClientMock struct {
 	lockGetComponent                   sync.RWMutex
 	lockGetComponentConfigurations     sync.RWMutex
 	lockGetComponentEndpoints          sync.RWMutex
+	lockGetComponentResourceConfigs    sync.RWMutex
 	lockGetDeployments                 sync.RWMutex
 	lockGetEnvironment                 sync.RWMutex
 	lockGetOrganization                sync.RWMutex
@@ -1016,6 +1036,54 @@ func (mock *OpenChoreoClientMock) GetComponentEndpointsCalls() []struct {
 	mock.lockGetComponentEndpoints.RLock()
 	calls = mock.calls.GetComponentEndpoints
 	mock.lockGetComponentEndpoints.RUnlock()
+	return calls
+}
+
+// GetComponentResourceConfigs calls GetComponentResourceConfigsFunc.
+func (mock *OpenChoreoClientMock) GetComponentResourceConfigs(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) (*client.ComponentResourceConfigsResponse, error) {
+	if mock.GetComponentResourceConfigsFunc == nil {
+		panic("OpenChoreoClientMock.GetComponentResourceConfigsFunc: method is nil but OpenChoreoClient.GetComponentResourceConfigs was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		Environment   string
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+		Environment:   environment,
+	}
+	mock.lockGetComponentResourceConfigs.Lock()
+	mock.calls.GetComponentResourceConfigs = append(mock.calls.GetComponentResourceConfigs, callInfo)
+	mock.lockGetComponentResourceConfigs.Unlock()
+	return mock.GetComponentResourceConfigsFunc(ctx, namespaceName, projectName, componentName, environment)
+}
+
+// GetComponentResourceConfigsCalls gets all the calls that were made to GetComponentResourceConfigs.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.GetComponentResourceConfigsCalls())
+func (mock *OpenChoreoClientMock) GetComponentResourceConfigsCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ProjectName   string
+	ComponentName string
+	Environment   string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		Environment   string
+	}
+	mock.lockGetComponentResourceConfigs.RLock()
+	calls = mock.calls.GetComponentResourceConfigs
+	mock.lockGetComponentResourceConfigs.RUnlock()
 	return calls
 }
 
