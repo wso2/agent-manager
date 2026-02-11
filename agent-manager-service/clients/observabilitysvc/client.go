@@ -22,7 +22,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/idp"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -44,15 +45,19 @@ type ObservabilitySvcClient interface {
 }
 
 type observabilitySvcClient struct {
-	httpClient    requests.HttpClient
-	tokenProvider idp.TokenProvider
+	httpClient   requests.HttpClient
+	authProvider client.AuthProvider
 }
 
 func NewObservabilitySvcClient() ObservabilitySvcClient {
 	cfg := config.GetConfig()
 	return &observabilitySvcClient{
-		httpClient:    requests.NewRetryableHTTPClient(&http.Client{}),
-		tokenProvider: idp.NewTokenProvider(cfg.IDP),
+		httpClient: requests.NewRetryableHTTPClient(&http.Client{}),
+		authProvider: auth.NewAuthProvider(auth.Config{
+			TokenURL:     cfg.IDP.TokenURL,
+			ClientID:     cfg.IDP.ClientID,
+			ClientSecret: cfg.IDP.ClientSecret,
+		}),
 	}
 }
 
@@ -63,7 +68,7 @@ func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, buildName str
 	baseURL := config.GetConfig().Observer.URL
 	logsURL := fmt.Sprintf("%s/api/logs/build/%s", baseURL, buildName)
 
-	token, err := o.tokenProvider.GetToken(ctx)
+	token, err := o.authProvider.GetToken(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("observabilitysvc.GetBuildLogs: failed to get token: %w", err)
 	}
@@ -99,9 +104,9 @@ func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, buildName str
 func (o *observabilitySvcClient) GetComponentMetrics(ctx context.Context, agentComponentId string, envId string, projectId string, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error) {
 	baseURL := config.GetConfig().Observer.URL
 	metricsURL := fmt.Sprintf("%s/api/metrics/component/usage", baseURL)
-	token, err := o.tokenProvider.GetToken(ctx)
+	token, err := o.authProvider.GetToken(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("observabilitysvc.GetBuildLogs: failed to get token: %w", err)
+		return nil, fmt.Errorf("observabilitysvc.GetComponentMetrics: failed to get token: %w", err)
 	}
 
 	requestBody := map[string]interface{}{
@@ -132,9 +137,9 @@ func (o *observabilitySvcClient) GetComponentMetrics(ctx context.Context, agentC
 func (o *observabilitySvcClient) GetComponentLogs(ctx context.Context, agentComponentId string, envId string, payload spec.LogFilterRequest) (*models.LogsResponse, error) {
 	baseURL := config.GetConfig().Observer.URL
 	logsURL := fmt.Sprintf("%s/api/logs/component/%s", baseURL, agentComponentId)
-	token, err := o.tokenProvider.GetToken(ctx)
+	token, err := o.authProvider.GetToken(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("observabilitysvc.GetBuildLogs: failed to get token: %w", err)
+		return nil, fmt.Errorf("observabilitysvc.GetComponentLogs: failed to get token: %w", err)
 	}
 
 	requestBody := map[string]interface{}{
