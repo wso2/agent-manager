@@ -842,7 +842,7 @@ func (s *agentManagerService) GetBuildLogs(ctx context.Context, orgName string, 
 	}
 
 	// Fetch the build logs from Observability service
-	buildLogs, err := s.observabilitySvcClient.GetBuildLogs(ctx, build.Name)
+	buildLogs, err := s.observabilitySvcClient.GetBuildLogs(ctx, orgName, agentName, build.Name)
 	if err != nil {
 		s.logger.Error("Failed to fetch build logs from observability service", "buildName", build.Name, "error", err)
 		return nil, fmt.Errorf("failed to fetch build logs: %w", err)

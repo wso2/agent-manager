@@ -57,6 +57,18 @@ gen-oc-client: ## Generate OpenChoreo API client from local OpenAPI spec.
 	@$(MAKE) fmt
 	@echo "OpenChoreo client generated successfully"
 
+.PHONY: gen-observer-client
+gen-observer-client: ## Generate Observer API client from OpenChoreo GitHub repo.
+	@echo "Fetching Observer OpenAPI spec from GitHub"
+	@curl -s https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.14/cmd/observer/openapi.yaml -o clients/observabilitysvc/observer-api.yaml
+	@echo "Generating Observer client"
+	@oapi-codegen -config clients/observabilitysvc/gen/oapi-codegen.yaml clients/observabilitysvc/observer-api.yaml
+	@oapi-codegen -config clients/observabilitysvc/gen/oapi-codegen-client.yaml clients/observabilitysvc/observer-api.yaml
+	@echo "Cleaning up downloaded spec"
+	@rm clients/observabilitysvc/observer-api.yaml
+	@$(MAKE) fmt
+	@echo "Observer client generated successfully"
+
 .PHONY: codegenfmt-check
 codegenfmt-check:
 	@$(MAKE) wire

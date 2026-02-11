@@ -39,7 +39,7 @@ var configProviderSet = wire.NewSet(
 )
 
 var clientProviderSet = wire.NewSet(
-	observabilitysvc.NewObservabilitySvcClient,
+	ProvideObservabilitySvcClient,
 	traceobserversvc.NewTraceObserverClient,
 	ProvideOCAuthProvider,
 	ProvideOCClient,
@@ -85,6 +85,14 @@ func ProvideOCAuthProvider(cfg config.Config) occlient.AuthProvider {
 func ProvideOCClient(cfg config.Config, authProvider occlient.AuthProvider) (occlient.OpenChoreoClient, error) {
 	return occlient.NewOpenChoreoClient(&occlient.Config{
 		BaseURL:      cfg.OpenChoreo.BaseURL,
+		AuthProvider: authProvider,
+	})
+}
+
+// ProvideObservabilitySvcClient creates the observability service client
+func ProvideObservabilitySvcClient(cfg config.Config, authProvider occlient.AuthProvider) (observabilitysvc.ObservabilitySvcClient, error) {
+	return observabilitysvc.NewObservabilitySvcClient(&observabilitysvc.Config{
+		BaseURL:      cfg.Observer.URL,
 		AuthProvider: authProvider,
 	})
 }
