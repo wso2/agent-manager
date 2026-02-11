@@ -1,6 +1,6 @@
 dependencies:
 - name: thunder
   repository: oci://ghcr.io/asgardeo/helm-charts
-  version: 0.15.0
-digest: sha256:d5a5c6b98914cd700bae94245e55c6f882256f4c3f75b991ea8ba8027c043dbd
-generated: "2026-01-23T12:28:19.700756+05:30"
+  version: 0.21.0
+digest: sha256:7aaaba0815c6db4e0eeb37253bda1b0ddff7884759d464be14e0575492d40eb5
+generated: "2026-02-10T21:38:38.72273+05:30"
