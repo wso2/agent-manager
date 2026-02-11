@@ -48,7 +48,7 @@ type AgentManagerService interface {
 	GetAgentMetrics(ctx context.Context, orgName string, projectName string, agentName string, payload spec.MetricsFilterRequest) (*spec.MetricsResponse, error)
 	GetAgentRuntimeLogs(ctx context.Context, orgName string, projectName string, agentName string, payload spec.LogFilterRequest) (*models.LogsResponse, error)
 	GetAgentResourceConfigs(ctx context.Context, orgName string, projectName string, agentName string, environment string) (*spec.AgentResourceConfigsResponse, error)
-	UpdateAgentResourceConfigs(ctx context.Context, orgName string, projectName string, agentName string, environment string, req *spec.UpdateAgentResourceConfigsRequest) (*models.AgentResponse, error)
+	UpdateAgentResourceConfigs(ctx context.Context, orgName string, projectName string, agentName string, environment string, req *spec.UpdateAgentResourceConfigsRequest) (*spec.AgentResourceConfigsResponse, error)
 }
 
 type agentManagerService struct {
@@ -387,7 +387,7 @@ func (s *agentManagerService) GetAgentResourceConfigs(ctx context.Context, orgNa
 	return response, nil
 }
 
-func (s *agentManagerService) UpdateAgentResourceConfigs(ctx context.Context, orgName string, projectName string, agentName string, environment string, req *spec.UpdateAgentResourceConfigsRequest) (*models.AgentResponse, error) {
+func (s *agentManagerService) UpdateAgentResourceConfigs(ctx context.Context, orgName string, projectName string, agentName string, environment string, req *spec.UpdateAgentResourceConfigsRequest) (*spec.AgentResourceConfigsResponse, error) {
 	s.logger.Info("Updating agent resource configurations", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment)
 
 	// Validate organization exists
@@ -427,15 +427,15 @@ func (s *agentManagerService) UpdateAgentResourceConfigs(ctx context.Context, or
 		return nil, fmt.Errorf("failed to update agent resource configurations: %w", err)
 	}
 
-	// Fetch agent to return current state
-	updatedAgent, err := s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
+	// Fetch updated resource configurations to return
+	updatedConfigs, err := s.GetAgentResourceConfigs(ctx, orgName, projectName, agentName, environment)
 	if err != nil {
-		s.logger.Error("Failed to fetch agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return nil, err
+		s.logger.Error("Failed to fetch updated resource configurations", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment, "error", err)
+		return nil, fmt.Errorf("failed to get agent resource configurations: %w", err)
 	}
 
 	s.logger.Info("Agent resource configurations updated successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment)
-	return updatedAgent, nil
+	return updatedConfigs, nil
 }
 
 // buildUpdateResourceConfigsRequest converts spec request to client request

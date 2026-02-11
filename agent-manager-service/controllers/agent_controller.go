@@ -327,15 +327,14 @@ func (c *agentController) UpdateAgentResourceConfigs(w http.ResponseWriter, r *h
 		return
 	}
 
-	agent, err := c.agentService.UpdateAgentResourceConfigs(ctx, orgName, projName, agentName, environment, &payload)
+	resourceConfigs, err := c.agentService.UpdateAgentResourceConfigs(ctx, orgName, projName, agentName, environment, &payload)
 	if err != nil {
 		log.Error("UpdateAgentResourceConfigs: failed to update agent resource configurations", "error", err)
 		handleCommonErrors(w, err, "Failed to update agent resource configurations")
 		return
 	}
 
-	agentResponse := utils.ConvertToAgentResponse(agent)
-	utils.WriteSuccessResponse(w, http.StatusOK, agentResponse)
+	utils.WriteSuccessResponse(w, http.StatusOK, resourceConfigs)
 }
 
 func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {

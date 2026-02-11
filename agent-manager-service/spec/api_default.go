@@ -5316,7 +5316,7 @@ func (r ApiUpdateAgentResourceConfigsRequest) Environment(environment string) Ap
 	return r
 }
 
-func (r ApiUpdateAgentResourceConfigsRequest) Execute() (*AgentResponse, *http.Response, error) {
+func (r ApiUpdateAgentResourceConfigsRequest) Execute() (*AgentResourceConfigsResponse, *http.Response, error) {
 	return r.ApiService.UpdateAgentResourceConfigsExecute(r)
 }
 
@@ -5341,13 +5341,13 @@ func (a *DefaultAPIService) UpdateAgentResourceConfigs(ctx context.Context, agen
 
 // Execute executes the request
 //
-//	@return AgentResponse
-func (a *DefaultAPIService) UpdateAgentResourceConfigsExecute(r ApiUpdateAgentResourceConfigsRequest) (*AgentResponse, *http.Response, error) {
+//	@return AgentResourceConfigsResponse
+func (a *DefaultAPIService) UpdateAgentResourceConfigsExecute(r ApiUpdateAgentResourceConfigsRequest) (*AgentResourceConfigsResponse, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPut
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *AgentResponse
+		localVarReturnValue *AgentResourceConfigsResponse
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.UpdateAgentResourceConfigs")

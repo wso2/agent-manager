@@ -405,16 +405,34 @@ func (c *openChoreoClient) UpdateComponentResourceConfigs(ctx context.Context, n
 
 // updateComponentResourceConfigs updates component-level parameters (defaults for all environments)
 func (c *openChoreoClient) updateComponentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentResourceConfigsRequest) error {
-	// Build the parameters section for the component spec
-	parameters := make(map[string]interface{})
+	// Fetch the full component CR with server-managed fields removed
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
+	if err != nil {
+		return fmt.Errorf("failed to get component resource: %w", err)
+	}
 
-	// Add replicas if provided
+	// Get or create spec
+	spec, ok := componentCR["spec"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("invalid spec in component CR")
+	}
+
+	// Get or create parameters
+	parameters, ok := spec["parameters"].(map[string]interface{})
+	if !ok {
+		parameters = make(map[string]interface{})
+		spec["parameters"] = parameters
+	}
+
+	// Update replicas if provided
 	if req.Replicas != nil {
 		parameters["replicas"] = *req.Replicas
 	}
 
+	// Update resources if provided
 	if req.Resources != nil {
 		resources := make(map[string]interface{})
+
 		if req.Resources.Requests != nil {
 			requests := make(map[string]string)
 			if req.Resources.Requests.CPU != "" {
@@ -446,19 +464,15 @@ func (c *openChoreoClient) updateComponentResourceConfigs(ctx context.Context, n
 		}
 	}
 
-	// Build the patch request body
-	patchBody := gen.PatchComponentJSONRequestBody{
-		Parameters: &parameters,
-	}
-
-	// Use PatchComponent
-	resp, err := c.ocClient.PatchComponentWithResponse(ctx, namespaceName, projectName, componentName, patchBody)
+	// Apply the updated component CR using ApplyResource instead of PatchComponent
+	// This avoids the OpenChoreo bug in applyComponentPatch
+	applyResp, err := c.ocClient.ApplyResourceWithResponse(ctx, componentCR)
 	if err != nil {
-		return fmt.Errorf("failed to patch component resource configurations: %w", err)
+		return fmt.Errorf("failed to update component resource configurations: %w", err)
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
+	if applyResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(applyResp.StatusCode(), applyResp.Body, ErrorContext{
 			NotFoundErr: utils.ErrAgentNotFound,
 		})
 	}
