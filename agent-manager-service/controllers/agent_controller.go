@@ -48,6 +48,7 @@ type AgentController interface {
 	GenerateName(w http.ResponseWriter, r *http.Request)
 	GetAgentMetrics(w http.ResponseWriter, r *http.Request)
 	GetAgentRuntimeLogs(w http.ResponseWriter, r *http.Request)
+	UpdateAgentResourceConfigs(w http.ResponseWriter, r *http.Request)
 }
 
 type agentController struct {
@@ -276,6 +277,39 @@ func (c *agentController) UpdateAgentBuildParameters(w http.ResponseWriter, r *h
 	if err != nil {
 		log.Error("UpdateAgentBuildParameters: failed to update agent build parameters", "error", err)
 		handleCommonErrors(w, err, "Failed to update agent build parameters")
+		return
+	}
+
+	agentResponse := utils.ConvertToAgentResponse(agent)
+	utils.WriteSuccessResponse(w, http.StatusOK, agentResponse)
+}
+
+func (c *agentController) UpdateAgentResourceConfigs(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	// Extract path parameters
+	orgName := r.PathValue(utils.PathParamOrgName)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	environment := r.URL.Query().Get("environment")
+
+	// Parse and validate request body
+	var payload spec.UpdateAgentResourceConfigsRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		log.Error("UpdateAgentResourceConfigs: failed to decode request body", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if err := utils.ValidateAgentResourceConfigsPayload(payload); err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	agent, err := c.agentService.UpdateAgentResourceConfigs(ctx, orgName, projName, agentName, environment, &payload)
+	if err != nil {
+		log.Error("UpdateAgentResourceConfigs: failed to update agent resource configurations", "error", err)
+		handleCommonErrors(w, err, "Failed to update agent resource configurations")
 		return
 	}
 

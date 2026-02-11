@@ -33,6 +33,7 @@ func registerAgentRoutes(mux *http.ServeMux, ctrl controllers.AgentController) {
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/agents/{agentName}", ctrl.GetAgent)
 	middleware.HandleFuncWithValidation(mux, "PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}", ctrl.UpdateAgentBasicInfo)
 	middleware.HandleFuncWithValidation(mux, "PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/build-parameters", ctrl.UpdateAgentBuildParameters)
+	middleware.HandleFuncWithValidation(mux, "PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/resource-configs", ctrl.UpdateAgentResourceConfigs)
 	middleware.HandleFuncWithValidation(mux, "DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}", ctrl.DeleteAgent)
 	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds", ctrl.BuildAgent)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds", ctrl.ListAgentBuilds)

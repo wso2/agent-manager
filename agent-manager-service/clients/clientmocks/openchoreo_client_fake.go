@@ -98,6 +98,9 @@ import (
 //			UpdateComponentBuildParametersFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentBuildParametersRequest) error {
 //				panic("mock out the UpdateComponentBuildParameters method")
 //			},
+//			UpdateComponentResourceConfigsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string, req client.UpdateComponentResourceConfigsRequest) error {
+//				panic("mock out the UpdateComponentResourceConfigs method")
+//			},
 //		}
 //
 //		// use mockedOpenChoreoClient in code that requires client.OpenChoreoClient
@@ -185,6 +188,9 @@ type OpenChoreoClientMock struct {
 
 	// UpdateComponentBuildParametersFunc mocks the UpdateComponentBuildParameters method.
 	UpdateComponentBuildParametersFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentBuildParametersRequest) error
+
+	// UpdateComponentResourceConfigsFunc mocks the UpdateComponentResourceConfigs method.
+	UpdateComponentResourceConfigsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string, req client.UpdateComponentResourceConfigsRequest) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -467,6 +473,21 @@ type OpenChoreoClientMock struct {
 			// Req is the req argument value.
 			Req client.UpdateComponentBuildParametersRequest
 		}
+		// UpdateComponentResourceConfigs holds details about calls to the UpdateComponentResourceConfigs method.
+		UpdateComponentResourceConfigs []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// Environment is the environment argument value.
+			Environment string
+			// Req is the req argument value.
+			Req client.UpdateComponentResourceConfigsRequest
+		}
 	}
 	lockAttachTrait                    sync.RWMutex
 	lockComponentExists                sync.RWMutex
@@ -495,6 +516,7 @@ type OpenChoreoClientMock struct {
 	lockTriggerBuild                   sync.RWMutex
 	lockUpdateComponentBasicInfo       sync.RWMutex
 	lockUpdateComponentBuildParameters sync.RWMutex
+	lockUpdateComponentResourceConfigs sync.RWMutex
 }
 
 // AttachTrait calls AttachTraitFunc.
@@ -1646,5 +1668,57 @@ func (mock *OpenChoreoClientMock) UpdateComponentBuildParametersCalls() []struct
 	mock.lockUpdateComponentBuildParameters.RLock()
 	calls = mock.calls.UpdateComponentBuildParameters
 	mock.lockUpdateComponentBuildParameters.RUnlock()
+	return calls
+}
+
+// UpdateComponentResourceConfigs calls UpdateComponentResourceConfigsFunc.
+func (mock *OpenChoreoClientMock) UpdateComponentResourceConfigs(ctx context.Context, namespaceName string, projectName string, componentName string, environment string, req client.UpdateComponentResourceConfigsRequest) error {
+	if mock.UpdateComponentResourceConfigsFunc == nil {
+		panic("OpenChoreoClientMock.UpdateComponentResourceConfigsFunc: method is nil but OpenChoreoClient.UpdateComponentResourceConfigs was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		Environment   string
+		Req           client.UpdateComponentResourceConfigsRequest
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+		Environment:   environment,
+		Req:           req,
+	}
+	mock.lockUpdateComponentResourceConfigs.Lock()
+	mock.calls.UpdateComponentResourceConfigs = append(mock.calls.UpdateComponentResourceConfigs, callInfo)
+	mock.lockUpdateComponentResourceConfigs.Unlock()
+	return mock.UpdateComponentResourceConfigsFunc(ctx, namespaceName, projectName, componentName, environment, req)
+}
+
+// UpdateComponentResourceConfigsCalls gets all the calls that were made to UpdateComponentResourceConfigs.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.UpdateComponentResourceConfigsCalls())
+func (mock *OpenChoreoClientMock) UpdateComponentResourceConfigsCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ProjectName   string
+	ComponentName string
+	Environment   string
+	Req           client.UpdateComponentResourceConfigsRequest
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		Environment   string
+		Req           client.UpdateComponentResourceConfigsRequest
+	}
+	mock.lockUpdateComponentResourceConfigs.RLock()
+	calls = mock.calls.UpdateComponentResourceConfigs
+	mock.lockUpdateComponentResourceConfigs.RUnlock()
 	return calls
 }

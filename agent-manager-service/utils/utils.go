@@ -74,6 +74,53 @@ func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildPara
 	return nil
 }
 
+func ValidateAgentResourceConfigsPayload(payload spec.UpdateAgentResourceConfigsRequest) error {
+	// At least one field must be provided
+	if payload.Replicas == nil && payload.Resources == nil {
+		return fmt.Errorf("at least one of replicas or resources must be provided")
+	}
+
+	// Validate replicas if provided
+	if payload.Replicas != nil {
+		if *payload.Replicas < 0 || *payload.Replicas > 10 {
+			return fmt.Errorf("replicas must be between 0 and 10")
+		}
+	}
+
+	// Validate resources if provided
+	if payload.Resources != nil {
+		if payload.Resources.Requests != nil {
+			if err := validateResourceValue(payload.Resources.Requests.Cpu, "CPU request"); err != nil {
+				return err
+			}
+			if err := validateResourceValue(payload.Resources.Requests.Memory, "memory request"); err != nil {
+				return err
+			}
+		}
+		if payload.Resources.Limits != nil {
+			if err := validateResourceValue(payload.Resources.Limits.Cpu, "CPU limit"); err != nil {
+				return err
+			}
+			if err := validateResourceValue(payload.Resources.Limits.Memory, "memory limit"); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func validateResourceValue(value *string, fieldName string) error {
+	if value == nil || *value == "" {
+		return nil // Optional field
+	}
+	// Basic validation - more specific validation can be added
+	if len(*value) == 0 {
+		return fmt.Errorf("%s cannot be empty", fieldName)
+	}
+	return nil
+}
+
 func ValidateProjectUpdatePayload(payload spec.UpdateProjectRequest) error {
 	if err := ValidateResourceName(payload.DisplayName, "project"); err != nil {
 		return fmt.Errorf("invalid project name: %w", err)

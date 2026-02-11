@@ -101,6 +101,30 @@ type UpdateComponentBuildParametersRequest struct {
 	InputInterface *InputInterfaceConfig // nil if no change
 }
 
+// UpdateComponentResourceConfigsRequest contains data for updating resource configurations of a component
+type UpdateComponentResourceConfigsRequest struct {
+	Replicas  *int32          // nil if no change
+	Resources *ResourceConfig // nil if no change
+}
+
+// ResourceConfig contains CPU and memory resource configurations
+type ResourceConfig struct {
+	Requests *ResourceRequests // nil if no change
+	Limits   *ResourceLimits   // nil if no change
+}
+
+// ResourceRequests contains resource requests
+type ResourceRequests struct {
+	CPU    string
+	Memory string
+}
+
+// ResourceLimits contains resource limits
+type ResourceLimits struct {
+	CPU    string
+	Memory string
+}
+
 // DeployRequest contains data for deploying a component
 type DeployRequest struct {
 	ImageID string
