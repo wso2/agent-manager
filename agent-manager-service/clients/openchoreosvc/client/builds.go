@@ -213,14 +213,14 @@ func buildUpdatedWorkflowParametersFromCR(componentCR map[string]interface{}, ex
 				}
 			}
 			existingParams["buildpackConfigs"] = buildpackConfigs
-			delete(existingParams, "dockerConfigs") // When switching from Buildpack → Docker
+			delete(existingParams, "dockerConfigs") // Clean up docker configs when build type is Buildpack
 		} else if req.Build.Docker != nil {
 			// Update docker configs
 			dockerConfigs := map[string]any{
 				"dockerfilePath": normalizePath(req.Build.Docker.DockerfilePath),
 			}
 			existingParams["dockerConfigs"] = dockerConfigs
-			delete(existingParams, "buildpackConfigs") // When switching from Docker → Buildpack
+			delete(existingParams, "buildpackConfigs") // Clean up buildpack configs when build type is Docker
 		}
 	}
 

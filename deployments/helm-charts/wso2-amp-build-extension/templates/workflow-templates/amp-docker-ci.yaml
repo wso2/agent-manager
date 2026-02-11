@@ -258,8 +258,6 @@ spec:
         volumeMounts:
           - name: workspace
             mountPath: /mnt/vol
-        securityContext:
-          privileged: true
   ttlStrategy:
     secondsAfterCompletion: 3600
   volumeClaimTemplates:
