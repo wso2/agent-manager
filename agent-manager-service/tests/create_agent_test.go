@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -32,6 +33,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
@@ -205,6 +207,21 @@ func TestCreateAgent(t *testing.T) {
 
 	t.Run("Creating an agent with docker build should return 202", func(t *testing.T) {
 		openChoreoClient := apitestutils.CreateMockOpenChoreoClient()
+
+		// Override GetComponentFunc to return valid component for token generation
+		testAgentNameDocker := fmt.Sprintf("docker-agent-%s", uuid.New().String()[:5])
+		openChoreoClient.GetComponentFunc = func(ctx context.Context, namespaceName, projectName, componentName string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{
+				UUID:        uuid.New().String(),
+				Name:        componentName,
+				ProjectName: projectName,
+				Provisioning: models.Provisioning{
+					Type: "internal",
+				},
+				CreatedAt: time.Now(),
+			}, nil
+		}
+
 		testClients := wiring.TestClients{
 			OpenChoreoClient: openChoreoClient,
 		}
@@ -212,7 +229,6 @@ func TestCreateAgent(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Create the request body for Docker-based agent
-		testAgentNameDocker := fmt.Sprintf("nonexistent-agent-%s", uuid.New().String()[:5])
 		reqBody := new(bytes.Buffer)
 		err := json.NewEncoder(reqBody).Encode(map[string]interface{}{
 			"name":        testAgentNameDocker,
@@ -279,6 +295,28 @@ func TestCreateAgent(t *testing.T) {
 		require.Equal(t, "Test Docker Agent Description", createComponentCall.Req.Description)
 		require.Equal(t, "docker", createComponentCall.Req.Build.Type)
 		require.Equal(t, "/Dockerfile", createComponentCall.Req.Build.Docker.DockerfilePath)
+
+		// Validate that tracing environment variables were injected via UpdateComponentEnvironmentVariables
+		updateEnvVarsCalls := openChoreoClient.UpdateComponentEnvironmentVariablesCalls()
+		require.Len(t, updateEnvVarsCalls, 1, "Should have called UpdateComponentEnvironmentVariables once")
+
+		updateCall := updateEnvVarsCalls[0]
+		require.Equal(t, testOrgName, updateCall.NamespaceName)
+		require.Equal(t, testProjName, updateCall.ProjectName)
+		require.Equal(t, testAgentNameDocker, updateCall.ComponentName)
+		require.Len(t, updateCall.EnvVars, 2, "Should have 2 tracing env vars injected")
+
+		// Verify tracing env vars are present
+		envVarMap := make(map[string]string)
+		for _, env := range updateCall.EnvVars {
+			envVarMap[env.Key] = env.Value
+		}
+
+		require.Contains(t, envVarMap, client.EnvVarOTELEndpoint)
+		require.NotEmpty(t, envVarMap[client.EnvVarOTELEndpoint])
+
+		require.Contains(t, envVarMap, client.EnvVarAgentAPIKey)
+		require.NotEmpty(t, envVarMap[client.EnvVarAgentAPIKey])
 	})
 
 	t.Run("Creating an agent with custom interface should return 202", func(t *testing.T) {

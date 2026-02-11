@@ -867,6 +867,70 @@ func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, proje
 	return nil
 }
 
+// UpdateComponentEnvironmentVariables updates the environment variables for a component
+func (c *openChoreoClient) UpdateComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
+	// Fetch the full component CR with server-managed fields removed
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
+	if err != nil {
+		return fmt.Errorf("failed to get component resource: %w", err)
+	}
+
+	// Navigate to spec in the CR
+	spec, ok := componentCR["spec"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("invalid spec in component CR")
+	}
+
+	// Get or create workflow section
+	workflow, ok := spec["workflow"].(map[string]interface{})
+	if !ok {
+		workflow = make(map[string]interface{})
+		spec["workflow"] = workflow
+	}
+
+	// Get existing workflow parameters or create new map
+	existingParams := make(map[string]any)
+	if params, ok := workflow["parameters"].(map[string]interface{}); ok {
+		existingParams = params
+	}
+
+	// Get existing environment variables
+	existingEnvVars := make([]map[string]any, 0)
+	if envVarsInterface, ok := existingParams["environmentVariables"].([]interface{}); ok {
+		for _, env := range envVarsInterface {
+			if envMap, ok := env.(map[string]interface{}); ok {
+				existingEnvVars = append(existingEnvVars, envMap)
+			}
+		}
+	}
+
+	// Append new environment variables
+	for _, newEnv := range envVars {
+		existingEnvVars = append(existingEnvVars, map[string]any{
+			"name":  newEnv.Key,
+			"value": newEnv.Value,
+		})
+	}
+
+	// Update workflow parameters with merged environment variables
+	existingParams["environmentVariables"] = existingEnvVars
+	workflow["parameters"] = existingParams
+
+	// Apply the updated component CR
+	applyResp, err := c.ocClient.ApplyResourceWithResponse(ctx, componentCR)
+	if err != nil {
+		return fmt.Errorf("failed to update component environment variables: %w", err)
+	}
+
+	if applyResp.StatusCode() != http.StatusOK && applyResp.StatusCode() != http.StatusCreated {
+		return handleErrorResponse(applyResp.StatusCode(), applyResp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	return nil
+}
+
 func (c *openChoreoClient) buildTraitRequest(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) (gen.ComponentTraitRequest, error) {
 	trait := gen.ComponentTraitRequest{
 		Name:         string(traitType),

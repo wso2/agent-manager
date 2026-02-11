@@ -198,7 +198,7 @@ func convertToBuild(build *models.Build) *spec.Build {
 				},
 			},
 		}
-	}else if build.Docker != nil {
+	} else if build.Docker != nil {
 		return &spec.Build{
 			DockerBuild: &spec.DockerBuild{
 				Type: build.Type,

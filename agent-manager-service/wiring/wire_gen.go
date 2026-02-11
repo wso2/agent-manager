@@ -36,19 +36,19 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 		return nil, err
 	}
 	repositoryService := services.NewRepositoryService()
+	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
 	logger := ProvideLogger()
-	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, repositoryService, logger)
+	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoClient, jwtSigningConfig, logger)
+	if err != nil {
+		return nil, err
+	}
+	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, repositoryService, agentTokenManagerService, logger)
 	agentController := controllers.NewAgentController(agentManagerService)
 	infraResourceManager := services.NewInfraResourceManager(openChoreoClient, logger)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
 	traceObserverClient := traceobserversvc.NewTraceObserverClient()
 	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoClient, logger)
 	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
-	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
-	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoClient, jwtSigningConfig, logger)
-	if err != nil {
-		return nil, err
-	}
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	repositoryController := controllers.NewRepositoryController(repositoryService)
 	appParams := &AppParams{
@@ -66,20 +66,20 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 	openChoreoClient := ProvideTestOpenChoreoClient(testClients)
 	observabilitySvcClient := ProvideTestObservabilitySvcClient(testClients)
 	repositoryService := services.NewRepositoryService()
+	configConfig := ProvideConfigFromPtr(cfg)
+	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
 	logger := ProvideLogger()
-	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, repositoryService, logger)
+	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoClient, jwtSigningConfig, logger)
+	if err != nil {
+		return nil, err
+	}
+	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, repositoryService, agentTokenManagerService, logger)
 	agentController := controllers.NewAgentController(agentManagerService)
 	infraResourceManager := services.NewInfraResourceManager(openChoreoClient, logger)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
 	traceObserverClient := ProvideTestTraceObserverClient(testClients)
 	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoClient, logger)
 	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
-	configConfig := ProvideConfigFromPtr(cfg)
-	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
-	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoClient, jwtSigningConfig, logger)
-	if err != nil {
-		return nil, err
-	}
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	repositoryController := controllers.NewRepositoryController(repositoryService)
 	appParams := &AppParams{

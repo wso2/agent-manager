@@ -24,6 +24,7 @@ import (
 
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
@@ -55,6 +56,7 @@ type agentManagerService struct {
 	ocClient               client.OpenChoreoClient
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient
 	gitRepositoryService   RepositoryService
+	tokenManagerService    AgentTokenManagerService
 	logger                 *slog.Logger
 }
 
@@ -62,12 +64,14 @@ func NewAgentManagerService(
 	OpenChoreoClient client.OpenChoreoClient,
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient,
 	gitRepositoryService RepositoryService,
+	tokenManagerService AgentTokenManagerService,
 	logger *slog.Logger,
 ) AgentManagerService {
 	return &agentManagerService{
 		ocClient:               OpenChoreoClient,
 		observabilitySvcClient: observabilitySvcClient,
 		gitRepositoryService:   gitRepositoryService,
+		tokenManagerService:    tokenManagerService,
 		logger:                 logger,
 	}
 }
@@ -193,6 +197,99 @@ func (s *agentManagerService) attachTraits(ctx context.Context, orgName, project
 	return nil
 }
 
+// injectSystemEnvironmentVariables injects system environment variables based on agent build type
+func (s *agentManagerService) injectSystemEnvironmentVariables(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
+	// For docker-based agents, inject tracing environment variables
+	if req.Build != nil && req.Build.DockerBuild != nil {
+		if err := s.injectTracingEnvVarsForDockerAgents(ctx, orgName, projectName, req); err != nil {
+			s.logger.Error("Failed to inject system environment variables", "agentName", req.Name, "error", err)
+			// Rollback - delete the created agent
+			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+				s.logger.Error("Failed to rollback agent creation after env var injection failure", "agentName", req.Name, "error", errDeletion)
+			}
+			return fmt.Errorf("failed to inject system environment variables: %w", err)
+		}
+	}
+	// For other build types, no system environment variables are needed currently
+	return nil
+}
+
+// injectTracingEnvVarsForDockerAgents injects tracing-related environment variables for docker-based agents
+// This function is called AFTER the component is created
+func (s *agentManagerService) injectTracingEnvVarsForDockerAgents(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
+	s.logger.Debug("Injecting tracing environment variables for docker-based agent", "agentName", req.Name)
+
+	// Get the deployment pipeline to find the first environment
+	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
+	if err != nil {
+		s.logger.Error("Failed to get deployment pipeline for token generation", "projectName", projectName, "error", err)
+		return fmt.Errorf("failed to get deployment pipeline: %w", err)
+	}
+	firstEnvName := findLowestEnvironment(pipeline.PromotionPaths)
+
+	// Generate agent API key using token manager service with 1 year expiry
+	// The component exists now, so we can generate a proper JWT token
+	tokenReq := GenerateTokenRequest{
+		OrgName:     orgName,
+		ProjectName: projectName,
+		AgentName:   req.Name,
+		Environment: firstEnvName,
+		ExpiresIn:   "8760h", // 1 year (365 days * 24 hours)
+	}
+	tokenResp, err := s.tokenManagerService.GenerateToken(ctx, tokenReq)
+	if err != nil {
+		s.logger.Error("Failed to generate agent API key", "agentName", req.Name, "error", err)
+		return fmt.Errorf("failed to generate agent API key: %w", err)
+	}
+
+	// Get OTEL exporter endpoint from config
+	cfg := config.GetConfig()
+	otelEndpoint := cfg.OTEL.ExporterEndpoint
+
+	// Prepare tracing environment variables
+	tracingEnvVars := []client.EnvVar{
+		{
+			Key:   client.EnvVarOTELEndpoint,
+			Value: otelEndpoint,
+		},
+		{
+			Key:   client.EnvVarAgentAPIKey,
+			Value: tokenResp.Token,
+		},
+	}
+
+	// Update component configurations with tracing environment variables
+	if err := s.updateComponentEnvVars(ctx, orgName, projectName, req.Name, tracingEnvVars); err != nil {
+		s.logger.Error("Failed to update component with tracing env vars", "agentName", req.Name, "error", err)
+		return fmt.Errorf("failed to update component env vars: %w", err)
+	}
+
+	s.logger.Info("Injected tracing environment variables for docker agent",
+		"agentName", req.Name,
+		"envVarCount", len(tracingEnvVars),
+	)
+
+	return nil
+}
+
+// updateComponentEnvVars updates the component's workflow parameters with new environment variables
+func (s *agentManagerService) updateComponentEnvVars(ctx context.Context, orgName, projectName, componentName string, newEnvVars []client.EnvVar) error {
+	s.logger.Debug("Updating component environment variables", "componentName", componentName, "newEnvCount", len(newEnvVars))
+
+	// Use the UpdateComponentEnvironmentVariables method from the OpenChoreo client
+	if err := s.ocClient.UpdateComponentEnvironmentVariables(ctx, orgName, projectName, componentName, newEnvVars); err != nil {
+		s.logger.Error("Failed to update component environment variables", "componentName", componentName, "error", err)
+		return fmt.Errorf("failed to update component environment variables: %w", err)
+	}
+
+	s.logger.Info("Successfully updated component environment variables",
+		"componentName", componentName,
+		"envVarCount", len(newEnvVars),
+	)
+
+	return nil
+}
+
 func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, projectName string, agentName string) (*models.AgentResponse, error) {
 	s.logger.Info("Getting agent", "agentName", agentName, "orgName", orgName, "projectName", projectName)
 	// Validate organization exists
@@ -261,9 +358,14 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		return err
 	}
 
-	// For internal agents, attach traits and trigger initial build
+	// For internal agents, inject system environment variables, attach traits, and trigger initial build
 	if req.Provisioning.Type == string(utils.InternalAgent) {
-		s.logger.Debug("Patched component with params successfully", "agentName", req.Name)
+		s.logger.Debug("Component created successfully", "agentName", req.Name)
+
+		// Inject system environment variables AFTER component creation (requires component to exist for JWT token generation)
+		if err := s.injectSystemEnvironmentVariables(ctx, orgName, projectName, req); err != nil {
+			return err
+		}
 
 		// Attach necessary traits based on agent type and build configuration
 		if err := s.attachTraits(ctx, orgName, projectName, req.Name, req.AgentType, req.Build); err != nil {
