@@ -17,7 +17,7 @@ import (
 //
 //		// make and configure a mocked observabilitysvc.ObservabilitySvcClient
 //		mockedObservabilitySvcClient := &ObservabilitySvcClientMock{
-//			GetBuildLogsFunc: func(ctx context.Context, buildName string) (*models.LogsResponse, error) {
+//			GetBuildLogsFunc: func(ctx context.Context, namespaceName string, agentComponentName string, buildName string) (*models.LogsResponse, error) {
 //				panic("mock out the GetBuildLogs method")
 //			},
 //			GetComponentLogsFunc: func(ctx context.Context, agentComponentId string, envId string, payload spec.LogFilterRequest) (*models.LogsResponse, error) {
@@ -34,7 +34,7 @@ import (
 //	}
 type ObservabilitySvcClientMock struct {
 	// GetBuildLogsFunc mocks the GetBuildLogs method.
-	GetBuildLogsFunc func(ctx context.Context, buildName string) (*models.LogsResponse, error)
+	GetBuildLogsFunc func(ctx context.Context, namespaceName string, agentComponentName string, buildName string) (*models.LogsResponse, error)
 
 	// GetComponentLogsFunc mocks the GetComponentLogs method.
 	GetComponentLogsFunc func(ctx context.Context, agentComponentId string, envId string, payload spec.LogFilterRequest) (*models.LogsResponse, error)
@@ -48,6 +48,10 @@ type ObservabilitySvcClientMock struct {
 		GetBuildLogs []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// AgentComponentName is the agentComponentName argument value.
+			AgentComponentName string
 			// BuildName is the buildName argument value.
 			BuildName string
 		}
@@ -82,21 +86,25 @@ type ObservabilitySvcClientMock struct {
 }
 
 // GetBuildLogs calls GetBuildLogsFunc.
-func (mock *ObservabilitySvcClientMock) GetBuildLogs(ctx context.Context, buildName string) (*models.LogsResponse, error) {
+func (mock *ObservabilitySvcClientMock) GetBuildLogs(ctx context.Context, namespaceName string, agentComponentName string, buildName string) (*models.LogsResponse, error) {
 	if mock.GetBuildLogsFunc == nil {
 		panic("ObservabilitySvcClientMock.GetBuildLogsFunc: method is nil but ObservabilitySvcClient.GetBuildLogs was just called")
 	}
 	callInfo := struct {
-		Ctx       context.Context
-		BuildName string
+		Ctx                context.Context
+		NamespaceName      string
+		AgentComponentName string
+		BuildName          string
 	}{
-		Ctx:       ctx,
-		BuildName: buildName,
+		Ctx:                ctx,
+		NamespaceName:      namespaceName,
+		AgentComponentName: agentComponentName,
+		BuildName:          buildName,
 	}
 	mock.lockGetBuildLogs.Lock()
 	mock.calls.GetBuildLogs = append(mock.calls.GetBuildLogs, callInfo)
 	mock.lockGetBuildLogs.Unlock()
-	return mock.GetBuildLogsFunc(ctx, buildName)
+	return mock.GetBuildLogsFunc(ctx, namespaceName, agentComponentName, buildName)
 }
 
 // GetBuildLogsCalls gets all the calls that were made to GetBuildLogs.
@@ -104,12 +112,16 @@ func (mock *ObservabilitySvcClientMock) GetBuildLogs(ctx context.Context, buildN
 //
 //	len(mockedObservabilitySvcClient.GetBuildLogsCalls())
 func (mock *ObservabilitySvcClientMock) GetBuildLogsCalls() []struct {
-	Ctx       context.Context
-	BuildName string
+	Ctx                context.Context
+	NamespaceName      string
+	AgentComponentName string
+	BuildName          string
 } {
 	var calls []struct {
-		Ctx       context.Context
-		BuildName string
+		Ctx                context.Context
+		NamespaceName      string
+		AgentComponentName string
+		BuildName          string
 	}
 	mock.lockGetBuildLogs.RLock()
 	calls = mock.calls.GetBuildLogs
