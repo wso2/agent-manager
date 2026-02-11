@@ -100,6 +100,7 @@ func (p *AuthProvider) GetToken(ctx context.Context) (string, error) {
 	// Fetch new token
 	token, expiresIn, err := p.fetchToken(ctx)
 	if err != nil {
+		slog.Error("openchoreo auth: failed to fetch token", "error", err)
 		return "", fmt.Errorf("failed to fetch token: %w", err)
 	}
 
@@ -117,6 +118,7 @@ func (p *AuthProvider) GetToken(ctx context.Context) (string, error) {
 func (p *AuthProvider) InvalidateToken() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	slog.Debug("openchoreo auth: invalidating cached token")
 	p.accessToken = ""
 	p.expiresAt = time.Time{}
 }
@@ -124,9 +126,14 @@ func (p *AuthProvider) InvalidateToken() {
 // isTokenValid checks if the cached token is still valid
 func (p *AuthProvider) isTokenValid() bool {
 	if p.accessToken == "" {
+		slog.Debug("openchoreo auth: no cached token")
 		return false
 	}
-	return time.Now().Add(expiryBuffer).Before(p.expiresAt)
+	isValid := time.Now().Add(expiryBuffer).Before(p.expiresAt)
+	slog.Debug("openchoreo auth: token validation check",
+		"is_valid", isValid,
+		"expires_at", p.expiresAt.Format(time.RFC3339))
+	return isValid
 }
 
 // fetchToken fetches a new token using client credentials
