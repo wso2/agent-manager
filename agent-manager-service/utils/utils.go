@@ -114,10 +114,18 @@ func validateResourceValue(value *string, fieldName string) error {
 	if value == nil || *value == "" {
 		return nil // Optional field
 	}
-	// Basic validation - more specific validation can be added
-	if len(*value) == 0 {
-		return fmt.Errorf("%s cannot be empty", fieldName)
+
+	// Validate Kubernetes resource-quantity format
+	// Supports formats like: "500m", "2Gi", "1", "0.5", "256Mi", etc.
+	resourceQuantityPattern := `^([0-9]+(\.[0-9]+)?)(m|Ki|Mi|Gi|Ti|Pi|Ei)?$`
+	matched, err := regexp.MatchString(resourceQuantityPattern, *value)
+	if err != nil {
+		return fmt.Errorf("error validating %s: %w", fieldName, err)
 	}
+	if !matched {
+		return fmt.Errorf("%s has invalid format '%s': must be a valid Kubernetes resource quantity (e.g., '500m', '2Gi', '1', '256Mi')", fieldName, *value)
+	}
+
 	return nil
 }
 

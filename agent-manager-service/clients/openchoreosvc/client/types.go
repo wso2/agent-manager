@@ -125,6 +125,15 @@ type ResourceLimits struct {
 	Memory string
 }
 
+// ComponentResourceConfigsResponse contains resource configurations response
+type ComponentResourceConfigsResponse struct {
+	Replicas             *int32          // Current replicas (env-specific or default)
+	Resources            *ResourceConfig // Current resources (env-specific or default)
+	DefaultReplicas      *int32          // Component-level default replicas (only when env provided)
+	DefaultResources     *ResourceConfig // Component-level default resources (only when env provided)
+	IsDefaultsOverridden *bool           // Whether env-specific overrides exist (only when env provided)
+}
+
 // DeployRequest contains data for deploying a component
 type DeployRequest struct {
 	ImageID string
