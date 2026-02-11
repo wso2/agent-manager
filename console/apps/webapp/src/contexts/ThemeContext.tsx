@@ -120,7 +120,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setMode: handleSetMode,
       toggleTheme,
     }),
-    [mode, actualTheme]
+    [mode, actualTheme, toggleTheme]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

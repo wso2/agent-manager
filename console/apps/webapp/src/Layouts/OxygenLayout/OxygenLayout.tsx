@@ -22,7 +22,6 @@ import {
   Header,
   Footer,
   ColorSchemeToggle,
-  Box,
 } from "@wso2/oxygen-ui";
 import { generatePath, Outlet, useNavigate } from "react-router-dom";
 import { useAuthHooks } from "@agent-management-platform/auth";

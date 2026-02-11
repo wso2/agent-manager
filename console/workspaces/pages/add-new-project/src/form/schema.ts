@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import * as yup from 'yup';
+import { z } from 'zod';
 
 export interface AddProjectFormValues {
   name: string;
@@ -25,24 +25,24 @@ export interface AddProjectFormValues {
   deploymentPipeline: string;
 }
 
-export const addProjectSchema = yup.object({
-  displayName: yup
+export const addProjectSchema = z.object({
+  displayName: z
     .string()
     .trim()
-    .required('Display name is required')
+    .min(1, 'Display name is required')
     .min(3, 'Display name must be at least 3 characters')
     .max(100, 'Display name must be at most 100 characters'),
-  name: yup
+  name: z
     .string()
     .trim()
-    .required('Name is required')
-    .matches(/^[a-z0-9-]+$/, 'Name must be lowercase letters, numbers, and hyphens only (no spaces)')
+    .min(1, 'Name is required')
+    .regex(/^[a-z0-9-]+$/, 'Name must be lowercase letters, numbers, and hyphens only (no spaces)')
     .min(3, 'Name must be at least 3 characters')
     .max(50, 'Name must be at most 50 characters'),
-  description: yup.string().trim(),
-  deploymentPipeline: yup
+  description: z.string().trim().optional(),
+  deploymentPipeline: z
     .string()
     .trim()
-    .required('Deployment pipeline is required'),
+    .min(1, 'Deployment pipeline is required'),
 });
 

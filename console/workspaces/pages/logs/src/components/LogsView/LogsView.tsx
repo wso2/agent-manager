@@ -29,10 +29,6 @@ import {
   AlertTriangle,
   AlertCircle,
   CheckCircle,
-  Clock,
-  RefreshCcw,
-  SortAsc,
-  SortDesc,
   Copy,
 } from "@wso2/oxygen-ui-icons-react";
 import {
@@ -40,7 +36,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   Divider,
   Paper,
   Skeleton,
@@ -48,20 +43,12 @@ import {
   TextField,
   Typography,
   IconButton,
-  Select,
-  MenuItem,
-  InputAdornment,
   Collapse,
   ListingTable,
+  CircularProgress,
+  SearchBar,
 } from "@wso2/oxygen-ui";
 import type { LogEntry } from "@agent-management-platform/types";
-
-type SortOrder = "asc" | "desc";
-
-export interface TimeRangeOption {
-  value: string;
-  label: string;
-}
 
 export interface LogsViewProps {
   logs?: LogEntry[];
@@ -76,14 +63,6 @@ export interface LogsViewProps {
   onLoadDown?: () => void;
   onSearch?: (search: string) => void;
   search?: string;
-  // Time and sorting controls
-  timeRange?: string;
-  timeRangeOptions?: TimeRangeOption[];
-  onTimeRangeChange?: (timeRange: string) => void;
-  sortOrder?: SortOrder;
-  onSortOrderChange?: (sortOrder: SortOrder) => void;
-  onRefresh?: () => void;
-  isRefreshing?: boolean;
 }
 
 interface LogEntryItemProps {
@@ -204,7 +183,7 @@ const LogEntryItem: React.FC<LogEntryItemProps> = ({ entry }) => {
                 color: "text.primary",
               }}
             >
-              {(!hasDetails || !expanded )&& `${entry.log.slice(0, 100)}...`}
+              {(!hasDetails || !expanded) && `${entry.log.slice(0, 100)}...`}
               <Collapse
                 in={hasDetails && expanded}
                 timeout="auto"
@@ -220,8 +199,8 @@ const LogEntryItem: React.FC<LogEntryItemProps> = ({ entry }) => {
           {/* Action Buttons */}
           <Stack direction="row" spacing={0.5}>
             {/* Copy Button */}
-            <IconButton 
-              size="small" 
+            <IconButton
+              size="small"
               onClick={handleCopy}
               aria-label="Copy log"
               disabled={!copied}
@@ -253,13 +232,6 @@ export const LogsView: React.FC<LogsViewProps> = ({
   onLoadDown,
   onSearch,
   search,
-  timeRange,
-  timeRangeOptions = [],
-  onTimeRangeChange,
-  sortOrder = "desc",
-  onSortOrderChange,
-  onRefresh,
-  isRefreshing = false,
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -281,89 +253,8 @@ export const LogsView: React.FC<LogsViewProps> = ({
   const isNoLogs = !isLoading && (logs?.length ?? 0) === 0;
   const isShowPanel = logs && logs.length > 0 && !isLoading;
 
-  const handleSortToggle = () => {
-    onSortOrderChange?.(sortOrder === "desc" ? "asc" : "desc");
-  };
-
   return (
-    <Stack direction="column" gap={2} height="calc(100vh - 320px)">
-      {/* Filters and Controls */}
-      <Paper>
-        <Stack direction="row" p={2} spacing={2} alignItems="center" flexWrap="wrap">
-            {/* Search Field */}
-            <Box sx={{ flexGrow: 1, minWidth: 250 }}>
-              <TextField
-                placeholder="Search logs..."
-                size="small"
-                fullWidth
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  onSearch?.(e.target.value)
-                }
-                value={search}
-                slotProps={{
-                  input: {
-                    endAdornment: <Search size={16} />,
-                  },
-                }}
-              />
-            </Box>
-
-            {/* Time Range Selector */}
-            {timeRangeOptions.length > 0 && onTimeRangeChange && (
-              <Select
-                size="small"
-                variant="outlined"
-                value={timeRange}
-                onChange={(e) => onTimeRangeChange(e.target.value)}
-                startAdornment={
-                  <InputAdornment position="start">
-                    <Clock size={16} />
-                  </InputAdornment>
-                }
-                sx={{ minWidth: 150 }}
-              >
-                {timeRangeOptions.map((opt) => (
-                  <MenuItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            )}
-
-            {/* Sort Toggle */}
-            {onSortOrderChange && (
-              <IconButton
-                size="small"
-                onClick={handleSortToggle}
-                aria-label={
-                  sortOrder === "desc" ? "Sort ascending" : "Sort descending"
-                }
-              >
-                {sortOrder === "desc" ? (
-                  <SortDesc size={16} />
-                ) : (
-                  <SortAsc size={16} />
-                )}
-              </IconButton>
-            )}
-
-            {/* Refresh Button */}
-            {onRefresh && (
-              <IconButton
-                size="small"
-                disabled={isRefreshing}
-                onClick={onRefresh}
-                aria-label="Refresh"
-              >
-                {isRefreshing ? (
-                  <CircularProgress size={16} />
-                ) : (
-                  <RefreshCcw size={16} />
-                )}
-              </IconButton>
-            )}
-          </Stack>
-        </Paper>
+    <Stack direction="column" gap={2} height="calc(100vh - 340px)">
       {/* Empty State */}
       {isNoLogs && (
         <ListingTable.Container>
@@ -397,19 +288,36 @@ export const LogsView: React.FC<LogsViewProps> = ({
             overflow: "hidden",
           }}
         >
+          <Stack direction="row" p={2} spacing={2} alignItems="center" flexWrap="wrap">
+            <Box
+              alignItems="center"
+              justifyContent="flex-end"
+              display="flex"
+              sx={{
+                flexGrow: 1,
+                minWidth: 250,
+              }}
+            >
+              <SearchBar
+                placeholder="Search logs..."
+                size="small"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  onSearch?.(e.target.value)
+                }
+                value={search}
+              />
+            </Box>
+          </Stack>
           {/* Scrollable Content Area */}
           <Box ref={scrollContainerRef} sx={{ flex: 1, overflow: "auto" }}>
             {/* Load Up Button */}
             <Box
               sx={{
                 p: 1.5,
-                borderBottom: 1,
-                borderColor: "divider",
-                bgcolor: "background.default",
               }}
             >
               <Button
-                variant="outlined"
+                variant="text"
                 size="small"
                 fullWidth
                 onClick={onLoadUp}
@@ -420,14 +328,9 @@ export const LogsView: React.FC<LogsViewProps> = ({
                     <ArrowUp size={16} />
                   )
                 }
-                sx={{
-                  borderStyle: "dashed",
-                }}
+ 
               >
-                {isLoadingUp 
-                  ? (sortOrder === "desc" ? "Loading older logs..." : "Loading newer logs...")
-                  : (sortOrder === "desc" ? "Load older logs" : "Load newer logs")
-                }
+                {isLoadingUp ? "Loading more logs..." : "Load more logs"}
               </Button>
             </Box>
 
@@ -443,13 +346,10 @@ export const LogsView: React.FC<LogsViewProps> = ({
             <Box
               sx={{
                 p: 1.5,
-                borderTop: 1,
-                borderColor: "divider",
-                bgcolor: "background.default",
               }}
             >
               <Button
-                variant="outlined"
+                variant="text"
                 size="small"
                 fullWidth
                 onClick={onLoadDown}
@@ -460,14 +360,8 @@ export const LogsView: React.FC<LogsViewProps> = ({
                     <ArrowDown size={16} />
                   )
                 }
-                sx={{
-                  borderStyle: "dashed",
-                }}
               >
-                {isLoadingDown 
-                  ? (sortOrder === "desc" ? "Loading newer logs..." : "Loading older logs...")
-                  : (sortOrder === "desc" ? "Load newer logs" : "Load older logs")
-                }
+                {isLoadingDown ? "Loading more logs..." : "Load more logs"}
               </Button>
             </Box>
           </Box>

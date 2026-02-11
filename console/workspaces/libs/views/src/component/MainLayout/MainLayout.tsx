@@ -87,35 +87,41 @@ export function MainLayout({
     <>
       <Box sx={{ height: '100vh' }}>
         <AppShell>
-        <AppShell.Navbar>
-          <NavBarToolbar
-            homePath={homePath}
-            leftElements={leftElements}
-            rightElements={rightElements}
-            sidebarOpen={sidebarOpen}
-            user={user}
-            disableUserMenu={userMenuItems?.length === 0}
-            onSidebarToggle={handleSidebarToggle}
-            onUserMenuOpen={handleUserMenuOpen}
-            headerSelects={headerSelects}
-          />
-        </AppShell.Navbar>
-        <AppShell.Sidebar>
-          <Sidebar
-            onSidebarToggle={handleSidebarToggle}
-            sidebarOpen={sidebarOpen}
-            navigationSections={navigationItems}
-            onNavigationClick={() => handleSidebarToggle()}
-          />
-        </AppShell.Sidebar>
-        <AppShell.Main>
-          <Box sx={{ height: 'calc(100vh - 72px)', overflowY: 'auto' }}>
-            {children}
-          </Box>
-        </AppShell.Main>
-        <AppShell.Footer>
-          <Footer companyName="WSO2 LLC" />
-        </AppShell.Footer>
+          <AppShell.Navbar>
+            <NavBarToolbar
+              homePath={homePath}
+              leftElements={leftElements}
+              rightElements={rightElements}
+              sidebarOpen={sidebarOpen}
+              user={user}
+              disableUserMenu={userMenuItems?.length === 0}
+              onSidebarToggle={handleSidebarToggle}
+              onUserMenuOpen={handleUserMenuOpen}
+              headerSelects={headerSelects}
+            />
+          </AppShell.Navbar>
+          <AppShell.Sidebar>
+            <Sidebar
+              onSidebarToggle={handleSidebarToggle}
+              sidebarOpen={sidebarOpen}
+              navigationSections={navigationItems}
+              onNavigationClick={() => handleSidebarToggle()}
+            />
+          </AppShell.Sidebar>
+          <AppShell.Main>
+            <Box sx={{ height: 'calc(100vh - 72px)', overflowY: 'auto' }}>
+              {children}
+            </Box>
+          </AppShell.Main>
+          <AppShell.Footer>
+            <Footer>
+              <Footer.Copyright>
+                © {new Date().getFullYear()} Your Company. All rights reserved.
+              </Footer.Copyright>
+              <Footer.Link href="#terms">Terms & Conditions</Footer.Link>
+              <Footer.Link href="#privacy">Privacy Policy</Footer.Link>
+            </Footer>
+          </AppShell.Footer>
         </AppShell>
       </Box>
       {user && (

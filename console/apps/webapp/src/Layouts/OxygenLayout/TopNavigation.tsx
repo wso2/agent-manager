@@ -4,13 +4,16 @@ import {
 } from "@agent-management-platform/api-client";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import {
+  Box,
+  Chip,
   ComplexSelect,
   Header,
   IconButton,
   Menu,
   MenuItem,
+  Stack,
 } from "@wso2/oxygen-ui";
-import { Bot, Folder, Plus, XCircle } from "@wso2/oxygen-ui-icons-react";
+import { Bot, Package, Plus, X } from "@wso2/oxygen-ui-icons-react";
 import { useMemo, useState } from "react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 
@@ -56,86 +59,90 @@ export function TopNavigation() {
           <>
 
             {selectedProject ? (
-              <>
-                   <IconButton
-                        size="small"
-                        onClick={() => {
-                          navigate(
-                            generatePath(absoluteRouteMap.children.org.path, {
-                              orgId,
-                            }),
-                          );
-                        }}
-                      >
-                        <XCircle size={18} />
-                      </IconButton>
-              <ComplexSelect
-                value={projectId}
-                size="small"
-                sx={{ minWidth: 180 }}
-                renderValue={() => (
-                  <>
-                    <ComplexSelect.MenuItem.Icon>
-                      <Folder size={20} />
-                    </ComplexSelect.MenuItem.Icon>
-                    <ComplexSelect.MenuItem.Text
-                      primary={selectedProject?.displayName}
-                    />
-                  </>
-                )}
-                onChange={(e) => {
-                  const selectedProjectName = e.target.value as string;
-                  navigate(
-                    generatePath(
-                      absoluteRouteMap.children.org.children.projects.path,
-                      { orgId, projectId: selectedProjectName },
-                    ),
-                  );
-                }}
-              >
-                <ComplexSelect.ListHeader>
-                  Projects List
-                </ComplexSelect.ListHeader>
-                <ComplexSelect.MenuItem
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
+              <Box position="relative">
+
+                <ComplexSelect
+                  value={projectId}
+                  size="small"
+                  sx={{ minWidth: 180 }}
+                  label="Projects"
+                  renderValue={() => (
+                    <>
+                      <ComplexSelect.MenuItem.Icon>
+                        <Package size={20} />
+                      </ComplexSelect.MenuItem.Icon>
+                      <ComplexSelect.MenuItem.Text
+                        primary={selectedProject?.displayName}
+                      />
+                    </>
+                  )}
+                  onChange={(e) => {
+                    const selectedProjectName = e.target.value as string;
                     navigate(
                       generatePath(
-                        absoluteRouteMap.children.org.children.newProject.path,
-                        { orgId },
+                        absoluteRouteMap.children.org.children.projects.path,
+                        { orgId, projectId: selectedProjectName },
                       ),
                     );
                   }}
                 >
-                  <ComplexSelect.MenuItem.Icon>
-                    <Plus size={20} />
-                  </ComplexSelect.MenuItem.Icon>
-                  <ComplexSelect.MenuItem.Text primary="Create a Project" />
-                </ComplexSelect.MenuItem>
-                {projects.projects.map((project) => (
+                  <ComplexSelect.ListHeader>
+                    Projects List
+                  </ComplexSelect.ListHeader>
                   <ComplexSelect.MenuItem
-                    key={project.name}
-                    value={project.name}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      navigate(
+                        generatePath(
+                          absoluteRouteMap.children.org.children.newProject.path,
+                          { orgId },
+                        ),
+                      );
+                    }}
                   >
                     <ComplexSelect.MenuItem.Icon>
-                      <Folder size={20} />
+                      <Plus size={20} />
                     </ComplexSelect.MenuItem.Icon>
-                    <ComplexSelect.MenuItem.Text
-                      primary={project.displayName}
-                    />
+                    <ComplexSelect.MenuItem.Text primary="Create a Project" />
                   </ComplexSelect.MenuItem>
-                ))}
-              </ComplexSelect>
-         
-              </>
+                  {projects.projects.map((project) => (
+                    <ComplexSelect.MenuItem
+                      key={project.name}
+                      value={project.name}
+
+                    >
+                      <ComplexSelect.MenuItem.Icon>
+                        <Package size={20} />
+                      </ComplexSelect.MenuItem.Icon>
+                      <ComplexSelect.MenuItem.Text
+                        primary={project.displayName}
+                      />
+                    </ComplexSelect.MenuItem>
+                  ))}
+                </ComplexSelect>
+                <Box position="absolute" right={0} top={-2}>
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    navigate(
+                      generatePath(absoluteRouteMap.children.org.path, {
+                        orgId,
+                      }),
+                    );
+                  }}
+                >
+                  <X size={12} />
+                </IconButton>
+                </Box>
+              </Box>
             ) : (
               <>
                 <IconButton
                   onClick={(e) => setProjectAnchorEl(e.currentTarget)}
                   size="small"
                 >
-                  <Folder size={20} />
+                  <Package size={20} />
                 </IconButton>
                 <Menu
                   anchorEl={projectAnchorEl}
@@ -171,38 +178,26 @@ export function TopNavigation() {
                         );
                       }}
                     >
-                      <Folder size={20} style={{ marginRight: 8 }} />
+                      <Package size={20} style={{ marginRight: 8 }} />
                       {project.displayName}
                     </MenuItem>
                   ))}
                 </Menu>
-                
+
               </>
             )}
-           
+
           </>
         )}
 
         {agents?.agents && (
           <>
             {selectedAgent ? (
-              <>
-                    <IconButton
-                  size="small"
-                  onClick={() => {
-                    navigate(
-                      generatePath(
-                        absoluteRouteMap.children.org.children.projects.path,
-                        { orgId, projectId },
-                      ),
-                    );
-                  }}
-                >
-                  <XCircle size={18} />
-                </IconButton>
+              <Box position="relative">
                 <ComplexSelect
                   value={agentId}
                   size="small"
+                  label="Agents"
                   sx={{ minWidth: 180 }}
                   renderValue={() => (
                     <>
@@ -249,12 +244,39 @@ export function TopNavigation() {
                       <ComplexSelect.MenuItem.Icon>
                         <Bot size={20} />
                       </ComplexSelect.MenuItem.Icon>
-                      <ComplexSelect.MenuItem.Text primary={agent.displayName} />
+                      <ComplexSelect.MenuItem.Text primary={
+                        <Stack direction="row" gap={1} alignItems="center">
+                          {agent.displayName}
+                          {
+                            agent.provisioning.type === 'external' && (
+                              <Chip
+                                label={'External'}
+                                size="small"
+                                variant="outlined"
+                              />
+                            )
+                          }
+                        </Stack>
+                      } />
                     </ComplexSelect.MenuItem>
                   ))}
                 </ComplexSelect>
-          
-              </>
+                <Box position="absolute" right={0} top={-2}>
+                  <IconButton
+                    size="small"
+                    onClick={() => {
+                      navigate(
+                        generatePath(
+                          absoluteRouteMap.children.org.children.projects.path,
+                          { orgId, projectId },
+                        ),
+                      );
+                    }}
+                  >
+                    <X size={12} />
+                  </IconButton>
+                </Box>
+              </Box>
             ) : (
               <>
                 <IconButton
@@ -298,7 +320,18 @@ export function TopNavigation() {
                       }}
                     >
                       <Bot size={20} style={{ marginRight: 8 }} />
-                      {agent.displayName}
+                      <Stack direction="row" gap={1} alignItems="center">
+                        {agent.displayName}
+                        {
+                          agent.provisioning.type === 'external' && (
+                            <Chip
+                              label={'External'}
+                              size="small"
+                              variant="outlined"
+                            />
+                          )
+                        }
+                      </Stack>
                     </MenuItem>
                   ))}
                 </Menu>

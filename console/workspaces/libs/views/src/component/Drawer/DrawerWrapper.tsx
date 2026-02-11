@@ -50,7 +50,6 @@ export function DrawerWrapper({
             py: 1,
             overflow: "visible",
             overflowY: disableScroll ? "visible" : "auto",
-            backgroundColor: "background.paper",
             borderRadius: 0,
           },
           zIndex: theme.zIndex.drawer + 2,

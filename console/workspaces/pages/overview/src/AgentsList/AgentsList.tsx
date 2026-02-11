@@ -20,7 +20,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box,
   Stack,
-  TextField,
   Typography,
   Button,
   Alert,
@@ -32,12 +31,12 @@ import {
   ListingTable,
   TablePagination,
   DataGrid,
+  SearchBar,
 } from "@wso2/oxygen-ui";
 import {
   Plus as Add,
   Trash2 as DeleteOutlineOutlined,
   RefreshCcw,
-  Search as SearchRounded,
   User,
   Edit,
   Bot,
@@ -295,16 +294,12 @@ export const AgentsList: React.FC = () => {
         >
           <Stack direction="row" spacing={1}>
             <Box flexGrow={1}>
-              <TextField
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                slotProps={{
-                  input: { endAdornment: <SearchRounded size={16} /> },
-                }}
-                fullWidth
-                size="small"
-                variant="outlined"
+              <SearchBar
                 placeholder="Search agents"
+                size="small"
+                fullWidth
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+                value={search}
                 disabled={!data?.agents?.length}
               />
             </Box>

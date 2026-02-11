@@ -25,6 +25,20 @@ import {
 import { debounce } from "lodash";
 import { useAgentRuntimeLogs } from "@agent-management-platform/api-client";
 import { LogsView } from "./components/LogsView/LogsView";
+import {
+  CircularProgress,
+  IconButton,
+  InputAdornment,
+  MenuItem,
+  Select,
+  Stack,
+} from "@wso2/oxygen-ui";
+import {
+  Clock,
+  RefreshCcw,
+  SortAsc,
+  SortDesc,
+} from "@wso2/oxygen-ui-icons-react";
 
 const TIME_RANGE_OPTIONS = [
   { value: TraceListTimeRange.TEN_MINUTES, label: "10 Minutes" },
@@ -139,6 +153,58 @@ export const LogsComponent: React.FC = () => {
     <PageLayout
       title="Runtime Logs"
       disableIcon
+      actions={
+        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+          {/* Time Range Selector */}
+          <Select
+            size="small"
+            variant="outlined"
+            value={timeRange}
+            onChange={(e) => handleTimeRangeChange(e.target.value)}
+            startAdornment={
+              <InputAdornment position="start">
+                <Clock size={16} />
+              </InputAdornment>
+            }
+            sx={{ minWidth: 150 }}
+          >
+            {TIME_RANGE_OPTIONS.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </MenuItem>
+            ))}
+          </Select>
+
+          {/* Sort Toggle */}
+          <IconButton
+            size="small"
+            onClick={() => handleSortOrderChange(sortOrder === "desc" ? "asc" : "desc")}
+            aria-label={
+              sortOrder === "desc" ? "Sort ascending" : "Sort descending"
+            }
+          >
+            {sortOrder === "desc" ? (
+              <SortDesc size={16} />
+            ) : (
+              <SortAsc size={16} />
+            )}
+          </IconButton>
+
+          {/* Refresh Button */}
+          <IconButton
+            size="small"
+            disabled={isRefetching}
+            onClick={handleRefresh}
+            aria-label="Refresh"
+          >
+            {isRefetching ? (
+              <CircularProgress size={16} />
+            ) : (
+              <RefreshCcw size={16} />
+            )}
+          </IconButton>
+        </Stack>
+      }
     >
       <LogsView
         logs={logs}
@@ -152,13 +218,6 @@ export const LogsComponent: React.FC = () => {
         onLoadDown={loadDown}
         onSearch={handleSearch}
         search={search}
-        timeRange={timeRange}
-        timeRangeOptions={TIME_RANGE_OPTIONS}
-        onTimeRangeChange={handleTimeRangeChange}
-        sortOrder={sortOrder}
-        onSortOrderChange={handleSortOrderChange}
-        onRefresh={handleRefresh}
-        isRefreshing={isRefetching}
       />
     </PageLayout>
   );

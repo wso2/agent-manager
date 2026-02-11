@@ -203,11 +203,6 @@ export const EnvironmentCard = (props: EnvironmentCardProps) => {
   return (
     <Card
       variant="outlined"
-      sx={{
-        "&.MuiCard-root": {
-          backgroundColor: "background.paper",
-        },
-      }}
     >
       <CardContent>
         <Box

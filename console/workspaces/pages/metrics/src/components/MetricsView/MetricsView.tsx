@@ -25,29 +25,17 @@ import {
   Card,
   CardContent,
   CardHeader,
-  CircularProgress,
   Grid,
-  IconButton,
-  InputAdornment,
-  MenuItem,
-  Paper,
-  Select,
   Skeleton,
   Stack,
   Typography,
   useTheme,
 } from "@wso2/oxygen-ui";
-import { Clock, RefreshCcw } from "@wso2/oxygen-ui-icons-react";
 import { LineChart, ChartTooltip } from "@wso2/oxygen-ui-charts-react";
 import type {
   MetricDataPoint,
   MetricsResponse,
 } from "@agent-management-platform/types";
-
-export interface TimeRangeOption {
-  value: string;
-  label: string;
-}
 
 const toGb = (value: number) => value / 1024 ** 3;
 
@@ -101,7 +89,7 @@ type MetricsTooltipProps = {
 const MetricsTooltip: React.FC<MetricsTooltipProps> = ({
   active,
   payload,
-  formatter,    
+  formatter,
 }) => {
   if (!active || !payload || payload.length === 0) {
     return null;
@@ -110,7 +98,6 @@ const MetricsTooltip: React.FC<MetricsTooltipProps> = ({
   return (
     <Card
       variant="outlined"
-      sx={{ "&.MuiCard-root": { backgroundColor: "background.paper" } }}
     >
       <CardContent>
         <Stack direction="column" gap={0.5}>
@@ -149,31 +136,25 @@ export interface MetricsViewProps {
   metrics?: MetricsResponse;
   isLoading?: boolean;
   error?: unknown;
-
-  // Time and refresh controls
-  timeRange?: string;
-  timeRangeOptions?: TimeRangeOption[];
-  onTimeRangeChange?: (timeRange: string) => void;
-  onRefresh?: () => void;
-  isRefreshing?: boolean;
 }
 
 export const MetricsView: React.FC<MetricsViewProps> = ({
   metrics,
   isLoading,
   error,
-  timeRange,
-  timeRangeOptions = [],
-  onTimeRangeChange,
-  onRefresh,
-  isRefreshing = false,
 }) => {
   const theme = useTheme();
-  const hasData = useMemo(
+
+  const hasCpuData = useMemo(
     () =>
       (metrics?.cpuUsage?.length ?? 0) > 0 ||
       (metrics?.cpuRequests?.length ?? 0) > 0 ||
-      (metrics?.cpuLimits?.length ?? 0) > 0 ||
+      (metrics?.cpuLimits?.length ?? 0) > 0,
+    [metrics],
+  );
+
+  const hasMemoryData = useMemo(
+    () =>
       (metrics?.memory?.length ?? 0) > 0 ||
       (metrics?.memoryRequests?.length ?? 0) > 0 ||
       (metrics?.memoryLimits?.length ?? 0) > 0,
@@ -188,65 +169,8 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
     );
   }
 
-  if (!isLoading && !hasData) {
-    return (
-      <NoDataFound
-        message="No metrics found!"
-        subtitle="Try changing the time range"
-      />
-    );
-  }
-
   return (
-    <Stack direction="column" gap={3}>
-      {/* Filters and Controls */}
-      {(timeRangeOptions.length > 0 || onRefresh) && (
-        <Paper>
-          <Stack direction="row" p={2} spacing={2} alignItems="center" justifyContent="flex-end" flexWrap="wrap">
-
-              {/* Time Range Selector */}
-              {timeRangeOptions.length > 0 && onTimeRangeChange && (
-                <Select
-                  size="small"
-                  variant="outlined"
-                  value={timeRange}
-                  onChange={(e) => onTimeRangeChange(e.target.value)}
-                  startAdornment={
-                    <InputAdornment position="start">
-                      <Clock size={16} />
-                    </InputAdornment>
-                  }
-                  sx={{ minWidth: 150 }}
-                >
-                  {timeRangeOptions.map((opt) => (
-                    <MenuItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              )}
-
-              {/* Refresh Button */}
-              {onRefresh && (
-                <IconButton
-                  size="small"
-                  disabled={isRefreshing}
-                  onClick={onRefresh}
-                  aria-label="Refresh"
-                >
-                  {isRefreshing ? (
-                    <CircularProgress size={16} />
-                  ) : (
-                    <RefreshCcw size={16} />
-                  )}
-                </IconButton>
-              )}
-            </Stack>
-          </Paper>
-      )}
-
-      {/* Charts Grid */}
-      <Grid container spacing={3}>
+    <Grid container spacing={3}>
       <Grid size={{ xs: 12, md: 6 }}>
         <Card variant="outlined" sx={{ height: "100%" }}>
           <CardHeader title="CPU Usage" />
@@ -256,13 +180,26 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
               flexDirection: "column",
               height: "100%",
               "& svg:focus, & svg:focus-visible, & [tabindex]:focus, & [tabindex]:focus-visible":
-                {
-                  outline: "none",
-                },
+              {
+                outline: "none",
+              },
             }}
           >
             {isLoading ? (
               <Skeleton variant="rounded" height={260} width="100%" />
+            ) : !hasCpuData ? (
+              <Box
+                display="flex"
+                justifyContent="center"
+                alignItems="center"
+                height={260}
+              >
+                <NoDataFound
+                  message="No CPU metrics available"
+                  subtitle="Try changing the time range"
+                  disableBackground
+                />
+              </Box>
             ) : (
               <LineChart
                 data={buildSeriesData([
@@ -325,13 +262,26 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
               flexDirection: "column",
               height: "100%",
               "& svg:focus, & svg:focus-visible, & [tabindex]:focus, & [tabindex]:focus-visible":
-                {
-                  outline: "none",
-                },
+              {
+                outline: "none",
+              },
             }}
           >
             {isLoading ? (
               <Skeleton variant="rounded" height={260} width="100%" />
+            ) : !hasMemoryData ? (
+              <Box
+                display="flex"
+                justifyContent="center"
+                alignItems="center"
+                height={260}
+              >
+                <NoDataFound
+                  message="No memory metrics available"
+                  subtitle="Try changing the time range"
+                  disableBackground
+                />
+              </Box>
             ) : (
               <LineChart
                 data={buildSeriesData([
@@ -397,7 +347,6 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
           </CardContent>
         </Card>
       </Grid>
-      </Grid>
-    </Stack>
+    </Grid>
   );
 };

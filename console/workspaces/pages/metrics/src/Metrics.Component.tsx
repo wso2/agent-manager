@@ -25,6 +25,18 @@ import {
 } from "@agent-management-platform/types";
 import { useGetAgentMetrics } from "@agent-management-platform/api-client";
 import { MetricsView } from "./components/MetricsView/MetricsView";
+import {
+  CircularProgress,
+  IconButton,
+  InputAdornment,
+  MenuItem,
+  Select,
+  Stack,
+} from "@wso2/oxygen-ui";
+import {
+  Clock,
+  RefreshCcw,
+} from "@wso2/oxygen-ui-icons-react";
 
 const TIME_RANGE_OPTIONS = [
   { value: TraceListTimeRange.TEN_MINUTES, label: "10 Minutes" },
@@ -97,16 +109,48 @@ export const MetricsComponent: React.FC = () => {
       <PageLayout
         title="Metrics"
         disableIcon
+        actions={
+          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+            {/* Time Range Selector */}
+            <Select
+              size="small"
+              variant="outlined"
+              value={timeRange}
+              onChange={(e) => handleTimeRangeChange(e.target.value)}
+              startAdornment={
+                <InputAdornment position="start">
+                  <Clock size={16} />
+                </InputAdornment>
+              }
+              sx={{ minWidth: 150 }}
+            >
+              {TIME_RANGE_OPTIONS.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </MenuItem>
+              ))}
+            </Select>
+
+            {/* Refresh Button */}
+            <IconButton
+              size="small"
+              disabled={isRefetching}
+              onClick={handleRefresh}
+              aria-label="Refresh"
+            >
+              {isRefetching ? (
+                <CircularProgress size={16} />
+              ) : (
+                <RefreshCcw size={16} />
+              )}
+            </IconButton>
+          </Stack>
+        }
       >
         <MetricsView
           metrics={metrics}
           isLoading={isLoading}
           error={error}
-          timeRange={timeRange}
-          timeRangeOptions={TIME_RANGE_OPTIONS}
-          onTimeRangeChange={handleTimeRangeChange}
-          onRefresh={handleRefresh}
-          isRefreshing={isRefetching}
         />
       </PageLayout>
 

@@ -20,8 +20,8 @@ import { Box, Button, Card, CardContent, Typography } from "@wso2/oxygen-ui";
 import { Edit } from "@wso2/oxygen-ui-icons-react";
 import { DrawerWrapper, DrawerHeader, DrawerContent, TextInput } from "@agent-management-platform/views";
 import { useForm, FormProvider } from "react-hook-form";
-import { yupResolver } from "@hookform/resolvers/yup";
-import * as yup from "yup";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useUpdateProject } from "@agent-management-platform/api-client";
 import { ProjectResponse, UpdateProjectRequest } from "@agent-management-platform/types";
 import { useEffect } from "react";
@@ -40,30 +40,31 @@ interface EditProjectFormValues {
   deploymentPipeline: string;
 }
 
-const editProjectSchema = yup.object({
-  displayName: yup
+const editProjectSchema = z.object({
+  displayName: z
     .string()
     .trim()
-    .required('Display name is required')
+    .min(1, 'Display name is required')
     .min(3, 'Display name must be at least 3 characters')
     .max(100, 'Display name must be at most 100 characters'),
-  name: yup
+  name: z
     .string()
     .trim()
-    .required('Name is required')
-    .matches(/^[a-z0-9-]+$/, 'Name must be lowercase letters, numbers, and hyphens only (no spaces)')
+    .min(1, 'Name is required')
+    .regex(/^[a-z0-9-]+$/, 'Name must be lowercase letters, numbers, and hyphens only (no spaces)')
     .min(3, 'Name must be at least 3 characters')
     .max(50, 'Name must be at most 50 characters'),
-  description: yup.string().trim(),
-  deploymentPipeline: yup
+  description: z.string().trim().optional(),
+  deploymentPipeline: z
     .string()
     .trim()
-    .required('Deployment pipeline is required'),
+    .min(1, 'Deployment pipeline is required'),
 });
 
 export function EditProjectDrawer({ open, onClose, project, orgId }: EditProjectDrawerProps) {
   const methods = useForm<EditProjectFormValues>({
-    resolver: yupResolver(editProjectSchema),
+    mode: "all",
+    resolver: zodResolver(editProjectSchema),
     defaultValues: {
       name: project.name,
       displayName: project.displayName,
@@ -158,7 +159,7 @@ export function EditProjectDrawer({ open, onClose, project, orgId }: EditProject
                   type="submit"
                   variant="contained"
                   color="primary"
-                  disabled={isPending}
+                  disabled={!methods.formState.isValid || isPending}
                 >
                   {isPending ? "Updating..." : "Update Project"}
                 </Button>

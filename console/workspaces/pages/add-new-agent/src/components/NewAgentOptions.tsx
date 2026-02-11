@@ -16,35 +16,66 @@
  * under the License.
  */
 
+import { useMemo } from "react";
 import { Box } from "@wso2/oxygen-ui";
+import { generatePath, useParams } from "react-router-dom";
+import { PageLayout, ExternalAgentIcon, InternalAgentIcon } from "@agent-management-platform/views";
+import { absoluteRouteMap } from "@agent-management-platform/types";
+import { useListAgents } from "@agent-management-platform/api-client";
 import { NewAgentTypeCard } from "./NewAgentTypeCard";
-import { ImageList } from "@agent-management-platform/views";
 
 interface NewAgentOptionsProps {
     onSelect: (option: 'new' | 'existing') => void;
 }
 
 export const NewAgentOptions = ({ onSelect }: NewAgentOptionsProps) => {
+    const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
+    
+    const { data: agents } = useListAgents({
+        orgName: orgId ?? "default",
+        projName: projectId ?? "default",
+    });
+
     const handleSelect = (type: string) => {
         onSelect(type as 'new' | 'existing');
     };
 
+    const hasAgents = Boolean(agents?.agents?.length && agents?.agents?.length > 0);
+
+    const backHref = useMemo(() => {
+        if (!hasAgents) {
+            return undefined;
+        }
+        return generatePath(absoluteRouteMap.children.org.children.projects.path, {
+            orgId: orgId ?? "",
+            projectId: projectId ?? "default",
+        });
+    }, [hasAgents, orgId, projectId]);
+
     return (
-        <Box display="flex" flexDirection="row" gap={3} width={1}>
-            <NewAgentTypeCard
-                type="existing"
-                title="Externally-Hosted Agent"
-                subheader="Connect an existing agent running outside the platform and enable observability and governance."
-                icon={<img src={ImageList.EXTERNAL_AGENT} width={150} alt="External Agent" />}
-                onClick={handleSelect}
-            />
-            <NewAgentTypeCard
-                type="new"
-                title="Platform-Hosted Agent"
-                subheader="Deploy and manage agents with full lifecycle support, including built-in CI/CD, scaling, observability, and governance."
-                icon={<img src={ImageList.INTERNAL_AGENT} width={150} alt="Internal Agent" />}
-                onClick={handleSelect}
-            />
-        </Box>
+        <PageLayout
+            title="Add a New Agent"
+            description="Choose how you want to get started. You can deploy an agent on the platform or register an agent that already runs elsewhere."
+            disableIcon
+            backHref={backHref}
+            backLabel="Back to Projects Home"
+        >
+            <Box display="flex" flexDirection="row" gap={3} width={1}>
+                <NewAgentTypeCard
+                    type="existing"
+                    title="Externally-Hosted Agent"
+                    subheader="Connect an existing agent running outside the platform and enable observability and governance."
+                    icon={<ExternalAgentIcon width={150} />}
+                    onClick={handleSelect}
+                />
+                <NewAgentTypeCard
+                    type="new"
+                    title="Platform-Hosted Agent"
+                    subheader="Deploy and manage agents with full lifecycle support, including built-in CI/CD, scaling, observability, and governance."
+                    icon={<InternalAgentIcon width={150} />}
+                    onClick={handleSelect}
+                />
+            </Box>
+        </PageLayout>
     );
 };
