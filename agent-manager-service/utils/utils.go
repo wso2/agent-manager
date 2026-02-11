@@ -48,7 +48,7 @@ func ValidateAgentBasicInfoUpdatePayload(payload spec.UpdateAgentBasicInfoReques
 func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildParametersRequest) error {
 	// Validate agent provisioning
 	if payload.Provisioning.Type != string(InternalAgent) {
-		return fmt.Errorf("provisioning type must be either internal")
+		return fmt.Errorf("provisioning type must be internal")
 	}
 	if payload.AgentType.Type != string(AgentTypeAPI) {
 		return fmt.Errorf("unsupported agent type: %s", payload.AgentType.Type)

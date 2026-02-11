@@ -187,27 +187,29 @@ func convertToBuild(build *models.Build) *spec.Build {
 		return nil
 	}
 
-	result := &spec.Build{}
-
 	if build.Buildpack != nil {
-		result.BuildpackBuild = &spec.BuildpackBuild{
-			Type: build.Type,
-			Buildpack: spec.BuildpackConfig{
-				Language:        build.Buildpack.Language,
-				LanguageVersion: &build.Buildpack.LanguageVersion,
-				RunCommand:      &build.Buildpack.RunCommand,
+		return &spec.Build{
+			BuildpackBuild: &spec.BuildpackBuild{
+				Type: build.Type,
+				Buildpack: spec.BuildpackConfig{
+					Language:        build.Buildpack.Language,
+					LanguageVersion: &build.Buildpack.LanguageVersion,
+					RunCommand:      &build.Buildpack.RunCommand,
+				},
 			},
 		}
-	} else if build.Docker != nil {
-		result.DockerBuild = &spec.DockerBuild{
-			Type: build.Type,
-			Docker: spec.DockerConfig{
-				DockerfilePath: build.Docker.DockerfilePath,
+	}else if build.Docker != nil {
+		return &spec.Build{
+			DockerBuild: &spec.DockerBuild{
+				Type: build.Type,
+				Docker: spec.DockerConfig{
+					DockerfilePath: build.Docker.DockerfilePath,
+				},
 			},
 		}
 	}
 
-	return result
+	return nil
 }
 
 func ConvertToDeploymentDetailsResponse(deploymentDetails []*models.DeploymentResponse) map[string]spec.DeploymentDetailsResponse {
