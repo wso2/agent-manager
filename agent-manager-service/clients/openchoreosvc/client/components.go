@@ -1230,10 +1230,8 @@ func extractComponentWorkflowDetails(agent *models.AgentResponse, workflow *gen.
 		if runCmd, ok := buildpackConfigs["googleEntryPoint"].(string); ok {
 			agent.Build.Buildpack.RunCommand = runCmd
 		}
-	}
-
-	// Extract dockerConfigs
-	if dockerConfigs, ok := params["dockerConfigs"].(map[string]interface{}); ok {
+	} else if dockerConfigs, ok := params["dockerConfigs"].(map[string]interface{}); ok {
+		// Extract dockerConfigs
 		if agent.Build == nil {
 			agent.Build = &models.Build{Type: BuildTypeDocker}
 		}
@@ -1241,7 +1239,6 @@ func extractComponentWorkflowDetails(agent *models.AgentResponse, workflow *gen.
 		if dockerfilePath, ok := dockerConfigs["dockerfilePath"].(string); ok {
 			agent.Build.Docker.DockerfilePath = dockerfilePath
 		}
-
 	}
 
 	// Extract endpoint/input interface info
