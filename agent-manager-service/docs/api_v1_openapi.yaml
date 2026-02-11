@@ -1952,14 +1952,10 @@ components:
       type: object
       required:
         - dockerfilePath
-        - contextPath
       properties:
         dockerfilePath:
           type: string
           description: Path to the Dockerfile relative to the repository root
-        contextPath:
-          type: string
-          description: Docker build context path
 
     BuildpackBuild:
       type: object

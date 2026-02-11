@@ -230,7 +230,6 @@ func TestCreateAgent(t *testing.T) {
 				"type": "docker",
 				"docker": map[string]interface{}{
 					"dockerfilePath": "/Dockerfile",
-					"contextPath":    "/",
 				},
 			},
 			"agentType": map[string]interface{}{
@@ -280,7 +279,6 @@ func TestCreateAgent(t *testing.T) {
 		require.Equal(t, "Test Docker Agent Description", createComponentCall.Req.Description)
 		require.Equal(t, "docker", createComponentCall.Req.Build.Type)
 		require.Equal(t, "/Dockerfile", createComponentCall.Req.Build.Docker.DockerfilePath)
-		require.Equal(t, "/", createComponentCall.Req.Build.Docker.ContextPath)
 	})
 
 	t.Run("Creating an agent with custom interface should return 202", func(t *testing.T) {

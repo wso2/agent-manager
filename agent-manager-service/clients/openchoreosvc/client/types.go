@@ -90,7 +90,6 @@ type BuildpackConfig struct {
 // DockerConfig contains docker-specific configuration
 type DockerConfig struct {
 	DockerfilePath string
-	ContextPath    string
 }
 
 // Configurations contains environment variables for runtime

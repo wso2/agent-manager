@@ -216,8 +216,7 @@ func buildUpdatedWorkflowParametersFromCR(componentCR map[string]interface{}, ex
 		} else if req.Build.Docker != nil {
 			// Update docker configs
 			dockerConfigs := map[string]any{
-				"dockerfilePath": req.Build.Docker.DockerfilePath,
-				"contextPath":    req.Build.Docker.ContextPath,
+				"dockerfilePath": normalizePath(req.Build.Docker.DockerfilePath),
 			}
 			existingParams["dockerConfigs"] = dockerConfigs
 		}

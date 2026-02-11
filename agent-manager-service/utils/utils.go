@@ -198,11 +198,8 @@ func validateBuildConfiguration(build *spec.Build) error {
 	} else if build.DockerBuild != nil {
 		// Validate docker configuration
 		dockerConfig := build.DockerBuild.Docker
-		if dockerConfig.DockerfilePath == "" {
-			return fmt.Errorf("dockerfilePath cannot be empty")
-		}
-		if dockerConfig.ContextPath == "" {
-			return fmt.Errorf("contextPath cannot be empty")
+		if dockerConfig.DockerfilePath == "" || !strings.HasPrefix(dockerConfig.DockerfilePath, "/") {
+			return fmt.Errorf("dockerfilePath is required and must start with /")
 		}
 	} else {
 		return fmt.Errorf("build must specify either buildpack or docker configuration")
