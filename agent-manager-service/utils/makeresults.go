@@ -203,7 +203,6 @@ func convertToBuild(build *models.Build) *spec.Build {
 			Type: build.Type,
 			Docker: spec.DockerConfig{
 				DockerfilePath: build.Docker.DockerfilePath,
-				ContextPath:    build.Docker.ContextPath,
 			},
 		}
 	}

@@ -61,7 +61,6 @@ export interface BuildpackConfig {
 
 export interface DockerConfig {
   dockerfilePath: string;
-  contextPath: string;
 }
 
 export interface BuildpackBuild {

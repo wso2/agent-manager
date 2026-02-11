@@ -21,18 +21,15 @@ var _ MappedNullable = &DockerConfig{}
 type DockerConfig struct {
 	// Path to the Dockerfile relative to the repository root
 	DockerfilePath string `json:"dockerfilePath"`
-	// Docker build context path
-	ContextPath string `json:"contextPath"`
 }
 
 // NewDockerConfig instantiates a new DockerConfig object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewDockerConfig(dockerfilePath string, contextPath string) *DockerConfig {
+func NewDockerConfig(dockerfilePath string) *DockerConfig {
 	this := DockerConfig{}
 	this.DockerfilePath = dockerfilePath
-	this.ContextPath = contextPath
 	return &this
 }
 
@@ -68,30 +65,6 @@ func (o *DockerConfig) SetDockerfilePath(v string) {
 	o.DockerfilePath = v
 }
 
-// GetContextPath returns the ContextPath field value
-func (o *DockerConfig) GetContextPath() string {
-	if o == nil {
-		var ret string
-		return ret
-	}
-
-	return o.ContextPath
-}
-
-// GetContextPathOk returns a tuple with the ContextPath field value
-// and a boolean to check if the value has been set.
-func (o *DockerConfig) GetContextPathOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.ContextPath, true
-}
-
-// SetContextPath sets field value
-func (o *DockerConfig) SetContextPath(v string) {
-	o.ContextPath = v
-}
-
 func (o DockerConfig) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -103,7 +76,6 @@ func (o DockerConfig) MarshalJSON() ([]byte, error) {
 func (o DockerConfig) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["dockerfilePath"] = o.DockerfilePath
-	toSerialize["contextPath"] = o.ContextPath
 	return toSerialize, nil
 }
 

@@ -239,8 +239,7 @@ func buildWorkflowParameters(req CreateComponentRequest) (map[string]any, error)
 		} else if req.Build.Docker != nil {
 			// Add docker configs
 			dockerConfigs := map[string]any{
-				"dockerfilePath": req.Build.Docker.DockerfilePath,
-				"contextPath":    req.Build.Docker.ContextPath,
+				"dockerfilePath": normalizePath(req.Build.Docker.DockerfilePath),
 			}
 			params["dockerConfigs"] = dockerConfigs
 		}
@@ -1178,9 +1177,7 @@ func extractComponentWorkflowDetails(agent *models.AgentResponse, workflow *gen.
 		if dockerfilePath, ok := dockerConfigs["dockerfilePath"].(string); ok {
 			agent.Build.Docker.DockerfilePath = dockerfilePath
 		}
-		if contextPath, ok := dockerConfigs["contextPath"].(string); ok {
-			agent.Build.Docker.ContextPath = contextPath
-		}
+
 	}
 
 	// Extract endpoint/input interface info

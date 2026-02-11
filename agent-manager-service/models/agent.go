@@ -70,7 +70,6 @@ type BuildpackConfig struct {
 
 type DockerConfig struct {
 	DockerfilePath string `json:"dockerfilePath"`
-	ContextPath    string `json:"contextPath"`
 }
 
 // DB Model

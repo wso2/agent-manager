@@ -10,10 +10,6 @@ metadata:
 {{- include "amp-build-extension.labels" . | nindent 4 }}
 spec:
   entrypoint: build-workflow
-  arguments:
-    parameters:
-      - name: docker-context
-      - name: dockerfile-path
   templates:
     - name: build-workflow
       steps:
@@ -89,7 +85,7 @@ spec:
 
             WORKDIR=/mnt/vol/source
             IMAGE="{{ "{{" }}workflow.parameters.image-name{{ "}}" }}:{{ "{{" }}workflow.parameters.image-tag{{ "}}" }}-{{ "{{" }}inputs.parameters.git-revision{{ "}}" }}"
-            DOCKER_CONTEXT="{{ "{{" }}workflow.parameters.docker-context{{ "}}" }}"
+            DOCKER_CONTEXT="{{ "{{" }}workflow.parameters.app-path{{ "}}" }}"
             DOCKERFILE_PATH="{{ "{{" }}workflow.parameters.dockerfile-path{{ "}}" }}"
 
             #####################################################################
@@ -108,7 +104,7 @@ spec:
             #####################################################################
             # 2.  Docker Build
             #####################################################################
-            podman build -t $IMAGE -f $WORKDIR/$DOCKERFILE_PATH $WORKDIR/$DOCKER_CONTEXT
+            podman build -t $IMAGE -f $WORKDIR$DOCKERFILE_PATH $WORKDIR$DOCKER_CONTEXT
             podman save -o /mnt/vol/app-image.tar $IMAGE
         command:
           - sh
@@ -128,11 +124,6 @@ spec:
           - name: image
             valueFrom:
               path: /tmp/image.txt
-      volumes:
-        - name: registry-push-secret
-          secret:
-            optional: true
-            secretName: '{{ "{{" }}workflow.parameters.registry-push-secret{{ "}}" }}'
       container:
         args:
           - |-
@@ -184,9 +175,6 @@ spec:
         volumeMounts:
           - mountPath: /mnt/vol
             name: workspace
-          - mountPath: /etc/secrets/registry-push-secret
-            name: registry-push-secret
-            readOnly: true
     - name: generate-workload-cr
       inputs:
         parameters:

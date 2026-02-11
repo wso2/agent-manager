@@ -104,7 +104,6 @@ func mapBuildConfig(specBuild *spec.Build) *client.BuildConfig {
 			Type: BuildTypeDocker,
 			Docker: &client.DockerConfig{
 				DockerfilePath: specBuild.DockerBuild.Docker.DockerfilePath,
-				ContextPath:    specBuild.DockerBuild.Docker.ContextPath,
 			},
 		}
 	}

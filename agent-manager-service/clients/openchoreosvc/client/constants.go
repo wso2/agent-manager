@@ -62,7 +62,7 @@ const (
 const (
 	WorkflowNameGoogleCloudBuildpacks = "amp-google-cloud-buildpacks"
 	WorkflowNameBallerinaBuilpack     = "amp-ballerina-buildpack"
-	WorkflowNameDocker                = "amp-docker-ci"
+	WorkflowNameDocker                = "amp-docker"
 )
 
 // -----------------------------------------------------------------------------

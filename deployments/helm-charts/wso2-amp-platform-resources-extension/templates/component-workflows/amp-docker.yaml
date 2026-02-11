@@ -30,7 +30,6 @@ spec:
 
     parameters:
       dockerConfigs:
-        contextPath: string | default=. description="Docker build context path relative to the repository root"
         dockerfilePath: string | default=./Dockerfile description="Path to the Dockerfile relative to the repository root"
       endpoints: "[]Endpoint | description='List of endpoints exposed'"
       environmentVariables: "[]EnvironmentVariable | description='List of environment variables'"
@@ -40,7 +39,7 @@ spec:
     kind: Workflow
     metadata:
       name: ${metadata.workflowRunName}
-      namespace: openchoreo-ci-${metadata.namespace}
+      namespace: openchoreo-ci-${metadata.namespaceName}
     spec:
       arguments:
         parameters:
@@ -56,8 +55,6 @@ spec:
             value: ${systemParameters.repository.revision.commit}
           - name: app-path
             value: ${systemParameters.repository.appPath}
-          - name: docker-context
-            value: ${parameters.dockerConfigs.contextPath}
           - name: dockerfile-path
             value: ${parameters.dockerConfigs.dockerfilePath}
           - name: image-name
@@ -71,4 +68,4 @@ spec:
       serviceAccountName: workflow-sa
       workflowTemplateRef:
         clusterScope: true
-        name: amp-docker-ci
+        name: amp-docker
