@@ -17,7 +17,6 @@
  */
 
 import React from "react";
-import { Stack } from "@wso2/oxygen-ui";
 import type { TraceOverview } from "@agent-management-platform/types";
 import { TracesTable } from "./TracesTable";
 

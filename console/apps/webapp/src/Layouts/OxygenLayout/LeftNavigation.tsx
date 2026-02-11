@@ -18,7 +18,22 @@
 
 import { Sidebar } from "@wso2/oxygen-ui";
 import { SettingsIcon } from "@wso2/oxygen-ui-icons-react";
-import type { NavigationItem, NavigationSection } from "@agent-management-platform/views";
+import type { ReactNode } from "react";
+
+export interface NavigationItem {
+  label: string;
+  icon?: ReactNode;
+  onClick?: () => void;
+  href?: string;
+  isActive?: boolean;
+  type: 'item';
+}
+export interface NavigationSection {
+  title: string;
+  items: Array<NavigationItem>;
+  icon?: ReactNode;
+  type: 'section';
+}
 
 interface LeftNavigationProps {
   collapsed: boolean;

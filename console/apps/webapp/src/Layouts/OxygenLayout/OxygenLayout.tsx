@@ -25,13 +25,9 @@ import {
 } from "@wso2/oxygen-ui";
 import { generatePath, Outlet, useNavigate } from "react-router-dom";
 import { useAuthHooks } from "@agent-management-platform/auth";
-import {
-  Logo,
-  type NavigationItem,
-  type NavigationSection,
-} from "@agent-management-platform/views";
+import { Logo } from "@agent-management-platform/views";
 import { UserMenu } from "./UserMenu";
-import { LeftNavigation } from "./LeftNavigation";
+import { LeftNavigation, type NavigationItem, type NavigationSection } from "./LeftNavigation";
 import { useNavigationItems } from "./navigationItems";
 import { TopNavigation } from "./TopNavigation";
 import { absoluteRouteMap } from "@agent-management-platform/types";

@@ -24,10 +24,6 @@ import {
   useParams,
 } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
-import type {
-  NavigationItem,
-  NavigationSection,
-} from "@agent-management-platform/views";
 import {
   useGetAgent,
   useListEnvironments,
@@ -39,6 +35,7 @@ import { metaData as tracesMetadata } from "@agent-management-platform/traces";
 import { metaData as logsMetadata } from "@agent-management-platform/logs";
 import { metaData as metricsMetadata } from "@agent-management-platform/metrics";
 import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
+import type { NavigationItem, NavigationSection } from "./LeftNavigation";
 
 /**
  * TODO: Use nav bar instead of navigate to the items.
