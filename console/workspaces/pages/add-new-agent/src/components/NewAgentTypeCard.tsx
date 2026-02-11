@@ -17,11 +17,9 @@
  */
 
 import {
-  Card,
-  CardContent,
   Box,
   Typography,
-  CardHeader,
+  Form,
 } from "@wso2/oxygen-ui";
 
 interface NewAgentTypeCardProps {
@@ -39,30 +37,17 @@ export const NewAgentTypeCard = (props: NewAgentTypeCardProps) => {
   };
 
   return (
-    <Card
-      variant="outlined"
-      elevation={0}
+    <Form.CardButton
+      onClick={handleClick}
       sx={{
         width: 450,
         py: 2,
-        transition: "all 0.3s ease-in-out",
-        cursor: "pointer",
-        "&.MuiCard-root": {
-          backgroundColor: "background.default",
-          "&:hover": {
-            borderColor: "primary.main",
-            boxShadow: theme => theme.shadows[2],
-          },
-        },
       }}
-      onClick={handleClick}
     >
-      <CardHeader title={
-        <Typography variant="h4" textAlign="center">
-            {title}
-        </Typography>
-      } />
-      <CardContent>
+      <Typography width="100%" variant="h4" textAlign="center">
+        {title}
+      </Typography>
+      <Form.CardContent>
         <Box
           sx={{
             display: "flex",
@@ -75,7 +60,7 @@ export const NewAgentTypeCard = (props: NewAgentTypeCardProps) => {
           {icon}
         </Box>
         <Typography variant="body2" textAlign="center">{subheader}</Typography>
-      </CardContent>
-    </Card>
+      </Form.CardContent>
+    </Form.CardButton>
   );
 };

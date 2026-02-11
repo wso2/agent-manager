@@ -35,8 +35,8 @@ import {
   TextInput,
 } from "@agent-management-platform/views";
 import { useForm, FormProvider, useWatch, Controller } from "react-hook-form";
-import { yupResolver } from "@hookform/resolvers/yup";
-import * as yup from "yup";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useUpdateAgentBuildParameters } from "@agent-management-platform/api-client";
 import {
   AgentResponse,
@@ -66,64 +66,74 @@ interface ConfigureBuildFormValues {
   openApiPath?: string;
 }
 
-const configureBuildSchema = yup.object({
-  repositoryUrl: yup
+const configureBuildSchema = z.object({
+  repositoryUrl: z
     .string()
     .trim()
     .url("Must be a valid URL")
-    .required("Repository URL is required"),
-  branch: yup.string().trim().required("Branch is required"),
-  appPath: yup
+    .min(1, "Repository URL is required"),
+  branch: z.string().trim().min(1, "Branch is required"),
+  appPath: z
     .string()
     .trim()
-    .required("App path is required")
-    .test("starts-with-slash", "App path must start with /", (value) => {
-      if (!value) return false;
-      return value.startsWith("/");
+    .min(1, "App path is required")
+    .refine((value) => value.startsWith("/"), {
+      message: "App path must start with /",
     })
-    .test(
-      "valid-path",
-      "App path must be a valid path (use / for root directory)",
+    .refine(
       (value) => {
-        if (!value) return false;
         if (value === "/") return true;
         return !value.endsWith("/");
       },
+      { message: "App path must be a valid path (use / for root directory)" },
     ),
-  runCommand: yup.string().trim().required("Start Command is required"),
-  language: yup.string().trim().required("Language is required"),
-  languageVersion: yup.string().trim(),
-  interfaceType: yup
-    .mixed<InputInterfaceType>()
-    .oneOf(["DEFAULT", "CUSTOM"])
-    .required(),
-  port: yup
-    .number()
-    .transform((value, original) =>
-      original === "" || original === null ? undefined : value,
-    )
-    .when("interfaceType", {
-      is: "CUSTOM",
-      then: (schema) => schema.required("Port is required").min(1).max(65535),
-      otherwise: (schema) => schema.notRequired(),
-    }),
-  basePath: yup
-    .string()
-    .trim()
-    .when("interfaceType", {
-      is: "CUSTOM",
-      then: (schema) => schema.required("Base path is required"),
-      otherwise: (schema) => schema.notRequired(),
-    }),
-  openApiPath: yup
-    .string()
-    .trim()
-    .when("interfaceType", {
-      is: "CUSTOM",
-      then: (schema) => schema.required("OpenAPI spec path is required"),
-      otherwise: (schema) => schema.notRequired(),
-    }),
-});
+  runCommand: z.string().trim().min(1, "Start Command is required"),
+  language: z.string().trim().min(1, "Language is required"),
+  languageVersion: z.string().trim().optional(),
+  interfaceType: z.enum(["DEFAULT", "CUSTOM"]),
+  port: z
+    .union([z.number(), z.string(), z.undefined()])
+    .transform((val) => {
+      if (val === "" || val === null || val === undefined) return undefined;
+      return typeof val === "string" ? Number(val) : val;
+    })
+    .optional(),
+  basePath: z.string().trim().optional(),
+  openApiPath: z.string().trim().optional(),
+}).refine(
+  (data) => {
+    if (data.interfaceType === "CUSTOM" && !data.port) {
+      return false;
+    }
+    return true;
+  },
+  { message: "Port is required when using custom interface", path: ["port"] }
+).refine(
+  (data) => {
+    if (data.interfaceType === "CUSTOM" && data.port !== undefined) {
+      if (isNaN(data.port)) return false;
+      if (data.port < 1 || data.port > 65535) return false;
+    }
+    return true;
+  },
+  { message: "Port must be between 1 and 65535", path: ["port"] }
+).refine(
+  (data) => {
+    if (data.interfaceType === "CUSTOM" && !data.basePath) {
+      return false;
+    }
+    return true;
+  },
+  { message: "Base path is required when using custom interface", path: ["basePath"] }
+).refine(
+  (data) => {
+    if (data.interfaceType === "CUSTOM" && !data.openApiPath) {
+      return false;
+    }
+    return true;
+  },
+  { message: "OpenAPI spec path is required when using custom interface", path: ["openApiPath"] }
+);
 
 const inputInterfaces = [
   {
@@ -193,7 +203,8 @@ export function ConfigureBuildDrawer({
     ],
   );
   const methods = useForm<ConfigureBuildFormValues>({
-    resolver: yupResolver(configureBuildSchema),
+    mode: "all",
+    resolver: zodResolver(configureBuildSchema),
     defaultValues: buildDefaults,
   });
 

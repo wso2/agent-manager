@@ -28,7 +28,7 @@ interface CreateButtonsProps {
 }
 
 export const CreateButtons = (
-    { isPending, onCancel, onSubmit, mode = 'deploy' }: CreateButtonsProps
+    { isValid, isPending, onCancel, onSubmit, mode = 'deploy' }: CreateButtonsProps
 ) => {
     const isConnectMode = mode === 'connect';    
     return (
@@ -45,7 +45,7 @@ export const CreateButtons = (
                     <Link size={16} /> : 
                     <PackagePlus size={16} />}
                     onClick={onSubmit}
-                    disabled={isPending}
+                    disabled={!isValid || isPending}
                 >
                     {isConnectMode ? 'Register' : 'Create'}
                 </Button>

@@ -22,7 +22,7 @@ import {
   NoDataFound,
   PageLayout,
 } from "@agent-management-platform/views";
-import { Box, Skeleton, Stack } from "@wso2/oxygen-ui";
+import { Box, Skeleton } from "@wso2/oxygen-ui";
 import { Rocket } from "@wso2/oxygen-ui-icons-react";
 import { useParams } from "react-router-dom";
 import { Swagger } from "./AgentTest/Swagger";
@@ -77,19 +77,21 @@ export const TestComponent: React.FC = () => {
 
   if (!isLoading && currentDeployment?.status !== "active") {
     return (
-      <Box
-        height="50vh"
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-      >
-        <NoDataFound
-          iconElement={Rocket}
-          disableBackground
-          message="Agent is not deployed"
-          subtitle="Deploy your agent to try it out. You can deploy your agent by clicking the deploy button in the deploy tab."
-        />
-      </Box>
+      <PageLayout title="Try your agent" disableIcon>
+        <Box
+          height="50vh"
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+        >
+          <NoDataFound
+            iconElement={Rocket}
+            disableBackground
+            message="Agent is not deployed"
+            subtitle="Deploy your agent to try it out. You can deploy your agent by clicking the deploy button in the deploy tab."
+          />
+        </Box>
+      </PageLayout>
     );
   }
 

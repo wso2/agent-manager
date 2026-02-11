@@ -29,15 +29,28 @@ import {
   TraceListTimeRange,
   getTimeRange,
 } from "@agent-management-platform/types";
-import {
-  Snackbar,
-  Alert,
-} from "@mui/material";
+// import {
+//   Snackbar,
+//   Alert,
+//   Button,
+//   CircularProgress,
+//   IconButton,
+//   InputAdornment,
+//   MenuItem,
+//   Select,
+//   Stack,
+// } from "@mui/material";
 import {
   Workflow,
+  Clock,
+  RefreshCcw,
+  SortAsc,
+  SortDesc,
+  Download,
 } from "@wso2/oxygen-ui-icons-react";
 import { useTraceList, useExportTraces } from "@agent-management-platform/api-client";
 import { TraceDetails, TracesView } from "./subComponents";
+import { Alert, Button, CircularProgress, IconButton, InputAdornment, MenuItem, Select, Snackbar, Stack } from "@wso2/oxygen-ui";
 
 const TIME_RANGE_OPTIONS = [
   { value: TraceListTimeRange.TEN_MINUTES, label: "10 Minutes" },
@@ -219,6 +232,75 @@ export const TracesComponent: React.FC = () => {
       <PageLayout
         title="Traces"
         disableIcon
+        actions={
+          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+            {/* Time Range Selector */}
+            <Select
+              size="small"
+              variant="outlined"
+              value={timeRange}
+              onChange={(e) => handleTimeRangeChange(e.target.value)}
+              startAdornment={
+                <InputAdornment position="start">
+                  <Clock size={16} />
+                </InputAdornment>
+              }
+              sx={{ minWidth: 150 }}
+            >
+              {TIME_RANGE_OPTIONS.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </MenuItem>
+              ))}
+            </Select>
+
+            {/* Sort Toggle */}
+            <IconButton
+              size="small"
+              onClick={() => handleSortOrderChange(sortOrder === "desc" ? "asc" : "desc")}
+              aria-label={
+                sortOrder === "desc" ? "Sort ascending" : "Sort descending"
+              }
+            >
+              {sortOrder === "desc" ? (
+                <SortDesc size={16} />
+              ) : (
+                <SortAsc size={16} />
+              )}
+            </IconButton>
+
+            {/* Refresh Button */}
+            <IconButton
+              size="small"
+              disabled={isRefetching}
+              onClick={handleRefresh}
+              aria-label="Refresh"
+            >
+              {isRefetching ? (
+                <CircularProgress size={16} />
+              ) : (
+                <RefreshCcw size={16} />
+              )}
+            </IconButton>
+
+            {/* Export Button */}
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={
+                isExporting ? (
+                  <CircularProgress size={16} />
+                ) : (
+                  <Download size={16} />
+                )
+              }
+              onClick={handleExportTraces}
+              disabled={isExporting || isLoading || (traceData?.traces ?? []).length === 0}
+            >
+              Export
+            </Button>
+          </Stack>
+        }
       >
         <TracesView
           traces={traceData?.traces ?? []}
@@ -230,15 +312,6 @@ export const TracesComponent: React.FC = () => {
           onTraceSelect={handleTraceSelect}
           onPageChange={handlePageChange}
           onRowsPerPageChange={handleRowsPerPageChange}
-          timeRange={timeRange}
-          timeRangeOptions={TIME_RANGE_OPTIONS}
-          onTimeRangeChange={handleTimeRangeChange}
-          sortOrder={sortOrder}
-          onSortOrderChange={handleSortOrderChange}
-          onRefresh={handleRefresh}
-          isRefreshing={isRefetching}
-          onExport={handleExportTraces}
-          isExporting={isExporting}
         />
         <DrawerWrapper
           open={!!selectedTrace}

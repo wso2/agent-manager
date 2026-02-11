@@ -16,17 +16,15 @@
  * under the License.
  */
 
-import { Box, Card, CardContent, Typography } from "@wso2/oxygen-ui";
-import { useFormContext, useWatch } from "react-hook-form";
+import { Form, TextField } from "@wso2/oxygen-ui";
+import { useFormContext, useWatch, Controller } from "react-hook-form";
 import { useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
-import { TextInput } from "@agent-management-platform/views";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
 
-export const ConnectAgentForm = () => {
+export const ExternalAgentForm = () => {
   const {
-    register,
     control,
     formState: { errors },
     setValue,
@@ -51,7 +49,7 @@ export const ConnectAgentForm = () => {
             setValue("name", data.name, {
               shouldValidate: true,
               shouldDirty: true,
-              shouldTouch: false,
+              shouldTouch: true,
             });
           },
           onError: (error) => {
@@ -59,7 +57,7 @@ export const ConnectAgentForm = () => {
             console.error('Failed to generate name:', error);
           }
         });
-      }, 500), // 500ms delay
+      }, 500),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [generateName, setValue, projectId, orgId]
   );
@@ -76,50 +74,57 @@ export const ConnectAgentForm = () => {
     if (displayName) {
       debouncedGenerateName(displayName);
     } else if (!displayName) {
-      // Clear the name field if display name is empty
       debouncedGenerateName.cancel();
       setValue("name", "", {
         shouldValidate: true,
         shouldDirty: true,
-        shouldTouch: false,
+        shouldTouch: true,
       });
     }
   }, [displayName, setValue, debouncedGenerateName]);
 
   return (
-    <Box display="flex" flexDirection="column" gap={2} flexGrow={1}>
-      <Card variant="outlined">
-        <CardContent sx={{ gap: 1, display: "flex", flexDirection: "column" }}>
-          <Box display="flex" flexDirection="column" gap={1}>
-            <Typography variant="h5">Agent Details</Typography>
-          </Box>
-          <Box display="flex" flexDirection="column" gap={1}>
-            <TextInput
-              placeholder="e.g., Customer Support"
-              label="Name"
-              size="small"
-              fullWidth
-              error={!!errors.displayName}
-              helperText={
-                (errors.displayName?.message as string)
-              }
-              {...register("displayName")}
-            />
-            <TextInput
-              placeholder="Short description of what this agent does"
-              label="Description (optional)"
-              fullWidth
-              size="small"
-              multiline
-              minRows={2}
-              maxRows={6}
-              error={!!errors.description}
-              helperText={errors.description?.message as string}
-              {...register("description")}
-            />
-          </Box>
-        </CardContent>
-      </Card>
-    </Box>
+    <Form.Stack spacing={3}>
+      <Form.Section>
+        <Form.Subheader>Agent Details</Form.Subheader>
+        <Form.Stack spacing={2}>
+          <Controller
+            name="displayName"
+            control={control}
+            render={({ field }) => (
+              <Form.ElementWrapper label="Name" name="displayName">
+                <TextField
+                  {...field}
+                  id="displayName"
+                  placeholder="e.g., Customer Support"
+                  error={!!errors.displayName}
+                  helperText={errors.displayName?.message as string}
+                  fullWidth
+                />
+              </Form.ElementWrapper>
+            )}
+          />
+          <Controller
+            name="description"
+            control={control}
+            render={({ field }) => (
+              <Form.ElementWrapper label="Description (optional)" name="description">
+                <TextField
+                  {...field}
+                  id="description"
+                  placeholder="Short description of what this agent does"
+                  multiline
+                  minRows={2}
+                  maxRows={6}
+                  error={!!errors.description}
+                  helperText={errors.description?.message as string}
+                  fullWidth
+                />
+              </Form.ElementWrapper>
+            )}
+          />
+        </Form.Stack>
+      </Form.Section>
+    </Form.Stack>
   );
 };

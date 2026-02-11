@@ -18,7 +18,7 @@
 
 import { Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Layout, OxygenLayout } from "../Layouts";
+import { OxygenLayout } from "../Layouts";
 import { Protected } from "../Providers/Protected";
 import {
   Login,

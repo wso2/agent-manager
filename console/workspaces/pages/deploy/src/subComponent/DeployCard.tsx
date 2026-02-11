@@ -68,9 +68,6 @@ export function DeployCard(props: DeployCardProps) {
       <Card
         variant="outlined"
         sx={{
-          "& .MuiCardContent-root": {
-            backgroundColor: "background.paper",
-          },
           height: "fit-content",
           width: 350,
           minWidth: 350,
@@ -90,9 +87,6 @@ export function DeployCard(props: DeployCardProps) {
       <Card
         variant="outlined"
         sx={{
-          "& .MuiCardContent-root": {
-            backgroundColor: "background.paper",
-          },
           height: "fit-content",
           width: 350,
           minWidth: 350,
@@ -115,9 +109,6 @@ export function DeployCard(props: DeployCardProps) {
     <Card
       variant="outlined"
       sx={{
-        "& .MuiCardContent-root": {
-          backgroundColor: "background.paper",
-        },
         height: "fit-content",
         width: 350,
         minWidth: 350,

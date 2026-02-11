@@ -53,7 +53,7 @@
     "@agent-management-platform/shared-component": "workspace:*",
     "@agent-management-platform/build": "workspace:*",
     "@agent-management-platform/traces": "workspace:*",
-    "yup": "1.4.0",
+    "zod": "4.3.6",
     "react-hook-form": "7.53.0",
     "@hookform/resolvers": "3.9.0"
   },

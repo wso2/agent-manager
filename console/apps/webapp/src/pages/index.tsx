@@ -17,7 +17,6 @@
  */
 
 import { lazy, type ComponentType, type FC } from "react";
-import { PageLayout } from "@agent-management-platform/views";
 import { metaData as overviewMetadata } from "@agent-management-platform/overview";
 import { metaData as buildMetadata } from "@agent-management-platform/build";
 import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";

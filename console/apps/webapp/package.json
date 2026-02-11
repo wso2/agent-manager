@@ -39,7 +39,7 @@
     "@agent-management-platform/add-new-agent": "workspace:*",
     "@agent-management-platform/add-new-project": "workspace:*",
     "@agent-management-platform/shared-component": "workspace:*",
-    "yup": "1.4.0",
+    "zod": "4.3.6",
     "react-hook-form": "7.53.0",
     "@hookform/resolvers": "3.9.0",
     "@agent-management-platform/overview": "workspace:*",

@@ -22,7 +22,7 @@ import { PageLayout } from '@agent-management-platform/views';
 import { generatePath, useNavigate, useParams } from 'react-router-dom';
 import { absoluteRouteMap } from '@agent-management-platform/types';
 import { useForm, FormProvider } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { addProjectSchema, type AddProjectFormValues } from './form/schema';
 import { useCreateProject } from '@agent-management-platform/api-client';
 import { CreateButtons } from './components/CreateButtons';
@@ -32,14 +32,14 @@ export const AddNewProject: React.FC = () => {
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
   const methods = useForm<AddProjectFormValues>({
-    resolver: yupResolver(addProjectSchema),
+    mode: "all",
+    resolver: zodResolver(addProjectSchema),
     defaultValues: {
       name: '',
       displayName: '',
       description: '',
       deploymentPipeline: 'default',
     },
-    mode: 'all',
     reValidateMode: 'onChange',
   });
 

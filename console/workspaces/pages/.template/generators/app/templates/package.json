@@ -48,7 +48,7 @@
     "@agent-management-platform/views": "workspace:*",
     "@agent-management-platform/api-client": "workspace:*",
     "@agent-management-platform/types": "workspace:*",
-    "yup": "1.4.0",
+    "zod": "4.3.6",
     "react-hook-form": "7.53.0",
     "@hookform/resolvers": "3.9.0",
     "@wso2/oxygen-ui": "0.5.0",

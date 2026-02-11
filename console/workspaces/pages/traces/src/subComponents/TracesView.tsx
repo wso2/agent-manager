@@ -17,32 +17,9 @@
  */
 
 import React from "react";
-import {
-  Button,
-  CircularProgress,
-  IconButton,
-  InputAdornment,
-  MenuItem,
-  Paper,
-  Select,
-  Stack,
-} from "@wso2/oxygen-ui";
-import {
-  Clock,
-  RefreshCcw,
-  SortAsc,
-  SortDesc,
-  Download,
-} from "@wso2/oxygen-ui-icons-react";
-import type { TraceOverview, TraceListTimeRange } from "@agent-management-platform/types";
+import { Stack } from "@wso2/oxygen-ui";
+import type { TraceOverview } from "@agent-management-platform/types";
 import { TracesTable } from "./TracesTable";
-
-type SortOrder = "asc" | "desc";
-
-export interface TimeRangeOption {
-  value: string;
-  label: string;
-}
 
 export interface TracesViewProps {
   // Data props
@@ -57,19 +34,6 @@ export interface TracesViewProps {
   onTraceSelect: (traceId: string) => void;
   onPageChange: (page: number) => void;
   onRowsPerPageChange: (rowsPerPage: number) => void;
-
-  // Time and sorting controls
-  timeRange: TraceListTimeRange;
-  timeRangeOptions: TimeRangeOption[];
-  onTimeRangeChange: (timeRange: string) => void;
-  sortOrder: SortOrder;
-  onSortOrderChange: (sortOrder: SortOrder) => void;
-  onRefresh: () => void;
-  isRefreshing?: boolean;
-
-  // Export
-  onExport?: () => void;
-  isExporting?: boolean;
 }
 
 export const TracesView: React.FC<TracesViewProps> = ({
@@ -82,107 +46,18 @@ export const TracesView: React.FC<TracesViewProps> = ({
   onTraceSelect,
   onPageChange,
   onRowsPerPageChange,
-  timeRange,
-  timeRangeOptions,
-  onTimeRangeChange,
-  sortOrder,
-  onSortOrderChange,
-  onRefresh,
-  isRefreshing = false,
-  onExport,
-  isExporting = false,
 }) => {
-  const handleSortToggle = () => {
-    onSortOrderChange(sortOrder === "desc" ? "asc" : "desc");
-  };
-
   return (
-    <Stack direction="column" gap={2}>
-      {/* Filters and Controls */}
-      <Paper >
-        <Stack direction="row" p={2} spacing={2} alignItems="center" justifyContent="flex-end" flexWrap="wrap">
-          {/* Time Range Selector */}
-          <Select
-            size="small"
-            variant="outlined"
-            value={timeRange}
-            onChange={(e) => onTimeRangeChange(e.target.value)}
-            startAdornment={
-              <InputAdornment position="start">
-                <Clock size={16} />
-              </InputAdornment>
-            }
-            sx={{ minWidth: 150 }}
-          >
-            {timeRangeOptions.map((opt) => (
-              <MenuItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </MenuItem>
-            ))}
-          </Select>
-
-          {/* Sort Toggle */}
-          <IconButton
-            size="small"
-            onClick={handleSortToggle}
-            aria-label={
-              sortOrder === "desc" ? "Sort ascending" : "Sort descending"
-            }
-          >
-            {sortOrder === "desc" ? (
-              <SortDesc size={16} />
-            ) : (
-              <SortAsc size={16} />
-            )}
-          </IconButton>
-
-          {/* Refresh Button */}
-          <IconButton
-            size="small"
-            disabled={isRefreshing}
-            onClick={onRefresh}
-            aria-label="Refresh"
-          >
-            {isRefreshing ? (
-              <CircularProgress size={16} />
-            ) : (
-              <RefreshCcw size={16} />
-            )}
-          </IconButton>
-
-          {/* Export Button */}
-          {onExport && (
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={
-                isExporting ? (
-                  <CircularProgress size={16} />
-                ) : (
-                  <Download size={16} />
-                )
-              }
-              onClick={onExport}
-              disabled={isExporting || isLoading || traces.length === 0}
-            >
-              Export
-            </Button>
-          )}
-        </Stack>
-      </Paper>
-
-        <TracesTable
-          isLoading={isLoading}
-          traces={traces}
-          onTraceSelect={onTraceSelect}
-          count={count}
-          page={page}
-          rowsPerPage={rowsPerPage}
-          onPageChange={onPageChange}
-          onRowsPerPageChange={onRowsPerPageChange}
-          selectedTrace={selectedTrace}
-        />
-
-    </Stack>
+    <TracesTable
+      isLoading={isLoading}
+      traces={traces}
+      onTraceSelect={onTraceSelect}
+      count={count}
+      page={page}
+      rowsPerPage={rowsPerPage}
+      onPageChange={onPageChange}
+      onRowsPerPageChange={onRowsPerPageChange}
+      selectedTrace={selectedTrace}
+    />
   );
 };
