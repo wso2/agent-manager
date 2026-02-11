@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
@@ -48,15 +49,15 @@ var (
 // createMockObservabilityClient creates a mock observability client for testing
 func createMockObservabilityClient() *clientmocks.ObservabilitySvcClientMock {
 	return &clientmocks.ObservabilitySvcClientMock{
-		GetComponentLogsFunc: func(ctx context.Context, agentComponentId string, envId string, payload spec.LogFilterRequest) (*models.LogsResponse, error) {
+		GetComponentLogsFunc: func(ctx context.Context, params observabilitysvc.ComponentLogsParams, payload spec.LogFilterRequest) (*models.LogsResponse, error) {
 			return &models.LogsResponse{
 				Logs: []models.LogEntry{
 					{
 						Timestamp:     time.Now().Add(-30 * time.Minute),
 						Log:           "Application started successfully",
 						LogLevel:      "INFO",
-						ComponentId:   agentComponentId,
-						EnvironmentId: envId,
+						ComponentId:   params.AgentComponentId,
+						EnvironmentId: params.EnvId,
 						ProjectId:     "project-123",
 						Version:       "1.0.0",
 						VersionId:     "version-123",
@@ -68,8 +69,8 @@ func createMockObservabilityClient() *clientmocks.ObservabilitySvcClientMock {
 						Timestamp:     time.Now().Add(-15 * time.Minute),
 						Log:           "Processing request from user",
 						LogLevel:      "DEBUG",
-						ComponentId:   agentComponentId,
-						EnvironmentId: envId,
+						ComponentId:   params.AgentComponentId,
+						EnvironmentId: params.EnvId,
 						ProjectId:     "project-123",
 						Version:       "1.0.0",
 						VersionId:     "version-123",
@@ -81,8 +82,8 @@ func createMockObservabilityClient() *clientmocks.ObservabilitySvcClientMock {
 						Timestamp:     time.Now().Add(-5 * time.Minute),
 						Log:           "Request completed successfully",
 						LogLevel:      "INFO",
-						ComponentId:   agentComponentId,
-						EnvironmentId: envId,
+						ComponentId:   params.AgentComponentId,
+						EnvironmentId: params.EnvId,
 						ProjectId:     "project-123",
 						Version:       "1.0.0",
 						VersionId:     "version-123",
@@ -161,8 +162,8 @@ func TestGetApplicationLogs(t *testing.T) {
 
 		// Validate call parameters
 		getLogsCall := observabilityClient.GetComponentLogsCalls()[0]
-		require.Equal(t, "component-uid-123", getLogsCall.AgentComponentId)
-		require.Equal(t, "environment-uid-123", getLogsCall.EnvId)
+		require.Equal(t, "component-uid-123", getLogsCall.Params.AgentComponentId)
+		require.Equal(t, "environment-uid-123", getLogsCall.Params.EnvId)
 		require.Equal(t, "Development", getLogsCall.Payload.EnvironmentName)
 	})
 

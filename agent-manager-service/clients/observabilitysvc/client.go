@@ -40,10 +40,39 @@ const (
 
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg clientmocks -out ../clientmocks/observability_client_fake.go . ObservabilitySvcClient:ObservabilitySvcClientMock
 
+// BuildLogsParams holds the context information needed for fetching build logs
+type BuildLogsParams struct {
+	NamespaceName      string
+	ProjectName        string
+	AgentComponentName string
+	BuildName          string
+}
+
+// ComponentMetricsParams holds the component context information needed for fetching metrics
+type ComponentMetricsParams struct {
+	AgentComponentId string
+	EnvId            string
+	ProjectId        string
+	NamespaceName    string
+	ProjectName      string
+	ComponentName    string
+	EnvironmentName  string
+}
+
+// ComponentLogsParams holds the component context information needed for fetching logs
+type ComponentLogsParams struct {
+	AgentComponentId string
+	EnvId            string
+	NamespaceName    string
+	ComponentName    string
+	ProjectName      string
+	EnvironmentName  string
+}
+
 type ObservabilitySvcClient interface {
-	GetBuildLogs(ctx context.Context, namespaceName, agentComponentName, buildName string) (*models.LogsResponse, error)
-	GetComponentMetrics(ctx context.Context, agentComponentId string, envId string, projectId string, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error)
-	GetComponentLogs(ctx context.Context, agentComponentId string, envId string, payload spec.LogFilterRequest) (*models.LogsResponse, error)
+	GetBuildLogs(ctx context.Context, params BuildLogsParams) (*models.LogsResponse, error)
+	GetComponentMetrics(ctx context.Context, params ComponentMetricsParams, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error)
+	GetComponentLogs(ctx context.Context, params ComponentLogsParams, payload spec.LogFilterRequest) (*models.LogsResponse, error)
 }
 
 // Config contains configuration for the observability service client
@@ -77,7 +106,7 @@ func NewObservabilitySvcClient(cfg *Config) (ObservabilitySvcClient, error) {
 				cfg.AuthProvider.InvalidateToken()
 				return true
 			}
-			return slices.Contains(requests.TransientHTTPGETErrorCodes, statusCode)
+			return slices.Contains(requests.TransientHTTPErrorCodes, statusCode)
 		}
 	}
 
@@ -111,22 +140,23 @@ func NewObservabilitySvcClient(cfg *Config) (ObservabilitySvcClient, error) {
 }
 
 // GetBuildLogs retrieves build logs for a specific agent build from the observer service
-func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, namespaceName, agentComponentName, buildName string) (*models.LogsResponse, error) {
+func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, params BuildLogsParams) (*models.LogsResponse, error) {
 	// Calculate time range: 30 days ago to now
 	endTime := time.Now()
 	startTime := endTime.Add(-30 * 24 * time.Hour)
 
 	sortOrder := gen.BuildLogsRequestSortOrderAsc
 	requestBody := gen.BuildLogsRequest{
-		ComponentName: agentComponentName,
-		NamespaceName: namespaceName,
+		ComponentName: params.AgentComponentName,
+		NamespaceName: params.NamespaceName,
+		ProjectName:   params.ProjectName,
 		StartTime:     startTime,
 		EndTime:       endTime,
 		Limit:         utils.IntAsIntPointer(1000),
 		SortOrder:     &sortOrder,
 	}
 
-	resp, err := o.observerClient.GetBuildLogsWithResponse(ctx, buildName, requestBody)
+	resp, err := o.observerClient.GetBuildLogsWithResponse(ctx, params.BuildName, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("observabilitysvc.GetBuildLogs: request failed: %w", err)
 	}
@@ -142,7 +172,7 @@ func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, namespaceName
 	return convertToLogsResponse(resp.JSON200), nil
 }
 
-func (o *observabilitySvcClient) GetComponentMetrics(ctx context.Context, agentComponentId string, envId string, projectId string, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error) {
+func (o *observabilitySvcClient) GetComponentMetrics(ctx context.Context, params ComponentMetricsParams, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error) {
 	startTime, err := time.Parse(time.RFC3339, payload.StartTime)
 	if err != nil {
 		return nil, fmt.Errorf("observabilitysvc.GetComponentMetrics: invalid startTime: %w", err)
@@ -154,11 +184,15 @@ func (o *observabilitySvcClient) GetComponentMetrics(ctx context.Context, agentC
 	}
 
 	requestBody := gen.MetricsRequest{
-		ComponentId:   agentComponentId,
-		EnvironmentId: envId,
-		ProjectId:     projectId,
-		StartTime:     &startTime,
-		EndTime:       &endTime,
+		NamespaceName:   params.NamespaceName,
+		ProjectName:     params.ProjectName,
+		ComponentName:   params.ComponentName,
+		EnvironmentName: params.EnvironmentName,
+		ComponentId:     params.AgentComponentId,
+		EnvironmentId:   params.EnvId,
+		ProjectId:       params.ProjectId,
+		StartTime:       &startTime,
+		EndTime:         &endTime,
 	}
 
 	resp, err := o.observerClient.GetComponentResourceMetricsWithResponse(ctx, requestBody)
@@ -177,7 +211,7 @@ func (o *observabilitySvcClient) GetComponentMetrics(ctx context.Context, agentC
 	return convertToMetricsResponse(resp.JSON200), nil
 }
 
-func (o *observabilitySvcClient) GetComponentLogs(ctx context.Context, agentComponentId string, envId string, payload spec.LogFilterRequest) (*models.LogsResponse, error) {
+func (o *observabilitySvcClient) GetComponentLogs(ctx context.Context, params ComponentLogsParams, payload spec.LogFilterRequest) (*models.LogsResponse, error) {
 	startTime, err := time.Parse(time.RFC3339, payload.StartTime)
 	if err != nil {
 		return nil, fmt.Errorf("observabilitysvc.GetComponentLogs: invalid startTime: %w", err)
@@ -190,9 +224,11 @@ func (o *observabilitySvcClient) GetComponentLogs(ctx context.Context, agentComp
 
 	logType := gen.ComponentLogsRequestLogTypeRuntime
 	requestBody := gen.ComponentLogsRequest{
-		ComponentName:   "", // Will be inferred from path parameter
-		EnvironmentId:   envId,
-		EnvironmentName: "", // Optional
+		NamespaceName:   params.NamespaceName,
+		ComponentName:   params.ComponentName,
+		ProjectName:     params.ProjectName,
+		EnvironmentId:   params.EnvId,
+		EnvironmentName: params.EnvironmentName,
 		StartTime:       startTime,
 		EndTime:         endTime,
 		SearchPhrase:    payload.SearchPhrase,
@@ -202,7 +238,7 @@ func (o *observabilitySvcClient) GetComponentLogs(ctx context.Context, agentComp
 		LogType:         &logType,
 	}
 
-	resp, err := o.observerClient.GetComponentLogsWithResponse(ctx, agentComponentId, requestBody)
+	resp, err := o.observerClient.GetComponentLogsWithResponse(ctx, params.AgentComponentId, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("observabilitysvc.GetComponentLogs: request failed: %w", err)
 	}
