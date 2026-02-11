@@ -98,6 +98,28 @@ func convertFromGenGatewayResponse(gw *gen.GatewayResponse) *GatewayResponse {
 	return result
 }
 
+// convertFromGenTokenRotationResponse converts generated TokenRotationResponse to client GatewayTokenResponse type
+func convertFromGenTokenRotationResponse(gtr *gen.TokenRotationResponse, gatewayID string) *GatewayTokenResponse {
+	if gtr == nil {
+		return nil
+	}
+
+	result := &GatewayTokenResponse{
+		GatewayID: gatewayID,
+		Token:     derefString(gtr.Token),
+		CreatedAt: derefTime(gtr.CreatedAt),
+	}
+
+	// Convert UUID to string for TokenID
+	if gtr.Id != nil {
+		result.TokenID = gtr.Id.String()
+	}
+
+	// API Platform doesn't have ExpiresAt in TokenRotationResponse, so leave it nil
+
+	return result
+}
+
 // ptrString converts string to pointer
 func ptrString(s string) *string {
 	if s == "" {

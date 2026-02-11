@@ -53,6 +53,8 @@ type GatewayController interface {
 	RemoveGatewayFromEnvironment(w http.ResponseWriter, r *http.Request)
 	GetGatewayEnvironments(w http.ResponseWriter, r *http.Request)
 	CheckGatewayHealth(w http.ResponseWriter, r *http.Request)
+	RotateGatewayToken(w http.ResponseWriter, r *http.Request)
+	RevokeGatewayToken(w http.ResponseWriter, r *http.Request)
 }
 
 type gatewayController struct {
@@ -570,6 +572,80 @@ func convertDBEnvironmentToSpecResponse(env *models.Environment) spec.GatewayEnv
 		CreatedAt:        env.CreatedAt,
 		UpdatedAt:        env.UpdatedAt,
 	}
+}
+
+func (c *gatewayController) RotateGatewayToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+	orgName := r.PathValue(utils.PathParamOrgName)
+	gatewayID := r.PathValue("gatewayID")
+
+	// Verify gateway exists and belongs to organization
+	var dbGateway models.Gateway
+	if err := c.db.First(&dbGateway, "uuid = ? AND organization_name = ?", gatewayID, orgName).Error; err != nil {
+		log.Error("RotateGatewayToken: gateway not found", "error", err)
+		handleGatewayErrors(w, err, "Failed to rotate gateway token")
+		return
+	}
+
+	// Call API Platform to rotate the token
+	if c.apiPlatformClient != nil {
+		tokenResp, err := c.apiPlatformClient.RotateGatewayToken(ctx, gatewayID)
+		if err != nil {
+			log.Error("RotateGatewayToken: failed to rotate token in API Platform", "error", err)
+			handleGatewayErrors(w, err, "Failed to rotate gateway token")
+			return
+		}
+
+		// Convert to spec response
+		response := spec.GatewayTokenResponse{
+			GatewayId: tokenResp.GatewayID,
+			Token:     tokenResp.Token,
+			TokenId:   tokenResp.TokenID,
+			CreatedAt: tokenResp.CreatedAt,
+			ExpiresAt: tokenResp.ExpiresAt,
+		}
+
+		utils.WriteSuccessResponse(w, http.StatusOK, response)
+		return
+	}
+
+	// If no API Platform client, return error
+	log.Error("RotateGatewayToken: API Platform client not configured")
+	utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "Gateway token rotation not available")
+}
+
+func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+	orgName := r.PathValue(utils.PathParamOrgName)
+	gatewayID := r.PathValue("gatewayID")
+	tokenID := r.PathValue("tokenID")
+
+	// Verify gateway exists and belongs to organization
+	var dbGateway models.Gateway
+	if err := c.db.First(&dbGateway, "uuid = ? AND organization_name = ?", gatewayID, orgName).Error; err != nil {
+		log.Error("RevokeGatewayToken: gateway not found", "error", err)
+		handleGatewayErrors(w, err, "Failed to revoke gateway token")
+		return
+	}
+
+	// Call API Platform to revoke the token
+	if c.apiPlatformClient != nil {
+		err := c.apiPlatformClient.RevokeGatewayToken(ctx, gatewayID, tokenID)
+		if err != nil {
+			log.Error("RevokeGatewayToken: failed to revoke token in API Platform", "error", err)
+			handleGatewayErrors(w, err, "Failed to revoke gateway token")
+			return
+		}
+
+		utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
+		return
+	}
+
+	// If no API Platform client, return error
+	log.Error("RevokeGatewayToken: API Platform client not configured")
+	utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "Gateway token revocation not available")
 }
 
 // getIntQueryParam is already defined in environment_controller.go, removed duplicate

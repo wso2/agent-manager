@@ -74,3 +74,12 @@ type GatewayResponse struct {
 	UpdatedAt         time.Time
 	Properties        map[string]interface{}
 }
+
+// GatewayTokenResponse represents a gateway token rotation response
+type GatewayTokenResponse struct {
+	GatewayID string
+	Token     string
+	TokenID   string
+	CreatedAt time.Time
+	ExpiresAt *time.Time
+}

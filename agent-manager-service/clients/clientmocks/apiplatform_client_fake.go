@@ -28,6 +28,12 @@ import (
 //			ListGatewaysFunc: func(ctx context.Context) ([]*client.GatewayResponse, error) {
 //				panic("mock out the ListGateways method")
 //			},
+//			RevokeGatewayTokenFunc: func(ctx context.Context, gatewayID string, tokenID string) error {
+//				panic("mock out the RevokeGatewayToken method")
+//			},
+//			RotateGatewayTokenFunc: func(ctx context.Context, gatewayID string) (*client.GatewayTokenResponse, error) {
+//				panic("mock out the RotateGatewayToken method")
+//			},
 //			UpdateGatewayFunc: func(ctx context.Context, gatewayID string, req client.UpdateGatewayRequest) (*client.GatewayResponse, error) {
 //				panic("mock out the UpdateGateway method")
 //			},
@@ -49,6 +55,12 @@ type APIPlatformClientMock struct {
 
 	// ListGatewaysFunc mocks the ListGateways method.
 	ListGatewaysFunc func(ctx context.Context) ([]*client.GatewayResponse, error)
+
+	// RevokeGatewayTokenFunc mocks the RevokeGatewayToken method.
+	RevokeGatewayTokenFunc func(ctx context.Context, gatewayID string, tokenID string) error
+
+	// RotateGatewayTokenFunc mocks the RotateGatewayToken method.
+	RotateGatewayTokenFunc func(ctx context.Context, gatewayID string) (*client.GatewayTokenResponse, error)
 
 	// UpdateGatewayFunc mocks the UpdateGateway method.
 	UpdateGatewayFunc func(ctx context.Context, gatewayID string, req client.UpdateGatewayRequest) (*client.GatewayResponse, error)
@@ -81,6 +93,22 @@ type APIPlatformClientMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 		}
+		// RevokeGatewayToken holds details about calls to the RevokeGatewayToken method.
+		RevokeGatewayToken []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// GatewayID is the gatewayID argument value.
+			GatewayID string
+			// TokenID is the tokenID argument value.
+			TokenID string
+		}
+		// RotateGatewayToken holds details about calls to the RotateGatewayToken method.
+		RotateGatewayToken []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// GatewayID is the gatewayID argument value.
+			GatewayID string
+		}
 		// UpdateGateway holds details about calls to the UpdateGateway method.
 		UpdateGateway []struct {
 			// Ctx is the ctx argument value.
@@ -91,11 +119,13 @@ type APIPlatformClientMock struct {
 			Req client.UpdateGatewayRequest
 		}
 	}
-	lockCreateGateway sync.RWMutex
-	lockDeleteGateway sync.RWMutex
-	lockGetGateway    sync.RWMutex
-	lockListGateways  sync.RWMutex
-	lockUpdateGateway sync.RWMutex
+	lockCreateGateway      sync.RWMutex
+	lockDeleteGateway      sync.RWMutex
+	lockGetGateway         sync.RWMutex
+	lockListGateways       sync.RWMutex
+	lockRevokeGatewayToken sync.RWMutex
+	lockRotateGatewayToken sync.RWMutex
+	lockUpdateGateway      sync.RWMutex
 }
 
 // CreateGateway calls CreateGatewayFunc.
@@ -235,6 +265,82 @@ func (mock *APIPlatformClientMock) ListGatewaysCalls() []struct {
 	mock.lockListGateways.RLock()
 	calls = mock.calls.ListGateways
 	mock.lockListGateways.RUnlock()
+	return calls
+}
+
+// RevokeGatewayToken calls RevokeGatewayTokenFunc.
+func (mock *APIPlatformClientMock) RevokeGatewayToken(ctx context.Context, gatewayID string, tokenID string) error {
+	if mock.RevokeGatewayTokenFunc == nil {
+		panic("APIPlatformClientMock.RevokeGatewayTokenFunc: method is nil but APIPlatformClient.RevokeGatewayToken was just called")
+	}
+	callInfo := struct {
+		Ctx       context.Context
+		GatewayID string
+		TokenID   string
+	}{
+		Ctx:       ctx,
+		GatewayID: gatewayID,
+		TokenID:   tokenID,
+	}
+	mock.lockRevokeGatewayToken.Lock()
+	mock.calls.RevokeGatewayToken = append(mock.calls.RevokeGatewayToken, callInfo)
+	mock.lockRevokeGatewayToken.Unlock()
+	return mock.RevokeGatewayTokenFunc(ctx, gatewayID, tokenID)
+}
+
+// RevokeGatewayTokenCalls gets all the calls that were made to RevokeGatewayToken.
+// Check the length with:
+//
+//	len(mockedAPIPlatformClient.RevokeGatewayTokenCalls())
+func (mock *APIPlatformClientMock) RevokeGatewayTokenCalls() []struct {
+	Ctx       context.Context
+	GatewayID string
+	TokenID   string
+} {
+	var calls []struct {
+		Ctx       context.Context
+		GatewayID string
+		TokenID   string
+	}
+	mock.lockRevokeGatewayToken.RLock()
+	calls = mock.calls.RevokeGatewayToken
+	mock.lockRevokeGatewayToken.RUnlock()
+	return calls
+}
+
+// RotateGatewayToken calls RotateGatewayTokenFunc.
+func (mock *APIPlatformClientMock) RotateGatewayToken(ctx context.Context, gatewayID string) (*client.GatewayTokenResponse, error) {
+	if mock.RotateGatewayTokenFunc == nil {
+		panic("APIPlatformClientMock.RotateGatewayTokenFunc: method is nil but APIPlatformClient.RotateGatewayToken was just called")
+	}
+	callInfo := struct {
+		Ctx       context.Context
+		GatewayID string
+	}{
+		Ctx:       ctx,
+		GatewayID: gatewayID,
+	}
+	mock.lockRotateGatewayToken.Lock()
+	mock.calls.RotateGatewayToken = append(mock.calls.RotateGatewayToken, callInfo)
+	mock.lockRotateGatewayToken.Unlock()
+	return mock.RotateGatewayTokenFunc(ctx, gatewayID)
+}
+
+// RotateGatewayTokenCalls gets all the calls that were made to RotateGatewayToken.
+// Check the length with:
+//
+//	len(mockedAPIPlatformClient.RotateGatewayTokenCalls())
+func (mock *APIPlatformClientMock) RotateGatewayTokenCalls() []struct {
+	Ctx       context.Context
+	GatewayID string
+} {
+	var calls []struct {
+		Ctx       context.Context
+		GatewayID string
+	}
+	mock.lockRotateGatewayToken.RLock()
+	calls = mock.calls.RotateGatewayToken
+	mock.lockRotateGatewayToken.RUnlock()
 	return calls
 }
 

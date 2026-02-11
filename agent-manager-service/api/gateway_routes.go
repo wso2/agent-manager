@@ -33,4 +33,6 @@ func RegisterGatewayRoutes(mux *http.ServeMux, ctrl controllers.GatewayControlle
 	middleware.HandleFuncWithValidation(mux, "DELETE /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}", ctrl.RemoveGatewayFromEnvironment)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/gateways/{gatewayID}/environments", ctrl.GetGatewayEnvironments)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/gateways/{gatewayID}/health", ctrl.CheckGatewayHealth)
+	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/gateways/{gatewayID}/tokens", ctrl.RotateGatewayToken)
+	middleware.HandleFuncWithValidation(mux, "DELETE /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}", ctrl.RevokeGatewayToken)
 }

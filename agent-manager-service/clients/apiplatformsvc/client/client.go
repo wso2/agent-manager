@@ -44,6 +44,10 @@ type APIPlatformClient interface {
 	ListGateways(ctx context.Context) ([]*GatewayResponse, error)
 	UpdateGateway(ctx context.Context, gatewayID string, req UpdateGatewayRequest) (*GatewayResponse, error)
 	DeleteGateway(ctx context.Context, gatewayID string) error
+
+	// Gateway Token Operations
+	RotateGatewayToken(ctx context.Context, gatewayID string) (*GatewayTokenResponse, error)
+	RevokeGatewayToken(ctx context.Context, gatewayID string, tokenID string) error
 }
 
 type apiPlatformClient struct {
@@ -218,6 +222,61 @@ func (c *apiPlatformClient) DeleteGateway(ctx context.Context, gatewayID string)
 	resp, err := c.genClient.DeleteGatewayWithResponse(ctx, uuid)
 	if err != nil {
 		return fmt.Errorf("failed to delete gateway: %w", err)
+	}
+
+	// API Platform returns 204 No Content on success
+	if resp.StatusCode() != http.StatusNoContent && resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{})
+	}
+
+	return nil
+}
+
+// RotateGatewayToken generates a new token for the gateway and invalidates the old one
+func (c *apiPlatformClient) RotateGatewayToken(ctx context.Context, gatewayID string) (*GatewayTokenResponse, error) {
+	slog.Debug("Rotating gateway token via API Platform", "gatewayID", gatewayID)
+
+	// Convert string to UUID
+	uuid, err := parseUUID(gatewayID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid gateway ID: %w", err)
+	}
+
+	resp, err := c.genClient.RotateGatewayTokenWithResponse(ctx, uuid)
+	if err != nil {
+		return nil, fmt.Errorf("failed to rotate gateway token: %w", err)
+	}
+
+	if resp.StatusCode() != http.StatusCreated && resp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{})
+	}
+
+	if resp.JSON201 == nil {
+		return nil, fmt.Errorf("empty response from rotate gateway token")
+	}
+
+	return convertFromGenTokenRotationResponse(resp.JSON201, gatewayID), nil
+}
+
+// RevokeGatewayToken revokes a specific gateway token
+func (c *apiPlatformClient) RevokeGatewayToken(ctx context.Context, gatewayID string, tokenID string) error {
+	slog.Debug("Revoking gateway token via API Platform", "gatewayID", gatewayID, "tokenID", tokenID)
+
+	// Convert gateway ID string to UUID
+	gwUUID, err := parseUUID(gatewayID)
+	if err != nil {
+		return fmt.Errorf("invalid gateway ID: %w", err)
+	}
+
+	// Convert token ID string to UUID
+	tokenUUID, err := parseUUID(tokenID)
+	if err != nil {
+		return fmt.Errorf("invalid token ID: %w", err)
+	}
+
+	resp, err := c.genClient.RevokeGatewayTokenWithResponse(ctx, gwUUID, tokenUUID)
+	if err != nil {
+		return fmt.Errorf("failed to revoke gateway token: %w", err)
 	}
 
 	// API Platform returns 204 No Content on success

@@ -2149,6 +2149,143 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /orgs/{orgName}/gateways/{gatewayID}/tokens:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          minLength: 1
+          maxLength: 64
+      - name: gatewayID
+        in: path
+        required: true
+        description: Gateway UUID or name
+        schema:
+          type: string
+
+    post:
+      tags:
+        - Gateway Tokens
+      summary: Rotate gateway token
+      description: |
+        Generate a new authentication token for the gateway and invalidate the old one.
+
+        **Security Note:**
+        - The new token is only returned once in this response
+        - Store the token securely - it cannot be retrieved later
+        - The old token will be immediately invalidated
+        - Update your gateway configuration with the new token
+
+        **Use Cases:**
+        - Regular token rotation for security compliance
+        - Token compromise recovery
+        - Periodic security maintenance
+      operationId: rotateGatewayToken
+      responses:
+        '200':
+          description: Token rotated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayTokenResponse'
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Gateway not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name/handle
+        schema:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          minLength: 1
+          maxLength: 64
+      - name: gatewayID
+        in: path
+        required: true
+        description: Gateway UUID or name
+        schema:
+          type: string
+      - name: tokenID
+        in: path
+        required: true
+        description: Token identifier to revoke
+        schema:
+          type: string
+
+    delete:
+      tags:
+        - Gateway Tokens
+      summary: Revoke gateway token
+      description: |
+        Revoke a specific gateway authentication token.
+
+        **Security Note:**
+        - The token will be immediately invalidated
+        - Any gateway using this token will lose authentication
+        - This action cannot be undone
+
+        **Use Cases:**
+        - Emergency token revocation after compromise
+        - Decommissioning gateway instances
+        - Security incident response
+      operationId: revokeGatewayToken
+      responses:
+        '204':
+          description: Token revoked successfully
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Gateway or token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /orgs/{orgName}/data-planes:
     get:
       summary: List all data planes in an organization
@@ -4879,6 +5016,37 @@ components:
           type: string
           description: API key for the gateway
           example: sk-1234567890abcdef
+
+    GatewayTokenResponse:
+      type: object
+      required:
+        - gatewayId
+        - token
+        - tokenId
+        - createdAt
+      properties:
+        gatewayId:
+          type: string
+          description: Gateway UUID
+          example: 7c4a8d09-ca3f-4b0a-82e9-2e85b96dd8a7
+        token:
+          type: string
+          description: New authentication token (only returned once)
+          example: gw_1234567890abcdef1234567890abcdef1234567890abcdef
+        tokenId:
+          type: string
+          description: Unique identifier for this token
+          example: tok_7c4a8d09ca3f4b0a82e9
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the token was created
+          example: '2026-02-12T10:30:00Z'
+        expiresAt:
+          type: string
+          format: date-time
+          description: Token expiration time (if applicable)
+          example: '2027-02-12T10:30:00Z'
 
     CreateGatewayRequest:
       type: object
