@@ -191,11 +191,11 @@ var loggerProviderSet = wire.NewSet(
 // ProvideAPIPlatformAuthProvider creates an auth provider for API Platform
 func ProvideAPIPlatformAuthProvider(cfg config.Config) client2.AuthProvider {
 
-	if cfg.APIPlatform.Auth.TokenURL != "" && cfg.APIPlatform.Auth.ClientID != "" && cfg.APIPlatform.Auth.ClientSecret != "" {
+	if cfg.IDP.TokenURL != "" && cfg.IDP.ClientID != "" && cfg.IDP.ClientSecret != "" {
 		return auth2.NewAuthProvider(auth2.Config{
-			TokenURL:     cfg.APIPlatform.Auth.TokenURL,
-			ClientID:     cfg.APIPlatform.Auth.ClientID,
-			ClientSecret: cfg.APIPlatform.Auth.ClientSecret,
+			TokenURL:     cfg.IDP.TokenURL,
+			ClientID:     cfg.IDP.ClientID,
+			ClientSecret: cfg.IDP.ClientSecret,
 		})
 	}
 	return nil

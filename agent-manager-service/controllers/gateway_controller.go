@@ -117,51 +117,21 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Store gateway metadata in local database
-	dbGateway := &models.Gateway{
-		UUID:             uuid.MustParse(gateway.ID),
-		OrganizationName: orgName,
-		Name:             gateway.Name,
-		DisplayName:      gateway.DisplayName,
-		GatewayType:      string(req.GatewayType),
-		VHost:            gateway.Vhost,
-		IsCritical:       gateway.IsCritical,
-		Status:           convertAPIPlatformStatusToGatewayStatus(gateway.IsActive),
-		AdapterConfig:    gateway.Properties,
-		CreatedAt:        gateway.CreatedAt,
-		UpdatedAt:        gateway.UpdatedAt,
-	}
-
-	if req.Region != nil {
-		dbGateway.Region = *req.Region
-	}
-
-	if err := c.db.Create(dbGateway).Error; err != nil {
-		log.Error("RegisterGateway: failed to store gateway in database", "error", err)
-		// Try to rollback - delete from API Platform
-		if delErr := c.apiPlatformClient.DeleteGateway(ctx, gateway.ID); delErr != nil {
-			log.Error("RegisterGateway: failed to rollback gateway creation", "error", delErr)
-		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to store gateway metadata")
-		return
-	}
-
-	// Assign to environments if provided
+	// Assign to environments if provided (using gateway_environment_mappings table)
 	if len(req.EnvironmentIds) > 0 {
 		for _, envID := range req.EnvironmentIds {
-			if err := c.assignGatewayToEnvironmentInternal(ctx, gateway.ID, envID); err != nil {
+			if err := c.assignGatewayToEnvironmentInDB(ctx, orgName, gateway.ID, envID); err != nil {
 				log.Warn("RegisterGateway: failed to assign gateway to environment", "envID", envID, "error", err)
 				// Continue with other environments
 			}
 		}
-
-		// Reload with environments
-		if err := c.db.Preload("Environments").First(dbGateway, "uuid = ?", dbGateway.UUID).Error; err != nil {
-			log.Warn("RegisterGateway: failed to reload gateway with environments", "error", err)
-		}
 	}
 
-	response := convertDBGatewayToSpecResponse(dbGateway, orgName)
+	// Get environments for response
+	environments := c.getGatewayEnvironmentsFromDB(ctx, orgName, gateway.ID)
+
+	// Convert to spec response
+	response := convertAPIPlatformGatewayToSpecResponse(gateway, orgName, environments)
 	utils.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
@@ -171,29 +141,18 @@ func (c *gatewayController) GetGateway(w http.ResponseWriter, r *http.Request) {
 	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := r.PathValue("gatewayID")
 
-	// Get from database with environments
-	var dbGateway models.Gateway
-	if err := c.db.Preload("Environments").First(&dbGateway, "uuid = ? AND organization_name = ?", gatewayID, orgName).Error; err != nil {
-		log.Error("GetGateway: gateway not found in database", "error", err)
+	// Get gateway from API Platform
+	gateway, err := c.apiPlatformClient.GetGateway(ctx, gatewayID)
+	if err != nil {
+		log.Error("GetGateway: failed to get gateway from API Platform", "error", err)
 		handleGatewayErrors(w, err, "Failed to get gateway")
 		return
 	}
 
-	// Optionally sync with API Platform to get latest status
-	if c.apiPlatformClient != nil {
-		if platformGateway, err := c.apiPlatformClient.GetGateway(ctx, gatewayID); err == nil {
-			// Update status from API Platform
-			dbGateway.Status = convertAPIPlatformStatusToGatewayStatus(platformGateway.IsActive)
-			dbGateway.UpdatedAt = platformGateway.UpdatedAt
-			// Save updated status
-			c.db.Model(&dbGateway).Updates(map[string]interface{}{
-				"status":     dbGateway.Status,
-				"updated_at": dbGateway.UpdatedAt,
-			})
-		}
-	}
+	// Get environments from DB
+	environments := c.getGatewayEnvironmentsFromDB(ctx, orgName, gatewayID)
 
-	response := convertDBGatewayToSpecResponse(&dbGateway, orgName)
+	response := convertAPIPlatformGatewayToSpecResponse(gateway, orgName, environments)
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
@@ -206,41 +165,36 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 	limit := getIntQueryParam(r, "limit", defaultLimit)
 	offset := getIntQueryParam(r, "offset", defaultOffset)
 
-	// Build query
-	query := c.db.Model(&models.Gateway{}).Where("organization_name = ?", orgName)
-
-	// Apply filters
-	if gatewayType := r.URL.Query().Get("type"); gatewayType != "" {
-		query = query.Where("gateway_type = ?", gatewayType)
-	}
-	if status := r.URL.Query().Get("status"); status != "" {
-		query = query.Where("status = ?", status)
-	}
-
-	// Get total count
-	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		log.Error("ListGateways: failed to count gateways", "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list gateways")
-		return
-	}
-
-	// Get gateways with pagination
-	var dbGateways []models.Gateway
-	if err := query.Preload("Environments").Limit(limit).Offset(offset).Order("created_at DESC").Find(&dbGateways).Error; err != nil {
-		log.Error("ListGateways: failed to fetch gateways", "error", err)
+	// Get gateways from API Platform
+	gateways, err := c.apiPlatformClient.ListGateways(ctx)
+	if err != nil {
+		log.Error("ListGateways: failed to list gateways from API Platform", "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list gateways")
 		return
 	}
 
 	// Convert to spec responses
-	specGateways := make([]spec.GatewayResponse, len(dbGateways))
-	for i, gw := range dbGateways {
-		specGateways[i] = convertDBGatewayToSpecResponse(&gw, orgName)
+	specGateways := make([]spec.GatewayResponse, 0)
+	for _, gw := range gateways {
+		// Get environments from DB for each gateway
+		environments := c.getGatewayEnvironmentsFromDB(ctx, orgName, gw.ID)
+		specGateways = append(specGateways, convertAPIPlatformGatewayToSpecResponse(gw, orgName, environments))
 	}
 
+	// Apply pagination (client-side for now)
+	total := len(specGateways)
+	start := offset
+	end := offset + limit
+	if start > len(specGateways) {
+		start = len(specGateways)
+	}
+	if end > len(specGateways) {
+		end = len(specGateways)
+	}
+	paginatedGateways := specGateways[start:end]
+
 	response := spec.GatewayListResponse{
-		Gateways: specGateways,
+		Gateways: paginatedGateways,
 		Total:    int32(total),
 		Limit:    int32(limit),
 		Offset:   int32(offset),
@@ -262,14 +216,6 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Check if gateway exists in database
-	var dbGateway models.Gateway
-	if err := c.db.First(&dbGateway, "uuid = ? AND organization_name = ?", gatewayID, orgName).Error; err != nil {
-		log.Error("UpdateGateway: gateway not found", "error", err)
-		handleGatewayErrors(w, err, "Failed to update gateway")
-		return
-	}
-
 	// Convert spec request to API Platform client request
 	clientReq := apiplatformclient.UpdateGatewayRequest{
 		DisplayName: req.DisplayName,
@@ -278,79 +224,38 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 	}
 
 	// Update in API Platform
-	if c.apiPlatformClient != nil {
-		platformGateway, err := c.apiPlatformClient.UpdateGateway(ctx, gatewayID, clientReq)
-		if err != nil {
-			log.Error("UpdateGateway: failed to update gateway in API Platform", "error", err)
-			handleGatewayErrors(w, err, "Failed to update gateway")
-			return
-		}
-
-		// Update from API Platform response
-		updates := map[string]interface{}{
-			"updated_at": platformGateway.UpdatedAt,
-		}
-		if req.DisplayName != nil {
-			updates["display_name"] = platformGateway.DisplayName
-		}
-		if req.IsCritical != nil {
-			updates["is_critical"] = platformGateway.IsCritical
-		}
-		if len(req.AdapterConfig) > 0 {
-			updates["adapter_config"] = platformGateway.Properties
-		}
-
-		if err := c.db.Model(&dbGateway).Updates(updates).Error; err != nil {
-			log.Error("UpdateGateway: failed to update gateway in database", "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update gateway metadata")
-			return
-		}
-	}
-
-	// Reload gateway
-	if err := c.db.Preload("Environments").First(&dbGateway, "uuid = ?", gatewayID).Error; err != nil {
-		log.Error("UpdateGateway: failed to reload gateway", "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to retrieve updated gateway")
+	gateway, err := c.apiPlatformClient.UpdateGateway(ctx, gatewayID, clientReq)
+	if err != nil {
+		log.Error("UpdateGateway: failed to update gateway in API Platform", "error", err)
+		handleGatewayErrors(w, err, "Failed to update gateway")
 		return
 	}
 
-	response := convertDBGatewayToSpecResponse(&dbGateway, orgName)
+	// Get environments from DB
+	environments := c.getGatewayEnvironmentsFromDB(ctx, orgName, gatewayID)
+
+	response := convertAPIPlatformGatewayToSpecResponse(gateway, orgName, environments)
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := r.PathValue("gatewayID")
 
-	// Check if gateway exists
-	var dbGateway models.Gateway
-	if err := c.db.First(&dbGateway, "uuid = ? AND organization_name = ?", gatewayID, orgName).Error; err != nil {
-		log.Error("DeleteGateway: gateway not found", "error", err)
+	// Delete from API Platform
+	if err := c.apiPlatformClient.DeleteGateway(ctx, gatewayID); err != nil {
+		log.Error("DeleteGateway: failed to delete gateway from API Platform", "error", err)
 		handleGatewayErrors(w, err, "Failed to delete gateway")
 		return
 	}
 
-	// Delete from API Platform first
-	if c.apiPlatformClient != nil {
-		if err := c.apiPlatformClient.DeleteGateway(ctx, gatewayID); err != nil {
-			log.Error("DeleteGateway: failed to delete gateway from API Platform", "error", err)
-			handleGatewayErrors(w, err, "Failed to delete gateway")
-			return
+	// Delete environment mappings from DB
+	gwUUID, err := uuid.Parse(gatewayID)
+	if err == nil {
+		if err := c.db.Where("gateway_uuid = ?", gwUUID).Delete(&models.GatewayEnvironmentMapping{}).Error; err != nil {
+			log.Warn("DeleteGateway: failed to delete gateway-environment mappings", "error", err)
 		}
-	}
-
-	// Delete environment mappings
-	if err := c.db.Where("gateway_uuid = ?", gatewayID).Delete(&models.GatewayEnvironmentMapping{}).Error; err != nil {
-		log.Warn("DeleteGateway: failed to delete gateway-environment mappings", "error", err)
-	}
-
-	// Delete from database (soft delete)
-	if err := c.db.Delete(&dbGateway).Error; err != nil {
-		log.Error("DeleteGateway: failed to delete gateway from database", "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete gateway")
-		return
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
@@ -363,15 +268,15 @@ func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r 
 	gatewayID := r.PathValue("gatewayID")
 	envID := r.PathValue("envID")
 
-	// Verify gateway exists
-	var dbGateway models.Gateway
-	if err := c.db.First(&dbGateway, "uuid = ? AND organization_name = ?", gatewayID, orgName).Error; err != nil {
-		log.Error("AssignGatewayToEnvironment: gateway not found", "error", err)
+	// Verify gateway exists in API Platform
+	if _, err := c.apiPlatformClient.GetGateway(ctx, gatewayID); err != nil {
+		log.Error("AssignGatewayToEnvironment: gateway not found in API Platform", "error", err)
 		handleGatewayErrors(w, err, "Failed to assign gateway")
 		return
 	}
 
-	if err := c.assignGatewayToEnvironmentInternal(ctx, gatewayID, envID); err != nil {
+	// Assign in DB
+	if err := c.assignGatewayToEnvironmentInDB(ctx, orgName, gatewayID, envID); err != nil {
 		log.Error("AssignGatewayToEnvironment: failed to assign", "error", err)
 		handleGatewayErrors(w, err, "Failed to assign gateway to environment")
 		return
@@ -383,20 +288,25 @@ func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r 
 func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := r.PathValue("gatewayID")
 	envID := r.PathValue("envID")
 
-	// Verify gateway exists
-	var dbGateway models.Gateway
-	if err := c.db.First(&dbGateway, "uuid = ? AND organization_name = ?", gatewayID, orgName).Error; err != nil {
-		log.Error("RemoveGatewayFromEnvironment: gateway not found", "error", err)
-		handleGatewayErrors(w, err, "Failed to remove gateway")
+	gwUUID, err := uuid.Parse(gatewayID)
+	if err != nil {
+		log.Error("RemoveGatewayFromEnvironment: invalid gateway ID", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid gateway ID")
 		return
 	}
 
-	// Delete the mapping
-	result := c.db.Where("gateway_uuid = ? AND environment_uuid = ?", gatewayID, envID).
+	envUUID, err := uuid.Parse(envID)
+	if err != nil {
+		log.Error("RemoveGatewayFromEnvironment: invalid environment ID", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid environment ID")
+		return
+	}
+
+	// Delete the mapping from DB
+	result := c.db.Where("gateway_uuid = ? AND environment_uuid = ?", gwUUID, envUUID).
 		Delete(&models.GatewayEnvironmentMapping{})
 
 	if result.Error != nil {
@@ -415,21 +325,15 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 
 func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := r.PathValue("gatewayID")
 
-	// Get gateway with environments
-	var dbGateway models.Gateway
-	if err := c.db.Preload("Environments").First(&dbGateway, "uuid = ? AND organization_name = ?", gatewayID, orgName).Error; err != nil {
-		log.Error("GetGatewayEnvironments: gateway not found", "error", err)
-		handleGatewayErrors(w, err, "Failed to get gateway environments")
-		return
-	}
+	// Get environments from DB
+	environments := c.getGatewayEnvironmentsFromDB(ctx, orgName, gatewayID)
 
 	// Convert to spec responses
-	specEnvs := make([]spec.GatewayEnvironmentResponse, len(dbGateway.Environments))
-	for i, env := range dbGateway.Environments {
+	specEnvs := make([]spec.GatewayEnvironmentResponse, len(environments))
+	for i, env := range environments {
 		specEnvs[i] = convertDBEnvironmentToSpecResponse(&env)
 	}
 
@@ -443,21 +347,19 @@ func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *htt
 func (c *gatewayController) CheckGatewayHealth(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := r.PathValue("gatewayID")
 
-	// Verify gateway exists
-	var dbGateway models.Gateway
-	if err := c.db.First(&dbGateway, "uuid = ? AND organization_name = ?", gatewayID, orgName).Error; err != nil {
+	// Get gateway from API Platform to check if it exists
+	gateway, err := c.apiPlatformClient.GetGateway(ctx, gatewayID)
+	if err != nil {
 		log.Error("CheckGatewayHealth: gateway not found", "error", err)
 		handleGatewayErrors(w, err, "Failed to check gateway health")
 		return
 	}
 
-	// For now, return basic health based on gateway status
-	// In future, this could check actual gateway connectivity
+	// Return health based on gateway's active status
 	status := "healthy"
-	if dbGateway.Status != string(models.GatewayStatusActive) {
+	if !gateway.IsActive {
 		status = "unhealthy"
 	}
 
@@ -470,20 +372,76 @@ func (c *gatewayController) CheckGatewayHealth(w http.ResponseWriter, r *http.Re
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
+func (c *gatewayController) RotateGatewayToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+	gatewayID := r.PathValue("gatewayID")
+
+	// Call API Platform to rotate the token
+	tokenResp, err := c.apiPlatformClient.RotateGatewayToken(ctx, gatewayID)
+	if err != nil {
+		log.Error("RotateGatewayToken: failed to rotate token in API Platform", "error", err)
+		handleGatewayErrors(w, err, "Failed to rotate gateway token")
+		return
+	}
+
+	// Convert to spec response
+	response := spec.GatewayTokenResponse{
+		GatewayId: tokenResp.GatewayID,
+		Token:     tokenResp.Token,
+		TokenId:   tokenResp.TokenID,
+		CreatedAt: tokenResp.CreatedAt,
+		ExpiresAt: tokenResp.ExpiresAt,
+	}
+
+	utils.WriteSuccessResponse(w, http.StatusOK, response)
+}
+
+func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+	gatewayID := r.PathValue("gatewayID")
+	tokenID := r.PathValue("tokenID")
+
+	// Call API Platform to revoke the token
+	err := c.apiPlatformClient.RevokeGatewayToken(ctx, gatewayID, tokenID)
+	if err != nil {
+		log.Error("RevokeGatewayToken: failed to revoke token in API Platform", "error", err)
+		handleGatewayErrors(w, err, "Failed to revoke gateway token")
+		return
+	}
+
+	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
+}
+
 // Internal helper methods
 
-func (c *gatewayController) assignGatewayToEnvironmentInternal(ctx context.Context, gatewayID, envID string) error {
+// assignGatewayToEnvironmentInDB creates a mapping in the gateway_environment_mappings table
+func (c *gatewayController) assignGatewayToEnvironmentInDB(ctx context.Context, orgName, gatewayID, envID string) error {
 	log := logger.GetLogger(ctx)
 
-	// Verify environment exists
+	gwUUID, err := uuid.Parse(gatewayID)
+	if err != nil {
+		return fmt.Errorf("invalid gateway UUID: %w", err)
+	}
+
+	envUUID, err := uuid.Parse(envID)
+	if err != nil {
+		return fmt.Errorf("invalid environment UUID: %w", err)
+	}
+
+	// Verify environment exists and belongs to organization
 	var env models.Environment
-	if err := c.db.First(&env, "uuid = ?", envID).Error; err != nil {
-		return fmt.Errorf("environment not found: %w", err)
+	if err := c.db.Where("uuid = ? AND organization_name = ?", envUUID, orgName).First(&env).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return utils.ErrEnvironmentNotFound
+		}
+		return fmt.Errorf("failed to verify environment: %w", err)
 	}
 
 	// Check if mapping already exists
 	var existing models.GatewayEnvironmentMapping
-	err := c.db.Where("gateway_uuid = ? AND environment_uuid = ?", gatewayID, envID).
+	err = c.db.Where("gateway_uuid = ? AND environment_uuid = ?", gwUUID, envUUID).
 		First(&existing).Error
 
 	if err == nil {
@@ -497,8 +455,8 @@ func (c *gatewayController) assignGatewayToEnvironmentInternal(ctx context.Conte
 
 	// Create mapping
 	mapping := &models.GatewayEnvironmentMapping{
-		GatewayUUID:     uuid.MustParse(gatewayID),
-		EnvironmentUUID: uuid.MustParse(envID),
+		GatewayUUID:     gwUUID,
+		EnvironmentUUID: envUUID,
 		CreatedAt:       time.Now(),
 	}
 
@@ -509,55 +467,72 @@ func (c *gatewayController) assignGatewayToEnvironmentInternal(ctx context.Conte
 	return nil
 }
 
+// getGatewayEnvironmentsFromDB retrieves environments associated with a gateway from the DB
+func (c *gatewayController) getGatewayEnvironmentsFromDB(ctx context.Context, orgName, gatewayID string) []models.Environment {
+	log := logger.GetLogger(ctx)
+
+	gwUUID, err := uuid.Parse(gatewayID)
+	if err != nil {
+		log.Warn("getGatewayEnvironmentsFromDB: invalid gateway UUID", "error", err)
+		return []models.Environment{}
+	}
+
+	var environments []models.Environment
+	err = c.db.
+		Joins("JOIN gateway_environment_mappings ON gateway_environment_mappings.environment_uuid = environments.uuid").
+		Where("gateway_environment_mappings.gateway_uuid = ? AND environments.organization_name = ?", gwUUID, orgName).
+		Find(&environments).Error
+	if err != nil {
+		log.Warn("getGatewayEnvironmentsFromDB: failed to get environments", "error", err)
+		return []models.Environment{}
+	}
+
+	return environments
+}
+
 // Helper conversion functions
 
 func convertSpecGatewayTypeToFunctionalityType(gatewayType spec.GatewayType) apiplatformclient.FunctionalityType {
-	// Map spec.GatewayType to API Platform FunctionalityType
 	// For now, default to Regular
+	// Can be extended to map different gateway types
 	return apiplatformclient.FunctionalityTypeRegular
 }
 
-func convertAPIPlatformStatusToGatewayStatus(isActive bool) string {
-	if isActive {
-		return string(models.GatewayStatusActive)
-	}
-	return string(models.GatewayStatusInactive)
-}
-
-func convertDBGatewayToSpecResponse(gw *models.Gateway, orgName string) spec.GatewayResponse {
+func convertAPIPlatformGatewayToSpecResponse(gw *apiplatformclient.GatewayResponse, orgName string, environments []models.Environment) spec.GatewayResponse {
 	response := spec.GatewayResponse{
-		Uuid:             gw.UUID.String(),
+		Uuid:             gw.ID,
 		OrganizationName: orgName,
 		Name:             gw.Name,
 		DisplayName:      gw.DisplayName,
-		GatewayType:      spec.GatewayType(gw.GatewayType),
-		Vhost:            gw.VHost,
+		GatewayType:      spec.GatewayType(gw.FunctionalityType),
+		Vhost:            gw.Vhost,
 		IsCritical:       gw.IsCritical,
-		Status:           spec.GatewayStatus(gw.Status),
+		Status:           convertAPIPlatformStatusToGatewayStatus(gw.IsActive),
 		CreatedAt:        gw.CreatedAt,
 		UpdatedAt:        gw.UpdatedAt,
 	}
 
-	if gw.Region != "" {
-		response.Region = &gw.Region
-	}
-	if gw.ControlPlaneURL != "" {
-		response.ControlPlaneUrl = &gw.ControlPlaneURL
-	}
-	if len(gw.AdapterConfig) > 0 {
-		response.AdapterConfig = gw.AdapterConfig
+	if len(gw.Properties) > 0 {
+		response.AdapterConfig = gw.Properties
 	}
 
 	// Convert environments
-	if len(gw.Environments) > 0 {
-		envs := make([]spec.GatewayEnvironmentResponse, len(gw.Environments))
-		for i, env := range gw.Environments {
+	if len(environments) > 0 {
+		envs := make([]spec.GatewayEnvironmentResponse, len(environments))
+		for i, env := range environments {
 			envs[i] = convertDBEnvironmentToSpecResponse(&env)
 		}
 		response.Environments = envs
 	}
 
 	return response
+}
+
+func convertAPIPlatformStatusToGatewayStatus(isActive bool) spec.GatewayStatus {
+	if isActive {
+		return "ACTIVE"
+	}
+	return "INACTIVE"
 }
 
 func convertDBEnvironmentToSpecResponse(env *models.Environment) spec.GatewayEnvironmentResponse {
@@ -573,79 +548,3 @@ func convertDBEnvironmentToSpecResponse(env *models.Environment) spec.GatewayEnv
 		UpdatedAt:        env.UpdatedAt,
 	}
 }
-
-func (c *gatewayController) RotateGatewayToken(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-	orgName := r.PathValue(utils.PathParamOrgName)
-	gatewayID := r.PathValue("gatewayID")
-
-	// Verify gateway exists and belongs to organization
-	var dbGateway models.Gateway
-	if err := c.db.First(&dbGateway, "uuid = ? AND organization_name = ?", gatewayID, orgName).Error; err != nil {
-		log.Error("RotateGatewayToken: gateway not found", "error", err)
-		handleGatewayErrors(w, err, "Failed to rotate gateway token")
-		return
-	}
-
-	// Call API Platform to rotate the token
-	if c.apiPlatformClient != nil {
-		tokenResp, err := c.apiPlatformClient.RotateGatewayToken(ctx, gatewayID)
-		if err != nil {
-			log.Error("RotateGatewayToken: failed to rotate token in API Platform", "error", err)
-			handleGatewayErrors(w, err, "Failed to rotate gateway token")
-			return
-		}
-
-		// Convert to spec response
-		response := spec.GatewayTokenResponse{
-			GatewayId: tokenResp.GatewayID,
-			Token:     tokenResp.Token,
-			TokenId:   tokenResp.TokenID,
-			CreatedAt: tokenResp.CreatedAt,
-			ExpiresAt: tokenResp.ExpiresAt,
-		}
-
-		utils.WriteSuccessResponse(w, http.StatusOK, response)
-		return
-	}
-
-	// If no API Platform client, return error
-	log.Error("RotateGatewayToken: API Platform client not configured")
-	utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "Gateway token rotation not available")
-}
-
-func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-	orgName := r.PathValue(utils.PathParamOrgName)
-	gatewayID := r.PathValue("gatewayID")
-	tokenID := r.PathValue("tokenID")
-
-	// Verify gateway exists and belongs to organization
-	var dbGateway models.Gateway
-	if err := c.db.First(&dbGateway, "uuid = ? AND organization_name = ?", gatewayID, orgName).Error; err != nil {
-		log.Error("RevokeGatewayToken: gateway not found", "error", err)
-		handleGatewayErrors(w, err, "Failed to revoke gateway token")
-		return
-	}
-
-	// Call API Platform to revoke the token
-	if c.apiPlatformClient != nil {
-		err := c.apiPlatformClient.RevokeGatewayToken(ctx, gatewayID, tokenID)
-		if err != nil {
-			log.Error("RevokeGatewayToken: failed to revoke token in API Platform", "error", err)
-			handleGatewayErrors(w, err, "Failed to revoke gateway token")
-			return
-		}
-
-		utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
-		return
-	}
-
-	// If no API Platform client, return error
-	log.Error("RevokeGatewayToken: API Platform client not configured")
-	utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "Gateway token revocation not available")
-}
-
-// getIntQueryParam is already defined in environment_controller.go, removed duplicate

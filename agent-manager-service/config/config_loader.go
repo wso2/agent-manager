@@ -168,19 +168,7 @@ func loadEnvs() {
 
 	// API Platform configuration
 	config.APIPlatform = APIPlatformConfig{
-		Enabled:     r.readOptionalBool("API_PLATFORM_ENABLED", false),
-		BaseURL:     r.readOptionalString("API_PLATFORM_BASE_URL", ""),
-		ProjectName: r.readOptionalString("API_PLATFORM_PROJECT_NAME", "gateway"),
-		Auth: APIPlatformAuthConfig{
-			Type:         r.readOptionalString("API_PLATFORM_AUTH_TYPE", "jwt"),
-			JWTTokenPath: r.readOptionalString("API_PLATFORM_JWT_TOKEN_PATH", ""),
-			ClientID:     r.readOptionalString("API_PLATFORM_CLIENT_ID", ""),
-			ClientSecret: r.readOptionalString("API_PLATFORM_CLIENT_SECRET", ""),
-			TokenURL:     r.readOptionalString("API_PLATFORM_TOKEN_URL", ""),
-		},
-		Timeout:      int(r.readOptionalInt64("API_PLATFORM_TIMEOUT_SECONDS", 30)),
-		CacheEnabled: r.readOptionalBool("API_PLATFORM_CACHE_ENABLED", true),
-		CacheTTL:     int(r.readOptionalInt64("API_PLATFORM_CACHE_TTL_SECONDS", 60)),
+		BaseURL: r.readOptionalString("API_PLATFORM_BASE_URL", ""),
 	}
 
 	// Validate HTTP server configurations

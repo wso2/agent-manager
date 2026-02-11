@@ -189,22 +189,5 @@ type PublicKeysConfig struct {
 
 // APIPlatformConfig holds API Platform client configuration
 type APIPlatformConfig struct {
-	Enabled     bool   // Enable API Platform integration (default: false)
-	BaseURL     string // Base URL for API Platform
-	ProjectName string // Project name for gateway resources (default: "gateway")
-
-	// Auth configuration for API Platform JWT tokens
-	Auth         APIPlatformAuthConfig
-	Timeout      int  // Request timeout in seconds (default: 30)
-	CacheEnabled bool // Enable response caching (default: true)
-	CacheTTL     int  // Cache TTL in seconds (default: 60)
-}
-
-// APIPlatformAuthConfig holds authentication configuration for API Platform
-type APIPlatformAuthConfig struct {
-	Type         string // "jwt" or "service-account" (default: "jwt")
-	JWTTokenPath string // Path to JWT token file for "jwt" type
-	ClientID     string // OAuth2 client ID
-	ClientSecret string // OAuth2 client secret
-	TokenURL     string // OAuth2 token endpoint URL
+	BaseURL string // Base URL for API Platform
 }
