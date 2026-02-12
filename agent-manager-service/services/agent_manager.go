@@ -632,25 +632,21 @@ func (s *agentManagerService) UpdateAgentResourceConfigs(ctx context.Context, or
 func buildUpdateResourceConfigsRequest(req *spec.UpdateAgentResourceConfigsRequest) client.UpdateComponentResourceConfigsRequest {
 	updateReq := client.UpdateComponentResourceConfigsRequest{}
 
-	if req.Replicas != nil {
-		updateReq.Replicas = req.Replicas
+	updateReq.Replicas = &req.Replicas
+
+	updateReq.Resources = &client.ResourceConfig{}
+
+	if req.Resources.Requests != nil {
+		updateReq.Resources.Requests = &client.ResourceRequests{
+			CPU:    utils.StrPointerAsStr(req.Resources.Requests.Cpu, ""),
+			Memory: utils.StrPointerAsStr(req.Resources.Requests.Memory, ""),
+		}
 	}
 
-	if req.Resources != nil {
-		updateReq.Resources = &client.ResourceConfig{}
-
-		if req.Resources.Requests != nil {
-			updateReq.Resources.Requests = &client.ResourceRequests{
-				CPU:    utils.StrPointerAsStr(req.Resources.Requests.Cpu, ""),
-				Memory: utils.StrPointerAsStr(req.Resources.Requests.Memory, ""),
-			}
-		}
-
-		if req.Resources.Limits != nil {
-			updateReq.Resources.Limits = &client.ResourceLimits{
-				CPU:    utils.StrPointerAsStr(req.Resources.Limits.Cpu, ""),
-				Memory: utils.StrPointerAsStr(req.Resources.Limits.Memory, ""),
-			}
+	if req.Resources.Limits != nil {
+		updateReq.Resources.Limits = &client.ResourceLimits{
+			CPU:    utils.StrPointerAsStr(req.Resources.Limits.Cpu, ""),
+			Memory: utils.StrPointerAsStr(req.Resources.Limits.Memory, ""),
 		}
 	}
 
