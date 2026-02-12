@@ -1,8 +1,11 @@
 import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
+import fs from 'fs';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
+const versions: string[] = JSON.parse(fs.readFileSync('./versions.json', 'utf-8'));
+const latestVersion = versions[0]; // First entry is always the latest
 
 const config: Config = {
   title: 'WSO2 Agent Manager',
@@ -48,15 +51,15 @@ const config: Config = {
 
   // Enable mermaid theme
   themes: ['@docusaurus/theme-mermaid'],
-
-  plugins: ['@signalwire/docusaurus-plugin-llms-txt'],
+  plugins: [
+    '@signalwire/docusaurus-plugin-llms-txt'],
 
   presets: [
     [
       'classic',
       {
         docs: {
-          lastVersion: 'v0.5.0',
+          lastVersion: latestVersion,
           versions: {
             current: {
               label: 'Next',
@@ -92,6 +95,12 @@ const config: Config = {
     //   contextualSearch: true,
     //   searchParameters: {},
     // },
+    announcementBar: {
+      id: `release_${latestVersion.replace(/\./g, '_')}`,
+      content:
+        `🎉️ WSO2 Agent Manager <a target="_blank" rel="noopener noreferrer" href="https://github.com/wso2/agent-manager/releases/tag/amp%2F${latestVersion}">${latestVersion}</a> has been released! Explore what's new. 🎉`,
+      isCloseable: true,
+    },
     colorMode: {
       respectPrefersColorScheme: true,
     },
