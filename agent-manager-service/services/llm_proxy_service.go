@@ -18,55 +18,255 @@
 package services
 
 import (
+	"errors"
+	"fmt"
+
+	"github.com/google/uuid"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
+	"gorm.io/gorm"
 )
 
 // LLMProxyService handles LLM proxy business logic
 type LLMProxyService struct {
-	proxyRepo repositories.LLMProxyRepository
+	proxyRepo    repositories.LLMProxyRepository
+	providerRepo repositories.LLMProviderRepository
+	projectRepo  repositories.ProjectRepository
 }
 
 // NewLLMProxyService creates a new LLM proxy service
-func NewLLMProxyService(proxyRepo repositories.LLMProxyRepository) *LLMProxyService {
+func NewLLMProxyService(
+	proxyRepo repositories.LLMProxyRepository,
+	providerRepo repositories.LLMProviderRepository,
+	projectRepo repositories.ProjectRepository,
+) *LLMProxyService {
 	return &LLMProxyService{
-		proxyRepo: proxyRepo,
+		proxyRepo:    proxyRepo,
+		providerRepo: providerRepo,
+		projectRepo:  projectRepo,
 	}
 }
 
 // Create creates a new LLM proxy
-// TODO: Implement based on actual repository interface methods
 func (s *LLMProxyService) Create(orgID, createdBy string, proxy *models.LLMProxy) (*models.LLMProxy, error) {
-	return nil, utils.ErrNotImplemented
+	if proxy == nil {
+		return nil, utils.ErrInvalidInput
+	}
+
+	// Extract handle, name, and version from configuration
+	handle := proxy.Artifact.Handle
+	name := proxy.Configuration.Name
+	version := proxy.Configuration.Version
+	provider := proxy.Configuration.Provider
+
+	if handle == "" || name == "" || version == "" || provider == "" {
+		return nil, utils.ErrInvalidInput
+	}
+
+	// Validate project exists
+	if proxy.ProjectUUID == uuid.Nil {
+		return nil, utils.ErrInvalidInput
+	}
+
+	project, err := s.projectRepo.GetProjectByUUID(proxy.ProjectUUID.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate project: %w", err)
+	}
+	if project == nil || project.OrganizationUUID != orgID {
+		return nil, utils.ErrProjectNotFound
+	}
+
+	// Validate provider exists
+	providerModel, err := s.providerRepo.GetByID(provider, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate provider: %w", err)
+	}
+	if providerModel == nil {
+		return nil, utils.ErrLLMProviderNotFound
+	}
+
+	// Check if proxy already exists
+	exists, err := s.proxyRepo.Exists(handle, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check proxy exists: %w", err)
+	}
+	if exists {
+		return nil, utils.ErrLLMProxyExists
+	}
+
+	// Parse organization UUID
+	orgUUID, err := uuid.Parse(orgID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid organization UUID: %w", err)
+	}
+
+	// Set default values
+	proxy.CreatedBy = createdBy
+	proxy.ProviderUUID = providerModel.UUID
+	proxy.Status = llmStatusPending
+	if proxy.Configuration.Context == nil {
+		defaultContext := "/"
+		proxy.Configuration.Context = &defaultContext
+	}
+
+	// Create proxy
+	if err := s.proxyRepo.Create(proxy, handle, name, version, orgUUID); err != nil {
+		return nil, fmt.Errorf("failed to create proxy: %w", err)
+	}
+
+	// Fetch created proxy
+	created, err := s.proxyRepo.GetByID(handle, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch created proxy: %w", err)
+	}
+
+	return created, nil
 }
 
 // List lists all LLM proxies for an organization
-// TODO: Implement based on actual repository interface methods
-func (s *LLMProxyService) List(orgID string, limit, offset int) ([]*models.LLMProxy, int, error) {
-	return nil, 0, utils.ErrNotImplemented
+func (s *LLMProxyService) List(orgID string, projectID *string, limit, offset int) ([]*models.LLMProxy, int, error) {
+	var proxies []*models.LLMProxy
+	var totalCount int
+	var err error
+
+	// Validate project if specified
+	if projectID != nil && *projectID != "" {
+		project, err := s.projectRepo.GetProjectByUUID(*projectID)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to validate project: %w", err)
+		}
+		if project == nil || project.OrganizationUUID != orgID {
+			return nil, 0, utils.ErrProjectNotFound
+		}
+
+		proxies, err = s.proxyRepo.ListByProject(orgID, *projectID, limit, offset)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to list proxies by project: %w", err)
+		}
+
+		totalCount, err = s.proxyRepo.CountByProject(orgID, *projectID)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to count proxies by project: %w", err)
+		}
+	} else {
+		proxies, err = s.proxyRepo.List(orgID, limit, offset)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to list proxies: %w", err)
+		}
+
+		totalCount, err = s.proxyRepo.Count(orgID)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to count proxies: %w", err)
+		}
+	}
+
+	return proxies, totalCount, nil
 }
 
 // Get retrieves an LLM proxy by ID
-// TODO: Implement based on actual repository interface methods
 func (s *LLMProxyService) Get(proxyID, orgID string) (*models.LLMProxy, error) {
-	return nil, utils.ErrNotImplemented
+	if proxyID == "" {
+		return nil, utils.ErrInvalidInput
+	}
+
+	proxy, err := s.proxyRepo.GetByID(proxyID, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get proxy: %w", err)
+	}
+	if proxy == nil {
+		return nil, utils.ErrLLMProxyNotFound
+	}
+
+	return proxy, nil
 }
 
 // Update updates an existing LLM proxy
-// TODO: Implement based on actual repository interface methods
 func (s *LLMProxyService) Update(proxyID, orgID string, updates *models.LLMProxy) (*models.LLMProxy, error) {
-	return nil, utils.ErrNotImplemented
+	if proxyID == "" || updates == nil {
+		return nil, utils.ErrInvalidInput
+	}
+
+	// Validate provider if specified
+	provider := updates.Configuration.Provider
+	if provider != "" {
+		providerModel, err := s.providerRepo.GetByID(provider, orgID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to validate provider: %w", err)
+		}
+		if providerModel == nil {
+			return nil, utils.ErrLLMProviderNotFound
+		}
+		updates.ProviderUUID = providerModel.UUID
+	}
+
+	// Parse organization UUID
+	orgUUID, err := uuid.Parse(orgID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid organization UUID: %w", err)
+	}
+
+	// Update proxy
+	if err := s.proxyRepo.Update(updates, proxyID, orgUUID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.ErrLLMProxyNotFound
+		}
+		return nil, fmt.Errorf("failed to update proxy: %w", err)
+	}
+
+	// Fetch updated proxy
+	updated, err := s.proxyRepo.GetByID(proxyID, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch updated proxy: %w", err)
+	}
+	if updated == nil {
+		return nil, utils.ErrLLMProxyNotFound
+	}
+
+	return updated, nil
 }
 
 // Delete deletes an LLM proxy
-// TODO: Implement based on actual repository interface methods
 func (s *LLMProxyService) Delete(proxyID, orgID string) error {
-	return utils.ErrNotImplemented
+	if proxyID == "" {
+		return utils.ErrInvalidInput
+	}
+
+	if err := s.proxyRepo.Delete(proxyID, orgID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return utils.ErrLLMProxyNotFound
+		}
+		return fmt.Errorf("failed to delete proxy: %w", err)
+	}
+
+	return nil
 }
 
 // ListByProvider lists all proxies for a specific provider
-// TODO: Implement based on actual repository interface methods
 func (s *LLMProxyService) ListByProvider(orgID, providerID string, limit, offset int) ([]*models.LLMProxy, int, error) {
-	return nil, 0, utils.ErrNotImplemented
+	if providerID == "" {
+		return nil, 0, utils.ErrInvalidInput
+	}
+
+	// Get provider to get its UUID
+	provider, err := s.providerRepo.GetByID(providerID, orgID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get provider: %w", err)
+	}
+	if provider == nil {
+		return nil, 0, utils.ErrLLMProviderNotFound
+	}
+
+	// List proxies by provider UUID
+	proxies, err := s.proxyRepo.ListByProvider(orgID, provider.UUID.String(), limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list proxies by provider: %w", err)
+	}
+
+	totalCount, err := s.proxyRepo.CountByProvider(orgID, provider.UUID.String())
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count proxies by provider: %w", err)
+	}
+
+	return proxies, totalCount, nil
 }

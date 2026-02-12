@@ -527,11 +527,11 @@ func (c *llmController) ListLLMProxies(w http.ResponseWriter, r *http.Request) {
 
 	// Parse optional projectId filter
 	// Note: projectID filtering not yet supported by service implementation
-	// projectID := r.URL.Query().Get("projectId")
-	// var projectIDPtr *string
-	// if projectID != "" {
-	// 	projectIDPtr = &projectID
-	// }
+	projectID := r.URL.Query().Get("projectId")
+	var projectIDPtr *string
+	if projectID != "" {
+		projectIDPtr = &projectID
+	}
 
 	// Parse pagination parameters
 	limit := getIntQueryParam(r, "limit", 20)
@@ -549,7 +549,7 @@ func (c *llmController) ListLLMProxies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Note: projectIDPtr filtering not supported by current service implementation
-	proxies, totalCount, err := c.proxyService.List(orgID, limit, offset)
+	proxies, totalCount, err := c.proxyService.List(orgID, projectIDPtr, limit, offset)
 	if err != nil {
 		if errors.Is(err, utils.ErrProjectNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")

@@ -26,8 +26,6 @@ import (
 	"github.com/google/wire"
 	"gorm.io/gorm"
 
-	apiplatformauth "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/auth"
-	apiplatformclient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/client"
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	ocauth "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
 	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
@@ -50,9 +48,6 @@ var clientProviderSet = wire.NewSet(
 	traceobserversvc.NewTraceObserverClient,
 	ProvideOCAuthProvider,
 	ProvideOCClient,
-	ProvideAPIPlatformAuthProvider,
-	ProvideAPIPlatformConfig,
-	ProvideAPIPlatformClient,
 )
 
 var serviceProviderSet = wire.NewSet(
@@ -95,7 +90,6 @@ var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
 	ProvideTestTraceObserverClient,
-	ProvideTestAPIPlatformClient,
 )
 
 // ProvideLogger provides the configured slog.Logger instance
@@ -148,47 +142,6 @@ var websocketProviderSet = wire.NewSet(
 	ProvideWebSocketManager,
 )
 
-// ProvideAPIPlatformAuthProvider creates an auth provider for API Platform
-func ProvideAPIPlatformAuthProvider(cfg config.Config) apiplatformclient.AuthProvider {
-	// Only create auth provider if OAuth2 credentials are configured
-	if cfg.IDP.TokenURL != "" && cfg.IDP.ClientID != "" && cfg.IDP.ClientSecret != "" {
-		return apiplatformauth.NewAuthProvider(apiplatformauth.Config{
-			TokenURL:     cfg.IDP.TokenURL,
-			ClientID:     cfg.IDP.ClientID,
-			ClientSecret: cfg.IDP.ClientSecret,
-		})
-	}
-	return nil
-}
-
-// ProvideAPIPlatformConfig extracts API Platform configuration from config
-func ProvideAPIPlatformConfig(cfg config.Config, authProvider apiplatformclient.AuthProvider) *apiplatformclient.Config {
-	baseUrl := ""
-	if cfg.APIPlatform.Enable {
-		baseUrl = cfg.APIPlatform.BaseURL
-	}
-	return &apiplatformclient.Config{
-		BaseURL:      baseUrl,
-		AuthProvider: authProvider,
-	}
-}
-
-// ProvideAPIPlatformClient creates a new API Platform client
-// Returns nil if the client cannot be created (will be checked at runtime)
-func ProvideAPIPlatformClient(cfg *apiplatformclient.Config) apiplatformclient.APIPlatformClient {
-	if cfg.BaseURL == "" || cfg.AuthProvider == nil {
-		// Return nil if not configured - services should handle nil client gracefully
-		return nil
-	}
-
-	apiPlatformClient, err := apiplatformclient.NewAPIPlatformClient(cfg)
-	if err != nil {
-		slog.Error("Failed to create API Platform client", "error", err)
-		return nil
-	}
-	return apiPlatformClient
-}
-
 // Test client providers
 func ProvideTestOpenChoreoClient(testClients TestClients) occlient.OpenChoreoClient {
 	return testClients.OpenChoreoClient
@@ -200,10 +153,6 @@ func ProvideTestObservabilitySvcClient(testClients TestClients) observabilitysvc
 
 func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.TraceObserverClient {
 	return testClients.TraceObserverClient
-}
-
-func ProvideTestAPIPlatformClient(testClients TestClients) apiplatformclient.APIPlatformClient {
-	return testClients.APIPlatformClient
 }
 
 // ProvideWebSocketManager creates a new WebSocket manager with config
