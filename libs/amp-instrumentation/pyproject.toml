@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/wso2/ai-agent-management-platform"
+Repository = "https://github.com/wso2/agent-manager"
 
 [project.scripts]
 amp-instrument = "amp_instrumentation.cli.main:cli"
