@@ -99,6 +99,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	slog.Info("Syncing environments from OpenChoreo")
+	if err := dependencies.EnvironmentSyncer.SyncEnvironmentsFromOpenChoreo(context.Background()); err != nil {
+		slog.Warn("Failed to sync environments from OpenChoreo", "error", err)
+		// Don't exit on error - the service can still function
+		// Environments can be created manually via API
+	}
+
 	handler := api.MakeHTTPHandler(dependencies)
 	server := &http.Server{
 		Addr:           fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
