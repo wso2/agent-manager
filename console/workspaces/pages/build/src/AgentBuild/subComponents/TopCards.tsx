@@ -49,23 +49,7 @@ const getBuildIconColor = (
       return "info";
   }
 };
-const getTagVariant = (
-  status: BuildStatus
-): "success" | "warning" | "error" | "info" | "default" => {
-  switch (status) {
-    case "Completed":
-    case "Succeeded":
-      return "success";
-    case "Pending":
-      return "warning";
-    case "Running":
-      return "warning";
-    case "Failed":
-      return "error";
-    default:
-      return "info";
-  }
-};
+
 
 const getSuccessRateColor = (
   percentage: number
@@ -119,12 +103,12 @@ export const TopCards: React.FC = () => {
   const totalBuilds = builds?.builds.length ?? 0;
   const successRate = successfulBuildCount / Math.max(1, successfulBuildCount + failedBuildCount);
   
-  const isLatestBuildRunning = latestBuildStatus === "BuildRunning" || latestBuildStatus === "BuildTriggered";
+  const isLatestBuildRunning = latestBuildStatus === "Pending" || latestBuildStatus === "Running";
   const latestBuildIcon = !latestBuild ? (
     <XCircle size={24} />
   ) : isLatestBuildRunning ? (
     <CircularProgress size={24} />
-  ) : latestBuildStatus === "BuildFailed" ? (
+  ) : latestBuildStatus === "Failed" ? (
     <XCircle size={24} />
   ) : (
     <CheckCircle size={24} />
