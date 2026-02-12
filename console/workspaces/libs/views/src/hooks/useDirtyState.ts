@@ -16,10 +16,24 @@
  * under the License.
  */
 
-import { CircularProgress } from "@wso2/oxygen-ui";
+import { useState, useCallback } from 'react';
 
-export const Loader: React.FC = () => {
-    return (
-        <CircularProgress />
-    );
-};
+export function useDirtyState<T extends Record<string, any>>(initialData: T) {
+  const [isDirty, setIsDirty] = useState(false);
+  const [initialState] = useState(JSON.stringify(initialData));
+
+  const checkDirty = useCallback((currentData: T) => {
+    const currentState = JSON.stringify(currentData);
+    setIsDirty(currentState !== initialState);
+  }, [initialState]);
+
+  const resetDirty = useCallback(() => {
+    setIsDirty(false);
+  }, []);
+
+  return {
+    isDirty,
+    checkDirty,
+    resetDirty,
+  };
+}

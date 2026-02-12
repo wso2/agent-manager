@@ -13,7 +13,7 @@ import {
   MenuItem,
   Stack,
 } from "@wso2/oxygen-ui";
-import { Bot, Package, Plus, X } from "@wso2/oxygen-ui-icons-react";
+import { Bot, ChevronRightCircle, Package, Plus, X } from "@wso2/oxygen-ui-icons-react";
 import { useMemo, useState } from "react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 
@@ -86,9 +86,6 @@ export function TopNavigation() {
                     );
                   }}
                 >
-                  <ComplexSelect.ListHeader>
-                    Projects List
-                  </ComplexSelect.ListHeader>
                   <ComplexSelect.MenuItem
                     onClick={(e) => {
                       e.preventDefault();
@@ -141,8 +138,12 @@ export function TopNavigation() {
                 <IconButton
                   onClick={(e) => setProjectAnchorEl(e.currentTarget)}
                   size="small"
+                  sx={{
+                    transform: projectMenuOpen ? "rotate(90deg)" : "rotate(0deg)",
+                    transition: "transform 0.2s",
+                  }}
                 >
-                  <Package size={20} />
+                  <ChevronRightCircle size={20} />
                 </IconButton>
                 <Menu
                   anchorEl={projectAnchorEl}
@@ -220,7 +221,6 @@ export function TopNavigation() {
                     );
                   }}
                 >
-                  <ComplexSelect.ListHeader>Agents List</ComplexSelect.ListHeader>
                   <ComplexSelect.MenuItem
                     onClick={(e) => {
                       e.preventDefault();
@@ -282,8 +282,12 @@ export function TopNavigation() {
                 <IconButton
                   onClick={(e) => setAgentAnchorEl(e.currentTarget)}
                   size="small"
+                  sx={{
+                    transform: agentMenuOpen ? "rotate(90deg)" : "rotate(0deg)",
+                    transition: "transform 0.2s",
+                  }}
                 >
-                  <Bot size={20} />
+                  <ChevronRightCircle size={20} />
                 </IconButton>
                 <Menu
                   anchorEl={agentAnchorEl}

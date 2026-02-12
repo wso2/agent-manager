@@ -128,7 +128,6 @@ export function OxygenLayout() {
           <Footer.Copyright>
             © {new Date().getFullYear()} WSO2 LLC. All rights reserved.
           </Footer.Copyright>
-          <Footer.Divider />
           <Footer.Link href="#terms">Terms & Conditions</Footer.Link>
           <Footer.Link href="#privacy">Privacy Policy</Footer.Link>
         </Footer>

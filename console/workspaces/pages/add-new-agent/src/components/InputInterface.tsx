@@ -26,10 +26,31 @@ import {
   Form,
   TextField,
 } from "@wso2/oxygen-ui";
-import { useCallback, useEffect } from "react";
-import { useFormContext, useWatch, Controller } from "react-hook-form";
+import { useCallback } from "react";
+import type { CreateAgentFormValues } from "../form/schema";
+import type { InputInterfaceType } from "@agent-management-platform/types";
 
-const inputInterfaces = [
+interface InputInterfaceProps {
+  formData: CreateAgentFormValues;
+  setFormData: React.Dispatch<React.SetStateAction<CreateAgentFormValues>>;
+  errors: Record<string, string | undefined>;
+  setFieldError: (
+    field: keyof CreateAgentFormValues,
+    error: string | undefined
+  ) => void;
+  validateField: (
+    field: keyof CreateAgentFormValues,
+    value: unknown,
+    fullData?: CreateAgentFormValues
+  ) => string | undefined;
+}
+
+const inputInterfaces: Array<{
+  label: string;
+  description: string;
+  default: boolean;
+  value: InputInterfaceType;
+}> = [
   {
     label: "Chat Agent",
     description: "Standard chat interface with /chat endpoint on port 8000",
@@ -45,46 +66,77 @@ const inputInterfaces = [
   },
 ];
 
-export const InputInterface = () => {
-  const {
-    setValue,
-    control,
-    trigger,
-    formState: { errors },
-  } = useFormContext();
-  const interfaceType =
-    useWatch({ control, name: "interfaceType" }) || "DEFAULT";
-  const port = useWatch({ control, name: "port" }) as unknown as string;
-
-  // Re-trigger validation when interfaceType changes (for conditional validation)
-  useEffect(() => {
-    trigger(["port", "basePath", "openApiPath"]);
-  }, [interfaceType, trigger]);
+export const InputInterface = ({
+  formData,
+  setFormData,
+  errors,
+  setFieldError,
+  validateField,
+}: InputInterfaceProps) => {
+  const handleFieldChange = useCallback(
+    (field: keyof CreateAgentFormValues, value: unknown) => {
+      setFormData(prevData => {
+        const newData = { ...prevData, [field]: value };
+        // Validate with full data to catch refinements
+        const error = validateField(field, value, newData as CreateAgentFormValues);
+        setFieldError(field, error);
+        return newData;
+      });
+    },
+    [setFormData, validateField, setFieldError]
+  );
 
   const handleSelect = useCallback(
-    (value: string) => {
-      setValue("interfaceType", value, { shouldValidate: true, shouldTouch: true });
-      if (value === "DEFAULT") {
-        setValue("openApiPath", "", { shouldValidate: true, shouldTouch: true });
-        setValue("port", "" as unknown as number, { shouldValidate: true, shouldTouch: true });
-        setValue("basePath", "/", { shouldValidate: true, shouldTouch: true });
-      }
+    (value: InputInterfaceType) => {
+      setFormData(prevData => {
+        const newData = {
+          ...prevData,
+          interfaceType: value,
+          ...(value === "DEFAULT" ? {
+            openApiPath: "",
+            port: "" as unknown as number,
+            basePath: "/",
+          } : {}),
+        };
+        
+        // Validate interface type change with full data
+        const error = validateField('interfaceType', value, newData as CreateAgentFormValues);
+        setFieldError('interfaceType', error);
+        
+        // If switching to CUSTOM, validate the required fields
+        if (value === 'CUSTOM') {
+          // Validate port
+          const portError = validateField('port', newData.port, newData as CreateAgentFormValues);
+          setFieldError('port', portError);
+          
+          // Validate openApiPath
+          const openApiError = validateField('openApiPath', newData.openApiPath, newData as CreateAgentFormValues);
+          setFieldError('openApiPath', openApiError);
+          
+          // Validate basePath
+          const basePathError = validateField('basePath', newData.basePath, newData as CreateAgentFormValues);
+          setFieldError('basePath', basePathError);
+        } else {
+          // Clear validation errors when switching to DEFAULT
+          setFieldError('port', undefined);
+          setFieldError('openApiPath', undefined);
+          setFieldError('basePath', undefined);
+        }
+        
+        return newData;
+      });
     },
-    [setValue]
+    [setFormData, validateField, setFieldError]
   );
 
   const handlePortChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const next = e.target.value;
       if (/^\d*$/.test(next)) {
-        setValue(
-          "port",
-          next === "" ? ("" as unknown as number) : Number(next),
-          { shouldValidate: true, shouldTouch: true }
-        );
+        handleFieldChange('port', next === "" ? ("" as unknown as number) : Number(next));
       }
     },
-    [setValue]
+    [handleFieldChange]
   );
 
   return (
@@ -99,7 +151,7 @@ export const InputInterface = () => {
             <Form.CardButton
               key={inputInterface.value}
               onClick={() => handleSelect(inputInterface.value)}
-              selected={interfaceType === inputInterface.value}
+              selected={formData.interfaceType === inputInterface.value}
               sx={{
                 maxWidth: 500,
                 flexGrow: 1,
@@ -114,7 +166,7 @@ export const InputInterface = () => {
                   gap={1}
                 >
                   <Box>
-                    {interfaceType === inputInterface.value ? (
+                    {formData.interfaceType === inputInterface.value ? (
                       <CheckCircle size={16} />
                     ) : (
                       <Circle size={16} />
@@ -134,7 +186,7 @@ export const InputInterface = () => {
             </Form.CardButton>
           ))}
         </Box>
-        <Collapse in={interfaceType === "DEFAULT"}>
+        <Collapse in={formData.interfaceType === "DEFAULT"}>
           <Alert severity="info">
             Uses the standard chat interface: <strong>POST /chat</strong> on
             port <strong>8000</strong>
@@ -145,30 +197,25 @@ export const InputInterface = () => {
             Response: <code>{`{response: string}`}</code>
           </Alert>
         </Collapse>
-        <Collapse in={interfaceType === "CUSTOM"}>
+        <Collapse in={formData.interfaceType === "CUSTOM"}>
           <Form.Stack spacing={2}>
             <Form.Stack direction="row" spacing={2}>
               <Box display="flex" flexDirection="column" flexGrow={1}>
-                <Controller
-                  name="openApiPath"
-                  control={control}
-                  render={({ field }) => (
-                    <Form.ElementWrapper label="OpenAPI Spec Path" name="openApiPath">
-                      <TextField
-                        {...field}
-                        id="openApiPath"
-                        placeholder="/openapi.yaml"
-                        required
-                        error={!!errors.openApiPath}
-                        helperText={
-                          (errors.openApiPath?.message as string) ||
-                          "Path to OpenAPI schema file in your repository"
-                        }
-                        fullWidth
-                      />
-                    </Form.ElementWrapper>
-                  )}
-                />
+                <Form.ElementWrapper label="OpenAPI Spec Path" name="openApiPath">
+                  <TextField
+                    id="openApiPath"
+                    placeholder="/openapi.yaml"
+                    required
+                    value={formData.openApiPath || ''}
+                    onChange={(e) => handleFieldChange('openApiPath', e.target.value)}
+                    error={!!errors.openApiPath}
+                    helperText={
+                      errors.openApiPath ||
+                      "Path to OpenAPI schema file in your repository"
+                    }
+                    fullWidth
+                  />
+                </Form.ElementWrapper>
               </Box>
               <Box>
                 <Form.ElementWrapper label="Port" name="port">
@@ -176,38 +223,33 @@ export const InputInterface = () => {
                     id="port"
                     placeholder="8080"
                     required
-                    value={port}
+                    value={formData.port ?? ''}
                     onChange={handlePortChange}
                     type="number"
                     error={!!errors.port}
                     helperText={
-                      (errors.port?.message as string) ||
-                      (port ? undefined : "Port is required")
+                      errors.port ||
+                      (formData.port ? undefined : "Port is required")
                     }
                   />
                 </Form.ElementWrapper>
               </Box>
             </Form.Stack>
-            <Controller
-              name="basePath"
-              control={control}
-              render={({ field }) => (
-                <Form.ElementWrapper label="Base Path" name="basePath">
-                  <TextField
-                    {...field}
-                    id="basePath"
-                    placeholder="/"
-                    required
-                    error={!!errors.basePath}
-                    helperText={
-                      (errors.basePath?.message as string) ||
-                      "API base path (e.g., / or /api/v1)"
-                    }
-                    fullWidth
-                  />
-                </Form.ElementWrapper>
-              )}
-            />
+            <Form.ElementWrapper label="Base Path" name="basePath">
+              <TextField
+                id="basePath"
+                placeholder="/"
+                required
+                value={formData.basePath || ''}
+                onChange={(e) => handleFieldChange('basePath', e.target.value)}
+                error={!!errors.basePath}
+                helperText={
+                  errors.basePath ||
+                  "API base path (e.g., / or /api/v1)"
+                }
+                fullWidth
+              />
+            </Form.ElementWrapper>
           </Form.Stack>
         </Collapse>
       </Form.Stack>

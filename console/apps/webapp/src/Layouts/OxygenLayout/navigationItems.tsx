@@ -57,7 +57,7 @@ export function useNavigationItems(): Array<
   const defaultEnv = envId ?? environments?.[0]?.name;
   const { pathname } = useLocation();
 
-  if (isLoadingAgent || isLoadingEnvironments) {
+  if (isLoadingAgent || (isLoadingEnvironments && agentId)) {
     return [];
   }
 

@@ -16,15 +16,19 @@
  * under the License.
  */
 
-import { Box, Button, Card, CardContent, Typography } from "@wso2/oxygen-ui";
+import { Box, Button, Card, CardContent, Typography, TextField, Form } from "@wso2/oxygen-ui";
 import { Edit } from "@wso2/oxygen-ui-icons-react";
-import { DrawerWrapper, DrawerHeader, DrawerContent, TextInput } from "@agent-management-platform/views";
-import { useForm, FormProvider } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { 
+  DrawerWrapper, 
+  DrawerHeader, 
+  DrawerContent,
+  useFormValidation,
+  useDirtyState
+} from "@agent-management-platform/views";
 import { z } from "zod";
 import { useUpdateProject } from "@agent-management-platform/api-client";
 import { ProjectResponse, UpdateProjectRequest } from "@agent-management-platform/types";
-import { useEffect } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 
 interface EditProjectDrawerProps {
   open: boolean;
@@ -44,15 +48,13 @@ const editProjectSchema = z.object({
   displayName: z
     .string()
     .trim()
-    .min(1, 'Display name is required')
     .min(3, 'Display name must be at least 3 characters')
     .max(100, 'Display name must be at most 100 characters'),
   name: z
     .string()
     .trim()
-    .min(1, 'Name is required')
-    .regex(/^[a-z0-9-]+$/, 'Name must be lowercase letters, numbers, and hyphens only (no spaces)')
     .min(3, 'Name must be at least 3 characters')
+    .regex(/^[a-z0-9-]+$/, 'Name must be lowercase letters, numbers, and hyphens only (no spaces)')
     .max(50, 'Name must be at most 50 characters'),
   description: z.string().trim().optional(),
   deploymentPipeline: z
@@ -62,46 +64,85 @@ const editProjectSchema = z.object({
 });
 
 export function EditProjectDrawer({ open, onClose, project, orgId }: EditProjectDrawerProps) {
-  const methods = useForm<EditProjectFormValues>({
-    mode: "all",
-    resolver: zodResolver(editProjectSchema),
-    defaultValues: {
-      name: project.name,
-      displayName: project.displayName,
-      description: project.description || '',
-      deploymentPipeline: project.deploymentPipeline || 'default',
-    },
+  const [formData, setFormData] = useState<EditProjectFormValues>({
+    name: project.name,
+    displayName: project.displayName,
+    description: project.description || '',
+    deploymentPipeline: project.deploymentPipeline || 'default',
   });
+
+  const { 
+    errors, 
+    validateField,
+    validateForm, 
+    clearErrors,
+    setFieldError,
+  } = useFormValidation<EditProjectFormValues>(editProjectSchema);
+
+  const { checkDirty, resetDirty } = useDirtyState(formData);
+
+  const handleFieldChange = useCallback((field: keyof EditProjectFormValues, value: string) => {
+    setFormData(prevData => {
+      const newData = { ...prevData, [field]: value };
+      checkDirty(newData);
+      
+      // Validate and update error
+      const error = validateField(field, value);
+      setFieldError(field, error);
+      
+      return newData;
+    });
+  }, [checkDirty, validateField, setFieldError]);
 
   const { mutate: updateProject, isPending } = useUpdateProject({
     orgName: orgId,
     projName: project.name,
   });
 
-  // Reset form when project changes
+  // Reset form when project changes or drawer opens
   useEffect(() => {
-    methods.reset({
-      name: project.name,
-      displayName: project.displayName,
-      description: project.description || '',
-      deploymentPipeline: project.deploymentPipeline || 'default',
-    });
-  }, [project, methods]);
+    if (open) {
+      setFormData({
+        name: project.name,
+        displayName: project.displayName,
+        description: project.description || '',
+        deploymentPipeline: project.deploymentPipeline || 'default',
+      });
+      clearErrors();
+      resetDirty();
+    }
+  }, [project, open, clearErrors, resetDirty]);
 
-  const handleSubmit = (data: EditProjectFormValues) => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm(formData)) {
+      return;
+    }
+
     const payload: UpdateProjectRequest = {
-      name: data.name,
-      displayName: data.displayName,
-      description: data.description,
-      deploymentPipeline: data.deploymentPipeline,
+      name: formData.name,
+      displayName: formData.displayName,
+      description: formData.description,
+      deploymentPipeline: formData.deploymentPipeline,
     };
 
     updateProject(payload, {
       onSuccess: () => {
+        clearErrors();
+        resetDirty();
         onClose();
       },
     });
-  };
+  }, [formData, validateForm, updateProject, onClose, clearErrors, resetDirty]);
+
+  const isValid = useMemo(() => {
+    return (
+      formData.displayName.trim().length >= 3 && 
+      formData.name.trim().length >= 3 &&
+      Object.keys(errors).length === 0
+    );
+  }, [formData.displayName, formData.name, errors]);
 
   return (
     <DrawerWrapper open={open} onClose={onClose}>
@@ -111,62 +152,66 @@ export function EditProjectDrawer({ open, onClose, project, orgId }: EditProject
         onClose={onClose}
       />
       <DrawerContent>
-        <FormProvider {...methods}>
-          <form onSubmit={methods.handleSubmit(handleSubmit)}>
-            <Box display="flex" flexDirection="column" gap={2} flexGrow={1}>
-              <Card variant="outlined">
-                <CardContent sx={{ gap: 1, display: "flex", flexDirection: "column" }}>
-                  <Box display="flex" flexDirection="column" gap={1}>
-                    <Typography variant="h5">Project Details</Typography>
-                  </Box>
-                  <Box display="flex" flexDirection="column" gap={1}>
-                    <TextInput
+        <form onSubmit={handleSubmit}>
+          <Box display="flex" flexDirection="column" gap={2} flexGrow={1}>
+            <Card variant="outlined">
+              <CardContent sx={{ gap: 1, display: "flex", flexDirection: "column" }}>
+                <Box display="flex" flexDirection="column" gap={1}>
+                  <Typography variant="h5">Project Details</Typography>
+                </Box>
+                <Box display="flex" flexDirection="column" gap={1}>
+                  <Form.ElementWrapper label="Name" name="displayName">
+                    <TextField
+                      id="displayName"
                       placeholder="e.g., Customer Support Platform"
-                      label="Name"
                       size="small"
                       fullWidth
-                      error={!!methods.formState.errors.displayName}
-                      helperText={
-                        methods.formState.errors.displayName?.message as string
-                      }
-                      {...methods.register("displayName")}
+                      disabled={isPending}
+                      value={formData.displayName}
+                      onChange={(e) => handleFieldChange('displayName', e.target.value)}
+                      error={!!errors.displayName}
+                      helperText={errors.displayName}
                     />
-                    <TextInput
+                  </Form.ElementWrapper>
+                  <Form.ElementWrapper label="Description (optional)" name="description">
+                    <TextField
+                      id="description"
                       placeholder="Short description of this project"
-                      label="Description (optional)"
                       fullWidth
                       size="small"
                       multiline
                       minRows={2}
                       maxRows={6}
-                      error={!!methods.formState.errors.description}
-                      helperText={methods.formState.errors.description?.message as string}
-                      {...methods.register("description")}
+                      disabled={isPending}
+                      value={formData.description}
+                      onChange={(e) => handleFieldChange('description', e.target.value)}
+                      error={!!errors.description}
+                      helperText={errors.description}
                     />
-                  </Box>
-                </CardContent>
-              </Card>
-              <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
-                <Button
-                  variant="outlined"
-                  color="inherit"
-                  onClick={onClose}
-                  disabled={isPending}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  color="primary"
-                  disabled={!methods.formState.isValid || isPending}
-                >
-                  {isPending ? "Updating..." : "Update Project"}
-                </Button>
-              </Box>
+                  </Form.ElementWrapper>
+                </Box>
+              </CardContent>
+            </Card>
+            <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
+              <Button
+                variant="outlined"
+                color="inherit"
+                onClick={onClose}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                color="primary"
+                disabled={!isValid || isPending}
+              >
+                {isPending ? "Updating..." : "Update Project"}
+              </Button>
             </Box>
-          </form>
-        </FormProvider>
+          </Box>
+        </form>
       </DrawerContent>
     </DrawerWrapper>
   );

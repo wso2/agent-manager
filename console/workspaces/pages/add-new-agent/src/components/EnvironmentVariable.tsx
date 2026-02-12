@@ -18,41 +18,75 @@
 
 import { Box, Button, Card, CardContent, Typography } from "@wso2/oxygen-ui";
 import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
-import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import { EnvVariableEditor } from "@agent-management-platform/views";
+import { CreateAgentFormValues } from "../form/schema";
 
-export const EnvironmentVariable = () => {
-    const { control, formState: { errors }, register } = useFormContext();
-    const { fields, append, remove } = useFieldArray({ control, name: 'env' });
-    const envValues = useWatch({ control, name: 'env' }) || [];
+interface EnvironmentVariableProps {
+  formData: CreateAgentFormValues;
+  setFormData: React.Dispatch<React.SetStateAction<CreateAgentFormValues>>;
+}
 
-    const isOneEmpty = envValues.some((e: any) => !e?.key || !e?.value);
+export const EnvironmentVariable = ({
+  formData,
+  setFormData,
+}: EnvironmentVariableProps) => {
+  const envVariables = formData.env || [];
+  const isOneEmpty = envVariables.some((e) => !e?.key || !e?.value);
 
-    return (
-        <Card variant="outlined">
-            <CardContent>
-                <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
-                    <Typography variant="h5">
-                        Environment Variables (Optional)
-                    </Typography>
-                </Box>
-                <Box display="flex" flexDirection="column" py={2} gap={2}>
-                    {fields.map((field: any, index: number) => (
-                        <EnvVariableEditor
-                            key={field.id}
-                            fieldName="env"
-                            index={index}
-                            fieldId={field.id}
-                            register={register}
-                            errors={errors}
-                            onRemove={() => remove(index)}
-                        />
-                    ))}
-                </Box>
-                <Button startIcon={<Add fontSize="small" />} disabled={isOneEmpty} variant="outlined" color="primary" onClick={() => append({ key: '', value: '' })}>
-                    Add
-                </Button>
-            </CardContent>
-        </Card>
-    );
+  const handleAdd = () => {
+    setFormData((prev) => ({
+      ...prev,
+      env: [...(prev.env || []), { key: '', value: '' }],
+    }));
+  };
+
+  const handleRemove = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      env: prev.env?.filter((_, i) => i !== index) || [],
+    }));
+  };
+
+  const handleChange = (index: number, field: 'key' | 'value', value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      env: prev.env?.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item
+      ) || [],
+    }));
+  };
+
+  return (
+    <Card variant="outlined">
+      <CardContent>
+        <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
+          <Typography variant="h5">
+            Environment Variables (Optional)
+          </Typography>
+        </Box>
+        <Box display="flex" flexDirection="column" py={2} gap={2}>
+          {envVariables.map((item, index) => (
+            <EnvVariableEditor
+              key={`env-${index}`}
+              index={index}
+              keyValue={item.key || ''}
+              valueValue={item.value || ''}
+              onKeyChange={(value) => handleChange(index, 'key', value)}
+              onValueChange={(value) => handleChange(index, 'value', value)}
+              onRemove={() => handleRemove(index)}
+            />
+          ))}
+        </Box>
+        <Button
+          startIcon={<Add fontSize="small" />}
+          disabled={isOneEmpty}
+          variant="outlined"
+          color="primary"
+          onClick={handleAdd}
+        >
+          Add
+        </Button>
+      </CardContent>
+    </Card>
+  );
 };

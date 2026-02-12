@@ -68,7 +68,7 @@ importers:
         version: 5.2.5
       '@hookform/resolvers':
         specifier: 3.9.0
-        version: 3.9.0(react-hook-form@7.53.0(react@19.1.1))
+        version: 3.9.0(react-hook-form@7.65.0(react@19.1.1))
       '@monaco-editor/react':
         specifier: 4.7.0
         version: 4.7.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -105,9 +105,6 @@ importers:
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
-      react-hook-form:
-        specifier: 7.53.0
-        version: 7.53.0(react@19.1.1)
       react-markdown:
         specifier: 10.1.0
         version: 10.1.0(@types/react@19.1.16)(react@19.1.1)
@@ -331,9 +328,6 @@ importers:
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
-      react-hook-form:
-        specifier: 7.53.0
-        version: 7.53.0(react@19.1.1)
       react-router-dom:
         specifier: 6.28.0
         version: 6.28.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -750,7 +744,7 @@ importers:
         version: 11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
       '@hookform/resolvers':
         specifier: 3.9.0
-        version: 3.9.0(react-hook-form@7.53.0(react@19.1.1))
+        version: 3.9.0(react-hook-form@7.65.0(react@19.1.1))
       '@mui/icons-material':
         specifier: 7.0.0
         version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
@@ -775,9 +769,6 @@ importers:
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
-      react-hook-form:
-        specifier: 7.53.0
-        version: 7.53.0(react@19.1.1)
       react-router-dom:
         specifier: 6.28.0
         version: 6.28.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -931,7 +922,7 @@ importers:
         version: 11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
       '@hookform/resolvers':
         specifier: 3.9.0
-        version: 3.9.0(react-hook-form@7.53.0(react@19.1.1))
+        version: 3.9.0(react-hook-form@7.65.0(react@19.1.1))
       '@mui/icons-material':
         specifier: 7.0.0
         version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
@@ -956,9 +947,6 @@ importers:
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
-      react-hook-form:
-        specifier: 7.53.0
-        version: 7.53.0(react@19.1.1)
       react-router-dom:
         specifier: 6.28.0
         version: 6.28.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -1115,7 +1103,7 @@ importers:
         version: 11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
       '@hookform/resolvers':
         specifier: 3.9.0
-        version: 3.9.0(react-hook-form@7.53.0(react@19.1.1))
+        version: 3.9.0(react-hook-form@7.65.0(react@19.1.1))
       '@mui/icons-material':
         specifier: 7.0.0
         version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
@@ -1137,9 +1125,6 @@ importers:
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
-      react-hook-form:
-        specifier: 7.53.0
-        version: 7.53.0(react@19.1.1)
       react-router-dom:
         specifier: 6.28.0
         version: 6.28.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -1296,7 +1281,7 @@ importers:
         version: 11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
       '@hookform/resolvers':
         specifier: 3.9.0
-        version: 3.9.0(react-hook-form@7.53.0(react@19.1.1))
+        version: 3.9.0(react-hook-form@7.65.0(react@19.1.1))
       '@mui/icons-material':
         specifier: 7.0.0
         version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
@@ -1318,9 +1303,6 @@ importers:
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
-      react-hook-form:
-        specifier: 7.53.0
-        version: 7.53.0(react@19.1.1)
       react-router-dom:
         specifier: 6.28.0
         version: 6.28.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -1471,7 +1453,7 @@ importers:
         version: 11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
       '@hookform/resolvers':
         specifier: 3.9.0
-        version: 3.9.0(react-hook-form@7.53.0(react@19.1.1))
+        version: 3.9.0(react-hook-form@7.65.0(react@19.1.1))
       '@mui/icons-material':
         specifier: 7.0.0
         version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
@@ -1496,9 +1478,6 @@ importers:
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
-      react-hook-form:
-        specifier: 7.53.0
-        version: 7.53.0(react@19.1.1)
       react-router-dom:
         specifier: 6.28.0
         version: 6.28.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -1652,7 +1631,7 @@ importers:
         version: 11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
       '@hookform/resolvers':
         specifier: 3.9.0
-        version: 3.9.0(react-hook-form@7.53.0(react@19.1.1))
+        version: 3.9.0(react-hook-form@7.65.0(react@19.1.1))
       '@mui/icons-material':
         specifier: 7.0.0
         version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
@@ -1680,9 +1659,6 @@ importers:
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
-      react-hook-form:
-        specifier: 7.53.0
-        version: 7.53.0(react@19.1.1)
       react-router-dom:
         specifier: 6.28.0
         version: 6.28.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -1845,7 +1821,7 @@ importers:
         version: 11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
       '@hookform/resolvers':
         specifier: 3.9.0
-        version: 3.9.0(react-hook-form@7.53.0(react@19.1.1))
+        version: 3.9.0(react-hook-form@7.65.0(react@19.1.1))
       '@mui/icons-material':
         specifier: 7.0.0
         version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
@@ -1867,9 +1843,6 @@ importers:
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
-      react-hook-form:
-        specifier: 7.53.0
-        version: 7.53.0(react@19.1.1)
       react-router-dom:
         specifier: 6.28.0
         version: 6.28.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -2023,7 +1996,7 @@ importers:
         version: 11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
       '@hookform/resolvers':
         specifier: 3.9.0
-        version: 3.9.0(react-hook-form@7.53.0(react@19.1.1))
+        version: 3.9.0(react-hook-form@7.65.0(react@19.1.1))
       '@mui/icons-material':
         specifier: 7.0.0
         version: 7.0.0(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
@@ -2045,9 +2018,6 @@ importers:
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
-      react-hook-form:
-        specifier: 7.53.0
-        version: 7.53.0(react@19.1.1)
       react-router-dom:
         specifier: 6.28.0
         version: 6.28.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -2207,7 +2177,7 @@ importers:
         version: 11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
       '@hookform/resolvers':
         specifier: 3.9.0
-        version: 3.9.0(react-hook-form@7.53.0(react@19.1.1))
+        version: 3.9.0(react-hook-form@7.65.0(react@19.1.1))
       '@monaco-editor/react':
         specifier: 4.7.0
         version: 4.7.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -2232,9 +2202,6 @@ importers:
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
-      react-hook-form:
-        specifier: 7.53.0
-        version: 7.53.0(react@19.1.1)
       react-markdown:
         specifier: 10.1.0
         version: 10.1.0(@types/react@19.1.16)(react@19.1.1)
@@ -7680,12 +7647,6 @@ packages:
     peerDependencies:
       react: ^19.1.1
 
-  react-hook-form@7.53.0:
-    resolution: {integrity: sha512-M1n3HhqCww6S2hxLxciEXy2oISPnAzxY7gvwVPrtlczTM/1dDadXgUxDpHMrMTblDOcm/AXtXxHwZ3jpg1mqKQ==}
-    engines: {node: '>=18.0.0'}
-    peerDependencies:
-      react: ^16.8.0 || ^17 || ^18 || ^19
-
   react-hook-form@7.65.0:
     resolution: {integrity: sha512-xtOzDz063WcXvGWaHgLNrNzlsdFgtUWcb32E6WFaGTd7kPZG3EeDusjdZfUsPwKCKVXy1ZlntifaHZ4l8pAsmw==}
     engines: {node: '>=18.0.0'}
@@ -9632,9 +9593,9 @@ snapshots:
     optionalDependencies:
       typescript: 5.9.3
 
-  '@hookform/resolvers@3.9.0(react-hook-form@7.53.0(react@19.1.1))':
+  '@hookform/resolvers@3.9.0(react-hook-form@7.65.0(react@19.1.1))':
     dependencies:
-      react-hook-form: 7.53.0(react@19.1.1)
+      react-hook-form: 7.65.0(react@19.1.1)
 
   '@humanfs/core@0.19.1': {}
 
@@ -15430,10 +15391,6 @@ snapshots:
     dependencies:
       react: 19.1.1
       scheduler: 0.26.0
-
-  react-hook-form@7.53.0(react@19.1.1):
-    dependencies:
-      react: 19.1.1
 
   react-hook-form@7.65.0(react@19.1.1):
     dependencies:

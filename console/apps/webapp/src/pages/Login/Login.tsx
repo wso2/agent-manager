@@ -82,12 +82,11 @@ export function Login() {
     if (
       !isOAuthCallback &&
       !isAuthenticated &&
-      !isLoadingUserInfo &&
-      !isLoadingIsAuthenticated
+      !isLoadingUserInfo
     ) {
       login();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isAuthenticated,
     isLoadingIsAuthenticated,
@@ -101,7 +100,7 @@ export function Login() {
     if (userInfo) {
       window.location.href = from;
     }
-  }, [userInfo, from]);
+  }, [userInfo]);
 
   // Show loader while auth is in progress
   // For OAuth callback: show loader only while not yet authenticated (SDK is processing)
@@ -137,7 +136,7 @@ export function Login() {
             maxWidth={580}
             display={{ xs: "none", md: "flex" }}
           >
-            <Logo width={400}/>
+            <Logo width={400} />
             <Stack direction="column" alignSelf="center" gap={4}>
               {FEATURE_ITEMS.map((item) => (
                 <Stack key={item.title} direction="row" gap={2}>

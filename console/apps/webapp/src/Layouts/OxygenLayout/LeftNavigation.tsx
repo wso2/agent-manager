@@ -17,7 +17,6 @@
  */
 
 import { Sidebar } from "@wso2/oxygen-ui";
-import { SettingsIcon } from "@wso2/oxygen-ui-icons-react";
 import type { ReactNode } from "react";
 
 export interface NavigationItem {
@@ -77,14 +76,6 @@ export function LeftNavigation({
           </Sidebar.Category>
         ))}
       </Sidebar.Nav>
-      <Sidebar.Footer>
-        <Sidebar.Item id="settings">
-          <Sidebar.ItemIcon>
-            <SettingsIcon size={20} />
-          </Sidebar.ItemIcon>
-          <Sidebar.ItemLabel>Settings</Sidebar.ItemLabel>
-        </Sidebar.Item>
-      </Sidebar.Footer>
     </Sidebar>
   );
 }

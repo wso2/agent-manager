@@ -52,7 +52,6 @@
     "@agent-management-platform/types": "workspace:*",
     "@agent-management-platform/shared-component": "workspace:*",
     "zod": "4.3.6",
-    "react-hook-form": "7.53.0",
     "@hookform/resolvers": "3.9.0"
   },
   "devDependencies": {

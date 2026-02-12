@@ -51,7 +51,6 @@
     "@agent-management-platform/types": "workspace:*",
     "dayjs": "1.11.18",
     "zod": "4.3.6",
-    "react-hook-form": "7.53.0",
     "@hookform/resolvers": "3.9.0",
     "lodash": "4.17.21"
   },

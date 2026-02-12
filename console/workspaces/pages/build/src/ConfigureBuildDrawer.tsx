@@ -33,9 +33,8 @@ import {
   DrawerHeader,
   DrawerContent,
   TextInput,
+  useFormValidation,
 } from "@agent-management-platform/views";
-import { useForm, FormProvider, useWatch, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useUpdateAgentBuildParameters } from "@agent-management-platform/api-client";
 import {
@@ -43,7 +42,7 @@ import {
   UpdateAgentBuildParametersRequest,
   InputInterfaceType,
 } from "@agent-management-platform/types";
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback, useMemo, useState } from "react";
 
 interface ConfigureBuildDrawerProps {
   open: boolean;
@@ -202,78 +201,98 @@ export function ConfigureBuildDrawer({
       resolvedInterfaceType,
     ],
   );
-  const methods = useForm<ConfigureBuildFormValues>({
-    mode: "all",
-    resolver: zodResolver(configureBuildSchema),
-    defaultValues: buildDefaults,
-  });
+  
+  const [formData, setFormData] = useState<ConfigureBuildFormValues>(buildDefaults);
+  const { errors, validateField, validateForm, clearErrors, setFieldError } =
+    useFormValidation<ConfigureBuildFormValues>(configureBuildSchema);
 
   const { mutate: updateBuildParameters, isPending } = useUpdateAgentBuildParameters();
-  const interfaceType =
-    useWatch({ control: methods.control, name: "interfaceType" }) || "DEFAULT";
-  const port = useWatch({
-    control: methods.control,
-    name: "port",
-  }) as unknown as string;
 
-  // Reset form when agent changes
+  // Reset form when drawer opens or agent changes
   useEffect(() => {
     if (open) {
-      methods.reset(buildDefaults);
+      setFormData(buildDefaults);
+      clearErrors();
     }
-  }, [open, agent, methods, buildDefaults]);
+  }, [open, buildDefaults, clearErrors]);
+
+  const handleFieldChange = useCallback(
+    (
+      field: keyof ConfigureBuildFormValues,
+      value: string | number | InputInterfaceType | undefined
+    ) => {
+    setFormData(prevData => {
+      const newData = { ...prevData, [field]: value };
+      const error = validateField(field, value);
+      setFieldError(field, error);
+      return newData;
+    });
+  }, [validateField, setFieldError]);
 
   const handleSelectInterface = useCallback(
     (value: InputInterfaceType) => {
-      methods.setValue("interfaceType", value, { shouldValidate: true });
-      if (value === "DEFAULT") {
-        methods.setValue("openApiPath", "", { shouldValidate: true });
-        methods.setValue("port", "" as unknown as number, {
-          shouldValidate: true,
-        });
-        methods.setValue("basePath", "/", { shouldValidate: true });
-      }
+      setFormData(prevData => {
+        const newData = {
+          ...prevData,
+          interfaceType: value,
+          ...(value === "DEFAULT" ? {
+            openApiPath: "",
+            port: undefined,
+            basePath: "/",
+          } : {}),
+        };
+        // Validate the interfaceType field
+        const error = validateField('interfaceType', value);
+        setFieldError('interfaceType', error);
+        return newData;
+      });
     },
-    [methods],
+    [validateField, setFieldError],
   );
 
-  const handleSubmit = (data: ConfigureBuildFormValues) => {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm(formData)) {
+      return;
+    }
+
     const nextAgentType = agent.agentType
       ? {
           ...agent.agentType,
-          subType: data.interfaceType === "CUSTOM" ? "custom-api" : "chat-api",
+          subType: formData.interfaceType === "CUSTOM" ? "custom-api" : "chat-api",
         }
       : {
           type: "agent-api",
-          subType: data.interfaceType === "CUSTOM" ? "custom-api" : "chat-api",
+          subType: formData.interfaceType === "CUSTOM" ? "custom-api" : "chat-api",
         };
 
     const buildParametersPayload: UpdateAgentBuildParametersRequest = {
       provisioning: {
         type: agent.provisioning.type,
         repository: {
-          url: data.repositoryUrl,
-          branch: data.branch,
-          appPath: data.appPath,
+          url: formData.repositoryUrl,
+          branch: formData.branch,
+          appPath: formData.appPath,
         },
       },
       agentType: nextAgentType,
       build: {
         type: "buildpack",
         buildpack: {
-          language: data.language || "python",
-          languageVersion: data.languageVersion || "",
-          runCommand: data.runCommand,
+          language: formData.language || "python",
+          languageVersion: formData.languageVersion || "",
+          runCommand: formData.runCommand,
         },
       },
       inputInterface: {
         type: "HTTP",
-        ...(data.interfaceType === "CUSTOM"
+        ...(formData.interfaceType === "CUSTOM"
           ? {
-              port: Number(data.port),
-              basePath: data.basePath || "/",
+              port: Number(formData.port),
+              basePath: formData.basePath || "/",
               schema: {
-                path: data.openApiPath || "",
+                path: formData.openApiPath || "",
               },
             }
           : {}),
@@ -291,6 +310,7 @@ export function ConfigureBuildDrawer({
       },
       {
         onSuccess: () => {
+          clearErrors();
           onClose();
         },
       },
@@ -305,104 +325,100 @@ export function ConfigureBuildDrawer({
         onClose={onClose}
       />
       <DrawerContent>
-        <FormProvider {...methods}>
-          <form onSubmit={methods.handleSubmit(handleSubmit)}>
-            <Box display="flex" flexDirection="column" gap={2} flexGrow={1}>
-              <Card variant="outlined">
-                <CardContent
-                  sx={{ gap: 1, display: "flex", flexDirection: "column" }}
-                >
-                  <Typography variant="h5">Repository Details</Typography>
-                  <Box display="flex" flexDirection="column" gap={1}>
+        <form onSubmit={handleSubmit}>
+          <Box display="flex" flexDirection="column" gap={2} flexGrow={1}>
+            <Card variant="outlined">
+              <CardContent
+                sx={{ gap: 1, display: "flex", flexDirection: "column" }}
+              >
+                <Typography variant="h5">Repository Details</Typography>
+                <Box display="flex" flexDirection="column" gap={1}>
+                  <TextInput
+                    placeholder="https://github.com/username/repo"
+                    label="GitHub Repository"
+                    fullWidth
+                    size="small"
+                    value={formData.repositoryUrl}
+                    onChange={(e) => handleFieldChange('repositoryUrl', e.target.value)}
+                    error={!!errors.repositoryUrl}
+                    helperText={errors.repositoryUrl}
+                    disabled={isPending}
+                  />
+                  <Box display="flex" flexDirection="row" gap={1}>
                     <TextInput
-                      placeholder="https://github.com/username/repo"
-                      label="GitHub Repository"
+                      placeholder="main"
+                      label="Branch"
                       fullWidth
                       size="small"
-                      error={!!methods.formState.errors.repositoryUrl}
-                      helperText={
-                        methods.formState.errors.repositoryUrl
-                          ?.message as string
-                      }
-                      {...methods.register("repositoryUrl")}
+                      value={formData.branch}
+                      onChange={(e) => handleFieldChange('branch', e.target.value)}
+                      error={!!errors.branch}
+                      helperText={errors.branch}
+                      disabled={isPending}
                     />
-                    <Box display="flex" flexDirection="row" gap={1}>
-                      <TextInput
-                        placeholder="main"
-                        label="Branch"
-                        fullWidth
-                        size="small"
-                        error={!!methods.formState.errors.branch}
-                        helperText={
-                          methods.formState.errors.branch?.message as string
-                        }
-                        {...methods.register("branch")}
-                      />
-                      <TextInput
-                        placeholder="my-agent"
-                        label="Project Path"
-                        fullWidth
-                        size="small"
-                        error={!!methods.formState.errors.appPath}
-                        helperText={
-                          methods.formState.errors.appPath?.message as string
-                        }
-                        {...methods.register("appPath")}
-                      />
-                    </Box>
+                    <TextInput
+                      placeholder="my-agent"
+                      label="Project Path"
+                      fullWidth
+                      size="small"
+                      value={formData.appPath}
+                      onChange={(e) => handleFieldChange('appPath', e.target.value)}
+                      error={!!errors.appPath}
+                      helperText={errors.appPath}
+                      disabled={isPending}
+                    />
                   </Box>
-                </CardContent>
-              </Card>
+                </Box>
+              </CardContent>
+            </Card>
 
-              <Card variant="outlined">
-                <CardContent
-                  sx={{ gap: 1, display: "flex", flexDirection: "column" }}
-                >
-                  <Typography variant="h5">Build Details</Typography>
-                  <Box display="flex" flexDirection="column" gap={1}>
-                    <Box display="flex" flexDirection="row" gap={1}>
-                      <TextInput
-                        placeholder="python"
-                        disabled
-                        label="Language"
-                        fullWidth
-                        size="small"
-                        error={!!methods.formState.errors.language}
-                        helperText={
-                          (methods.formState.errors.language
-                            ?.message as string) || "e.g., python, nodejs, go"
-                        }
-                        {...methods.register("language")}
-                      />
-                      <TextInput
-                        placeholder="3.11"
-                        label="Language Version"
-                        fullWidth
-                        size="small"
-                        error={!!methods.formState.errors.languageVersion}
-                        helperText={
-                          (methods.formState.errors.languageVersion
-                            ?.message as string) || "e.g., 3.11, 20, 1.21"
-                        }
-                        {...methods.register("languageVersion")}
-                      />
-                    </Box>
+            <Card variant="outlined">
+              <CardContent
+                sx={{ gap: 1, display: "flex", flexDirection: "column" }}
+              >
+                <Typography variant="h5">Build Details</Typography>
+                <Box display="flex" flexDirection="column" gap={1}>
+                  <Box display="flex" flexDirection="row" gap={1}>
                     <TextInput
-                      placeholder="python main.py"
-                      label="Start Command"
+                      placeholder="python"
+                      disabled
+                      label="Language"
                       fullWidth
                       size="small"
-                      error={!!methods.formState.errors.runCommand}
-                      helperText={
-                        (methods.formState.errors.runCommand
-                          ?.message as string) ||
-                        "Dependencies auto-install from package.json, requirements.txt, or pyproject.toml"
-                      }
-                      {...methods.register("runCommand")}
+                      value={formData.language}
+                      onChange={(e) => handleFieldChange('language', e.target.value)}
+                      error={!!errors.language}
+                      helperText={errors.language || "e.g., python, nodejs, go"}
+                    />
+                    <TextInput
+                      placeholder="3.11"
+                      label="Language Version"
+                      fullWidth
+                      size="small"
+                      value={formData.languageVersion}
+                      onChange={(e) => handleFieldChange('languageVersion', e.target.value)}
+                      error={!!errors.languageVersion}
+                      helperText={errors.languageVersion || "e.g., 3.11, 20, 1.21"}
+                      disabled={isPending}
                     />
                   </Box>
-                </CardContent>
-              </Card>
+                  <TextInput
+                    placeholder="python main.py"
+                    label="Start Command"
+                    fullWidth
+                    size="small"
+                    value={formData.runCommand}
+                    onChange={(e) => handleFieldChange('runCommand', e.target.value)}
+                    error={!!errors.runCommand}
+                    helperText={
+                      errors.runCommand ||
+                      "Dependencies auto-install from package.json, requirements.txt, or pyproject.toml"
+                    }
+                    disabled={isPending}
+                  />
+                </Box>
+              </CardContent>
+            </Card>
 
               <Card variant="outlined">
                 <CardContent
@@ -431,158 +447,151 @@ export function ConfigureBuildDrawer({
                             ]),
                             "&.MuiCard-root": {
                               backgroundColor:
-                                interfaceType === interfaceOption.value
-                                  ? "background.default"
-                                  : "action.paper",
-                              borderColor:
-                                interfaceType === interfaceOption.value
-                                  ? "primary.main"
-                                  : "divider",
-                              "&:hover": {
-                                backgroundColor: "background.default",
-                                borderColor: "primary.main",
-                              },
+                              formData.interfaceType === interfaceOption.value
+                                ? "background.default"
+                                : "action.paper",
+                            borderColor:
+                              formData.interfaceType === interfaceOption.value
+                                ? "primary.main"
+                                : "divider",
+                            "&:hover": {
+                              backgroundColor: "background.default",
+                              borderColor: "primary.main",
                             },
-                          }}
-                        >
-                          <CardContent sx={{ height: "100%" }}>
-                            <Box
-                              display="flex"
-                              flexDirection="row"
-                              alignItems="center"
-                              height="100%"
-                              gap={1}
-                            >
-                              <Box>
-                                {interfaceType === interfaceOption.value ? (
-                                  <CheckCircle size={16} />
-                                ) : (
-                                  <Circle size={16} />
-                                )}
-                              </Box>
-                              <Divider orientation="vertical" flexItem />
-                              <Box>
-                                <Typography variant="h6">
-                                  {interfaceOption.label}
-                                </Typography>
-                                <Typography variant="caption">
-                                  {interfaceOption.description}
-                                </Typography>
-                              </Box>
-                            </Box>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </Box>
-                    <Collapse in={interfaceType === "DEFAULT"}>
-                      <Alert severity="info">
-                        Uses the standard chat interface:{" "}
-                        <strong>POST /chat</strong> on port{" "}
-                        <strong>8000</strong>
-                        <br />
-                        Request:{" "}
-                        <code>{`{message: string, session_id: string, context: JSON}`}</code>
-                        <br />
-                        Response: <code>{`{response: string}`}</code>
-                      </Alert>
-                    </Collapse>
-                    <Collapse in={interfaceType === "CUSTOM"}>
-                      <Box display="flex" flexDirection="column" gap={1}>
-                        <Box display="flex" flexDirection="row" gap={1}>
+                          },
+                        }}
+                      >
+                        <CardContent sx={{ height: "100%" }}>
                           <Box
                             display="flex"
-                            flexDirection="column"
-                            flexGrow={1}
+                            flexDirection="row"
+                            alignItems="center"
+                            height="100%"
+                            gap={1}
                           >
-                            <TextInput
-                              label="OpenAPI Spec Path"
-                              placeholder="/openapi.yaml"
-                              required={interfaceType === "CUSTOM"}
-                              fullWidth
-                              size="small"
-                              error={!!methods.formState.errors.openApiPath}
-                              helperText={
-                                (methods.formState.errors.openApiPath
-                                  ?.message as string) ||
-                                "Path to OpenAPI schema file in your repository"
-                              }
-                              {...methods.register("openApiPath")}
-                            />
-                          </Box>
-                          <Box>
-                            <Controller
-                              name="port"
-                              control={methods.control}
-                              render={({ field }) => (
-                                <TextInput
-                                  label="Port"
-                                  placeholder="8080"
-                                  required={interfaceType === "CUSTOM"}
-                                  value={field.value ?? ""}
-                                  onChange={(e) => {
-                                    const next = e.target.value;
-                                    if (/^\d*$/.test(next)) {
-                                      field.onChange(
-                                        next === "" ? undefined : Number(next),
-                                      );
-                                    }
-                                  }}
-                                  size="small"
-                                  type="number"
-                                  error={!!methods.formState.errors.port}
-                                  helperText={
-                                    (methods.formState.errors.port
-                                      ?.message as string) ||
-                                    (port ? undefined : "Port is required")
-                                  }
-                                />
+                            <Box>
+                              {formData.interfaceType === interfaceOption.value ? (
+                                <CheckCircle size={16} />
+                              ) : (
+                                <Circle size={16} />
                               )}
-                            />
+                            </Box>
+                            <Divider orientation="vertical" flexItem />
+                            <Box>
+                              <Typography variant="h6">
+                                {interfaceOption.label}
+                              </Typography>
+                              <Typography variant="caption">
+                                {interfaceOption.description}
+                              </Typography>
+                            </Box>
                           </Box>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Box>
+                  <Collapse in={formData.interfaceType === "DEFAULT"}>
+                    <Alert severity="info">
+                      Uses the standard chat interface:{" "}
+                      <strong>POST /chat</strong> on port{" "}
+                      <strong>8000</strong>
+                      <br />
+                      Request:{" "}
+                      <code>{`{message: string, session_id: string, context: JSON}`}</code>
+                      <br />
+                      Response: <code>{`{response: string}`}</code>
+                    </Alert>
+                  </Collapse>
+                  <Collapse in={formData.interfaceType === "CUSTOM"}>
+                    <Box display="flex" flexDirection="column" gap={1}>
+                      <Box display="flex" flexDirection="row" gap={1}>
+                        <Box
+                          display="flex"
+                          flexDirection="column"
+                          flexGrow={1}
+                        >
+                          <TextInput
+                            label="OpenAPI Spec Path"
+                            placeholder="/openapi.yaml"
+                            required={formData.interfaceType === "CUSTOM"}
+                            fullWidth
+                            size="small"
+                            value={formData.openApiPath || ""}
+                            onChange={(e) => handleFieldChange('openApiPath', e.target.value)}
+                            error={!!errors.openApiPath}
+                            helperText={
+                              errors.openApiPath ||
+                              "Path to OpenAPI schema file in your repository"
+                            }
+                            disabled={isPending}
+                          />
                         </Box>
                         <Box>
                           <TextInput
-                            label="Base Path"
-                            placeholder="/"
-                            required={interfaceType === "CUSTOM"}
-                            fullWidth
+                            label="Port"
+                            placeholder="8080"
+                            required={formData.interfaceType === "CUSTOM"}
+                            value={formData.port ?? ""}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              if (/^\d*$/.test(next)) {
+                                handleFieldChange('port', next === "" ? undefined : Number(next));
+                              }
+                            }}
                             size="small"
-                            error={!!methods.formState.errors.basePath}
+                            type="number"
+                            error={!!errors.port}
                             helperText={
-                              (methods.formState.errors.basePath
-                                ?.message as string) ||
-                              "API base path (e.g., / or /api/v1)"
+                              errors.port ||
+                              (formData.port ? undefined : "Port is required")
                             }
-                            {...methods.register("basePath")}
+                            disabled={isPending}
                           />
                         </Box>
                       </Box>
-                    </Collapse>
-                  </Box>
-                </CardContent>
-              </Card>
+                      <Box>
+                        <TextInput
+                          label="Base Path"
+                          placeholder="/"
+                          required={formData.interfaceType === "CUSTOM"}
+                          fullWidth
+                          size="small"
+                          value={formData.basePath || ""}
+                          onChange={(e) => handleFieldChange('basePath', e.target.value)}
+                          error={!!errors.basePath}
+                          helperText={
+                            errors.basePath ||
+                            "API base path (e.g., / or /api/v1)"
+                          }
+                          disabled={isPending}
+                        />
+                      </Box>
+                    </Box>
+                  </Collapse>
+                </Box>
+              </CardContent>
+            </Card>
 
-              <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
-                <Button
-                  variant="outlined"
-                  color="inherit"
-                  onClick={onClose}
-                  disabled={isPending}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  color="primary"
-                  disabled={isPending}
-                >
-                  {isPending ? "Updating..." : "Update Build Configuration"}
-                </Button>
-              </Box>
+            <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
+              <Button
+                variant="outlined"
+                color="inherit"
+                onClick={onClose}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                color="primary"
+                disabled={isPending}
+              >
+                {isPending ? "Updating..." : "Update Build Configuration"}
+              </Button>
             </Box>
-          </form>
-        </FormProvider>
+          </Box>
+        </form>
       </DrawerContent>
     </DrawerWrapper>
   );

@@ -51,7 +51,6 @@
     "@agent-management-platform/api-client": "workspace:*",
     "@agent-management-platform/types": "workspace:*",
     "zod": "4.3.6",
-    "react-hook-form": "7.53.0",
     "@hookform/resolvers": "3.9.0",
     "lodash": "4.17.21"
   },

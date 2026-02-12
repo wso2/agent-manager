@@ -16,11 +16,9 @@
  * under the License.
  */
 
-import React, { useCallback, useMemo } from "react";
-import { FormProvider, useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import React, { useCallback, useMemo, useState } from "react";
 import { Alert, Form } from "@wso2/oxygen-ui";
-import { PageLayout } from "@agent-management-platform/views";
+import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap, OrgProjPathParams } from "@agent-management-platform/types";
 import { useCreateAgent, useListAgents } from "@agent-management-platform/api-client";
@@ -36,18 +34,15 @@ export const ExternalAgentFlow: React.FC = () => {
     projectId?: string;
   }>();
 
-  const methods = useForm<ConnectAgentFormValues>({
-    resolver: zodResolver(connectAgentSchema),
-    defaultValues: {
-      deploymentType: "existing" as const,
-      name: "",
-      displayName: "",
-      description: "",
-    },
-    mode: "all",
-    reValidateMode: "onChange",
-    criteriaMode: "all",
+  const [formData, setFormData] = useState<ConnectAgentFormValues>({
+    deploymentType: "existing" as const,
+    name: "",
+    displayName: "",
+    description: "",
   });
+
+  const { errors, validateForm, setFieldError, validateField } = 
+    useFormValidation<ConnectAgentFormValues>(connectAgentSchema);
 
   const { mutate: createAgent, isPending, error } = useCreateAgent();
   const { data: agents } = useListAgents({
@@ -97,10 +92,12 @@ export const ExternalAgentFlow: React.FC = () => {
     [createAgent, navigate, params]
   );
 
-  const handleConnect = useMemo(
-    () => methods.handleSubmit(onSubmit),
-    [methods, onSubmit]
-  );
+  const handleConnect = useCallback(() => {
+    if (!validateForm(formData)) {
+      return;
+    }
+    onSubmit(formData);
+  }, [validateForm, formData, onSubmit]);
 
   const hasAgents = Boolean(agents?.agents?.length && agents?.agents?.length > 0);
 
@@ -108,11 +105,18 @@ export const ExternalAgentFlow: React.FC = () => {
     if (!hasAgents) {
       return undefined;
     }
-    return generatePath(absoluteRouteMap.children.org.children.projects.children.newAgent.path, {
-      orgId: orgId ?? "",
-      projectId: projectId ?? "default",
-    });
+    return generatePath(
+      absoluteRouteMap.children.org.children.projects.children.newAgent.path,
+      {
+        orgId: orgId ?? "",
+        projectId: projectId ?? "default",
+      }
+    );
   }, [hasAgents, orgId, projectId]);
+
+  const isValid = Object.keys(errors).length === 0 &&
+    Boolean(formData.name) &&
+    Boolean(formData.displayName);
 
   return (
     <PageLayout
@@ -122,25 +126,29 @@ export const ExternalAgentFlow: React.FC = () => {
       backHref={backHref}
       backLabel="Back to Agent Hosting Options"
     >
-      <FormProvider {...methods}>
-        <Form.Stack spacing={3}>
-          <ExternalAgentForm />
+      <Form.Stack spacing={3}>
+        <ExternalAgentForm
+          formData={formData}
+          setFormData={setFormData}
+          errors={errors}
+          setFieldError={setFieldError}
+          validateField={validateField}
+        />
 
-          {!!error && (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {error instanceof Error ? error.message : "Failed to register agent"}
-            </Alert>
-          )}
+        {!!error && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {error instanceof Error ? error.message : "Failed to register agent"}
+          </Alert>
+        )}
 
-          <CreateButtons
-            isValid={methods.formState.isValid}
-            isPending={isPending}
-            onCancel={handleCancel}
-            onSubmit={handleConnect}
-            mode="connect"
-          />
-        </Form.Stack>
-      </FormProvider>
+        <CreateButtons
+          isValid={isValid}
+          isPending={isPending}
+          onCancel={handleCancel}
+          onSubmit={handleConnect}
+          mode="connect"
+        />
+      </Form.Stack>
     </PageLayout>
   );
 };

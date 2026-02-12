@@ -16,11 +16,9 @@
  * under the License.
  */
 
-import React, { useCallback, useMemo } from "react";
-import { FormProvider, useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import React, { useCallback, useMemo, useState } from "react";
 import { Alert, Form } from "@wso2/oxygen-ui";
-import { PageLayout } from "@agent-management-platform/views";
+import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap, OrgProjPathParams } from "@agent-management-platform/types";
 import { useCreateAgent, useListAgents } from "@agent-management-platform/api-client";
@@ -36,29 +34,26 @@ export const InternalAgentFlow: React.FC = () => {
     projectId?: string;
   }>();
 
-  const methods = useForm<CreateAgentFormValues>({
-    resolver: zodResolver(createAgentSchema),
-    defaultValues: {
-      deploymentType: "new" as const,
-      name: "",
-      displayName: "",
-      description: "",
-      repositoryUrl: "",
-      branch: "main",
-      appPath: "/",
-      runCommand: "python main.py",
-      language: "python",
-      languageVersion: "3.11",
-      interfaceType: "DEFAULT" as const,
-      port: "" as unknown as number,
-      basePath: "/",
-      openApiPath: "",
-      env: [{ key: "", value: "" }],
-    },
-    mode: "all",
-    reValidateMode: "onChange",
-    criteriaMode: "all",
+  const [formData, setFormData] = useState<CreateAgentFormValues>({
+    deploymentType: "new" as const,
+    name: "",
+    displayName: "",
+    description: "",
+    repositoryUrl: "",
+    branch: "main",
+    appPath: "/",
+    runCommand: "python main.py",
+    language: "python",
+    languageVersion: "3.11",
+    interfaceType: "DEFAULT" as const,
+    port: "" as unknown as number,
+    basePath: "/",
+    openApiPath: "",
+    env: [{ key: "", value: "" }],
   });
+
+  const { errors, validateForm, setFieldError, validateField } =
+    useFormValidation<CreateAgentFormValues>(createAgentSchema);
 
   const { mutate: createAgent, isPending, error } = useCreateAgent();
   const { data: agents } = useListAgents({
@@ -83,35 +78,35 @@ export const InternalAgentFlow: React.FC = () => {
     );
   }, [navigate, orgId, projectId]);
 
-  const onSubmit = useCallback(
-    (values: CreateAgentFormValues) => {
-      const payload = buildAgentCreationPayload(values, params);
-      createAgent(payload, {
-        onSuccess: () => {
-          navigate(
-            generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents.path,
-              {
-                orgId: params.orgName ?? "",
-                projectId: params.projName ?? "",
-                agentId: payload.body.name,
-              }
-            ) + "?setup=true"
-          );
-        },
-        onError: (e: unknown) => {
-          // eslint-disable-next-line no-console
-          console.error("Failed to create agent:", e);
-        },
-      });
-    },
-    [createAgent, navigate, params]
-  );
+  const handleDeploy = useCallback(() => {
+    if (!validateForm(formData)) {
+      return;
+    }
 
-  const handleDeploy = useMemo(
-    () => methods.handleSubmit(onSubmit),
-    [methods, onSubmit]
-  );
+    const payload = buildAgentCreationPayload(formData, params);
+    createAgent(payload, {
+      onSuccess: () => {
+        navigate(
+          generatePath(
+            absoluteRouteMap.children.org.children.projects.children.agents.path,
+            {
+              orgId: params.orgName ?? "",
+              projectId: params.projName ?? "",
+              agentId: payload.body.name,
+            }
+          ) + "?setup=true"
+        );
+      },
+      onError: (e: unknown) => {
+        // eslint-disable-next-line no-console
+        console.error("Failed to create agent:", e);
+      },
+    });
+  }, [validateForm, formData, createAgent, navigate, params]);
+
+  const isValid = Object.keys(errors).length === 0 &&
+    formData.displayName.trim().length > 0 &&
+    formData.repositoryUrl.trim().length > 0;
 
   const hasAgents = Boolean(agents?.agents?.length && agents?.agents?.length > 0);
 
@@ -133,25 +128,29 @@ export const InternalAgentFlow: React.FC = () => {
       backHref={backHref}
       backLabel="Back to Agent Hosting Options"
     >
-      <FormProvider {...methods}>
-        <Form.Stack spacing={3}>
-          <InternalAgentForm />
+      <Form.Stack spacing={3}>
+        <InternalAgentForm
+          formData={formData}
+          setFormData={setFormData}
+          errors={errors}
+          setFieldError={setFieldError}
+          validateField={validateField}
+        />
 
-          {!!error && (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {error instanceof Error ? error.message : "Failed to create agent"}
-            </Alert>
-          )}
+        {!!error && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {error instanceof Error ? error.message : "Failed to create agent"}
+          </Alert>
+        )}
 
-          <CreateButtons
-            isValid={methods.formState.isValid}
-            isPending={isPending}
-            onCancel={handleCancel}
-            onSubmit={handleDeploy}
-            mode="deploy"
-          />
-        </Form.Stack>
-      </FormProvider>
+        <CreateButtons
+          isValid={isValid}
+          isPending={isPending}
+          onCancel={handleCancel}
+          onSubmit={handleDeploy}
+          mode="deploy"
+        />
+      </Form.Stack>
     </PageLayout>
   );
 };

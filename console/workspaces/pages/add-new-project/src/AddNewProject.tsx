@@ -16,13 +16,11 @@
  * under the License.
  */
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Box } from '@wso2/oxygen-ui';
-import { PageLayout } from '@agent-management-platform/views';
+import { PageLayout, useFormValidation, useDirtyState } from '@agent-management-platform/views';
 import { generatePath, useNavigate, useParams } from 'react-router-dom';
 import { absoluteRouteMap } from '@agent-management-platform/types';
-import { useForm, FormProvider } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { addProjectSchema, type AddProjectFormValues } from './form/schema';
 import { useCreateProject } from '@agent-management-platform/api-client';
 import { CreateButtons } from './components/CreateButtons';
@@ -31,17 +29,23 @@ import { ProjectForm } from './components/ProjectForm';
 export const AddNewProject: React.FC = () => {
   const navigate = useNavigate();
   const { orgId } = useParams<{ orgId: string }>();
-  const methods = useForm<AddProjectFormValues>({
-    mode: "all",
-    resolver: zodResolver(addProjectSchema),
-    defaultValues: {
-      name: '',
-      displayName: '',
-      description: '',
-      deploymentPipeline: 'default',
-    },
-    reValidateMode: 'onChange',
+
+  const [formData, setFormData] = useState<AddProjectFormValues>({
+    name: '',
+    displayName: '',
+    description: '',
+    deploymentPipeline: 'default',
   });
+
+  const { 
+    errors, 
+    validateField, 
+    validateForm, 
+    clearErrors,
+    setFieldError,
+  } = useFormValidation<AddProjectFormValues>(addProjectSchema);
+
+  const { checkDirty, resetDirty } = useDirtyState(formData);
 
   const params = useMemo(() => ({
     orgName: orgId ?? 'default',
@@ -56,35 +60,46 @@ export const AddNewProject: React.FC = () => {
     ));
   }, [navigate, orgId]);
 
-  const onSubmit = useCallback((values: AddProjectFormValues) => {
+  const handleCreateProject = useCallback(() => {
+    if (!validateForm(formData)) {
+      return;
+    }
+
     createProject({
-      name: values.name,
-      displayName: values.displayName,
-      description: values.description?.trim() || undefined,
-      deploymentPipeline: values.deploymentPipeline,
+      name: formData.name,
+      displayName: formData.displayName,
+      description: formData.description?.trim() || undefined,
+      deploymentPipeline: formData.deploymentPipeline,
     }, {
       onSuccess: () => {
+        resetDirty();
+        clearErrors();
         navigate(generatePath(
           absoluteRouteMap.children.org.children.projects.path,
           {
             orgId: params.orgName ?? '',
-            projectId: values.name,
+            projectId: formData.name,
           }
         ));
       },
       onError: (e: unknown) => {
-        // Error handling is done by the mutation
         // eslint-disable-next-line no-console
         console.error('Failed to create project:', e);
       }
     });
-  }, [createProject, navigate, params.orgName]);
+  }, [formData, validateForm, createProject, navigate, params.orgName, resetDirty, clearErrors]);
 
-  const handleCreateProject = useMemo(() => methods.handleSubmit(onSubmit), [methods, onSubmit]);
+  const isValid = useMemo(() => {
+    return (
+      formData.displayName.trim().length >= 3 && 
+      formData.name.trim().length >= 3 &&
+      Object.keys(errors).length === 0
+    );
+  }, [formData.displayName, formData.name, errors]);
 
   return (
-    <PageLayout 
-      title="Create a New Project" 
+    <PageLayout
+      title="Create a New Project"
       description="Create a new project to organize and manage your agents."
       disableIcon
       backHref={generatePath(
@@ -94,16 +109,21 @@ export const AddNewProject: React.FC = () => {
       backLabel="Back to Organization"
     >
       <Box display="flex" flexDirection="column" gap={2}>
-        <FormProvider {...methods}>
-          <ProjectForm />
-        </FormProvider>
+        <ProjectForm
+          formData={formData}
+          setFormData={setFormData}
+          errors={errors}
+          validateField={validateField}
+          setFieldError={setFieldError}
+          checkDirty={checkDirty}
+        />
         {!!error && (
           <Alert severity="error" sx={{ mt: 2 }}>
             {error instanceof Error ? error.message : 'Failed to create project'}
           </Alert>
         )}
         <CreateButtons
-          isValid={methods.formState.isValid}
+          isValid={isValid}
           isPending={isPending}
           onCancel={handleCancel}
           onSubmit={handleCreateProject}
