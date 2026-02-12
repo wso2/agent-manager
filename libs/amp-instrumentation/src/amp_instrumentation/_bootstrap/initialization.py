@@ -103,6 +103,9 @@ def initialize_instrumentation() -> None:
             # Get trace content setting (default: true)
             trace_content = os.getenv(env_vars.AMP_TRACE_CONTENT, "true")
 
+            # Get optional agent version
+            agent_version = os.getenv(env_vars.AMP_AGENT_VERSION)
+
             # Set Traceloop environment variables
             os.environ[env_vars.TRACELOOP_TRACE_CONTENT] = trace_content
             os.environ[env_vars.TRACELOOP_METRICS_ENABLED] = "false"
@@ -111,11 +114,17 @@ def initialize_instrumentation() -> None:
             # Import and initialize Traceloop
             from traceloop.sdk import Traceloop
 
+            # Build resource attributes
+            resource_attributes = {}
+            if agent_version:
+                resource_attributes["agent-manager/agent-version"] = agent_version
+
             # Initialize Traceloop with configuration
             Traceloop.init(
                 telemetry_enabled=False,
                 api_endpoint=otel_endpoint,
                 headers={"x-amp-api-key": api_key},
+                resource_attributes=resource_attributes,
             )
 
             _initialized = True
