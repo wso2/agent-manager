@@ -904,16 +904,27 @@ func (c *openChoreoClient) UpdateComponentEnvironmentVariables(ctx context.Conte
 		}
 	}
 
-	// Append new environment variables
+	envMap := make(map[string]map[string]any)
+
+	for _, env := range existingEnvVars {
+		if name, ok := env["name"].(string); ok {
+			envMap[name] = env
+		}
+	}
+
 	for _, newEnv := range envVars {
-		existingEnvVars = append(existingEnvVars, map[string]any{
+		envMap[newEnv.Key] = map[string]any{
 			"name":  newEnv.Key,
 			"value": newEnv.Value,
-		})
+		}
+	}
+	mergedEnvVars := make([]map[string]any, 0, len(envMap))
+	for _, env := range envMap {
+		mergedEnvVars = append(mergedEnvVars, env)
 	}
 
 	// Update workflow parameters with merged environment variables
-	existingParams["environmentVariables"] = existingEnvVars
+	existingParams["environmentVariables"] = mergedEnvVars
 	workflow["parameters"] = existingParams
 
 	// Apply the updated component CR
