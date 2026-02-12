@@ -75,19 +75,24 @@ export const InputInterface = ({
 }: InputInterfaceProps) => {
   const handleFieldChange = useCallback(
     (field: keyof CreateAgentFormValues, value: unknown) => {
+      // First update the form data
+      let newData: CreateAgentFormValues | null = null;
       setFormData(prevData => {
-        const newData = { ...prevData, [field]: value };
-        // Validate with full data to catch refinements
-        const error = validateField(field, value, newData as CreateAgentFormValues);
-        setFieldError(field, error);
+        newData = { ...prevData, [field]: value } as CreateAgentFormValues;
         return newData;
       });
+      // Then validate with the full updated data and set error (side effect outside updater)
+      if (newData) {
+        const error = validateField(field, value, newData);
+        setFieldError(field, error);
+      }
     },
     [setFormData, validateField, setFieldError]
   );
 
   const handleSelect = useCallback(
     (value: InputInterfaceType) => {
+      // Compute new data outside the updater
       setFormData(prevData => {
         const newData = {
           ...prevData,
@@ -98,23 +103,23 @@ export const InputInterface = ({
             basePath: "/",
           } : {}),
         };
-        
-        // Validate interface type change with full data
-        const error = validateField('interfaceType', value, newData as CreateAgentFormValues);
+        return newData;
+      });
+
+      // Perform all validations outside the updater
+      setFormData(currentData => {
+        const error = validateField('interfaceType', value, currentData);
         setFieldError('interfaceType', error);
         
-        // If switching to CUSTOM, validate the required fields
         if (value === 'CUSTOM') {
-          // Validate port
-          const portError = validateField('port', newData.port, newData as CreateAgentFormValues);
+          // Validate required fields for CUSTOM interface
+          const portError = validateField('port', currentData.port, currentData);
           setFieldError('port', portError);
           
-          // Validate openApiPath
-          const openApiError = validateField('openApiPath', newData.openApiPath, newData as CreateAgentFormValues);
+          const openApiError = validateField('openApiPath', currentData.openApiPath, currentData);
           setFieldError('openApiPath', openApiError);
           
-          // Validate basePath
-          const basePathError = validateField('basePath', newData.basePath, newData as CreateAgentFormValues);
+          const basePathError = validateField('basePath', currentData.basePath, currentData);
           setFieldError('basePath', basePathError);
         } else {
           // Clear validation errors when switching to DEFAULT
@@ -123,7 +128,7 @@ export const InputInterface = ({
           setFieldError('basePath', undefined);
         }
         
-        return newData;
+        return currentData;
       });
     },
     [setFormData, validateField, setFieldError]

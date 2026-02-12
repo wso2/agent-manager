@@ -20,15 +20,18 @@ import { useState, useCallback } from 'react';
 
 export function useDirtyState<T extends Record<string, any>>(initialData: T) {
   const [isDirty, setIsDirty] = useState(false);
-  const [initialState] = useState(JSON.stringify(initialData));
+  const [initialState, setInitialState] = useState(JSON.stringify(initialData));
 
   const checkDirty = useCallback((currentData: T) => {
     const currentState = JSON.stringify(currentData);
     setIsDirty(currentState !== initialState);
   }, [initialState]);
 
-  const resetDirty = useCallback(() => {
+  const resetDirty = useCallback((newData?: T) => {
     setIsDirty(false);
+    if (newData !== undefined) {
+      setInitialState(JSON.stringify(newData));
+    }
   }, []);
 
   return {

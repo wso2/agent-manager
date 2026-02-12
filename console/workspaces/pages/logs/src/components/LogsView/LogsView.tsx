@@ -201,7 +201,7 @@ const LogEntryItem: React.FC<LogEntryItemProps> = ({ entry }) => {
               size="small"
               onClick={handleCopy}
               aria-label="Copy log"
-              disabled={!copied}
+              disabled={copied}
             >
               <Copy size={16} />
             </IconButton>
