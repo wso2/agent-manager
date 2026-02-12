@@ -47,6 +47,8 @@ type AgentManagerService interface {
 	GenerateName(ctx context.Context, orgName string, payload spec.ResourceNameRequest) (string, error)
 	GetAgentMetrics(ctx context.Context, orgName string, projectName string, agentName string, payload spec.MetricsFilterRequest) (*spec.MetricsResponse, error)
 	GetAgentRuntimeLogs(ctx context.Context, orgName string, projectName string, agentName string, payload spec.LogFilterRequest) (*models.LogsResponse, error)
+	GetAgentResourceConfigs(ctx context.Context, orgName string, projectName string, agentName string, environment string) (*spec.AgentResourceConfigsResponse, error)
+	UpdateAgentResourceConfigs(ctx context.Context, orgName string, projectName string, agentName string, environment string, req *spec.UpdateAgentResourceConfigsRequest) (*spec.AgentResourceConfigsResponse, error)
 }
 
 type agentManagerService struct {
@@ -336,6 +338,197 @@ func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, or
 
 	s.logger.Info("Agent build parameters updated successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName)
 	return updatedAgent, nil
+}
+
+func (s *agentManagerService) GetAgentResourceConfigs(ctx context.Context, orgName string, projectName string, agentName string, environment string) (*spec.AgentResourceConfigsResponse, error) {
+	s.logger.Info("Getting agent resource configurations", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment)
+
+	// Validate organization exists
+	_, err := s.ocClient.GetOrganization(ctx, orgName)
+	if err != nil {
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return nil, err
+	}
+
+	// Validate project exists
+	_, err = s.ocClient.GetProject(ctx, orgName, projectName)
+	if err != nil {
+		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
+		return nil, err
+	}
+
+	// Validate agent exists
+	_, err = s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
+	if err != nil {
+		s.logger.Error("Failed to fetch agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		return nil, err
+	}
+
+	// Validate environment if provided
+	if environment != "" {
+		_, err = s.ocClient.GetEnvironment(ctx, orgName, environment)
+		if err != nil {
+			s.logger.Error("Failed to validate environment", "environment", environment, "orgName", orgName, "error", err)
+			return nil, fmt.Errorf("failed to get environments for organization %s: %w", orgName, err)
+		}
+	}
+
+	// Fetch resource configurations from OpenChoreo
+	configs, err := s.ocClient.GetComponentResourceConfigs(ctx, orgName, projectName, agentName, environment)
+	if err != nil {
+		s.logger.Error("Failed to fetch agent resource configurations", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment, "error", err)
+		return nil, fmt.Errorf("failed to get agent resource configurations: %w", err)
+	}
+
+	// Convert client response to spec response
+	response := buildResourceConfigsResponse(configs)
+
+	s.logger.Info("Fetched agent resource configurations successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment)
+	return response, nil
+}
+
+func (s *agentManagerService) UpdateAgentResourceConfigs(ctx context.Context, orgName string, projectName string, agentName string, environment string, req *spec.UpdateAgentResourceConfigsRequest) (*spec.AgentResourceConfigsResponse, error) {
+	s.logger.Info("Updating agent resource configurations", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment)
+
+	// Validate organization exists
+	_, err := s.ocClient.GetOrganization(ctx, orgName)
+	if err != nil {
+		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
+		return nil, err
+	}
+
+	// Validate project exists
+	_, err = s.ocClient.GetProject(ctx, orgName, projectName)
+	if err != nil {
+		s.logger.Error("Failed to find project", "projectName", projectName, "org", orgName, "error", err)
+		return nil, err
+	}
+
+	// Fetch existing agent to validate it exists
+	_, err = s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
+	if err != nil {
+		s.logger.Error("Failed to fetch existing agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		return nil, err
+	}
+
+	// Validate environment if provided (for environment-specific updates)
+	if environment != "" {
+		_, err = s.ocClient.GetEnvironment(ctx, orgName, environment)
+		if err != nil {
+			s.logger.Error("Failed to validate environment", "environment", environment, "orgName", orgName, "error", err)
+			return nil, fmt.Errorf("failed to get environments for organization %s: %w", orgName, err)
+		}
+	}
+
+	// Update agent resource configurations in OpenChoreo
+	updateReq := buildUpdateResourceConfigsRequest(req)
+	if err := s.ocClient.UpdateComponentResourceConfigs(ctx, orgName, projectName, agentName, environment, updateReq); err != nil {
+		s.logger.Error("Failed to update agent resource configurations in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment, "error", err)
+		return nil, fmt.Errorf("failed to update agent resource configurations: %w", err)
+	}
+
+	// Fetch updated resource configurations to return
+	updatedConfigs, err := s.GetAgentResourceConfigs(ctx, orgName, projectName, agentName, environment)
+	if err != nil {
+		s.logger.Error("Failed to fetch updated resource configurations", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment, "error", err)
+		return nil, fmt.Errorf("failed to get agent resource configurations: %w", err)
+	}
+
+	s.logger.Info("Agent resource configurations updated successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment)
+	return updatedConfigs, nil
+}
+
+// buildUpdateResourceConfigsRequest converts spec request to client request
+func buildUpdateResourceConfigsRequest(req *spec.UpdateAgentResourceConfigsRequest) client.UpdateComponentResourceConfigsRequest {
+	updateReq := client.UpdateComponentResourceConfigsRequest{}
+
+	if req.Replicas != nil {
+		updateReq.Replicas = req.Replicas
+	}
+
+	if req.Resources != nil {
+		updateReq.Resources = &client.ResourceConfig{}
+
+		if req.Resources.Requests != nil {
+			updateReq.Resources.Requests = &client.ResourceRequests{
+				CPU:    utils.StrPointerAsStr(req.Resources.Requests.Cpu, ""),
+				Memory: utils.StrPointerAsStr(req.Resources.Requests.Memory, ""),
+			}
+		}
+
+		if req.Resources.Limits != nil {
+			updateReq.Resources.Limits = &client.ResourceLimits{
+				CPU:    utils.StrPointerAsStr(req.Resources.Limits.Cpu, ""),
+				Memory: utils.StrPointerAsStr(req.Resources.Limits.Memory, ""),
+			}
+		}
+	}
+
+	return updateReq
+}
+
+// buildResourceConfigsResponse converts client response to spec response
+func buildResourceConfigsResponse(clientResp *client.ComponentResourceConfigsResponse) *spec.AgentResourceConfigsResponse {
+	response := &spec.AgentResourceConfigsResponse{}
+
+	if clientResp.Replicas != nil {
+		response.Replicas = clientResp.Replicas
+	}
+
+	if clientResp.Resources != nil {
+		response.Resources = convertClientResourceConfigToSpec(clientResp.Resources)
+	}
+
+	if clientResp.DefaultReplicas != nil {
+		response.DefaultReplicas = clientResp.DefaultReplicas
+	}
+
+	if clientResp.DefaultResources != nil {
+		response.DefaultResources = convertClientResourceConfigToSpec(clientResp.DefaultResources)
+	}
+
+	if clientResp.IsDefaultsOverridden != nil {
+		response.IsDefaultsOverridden = clientResp.IsDefaultsOverridden
+	}
+
+	return response
+}
+
+// convertClientResourceConfigToSpec converts client ResourceConfig to spec ResourceConfig
+func convertClientResourceConfigToSpec(clientConfig *client.ResourceConfig) *spec.ResourceConfig {
+	if clientConfig == nil {
+		return nil
+	}
+
+	specConfig := &spec.ResourceConfig{}
+
+	if clientConfig.Requests != nil {
+		requests := &spec.ResourceRequests{}
+		if clientConfig.Requests.CPU != "" {
+			cpu := clientConfig.Requests.CPU
+			requests.Cpu = &cpu
+		}
+		if clientConfig.Requests.Memory != "" {
+			memory := clientConfig.Requests.Memory
+			requests.Memory = &memory
+		}
+		specConfig.Requests = requests
+	}
+
+	if clientConfig.Limits != nil {
+		limits := &spec.ResourceLimits{}
+		if clientConfig.Limits.CPU != "" {
+			cpu := clientConfig.Limits.CPU
+			limits.Cpu = &cpu
+		}
+		if clientConfig.Limits.Memory != "" {
+			memory := clientConfig.Limits.Memory
+			limits.Memory = &memory
+		}
+		specConfig.Limits = limits
+	}
+
+	return specConfig
 }
 
 // buildUpdateBuildParametersRequest converts spec request to client request

@@ -640,6 +640,108 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/resource-configs:
+    get:
+      summary: Get agent resource configurations
+      operationId: getAgentResourceConfigs
+      parameters:
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: environment
+          in: query
+          description: Optional environment name. If omitted, returns component-level defaults. If provided, returns environment-specific overrides (if any) along with component defaults and isDefaultsOverridden flag.
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent resource configurations retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentResourceConfigsResponse"
+        "404":
+          description: Agent or environment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      summary: Update agent resource configurations
+      operationId: updateAgentResourceConfigs
+      parameters:
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: environment
+          in: query
+          description: Optional environment name. If provided, updates only that environment's resource configurations via release binding componentTypeEnvOverrides. If omitted, updates component-level defaults that apply to all environments (unless overridden).
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAgentResourceConfigsRequest"
+      responses:
+        "200":
+          description: Agent resource configurations updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentResourceConfigsResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/utils/generate-name:
     post:
       summary: Get name by display name
@@ -1907,6 +2009,71 @@ components:
           $ref: "#/components/schemas/RuntimeConfigurationWithoutEnv"
         inputInterface:
           $ref: "#/components/schemas/InputInterface"
+
+    UpdateAgentResourceConfigsRequest:
+      type: object
+      properties:
+        replicas:
+          type: integer
+          format: int32
+          description: Number of replicas to run
+          minimum: 0
+          maximum: 10
+        resources:
+          $ref: "#/components/schemas/ResourceConfig"
+
+    ResourceConfig:
+      type: object
+      properties:
+        requests:
+          $ref: "#/components/schemas/ResourceRequests"
+        limits:
+          $ref: "#/components/schemas/ResourceLimits"
+
+    ResourceRequests:
+      type: object
+      properties:
+        cpu:
+          type: string
+          description: CPU request (e.g., "100m", "1")
+          pattern: '^[0-9]+m?$'
+        memory:
+          type: string
+          description: Memory request (e.g., "256Mi", "1Gi")
+          pattern: '^[0-9]+(Mi|Gi)$'
+
+    ResourceLimits:
+      type: object
+      properties:
+        cpu:
+          type: string
+          description: CPU limit (e.g., "500m", "2")
+          pattern: '^[0-9]+m?$'
+        memory:
+          type: string
+          description: Memory limit (e.g., "512Mi", "2Gi")
+          pattern: '^[0-9]+(Mi|Gi)$'
+
+    AgentResourceConfigsResponse:
+      type: object
+      properties:
+        replicas:
+          type: integer
+          format: int32
+          description: Current number of replicas (environment-specific if environment provided, otherwise component default)
+        resources:
+          $ref: "#/components/schemas/ResourceConfig"
+          description: Current resource configurations (environment-specific if environment provided, otherwise component default)
+        defaultReplicas:
+          type: integer
+          format: int32
+          description: Component-level default replicas (only populated when environment query parameter is provided)
+        defaultResources:
+          $ref: "#/components/schemas/ResourceConfig"
+          description: Component-level default resources (only populated when environment query parameter is provided)
+        isDefaultsOverridden:
+          type: boolean
+          description: Indicates whether environment-specific overrides exist (only populated when environment query parameter is provided)
 
     UpdateProjectRequest:
       type: object

@@ -365,6 +365,10 @@ components:
         autoDeploy:
           type: boolean
           description: Controls whether the component should automatically deploy to the default environment
+        parameters:
+          type: object
+          description: Component parameter values
+          additionalProperties: true
 
     # Component Traits
     ComponentTraitResponse:

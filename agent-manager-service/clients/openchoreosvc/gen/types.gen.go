@@ -726,6 +726,9 @@ type ObserverUrlData struct {
 type PatchComponentRequest struct {
 	// AutoDeploy Controls whether the component should automatically deploy to the default environment
 	AutoDeploy *bool `json:"autoDeploy,omitempty"`
+
+	// Parameters Component parameter values
+	Parameters *map[string]interface{} `json:"parameters,omitempty"`
 }
 
 // PatchReleaseBindingRequest defines model for PatchReleaseBindingRequest.

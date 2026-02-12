@@ -385,6 +385,336 @@ func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, namespa
 	return nil
 }
 
+func (c *openChoreoClient) GetComponentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string) (*ComponentResourceConfigsResponse, error) {
+	// If environment is not provided, fetch component-level defaults only
+	if environment == "" {
+		return c.getComponentLevelResourceConfigs(ctx, namespaceName, projectName, componentName)
+	}
+	// If environment is provided, fetch both environment-specific and component-level defaults
+	return c.getEnvironmentResourceConfigs(ctx, namespaceName, projectName, componentName, environment)
+}
+
+func (c *openChoreoClient) UpdateComponentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string, req UpdateComponentResourceConfigsRequest) error {
+	// If environment is provided, update the release binding for that specific environment
+	// Otherwise, update the component itself (which updates defaults for all environments)
+	if environment != "" {
+		return c.updateReleaseBindingResourceConfigs(ctx, namespaceName, projectName, componentName, environment, req)
+	}
+	return c.updateComponentResourceConfigs(ctx, namespaceName, projectName, componentName, req)
+}
+
+// updateComponentResourceConfigs updates component-level parameters (defaults for all environments)
+func (c *openChoreoClient) updateComponentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentResourceConfigsRequest) error {
+	// Fetch the full component CR with server-managed fields removed
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
+	if err != nil {
+		return fmt.Errorf("failed to get component resource: %w", err)
+	}
+
+	// Get or create spec
+	spec, ok := componentCR["spec"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("invalid spec in component CR")
+	}
+
+	// Get or create parameters
+	parameters, ok := spec["parameters"].(map[string]interface{})
+	if !ok {
+		parameters = make(map[string]interface{})
+		spec["parameters"] = parameters
+	}
+
+	// Update replicas if provided
+	if req.Replicas != nil {
+		parameters["replicas"] = *req.Replicas
+	}
+
+	// Update resources if provided
+	if req.Resources != nil {
+		resources := make(map[string]interface{})
+
+		if req.Resources.Requests != nil {
+			requests := make(map[string]string)
+			if req.Resources.Requests.CPU != "" {
+				requests["cpu"] = req.Resources.Requests.CPU
+			}
+			if req.Resources.Requests.Memory != "" {
+				requests["memory"] = req.Resources.Requests.Memory
+			}
+			if len(requests) > 0 {
+				resources["requests"] = requests
+			}
+		}
+
+		if req.Resources.Limits != nil {
+			limits := make(map[string]string)
+			if req.Resources.Limits.CPU != "" {
+				limits["cpu"] = req.Resources.Limits.CPU
+			}
+			if req.Resources.Limits.Memory != "" {
+				limits["memory"] = req.Resources.Limits.Memory
+			}
+			if len(limits) > 0 {
+				resources["limits"] = limits
+			}
+		}
+
+		if len(resources) > 0 {
+			parameters["resources"] = resources
+		}
+	}
+
+	// Apply the updated component CR using ApplyResource instead of PatchComponent
+	// This avoids the OpenChoreo bug in applyComponentPatch
+	applyResp, err := c.ocClient.ApplyResourceWithResponse(ctx, componentCR)
+	if err != nil {
+		return fmt.Errorf("failed to update component resource configurations: %w", err)
+	}
+
+	if applyResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(applyResp.StatusCode(), applyResp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	return nil
+}
+
+// updateReleaseBindingResourceConfigs updates environment-specific parameters via release binding
+func (c *openChoreoClient) updateReleaseBindingResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string, req UpdateComponentResourceConfigsRequest) error {
+	// List release bindings to find the correct binding name for the environment
+	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, projectName, componentName)
+	if err != nil {
+		return fmt.Errorf("failed to list release bindings: %w", err)
+	}
+
+	if listResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(listResp.StatusCode(), listResp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	// Find the binding for the specified environment
+	var bindingName string
+	if listResp.JSON200 != nil && listResp.JSON200.Data != nil && listResp.JSON200.Data.Items != nil {
+		for _, binding := range *listResp.JSON200.Data.Items {
+			if binding.Environment == environment {
+				bindingName = binding.Name
+				break
+			}
+		}
+	}
+
+	if bindingName == "" {
+		return fmt.Errorf("release binding not found for environment: %s", environment)
+	}
+
+	// Build componentTypeEnvOverrides with resources and replicas
+	componentTypeEnvOverrides := make(map[string]interface{})
+
+	// Add replicas if provided
+	if req.Replicas != nil {
+		componentTypeEnvOverrides["replicas"] = *req.Replicas
+	}
+
+	if req.Resources != nil {
+		resources := make(map[string]interface{})
+		if req.Resources.Requests != nil {
+			requests := make(map[string]string)
+			if req.Resources.Requests.CPU != "" {
+				requests["cpu"] = req.Resources.Requests.CPU
+			}
+			if req.Resources.Requests.Memory != "" {
+				requests["memory"] = req.Resources.Requests.Memory
+			}
+			if len(requests) > 0 {
+				resources["requests"] = requests
+			}
+		}
+
+		if req.Resources.Limits != nil {
+			limits := make(map[string]string)
+			if req.Resources.Limits.CPU != "" {
+				limits["cpu"] = req.Resources.Limits.CPU
+			}
+			if req.Resources.Limits.Memory != "" {
+				limits["memory"] = req.Resources.Limits.Memory
+			}
+			if len(limits) > 0 {
+				resources["limits"] = limits
+			}
+		}
+
+		if len(resources) > 0 {
+			componentTypeEnvOverrides["resources"] = resources
+		}
+	}
+
+	// Build the patch request body
+	patchBody := gen.PatchReleaseBindingJSONRequestBody{
+		ComponentTypeEnvOverrides: &componentTypeEnvOverrides,
+	}
+
+	// Use PatchReleaseBinding
+	resp, err := c.ocClient.PatchReleaseBindingWithResponse(ctx, namespaceName, projectName, componentName, bindingName, patchBody)
+	if err != nil {
+		return fmt.Errorf("failed to patch release binding resource configurations: %w", err)
+	}
+
+	if resp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	return nil
+}
+
+// getComponentLevelResourceConfigs fetches component-level default resource configurations
+func (c *openChoreoClient) getComponentLevelResourceConfigs(ctx context.Context, namespaceName, projectName, componentName string) (*ComponentResourceConfigsResponse, error) {
+	// Get the component CR to extract parameters
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get component resource: %w", err)
+	}
+
+	response := &ComponentResourceConfigsResponse{}
+
+	// Extract parameters from component spec
+	if spec, ok := componentCR["spec"].(map[string]interface{}); ok {
+		if parameters, ok := spec["parameters"].(map[string]interface{}); ok {
+			// Extract replicas
+			if replicas, ok := parameters["replicas"].(float64); ok {
+				replicasInt := int32(replicas)
+				response.Replicas = &replicasInt
+			}
+
+			// Extract resources
+			if resources, ok := parameters["resources"].(map[string]interface{}); ok {
+				response.Resources = extractResourceConfig(resources)
+			}
+		}
+	}
+
+	return response, nil
+}
+
+// getEnvironmentResourceConfigs fetches environment-specific resource configurations along with component defaults
+func (c *openChoreoClient) getEnvironmentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName, environment string) (*ComponentResourceConfigsResponse, error) {
+	// First, get component-level defaults
+	componentDefaults, err := c.getComponentLevelResourceConfigs(ctx, namespaceName, projectName, componentName)
+	if err != nil {
+		return nil, err
+	}
+
+	// List release bindings to find the one for this environment
+	listResp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, projectName, componentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list release bindings: %w", err)
+	}
+
+	if listResp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(listResp.StatusCode(), listResp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	response := &ComponentResourceConfigsResponse{
+		DefaultReplicas:  componentDefaults.Replicas,
+		DefaultResources: componentDefaults.Resources,
+	}
+
+	// Find the binding for the specified environment
+	var binding *gen.ReleaseBindingResponse
+	if listResp.JSON200 != nil && listResp.JSON200.Data != nil && listResp.JSON200.Data.Items != nil {
+		for _, b := range *listResp.JSON200.Data.Items {
+			if b.Environment == environment {
+				binding = &b
+				break
+			}
+		}
+	}
+
+	if binding == nil {
+		// No binding found - return component defaults
+		isOverridden := false
+		response.Replicas = componentDefaults.Replicas
+		response.Resources = componentDefaults.Resources
+		response.IsDefaultsOverridden = &isOverridden
+		return response, nil
+	}
+
+	// Check if there are overrides in componentTypeEnvOverrides
+	hasOverrides := false
+	if binding.ComponentTypeEnvOverrides != nil {
+		overrides := *binding.ComponentTypeEnvOverrides
+
+		// Check for replicas override
+		if replicas, ok := overrides["replicas"].(float64); ok {
+			replicasInt := int32(replicas)
+			response.Replicas = &replicasInt
+			hasOverrides = true
+		} else {
+			// Use component default
+			response.Replicas = componentDefaults.Replicas
+		}
+
+		// Check for resources override
+		if resources, ok := overrides["resources"].(map[string]interface{}); ok {
+			response.Resources = extractResourceConfig(resources)
+			hasOverrides = true
+		} else {
+			// Use component default
+			response.Resources = componentDefaults.Resources
+		}
+	} else {
+		// No overrides - use component defaults
+		response.Replicas = componentDefaults.Replicas
+		response.Resources = componentDefaults.Resources
+	}
+
+	response.IsDefaultsOverridden = &hasOverrides
+	return response, nil
+}
+
+// extractResourceConfig extracts ResourceConfig from a map
+func extractResourceConfig(resources map[string]interface{}) *ResourceConfig {
+	config := &ResourceConfig{}
+
+	// Extract requests
+	if requests, ok := resources["requests"].(map[string]interface{}); ok {
+		requestsConfig := &ResourceRequests{}
+		if cpu, ok := requests["cpu"].(string); ok {
+			requestsConfig.CPU = cpu
+		}
+		if memory, ok := requests["memory"].(string); ok {
+			requestsConfig.Memory = memory
+		}
+		if requestsConfig.CPU != "" || requestsConfig.Memory != "" {
+			config.Requests = requestsConfig
+		}
+	}
+
+	// Extract limits
+	if limits, ok := resources["limits"].(map[string]interface{}); ok {
+		limitsConfig := &ResourceLimits{}
+		if cpu, ok := limits["cpu"].(string); ok {
+			limitsConfig.CPU = cpu
+		}
+		if memory, ok := limits["memory"].(string); ok {
+			limitsConfig.Memory = memory
+		}
+		if limitsConfig.CPU != "" || limitsConfig.Memory != "" {
+			config.Limits = limitsConfig
+		}
+	}
+
+	if config.Requests != nil || config.Limits != nil {
+		return config
+	}
+	return nil
+}
+
 func (c *openChoreoClient) DeleteComponent(ctx context.Context, namespaceName, projectName, componentName string) error {
 	resp, err := c.ocClient.DeleteComponentWithResponse(ctx, namespaceName, projectName, componentName)
 	if err != nil {
