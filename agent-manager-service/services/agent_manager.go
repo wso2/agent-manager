@@ -1154,8 +1154,16 @@ func (s *agentManagerService) GetAgentConfigurations(ctx context.Context, orgNam
 		return nil, fmt.Errorf("failed to get configurations for agent %s: %w", agentName, err)
 	}
 
-	s.logger.Info("Fetched configurations successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment, "configCount", len(configurations))
-	return configurations, nil
+	// Filter out system-injected environment variables
+	filteredConfigurations := make([]models.EnvVars, 0, len(configurations))
+	for _, config := range configurations {
+		if _, isSystemVar := client.SystemInjectedEnvVars[config.Key]; !isSystemVar {
+			filteredConfigurations = append(filteredConfigurations, config)
+		}
+	}
+
+	s.logger.Info("Fetched configurations successfully", "agentName", agentName, "orgName", orgName, "projectName", projectName, "environment", environment, "configCount", len(filteredConfigurations))
+	return filteredConfigurations, nil
 }
 
 func (s *agentManagerService) GetBuildLogs(ctx context.Context, orgName string, projectName string, agentName string, buildName string) (*models.LogsResponse, error) {
