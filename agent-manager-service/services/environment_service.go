@@ -285,39 +285,39 @@ func (s *environmentService) GetEnvironmentGateways(ctx context.Context, orgName
 		return nil, fmt.Errorf("failed to get gateway mappings: %w", err)
 	}
 
-	// Fetch each gateway from API Platform service
+	// Fetch each gateway from the gateway repository
 	responses := make([]models.GatewayResponse, 0, len(mappings))
 	for _, mapping := range mappings {
 		gatewayID := mapping.GatewayUUID.String()
 
-		// Get gateway details from API Platform
-		gateway, err := s.apiPlatformClient.GetGateway(ctx, gatewayID)
+		// Get gateway details from repository
+		gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
 		if err != nil {
-			s.logger.Warn("Failed to get gateway from API Platform", "gatewayID", gatewayID, "error", err)
-			// Skip gateways that no longer exist in API Platform
+			s.logger.Warn("Failed to get gateway from repository", "gatewayID", gatewayID, "error", err)
+			continue
+		}
+		if gateway == nil {
+			s.logger.Warn("Gateway not found", "gatewayID", gatewayID)
 			continue
 		}
 
-		// Convert API Platform gateway response to models.GatewayResponse
+		// Convert gateway model to response
+		status := string(models.GatewayStatusInactive)
+		if gateway.IsActive {
+			status = string(models.GatewayStatusActive)
+		}
+
 		responses = append(responses, models.GatewayResponse{
-			UUID:             gateway.ID,
+			UUID:             gateway.UUID.String(),
 			OrganizationName: orgName,
 			Name:             gateway.Name,
 			DisplayName:      gateway.DisplayName,
-			GatewayType:      gateway.FunctionalityType,
+			GatewayType:      gateway.GatewayFunctionalityType,
 			VHost:            gateway.Vhost,
 			IsCritical:       gateway.IsCritical,
-			Status:           convertAPIPlatformStatusToModelStatus(gateway.IsActive),
+			Status:           status,
 		})
 	}
 
 	return responses, nil
-}
-
-// convertAPIPlatformStatusToModelStatus converts API Platform gateway active status to model status
-func convertAPIPlatformStatusToModelStatus(isActive bool) string {
-	if isActive {
-		return string(models.GatewayStatusActive)
-	}
-	return string(models.GatewayStatusInactive)
 }

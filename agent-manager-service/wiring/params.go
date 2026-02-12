@@ -21,7 +21,6 @@ import (
 
 	"gorm.io/gorm"
 
-	apiplatformclient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/client"
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
@@ -63,9 +62,6 @@ type AppParams struct {
 	// WebSocket
 	WebSocketManager *websocket.Manager
 
-	// Clients
-	APIPlatformClient apiplatformclient.APIPlatformClient
-
 	// Database
 	DB *gorm.DB
 }
@@ -75,7 +71,6 @@ type TestClients struct {
 	OpenChoreoClient       occlient.OpenChoreoClient
 	ObservabilitySvcClient observabilitysvc.ObservabilitySvcClient
 	TraceObserverClient    traceobserversvc.TraceObserverClient
-	APIPlatformClient      apiplatformclient.APIPlatformClient
 }
 
 func ProvideConfigFromPtr(config *config.Config) config.Config {

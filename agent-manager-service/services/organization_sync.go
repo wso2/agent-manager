@@ -27,7 +27,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	apiplatformclient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -39,21 +38,18 @@ type OrganizationSynchronizer interface {
 }
 
 type organizationSynchronizer struct {
-	ocClient          client.OpenChoreoClient
-	apiPlatformClient apiplatformclient.APIPlatformClient
-	logger            *slog.Logger
+	ocClient client.OpenChoreoClient
+	logger   *slog.Logger
 }
 
 // NewOrganizationSyncer creates a new organization syncer
 func NewOrganizationSyncer(
 	ocClient client.OpenChoreoClient,
-	apiPlatformClient apiplatformclient.APIPlatformClient,
 	logger *slog.Logger,
 ) OrganizationSynchronizer {
 	return &organizationSynchronizer{
-		ocClient:          ocClient,
-		apiPlatformClient: apiPlatformClient,
-		logger:            logger,
+		ocClient: ocClient,
+		logger:   logger,
 	}
 }
 
@@ -139,60 +135,6 @@ func (s *organizationSynchronizer) synchronizeOrganization(ctx context.Context, 
 			return fmt.Errorf("failed to update organization in DB: %w", err)
 		}
 		s.logger.Debug("Organization updated in DB", "orgName", ocOrg.Name)
-	}
-
-	// Now, sync to API Platform
-	if s.apiPlatformClient != nil {
-		s.logger.Info("Syncing orgs with api platform")
-		if err := s.ensureOrganizationInAPIPlatform(ctx, &org); err != nil {
-			s.logger.Warn("Failed to sync organization to API Platform", "orgName", org.Name, "error", err)
-			// Don't fail the entire sync if API Platform sync fails
-			// The organization is already in the local DB
-		}
-	}
-
-	return nil
-}
-
-// ensureOrganizationInAPIPlatform ensures the organization exists in API Platform
-func (s *organizationSynchronizer) ensureOrganizationInAPIPlatform(ctx context.Context, org *models.Organization) error {
-	s.logger.Debug("Checking organization in API Platform", "orgName", org.Name)
-
-	// Try to get the organization from API Platform
-	resp, err := s.apiPlatformClient.GetOrganization(ctx)
-
-	if err == nil && resp != nil {
-		// Organization exists in API Platform
-		s.logger.Debug("Organization already exists in API Platform", "orgName", org.Name)
-		return nil
-	}
-
-	// Check if it's a 404 (organization doesn't exist)
-	if err != nil && strings.Contains(err.Error(), "404") {
-		s.logger.Info("Creating organization in API Platform", "orgName", org.Name)
-
-		// Create organization in API Platform
-		createReq := apiplatformclient.RegisterOrganizationRequest{
-			ID:     org.UUID.String(),
-			Name:   org.Name,
-			Handle: org.Handle,
-			Region: org.Region,
-		}
-
-		createResp, err := s.apiPlatformClient.RegisterOrganization(ctx, createReq)
-		if err != nil {
-			// Check if it's a conflict (organization already exists)
-			if strings.Contains(err.Error(), "409") || strings.Contains(err.Error(), "conflict") {
-				s.logger.Debug("Organization already exists in API Platform (conflict)", "orgName", org.Name)
-				return nil
-			}
-			return fmt.Errorf("failed to create organization in API Platform: %w", err)
-		}
-
-		s.logger.Info("Organization created in API Platform", "orgName", org.Name, "id", createResp.ID)
-	} else if err != nil {
-		s.logger.Warn("Failed to check organization in API Platform", "orgName", org.Name, "error", err)
-		// Don't fail - organization sync can continue
 	}
 
 	return nil

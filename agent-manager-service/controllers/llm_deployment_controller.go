@@ -170,7 +170,9 @@ func (c *llmDeploymentController) UndeployLLMProviderDeployment(w http.ResponseW
 		return
 	}
 
-	if err := c.deploymentService.UndeployLLMProviderDeployment(providerID, orgID, gatewayID, deploymentID); err != nil {
+	_, err = c.deploymentService.UndeployLLMProviderDeployment(providerID, deploymentID, gatewayID, orgID)
+
+	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
@@ -362,8 +364,18 @@ func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWrite
 
 	// Parse optional query parameters
 	gatewayID := r.URL.Query().Get("gatewayId")
+	status := r.URL.Query().Get("status")
 
-	deployments, err := c.deploymentService.GetLLMProviderDeployments(providerID, orgID, gatewayID)
+	var gatewayIDPtr *string
+	if gatewayID != "" {
+		gatewayIDPtr = &gatewayID
+	}
+	var statusPtr *string
+	if status != "" {
+		statusPtr = &status
+	}
+
+	deployments, err := c.deploymentService.GetLLMProviderDeployments(providerID, orgID, gatewayIDPtr, statusPtr)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
