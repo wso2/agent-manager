@@ -61,6 +61,8 @@ func (s *InternalServer) Start() error {
 	certPath := filepath.Join(s.cfg.CertDir, "cert.pem")
 	keyPath := filepath.Join(s.cfg.CertDir, "key.pem")
 
+	slog.Info("initializing with certs", certPath, keyPath)
+
 	var cert tls.Certificate
 
 	// Try to load existing certificates first
@@ -98,12 +100,12 @@ func (s *InternalServer) Start() error {
 
 	address := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
 	s.server = &http.Server{
-		Addr:         address,
-		Handler:      s.handler,
-		TLSConfig:    tlsConfig,
-		ReadTimeout:  time.Duration(s.cfg.ReadTimeoutSeconds) * time.Second,
-		WriteTimeout: time.Duration(s.cfg.WriteTimeoutSeconds) * time.Second,
-		IdleTimeout:  time.Duration(s.cfg.IdleTimeoutSeconds) * time.Second,
+		Addr:           address,
+		Handler:        s.handler,
+		TLSConfig:      tlsConfig,
+		ReadTimeout:    time.Duration(s.cfg.ReadTimeoutSeconds) * time.Second,
+		WriteTimeout:   time.Duration(s.cfg.WriteTimeoutSeconds) * time.Second,
+		IdleTimeout:    time.Duration(s.cfg.IdleTimeoutSeconds) * time.Second,
 		MaxHeaderBytes: s.cfg.MaxHeaderBytes,
 	}
 

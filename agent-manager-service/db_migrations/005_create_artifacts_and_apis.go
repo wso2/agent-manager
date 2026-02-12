@@ -21,8 +21,8 @@ import (
 )
 
 // Create artifacts, REST APIs, and deployment tables
-var migration006 = migration{
-	ID: 6,
+var migration005 = migration{
+	ID: 5,
 	Migrate: func(db *gorm.DB) error {
 		createArtifactsAndAPIsSQL := `
 			-- Projects table (API Platform schema)

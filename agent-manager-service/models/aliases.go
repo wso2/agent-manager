@@ -20,6 +20,3 @@ package models
 
 // APIAssociation is an alias for AssociationMapping
 type APIAssociation = AssociationMapping
-
-// APIPublication is an alias for PublicationMapping
-type APIPublication = PublicationMapping

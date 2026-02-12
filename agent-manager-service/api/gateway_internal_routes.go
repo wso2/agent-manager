@@ -26,10 +26,10 @@ import (
 // These routes use API key authentication instead of JWT
 func RegisterGatewayInternalRoutes(mux *http.ServeMux, ctrl controllers.GatewayInternalController) {
 	// API endpoints
-	mux.HandleFunc("GET /api/internal/v1/apis", ctrl.GetAPIsByOrganization)
-	mux.HandleFunc("GET /api/internal/v1/apis/{apiId}", ctrl.GetAPI)
-	mux.HandleFunc("POST /api/internal/v1/apis/{apiId}/gateway-deployments", ctrl.CreateGatewayDeployment)
+	mux.HandleFunc("GET /apis", ctrl.GetAPIsByOrganization)
+	mux.HandleFunc("GET /apis/{apiId}", ctrl.GetAPI)
+	mux.HandleFunc("POST /apis/{apiId}/gateway-deployments", ctrl.CreateGatewayDeployment)
 
 	// LLM Provider endpoints
-	mux.HandleFunc("GET /api/internal/v1/llm-providers/{providerId}", ctrl.GetLLMProvider)
+	mux.HandleFunc("GET /llm-providers/{providerId}", ctrl.GetLLMProvider)
 }

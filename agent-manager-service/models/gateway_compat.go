@@ -37,9 +37,8 @@ type GatewayResponse struct {
 
 // GatewayEnvironmentMapping represents the mapping between gateways and environments
 type GatewayEnvironmentMapping struct {
-	GatewayUUID uuid.UUID `json:"gatewayId"`
-	EnvironmentID  string `json:"environmentId"`
-	OrganizationID string `json:"organizationId"`
+	GatewayUUID     uuid.UUID `json:"gatewayId" gorm:"column:gateway_uuid"`
+	EnvironmentUUID uuid.UUID `json:"environmentId" gorm:"column:environment_uuid"`
 }
 
 // Gateway status constants

@@ -16,11 +16,7 @@
 
 package dbmigrations
 
-<<<<<<< HEAD
 const latestVersion = 6
-=======
-const latestVersion = 8
->>>>>>> 47de7bb (Add gateway models and repositories)
 
 // migration list sorted by version.  Add new migrations to the end of the list.
 // Previous migrations should not be modified.

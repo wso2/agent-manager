@@ -267,12 +267,6 @@ func (r *APIRepo) DeleteAPI(apiUUID, orgUUID string) error {
 			return err
 		}
 
-		// Delete API publications
-		if err := tx.Where("api_uuid = ? AND organization_uuid = ?", apiUUID, orgUUID).
-			Delete(&models.APIPublication{}).Error; err != nil {
-			return err
-		}
-
 		// Delete API deployments
 		if err := tx.Where("artifact_uuid = ? AND organization_uuid = ?", apiUUID, orgUUID).
 			Delete(&models.Deployment{}).Error; err != nil {

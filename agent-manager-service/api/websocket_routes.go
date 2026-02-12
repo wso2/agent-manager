@@ -25,5 +25,5 @@ import (
 // RegisterWebSocketRoutes registers all WebSocket routes
 // These routes use API key authentication instead of JWT
 func RegisterWebSocketRoutes(mux *http.ServeMux, ctrl controllers.WebSocketController) {
-	mux.HandleFunc("GET /api/internal/v1/ws/gateways/connect", ctrl.Connect)
+	mux.HandleFunc("GET /ws/gateways/connect", ctrl.Connect)
 }

@@ -21,8 +21,8 @@ import (
 )
 
 // Create organizations table for storing organization metadata
-var migration004 = migration{
-	ID: 4,
+var migration003 = migration{
+	ID: 3,
 	Migrate: func(db *gorm.DB) error {
 		createOrganizationsSQL := `
 			CREATE TABLE organizations (

@@ -97,7 +97,8 @@ func main() {
 	if !*serverFlag {
 		return
 	}
-	db := db.DB(context.Background())
+	// Get the raw DB instance without context - repositories will add context per-operation
+	db := db.GetDB()
 	dependencies, err := wiring.InitializeAppParams(cfg, db)
 	if err != nil {
 		slog.Error("failed to initialize app dependencies", "error", err)

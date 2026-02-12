@@ -21,14 +21,10 @@ import (
 )
 
 // Create gateways and gateway_tokens tables for API Platform integration
-var migration005 = migration{
-	ID: 5,
+var migration004 = migration{
+	ID: 4,
 	Migrate: func(db *gorm.DB) error {
 		createGatewaysSQL := `
-			-- Drop old gateway stub table if exists
-			DROP TABLE IF EXISTS gateway_environment_mappings CASCADE;
-			DROP TABLE IF EXISTS gateways CASCADE;
-
 			-- Gateways table
 			CREATE TABLE gateways (
 				uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),

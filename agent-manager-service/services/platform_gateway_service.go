@@ -165,6 +165,11 @@ func (s *PlatformGatewayService) RegisterGateway(
 		return nil, fmt.Errorf("invalid organization UUID: %w", err)
 	}
 
+	// Initialize properties as empty map if nil (database column is NOT NULL)
+	if properties == nil {
+		properties = make(map[string]interface{})
+	}
+
 	gateway := &models.Gateway{
 		UUID:                     gatewayUUID,
 		OrganizationUUID:         orgUUID,
@@ -174,7 +179,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 		Properties:               properties,
 		Vhost:                    vhost,
 		IsCritical:               isCritical,
-		GatewayFunctionalityType: functionalityType,
+		GatewayFunctionalityType: strings.ToLower(functionalityType),
 		CreatedAt:                time.Now(),
 		UpdatedAt:                time.Now(),
 	}
