@@ -54,9 +54,6 @@ require (
 
 require github.com/oapi-codegen/runtime v1.1.2
 
-require (
-	github.com/gorilla/websocket v1.5.3
-	github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth v0.0.0
-)
+require github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth v0.0.0
 
 replace github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth => ./clients/openchoreosvc/auth

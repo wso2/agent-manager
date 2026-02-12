@@ -72,10 +72,6 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewGatewayController,
 )
 
-var loggerProviderSet = wire.NewSet(
-	ProvideLogger,
-)
-
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
@@ -120,11 +116,11 @@ var loggerProviderSet = wire.NewSet(
 // ProvideAPIPlatformAuthProvider creates an auth provider for API Platform
 func ProvideAPIPlatformAuthProvider(cfg config.Config) apiplatformclient.AuthProvider {
 	// Only create auth provider if OAuth2 credentials are configured
-	if cfg.APIPlatform.Auth.TokenURL != "" && cfg.APIPlatform.Auth.ClientID != "" && cfg.APIPlatform.Auth.ClientSecret != "" {
+	if cfg.IDP.TokenURL != "" && cfg.IDP.ClientID != "" && cfg.IDP.ClientSecret != "" {
 		return apiplatformauth.NewAuthProvider(apiplatformauth.Config{
-			TokenURL:     cfg.APIPlatform.Auth.TokenURL,
-			ClientID:     cfg.APIPlatform.Auth.ClientID,
-			ClientSecret: cfg.APIPlatform.Auth.ClientSecret,
+			TokenURL:     cfg.IDP.TokenURL,
+			ClientID:     cfg.IDP.ClientID,
+			ClientSecret: cfg.IDP.ClientSecret,
 		})
 	}
 	return nil

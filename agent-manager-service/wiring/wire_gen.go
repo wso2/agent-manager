@@ -143,10 +143,6 @@ var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.N
 
 var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController)
 
-var loggerProviderSet = wire.NewSet(
-	ProvideLogger,
-)
-
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
