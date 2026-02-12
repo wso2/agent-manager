@@ -83,7 +83,12 @@ class TestInitializeInstrumentation:
         # Verify Traceloop was initialized with version resource attribute
         assert mock_traceloop.initialized is True
         assert "resource_attributes" in mock_traceloop.init_kwargs
-        assert mock_traceloop.init_kwargs["resource_attributes"]["agent-manager/agent-version"] == "1.2.3"
+        assert (
+            mock_traceloop.init_kwargs["resource_attributes"][
+                "agent-manager/agent-version"
+            ]
+            == "1.2.3"
+        )
 
     def test_initialization_without_version(self, clean_environment, mock_traceloop):
         """Test initialization without agent version (optional)."""
