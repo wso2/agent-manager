@@ -19,9 +19,9 @@ var _ MappedNullable = &ResourceLimits{}
 
 // ResourceLimits struct for ResourceLimits
 type ResourceLimits struct {
-	// CPU limit (e.g., \"500m\", \"2\")
+	// CPU limit (e.g., \"500m\", \"2\", \"1.5\")
 	Cpu *string `json:"cpu,omitempty"`
-	// Memory limit (e.g., \"512Mi\", \"2Gi\")
+	// Memory limit (e.g., \"512Mi\", \"2Gi\", \"1Ti\", \"256Ki\")
 	Memory *string `json:"memory,omitempty"`
 }
 

@@ -20,16 +20,18 @@ var _ MappedNullable = &UpdateAgentResourceConfigsRequest{}
 // UpdateAgentResourceConfigsRequest struct for UpdateAgentResourceConfigsRequest
 type UpdateAgentResourceConfigsRequest struct {
 	// Number of replicas to run
-	Replicas  *int32          `json:"replicas,omitempty"`
-	Resources *ResourceConfig `json:"resources,omitempty"`
+	Replicas  int32          `json:"replicas"`
+	Resources ResourceConfig `json:"resources"`
 }
 
 // NewUpdateAgentResourceConfigsRequest instantiates a new UpdateAgentResourceConfigsRequest object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewUpdateAgentResourceConfigsRequest() *UpdateAgentResourceConfigsRequest {
+func NewUpdateAgentResourceConfigsRequest(replicas int32, resources ResourceConfig) *UpdateAgentResourceConfigsRequest {
 	this := UpdateAgentResourceConfigsRequest{}
+	this.Replicas = replicas
+	this.Resources = resources
 	return &this
 }
 
@@ -41,68 +43,52 @@ func NewUpdateAgentResourceConfigsRequestWithDefaults() *UpdateAgentResourceConf
 	return &this
 }
 
-// GetReplicas returns the Replicas field value if set, zero value otherwise.
+// GetReplicas returns the Replicas field value
 func (o *UpdateAgentResourceConfigsRequest) GetReplicas() int32 {
-	if o == nil || IsNil(o.Replicas) {
+	if o == nil {
 		var ret int32
 		return ret
 	}
-	return *o.Replicas
+
+	return o.Replicas
 }
 
-// GetReplicasOk returns a tuple with the Replicas field value if set, nil otherwise
+// GetReplicasOk returns a tuple with the Replicas field value
 // and a boolean to check if the value has been set.
 func (o *UpdateAgentResourceConfigsRequest) GetReplicasOk() (*int32, bool) {
-	if o == nil || IsNil(o.Replicas) {
+	if o == nil {
 		return nil, false
 	}
-	return o.Replicas, true
+	return &o.Replicas, true
 }
 
-// HasReplicas returns a boolean if a field has been set.
-func (o *UpdateAgentResourceConfigsRequest) HasReplicas() bool {
-	if o != nil && !IsNil(o.Replicas) {
-		return true
-	}
-
-	return false
-}
-
-// SetReplicas gets a reference to the given int32 and assigns it to the Replicas field.
+// SetReplicas sets field value
 func (o *UpdateAgentResourceConfigsRequest) SetReplicas(v int32) {
-	o.Replicas = &v
+	o.Replicas = v
 }
 
-// GetResources returns the Resources field value if set, zero value otherwise.
+// GetResources returns the Resources field value
 func (o *UpdateAgentResourceConfigsRequest) GetResources() ResourceConfig {
-	if o == nil || IsNil(o.Resources) {
+	if o == nil {
 		var ret ResourceConfig
 		return ret
 	}
-	return *o.Resources
+
+	return o.Resources
 }
 
-// GetResourcesOk returns a tuple with the Resources field value if set, nil otherwise
+// GetResourcesOk returns a tuple with the Resources field value
 // and a boolean to check if the value has been set.
 func (o *UpdateAgentResourceConfigsRequest) GetResourcesOk() (*ResourceConfig, bool) {
-	if o == nil || IsNil(o.Resources) {
+	if o == nil {
 		return nil, false
 	}
-	return o.Resources, true
+	return &o.Resources, true
 }
 
-// HasResources returns a boolean if a field has been set.
-func (o *UpdateAgentResourceConfigsRequest) HasResources() bool {
-	if o != nil && !IsNil(o.Resources) {
-		return true
-	}
-
-	return false
-}
-
-// SetResources gets a reference to the given ResourceConfig and assigns it to the Resources field.
+// SetResources sets field value
 func (o *UpdateAgentResourceConfigsRequest) SetResources(v ResourceConfig) {
-	o.Resources = &v
+	o.Resources = v
 }
 
 func (o UpdateAgentResourceConfigsRequest) MarshalJSON() ([]byte, error) {
@@ -115,12 +101,8 @@ func (o UpdateAgentResourceConfigsRequest) MarshalJSON() ([]byte, error) {
 
 func (o UpdateAgentResourceConfigsRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	if !IsNil(o.Replicas) {
-		toSerialize["replicas"] = o.Replicas
-	}
-	if !IsNil(o.Resources) {
-		toSerialize["resources"] = o.Resources
-	}
+	toSerialize["replicas"] = o.Replicas
+	toSerialize["resources"] = o.Resources
 	return toSerialize, nil
 }
 
