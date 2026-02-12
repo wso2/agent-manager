@@ -75,35 +75,26 @@ func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildPara
 }
 
 func ValidateAgentResourceConfigsPayload(payload spec.UpdateAgentResourceConfigsRequest) error {
-	// At least one field must be provided
-	if payload.Replicas == nil && payload.Resources == nil {
-		return fmt.Errorf("at least one of replicas or resources must be provided")
+	// Validate replicas
+	if payload.Replicas < 0 || payload.Replicas > 10 {
+		return fmt.Errorf("replicas must be between 0 and 10")
 	}
 
-	// Validate replicas if provided
-	if payload.Replicas != nil {
-		if *payload.Replicas < 0 || *payload.Replicas > 10 {
-			return fmt.Errorf("replicas must be between 0 and 10")
+	// Validate resources
+	if payload.Resources.Requests != nil {
+		if err := validateResourceValue(payload.Resources.Requests.Cpu, "CPU request"); err != nil {
+			return err
+		}
+		if err := validateResourceValue(payload.Resources.Requests.Memory, "memory request"); err != nil {
+			return err
 		}
 	}
-
-	// Validate resources if provided
-	if payload.Resources != nil {
-		if payload.Resources.Requests != nil {
-			if err := validateResourceValue(payload.Resources.Requests.Cpu, "CPU request"); err != nil {
-				return err
-			}
-			if err := validateResourceValue(payload.Resources.Requests.Memory, "memory request"); err != nil {
-				return err
-			}
+	if payload.Resources.Limits != nil {
+		if err := validateResourceValue(payload.Resources.Limits.Cpu, "CPU limit"); err != nil {
+			return err
 		}
-		if payload.Resources.Limits != nil {
-			if err := validateResourceValue(payload.Resources.Limits.Cpu, "CPU limit"); err != nil {
-				return err
-			}
-			if err := validateResourceValue(payload.Resources.Limits.Memory, "memory limit"); err != nil {
-				return err
-			}
+		if err := validateResourceValue(payload.Resources.Limits.Memory, "memory limit"); err != nil {
+			return err
 		}
 	}
 
