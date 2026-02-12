@@ -1035,7 +1035,13 @@ func (s *agentManagerService) GetBuildLogs(ctx context.Context, orgName string, 
 	}
 
 	// Fetch the build logs from Observability service
-	buildLogs, err := s.observabilitySvcClient.GetBuildLogs(ctx, build.Name)
+	buildLogsParams := observabilitysvc.BuildLogsParams{
+		NamespaceName:      orgName,
+		ProjectName:        projectName,
+		AgentComponentName: agentName,
+		BuildName:          build.Name,
+	}
+	buildLogs, err := s.observabilitySvcClient.GetBuildLogs(ctx, buildLogsParams)
 	if err != nil {
 		s.logger.Error("Failed to fetch build logs from observability service", "buildName", build.Name, "error", err)
 		return nil, fmt.Errorf("failed to fetch build logs: %w", err)
@@ -1076,7 +1082,15 @@ func (s *agentManagerService) GetAgentRuntimeLogs(ctx context.Context, orgName s
 	}
 
 	// Fetch the run time logs from Observability service
-	applicationLogs, err := s.observabilitySvcClient.GetComponentLogs(ctx, agent.UUID, environment.UUID, payload)
+	componentLogsParams := observabilitysvc.ComponentLogsParams{
+		AgentComponentId: agent.UUID,
+		EnvId:            environment.UUID,
+		NamespaceName:    orgName,
+		ComponentName:    agentName,
+		ProjectName:      projectName,
+		EnvironmentName:  payload.EnvironmentName,
+	}
+	applicationLogs, err := s.observabilitySvcClient.GetComponentLogs(ctx, componentLogsParams, payload)
 	if err != nil {
 		s.logger.Error("Failed to fetch application logs from observability service", "agent", agentName, "error", err)
 		return nil, fmt.Errorf("failed to fetch application logs: %w", err)
@@ -1113,7 +1127,16 @@ func (s *agentManagerService) GetAgentMetrics(ctx context.Context, orgName strin
 	}
 
 	// Fetch the metrics from Observability service
-	metrics, err := s.observabilitySvcClient.GetComponentMetrics(ctx, agent.UUID, environment.UUID, project.UUID, payload)
+	componentMetricsParams := observabilitysvc.ComponentMetricsParams{
+		AgentComponentId: agent.UUID,
+		EnvId:            environment.UUID,
+		ProjectId:        project.UUID,
+		NamespaceName:    orgName,
+		ProjectName:      projectName,
+		ComponentName:    agentName,
+		EnvironmentName:  payload.EnvironmentName,
+	}
+	metrics, err := s.observabilitySvcClient.GetComponentMetrics(ctx, componentMetricsParams, payload)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent metrics from observability service", "agent", agentName, "error", err)
 		return nil, fmt.Errorf("failed to fetch agent metrics: %w", err)

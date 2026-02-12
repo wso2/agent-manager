@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/tests/apitestutils"
@@ -47,7 +48,7 @@ var (
 // createMockObservabilityClientForBuildLogs creates a mock observability client for build logs testing
 func createMockObservabilityClientForBuildLogs() *clientmocks.ObservabilitySvcClientMock {
 	return &clientmocks.ObservabilitySvcClientMock{
-		GetBuildLogsFunc: func(ctx context.Context, buildName string) (*models.LogsResponse, error) {
+		GetBuildLogsFunc: func(ctx context.Context, params observabilitysvc.BuildLogsParams) (*models.LogsResponse, error) {
 			return &models.LogsResponse{
 				Logs: []models.LogEntry{
 					{
@@ -147,7 +148,9 @@ func TestGetBuildLogs(t *testing.T) {
 
 		// Validate call parameters
 		getBuildLogsCall := observabilityClient.GetBuildLogsCalls()[0]
-		require.Equal(t, buildLogsBuildName, getBuildLogsCall.BuildName)
+		require.Equal(t, buildLogsOrgName, getBuildLogsCall.Params.NamespaceName)
+		require.Equal(t, buildLogsAgentName, getBuildLogsCall.Params.AgentComponentName)
+		require.Equal(t, buildLogsBuildName, getBuildLogsCall.Params.BuildName)
 
 		getComponentCall := openChoreoClient.GetComponentCalls()[0]
 		require.Equal(t, buildLogsOrgName, getComponentCall.NamespaceName)
@@ -250,7 +253,7 @@ func TestGetBuildLogs(t *testing.T) {
 						},
 					}, nil
 				}
-				obsClient.GetBuildLogsFunc = func(ctx context.Context, buildName string) (*models.LogsResponse, error) {
+				obsClient.GetBuildLogsFunc = func(ctx context.Context, params observabilitysvc.BuildLogsParams) (*models.LogsResponse, error) {
 					return nil, fmt.Errorf("observability service error")
 				}
 				return obsClient, openClient

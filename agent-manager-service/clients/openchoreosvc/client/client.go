@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/requests"
@@ -95,8 +96,25 @@ func NewOpenChoreoClient(cfg *Config) (OpenChoreoClient, error) {
 	if cfg.AuthProvider == nil {
 		return nil, fmt.Errorf("auth provider is required")
 	}
-	// Create the retryable HTTP client (uses defaults if RetryConfig is zero-value)
-	httpClient := requests.NewRetryableHTTPClient(&http.Client{}, cfg.RetryConfig)
+
+	// Configure retry behavior to handle 401 Unauthorized by invalidating the token
+	retryConfig := cfg.RetryConfig
+	if retryConfig.RetryOnStatus == nil {
+		// Custom retry logic that includes 401 handling + default transient errors
+		retryConfig.RetryOnStatus = func(statusCode int) bool {
+			// Handle 401 by invalidating cached token and retrying
+			if statusCode == http.StatusUnauthorized {
+				slog.Info("Received 401 Unauthorized, invalidating cached token")
+				cfg.AuthProvider.InvalidateToken()
+				return true
+			}
+
+			return slices.Contains(requests.TransientHTTPErrorCodes, statusCode)
+		}
+	}
+
+	// Create the retryable HTTP client with 401 handling
+	httpClient := requests.NewRetryableHTTPClient(&http.Client{}, retryConfig)
 
 	// Create auth request editor
 	authEditor := func(ctx context.Context, req *http.Request) error {

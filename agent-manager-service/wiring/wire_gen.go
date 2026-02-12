@@ -31,7 +31,10 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	if err != nil {
 		return nil, err
 	}
-	observabilitySvcClient := observabilitysvc.NewObservabilitySvcClient()
+	observabilitySvcClient, err := ProvideObservabilitySvcClient(configConfig, authProvider)
+	if err != nil {
+		return nil, err
+	}
 	repositoryService := services.NewRepositoryService()
 	logger := ProvideLogger()
 	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, repositoryService, logger)
@@ -96,7 +99,8 @@ var configProviderSet = wire.NewSet(
 	ProvideConfigFromPtr,
 )
 
-var clientProviderSet = wire.NewSet(observabilitysvc.NewObservabilitySvcClient, traceobserversvc.NewTraceObserverClient, ProvideOCAuthProvider,
+var clientProviderSet = wire.NewSet(
+	ProvideObservabilitySvcClient, traceobserversvc.NewTraceObserverClient, ProvideOCAuthProvider,
 	ProvideOCClient,
 )
 
@@ -128,6 +132,14 @@ func ProvideOCAuthProvider(cfg config.Config) client.AuthProvider {
 func ProvideOCClient(cfg config.Config, authProvider client.AuthProvider) (client.OpenChoreoClient, error) {
 	return client.NewOpenChoreoClient(&client.Config{
 		BaseURL:      cfg.OpenChoreo.BaseURL,
+		AuthProvider: authProvider,
+	})
+}
+
+// ProvideObservabilitySvcClient creates the observability service client
+func ProvideObservabilitySvcClient(cfg config.Config, authProvider client.AuthProvider) (observabilitysvc.ObservabilitySvcClient, error) {
+	return observabilitysvc.NewObservabilitySvcClient(&observabilitysvc.Config{
+		BaseURL:      cfg.Observer.URL,
 		AuthProvider: authProvider,
 	})
 }
