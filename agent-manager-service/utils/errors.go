@@ -42,4 +42,22 @@ var (
 
 	// Server errors
 	ErrServiceUnavailable = errors.New("service unavailable")
+
+	// Gateway-related errors
+	ErrGatewayNotFound          = errors.New("gateway not found")
+	ErrGatewayAlreadyExists     = errors.New("gateway already exists")
+	ErrInvalidAdapterType       = errors.New("invalid adapter type")
+	ErrGatewayUnreachable       = errors.New("gateway unreachable")
+	ErrInvalidGatewayConfig     = errors.New("invalid gateway configuration")
+	ErrEnvironmentAlreadyExists = errors.New("environment already exists")
+	ErrEnvironmentHasGateways   = errors.New("environment has associated gateways")
+
+	// LLM Provider-related errors (Phase 7)
+	ErrProviderNotFound       = errors.New("provider not found")
+	ErrProviderAlreadyExists  = errors.New("provider already exists")
+	ErrProviderHasDeployments = errors.New("provider has active deployments")
+	ErrDeploymentNotFound     = errors.New("deployment not found")
+	ErrDeploymentFailed       = errors.New("deployment failed")
+	ErrPolicyNotSupported     = errors.New("policy not supported by gateway")
+	ErrInvalidProviderConfig  = errors.New("invalid provider configuration")
 )

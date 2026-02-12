@@ -10,7 +10,10 @@ import (
 	"log/slog"
 
 	"github.com/google/wire"
+	"gorm.io/gorm"
 
+	auth2 "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/auth"
+	client2 "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
@@ -23,9 +26,11 @@ import (
 
 // Injectors from wire.go:
 
-func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
+// InitializeAppParams wires up all application dependencies
+func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 	configConfig := ProvideConfigFromPtr(cfg)
 	middleware := ProvideAuthMiddleware(configConfig)
+	logger := ProvideLogger()
 	authProvider := ProvideOCAuthProvider(configConfig)
 	openChoreoClient, err := ProvideOCClient(configConfig, authProvider)
 	if err != nil {
@@ -37,7 +42,6 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	}
 	repositoryService := services.NewRepositoryService()
 	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
-	logger := ProvideLogger()
 	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoClient, jwtSigningConfig, logger)
 	if err != nil {
 		return nil, err
@@ -51,24 +55,40 @@ func InitializeAppParams(cfg *config.Config) (*AppParams, error) {
 	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	repositoryController := controllers.NewRepositoryController(repositoryService)
+	clientAuthProvider := ProvideAPIPlatformAuthProvider(configConfig)
+	clientConfig := ProvideAPIPlatformConfig(configConfig, clientAuthProvider)
+	apiPlatformClient := ProvideAPIPlatformClient(clientConfig)
+	environmentService := services.NewEnvironmentService(logger, apiPlatformClient)
+	environmentController := controllers.NewEnvironmentController(environmentService)
+	gatewayController := controllers.NewGatewayController(apiPlatformClient, db)
+	environmentSynchronizer := services.NewEnvironmentSyncer(openChoreoClient, logger)
+	organizationSynchronizer := services.NewOrganizationSyncer(openChoreoClient, apiPlatformClient, logger)
 	appParams := &AppParams{
 		AuthMiddleware:          middleware,
+		Logger:                  logger,
 		AgentController:         agentController,
 		InfraResourceController: infraResourceController,
 		ObservabilityController: observabilityController,
 		AgentTokenController:    agentTokenController,
 		RepositoryController:    repositoryController,
+		EnvironmentController:   environmentController,
+		GatewayController:       gatewayController,
+		EnvironmentSyncer:       environmentSynchronizer,
+		OrganizationSyncer:      organizationSynchronizer,
+		APIPlatformClient:       apiPlatformClient,
+		DB:                      db,
 	}
 	return appParams, nil
 }
 
-func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware jwtassertion.Middleware, testClients TestClients) (*AppParams, error) {
+// InitializeTestAppParamsWithClientMocks wires up application dependencies with test mocks
+func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, authMiddleware jwtassertion.Middleware, testClients TestClients) (*AppParams, error) {
+	logger := ProvideLogger()
 	openChoreoClient := ProvideTestOpenChoreoClient(testClients)
 	observabilitySvcClient := ProvideTestObservabilitySvcClient(testClients)
 	repositoryService := services.NewRepositoryService()
 	configConfig := ProvideConfigFromPtr(cfg)
 	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
-	logger := ProvideLogger()
 	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoClient, jwtSigningConfig, logger)
 	if err != nil {
 		return nil, err
@@ -82,19 +102,33 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, authMiddleware j
 	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	repositoryController := controllers.NewRepositoryController(repositoryService)
+	apiPlatformClient := ProvideTestAPIPlatformClient(testClients)
+	environmentService := services.NewEnvironmentService(logger, apiPlatformClient)
+	environmentController := controllers.NewEnvironmentController(environmentService)
+	gatewayController := controllers.NewGatewayController(apiPlatformClient, db)
+	environmentSynchronizer := services.NewEnvironmentSyncer(openChoreoClient, logger)
+	organizationSynchronizer := services.NewOrganizationSyncer(openChoreoClient, apiPlatformClient, logger)
 	appParams := &AppParams{
 		AuthMiddleware:          authMiddleware,
+		Logger:                  logger,
 		AgentController:         agentController,
 		InfraResourceController: infraResourceController,
 		ObservabilityController: observabilityController,
 		AgentTokenController:    agentTokenController,
 		RepositoryController:    repositoryController,
+		EnvironmentController:   environmentController,
+		GatewayController:       gatewayController,
+		EnvironmentSyncer:       environmentSynchronizer,
+		OrganizationSyncer:      organizationSynchronizer,
+		APIPlatformClient:       apiPlatformClient,
+		DB:                      db,
 	}
 	return appParams, nil
 }
 
 // wire.go:
 
+// Provider sets
 var configProviderSet = wire.NewSet(
 	ProvideConfigFromPtr,
 )
@@ -102,16 +136,20 @@ var configProviderSet = wire.NewSet(
 var clientProviderSet = wire.NewSet(
 	ProvideObservabilitySvcClient, traceobserversvc.NewTraceObserverClient, ProvideOCAuthProvider,
 	ProvideOCClient,
+	ProvideAPIPlatformAuthProvider,
+	ProvideAPIPlatformConfig,
+	ProvideAPIPlatformClient,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewEnvironmentService, services.NewEnvironmentSyncer, services.NewOrganizationSyncer)
 
-var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController)
+var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController)
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
 	ProvideTestTraceObserverClient,
+	ProvideTestAPIPlatformClient,
 )
 
 // ProvideLogger provides the configured slog.Logger instance
@@ -148,17 +186,60 @@ var loggerProviderSet = wire.NewSet(
 	ProvideLogger,
 )
 
-// ProvideTestOpenChoreoClient extracts the OpenChoreoClient from TestClients
+// ProvideAPIPlatformAuthProvider creates an auth provider for API Platform
+func ProvideAPIPlatformAuthProvider(cfg config.Config) client2.AuthProvider {
+
+	if cfg.IDP.TokenURL != "" && cfg.IDP.ClientID != "" && cfg.IDP.ClientSecret != "" {
+		return auth2.NewAuthProvider(auth2.Config{
+			TokenURL:     cfg.IDP.TokenURL,
+			ClientID:     cfg.IDP.ClientID,
+			ClientSecret: cfg.IDP.ClientSecret,
+		})
+	}
+	return nil
+}
+
+// ProvideAPIPlatformConfig extracts API Platform configuration from config
+func ProvideAPIPlatformConfig(cfg config.Config, authProvider client2.AuthProvider) *client2.Config {
+	baseUrl := ""
+	if cfg.APIPlatform.Enable {
+		baseUrl = cfg.APIPlatform.BaseURL
+	}
+	return &client2.Config{
+		BaseURL:      baseUrl,
+		AuthProvider: authProvider,
+	}
+}
+
+// ProvideAPIPlatformClient creates a new API Platform client
+// Returns nil if the client cannot be created (will be checked at runtime)
+func ProvideAPIPlatformClient(cfg *client2.Config) client2.APIPlatformClient {
+	if cfg.BaseURL == "" || cfg.AuthProvider == nil {
+
+		return nil
+	}
+
+	apiPlatformClient, err := client2.NewAPIPlatformClient(cfg)
+	if err != nil {
+		slog.Error("Failed to create API Platform client", "error", err)
+		return nil
+	}
+	return apiPlatformClient
+}
+
+// Test client providers
 func ProvideTestOpenChoreoClient(testClients TestClients) client.OpenChoreoClient {
 	return testClients.OpenChoreoClient
 }
 
-// ProvideTestObservabilitySvcClient extracts the ObservabilitySvcClient from TestClients
 func ProvideTestObservabilitySvcClient(testClients TestClients) observabilitysvc.ObservabilitySvcClient {
 	return testClients.ObservabilitySvcClient
 }
 
-// ProvideTestTraceObserverClient extracts the TraceObserverClient from TestClients
 func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.TraceObserverClient {
 	return testClients.TraceObserverClient
+}
+
+func ProvideTestAPIPlatformClient(testClients TestClients) client2.APIPlatformClient {
+	return testClients.APIPlatformClient
 }

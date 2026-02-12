@@ -27,6 +27,7 @@ import (
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/api"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 
 	"go.uber.org/automaxprocs/maxprocs"
 
@@ -91,10 +92,25 @@ func main() {
 	if !*serverFlag {
 		return
 	}
-	dependencies, err := wiring.InitializeAppParams(cfg)
+	db := db.DB(context.Background())
+	dependencies, err := wiring.InitializeAppParams(cfg, db)
 	if err != nil {
 		slog.Error("failed to initialize app dependencies", "error", err)
 		os.Exit(1)
+	}
+
+	// Sync organizations first, then environments
+	slog.Info("Syncing organizations from OpenChoreo to local DB and API Platform")
+	if err := dependencies.OrganizationSyncer.SyncOrganizationsFromOpenChoreo(context.Background()); err != nil {
+		slog.Warn("Failed to sync organizations", "error", err)
+		// Don't exit on error - the service can still function
+	}
+
+	slog.Info("Syncing environments from OpenChoreo")
+	if err := dependencies.EnvironmentSyncer.SyncEnvironmentsFromOpenChoreo(context.Background()); err != nil {
+		slog.Warn("Failed to sync environments from OpenChoreo", "error", err)
+		// Don't exit on error - the service can still function
+		// Environments can be created manually via API
 	}
 
 	handler := api.MakeHTTPHandler(dependencies)

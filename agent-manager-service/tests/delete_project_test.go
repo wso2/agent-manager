@@ -39,7 +39,6 @@ var (
 	testDeleteProjectProjName = fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
 	testProjectWithAgents     = fmt.Sprintf("project-with-agents-%s", uuid.New().String()[:5])
 	testFailingProjectName    = fmt.Sprintf("failing-project-%s", uuid.New().String()[:5])
-	projectsWithAgentsName    = fmt.Sprintf("agent-project-%s", uuid.New().String()[:5])
 )
 
 func TestDeleteProject(t *testing.T) {
