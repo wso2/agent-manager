@@ -17,21 +17,44 @@
 package wiring
 
 import (
+	"log/slog"
+
+	"gorm.io/gorm"
+
+	apiplatformclient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/client"
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 )
 
+// AppParams contains all wired application dependencies
 type AppParams struct {
-	AuthMiddleware          jwtassertion.Middleware
+	// Middleware
+	AuthMiddleware jwtassertion.Middleware
+	Logger         *slog.Logger
+
+	// Controllers
 	AgentController         controllers.AgentController
 	InfraResourceController controllers.InfraResourceController
 	ObservabilityController controllers.ObservabilityController
 	AgentTokenController    controllers.AgentTokenController
 	RepositoryController    controllers.RepositoryController
+	EnvironmentController   controllers.EnvironmentController
+	GatewayController       controllers.GatewayController
+
+	// Services
+	EnvironmentSyncer  services.EnvironmentSynchronizer
+	OrganizationSyncer services.OrganizationSynchronizer
+
+	// Clients
+	APIPlatformClient apiplatformclient.APIPlatformClient
+
+	// Database
+	DB *gorm.DB
 }
 
 // TestClients contains all mock clients needed for testing
@@ -39,6 +62,7 @@ type TestClients struct {
 	OpenChoreoClient       occlient.OpenChoreoClient
 	ObservabilitySvcClient observabilitysvc.ObservabilitySvcClient
 	TraceObserverClient    traceobserversvc.TraceObserverClient
+	APIPlatformClient      apiplatformclient.APIPlatformClient
 }
 
 func ProvideConfigFromPtr(config *config.Config) config.Config {
