@@ -98,3 +98,177 @@
   font-weight: 700;
   color: var(--ifm-font-color-base);
 }
+
+/* LIGHT MODE — white base, black text, orange accents */
+[data-theme='light'] .DocSearch {
+  --docsearch-primary-color: #ff7a18; /* orange */
+  --docsearch-text-color: #000000;
+  --docsearch-muted-color: #555555;
+
+  --docsearch-container-background: rgba(0, 0, 0, 0.6);
+
+  /* Modal */
+  --docsearch-modal-background: #ffffff;
+
+  /* Search box */
+  --docsearch-searchbox-background: #ffffff;
+  --docsearch-searchbox-focus-background: #ffffff;
+
+  /* Hit */
+  --docsearch-hit-color: #000000;
+  --docsearch-hit-active-color: #ffffff;
+  --docsearch-hit-background: #ffffff;
+
+  /* Footer */
+  --docsearch-footer-background: #ffffff;
+
+  /* Accents */
+  --docsearch-highlight-color: #ff7a18;
+  --docsearch-logo-color: #ff7a18;
+}
+
+
+/* DARK MODE — black base, white text, orange accents */
+[data-theme='dark'] .DocSearch {
+  --docsearch-primary-color: #ff7a18; /* orange */
+  --docsearch-text-color: #ffffff;
+  --docsearch-muted-color: #b0b0b0;
+
+  --docsearch-container-background: rgba(0, 0, 0, 0.85);
+
+  /* Modal */
+  --docsearch-modal-background: #0f0f0f;
+
+  /* Search box */
+  --docsearch-searchbox-background: #1a1a1a;
+  --docsearch-searchbox-focus-background: #000000;
+
+  /* Hit */
+  --docsearch-hit-color: #ffffff;
+  --docsearch-hit-active-color: #000000;
+  --docsearch-hit-background: #1a1a1a;
+  --docsearch-hit-shadow: none;
+
+  /* Footer */
+  --docsearch-footer-background: #0f0f0f;
+
+  /* Keys / subtle depth */
+  --docsearch-key-gradient: linear-gradient(
+    -26.5deg,
+    #2a2a2a 0%,
+    #111111 100%
+  );
+
+  /* Accents */
+  --docsearch-highlight-color: #ff7a18;
+  --docsearch-logo-color: #ff7a18;
+}
+
+.DocSearch-AskAI {
+  background: #0e0e0e !important;
+  border: 1px solid #ff7a18;
+}
+
+/* Main search button - remove blue background */
+.DocSearch-Button {
+  background: #1a1a1a !important;
+  border: 1px solid #2a2a2a !important;
+}
+
+.DocSearch-Button:hover,
+.DocSearch-Button:focus,
+.DocSearch-Button:active {
+  background: #2a2a2a !important;
+  border-color: #ff7a18 !important;
+  box-shadow: none !important;
+}
+
+/* Search input box inside modal - remove blue */
+.DocSearch-Form {
+  background: #1a1a1a !important;
+  border: 1px solid #2a2a2a !important;
+  box-shadow: none !important;
+}
+
+.DocSearch-Input {
+  background: transparent !important;
+  color: #e3e3e3 !important;
+}
+
+.DocSearch-Input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Search results - selected item */
+.DocSearch-Hit[aria-selected="true"] a,
+.DocSearch-Hit--active {
+  background: #2a2a2a !important;
+}
+
+
+/* Ask AI section - remove blue background */
+.DocSearch-AskAI,
+.DocSearch-StartScreen .DocSearch-Help,
+[class*="DocSearch"][class*="AskAI"] {
+  background: #1a1a1a !important;
+  background-color: #1a1a1a !important;
+
+}
+
+/* Override keyboard shortcut keys - remove blue, add orange theme */
+.DocSearch-Button-Key {
+  background: #2a2a2a !important;
+  border-color: #ff7a18 !important;
+  color: #ff7a18 !important;
+  box-shadow: none !important;
+}
+
+/* Search button placeholder */
+.DocSearch-Button-Placeholder {
+  color: #e3e3e3 !important;
+}
+
+/* Remove any blue highlights or borders */
+.DocSearch-Button:hover .DocSearch-Button-Key,
+.DocSearch-Button:focus .DocSearch-Button-Key {
+  background: #3a3a3a !important;
+  border-color: #ff7a18 !important;
+}
+
+/* Footer buttons - remove blue/purple backgrounds */
+.DocSearch-Commands-Key,
+.DocSearch-Footer button,
+.DocSearch-Footer kbd {
+  background: #2a2a2a !important;
+  border-color: #3a3a3a !important;
+  color: #e3e3e3 !important;
+}
+
+/* Navigation keys at bottom */
+[class*="DocSearch"] kbd {
+  background: #2a2a2a !important;
+  color: #e3e3e3 !important;
+  border: 1px solid #3a3a3a !important;
+  box-shadow: none !important;
+}
+
+/* Remove blue from footer and command keys */
+.DocSearch-Footer {
+  background: #0f0f0f !important;
+  border-top: 1px solid #2a2a2a !important;
+}
+
+/* Start screen - no blue */
+.DocSearch-StartScreen,
+.DocSearch-NoResults {
+  background: transparent !important;
+}
+
+/* Make search icon orange in no-results state */
+.DocSearch-NoResults .DocSearch-StartScreen-Icon,
+.DocSearch-NoResults svg {
+  color: #ff7a18 !important;
+  stroke: #ff7a18 !important;
+}
+
