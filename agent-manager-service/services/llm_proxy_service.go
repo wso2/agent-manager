@@ -18,7 +18,9 @@
 package services
 
 import (
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // LLMProxyService handles LLM proxy business logic
@@ -31,4 +33,40 @@ func NewLLMProxyService(proxyRepo repositories.LLMProxyRepository) *LLMProxyServ
 	return &LLMProxyService{
 		proxyRepo: proxyRepo,
 	}
+}
+
+// Create creates a new LLM proxy
+// TODO: Implement based on actual repository interface methods
+func (s *LLMProxyService) Create(orgID, createdBy string, proxy *models.LLMProxy) (*models.LLMProxy, error) {
+	return nil, utils.ErrNotImplemented
+}
+
+// List lists all LLM proxies for an organization
+// TODO: Implement based on actual repository interface methods
+func (s *LLMProxyService) List(orgID string, limit, offset int) ([]*models.LLMProxy, int, error) {
+	return nil, 0, utils.ErrNotImplemented
+}
+
+// Get retrieves an LLM proxy by ID
+// TODO: Implement based on actual repository interface methods
+func (s *LLMProxyService) Get(proxyID, orgID string) (*models.LLMProxy, error) {
+	return nil, utils.ErrNotImplemented
+}
+
+// Update updates an existing LLM proxy
+// TODO: Implement based on actual repository interface methods
+func (s *LLMProxyService) Update(proxyID, orgID string, updates *models.LLMProxy) (*models.LLMProxy, error) {
+	return nil, utils.ErrNotImplemented
+}
+
+// Delete deletes an LLM proxy
+// TODO: Implement based on actual repository interface methods
+func (s *LLMProxyService) Delete(proxyID, orgID string) error {
+	return utils.ErrNotImplemented
+}
+
+// ListByProvider lists all proxies for a specific provider
+// TODO: Implement based on actual repository interface methods
+func (s *LLMProxyService) ListByProvider(orgID, providerID string, limit, offset int) ([]*models.LLMProxy, int, error) {
+	return nil, 0, utils.ErrNotImplemented
 }

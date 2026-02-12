@@ -172,6 +172,27 @@ func loadEnvs() {
 		Enable:  r.readOptionalBool("API_PLATFORM_ENABLED", false),
 	}
 
+	// Internal Server configuration (for WebSocket and gateway internal APIs)
+	config.InternalServer = InternalServerConfig{
+		Host:                r.readOptionalString("INTERNAL_SERVER_HOST", ""),
+		Port:                int(r.readOptionalInt64("INTERNAL_SERVER_PORT", 9243)),
+		CertDir:             r.readOptionalString("INTERNAL_SERVER_CERT_DIR", "./data/certs"),
+		ReadTimeoutSeconds:  int(r.readOptionalInt64("INTERNAL_SERVER_READ_TIMEOUT_SECONDS", 10)),
+		WriteTimeoutSeconds: int(r.readOptionalInt64("INTERNAL_SERVER_WRITE_TIMEOUT_SECONDS", 90)),
+		IdleTimeoutSeconds:  int(r.readOptionalInt64("INTERNAL_SERVER_IDLE_TIMEOUT_SECONDS", 60)),
+		MaxHeaderBytes:      int(r.readOptionalInt64("INTERNAL_SERVER_MAX_HEADER_BYTES", 65536)),
+	}
+
+	// WebSocket configuration
+	config.WebSocket = WebSocketConfig{
+		MaxConnections:    int(r.readOptionalInt64("WEBSOCKET_MAX_CONNECTIONS", 1000)),
+		ConnectionTimeout: int(r.readOptionalInt64("WEBSOCKET_CONNECTION_TIMEOUT", 30)),
+		RateLimitPerMin:   int(r.readOptionalInt64("WEBSOCKET_RATE_LIMIT_PER_MIN", 10)),
+	}
+
+	// LLM Provider Template configuration
+	config.LLMTemplateDefinitionsPath = r.readOptionalString("LLM_TEMPLATE_DEFINITIONS_PATH", "./resources/default-llm-provider-templates")
+
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)
 

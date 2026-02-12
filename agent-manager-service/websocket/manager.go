@@ -19,180 +19,252 @@ package websocket
 
 import (
 	"context"
-	"encoding/json"
-	"log/slog"
+	"fmt"
+	"log"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
-// Manager manages WebSocket connections and message broadcasting
+// Manager handles the lifecycle of gateway WebSocket connections.
+// It maintains an in-memory registry of active connections, manages heartbeats,
+// and handles graceful/ungraceful disconnections.
 type Manager struct {
-	connections map[string]*Connection // gatewayID -> Connection
-	mu          sync.RWMutex
-	logger      *slog.Logger
-	transport   Transport
+	// connections maps gatewayID -> []*Connection
+	// Supports multiple connections per gateway ID for clustering scenarios
+	connections sync.Map
+
+	// mu protects the connectionCount and maxConnections fields
+	mu sync.RWMutex
+
+	// connectionCount tracks the total number of active connections across all gateways
+	connectionCount int
+
+	// maxConnections enforces a limit on concurrent connections (default 1000)
+	maxConnections int
+
+	// heartbeatInterval specifies how often to send ping frames (default 20s)
+	heartbeatInterval time.Duration
+
+	// heartbeatTimeout specifies when to consider a connection dead (default 30s)
+	heartbeatTimeout time.Duration
+
+	// shutdownCtx is used to signal graceful shutdown to all connection goroutines
+	shutdownCtx context.Context
+	shutdownFn  context.CancelFunc
+
+	// wg tracks active connection handler goroutines for graceful shutdown
+	wg sync.WaitGroup
 }
 
-// Transport defines the interface for WebSocket transport layer
-type Transport interface {
-	Dial(ctx context.Context, url string) (*Connection, error)
-	Close(conn *Connection) error
+// ManagerConfig contains configuration parameters for the connection manager
+type ManagerConfig struct {
+	MaxConnections    int           // Maximum concurrent connections (default 1000)
+	HeartbeatInterval time.Duration // Ping interval (default 20s)
+	HeartbeatTimeout  time.Duration // Pong timeout (default 30s)
 }
 
-// Message represents a WebSocket message
-type Message struct {
-	Type      string          `json:"type"`
-	Payload   json.RawMessage `json:"payload"`
-	Timestamp time.Time       `json:"timestamp"`
+// DefaultManagerConfig returns sensible default configuration values
+func DefaultManagerConfig() ManagerConfig {
+	return ManagerConfig{
+		MaxConnections:    1000,
+		HeartbeatInterval: 20 * time.Second,
+		HeartbeatTimeout:  30 * time.Second,
+	}
 }
 
-// NewManager creates a new WebSocket manager
-func NewManager(logger *slog.Logger, transport Transport) *Manager {
+// NewManager creates a new connection manager with the provided configuration
+func NewManager(config ManagerConfig) *Manager {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
-		connections: make(map[string]*Connection),
-		logger:      logger,
-		transport:   transport,
+		connections:       sync.Map{},
+		connectionCount:   0,
+		maxConnections:    config.MaxConnections,
+		heartbeatInterval: config.HeartbeatInterval,
+		heartbeatTimeout:  config.HeartbeatTimeout,
+		shutdownCtx:       ctx,
+		shutdownFn:        cancel,
 	}
 }
 
-// Connect establishes a WebSocket connection to a gateway
-func (m *Manager) Connect(ctx context.Context, gatewayID, url string) error {
+// Register adds a new connection to the registry and starts heartbeat monitoring.
+// Returns an error if the maximum connection limit is reached.
+func (m *Manager) Register(gatewayID string, transport Transport, authToken string) (*Connection, error) {
+	// Check connection limit
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	// Check if connection already exists
-	if _, exists := m.connections[gatewayID]; exists {
-		m.logger.Info("Connection already exists for gateway", "gatewayID", gatewayID)
-		return nil
+	if m.connectionCount >= m.maxConnections {
+		m.mu.Unlock()
+		return nil, fmt.Errorf("maximum connection limit reached (%d)", m.maxConnections)
 	}
+	m.connectionCount++
+	m.mu.Unlock()
 
-	// Establish new connection
-	conn, err := m.transport.Dial(ctx, url)
-	if err != nil {
-		return err
-	}
+	// Create connection with unique connection ID
+	connectionID := uuid.New().String()
+	conn := NewConnection(gatewayID, connectionID, transport, authToken)
 
-	m.connections[gatewayID] = conn
-	m.logger.Info("WebSocket connection established", "gatewayID", gatewayID)
+	// Add connection to registry
+	connsInterface, _ := m.connections.LoadOrStore(gatewayID, []*Connection{})
+	conns := connsInterface.([]*Connection)
+	conns = append(conns, conn)
+	m.connections.Store(gatewayID, conns)
 
-	// Start reading messages in background
-	go m.readMessages(gatewayID, conn)
+	// Start heartbeat monitoring in background
+	m.wg.Add(1)
+	go m.monitorHeartbeat(conn)
 
-	return nil
+	log.Printf("[INFO] Gateway connected: gatewayID=%s connectionID=%s totalConnections=%d",
+		gatewayID, connectionID, m.GetConnectionCount())
+
+	return conn, nil
 }
 
-// Disconnect closes the WebSocket connection to a gateway
-func (m *Manager) Disconnect(gatewayID string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	conn, exists := m.connections[gatewayID]
-	if !exists {
-		m.logger.Warn("Connection not found for gateway", "gatewayID", gatewayID)
-		return nil
+// Unregister removes a connection from the registry and closes it gracefully.
+// This method is idempotent - calling it multiple times is safe.
+func (m *Manager) Unregister(gatewayID, connectionID string) {
+	connsInterface, ok := m.connections.Load(gatewayID)
+	if !ok {
+		return // Gateway not found
 	}
 
-	if err := m.transport.Close(conn); err != nil {
-		m.logger.Error("Failed to close connection", "gatewayID", gatewayID, "error", err)
-		return err
-	}
+	conns := connsInterface.([]*Connection)
+	var updatedConns []*Connection
+	var removed *Connection
 
-	delete(m.connections, gatewayID)
-	m.logger.Info("WebSocket connection closed", "gatewayID", gatewayID)
-
-	return nil
-}
-
-// SendMessage sends a message to a specific gateway
-func (m *Manager) SendMessage(gatewayID string, msg *Message) error {
-	m.mu.RLock()
-	conn, exists := m.connections[gatewayID]
-	m.mu.RUnlock()
-
-	if !exists {
-		m.logger.Warn("Connection not found for gateway", "gatewayID", gatewayID)
-		return nil
-	}
-
-	return conn.WriteMessage(msg)
-}
-
-// BroadcastMessage sends a message to all connected gateways
-func (m *Manager) BroadcastMessage(msg *Message) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	for gatewayID, conn := range m.connections {
-		if err := conn.WriteMessage(msg); err != nil {
-			m.logger.Error("Failed to send message to gateway", "gatewayID", gatewayID, "error", err)
+	// Filter out the connection to remove
+	for _, conn := range conns {
+		if conn.ConnectionID == connectionID {
+			removed = conn
+		} else {
+			updatedConns = append(updatedConns, conn)
 		}
 	}
-}
 
-// readMessages reads messages from a WebSocket connection
-func (m *Manager) readMessages(gatewayID string, conn *Connection) {
-	for {
-		msg, err := conn.ReadMessage()
-		if err != nil {
-			m.logger.Error("Failed to read message", "gatewayID", gatewayID, "error", err)
-			m.Disconnect(gatewayID)
-			return
-		}
-
-		m.logger.Debug("Received message from gateway", "gatewayID", gatewayID, "messageType", msg.Type)
-
-		// Handle message based on type
-		m.handleMessage(gatewayID, msg)
+	if removed == nil {
+		return // Connection not found
 	}
-}
 
-// handleMessage processes incoming messages from gateways
-func (m *Manager) handleMessage(gatewayID string, msg *Message) {
-	switch msg.Type {
-	case "heartbeat":
-		m.handleHeartbeat(gatewayID)
-	case "event":
-		m.handleEvent(gatewayID, msg.Payload)
-	default:
-		m.logger.Warn("Unknown message type", "gatewayID", gatewayID, "type", msg.Type)
+	// Update or delete the gateway entry
+	if len(updatedConns) == 0 {
+		m.connections.Delete(gatewayID)
+	} else {
+		m.connections.Store(gatewayID, updatedConns)
 	}
+
+	// Close the connection gracefully
+	if err := removed.Close(1000, "normal closure"); err != nil {
+		log.Printf("[ERROR] Failed to close connection: gatewayID=%s connectionID=%s error=%v",
+			gatewayID, connectionID, err)
+	}
+
+	// Decrement connection count
+	m.mu.Lock()
+	m.connectionCount--
+	m.mu.Unlock()
+
+	log.Printf("[INFO] Gateway disconnected: gatewayID=%s connectionID=%s totalConnections=%d",
+		gatewayID, connectionID, m.GetConnectionCount())
 }
 
-// handleHeartbeat processes heartbeat messages
-func (m *Manager) handleHeartbeat(gatewayID string) {
-	m.logger.Debug("Received heartbeat", "gatewayID", gatewayID)
-	// Send heartbeat response
-	m.SendMessage(gatewayID, &Message{
-		Type:      "heartbeat_ack",
-		Timestamp: time.Now(),
+// GetConnections retrieves all connections for a specific gateway ID.
+// Returns an empty slice if the gateway has no active connections.
+func (m *Manager) GetConnections(gatewayID string) []*Connection {
+	connsInterface, ok := m.connections.Load(gatewayID)
+	if !ok {
+		return []*Connection{}
+	}
+	return connsInterface.([]*Connection)
+}
+
+// GetAllConnections returns all active connections across all gateways.
+// Used by the stats API to provide operational visibility.
+func (m *Manager) GetAllConnections() map[string][]*Connection {
+	result := make(map[string][]*Connection)
+	m.connections.Range(func(key, value interface{}) bool {
+		gatewayID := key.(string)
+		conns := value.([]*Connection)
+		result[gatewayID] = conns
+		return true // Continue iteration
 	})
+	return result
 }
 
-// handleEvent processes event messages
-func (m *Manager) handleEvent(gatewayID string, payload json.RawMessage) {
-	m.logger.Info("Received event from gateway", "gatewayID", gatewayID)
-	// TODO: Process event payload
-}
-
-// GetConnection retrieves a WebSocket connection by gateway ID
-func (m *Manager) GetConnection(gatewayID string) (*Connection, bool) {
+// GetConnectionCount returns the total number of active connections
+func (m *Manager) GetConnectionCount() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	conn, exists := m.connections[gatewayID]
-	return conn, exists
+	return m.connectionCount
 }
 
-// Close closes all WebSocket connections
-func (m *Manager) Close() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+// monitorHeartbeat periodically sends ping frames and detects connection death.
+// Runs in a background goroutine for each connection.
+func (m *Manager) monitorHeartbeat(conn *Connection) {
+	defer m.wg.Done()
 
-	for gatewayID, conn := range m.connections {
-		if err := m.transport.Close(conn); err != nil {
-			m.logger.Error("Failed to close connection", "gatewayID", gatewayID, "error", err)
+	ticker := time.NewTicker(m.heartbeatInterval)
+	defer ticker.Stop()
+
+	// Configure pong handler to update heartbeat timestamp
+	conn.Transport.EnablePongHandler(func(appData string) error {
+		conn.UpdateHeartbeat()
+		return nil
+	})
+
+	for {
+		select {
+		case <-m.shutdownCtx.Done():
+			// Graceful shutdown triggered
+			return
+
+		case <-ticker.C:
+			// Check if connection is already closed
+			if conn.IsClosed() {
+				return
+			}
+
+			// Check for heartbeat timeout
+			if time.Since(conn.GetLastHeartbeat()) > m.heartbeatTimeout {
+				log.Printf("[WARN] Heartbeat timeout detected: gatewayID=%s connectionID=%s lastHeartbeat=%v",
+					conn.GatewayID, conn.ConnectionID, conn.GetLastHeartbeat())
+				m.Unregister(conn.GatewayID, conn.ConnectionID)
+				return
+			}
+
+			// Send ping frame
+			if err := conn.Transport.SendPing(); err != nil {
+				log.Printf("[ERROR] Failed to send ping: gatewayID=%s connectionID=%s error=%v",
+					conn.GatewayID, conn.ConnectionID, err)
+				m.Unregister(conn.GatewayID, conn.ConnectionID)
+				return
+			}
 		}
 	}
+}
 
-	m.connections = make(map[string]*Connection)
-	return nil
+// Shutdown gracefully closes all connections and stops heartbeat monitoring.
+// Waits for all connection handler goroutines to exit before returning.
+func (m *Manager) Shutdown() {
+	log.Println("[INFO] Shutting down WebSocket manager...")
+
+	// Signal shutdown to all monitoring goroutines
+	m.shutdownFn()
+
+	// Close all connections
+	m.connections.Range(func(key, value interface{}) bool {
+		gatewayID := key.(string)
+		conns := value.([]*Connection)
+		for _, conn := range conns {
+			if err := conn.Close(1000, "server shutdown"); err != nil {
+				log.Printf("[ERROR] Failed to close connection during shutdown: gatewayID=%s connectionID=%s error=%v",
+					gatewayID, conn.ConnectionID, err)
+			}
+		}
+		return true // Continue iteration
+	})
+
+	// Wait for all goroutines to exit
+	m.wg.Wait()
+
+	log.Println("[INFO] WebSocket manager shutdown complete")
 }

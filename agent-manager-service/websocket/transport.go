@@ -18,65 +18,36 @@
 package websocket
 
 import (
-	"context"
-	"crypto/tls"
-	"net/http"
 	"time"
-
-	"github.com/gorilla/websocket"
 )
 
-// GorillaTransport implements the Transport interface using gorilla/websocket
-type GorillaTransport struct {
-	dialer *websocket.Dialer
+// Transport defines an abstraction layer for protocol-independent message delivery.
+// This interface allows the system to switch between different transport mechanisms
+// (WebSocket, Server-Sent Events, gRPC, etc.) without modifying business logic.
+type Transport interface {
+	// Send delivers a message to the connected client
+	Send(message []byte) error
+
+	// Close terminates the transport connection gracefully
+	Close(code int, reason string) error
+
+	// SetReadDeadline sets the deadline for reading from the transport
+	SetReadDeadline(deadline time.Time) error
+
+	// SetWriteDeadline sets the deadline for writing to the transport
+	SetWriteDeadline(deadline time.Time) error
+
+	// EnablePongHandler configures automatic handling of pong frames for heartbeat
+	EnablePongHandler(handler func(string) error)
+
+	// SendPing sends a ping frame to test connection liveness
+	SendPing() error
 }
 
-// NewGorillaTransport creates a new Gorilla WebSocket transport
-func NewGorillaTransport() *GorillaTransport {
-	return &GorillaTransport{
-		dialer: &websocket.Dialer{
-			HandshakeTimeout: 45 * time.Second,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: false,
-			},
-		},
-	}
-}
-
-// Dial establishes a WebSocket connection to the specified URL
-func (t *GorillaTransport) Dial(ctx context.Context, url string) (*Connection, error) {
-	headers := http.Header{}
-	headers.Add("User-Agent", "agent-manager-service/1.0")
-
-	conn, _, err := t.dialer.DialContext(ctx, url, headers)
-	if err != nil {
-		return nil, err
-	}
-
-	// Set up ping/pong handlers
-	conn.SetPingHandler(func(appData string) error {
-		return conn.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(10*time.Second))
-	})
-
-	return NewConnection(conn), nil
-}
-
-// Close closes a WebSocket connection
-func (t *GorillaTransport) Close(conn *Connection) error {
-	if conn == nil {
-		return nil
-	}
-	return conn.Close()
-}
-
-// WithTLSConfig sets a custom TLS configuration
-func (t *GorillaTransport) WithTLSConfig(config *tls.Config) *GorillaTransport {
-	t.dialer.TLSClientConfig = config
-	return t
-}
-
-// WithHandshakeTimeout sets a custom handshake timeout
-func (t *GorillaTransport) WithHandshakeTimeout(timeout time.Duration) *GorillaTransport {
-	t.dialer.HandshakeTimeout = timeout
-	return t
+// DeliveryStats tracks event delivery statistics for a connection
+type DeliveryStats struct {
+	MessagesSent     int64
+	MessagesReceived int64
+	BytesSent        int64
+	BytesReceived    int64
 }

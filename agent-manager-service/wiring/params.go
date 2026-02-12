@@ -28,7 +28,9 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
 )
 
 // AppParams contains all wired application dependencies
@@ -38,16 +40,28 @@ type AppParams struct {
 	Logger         *slog.Logger
 
 	// Controllers
-	AgentController         controllers.AgentController
-	InfraResourceController controllers.InfraResourceController
-	ObservabilityController controllers.ObservabilityController
-	AgentTokenController    controllers.AgentTokenController
-	RepositoryController    controllers.RepositoryController
-	MonitorController       controllers.MonitorController
-	EvaluatorController     controllers.EvaluatorController
-	MonitorScheduler        services.MonitorSchedulerService
-	EnvironmentController   controllers.EnvironmentController
-	GatewayController       controllers.GatewayController
+	AgentController           controllers.AgentController
+	InfraResourceController   controllers.InfraResourceController
+	ObservabilityController   controllers.ObservabilityController
+	AgentTokenController      controllers.AgentTokenController
+	RepositoryController      controllers.RepositoryController
+	EnvironmentController     controllers.EnvironmentController
+	GatewayController         controllers.GatewayController
+	LLMController             controllers.LLMController
+	LLMDeploymentController   controllers.LLMDeploymentController
+	WebSocketController       controllers.WebSocketController
+	GatewayInternalController controllers.GatewayInternalController
+
+	// Services
+	EnvironmentSyncer  services.EnvironmentSynchronizer
+	OrganizationSyncer services.OrganizationSynchronizer
+	LLMTemplateSeeder  *services.LLMTemplateSeeder
+
+	// Repositories
+	OrganizationRepository repositories.OrganizationRepository
+
+	// WebSocket
+	WebSocketManager *websocket.Manager
 
 	// Clients
 	APIPlatformClient apiplatformclient.APIPlatformClient

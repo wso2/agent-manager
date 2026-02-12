@@ -21,6 +21,7 @@ package wiring
 
 import (
 	"log/slog"
+	"time"
 
 	"github.com/google/wire"
 	"gorm.io/gorm"
@@ -34,7 +35,9 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
 )
 
 // Provider sets
@@ -63,6 +66,15 @@ var serviceProviderSet = wire.NewSet(
 	services.NewMonitorSchedulerService,
 	services.NewEvaluatorManagerService,
 	services.NewEnvironmentService,
+	services.NewEnvironmentSyncer,
+	services.NewOrganizationSyncer,
+	services.NewPlatformGatewayService,
+	services.NewLLMProviderTemplateService,
+	services.NewLLMProviderService,
+	services.NewLLMProxyService,
+	services.NewLLMProviderDeploymentService,
+	services.NewGatewayInternalAPIService,
+	ProvideLLMTemplateSeeder,
 )
 
 var controllerProviderSet = wire.NewSet(
@@ -73,8 +85,10 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewRepositoryController,
 	controllers.NewEnvironmentController,
 	controllers.NewGatewayController,
-	controllers.NewMonitorController,
-	controllers.NewEvaluatorController,
+	controllers.NewLLMController,
+	controllers.NewLLMDeploymentController,
+	ProvideWebSocketController,
+	controllers.NewGatewayInternalController,
 )
 
 var testClientProviderSet = wire.NewSet(
@@ -116,6 +130,22 @@ func ProvideObservabilitySvcClient(cfg config.Config, authProvider occlient.Auth
 
 var loggerProviderSet = wire.NewSet(
 	ProvideLogger,
+)
+
+var repositoryProviderSet = wire.NewSet(
+	ProvideOrganizationRepository,
+	ProvideProjectRepository,
+	ProvideGatewayRepository,
+	ProvideAPIRepository,
+	ProvideLLMProviderTemplateRepository,
+	ProvideLLMProviderRepository,
+	ProvideLLMProxyRepository,
+	ProvideDeploymentRepository,
+	ProvideArtifactRepository,
+)
+
+var websocketProviderSet = wire.NewSet(
+	ProvideWebSocketManager,
 )
 
 // ProvideAPIPlatformAuthProvider creates an auth provider for API Platform
@@ -176,12 +206,78 @@ func ProvideTestAPIPlatformClient(testClients TestClients) apiplatformclient.API
 	return testClients.APIPlatformClient
 }
 
+// ProvideWebSocketManager creates a new WebSocket manager with config
+func ProvideWebSocketManager(cfg config.Config) *websocket.Manager {
+	wsConfig := websocket.ManagerConfig{
+		MaxConnections:    cfg.WebSocket.MaxConnections,
+		HeartbeatInterval: 20 * time.Second,
+		HeartbeatTimeout:  time.Duration(cfg.WebSocket.ConnectionTimeout) * time.Second,
+	}
+	return websocket.NewManager(wsConfig)
+}
+
+// ProvideWebSocketController creates a new WebSocket controller with rate limiting
+func ProvideWebSocketController(
+	manager *websocket.Manager,
+	gatewayService *services.PlatformGatewayService,
+	cfg config.Config,
+) controllers.WebSocketController {
+	rateLimitCount := cfg.WebSocket.RateLimitPerMin
+	return controllers.NewWebSocketController(manager, gatewayService, rateLimitCount)
+}
+
+// Repository providers (injecting *gorm.DB)
+func ProvideOrganizationRepository(db *gorm.DB) repositories.OrganizationRepository {
+	return repositories.NewOrganizationRepo(db)
+}
+
+func ProvideProjectRepository(db *gorm.DB) repositories.ProjectRepository {
+	return repositories.NewProjectRepo(db)
+}
+
+func ProvideGatewayRepository(db *gorm.DB) repositories.GatewayRepository {
+	return repositories.NewGatewayRepo(db)
+}
+
+func ProvideAPIRepository(db *gorm.DB) repositories.APIRepository {
+	return repositories.NewAPIRepo(db)
+}
+
+func ProvideLLMProviderTemplateRepository(db *gorm.DB) repositories.LLMProviderTemplateRepository {
+	return repositories.NewLLMProviderTemplateRepo(db)
+}
+
+func ProvideLLMProviderRepository(db *gorm.DB) repositories.LLMProviderRepository {
+	return repositories.NewLLMProviderRepo(db)
+}
+
+func ProvideLLMProxyRepository(db *gorm.DB) repositories.LLMProxyRepository {
+	return repositories.NewLLMProxyRepo(db)
+}
+
+func ProvideDeploymentRepository(db *gorm.DB) repositories.DeploymentRepository {
+	return repositories.NewDeploymentRepo(db)
+}
+
+func ProvideArtifactRepository(db *gorm.DB) repositories.ArtifactRepository {
+	return repositories.NewArtifactRepo(db)
+}
+
+// ProvideLLMTemplateSeeder creates a new LLM template seeder with empty templates
+// Templates will be loaded at startup in main.go
+func ProvideLLMTemplateSeeder(templateRepo repositories.LLMProviderTemplateRepository) *services.LLMTemplateSeeder {
+	// Create seeder with empty templates - actual templates loaded in main.go
+	return services.NewLLMTemplateSeeder(templateRepo, nil)
+}
+
 // InitializeAppParams wires up all application dependencies
 func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 	wire.Build(
 		configProviderSet,
 		clientProviderSet,
 		loggerProviderSet,
+		repositoryProviderSet,
+		websocketProviderSet,
 		serviceProviderSet,
 		controllerProviderSet,
 		ProvideAuthMiddleware,
@@ -201,6 +297,8 @@ func InitializeTestAppParamsWithClientMocks(
 	wire.Build(
 		testClientProviderSet,
 		loggerProviderSet,
+		repositoryProviderSet,
+		websocketProviderSet,
 		serviceProviderSet,
 		controllerProviderSet,
 		configProviderSet,

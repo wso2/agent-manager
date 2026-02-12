@@ -92,4 +92,7 @@ var (
 	ErrDevPortalNotFound           = errors.New("devportal not found")
 	ErrAPIAlreadyPublished         = errors.New("api is already published to devportal")
 	ErrAPIPublicationNotFound      = errors.New("api publication not found")
+
+	// Implementation status errors
+	ErrNotImplemented              = errors.New("not implemented")
 )
