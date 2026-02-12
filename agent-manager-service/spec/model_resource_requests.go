@@ -19,9 +19,9 @@ var _ MappedNullable = &ResourceRequests{}
 
 // ResourceRequests struct for ResourceRequests
 type ResourceRequests struct {
-	// CPU request (e.g., \"100m\", \"1\")
+	// CPU request (e.g., \"100m\", \"0.5\", \"1.5\")
 	Cpu *string `json:"cpu,omitempty"`
-	// Memory request (e.g., \"256Mi\", \"1Gi\")
+	// Memory request (e.g., \"256Mi\", \"1Gi\", \"512Ki\", \"2Ti\")
 	Memory *string `json:"memory,omitempty"`
 }
 
