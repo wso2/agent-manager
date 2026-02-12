@@ -54,6 +54,16 @@ const config: Config = {
   plugins: [
     '@signalwire/docusaurus-plugin-llms-txt'],
 
+  headTags: [
+    {
+      tagName: 'meta',
+      attributes: {
+        name: 'algolia-site-verification',
+        content: 'E81C4B874DDE8AE3',
+      },
+    },
+  ],
+
   presets: [
     [
       'classic',
@@ -89,7 +99,7 @@ const config: Config = {
     announcementBar: {
       id: `release_${latestVersion.replace(/\./g, '_')}`,
       content:
-        `WSO2 Agent Manager <a target="_blank" rel="noopener noreferrer" href="https://github.com/wso2/agent-manager/releases/tag/amp%2F${latestVersion}">${latestVersion}</a> has been released! Explore what's new. 🎉`,
+        `🎉 WSO2 Agent Manager <a target="_blank" rel="noopener noreferrer" href="https://github.com/wso2/agent-manager/releases/tag/amp%2F${latestVersion}">${latestVersion}</a> has been released! Explore what's new. 🎉`,
       isCloseable: true,
     },
 
