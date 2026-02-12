@@ -69,8 +69,8 @@ const configureBuildSchema = z.object({
   repositoryUrl: z
     .string()
     .trim()
-    .url("Must be a valid URL")
-    .min(1, "Repository URL is required"),
+    .min(1, "Repository URL is required")
+    .url("Must be a valid URL"),
   branch: z.string().trim().min(1, "Branch is required"),
   appPath: z
     .string()
@@ -221,18 +221,23 @@ export function ConfigureBuildDrawer({
       field: keyof ConfigureBuildFormValues,
       value: string | number | InputInterfaceType | undefined
     ) => {
+    let newData: ConfigureBuildFormValues | null = null;
     setFormData(prevData => {
-      const newData = { ...prevData, [field]: value };
-      const error = validateField(field, value);
-      setFieldError(field, error);
+      newData = { ...prevData, [field]: value };
       return newData;
     });
+    
+    if (newData) {
+      const error = validateField(field, value, newData);
+      setFieldError(field, error);
+    }
   }, [validateField, setFieldError]);
 
   const handleSelectInterface = useCallback(
     (value: InputInterfaceType) => {
+      let newData: ConfigureBuildFormValues | null = null;
       setFormData(prevData => {
-        const newData = {
+        newData = {
           ...prevData,
           interfaceType: value,
           ...(value === "DEFAULT" ? {
@@ -241,11 +246,13 @@ export function ConfigureBuildDrawer({
             basePath: "/",
           } : {}),
         };
-        // Validate the interfaceType field
-        const error = validateField('interfaceType', value);
-        setFieldError('interfaceType', error);
         return newData;
       });
+      
+      if (newData) {
+        const error = validateField('interfaceType', value, newData);
+        setFieldError('interfaceType', error);
+      }
     },
     [validateField, setFieldError],
   );

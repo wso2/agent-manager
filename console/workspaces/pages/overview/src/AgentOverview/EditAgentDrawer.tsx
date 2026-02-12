@@ -80,12 +80,9 @@ export function EditAgentDrawer({ open, onClose, agent, orgId, projectId }: Edit
   }, [agent, open, clearErrors]);
 
   const handleFieldChange = useCallback((field: keyof EditAgentFormValues, value: string) => {
-    setFormData(prevData => {
-      const newData = { ...prevData, [field]: value };
-      const error = validateField(field, value);
-      setFieldError(field, error);
-      return newData;
-    });
+    const error = validateField(field, value);
+    setFieldError(field, error);
+    setFormData(prevData => ({ ...prevData, [field]: value }));
   }, [validateField, setFieldError]);
 
   const handleSubmit = (e: React.FormEvent) => {

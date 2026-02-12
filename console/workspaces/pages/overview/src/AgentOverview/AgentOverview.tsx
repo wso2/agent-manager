@@ -77,8 +77,8 @@ export function AgentOverview() {
           <AgentOverviewSkeleton />
         ) : (
           <Box display="flex" flexDirection="column" gap={4}>
-            {agent?.provisioning.type === "internal" && <InternalAgentOverview />}
-            {agent?.provisioning.type === "external" && <ExternalAgentOverview />}
+            {agent?.provisioning?.type === "internal" && <InternalAgentOverview />}
+            {agent?.provisioning?.type === "external" && <ExternalAgentOverview />}
           </Box>
         )}
       </PageLayout>

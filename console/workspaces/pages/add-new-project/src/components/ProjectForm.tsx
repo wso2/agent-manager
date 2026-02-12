@@ -43,17 +43,13 @@ export const ProjectForm = ({
   const { orgId } = useParams<{ orgId: string }>();
 
   const handleFieldChange = useCallback((field: keyof AddProjectFormValues, value: string) => {
-    setFormData(prevData => {
-      const newData = { ...prevData, [field]: value };
-      checkDirty(newData);
-      
-      // Validate and update error
-      const error = validateField(field, value);
-      setFieldError(field, error);
-      
-      return newData;
-    });
-  }, [setFormData, checkDirty, validateField, setFieldError]);
+    const newData = { ...formData, [field]: value };
+    setFormData(newData);
+    checkDirty(newData);
+    
+    const error = validateField(field, value);
+    setFieldError(field, error);
+  }, [formData, setFormData, checkDirty, validateField, setFieldError]);
 
   const { mutate: generateName } = useGenerateResourceName({
     orgName: orgId,

@@ -226,6 +226,11 @@ export const AgentsList: React.FC = () => {
     [data?.agents, search, orgId]
   );
 
+  // Reset page to 0 when search or filtered list changes
+  useEffect(() => {
+    setPage(0);
+  }, [agentsWithHref]);
+
   // Paginate agents
   const paginatedAgents = useMemo(
     () => agentsWithHref.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),

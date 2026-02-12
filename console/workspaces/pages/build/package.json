@@ -51,8 +51,7 @@
     "@agent-management-platform/api-client": "workspace:*",
     "@agent-management-platform/types": "workspace:*",
     "@agent-management-platform/shared-component": "workspace:*",
-    "zod": "4.3.6",
-    "@hookform/resolvers": "3.9.0"
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "8.6.13",
