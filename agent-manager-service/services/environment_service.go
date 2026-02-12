@@ -308,8 +308,6 @@ func (s *environmentService) GetEnvironmentGateways(ctx context.Context, orgName
 			VHost:            gateway.Vhost,
 			IsCritical:       gateway.IsCritical,
 			Status:           convertAPIPlatformStatusToModelStatus(gateway.IsActive),
-			CreatedAt:        gateway.CreatedAt,
-			UpdatedAt:        gateway.UpdatedAt,
 		})
 	}
 

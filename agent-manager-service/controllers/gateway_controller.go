@@ -439,6 +439,15 @@ func (c *gatewayController) assignGatewayToEnvironmentInDB(ctx context.Context, 
 		return fmt.Errorf("failed to verify environment: %w", err)
 	}
 
+	// Get organization UUID from organization name
+	var org models.Organization
+	if err := db.DB(ctx).Where("name = ?", orgName).First(&org).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("organization not found: %s", orgName)
+		}
+		return fmt.Errorf("failed to get organization: %w", err)
+	}
+
 	// Check if mapping already exists
 	var existing models.GatewayEnvironmentMapping
 	err = db.DB(ctx).Where("gateway_uuid = ? AND environment_uuid = ?", gwUUID, envUUID).
@@ -455,9 +464,9 @@ func (c *gatewayController) assignGatewayToEnvironmentInDB(ctx context.Context, 
 
 	// Create mapping
 	mapping := &models.GatewayEnvironmentMapping{
-		GatewayUUID:     gwUUID,
-		EnvironmentUUID: envUUID,
-		CreatedAt:       time.Now(),
+		GatewayUUID:    gwUUID,
+		EnvironmentID:  envUUID.String(),
+		OrganizationID: org.UUID.String(),
 	}
 
 	if err := db.DB(ctx).Create(mapping).Error; err != nil {

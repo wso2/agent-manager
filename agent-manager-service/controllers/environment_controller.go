@@ -281,21 +281,6 @@ func convertToSpecGatewayResponse(gw *models.GatewayResponse) spec.GatewayRespon
 		Vhost:            gw.VHost,
 		IsCritical:       gw.IsCritical,
 		Status:           spec.GatewayStatus(gw.Status),
-		CreatedAt:        gw.CreatedAt,
-		UpdatedAt:        gw.UpdatedAt,
-	}
-
-	if gw.Region != "" {
-		response.Region = &gw.Region
-	}
-
-	// Convert environments if present
-	if len(gw.Environments) > 0 {
-		specEnvs := make([]spec.GatewayEnvironmentResponse, len(gw.Environments))
-		for i := range gw.Environments {
-			specEnvs[i] = convertToSpecEnvironmentResponse(&gw.Environments[i])
-		}
-		response.Environments = specEnvs
 	}
 
 	return response

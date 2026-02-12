@@ -1,4 +1,4 @@
-// Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file except
@@ -14,21 +14,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package dbmigrations
+package models
 
-<<<<<<< HEAD
-const latestVersion = 6
-=======
-const latestVersion = 8
->>>>>>> 47de7bb (Add gateway models and repositories)
+// Type aliases for backward compatibility with repository layer
 
-// migration list sorted by version.  Add new migrations to the end of the list.
-// Previous migrations should not be modified.
-var migrations = []migration{
-	migration001,
-	migration002,
-	migration003,
-	migration004,
-	migration005,
-	migration006,
-}
+// APIAssociation is an alias for AssociationMapping
+type APIAssociation = AssociationMapping
+
+// APIPublication is an alias for PublicationMapping
+type APIPublication = PublicationMapping
