@@ -283,19 +283,10 @@ func convertToSpecGatewayResponse(gw *models.GatewayResponse) spec.GatewayRespon
 		Status:           spec.GatewayStatus(gw.Status),
 		CreatedAt:        gw.CreatedAt,
 		UpdatedAt:        gw.UpdatedAt,
-		ApiKey:           &gw.APIKey,
-	}
-
-	if gw.ControlPlaneURL != "" {
-		response.ControlPlaneUrl = &gw.ControlPlaneURL
 	}
 
 	if gw.Region != "" {
 		response.Region = &gw.Region
-	}
-
-	if len(gw.AdapterConfig) > 0 {
-		response.AdapterConfig = gw.AdapterConfig
 	}
 
 	// Convert environments if present

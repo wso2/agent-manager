@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	apiplatformclient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
@@ -43,13 +44,15 @@ type EnvironmentService interface {
 }
 
 type environmentService struct {
-	logger *slog.Logger
+	logger            *slog.Logger
+	apiPlatformClient apiplatformclient.APIPlatformClient
 }
 
 // NewEnvironmentService creates a new environment service
-func NewEnvironmentService(logger *slog.Logger) EnvironmentService {
+func NewEnvironmentService(logger *slog.Logger, apiPlatformClient apiplatformclient.APIPlatformClient) EnvironmentService {
 	return &environmentService{
-		logger: logger,
+		logger:            logger,
+		apiPlatformClient: apiPlatformClient,
 	}
 }
 
@@ -242,19 +245,50 @@ func (s *environmentService) GetEnvironmentGateways(ctx context.Context, orgName
 		return nil, fmt.Errorf("failed to get environment: %w", err)
 	}
 
-	var gateways []models.Gateway
+	// Get gateway-environment mappings from DB
+	var mappings []models.GatewayEnvironmentMapping
 	err = db.DB(ctx).
-		Joins("JOIN gateway_environment_mappings ON gateway_environment_mappings.gateway_uuid = gateways.uuid").
-		Where("gateway_environment_mappings.environment_uuid = ?", envUUID).
-		Find(&gateways).Error
+		Where("environment_uuid = ?", envUUID).
+		Find(&mappings).Error
 	if err != nil {
-		return nil, fmt.Errorf("failed to get gateways: %w", err)
+		return nil, fmt.Errorf("failed to get gateway mappings: %w", err)
 	}
 
-	responses := make([]models.GatewayResponse, len(gateways))
-	for i, gw := range gateways {
-		responses[i] = *gw.ToResponse()
+	// Fetch each gateway from API Platform service
+	responses := make([]models.GatewayResponse, 0, len(mappings))
+	for _, mapping := range mappings {
+		gatewayID := mapping.GatewayUUID.String()
+
+		// Get gateway details from API Platform
+		gateway, err := s.apiPlatformClient.GetGateway(ctx, gatewayID)
+		if err != nil {
+			s.logger.Warn("Failed to get gateway from API Platform", "gatewayID", gatewayID, "error", err)
+			// Skip gateways that no longer exist in API Platform
+			continue
+		}
+
+		// Convert API Platform gateway response to models.GatewayResponse
+		responses = append(responses, models.GatewayResponse{
+			UUID:             gateway.ID,
+			OrganizationName: orgName,
+			Name:             gateway.Name,
+			DisplayName:      gateway.DisplayName,
+			GatewayType:      gateway.FunctionalityType,
+			VHost:            gateway.Vhost,
+			IsCritical:       gateway.IsCritical,
+			Status:           convertAPIPlatformStatusToModelStatus(gateway.IsActive),
+			CreatedAt:        gateway.CreatedAt,
+			UpdatedAt:        gateway.UpdatedAt,
+		})
 	}
 
 	return responses, nil
+}
+
+// convertAPIPlatformStatusToModelStatus converts API Platform gateway active status to model status
+func convertAPIPlatformStatusToModelStatus(isActive bool) string {
+	if isActive {
+		return string(models.GatewayStatusActive)
+	}
+	return string(models.GatewayStatusInactive)
 }

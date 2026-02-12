@@ -29,8 +29,6 @@ type GatewayResponse struct {
 	// Human-readable display name
 	DisplayName string      `json:"displayName"`
 	GatewayType GatewayType `json:"gatewayType"`
-	// URL of the gateway's control plane (if applicable)
-	ControlPlaneUrl *string `json:"controlPlaneUrl,omitempty"`
 	// Virtual host for the gateway
 	Vhost string `json:"vhost"`
 	// Deployment region
@@ -38,16 +36,12 @@ type GatewayResponse struct {
 	// Flag indicating if this is a critical production gateway
 	IsCritical bool          `json:"isCritical"`
 	Status     GatewayStatus `json:"status"`
-	// Adapter-specific configuration (structure varies by adapter type)
-	AdapterConfig map[string]interface{} `json:"adapterConfig,omitempty"`
 	// Timestamp when the gateway was registered
 	CreatedAt time.Time `json:"createdAt"`
 	// Timestamp when the gateway was last updated
 	UpdatedAt time.Time `json:"updatedAt"`
 	// List of environments mapped to this gateway
 	Environments []GatewayEnvironmentResponse `json:"environments,omitempty"`
-	// API key for the gateway
-	ApiKey *string `json:"apiKey,omitempty"`
 }
 
 // NewGatewayResponse instantiates a new GatewayResponse object
@@ -197,38 +191,6 @@ func (o *GatewayResponse) SetGatewayType(v GatewayType) {
 	o.GatewayType = v
 }
 
-// GetControlPlaneUrl returns the ControlPlaneUrl field value if set, zero value otherwise.
-func (o *GatewayResponse) GetControlPlaneUrl() string {
-	if o == nil || IsNil(o.ControlPlaneUrl) {
-		var ret string
-		return ret
-	}
-	return *o.ControlPlaneUrl
-}
-
-// GetControlPlaneUrlOk returns a tuple with the ControlPlaneUrl field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *GatewayResponse) GetControlPlaneUrlOk() (*string, bool) {
-	if o == nil || IsNil(o.ControlPlaneUrl) {
-		return nil, false
-	}
-	return o.ControlPlaneUrl, true
-}
-
-// HasControlPlaneUrl returns a boolean if a field has been set.
-func (o *GatewayResponse) HasControlPlaneUrl() bool {
-	if o != nil && !IsNil(o.ControlPlaneUrl) {
-		return true
-	}
-
-	return false
-}
-
-// SetControlPlaneUrl gets a reference to the given string and assigns it to the ControlPlaneUrl field.
-func (o *GatewayResponse) SetControlPlaneUrl(v string) {
-	o.ControlPlaneUrl = &v
-}
-
 // GetVhost returns the Vhost field value
 func (o *GatewayResponse) GetVhost() string {
 	if o == nil {
@@ -333,38 +295,6 @@ func (o *GatewayResponse) SetStatus(v GatewayStatus) {
 	o.Status = v
 }
 
-// GetAdapterConfig returns the AdapterConfig field value if set, zero value otherwise.
-func (o *GatewayResponse) GetAdapterConfig() map[string]interface{} {
-	if o == nil || IsNil(o.AdapterConfig) {
-		var ret map[string]interface{}
-		return ret
-	}
-	return o.AdapterConfig
-}
-
-// GetAdapterConfigOk returns a tuple with the AdapterConfig field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *GatewayResponse) GetAdapterConfigOk() (map[string]interface{}, bool) {
-	if o == nil || IsNil(o.AdapterConfig) {
-		return map[string]interface{}{}, false
-	}
-	return o.AdapterConfig, true
-}
-
-// HasAdapterConfig returns a boolean if a field has been set.
-func (o *GatewayResponse) HasAdapterConfig() bool {
-	if o != nil && !IsNil(o.AdapterConfig) {
-		return true
-	}
-
-	return false
-}
-
-// SetAdapterConfig gets a reference to the given map[string]interface{} and assigns it to the AdapterConfig field.
-func (o *GatewayResponse) SetAdapterConfig(v map[string]interface{}) {
-	o.AdapterConfig = v
-}
-
 // GetCreatedAt returns the CreatedAt field value
 func (o *GatewayResponse) GetCreatedAt() time.Time {
 	if o == nil {
@@ -445,38 +375,6 @@ func (o *GatewayResponse) SetEnvironments(v []GatewayEnvironmentResponse) {
 	o.Environments = v
 }
 
-// GetApiKey returns the ApiKey field value if set, zero value otherwise.
-func (o *GatewayResponse) GetApiKey() string {
-	if o == nil || IsNil(o.ApiKey) {
-		var ret string
-		return ret
-	}
-	return *o.ApiKey
-}
-
-// GetApiKeyOk returns a tuple with the ApiKey field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *GatewayResponse) GetApiKeyOk() (*string, bool) {
-	if o == nil || IsNil(o.ApiKey) {
-		return nil, false
-	}
-	return o.ApiKey, true
-}
-
-// HasApiKey returns a boolean if a field has been set.
-func (o *GatewayResponse) HasApiKey() bool {
-	if o != nil && !IsNil(o.ApiKey) {
-		return true
-	}
-
-	return false
-}
-
-// SetApiKey gets a reference to the given string and assigns it to the ApiKey field.
-func (o *GatewayResponse) SetApiKey(v string) {
-	o.ApiKey = &v
-}
-
 func (o GatewayResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -492,25 +390,16 @@ func (o GatewayResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["name"] = o.Name
 	toSerialize["displayName"] = o.DisplayName
 	toSerialize["gatewayType"] = o.GatewayType
-	if !IsNil(o.ControlPlaneUrl) {
-		toSerialize["controlPlaneUrl"] = o.ControlPlaneUrl
-	}
 	toSerialize["vhost"] = o.Vhost
 	if !IsNil(o.Region) {
 		toSerialize["region"] = o.Region
 	}
 	toSerialize["isCritical"] = o.IsCritical
 	toSerialize["status"] = o.Status
-	if !IsNil(o.AdapterConfig) {
-		toSerialize["adapterConfig"] = o.AdapterConfig
-	}
 	toSerialize["createdAt"] = o.CreatedAt
 	toSerialize["updatedAt"] = o.UpdatedAt
 	if !IsNil(o.Environments) {
 		toSerialize["environments"] = o.Environments
-	}
-	if !IsNil(o.ApiKey) {
-		toSerialize["apiKey"] = o.ApiKey
 	}
 	return toSerialize, nil
 }

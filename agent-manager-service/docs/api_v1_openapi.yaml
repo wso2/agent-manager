@@ -4900,40 +4900,6 @@ components:
         - ERROR: Gateway has encountered an error
       example: ACTIVE
 
-    GatewayCredentials:
-      type: object
-      description: |
-        Authentication credentials for gateway access.
-
-        **Security:**
-        - At least one credential type should be provided
-        - Credentials are encrypted before storage
-        - Never returned in API responses
-        - Re-encrypted when updated
-
-        **Supported Credential Types:**
-        - Basic auth: username + password
-        - API key: apiKey
-        - Bearer token: token
-      properties:
-        username:
-          type: string
-          description: Basic authentication username
-          example: admin
-        password:
-          type: string
-          description: Basic authentication password
-          format: password
-          example: secure-password-123
-        apiKey:
-          type: string
-          description: API key for authentication
-          example: sk-1234567890abcdef
-        token:
-          type: string
-          description: Bearer token for authentication
-          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-
     GatewayResponse:
       type: object
       required:
@@ -4969,11 +4935,6 @@ components:
           example: Production AI Gateway
         gatewayType:
           $ref: '#/components/schemas/GatewayType'
-        controlPlaneUrl:
-          type: string
-          format: uri
-          description: URL of the gateway's control plane (if applicable)
-          example: https://gateway-control.example.com
         vhost:
           type: string
           description: Virtual host for the gateway
@@ -4989,14 +4950,6 @@ components:
           example: true
         status:
           $ref: '#/components/schemas/GatewayStatus'
-        adapterConfig:
-          type: object
-          description: Adapter-specific configuration (structure varies by adapter type)
-          additionalProperties: true
-          example:
-            apiEndpoint: https://gateway.example.com/api
-            timeout: 30s
-            retryCount: 3
         createdAt:
           type: string
           format: date-time
@@ -5012,10 +4965,6 @@ components:
           description: List of environments mapped to this gateway
           items:
             $ref: '#/components/schemas/GatewayEnvironmentResponse'
-        apiKey:
-          type: string
-          description: API key for the gateway
-          example: sk-1234567890abcdef
 
     GatewayTokenResponse:
       type: object
@@ -5086,16 +5035,6 @@ components:
           description: Flag indicating if this is a critical production gateway
           default: false
           example: true
-        adapterConfig:
-          type: object
-          description: Adapter-specific configuration (structure varies by adapter type)
-          additionalProperties: true
-          example:
-            apiEndpoint: https://gateway.example.com/api
-            timeout: 30s
-            retryCount: 3
-        credentials:
-          $ref: '#/components/schemas/GatewayCredentials'
         environmentIds:
           type: array
           description: List of environment UUIDs to assign the gateway to during creation
@@ -5122,15 +5061,6 @@ components:
           example: false
         status:
           $ref: '#/components/schemas/GatewayStatus'
-        adapterConfig:
-          type: object
-          description: Updated adapter configuration
-          additionalProperties: true
-          example:
-            apiEndpoint: https://gateway-new.example.com/api
-            timeout: 60s
-        credentials:
-          $ref: '#/components/schemas/GatewayCredentials'
 
     GatewayListResponse:
       type: object

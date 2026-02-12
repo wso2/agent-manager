@@ -106,7 +106,6 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		Vhost:             req.Vhost,
 		FunctionalityType: convertSpecGatewayTypeToFunctionalityType(req.GatewayType),
 		IsCritical:        req.IsCritical,
-		Properties:        &req.AdapterConfig,
 	}
 
 	// Create gateway in API Platform
@@ -220,7 +219,6 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 	clientReq := apiplatformclient.UpdateGatewayRequest{
 		DisplayName: req.DisplayName,
 		IsCritical:  req.IsCritical,
-		Properties:  &req.AdapterConfig,
 	}
 
 	// Update in API Platform
@@ -510,10 +508,6 @@ func convertAPIPlatformGatewayToSpecResponse(gw *apiplatformclient.GatewayRespon
 		Status:           convertAPIPlatformStatusToGatewayStatus(gw.IsActive),
 		CreatedAt:        gw.CreatedAt,
 		UpdatedAt:        gw.UpdatedAt,
-	}
-
-	if len(gw.Properties) > 0 {
-		response.AdapterConfig = gw.Properties
 	}
 
 	// Convert environments

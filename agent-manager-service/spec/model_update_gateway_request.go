@@ -24,9 +24,6 @@ type UpdateGatewayRequest struct {
 	// Updated critical flag
 	IsCritical *bool          `json:"isCritical,omitempty"`
 	Status     *GatewayStatus `json:"status,omitempty"`
-	// Updated adapter configuration
-	AdapterConfig map[string]interface{} `json:"adapterConfig,omitempty"`
-	Credentials   *GatewayCredentials    `json:"credentials,omitempty"`
 }
 
 // NewUpdateGatewayRequest instantiates a new UpdateGatewayRequest object
@@ -142,70 +139,6 @@ func (o *UpdateGatewayRequest) SetStatus(v GatewayStatus) {
 	o.Status = &v
 }
 
-// GetAdapterConfig returns the AdapterConfig field value if set, zero value otherwise.
-func (o *UpdateGatewayRequest) GetAdapterConfig() map[string]interface{} {
-	if o == nil || IsNil(o.AdapterConfig) {
-		var ret map[string]interface{}
-		return ret
-	}
-	return o.AdapterConfig
-}
-
-// GetAdapterConfigOk returns a tuple with the AdapterConfig field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *UpdateGatewayRequest) GetAdapterConfigOk() (map[string]interface{}, bool) {
-	if o == nil || IsNil(o.AdapterConfig) {
-		return map[string]interface{}{}, false
-	}
-	return o.AdapterConfig, true
-}
-
-// HasAdapterConfig returns a boolean if a field has been set.
-func (o *UpdateGatewayRequest) HasAdapterConfig() bool {
-	if o != nil && !IsNil(o.AdapterConfig) {
-		return true
-	}
-
-	return false
-}
-
-// SetAdapterConfig gets a reference to the given map[string]interface{} and assigns it to the AdapterConfig field.
-func (o *UpdateGatewayRequest) SetAdapterConfig(v map[string]interface{}) {
-	o.AdapterConfig = v
-}
-
-// GetCredentials returns the Credentials field value if set, zero value otherwise.
-func (o *UpdateGatewayRequest) GetCredentials() GatewayCredentials {
-	if o == nil || IsNil(o.Credentials) {
-		var ret GatewayCredentials
-		return ret
-	}
-	return *o.Credentials
-}
-
-// GetCredentialsOk returns a tuple with the Credentials field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *UpdateGatewayRequest) GetCredentialsOk() (*GatewayCredentials, bool) {
-	if o == nil || IsNil(o.Credentials) {
-		return nil, false
-	}
-	return o.Credentials, true
-}
-
-// HasCredentials returns a boolean if a field has been set.
-func (o *UpdateGatewayRequest) HasCredentials() bool {
-	if o != nil && !IsNil(o.Credentials) {
-		return true
-	}
-
-	return false
-}
-
-// SetCredentials gets a reference to the given GatewayCredentials and assigns it to the Credentials field.
-func (o *UpdateGatewayRequest) SetCredentials(v GatewayCredentials) {
-	o.Credentials = &v
-}
-
 func (o UpdateGatewayRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -224,12 +157,6 @@ func (o UpdateGatewayRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Status) {
 		toSerialize["status"] = o.Status
-	}
-	if !IsNil(o.AdapterConfig) {
-		toSerialize["adapterConfig"] = o.AdapterConfig
-	}
-	if !IsNil(o.Credentials) {
-		toSerialize["credentials"] = o.Credentials
 	}
 	return toSerialize, nil
 }
