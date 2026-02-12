@@ -53,6 +53,32 @@ export interface RuntimeConfigurationWithoutEnv {
   runCommand?: string;
 }
 
+export interface BuildpackConfig {
+  language: string;
+  languageVersion?: string;
+  runCommand?: string;
+}
+
+export interface DockerConfig {
+  dockerfilePath: string;
+}
+
+export interface BuildpackBuild {
+  type: 'buildpack';
+  buildpack: BuildpackConfig;
+}
+
+export interface DockerBuild {
+  type: 'docker';
+  docker: DockerConfig;
+}
+
+export type Build = BuildpackBuild | DockerBuild;
+
+export interface Configurations {
+  env?: EnvironmentVariable[];
+}
+
 export interface EndpointSchema {
   content: string;
 }

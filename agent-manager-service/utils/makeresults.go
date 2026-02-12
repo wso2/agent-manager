@@ -65,13 +65,7 @@ func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentR
 			SubType: &component.Type.SubType,
 		},
 		InputInterface: convertToInputInterface(component.InputInterface),
-	}
-	if component.RuntimeConfigs != nil {
-		response.RuntimeConfigs = &spec.RuntimeConfiguration{
-			Language:        component.RuntimeConfigs.Language,
-			LanguageVersion: &component.RuntimeConfigs.LanguageVersion,
-			RunCommand:      &component.RuntimeConfigs.RunCommand,
-		}
+		Build:          convertToBuild(component.Build),
 	}
 	return response
 }
@@ -186,6 +180,36 @@ func convertToInputInterface(input *models.InputInterface) *spec.InputInterface 
 	}
 
 	return result
+}
+
+func convertToBuild(build *models.Build) *spec.Build {
+	if build == nil {
+		return nil
+	}
+
+	if build.Buildpack != nil {
+		return &spec.Build{
+			BuildpackBuild: &spec.BuildpackBuild{
+				Type: build.Type,
+				Buildpack: spec.BuildpackConfig{
+					Language:        build.Buildpack.Language,
+					LanguageVersion: &build.Buildpack.LanguageVersion,
+					RunCommand:      &build.Buildpack.RunCommand,
+				},
+			},
+		}
+	} else if build.Docker != nil {
+		return &spec.Build{
+			DockerBuild: &spec.DockerBuild{
+				Type: build.Type,
+				Docker: spec.DockerConfig{
+					DockerfilePath: build.Docker.DockerfilePath,
+				},
+			},
+		}
+	}
+
+	return nil
 }
 
 func ConvertToDeploymentDetailsResponse(deploymentDetails []*models.DeploymentResponse) map[string]spec.DeploymentDetailsResponse {

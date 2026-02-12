@@ -55,7 +55,8 @@ type CreateComponentRequest struct {
 	ProvisioningType ProvisioningType
 	Repository       *RepositoryConfig // nil for external agents
 	AgentType        AgentTypeConfig
-	RuntimeConfigs   *RuntimeConfigs       // nil for external agents
+	Build            *BuildConfig          // nil for external agents
+	Configurations   *Configurations       // nil for external agents or if no env vars
 	InputInterface   *InputInterfaceConfig // nil unless custom-api
 }
 
@@ -72,12 +73,28 @@ type AgentTypeConfig struct {
 	SubType string
 }
 
-// RuntimeConfigs contains runtime configuration for internal agents
-type RuntimeConfigs struct {
+// BuildConfig contains the build configuration (buildpack or docker)
+type BuildConfig struct {
+	Type      string           // "buildpack" or "docker"
+	Buildpack *BuildpackConfig // non-nil if Type is "buildpack"
+	Docker    *DockerConfig    // non-nil if Type is "docker"
+}
+
+// BuildpackConfig contains buildpack-specific configuration
+type BuildpackConfig struct {
 	Language        string
 	LanguageVersion string
 	RunCommand      string
-	Env             []EnvVar
+}
+
+// DockerConfig contains docker-specific configuration
+type DockerConfig struct {
+	DockerfilePath string
+}
+
+// Configurations contains environment variables for runtime
+type Configurations struct {
+	Env []EnvVar
 }
 
 // InputInterfaceConfig contains the endpoint configuration for custom-api agents
@@ -97,7 +114,7 @@ type UpdateComponentBasicInfoRequest struct {
 // UpdateComponentBuildParametersRequest contains data for updating build parameters of a component
 type UpdateComponentBuildParametersRequest struct {
 	Repository     *RepositoryConfig     // nil if no change
-	RuntimeConfigs *RuntimeConfigs       // nil if no change
+	Build          *BuildConfig          // nil if no change
 	InputInterface *InputInterfaceConfig // nil if no change
 }
 

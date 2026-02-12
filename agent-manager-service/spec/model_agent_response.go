@@ -27,11 +27,12 @@ type AgentResponse struct {
 	CreatedAt   time.Time `json:"createdAt"`
 	ProjectName string    `json:"projectName"`
 	// Current status of the agent
-	Status         *string               `json:"status,omitempty"`
-	Provisioning   Provisioning          `json:"provisioning"`
-	AgentType      AgentType             `json:"agentType"`
-	RuntimeConfigs *RuntimeConfiguration `json:"runtimeConfigs,omitempty"`
-	InputInterface *InputInterface       `json:"inputInterface,omitempty"`
+	Status         *string         `json:"status,omitempty"`
+	Provisioning   Provisioning    `json:"provisioning"`
+	AgentType      AgentType       `json:"agentType"`
+	Configurations *Configurations `json:"configurations,omitempty"`
+	InputInterface *InputInterface `json:"inputInterface,omitempty"`
+	Build          *Build          `json:"build,omitempty"`
 }
 
 // NewAgentResponse instantiates a new AgentResponse object
@@ -283,36 +284,36 @@ func (o *AgentResponse) SetAgentType(v AgentType) {
 	o.AgentType = v
 }
 
-// GetRuntimeConfigs returns the RuntimeConfigs field value if set, zero value otherwise.
-func (o *AgentResponse) GetRuntimeConfigs() RuntimeConfiguration {
-	if o == nil || IsNil(o.RuntimeConfigs) {
-		var ret RuntimeConfiguration
+// GetConfigurations returns the Configurations field value if set, zero value otherwise.
+func (o *AgentResponse) GetConfigurations() Configurations {
+	if o == nil || IsNil(o.Configurations) {
+		var ret Configurations
 		return ret
 	}
-	return *o.RuntimeConfigs
+	return *o.Configurations
 }
 
-// GetRuntimeConfigsOk returns a tuple with the RuntimeConfigs field value if set, nil otherwise
+// GetConfigurationsOk returns a tuple with the Configurations field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *AgentResponse) GetRuntimeConfigsOk() (*RuntimeConfiguration, bool) {
-	if o == nil || IsNil(o.RuntimeConfigs) {
+func (o *AgentResponse) GetConfigurationsOk() (*Configurations, bool) {
+	if o == nil || IsNil(o.Configurations) {
 		return nil, false
 	}
-	return o.RuntimeConfigs, true
+	return o.Configurations, true
 }
 
-// HasRuntimeConfigs returns a boolean if a field has been set.
-func (o *AgentResponse) HasRuntimeConfigs() bool {
-	if o != nil && !IsNil(o.RuntimeConfigs) {
+// HasConfigurations returns a boolean if a field has been set.
+func (o *AgentResponse) HasConfigurations() bool {
+	if o != nil && !IsNil(o.Configurations) {
 		return true
 	}
 
 	return false
 }
 
-// SetRuntimeConfigs gets a reference to the given RuntimeConfiguration and assigns it to the RuntimeConfigs field.
-func (o *AgentResponse) SetRuntimeConfigs(v RuntimeConfiguration) {
-	o.RuntimeConfigs = &v
+// SetConfigurations gets a reference to the given Configurations and assigns it to the Configurations field.
+func (o *AgentResponse) SetConfigurations(v Configurations) {
+	o.Configurations = &v
 }
 
 // GetInputInterface returns the InputInterface field value if set, zero value otherwise.
@@ -347,6 +348,38 @@ func (o *AgentResponse) SetInputInterface(v InputInterface) {
 	o.InputInterface = &v
 }
 
+// GetBuild returns the Build field value if set, zero value otherwise.
+func (o *AgentResponse) GetBuild() Build {
+	if o == nil || IsNil(o.Build) {
+		var ret Build
+		return ret
+	}
+	return *o.Build
+}
+
+// GetBuildOk returns a tuple with the Build field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *AgentResponse) GetBuildOk() (*Build, bool) {
+	if o == nil || IsNil(o.Build) {
+		return nil, false
+	}
+	return o.Build, true
+}
+
+// HasBuild returns a boolean if a field has been set.
+func (o *AgentResponse) HasBuild() bool {
+	if o != nil && !IsNil(o.Build) {
+		return true
+	}
+
+	return false
+}
+
+// SetBuild gets a reference to the given Build and assigns it to the Build field.
+func (o *AgentResponse) SetBuild(v Build) {
+	o.Build = &v
+}
+
 func (o AgentResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -368,11 +401,14 @@ func (o AgentResponse) ToMap() (map[string]interface{}, error) {
 	}
 	toSerialize["provisioning"] = o.Provisioning
 	toSerialize["agentType"] = o.AgentType
-	if !IsNil(o.RuntimeConfigs) {
-		toSerialize["runtimeConfigs"] = o.RuntimeConfigs
+	if !IsNil(o.Configurations) {
+		toSerialize["configurations"] = o.Configurations
 	}
 	if !IsNil(o.InputInterface) {
 		toSerialize["inputInterface"] = o.InputInterface
+	}
+	if !IsNil(o.Build) {
+		toSerialize["build"] = o.Build
 	}
 	return toSerialize, nil
 }

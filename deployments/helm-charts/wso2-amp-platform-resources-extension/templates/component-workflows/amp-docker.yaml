@@ -1,0 +1,71 @@
+apiVersion: openchoreo.dev/v1alpha1
+kind: ComponentWorkflow
+metadata:
+  name: amp-docker
+  namespace: default
+  annotations:
+    openchoreo.dev/description: "Docker build workflow for containerized builds using Dockerfile"
+spec:
+  schema:
+    types:
+      Endpoint:
+        name: "string | description='Endpoint name'"
+        port: "integer | description='Port number'"
+        type: "string | description='Endpoint type (e.g., HTTP, gRPC)' | default='HTTP'"
+        schemaType: "string | description='Schema type (e.g., REST)' | default='REST'"
+        schemaFilePath: "string | description='Path to schema file relative to app path (optional)' | default=''"
+        schemaContent: "string | description='Inline schema content (optional)' | default=''"
+      EnvironmentVariable:
+        name: "string | description='Environment variable name'"
+        value: "string | description='Environment variable value'"
+
+    systemParameters:
+      repository:
+        url: string | description="Git repository URL"
+        secretRef: string | description="Secret reference name for Git credentials"
+        revision:
+          branch: string | default=main description="Git branch to checkout"
+          commit: string | description="Git commit SHA or reference (optional, defaults to latest)"
+        appPath: string | default=. description="Path to the application directory within the repository"
+
+    parameters:
+      dockerConfigs:
+        dockerfilePath: string | default=./Dockerfile description="Path to the Dockerfile relative to the repository root"
+      endpoints: "[]Endpoint | description='List of endpoints exposed'"
+      environmentVariables: "[]EnvironmentVariable | description='List of environment variables'"
+
+  runTemplate:
+    apiVersion: argoproj.io/v1alpha1
+    kind: Workflow
+    metadata:
+      name: ${metadata.workflowRunName}
+      namespace: openchoreo-ci-${metadata.namespaceName}
+    spec:
+      arguments:
+        parameters:
+          - name: component-name
+            value: ${metadata.componentName}
+          - name: project-name
+            value: ${metadata.projectName}
+          - name: git-repo
+            value: ${systemParameters.repository.url}
+          - name: branch
+            value: ${systemParameters.repository.revision.branch}
+          - name: commit
+            value: ${systemParameters.repository.revision.commit}
+          - name: app-path
+            value: ${systemParameters.repository.appPath}
+          - name: dockerfile-path
+            value: ${parameters.dockerConfigs.dockerfilePath}
+          - name: image-name
+            value: ${metadata.workflowRunName}-image
+          - name: image-tag
+            value: v1
+          - name: endpoints
+            value: ${parameters.endpoints}
+          - name: environment-variables
+            value: ${parameters.environmentVariables}
+      serviceAccountName: workflow-sa
+      workflowTemplateRef:
+        clusterScope: true
+        name: amp-docker

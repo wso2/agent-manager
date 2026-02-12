@@ -47,12 +47,22 @@ const (
 )
 
 // -----------------------------------------------------------------------------
+// Build types
+// -----------------------------------------------------------------------------
+
+const (
+	BuildTypeDocker    = "docker"
+	BuildTypeBuildpack = "buildpack"
+)
+
+// -----------------------------------------------------------------------------
 // Workflow names
 // -----------------------------------------------------------------------------
 
 const (
 	WorkflowNameGoogleCloudBuildpacks = "amp-google-cloud-buildpacks"
 	WorkflowNameBallerinaBuilpack     = "amp-ballerina-buildpack"
+	WorkflowNameDocker                = "amp-docker"
 )
 
 // -----------------------------------------------------------------------------
@@ -79,6 +89,15 @@ const (
 const (
 	TraceAttributeKeyEnvironment = "openchoreo.dev/environment-uid"
 	TraceAttributeKeyComponent   = "openchoreo.dev/component-uid"
+)
+
+// -----------------------------------------------------------------------------
+// System environment variable names for docker-based agents
+// -----------------------------------------------------------------------------
+
+const (
+	EnvVarOTELEndpoint = "AMP_OTEL_ENDPOINT"
+	EnvVarAgentAPIKey  = "AMP_AGENT_API_KEY"
 )
 
 // -----------------------------------------------------------------------------

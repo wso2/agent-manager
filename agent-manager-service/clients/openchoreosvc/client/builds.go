@@ -195,22 +195,33 @@ func buildUpdatedWorkflowParametersFromCR(componentCR map[string]interface{}, ex
 		return nil, fmt.Errorf("component name not found in metadata")
 	}
 
-	// Update buildpack configs if RuntimeConfigs provided
-	if req.RuntimeConfigs != nil {
-		var buildpackConfigs map[string]any
-		if isGoogleBuildpack(req.RuntimeConfigs.Language) {
-			buildpackConfigs = map[string]any{
-				"language":           req.RuntimeConfigs.Language,
-				"languageVersion":    req.RuntimeConfigs.LanguageVersion,
-				"googleEntryPoint":   req.RuntimeConfigs.RunCommand,
-				"languageVersionKey": getLanguageVersionEnvVariable(req.RuntimeConfigs.Language),
+	// Update build configs based on build type
+	if req.Build != nil {
+		if req.Build.Buildpack != nil {
+			// Update buildpack configs
+			var buildpackConfigs map[string]any
+			if isGoogleBuildpack(req.Build.Buildpack.Language) {
+				buildpackConfigs = map[string]any{
+					"language":           req.Build.Buildpack.Language,
+					"languageVersion":    req.Build.Buildpack.LanguageVersion,
+					"googleEntryPoint":   req.Build.Buildpack.RunCommand,
+					"languageVersionKey": getLanguageVersionEnvVariable(req.Build.Buildpack.Language),
+				}
+			} else {
+				buildpackConfigs = map[string]any{
+					"language": req.Build.Buildpack.Language,
+				}
 			}
-		} else {
-			buildpackConfigs = map[string]any{
-				"language": req.RuntimeConfigs.Language,
+			existingParams["buildpackConfigs"] = buildpackConfigs
+			delete(existingParams, "dockerConfigs") // Clean up docker configs when build type is Buildpack
+		} else if req.Build.Docker != nil {
+			// Update docker configs
+			dockerConfigs := map[string]any{
+				"dockerfilePath": normalizePath(req.Build.Docker.DockerfilePath),
 			}
+			existingParams["dockerConfigs"] = dockerConfigs
+			delete(existingParams, "buildpackConfigs") // Clean up buildpack configs when build type is Docker
 		}
-		existingParams["buildpackConfigs"] = buildpackConfigs
 	}
 
 	// Update endpoints if InputInterface provided
