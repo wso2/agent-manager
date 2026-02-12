@@ -35,6 +35,7 @@ def clean_environment() -> Generator[None, None, None]:
     amp_vars = [
         "AMP_OTEL_ENDPOINT",
         "AMP_AGENT_API_KEY",
+        "AMP_AGENT_VERSION",
     ]
 
     for var in amp_vars:
