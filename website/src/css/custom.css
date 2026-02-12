@@ -164,110 +164,196 @@
   --docsearch-logo-color: #ff7a18;
 }
 
-.DocSearch-AskAI {
+/* LIGHT MODE - Light theme for search */
+[data-theme='light'] .DocSearch-AskAI {
+  background: #f5f5f5 !important;
+  border: 1px solid #ff7a18;
+}
+
+[data-theme='light'] .DocSearch-Button {
+  background: #ffffff !important;
+  border: 1px solid #e0e0e0 !important;
+  color: #000000 !important;
+}
+
+[data-theme='light'] .DocSearch-Button:hover,
+[data-theme='light'] .DocSearch-Button:focus,
+[data-theme='light'] .DocSearch-Button:active {
+  background: #f5f5f5 !important;
+  border-color: #ff7a18 !important;
+  box-shadow: none !important;
+}
+
+[data-theme='light'] .DocSearch-Form {
+  background: #ffffff !important;
+  border: 1px solid #e0e0e0 !important;
+  box-shadow: none !important;
+}
+
+[data-theme='light'] .DocSearch-Input {
+  background: transparent !important;
+  color: #000000 !important;
+}
+
+[data-theme='light'] .DocSearch-Input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+[data-theme='light'] .DocSearch-Hit[aria-selected="true"] a,
+[data-theme='light'] .DocSearch-Hit--active {
+  background: #f0f0f0 !important;
+  color: #000000 !important;
+}
+
+[data-theme='light'] .DocSearch-AskAI,
+[data-theme='light'] .DocSearch-StartScreen .DocSearch-Help,
+[data-theme='light'] [class*="DocSearch"][class*="AskAI"] {
+  background: #f5f5f5 !important;
+  background-color: #f5f5f5 !important;
+}
+
+[data-theme='light'] .DocSearch-Button-Key {
+  background: #f0f0f0 !important;
+  border-color: #d0d0d0 !important;
+  color: #ff7a18 !important;
+  box-shadow: none !important;
+}
+
+[data-theme='light'] .DocSearch-Button-Placeholder {
+  color: #666666 !important;
+}
+
+[data-theme='light'] .DocSearch-Button:hover .DocSearch-Button-Key,
+[data-theme='light'] .DocSearch-Button:focus .DocSearch-Button-Key {
+  background: #e8e8e8 !important;
+  border-color: #ff7a18 !important;
+}
+
+[data-theme='light'] .DocSearch-Commands-Key,
+[data-theme='light'] .DocSearch-Footer button,
+[data-theme='light'] .DocSearch-Footer kbd {
+  background: #f0f0f0 !important;
+  border-color: #d0d0d0 !important;
+  color: #000000 !important;
+}
+
+[data-theme='light'] [class*="DocSearch"] kbd {
+  background: #f0f0f0 !important;
+  color: #000000 !important;
+  border: 1px solid #d0d0d0 !important;
+  box-shadow: none !important;
+}
+
+[data-theme='light'] .DocSearch-Footer {
+  background: #ffffff !important;
+  border-top: 1px solid #e0e0e0 !important;
+}
+
+[data-theme='light'] .DocSearch-StartScreen,
+[data-theme='light'] .DocSearch-NoResults {
+  background: transparent !important;
+}
+
+[data-theme='light'] .DocSearch-NoResults .DocSearch-StartScreen-Icon,
+[data-theme='light'] .DocSearch-NoResults svg {
+  color: #ff7a18 !important;
+  stroke: #ff7a18 !important;
+}
+
+/* DARK MODE - Dark theme for search */
+[data-theme='dark'] .DocSearch-AskAI {
   background: #0e0e0e !important;
   border: 1px solid #ff7a18;
 }
 
-/* Main search button - remove blue background */
-.DocSearch-Button {
+[data-theme='dark'] .DocSearch-Button {
   background: #1a1a1a !important;
   border: 1px solid #2a2a2a !important;
+  color: #ffffff !important;
 }
 
-.DocSearch-Button:hover,
-.DocSearch-Button:focus,
-.DocSearch-Button:active {
+[data-theme='dark'] .DocSearch-Button:hover,
+[data-theme='dark'] .DocSearch-Button:focus,
+[data-theme='dark'] .DocSearch-Button:active {
   background: #2a2a2a !important;
   border-color: #ff7a18 !important;
   box-shadow: none !important;
 }
 
-/* Search input box inside modal - remove blue */
-.DocSearch-Form {
+[data-theme='dark'] .DocSearch-Form {
   background: #1a1a1a !important;
   border: 1px solid #2a2a2a !important;
   box-shadow: none !important;
 }
 
-.DocSearch-Input {
+[data-theme='dark'] .DocSearch-Input {
   background: transparent !important;
-  color: #e3e3e3 !important;
+  color: #ffffff !important;
 }
 
-.DocSearch-Input:focus {
+[data-theme='dark'] .DocSearch-Input:focus {
   outline: none !important;
   box-shadow: none !important;
 }
 
-/* Search results - selected item */
-.DocSearch-Hit[aria-selected="true"] a,
-.DocSearch-Hit--active {
+[data-theme='dark'] .DocSearch-Hit[aria-selected="true"] a,
+[data-theme='dark'] .DocSearch-Hit--active {
   background: #2a2a2a !important;
+  color: #ffffff !important;
 }
 
-
-/* Ask AI section - remove blue background */
-.DocSearch-AskAI,
-.DocSearch-StartScreen .DocSearch-Help,
-[class*="DocSearch"][class*="AskAI"] {
+[data-theme='dark'] .DocSearch-AskAI,
+[data-theme='dark'] .DocSearch-StartScreen .DocSearch-Help,
+[data-theme='dark'] [class*="DocSearch"][class*="AskAI"] {
   background: #1a1a1a !important;
   background-color: #1a1a1a !important;
-
 }
 
-/* Override keyboard shortcut keys - remove blue, add orange theme */
-.DocSearch-Button-Key {
+[data-theme='dark'] .DocSearch-Button-Key {
   background: #2a2a2a !important;
   border-color: #ff7a18 !important;
   color: #ff7a18 !important;
   box-shadow: none !important;
 }
 
-/* Search button placeholder */
-.DocSearch-Button-Placeholder {
-  color: #e3e3e3 !important;
+[data-theme='dark'] .DocSearch-Button-Placeholder {
+  color: #b0b0b0 !important;
 }
 
-/* Remove any blue highlights or borders */
-.DocSearch-Button:hover .DocSearch-Button-Key,
-.DocSearch-Button:focus .DocSearch-Button-Key {
+[data-theme='dark'] .DocSearch-Button:hover .DocSearch-Button-Key,
+[data-theme='dark'] .DocSearch-Button:focus .DocSearch-Button-Key {
   background: #3a3a3a !important;
   border-color: #ff7a18 !important;
 }
 
-/* Footer buttons - remove blue/purple backgrounds */
-.DocSearch-Commands-Key,
-.DocSearch-Footer button,
-.DocSearch-Footer kbd {
+[data-theme='dark'] .DocSearch-Commands-Key,
+[data-theme='dark'] .DocSearch-Footer button,
+[data-theme='dark'] .DocSearch-Footer kbd {
   background: #2a2a2a !important;
   border-color: #3a3a3a !important;
-  color: #e3e3e3 !important;
+  color: #ffffff !important;
 }
 
-/* Navigation keys at bottom */
-[class*="DocSearch"] kbd {
+[data-theme='dark'] [class*="DocSearch"] kbd {
   background: #2a2a2a !important;
-  color: #e3e3e3 !important;
+  color: #ffffff !important;
   border: 1px solid #3a3a3a !important;
   box-shadow: none !important;
 }
 
-/* Remove blue from footer and command keys */
-.DocSearch-Footer {
+[data-theme='dark'] .DocSearch-Footer {
   background: #0f0f0f !important;
   border-top: 1px solid #2a2a2a !important;
 }
 
-/* Start screen - no blue */
-.DocSearch-StartScreen,
-.DocSearch-NoResults {
+[data-theme='dark'] .DocSearch-StartScreen,
+[data-theme='dark'] .DocSearch-NoResults {
   background: transparent !important;
 }
 
-/* Make search icon orange in no-results state */
-.DocSearch-NoResults .DocSearch-StartScreen-Icon,
-.DocSearch-NoResults svg {
+[data-theme='dark'] .DocSearch-NoResults .DocSearch-StartScreen-Icon,
+[data-theme='dark'] .DocSearch-NoResults svg {
   color: #ff7a18 !important;
   stroke: #ff7a18 !important;
 }
