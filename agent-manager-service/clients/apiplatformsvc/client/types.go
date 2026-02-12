@@ -83,3 +83,24 @@ type GatewayTokenResponse struct {
 	CreatedAt time.Time
 	ExpiresAt *time.Time
 }
+
+// -----------------------------------------------------------------------------
+// Organization Request/Response Types
+// -----------------------------------------------------------------------------
+
+// RegisterOrganizationRequest contains data for registering an organization
+type RegisterOrganizationRequest struct {
+	ID     string
+	Name   string
+	Handle string
+	Region string
+}
+
+// OrganizationResponse represents an organization response from API Platform
+type OrganizationResponse struct {
+	ID        string
+	Name      string
+	Handle    string
+	Region    string
+	CreatedAt time.Time
+}

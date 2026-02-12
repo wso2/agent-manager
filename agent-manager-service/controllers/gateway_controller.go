@@ -22,12 +22,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	apiplatformclient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/client"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
@@ -138,7 +140,7 @@ func (c *gatewayController) GetGateway(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	gatewayID := r.PathValue("gatewayID")
+	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
 	// Get gateway from API Platform
 	gateway, err := c.apiPlatformClient.GetGateway(ctx, gatewayID)
@@ -206,7 +208,7 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	gatewayID := r.PathValue("gatewayID")
+	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
 	var req spec.UpdateGatewayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -239,7 +241,7 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	gatewayID := r.PathValue("gatewayID")
+	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
 	// Delete from API Platform
 	if err := c.apiPlatformClient.DeleteGateway(ctx, gatewayID); err != nil {
@@ -251,7 +253,7 @@ func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request
 	// Delete environment mappings from DB
 	gwUUID, err := uuid.Parse(gatewayID)
 	if err == nil {
-		if err := c.db.Where("gateway_uuid = ?", gwUUID).Delete(&models.GatewayEnvironmentMapping{}).Error; err != nil {
+		if err := db.DB(ctx).Where("gateway_uuid = ?", gwUUID).Delete(&models.GatewayEnvironmentMapping{}).Error; err != nil {
 			log.Warn("DeleteGateway: failed to delete gateway-environment mappings", "error", err)
 		}
 	}
@@ -263,8 +265,8 @@ func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r 
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
-	gatewayID := r.PathValue("gatewayID")
-	envID := r.PathValue("envID")
+	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
+	envID := strings.TrimSpace(r.PathValue("envID"))
 
 	// Verify gateway exists in API Platform
 	if _, err := c.apiPlatformClient.GetGateway(ctx, gatewayID); err != nil {
@@ -286,8 +288,8 @@ func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r 
 func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	gatewayID := r.PathValue("gatewayID")
-	envID := r.PathValue("envID")
+	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
+	envID := strings.TrimSpace(r.PathValue("envID"))
 
 	gwUUID, err := uuid.Parse(gatewayID)
 	if err != nil {
@@ -304,7 +306,7 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 	}
 
 	// Delete the mapping from DB
-	result := c.db.Where("gateway_uuid = ? AND environment_uuid = ?", gwUUID, envUUID).
+	result := db.DB(ctx).Where("gateway_uuid = ? AND environment_uuid = ?", gwUUID, envUUID).
 		Delete(&models.GatewayEnvironmentMapping{})
 
 	if result.Error != nil {
@@ -324,7 +326,7 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	orgName := r.PathValue(utils.PathParamOrgName)
-	gatewayID := r.PathValue("gatewayID")
+	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
 	// Get environments from DB
 	environments := c.getGatewayEnvironmentsFromDB(ctx, orgName, gatewayID)
@@ -345,7 +347,7 @@ func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *htt
 func (c *gatewayController) CheckGatewayHealth(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	gatewayID := r.PathValue("gatewayID")
+	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
 	// Get gateway from API Platform to check if it exists
 	gateway, err := c.apiPlatformClient.GetGateway(ctx, gatewayID)
@@ -373,7 +375,7 @@ func (c *gatewayController) CheckGatewayHealth(w http.ResponseWriter, r *http.Re
 func (c *gatewayController) RotateGatewayToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	gatewayID := r.PathValue("gatewayID")
+	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
 	// Call API Platform to rotate the token
 	tokenResp, err := c.apiPlatformClient.RotateGatewayToken(ctx, gatewayID)
@@ -398,8 +400,8 @@ func (c *gatewayController) RotateGatewayToken(w http.ResponseWriter, r *http.Re
 func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	gatewayID := r.PathValue("gatewayID")
-	tokenID := r.PathValue("tokenID")
+	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
+	tokenID := strings.TrimSpace(r.PathValue("tokenID"))
 
 	// Call API Platform to revoke the token
 	err := c.apiPlatformClient.RevokeGatewayToken(ctx, gatewayID, tokenID)
@@ -430,7 +432,7 @@ func (c *gatewayController) assignGatewayToEnvironmentInDB(ctx context.Context, 
 
 	// Verify environment exists and belongs to organization
 	var env models.Environment
-	if err := c.db.Where("uuid = ? AND organization_name = ?", envUUID, orgName).First(&env).Error; err != nil {
+	if err := db.DB(ctx).Where("uuid = ? AND organization_name = ?", envUUID, orgName).First(&env).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return utils.ErrEnvironmentNotFound
 		}
@@ -439,7 +441,7 @@ func (c *gatewayController) assignGatewayToEnvironmentInDB(ctx context.Context, 
 
 	// Check if mapping already exists
 	var existing models.GatewayEnvironmentMapping
-	err = c.db.Where("gateway_uuid = ? AND environment_uuid = ?", gwUUID, envUUID).
+	err = db.DB(ctx).Where("gateway_uuid = ? AND environment_uuid = ?", gwUUID, envUUID).
 		First(&existing).Error
 
 	if err == nil {
@@ -458,7 +460,7 @@ func (c *gatewayController) assignGatewayToEnvironmentInDB(ctx context.Context, 
 		CreatedAt:       time.Now(),
 	}
 
-	if err := c.db.Create(mapping).Error; err != nil {
+	if err := db.DB(ctx).Create(mapping).Error; err != nil {
 		return fmt.Errorf("failed to create gateway-environment mapping: %w", err)
 	}
 
@@ -476,7 +478,7 @@ func (c *gatewayController) getGatewayEnvironmentsFromDB(ctx context.Context, or
 	}
 
 	var environments []models.Environment
-	err = c.db.
+	err = db.DB(ctx).
 		Joins("JOIN gateway_environment_mappings ON gateway_environment_mappings.environment_uuid = environments.uuid").
 		Where("gateway_environment_mappings.gateway_uuid = ? AND environments.organization_name = ?", gwUUID, orgName).
 		Find(&environments).Error
@@ -491,8 +493,9 @@ func (c *gatewayController) getGatewayEnvironmentsFromDB(ctx context.Context, or
 // Helper conversion functions
 
 func convertSpecGatewayTypeToFunctionalityType(gatewayType spec.GatewayType) apiplatformclient.FunctionalityType {
-	// For now, default to Regular
-	// Can be extended to map different gateway types
+	if spec.AI == gatewayType {
+		return apiplatformclient.FunctionalityTypeAI
+	}
 	return apiplatformclient.FunctionalityTypeRegular
 }
 

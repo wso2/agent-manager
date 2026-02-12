@@ -21,6 +21,7 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -48,6 +49,10 @@ type APIPlatformClient interface {
 	// Gateway Token Operations
 	RotateGatewayToken(ctx context.Context, gatewayID string) (*GatewayTokenResponse, error)
 	RevokeGatewayToken(ctx context.Context, gatewayID string, tokenID string) error
+
+	// Organization Operations
+	GetOrganization(ctx context.Context) (*OrganizationResponse, error)
+	RegisterOrganization(ctx context.Context, req RegisterOrganizationRequest) (*OrganizationResponse, error)
 }
 
 type apiPlatformClient struct {
@@ -64,8 +69,14 @@ func NewAPIPlatformClient(cfg *Config) (APIPlatformClient, error) {
 		return nil, fmt.Errorf("auth provider is required")
 	}
 
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
 	// Create the retryable HTTP client (uses defaults if RetryConfig is zero-value)
-	httpClient := requests.NewRetryableHTTPClient(&http.Client{}, cfg.RetryConfig)
+	httpClient := requests.NewRetryableHTTPClient(&http.Client{
+		Transport: tr,
+	}, cfg.RetryConfig)
 
 	// Create auth request editor
 	authEditor := func(ctx context.Context, req *http.Request) error {
@@ -285,4 +296,58 @@ func (c *apiPlatformClient) RevokeGatewayToken(ctx context.Context, gatewayID st
 	}
 
 	return nil
+}
+
+// GetOrganization retrieves the current organization from API Platform
+func (c *apiPlatformClient) GetOrganization(ctx context.Context) (*OrganizationResponse, error) {
+	slog.Debug("Getting organization via API Platform")
+
+	resp, err := c.genClient.GetOrganizationWithResponse(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get organization: %w", err)
+	}
+
+	if resp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{})
+	}
+
+	if resp.JSON200 == nil {
+		return nil, fmt.Errorf("empty response from get organization")
+	}
+
+	return convertFromGenOrganizationResponse(resp.JSON200), nil
+}
+
+// RegisterOrganization registers/creates a new organization in API Platform
+func (c *apiPlatformClient) RegisterOrganization(ctx context.Context, req RegisterOrganizationRequest) (*OrganizationResponse, error) {
+	slog.Debug("Registering organization via API Platform", "name", req.Name)
+
+	// Parse UUID
+	uuid, err := parseUUID(req.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid organization ID: %w", err)
+	}
+
+	// Convert to API Platform request type
+	apiReq := gen.RegisterOrganizationJSONRequestBody{
+		Id:     &uuid,
+		Name:   req.Name,
+		Handle: req.Handle,
+		Region: req.Region,
+	}
+
+	resp, err := c.genClient.RegisterOrganizationWithResponse(ctx, apiReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register organization: %w", err)
+	}
+
+	if resp.StatusCode() != http.StatusCreated && resp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{})
+	}
+
+	if resp.JSON201 == nil {
+		return nil, fmt.Errorf("empty response from register organization")
+	}
+
+	return convertFromGenOrganizationResponse(resp.JSON201), nil
 }

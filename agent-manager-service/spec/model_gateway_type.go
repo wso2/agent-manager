@@ -15,19 +15,19 @@ import (
 	"fmt"
 )
 
-// GatewayType Gateway type: - INGRESS: Handles incoming API traffic - EGRESS: Handles outgoing LLM/MCP traffic (used for AI agents)
+// GatewayType Gateway type: - REGULAR: Handles incoming API traffic - AI: Handles outgoing LLM/MCP traffic (used for AI agents)
 type GatewayType string
 
 // List of GatewayType
 const (
-	INGRESS GatewayType = "INGRESS"
-	EGRESS  GatewayType = "EGRESS"
+	AI      GatewayType = "AI"
+	REGULAR GatewayType = "REGULAR"
 )
 
 // All allowed values of GatewayType enum
 var AllowedGatewayTypeEnumValues = []GatewayType{
-	"INGRESS",
-	"EGRESS",
+	"AI",
+	"REGULAR",
 }
 
 func (v *GatewayType) UnmarshalJSON(src []byte) error {

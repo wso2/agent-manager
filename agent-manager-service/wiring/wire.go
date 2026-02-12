@@ -60,6 +60,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewRepositoryService,
 	services.NewEnvironmentService,
 	services.NewEnvironmentSyncer,
+	services.NewOrganizationSyncer,
 )
 
 var controllerProviderSet = wire.NewSet(
@@ -128,8 +129,12 @@ func ProvideAPIPlatformAuthProvider(cfg config.Config) apiplatformclient.AuthPro
 
 // ProvideAPIPlatformConfig extracts API Platform configuration from config
 func ProvideAPIPlatformConfig(cfg config.Config, authProvider apiplatformclient.AuthProvider) *apiplatformclient.Config {
+	baseUrl := ""
+	if cfg.APIPlatform.Enable {
+		baseUrl = cfg.APIPlatform.BaseURL
+	}
 	return &apiplatformclient.Config{
-		BaseURL:      cfg.APIPlatform.BaseURL,
+		BaseURL:      baseUrl,
 		AuthProvider: authProvider,
 	}
 }

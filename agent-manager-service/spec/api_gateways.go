@@ -549,8 +549,8 @@ RegisterGateway Register a new gateway
 Register a new AI gateway with the platform.
 
 **Gateway Types:**
-- INGRESS: Handles incoming API traffic
-- EGRESS: Handles outgoing LLM/MCP traffic (used for AI agents)
+- REGULAR: Handles incoming API traffic
+- AI: Handles outgoing LLM/MCP traffic (used for AI agents)
 
 **Security Note:**
 - Gateway credentials are encrypted before storage

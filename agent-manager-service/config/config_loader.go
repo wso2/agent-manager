@@ -169,6 +169,7 @@ func loadEnvs() {
 	// API Platform configuration
 	config.APIPlatform = APIPlatformConfig{
 		BaseURL: r.readOptionalString("API_PLATFORM_BASE_URL", ""),
+		Enable:  r.readOptionalBool("API_PLATFORM_ENABLED", false),
 	}
 
 	// Validate HTTP server configurations

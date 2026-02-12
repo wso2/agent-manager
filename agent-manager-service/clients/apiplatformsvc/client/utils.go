@@ -173,3 +173,28 @@ func parseUUID(s string) (openapi_types.UUID, error) {
 	}
 	return openapi_types.UUID(parsed), nil
 }
+
+// convertFromGenOrganizationResponse converts generated Organization to client OrganizationResponse type
+func convertFromGenOrganizationResponse(org *gen.Organization) *OrganizationResponse {
+	if org == nil {
+		return nil
+	}
+
+	result := &OrganizationResponse{
+		Name:   org.Name,
+		Handle: org.Handle,
+		Region: org.Region,
+	}
+
+	// Handle UUID
+	if org.Id != nil {
+		result.ID = org.Id.String()
+	}
+
+	// Handle timestamp
+	if org.CreatedAt != nil {
+		result.CreatedAt = *org.CreatedAt
+	}
+
+	return result
+}

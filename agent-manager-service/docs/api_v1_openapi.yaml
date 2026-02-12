@@ -1653,8 +1653,8 @@ paths:
           schema:
             type: string
             enum:
-              - INGRESS
-              - EGRESS
+              - AI
+              - REGULAR
         - name: status
           in: query
           description: Filter by gateway status
@@ -1704,8 +1704,8 @@ paths:
         Register a new AI gateway with the platform.
 
         **Gateway Types:**
-        - INGRESS: Handles incoming API traffic
-        - EGRESS: Handles outgoing LLM/MCP traffic (used for AI agents)
+        - REGULAR: Handles incoming API traffic
+        - AI: Handles outgoing LLM/MCP traffic (used for AI agents)
 
         **Security Note:**
         - Gateway credentials are encrypted before storage
@@ -4877,13 +4877,13 @@ components:
     GatewayType:
       type: string
       enum:
-        - INGRESS
-        - EGRESS
+        - AI
+        - REGULAR
       description: |
         Gateway type:
-        - INGRESS: Handles incoming API traffic
-        - EGRESS: Handles outgoing LLM/MCP traffic (used for AI agents)
-      example: EGRESS
+        - REGULAR: Handles incoming API traffic
+        - AI: Handles outgoing LLM/MCP traffic (used for AI agents)
+      example: AI
 
     GatewayStatus:
       type: string

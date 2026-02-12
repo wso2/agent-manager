@@ -25,8 +25,14 @@ import (
 //			GetGatewayFunc: func(ctx context.Context, gatewayID string) (*client.GatewayResponse, error) {
 //				panic("mock out the GetGateway method")
 //			},
+//			GetOrganizationFunc: func(ctx context.Context) (*client.OrganizationResponse, error) {
+//				panic("mock out the GetOrganization method")
+//			},
 //			ListGatewaysFunc: func(ctx context.Context) ([]*client.GatewayResponse, error) {
 //				panic("mock out the ListGateways method")
+//			},
+//			RegisterOrganizationFunc: func(ctx context.Context, req client.RegisterOrganizationRequest) (*client.OrganizationResponse, error) {
+//				panic("mock out the RegisterOrganization method")
 //			},
 //			RevokeGatewayTokenFunc: func(ctx context.Context, gatewayID string, tokenID string) error {
 //				panic("mock out the RevokeGatewayToken method")
@@ -53,8 +59,14 @@ type APIPlatformClientMock struct {
 	// GetGatewayFunc mocks the GetGateway method.
 	GetGatewayFunc func(ctx context.Context, gatewayID string) (*client.GatewayResponse, error)
 
+	// GetOrganizationFunc mocks the GetOrganization method.
+	GetOrganizationFunc func(ctx context.Context) (*client.OrganizationResponse, error)
+
 	// ListGatewaysFunc mocks the ListGateways method.
 	ListGatewaysFunc func(ctx context.Context) ([]*client.GatewayResponse, error)
+
+	// RegisterOrganizationFunc mocks the RegisterOrganization method.
+	RegisterOrganizationFunc func(ctx context.Context, req client.RegisterOrganizationRequest) (*client.OrganizationResponse, error)
 
 	// RevokeGatewayTokenFunc mocks the RevokeGatewayToken method.
 	RevokeGatewayTokenFunc func(ctx context.Context, gatewayID string, tokenID string) error
@@ -88,10 +100,22 @@ type APIPlatformClientMock struct {
 			// GatewayID is the gatewayID argument value.
 			GatewayID string
 		}
+		// GetOrganization holds details about calls to the GetOrganization method.
+		GetOrganization []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+		}
 		// ListGateways holds details about calls to the ListGateways method.
 		ListGateways []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
+		}
+		// RegisterOrganization holds details about calls to the RegisterOrganization method.
+		RegisterOrganization []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req client.RegisterOrganizationRequest
 		}
 		// RevokeGatewayToken holds details about calls to the RevokeGatewayToken method.
 		RevokeGatewayToken []struct {
@@ -119,13 +143,15 @@ type APIPlatformClientMock struct {
 			Req client.UpdateGatewayRequest
 		}
 	}
-	lockCreateGateway      sync.RWMutex
-	lockDeleteGateway      sync.RWMutex
-	lockGetGateway         sync.RWMutex
-	lockListGateways       sync.RWMutex
-	lockRevokeGatewayToken sync.RWMutex
-	lockRotateGatewayToken sync.RWMutex
-	lockUpdateGateway      sync.RWMutex
+	lockCreateGateway        sync.RWMutex
+	lockDeleteGateway        sync.RWMutex
+	lockGetGateway           sync.RWMutex
+	lockGetOrganization      sync.RWMutex
+	lockListGateways         sync.RWMutex
+	lockRegisterOrganization sync.RWMutex
+	lockRevokeGatewayToken   sync.RWMutex
+	lockRotateGatewayToken   sync.RWMutex
+	lockUpdateGateway        sync.RWMutex
 }
 
 // CreateGateway calls CreateGatewayFunc.
@@ -236,6 +262,38 @@ func (mock *APIPlatformClientMock) GetGatewayCalls() []struct {
 	return calls
 }
 
+// GetOrganization calls GetOrganizationFunc.
+func (mock *APIPlatformClientMock) GetOrganization(ctx context.Context) (*client.OrganizationResponse, error) {
+	if mock.GetOrganizationFunc == nil {
+		panic("APIPlatformClientMock.GetOrganizationFunc: method is nil but APIPlatformClient.GetOrganization was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+	}{
+		Ctx: ctx,
+	}
+	mock.lockGetOrganization.Lock()
+	mock.calls.GetOrganization = append(mock.calls.GetOrganization, callInfo)
+	mock.lockGetOrganization.Unlock()
+	return mock.GetOrganizationFunc(ctx)
+}
+
+// GetOrganizationCalls gets all the calls that were made to GetOrganization.
+// Check the length with:
+//
+//	len(mockedAPIPlatformClient.GetOrganizationCalls())
+func (mock *APIPlatformClientMock) GetOrganizationCalls() []struct {
+	Ctx context.Context
+} {
+	var calls []struct {
+		Ctx context.Context
+	}
+	mock.lockGetOrganization.RLock()
+	calls = mock.calls.GetOrganization
+	mock.lockGetOrganization.RUnlock()
+	return calls
+}
+
 // ListGateways calls ListGatewaysFunc.
 func (mock *APIPlatformClientMock) ListGateways(ctx context.Context) ([]*client.GatewayResponse, error) {
 	if mock.ListGatewaysFunc == nil {
@@ -265,6 +323,42 @@ func (mock *APIPlatformClientMock) ListGatewaysCalls() []struct {
 	mock.lockListGateways.RLock()
 	calls = mock.calls.ListGateways
 	mock.lockListGateways.RUnlock()
+	return calls
+}
+
+// RegisterOrganization calls RegisterOrganizationFunc.
+func (mock *APIPlatformClientMock) RegisterOrganization(ctx context.Context, req client.RegisterOrganizationRequest) (*client.OrganizationResponse, error) {
+	if mock.RegisterOrganizationFunc == nil {
+		panic("APIPlatformClientMock.RegisterOrganizationFunc: method is nil but APIPlatformClient.RegisterOrganization was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req client.RegisterOrganizationRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockRegisterOrganization.Lock()
+	mock.calls.RegisterOrganization = append(mock.calls.RegisterOrganization, callInfo)
+	mock.lockRegisterOrganization.Unlock()
+	return mock.RegisterOrganizationFunc(ctx, req)
+}
+
+// RegisterOrganizationCalls gets all the calls that were made to RegisterOrganization.
+// Check the length with:
+//
+//	len(mockedAPIPlatformClient.RegisterOrganizationCalls())
+func (mock *APIPlatformClientMock) RegisterOrganizationCalls() []struct {
+	Ctx context.Context
+	Req client.RegisterOrganizationRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req client.RegisterOrganizationRequest
+	}
+	mock.lockRegisterOrganization.RLock()
+	calls = mock.calls.RegisterOrganization
+	mock.lockRegisterOrganization.RUnlock()
 	return calls
 }
 

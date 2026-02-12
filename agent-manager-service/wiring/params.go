@@ -47,7 +47,8 @@ type AppParams struct {
 	GatewayController       controllers.GatewayController
 
 	// Services
-	EnvironmentSyncer services.EnvironmentSynchronizer
+	EnvironmentSyncer  services.EnvironmentSynchronizer
+	OrganizationSyncer services.OrganizationSynchronizer
 
 	// Clients
 	APIPlatformClient apiplatformclient.APIPlatformClient

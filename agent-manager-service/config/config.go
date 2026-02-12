@@ -190,4 +190,5 @@ type PublicKeysConfig struct {
 // APIPlatformConfig holds API Platform client configuration
 type APIPlatformConfig struct {
 	BaseURL string // Base URL for API Platform
+	Enable  bool
 }

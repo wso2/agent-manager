@@ -42,7 +42,6 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 	}
 	repositoryService := services.NewRepositoryService()
 	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
-	logger := ProvideLogger()
 	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoClient, jwtSigningConfig, logger)
 	if err != nil {
 		return nil, err
@@ -63,6 +62,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 	environmentController := controllers.NewEnvironmentController(environmentService)
 	gatewayController := controllers.NewGatewayController(apiPlatformClient, db)
 	environmentSynchronizer := services.NewEnvironmentSyncer(openChoreoClient, logger)
+	organizationSynchronizer := services.NewOrganizationSyncer(openChoreoClient, apiPlatformClient, logger)
 	appParams := &AppParams{
 		AuthMiddleware:          middleware,
 		Logger:                  logger,
@@ -74,6 +74,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 		EnvironmentController:   environmentController,
 		GatewayController:       gatewayController,
 		EnvironmentSyncer:       environmentSynchronizer,
+		OrganizationSyncer:      organizationSynchronizer,
 		APIPlatformClient:       apiPlatformClient,
 		DB:                      db,
 	}
@@ -88,7 +89,6 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	repositoryService := services.NewRepositoryService()
 	configConfig := ProvideConfigFromPtr(cfg)
 	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
-	logger := ProvideLogger()
 	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoClient, jwtSigningConfig, logger)
 	if err != nil {
 		return nil, err
@@ -107,6 +107,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	environmentController := controllers.NewEnvironmentController(environmentService)
 	gatewayController := controllers.NewGatewayController(apiPlatformClient, db)
 	environmentSynchronizer := services.NewEnvironmentSyncer(openChoreoClient, logger)
+	organizationSynchronizer := services.NewOrganizationSyncer(openChoreoClient, apiPlatformClient, logger)
 	appParams := &AppParams{
 		AuthMiddleware:          authMiddleware,
 		Logger:                  logger,
@@ -118,6 +119,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		EnvironmentController:   environmentController,
 		GatewayController:       gatewayController,
 		EnvironmentSyncer:       environmentSynchronizer,
+		OrganizationSyncer:      organizationSynchronizer,
 		APIPlatformClient:       apiPlatformClient,
 		DB:                      db,
 	}
@@ -139,7 +141,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideAPIPlatformClient,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewEnvironmentService, services.NewEnvironmentSyncer)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewEnvironmentService, services.NewEnvironmentSyncer, services.NewOrganizationSyncer)
 
 var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController)
 
@@ -199,8 +201,12 @@ func ProvideAPIPlatformAuthProvider(cfg config.Config) client2.AuthProvider {
 
 // ProvideAPIPlatformConfig extracts API Platform configuration from config
 func ProvideAPIPlatformConfig(cfg config.Config, authProvider client2.AuthProvider) *client2.Config {
+	baseUrl := ""
+	if cfg.APIPlatform.Enable {
+		baseUrl = cfg.APIPlatform.BaseURL
+	}
 	return &client2.Config{
-		BaseURL:      cfg.APIPlatform.BaseURL,
+		BaseURL:      baseUrl,
 		AuthProvider: authProvider,
 	}
 }
