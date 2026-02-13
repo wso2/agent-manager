@@ -29,7 +29,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
-	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/net v0.49.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
@@ -47,9 +47,9 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	go.uber.org/automaxprocs v1.6.0
-	golang.org/x/crypto v0.45.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/crypto v0.48.0
+	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
 )
 
 require github.com/oapi-codegen/runtime v1.1.2
