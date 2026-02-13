@@ -10,14 +10,26 @@ if ! docker info &> /dev/null; then
     exit 1
 fi
 
+# Get project root (two directories up from this script)
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# Build and load evaluation-job image to k3d
+echo "📊 Building evaluation-job image and loading to k3d..."
+cd "${PROJECT_ROOT}/evaluation-job"
+make docker-load-k3d || {
+    echo "⚠️  Failed to build/load evaluation-job to k3d"
+    echo "   Make sure k3d cluster is running"
+    echo "   You can load it later with: cd evaluation-job && make docker-load-k3d"
+}
+
 # Check if docker-compose file exists
-if [ ! -f "../docker-compose.yml" ]; then
+if [ ! -f "${PROJECT_ROOT}/deployments/docker-compose.yml" ]; then
     echo "❌ docker-compose.yml not found"
     exit 1
 fi
 
 echo "🚀 Starting Agent Manager platform services..."
-cd ..
+cd "${PROJECT_ROOT}/deployments"
 docker compose up -d
 
 echo ""
