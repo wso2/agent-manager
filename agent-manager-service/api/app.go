@@ -70,7 +70,9 @@ func MakeInternalHTTPHandler(params *wiring.AppParams) http.Handler {
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
+			logger.GetLogger(r.Context()).Error("Failed to write health check response", "error", err)
+		}
 	})
 
 	// Create internal mux for gateway internal and WebSocket routes (NO JWT middleware)

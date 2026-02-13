@@ -103,7 +103,9 @@ func (c *gatewayInternalController) GetAPIsByOrganization(w http.ResponseWriter,
 
 	// Return ZIP file
 	w.WriteHeader(http.StatusOK)
-	w.Write(zipData)
+	if _, err := w.Write(zipData); err != nil {
+		log.Error("Failed to write ZIP response", "orgID", orgID, "error", err)
+	}
 }
 
 // GetAPI handles GET /api/internal/v1/apis/:apiId
@@ -168,7 +170,9 @@ func (c *gatewayInternalController) GetAPI(w http.ResponseWriter, r *http.Reques
 
 	// Return ZIP file
 	w.WriteHeader(http.StatusOK)
-	w.Write(zipData)
+	if _, err := w.Write(zipData); err != nil {
+		log.Error("Failed to write ZIP response", "apiID", apiID, "error", err)
+	}
 }
 
 // CreateGatewayDeployment handles POST /api/internal/v1/apis/{apiId}/gateway-deployments
@@ -325,5 +329,7 @@ func (c *gatewayInternalController) GetLLMProvider(w http.ResponseWriter, r *htt
 
 	// Return ZIP file
 	w.WriteHeader(http.StatusOK)
-	w.Write(zipData)
+	if _, err := w.Write(zipData); err != nil {
+		log.Error("Failed to write ZIP response", "providerID", providerID, "error", err)
+	}
 }

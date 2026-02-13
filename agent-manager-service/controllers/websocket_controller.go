@@ -17,6 +17,7 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"sync"
@@ -127,9 +128,13 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 			"message": err.Error(),
 		}
 		if jsonErr, _ := json.Marshal(errorMsg); jsonErr != nil {
-			conn.WriteMessage(websocket.TextMessage, jsonErr)
+			if err := conn.WriteMessage(websocket.TextMessage, jsonErr); err != nil {
+				log.Error("Failed to send error message", "gatewayID", gateway.UUID.String(), "error", err)
+			}
 		}
-		conn.Close()
+		if err := conn.Close(); err != nil {
+			log.Error("Failed to close connection", "gatewayID", gateway.UUID.String(), "error", err)
+		}
 		return
 	}
 
@@ -177,7 +182,7 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 func (c *websocketController) readLoop(conn *ws.Connection) {
 	defer func() {
 		if r := recover(); r != nil {
-			logger.GetLogger(nil).Error("Panic in WebSocket read loop", "gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID, "panic", r)
+			logger.GetLogger(context.TODO()).Error("Panic in WebSocket read loop", "gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID, "panic", r)
 		}
 	}()
 
@@ -194,7 +199,7 @@ func (c *websocketController) readLoop(conn *ws.Connection) {
 		// to detect disconnections and handle control frames
 		wsTransport, ok := conn.Transport.(*ws.WebSocketTransport)
 		if !ok {
-			logger.GetLogger(nil).Error("Invalid transport type for connection", "gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID)
+			logger.GetLogger(context.TODO()).Error("Invalid transport type for connection", "gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID)
 			return
 		}
 
@@ -202,7 +207,7 @@ func (c *websocketController) readLoop(conn *ws.Connection) {
 		if err != nil {
 			// Connection closed or error occurred
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
-				logger.GetLogger(nil).Error("WebSocket read error", "gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID, "error", err)
+				logger.GetLogger(context.TODO()).Error("WebSocket read error", "gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID, "error", err)
 			}
 			return
 		}

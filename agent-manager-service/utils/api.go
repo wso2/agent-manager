@@ -33,7 +33,7 @@ func CreateAPIYamlZip(apiYamlMap map[string]string) ([]byte, error) {
 		fileWriter, err := zipWriter.Create(fileName)
 		if err != nil {
 			if closeErr := zipWriter.Close(); closeErr != nil {
-				return nil, fmt.Errorf("failed to create file in zip: %w (close error: %v)", err, closeErr)
+				return nil, fmt.Errorf("failed to create file in zip: %w (close error: %w)", err, closeErr)
 			}
 			return nil, fmt.Errorf("failed to create file in zip: %w", err)
 		}
@@ -41,7 +41,7 @@ func CreateAPIYamlZip(apiYamlMap map[string]string) ([]byte, error) {
 		_, err = fileWriter.Write([]byte(yamlContent))
 		if err != nil {
 			if closeErr := zipWriter.Close(); closeErr != nil {
-				return nil, fmt.Errorf("failed to write file content: %w (close error: %v)", err, closeErr)
+				return nil, fmt.Errorf("failed to write file content: %w (close error: %w)", err, closeErr)
 			}
 			return nil, fmt.Errorf("failed to write file content: %w", err)
 		}
@@ -65,7 +65,7 @@ func CreateLLMProviderYamlZip(providerYamlMap map[string]string) ([]byte, error)
 		fileWriter, err := zipWriter.Create(fileName)
 		if err != nil {
 			if closeErr := zipWriter.Close(); closeErr != nil {
-				return nil, fmt.Errorf("failed to create file in zip: %w (close error: %v)", err, closeErr)
+				return nil, fmt.Errorf("failed to create file in zip: %w (close error: %w)", err, closeErr)
 			}
 			return nil, fmt.Errorf("failed to create file in zip: %w", err)
 		}
@@ -73,7 +73,7 @@ func CreateLLMProviderYamlZip(providerYamlMap map[string]string) ([]byte, error)
 		_, err = fileWriter.Write([]byte(yamlContent))
 		if err != nil {
 			if closeErr := zipWriter.Close(); closeErr != nil {
-				return nil, fmt.Errorf("failed to write file content: %w (close error: %v)", err, closeErr)
+				return nil, fmt.Errorf("failed to write file content: %w (close error: %w)", err, closeErr)
 			}
 			return nil, fmt.Errorf("failed to write file content: %w", err)
 		}

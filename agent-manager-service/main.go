@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -191,7 +192,7 @@ func main() {
 			"maxWebSocketConnections", cfg.WebSocket.MaxConnections,
 			"heartbeatTimeout", fmt.Sprintf("%ds", cfg.WebSocket.ConnectionTimeout),
 			"rateLimitPerMin", cfg.WebSocket.RateLimitPerMin)
-		if err := internalServer.Start(); err != nil && err != http.ErrServerClosed {
+		if err := internalServer.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("Failed to start internal server", "error", err)
 			os.Exit(1)
 		}
