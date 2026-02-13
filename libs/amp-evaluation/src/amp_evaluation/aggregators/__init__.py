@@ -14,35 +14,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Aggregators subpackage."""
+"""
+Aggregators subpackage.
+
+Public API:
+    >>> from amp_evaluation.aggregators import (
+    ...     AggregationType,     # Enum: MEAN, MEDIAN, P95, PASS_RATE, etc.
+    ...     Aggregation,         # Aggregation config with parameters
+    ...     aggregator,          # @aggregator decorator
+    ... )
+"""
 
 # Base classes and types
-from .base import (
-    Aggregation,
-    AggregationType,
-    aggregator,
-    register_aggregator,
-    get_aggregator,
-    list_aggregators,
-    normalize_aggregations,
-    DEFAULT_AGGREGATIONS,
-)
-
-# Built-in aggregation functions
-from .builtin import (
-    BUILTIN_AGGREGATORS,
-)
+from .base import Aggregation, AggregationType, aggregator
 
 __all__ = [
-    # Base
-    "Aggregation",
     "AggregationType",
+    "Aggregation",
     "aggregator",
-    "register_aggregator",
-    "get_aggregator",
-    "list_aggregators",
-    "normalize_aggregations",
-    "DEFAULT_AGGREGATIONS",
-    # Builtin
-    "BUILTIN_AGGREGATORS",
 ]
