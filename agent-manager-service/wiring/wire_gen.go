@@ -58,11 +58,9 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 	clientAuthProvider := ProvideAPIPlatformAuthProvider(configConfig)
 	clientConfig := ProvideAPIPlatformConfig(configConfig, clientAuthProvider)
 	apiPlatformClient := ProvideAPIPlatformClient(clientConfig)
-	environmentService := services.NewEnvironmentService(logger, apiPlatformClient)
+	environmentService := services.NewEnvironmentService(logger, apiPlatformClient, openChoreoClient)
 	environmentController := controllers.NewEnvironmentController(environmentService)
 	gatewayController := controllers.NewGatewayController(apiPlatformClient, db)
-	environmentSynchronizer := services.NewEnvironmentSyncer(openChoreoClient, logger)
-	organizationSynchronizer := services.NewOrganizationSyncer(openChoreoClient, apiPlatformClient, logger)
 	appParams := &AppParams{
 		AuthMiddleware:          middleware,
 		Logger:                  logger,
@@ -73,8 +71,6 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 		RepositoryController:    repositoryController,
 		EnvironmentController:   environmentController,
 		GatewayController:       gatewayController,
-		EnvironmentSyncer:       environmentSynchronizer,
-		OrganizationSyncer:      organizationSynchronizer,
 		APIPlatformClient:       apiPlatformClient,
 		DB:                      db,
 	}
@@ -103,11 +99,9 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	repositoryController := controllers.NewRepositoryController(repositoryService)
 	apiPlatformClient := ProvideTestAPIPlatformClient(testClients)
-	environmentService := services.NewEnvironmentService(logger, apiPlatformClient)
+	environmentService := services.NewEnvironmentService(logger, apiPlatformClient, openChoreoClient)
 	environmentController := controllers.NewEnvironmentController(environmentService)
 	gatewayController := controllers.NewGatewayController(apiPlatformClient, db)
-	environmentSynchronizer := services.NewEnvironmentSyncer(openChoreoClient, logger)
-	organizationSynchronizer := services.NewOrganizationSyncer(openChoreoClient, apiPlatformClient, logger)
 	appParams := &AppParams{
 		AuthMiddleware:          authMiddleware,
 		Logger:                  logger,
@@ -118,8 +112,6 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		RepositoryController:    repositoryController,
 		EnvironmentController:   environmentController,
 		GatewayController:       gatewayController,
-		EnvironmentSyncer:       environmentSynchronizer,
-		OrganizationSyncer:      organizationSynchronizer,
 		APIPlatformClient:       apiPlatformClient,
 		DB:                      db,
 	}
@@ -141,7 +133,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideAPIPlatformClient,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewEnvironmentService, services.NewEnvironmentSyncer, services.NewOrganizationSyncer)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewEnvironmentService)
 
 var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController)
 
