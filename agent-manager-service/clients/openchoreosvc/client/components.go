@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -325,26 +326,18 @@ func normalizePath(path string) string {
 }
 
 func (c *openChoreoClient) GetComponent(ctx context.Context, namespaceName, projectName, componentName string) (*models.AgentResponse, error) {
-	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, projectName, componentName, nil)
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, true)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get component: %w", err)
+		return nil, fmt.Errorf("failed to get component resource: %w", err)
 	}
 
-	if resp.StatusCode() != http.StatusOK {
-		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
-		})
-	}
-
-	if resp.JSON200 == nil || resp.JSON200.Data == nil {
-		return nil, fmt.Errorf("empty response from get component")
-	}
-
-	return convertComponent(resp.JSON200.Data), nil
+	// Convert component CR to AgentResponse
+	return convertComponentCR(componentCR)
 }
 
-// getCleanResourceCR fetches a resource CR and removes server-managed fields
-func (c *openChoreoClient) getCleanResourceCR(ctx context.Context, namespaceName, kind, resourceName string, notFoundErr error) (map[string]interface{}, error) {
+// getCleanResourceCR fetches a resource CR and optionally removes server-managed fields
+// keepStatus: if true, preserves the status useful for read operations
+func (c *openChoreoClient) getCleanResourceCR(ctx context.Context, namespaceName, kind, resourceName string, notFoundErr error, keepStatus bool) (map[string]interface{}, error) {
 	resp, err := c.ocClient.GetResourceWithResponse(ctx, namespaceName, kind, resourceName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get resource: %w", err)
@@ -369,19 +362,21 @@ func (c *openChoreoClient) getCleanResourceCR(ctx context.Context, namespaceName
 		delete(metadata, "managedFields")
 		delete(metadata, "resourceVersion")
 		delete(metadata, "generation")
-		delete(metadata, "creationTimestamp")
-		delete(metadata, "uid")
+		if !keepStatus {
+			delete(metadata, "creationTimestamp")
+			delete(metadata, "uid")
+		}
 	}
-
-	// Remove status field (server-managed)
-	delete(componentCR, "status")
+	if !keepStatus {
+		delete(componentCR, "status")
+	}
 
 	return componentCR, nil
 }
 
 func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBasicInfoRequest) error {
 	// Fetch the full component CR with server-managed fields removed
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
 	if err != nil {
 		return fmt.Errorf("failed to get component resource: %w", err)
 	}
@@ -437,7 +432,7 @@ func (c *openChoreoClient) UpdateComponentResourceConfigs(ctx context.Context, n
 // updateComponentResourceConfigs updates component-level parameters (defaults for all environments)
 func (c *openChoreoClient) updateComponentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentResourceConfigsRequest) error {
 	// Fetch the full component CR with server-managed fields removed
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
 	if err != nil {
 		return fmt.Errorf("failed to get component resource: %w", err)
 	}
@@ -604,7 +599,7 @@ func (c *openChoreoClient) updateReleaseBindingResourceConfigs(ctx context.Conte
 // getComponentLevelResourceConfigs fetches component-level default resource configurations
 func (c *openChoreoClient) getComponentLevelResourceConfigs(ctx context.Context, namespaceName, projectName, componentName string) (*ComponentResourceConfigsResponse, error) {
 	// Get the component CR to extract parameters
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get component resource: %w", err)
 	}
@@ -870,7 +865,7 @@ func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, proje
 // UpdateComponentEnvironmentVariables updates the environment variables for a component
 func (c *openChoreoClient) UpdateComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
 	// Fetch the full component CR with server-managed fields removed
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
 	if err != nil {
 		return fmt.Errorf("failed to get component resource: %w", err)
 	}
@@ -1216,6 +1211,171 @@ func convertComponent(comp *gen.ComponentResponse) *models.AgentResponse {
 	}
 
 	return agent
+}
+
+// convertComponentCR converts a component CR (map[string]interface{}) to models.AgentResponse
+func convertComponentCR(componentCR map[string]interface{}) (*models.AgentResponse, error) {
+	if componentCR == nil {
+		return nil, fmt.Errorf("componentCR is nil")
+	}
+
+	agent := &models.AgentResponse{}
+
+	// Extract metadata
+	if metadata, ok := componentCR["metadata"].(map[string]interface{}); ok {
+		if name, ok := metadata["name"].(string); ok {
+			agent.Name = name
+		}
+
+		// Extract uid from metadata (preferred source)
+		if uid, ok := metadata["uid"].(string); ok {
+			agent.UUID = uid
+		}
+
+		// Extract creationTimestamp from metadata (preferred source)
+		if creationTimestamp, ok := metadata["creationTimestamp"].(string); ok {
+			if t, err := time.Parse(time.RFC3339, creationTimestamp); err == nil {
+				agent.CreatedAt = t
+			}
+		}
+
+		if annotations, ok := metadata["annotations"].(map[string]interface{}); ok {
+			if displayName, ok := annotations[string(AnnotationKeyDisplayName)].(string); ok {
+				agent.DisplayName = displayName
+			}
+			if description, ok := annotations[string(AnnotationKeyDescription)].(string); ok {
+				agent.Description = description
+			}
+		}
+		if labels, ok := metadata["labels"].(map[string]interface{}); ok {
+			if provisioningType, ok := labels[string(LabelKeyProvisioningType)].(string); ok {
+				agent.Provisioning.Type = provisioningType
+			}
+			if agentSubType, ok := labels[string(LabelKeyAgentSubType)].(string); ok {
+				agent.Type.SubType = agentSubType
+			}
+		}
+	}
+
+	// Extract spec
+	if spec, ok := componentCR["spec"].(map[string]interface{}); ok {
+		// Extract componentType
+		if componentType, ok := spec["componentType"].(string); ok {
+			parts := strings.Split(componentType, "/")
+			if len(parts) >= 2 {
+				agent.Type.Type = parts[1]
+			}
+		}
+
+		// Extract projectName
+		if owner, ok := spec["owner"].(map[string]interface{}); ok {
+			if projectName, ok := owner["projectName"].(string); ok {
+				agent.ProjectName = projectName
+			}
+		}
+
+		// Extract parameters including basePath
+		if parameters, ok := spec["parameters"].(map[string]interface{}); ok {
+			// Extract basePath
+			if basePath, ok := parameters["basePath"].(string); ok && basePath != "" {
+				if agent.InputInterface == nil {
+					agent.InputInterface = &models.InputInterface{}
+				}
+				agent.InputInterface.BasePath = basePath
+			}
+		}
+
+		// Extract workflow details
+		if workflow, ok := spec["workflow"].(map[string]interface{}); ok {
+			extractWorkflowDetailsFromCR(agent, workflow)
+		}
+	}
+
+	// Extract status
+	if status, ok := componentCR["status"].(map[string]interface{}); ok {
+		if createdAt, ok := status["createdAt"].(string); ok {
+			if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
+				agent.CreatedAt = t
+			}
+		}
+		if statusStr, ok := status["status"].(string); ok {
+			agent.Status = statusStr
+		}
+		if uid, ok := status["uid"].(string); ok {
+			agent.UUID = uid
+		}
+	}
+
+	return agent, nil
+}
+
+// extractWorkflowDetailsFromCR extracts workflow details from component CR
+func extractWorkflowDetailsFromCR(agent *models.AgentResponse, workflow map[string]interface{}) {
+	// Extract systemParameters (repository)
+	if systemParams, ok := workflow["systemParameters"].(map[string]interface{}); ok {
+		if repo, ok := systemParams["repository"].(map[string]interface{}); ok {
+			if url, ok := repo["url"].(string); ok {
+				agent.Provisioning.Repository.Url = url
+			}
+			if appPath, ok := repo["appPath"].(string); ok {
+				agent.Provisioning.Repository.AppPath = appPath
+			}
+			if revision, ok := repo["revision"].(map[string]interface{}); ok {
+				if branch, ok := revision["branch"].(string); ok {
+					agent.Provisioning.Repository.Branch = branch
+				}
+			}
+		}
+	}
+
+	// Extract workflow parameters
+	if params, ok := workflow["parameters"].(map[string]interface{}); ok {
+		// Extract buildpackConfigs
+		if buildpackConfigs, ok := params["buildpackConfigs"].(map[string]interface{}); ok {
+			if agent.Build == nil {
+				agent.Build = &models.Build{Type: BuildTypeBuildpack}
+			}
+			agent.Build.Buildpack = &models.BuildpackConfig{}
+			if language, ok := buildpackConfigs["language"].(string); ok {
+				agent.Build.Buildpack.Language = language
+			}
+			if langVersion, ok := buildpackConfigs["languageVersion"].(string); ok {
+				agent.Build.Buildpack.LanguageVersion = langVersion
+			}
+			if runCmd, ok := buildpackConfigs["googleEntryPoint"].(string); ok {
+				agent.Build.Buildpack.RunCommand = runCmd
+			}
+		} else if dockerConfigs, ok := params["dockerConfigs"].(map[string]interface{}); ok {
+			if agent.Build == nil {
+				agent.Build = &models.Build{Type: BuildTypeDocker}
+			}
+			agent.Build.Docker = &models.DockerConfig{}
+			if dockerfilePath, ok := dockerConfigs["dockerfilePath"].(string); ok {
+				agent.Build.Docker.DockerfilePath = dockerfilePath
+			}
+		}
+
+		// Extract endpoints
+		if endpoints, ok := params["endpoints"].([]interface{}); ok && len(endpoints) > 0 {
+			if endpoint, ok := endpoints[0].(map[string]interface{}); ok {
+				if agent.InputInterface == nil {
+					agent.InputInterface = &models.InputInterface{}
+				}
+				if port, ok := endpoint["port"].(float64); ok {
+					agent.InputInterface.Port = int32(port)
+				}
+				if interfaceType, ok := endpoint["type"].(string); ok {
+					agent.InputInterface.Type = interfaceType
+				}
+				if schemaPath, ok := endpoint["schemaFilePath"].(string); ok {
+					if agent.InputInterface.Schema == nil {
+						agent.InputInterface.Schema = &models.InputInterfaceSchema{}
+					}
+					agent.InputInterface.Schema.Path = schemaPath
+				}
+			}
+		}
+	}
 }
 
 func extractComponentWorkflowDetails(agent *models.AgentResponse, workflow *gen.ComponentWorkflow) {

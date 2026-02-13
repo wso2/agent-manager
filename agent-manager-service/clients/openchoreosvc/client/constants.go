@@ -100,6 +100,13 @@ const (
 	EnvVarAgentAPIKey  = "AMP_AGENT_API_KEY"
 )
 
+// SystemInjectedEnvVars is a set of environment variable names that are automatically
+// injected by the system and should be filtered out from user-facing configuration APIs
+var SystemInjectedEnvVars = map[string]struct{}{
+	EnvVarOTELEndpoint: {},
+	EnvVarAgentAPIKey:  {},
+}
+
 // -----------------------------------------------------------------------------
 // Deployment status values
 // -----------------------------------------------------------------------------

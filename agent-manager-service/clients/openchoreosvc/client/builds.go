@@ -122,7 +122,7 @@ func (c *openChoreoClient) ListBuilds(ctx context.Context, orgName, projectName,
 
 func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBuildParametersRequest) error {
 	// Fetch the full component CR with server-managed fields removed
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
 	if err != nil {
 		return fmt.Errorf("failed to get component resource: %w", err)
 	}
@@ -165,6 +165,26 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 				},
 				"appPath": normalizePath(req.Repository.AppPath),
 			},
+		}
+	}
+
+	// Update spec.parameters.basePath and port if InputInterface is provided
+	if req.InputInterface != nil {
+		// Get or create parameters section in spec
+		parameters, ok := spec["parameters"].(map[string]interface{})
+		if !ok {
+			parameters = make(map[string]interface{})
+			spec["parameters"] = parameters
+		}
+
+		// Update basePath if provided
+		if req.InputInterface.BasePath != "" {
+			parameters["basePath"] = req.InputInterface.BasePath
+		}
+
+		// Update port if provided
+		if req.InputInterface.Port > 0 {
+			parameters["port"] = req.InputInterface.Port
 		}
 	}
 
@@ -243,12 +263,13 @@ func buildEndpointsFromInputInterface(componentName string, inputInterface *Inpu
 			"name": fmt.Sprintf("%s-endpoint", componentName),
 			"type": inputInterface.Type,
 			"port": inputInterface.Port,
-			// schemaFilePath is only applicable for custom-api type, so we add it conditionally below
+			// schemaFilePath and schemaType are only applicable for custom-api type
 		},
 	}
 
 	if inputInterface.SchemaPath != "" {
 		endpoints[0]["schemaFilePath"] = inputInterface.SchemaPath
+		endpoints[0]["schemaType"] = "REST"
 	}
 	return endpoints, nil
 }

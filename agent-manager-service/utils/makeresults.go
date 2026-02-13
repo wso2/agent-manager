@@ -178,6 +178,9 @@ func convertToInputInterface(input *models.InputInterface) *spec.InputInterface 
 			Path: input.Schema.Path,
 		}
 	}
+	if input.BasePath != "" {
+		result.BasePath = &input.BasePath
+	}
 
 	return result
 }
