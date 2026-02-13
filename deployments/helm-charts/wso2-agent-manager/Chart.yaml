@@ -2,8 +2,8 @@ apiVersion: v2
 name: wso2-agent-manager
 description: Helm chart for WSO2 Agent Management Platform - Deploy, manage, and govern AI agents at scale
 type: application
-version: 0.0.0-dev
-appVersion: "0.0.0-dev"
+version: v0.6.0-rc5
+appVersion: "v0.6.0-rc5"
 
 keywords:
   - wso2
