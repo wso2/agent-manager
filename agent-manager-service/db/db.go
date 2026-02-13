@@ -106,6 +106,13 @@ func setConfigsOnDB(db *sql.DB, cfg config.DbConfigs) {
 	}
 }
 
+// GetDB returns the raw database instance without any context attached.
+// This should be used when injecting the DB into repositories that will
+// add context per-operation using db.DB(ctx).
+func GetDB() *gorm.DB {
+	return db
+}
+
 func makeConnString(p config.POSTGRESQL) string {
 	params := url.Values{}
 	conn := &url.URL{

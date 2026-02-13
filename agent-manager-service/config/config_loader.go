@@ -172,8 +172,32 @@ func loadEnvs() {
 		Enable:  r.readOptionalBool("API_PLATFORM_ENABLED", false),
 	}
 
+	// Internal Server configuration (for WebSocket and gateway internal APIs)
+	config.InternalServer = InternalServerConfig{
+		Host:                r.readOptionalString("INTERNAL_SERVER_HOST", ""),
+		Port:                int(r.readOptionalInt64("INTERNAL_SERVER_PORT", 9243)),
+		CertDir:             r.readOptionalString("INTERNAL_SERVER_CERT_DIR", "./data/certs"),
+		ReadTimeoutSeconds:  int(r.readOptionalInt64("INTERNAL_SERVER_READ_TIMEOUT_SECONDS", 10)),
+		WriteTimeoutSeconds: int(r.readOptionalInt64("INTERNAL_SERVER_WRITE_TIMEOUT_SECONDS", 90)),
+		IdleTimeoutSeconds:  int(r.readOptionalInt64("INTERNAL_SERVER_IDLE_TIMEOUT_SECONDS", 60)),
+		MaxHeaderBytes:      int(r.readOptionalInt64("INTERNAL_SERVER_MAX_HEADER_BYTES", 65536)),
+	}
+
+	// WebSocket configuration
+	config.WebSocket = WebSocketConfig{
+		MaxConnections:    int(r.readOptionalInt64("WEBSOCKET_MAX_CONNECTIONS", 1000)),
+		ConnectionTimeout: int(r.readOptionalInt64("WEBSOCKET_CONNECTION_TIMEOUT", 30)),
+		RateLimitPerMin:   int(r.readOptionalInt64("WEBSOCKET_RATE_LIMIT_PER_MIN", 10)),
+	}
+
+	// LLM Provider Template configuration
+	config.LLMTemplateDefinitionsPath = r.readOptionalString("LLM_TEMPLATE_DEFINITIONS_PATH", "./resources/default-llm-provider-templates")
+
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)
+
+	// Validate Internal server configurations
+	validateInternalServerConfigs(config, r)
 
 	r.logAndExitIfErrorsFound()
 
@@ -199,5 +223,20 @@ func validateHTTPServerConfigs(cfg *Config, r *configReader) {
 	}
 	if cfg.MaxHeaderBytes < 1024 || cfg.MaxHeaderBytes > 1048576 { // 1KB to 1MB
 		r.errors = append(r.errors, fmt.Errorf("HTTP_MAX_HEADER_BYTES must be between 1024 and 1048576, got %d", cfg.MaxHeaderBytes))
+	}
+}
+
+func validateInternalServerConfigs(cfg *Config, r *configReader) {
+	if cfg.InternalServer.Port < 1 || cfg.InternalServer.Port > 65535 {
+		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_PORT must be between 1 and 65535, got %d", cfg.InternalServer.Port))
+	}
+	if cfg.InternalServer.ReadTimeoutSeconds <= 0 {
+		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_READ_TIMEOUT_SECONDS must be greater than 0, got %d", cfg.InternalServer.ReadTimeoutSeconds))
+	}
+	if cfg.InternalServer.WriteTimeoutSeconds <= 0 {
+		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_WRITE_TIMEOUT_SECONDS must be greater than 0, got %d", cfg.InternalServer.WriteTimeoutSeconds))
+	}
+	if cfg.InternalServer.CertDir == "" {
+		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_CERT_DIR must be non-empty"))
 	}
 }

@@ -193,3 +193,42 @@ func ParseAPIKeyToken(token string) (string, error) {
 	}
 	return string(decoded), nil
 }
+
+// GenerateHandle generates a URL-safe handle from a display name.
+// This is a simplified version that sanitizes the input string.
+func GenerateHandle(displayName string) (string, error) {
+	if displayName == "" {
+		return "", errors.New("display name cannot be empty")
+	}
+
+	// Convert to lowercase and replace spaces with hyphens
+	handle := ""
+	for _, ch := range displayName {
+		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') {
+			handle += string(ch)
+		} else if ch >= 'A' && ch <= 'Z' {
+			handle += string(ch + 32) // Convert to lowercase
+		} else if ch == ' ' || ch == '-' || ch == '_' {
+			handle += "-"
+		}
+	}
+
+	// Remove leading/trailing hyphens and ensure not empty
+	for len(handle) > 0 && handle[0] == '-' {
+		handle = handle[1:]
+	}
+	for len(handle) > 0 && handle[len(handle)-1] == '-' {
+		handle = handle[:len(handle)-1]
+	}
+
+	if handle == "" {
+		// Fallback to random string if sanitization removed everything
+		randomBytes := make([]byte, 8)
+		if _, err := rand.Read(randomBytes); err != nil {
+			return "", fmt.Errorf("failed to generate random handle: %w", err)
+		}
+		handle = "key-" + hex.EncodeToString(randomBytes)
+	}
+
+	return handle, nil
+}
