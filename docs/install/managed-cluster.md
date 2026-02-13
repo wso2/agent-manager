@@ -52,24 +52,45 @@ curl --version
 
 Ensure your cluster has the following components installed:
 
-- **cert-manager** (v1.18.4+) - Required for TLS certificate management
+- **cert-manager** (v1.19.2+) - Required for TLS certificate management
+- **Gateway API CRDs** - Required for Gateway and HTTPRoute resources used by the API Gateway
+- **External Secrets Operator** (v1.3.2+) - Required for syncing external secrets into Kubernetes Secrets
 
-Install cert-manager if not already installed:
+<details>
+<summary>Don't have Gateway API CRDs, cert-manager, or External Secrets Operator? Install them here</summary>
+
+Install Gateway API CRDs:
 
 ```bash
-# Install cert-manager with CRDs enabled
-helm install cert-manager \
-  oci://quay.io/jetstack/charts/cert-manager \
-  --namespace cert-manager \
-  --create-namespace \
-  --version v1.18.4 \
-  --set crds.enabled=true
-
-# Wait for cert-manager to be ready
-kubectl wait --for=condition=Available \
-  deployment -l app.kubernetes.io/instance=cert-manager \
-  -n cert-manager --timeout=300s
+kubectl apply --server-side \
+    -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/experimental-install.yaml
 ```
+
+Install cert-manager:
+
+```bash
+helm upgrade --install cert-manager oci://quay.io/jetstack/charts/cert-manager \
+    --namespace cert-manager \
+    --create-namespace \
+    --version v1.19.2 \
+    --set crds.enabled=true
+
+kubectl wait --for=condition=Available deployment/cert-manager -n cert-manager --timeout=180s
+```
+
+Install External Secrets Operator:
+
+```bash
+helm upgrade --install external-secrets oci://ghcr.io/external-secrets/charts/external-secrets \
+    --namespace external-secrets \
+    --create-namespace \
+    --version 1.3.2 \
+    --set installCRDs=true
+
+kubectl wait --for=condition=Available deployment/external-secrets -n external-secrets --timeout=180s
+```
+
+</details>
 
 ### Permissions
 
@@ -109,7 +130,7 @@ Follow the **[OpenChoreo Managed Kubernetes Installation Guide](https://openchor
 # Install Control Plane
 helm install openchoreo-control-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
-  --version 0.13.0 \
+  --version 0.14.0 \
   --namespace openchoreo-control-plane \
   --create-namespace \
   --timeout 600s
@@ -130,7 +151,7 @@ export CP_DOMAIN="openchoreo.192-168-1-1.nip.io"  # Replace with your domain
 # Install Data Plane
 helm install openchoreo-data-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
-  --version 0.13.0 \
+  --version 0.14.0 \
   --namespace openchoreo-data-plane \
   --create-namespace \
   --timeout 600s \
@@ -149,7 +170,7 @@ kubectl wait --for=condition=Available \
 # Install Build Plane (choose registry option based on your needs)
 helm install openchoreo-build-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane \
-  --version 0.13.0 \
+  --version 0.14.0 \
   --namespace openchoreo-build-plane \
   --create-namespace \
   --timeout 600s \
@@ -183,7 +204,7 @@ kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0
 # Install Observability Plane
 helm install openchoreo-observability-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-  --version 0.13.0 \
+  --version 0.14.0 \
   --namespace openchoreo-observability-plane \
   --timeout 900s \
   --set controlPlane.url=https://${CP_DOMAIN}

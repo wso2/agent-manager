@@ -47,9 +47,45 @@ k3d version  # If using k3d for local development
 If you have an existing Kubernetes cluster, ensure:
 
 - Kubernetes 1.32+ is running
-- cert-manager is pre-installed
+- cert-manager, Gateway API CRDs, and External Secrets Operator are pre-installed.
 - An ingress controller is configured
 - Cluster has minimum 8 GB RAM and 4 CPU cores
+
+<details>
+<summary>Don't have Gateway API CRDs, cert-manager, or External Secrets Operator? Install them here</summary>
+
+Install Gateway API CRDs:
+
+```bash
+kubectl apply --server-side \
+    -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/experimental-install.yaml
+```
+
+Install cert-manager:
+
+```bash
+helm upgrade --install cert-manager oci://quay.io/jetstack/charts/cert-manager \
+    --namespace cert-manager \
+    --create-namespace \
+    --version v1.19.2 \
+    --set crds.enabled=true
+
+kubectl wait --for=condition=Available deployment/cert-manager -n cert-manager --timeout=180s
+```
+
+Install External Secrets Operator:
+
+```bash
+helm upgrade --install external-secrets oci://ghcr.io/external-secrets/charts/external-secrets \
+    --namespace external-secrets \
+    --create-namespace \
+    --version 1.3.2 \
+    --set installCRDs=true
+
+kubectl wait --for=condition=Available deployment/external-secrets -n external-secrets --timeout=180s
+```
+
+</details>
 
 ### Permissions
 
@@ -87,7 +123,7 @@ Follow the **[OpenChoreo Self-Hosted Kubernetes Installation Guide](https://open
 # Install Control Plane (optional: use Agent Manager values file)
 helm install openchoreo-control-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-control-plane \
-  --version 0.13.0 \
+  --version 0.14.0 \
   --namespace openchoreo-control-plane \
   --create-namespace \
   --timeout 600s \
@@ -106,7 +142,7 @@ kubectl wait --for=condition=Available \
 # Install Data Plane (optional: use Agent Manager values file)
 helm install openchoreo-data-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-data-plane \
-  --version 0.13.0 \
+  --version 0.14.0 \
   --namespace openchoreo-data-plane \
   --create-namespace \
   --timeout 600s \
@@ -137,7 +173,7 @@ helm upgrade --install registry docker-registry \
 # Install Build Plane with Agent Manager-specific registry configuration
 helm install openchoreo-build-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-build-plane \
-  --version 0.13.0 \
+  --version 0.14.0 \
   --namespace openchoreo-build-plane \
   --timeout 600s \
   --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-bp.yaml
@@ -166,7 +202,7 @@ kubectl apply -f https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0
 # Install Observability Plane with Agent Manager-optimized configuration
 helm install openchoreo-observability-plane \
   oci://ghcr.io/openchoreo/helm-charts/openchoreo-observability-plane \
-  --version 0.13.0 \
+  --version 0.14.0 \
   --namespace openchoreo-observability-plane \
   --timeout 900s \
   --values https://raw.githubusercontent.com/wso2/agent-manager/amp/v0.0.0-dev/deployments/single-cluster/values-op.yaml
