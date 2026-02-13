@@ -56,6 +56,30 @@ export const EnvironmentVariable = ({
     }));
   };
 
+  const handleInitialEdit = (field: 'key' | 'value', value: string) => {
+    setFormData((prev) => {
+      const envList = prev.env || [];
+      if (envList.length > 0) {
+        return {
+          ...prev,
+          env: envList.map((item, i) =>
+            i === 0 ? { ...item, [field]: value } : item
+          ),
+        };
+      }
+
+      return {
+        ...prev,
+        env: [
+          {
+            key: field === 'key' ? value : '',
+            value: field === 'value' ? value : '',
+          },
+        ],
+      };
+    });
+  };
+
   return (
     <Card variant="outlined">
       <CardContent>
@@ -81,16 +105,8 @@ export const EnvironmentVariable = ({
               index={0}
               keyValue={envVariables?.[0]?.key || ''}
               valueValue={envVariables?.[0]?.value || ''}
-              onKeyChange={(value) => {
-                handleAdd();
-                handleChange(0, 'key', value)
-              }
-
-              }
-              onValueChange={(value) => {
-                handleAdd();
-                handleChange(0, 'value', value)
-              }}
+              onKeyChange={(value) => handleInitialEdit('key', value)}
+              onValueChange={(value) => handleInitialEdit('value', value)}
               onRemove={() => handleRemove(0)}
             />
           }
