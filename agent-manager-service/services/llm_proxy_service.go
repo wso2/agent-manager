@@ -70,6 +70,9 @@ func (s *LLMProxyService) Create(orgID, createdBy string, proxy *models.LLMProxy
 	// Validate provider exists
 	providerModel, err := s.providerRepo.GetByUUID(provider, orgID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.ErrLLMProviderNotFound
+		}
 		return nil, fmt.Errorf("failed to validate provider: %w", err)
 	}
 	if providerModel == nil {
@@ -153,6 +156,9 @@ func (s *LLMProxyService) Get(proxyID, orgID string) (*models.LLMProxy, error) {
 
 	proxy, err := s.proxyRepo.GetByID(proxyID, orgID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.ErrLLMProxyNotFound
+		}
 		return nil, fmt.Errorf("failed to get proxy: %w", err)
 	}
 	if proxy == nil {
@@ -173,6 +179,9 @@ func (s *LLMProxyService) Update(proxyID, orgID string, updates *models.LLMProxy
 	if provider != "" {
 		providerModel, err := s.providerRepo.GetByUUID(provider, orgID)
 		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, utils.ErrLLMProviderNotFound
+			}
 			return nil, fmt.Errorf("failed to validate provider: %w", err)
 		}
 		if providerModel == nil {
@@ -232,6 +241,9 @@ func (s *LLMProxyService) ListByProvider(orgID, providerID string, limit, offset
 	// Get provider to get its UUID
 	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, 0, utils.ErrLLMProviderNotFound
+		}
 		return nil, 0, fmt.Errorf("failed to get provider: %w", err)
 	}
 	if provider == nil {

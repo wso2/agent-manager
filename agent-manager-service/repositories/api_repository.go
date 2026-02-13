@@ -189,7 +189,7 @@ func (r *APIRepo) GetAPIsByOrganizationUUID(orgUUID string, projectUUID *string)
 func (r *APIRepo) GetDeployedAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*models.API, error) {
 	var apis []*models.API
 	err := r.db.Table("rest_apis a").
-		Select("a.uuid, art.name, a.description, art.version, a.created_by, "+
+		Select("a.uuid, art.handle, art.name, a.description, art.version, a.created_by, "+
 			"a.project_uuid, art.organization_uuid, art.kind, art.created_at, art.updated_at").
 		Joins("INNER JOIN artifacts art ON a.uuid = art.uuid").
 		Joins("INNER JOIN deployment_status ad ON art.uuid = ad.artifact_uuid").
@@ -204,7 +204,7 @@ func (r *APIRepo) GetDeployedAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*
 func (r *APIRepo) GetAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*models.API, error) {
 	var apis []*models.API
 	err := r.db.Table("rest_apis a").
-		Select("a.uuid, art.name, a.description, art.version, a.created_by, "+
+		Select("a.uuid, art.handle, art.name, a.description, art.version, a.created_by, "+
 			"a.project_uuid, art.organization_uuid, art.kind, art.created_at, art.updated_at").
 		Joins("INNER JOIN artifacts art ON a.uuid = art.uuid").
 		Joins("INNER JOIN association_mappings aa ON a.uuid = aa.artifact_uuid").

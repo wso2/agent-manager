@@ -151,12 +151,12 @@ func (s *LLMProviderService) Create(orgID, createdBy string, provider *models.LL
 		return nil, fmt.Errorf("failed to create provider: %w", err)
 	}
 
-	slog.Info("LLMProviderService.Create: provider created, fetching details", "orgID", orgID, "handle", handle)
+	slog.Info("LLMProviderService.Create: provider created, fetching details", "orgID", orgID, "handle", handle, "uuid", provider.UUID)
 
-	// Fetch created provider
-	created, err := s.providerRepo.GetByUUID(handle, orgID)
+	// Fetch created provider by UUID
+	created, err := s.providerRepo.GetByUUID(provider.UUID.String(), orgID)
 	if err != nil {
-		slog.Error("LLMProviderService.Create: failed to fetch created provider", "orgID", orgID, "handle", handle, "error", err)
+		slog.Error("LLMProviderService.Create: failed to fetch created provider", "orgID", orgID, "uuid", provider.UUID, "error", err)
 		return nil, fmt.Errorf("failed to fetch created provider: %w", err)
 	}
 

@@ -32,6 +32,7 @@ import (
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // PlatformGatewayService handles gateway business logic for API Platform integration
@@ -137,7 +138,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 
 	// 3. Check gateway name uniqueness within organization
 	existing, err := s.gatewayRepo.GetByNameAndOrgID(name, orgID)
-	if err != nil {
+	if err != nil && !errors.Is(err, utils.ErrGatewayNotFound) {
 		return nil, fmt.Errorf("failed to check gateway name uniqueness: %w", err)
 	}
 	if existing != nil {
@@ -582,14 +583,25 @@ func (s *PlatformGatewayService) GetGatewayArtifacts(gatewayID, orgID, artifactT
 		return nil, err
 	}
 
-	// Convert APIs to GatewayArtifact DTOs and apply type filtering
+	// Apply type filtering before iterating
 	allArtifacts := make([]GatewayArtifact, 0)
-	for _, api := range apis {
-		// Skip if artifactType filter is specified and doesn't match "API"
-		if artifactType != "" && artifactType != "API" {
-			continue
+	// Short-circuit if artifactType filter doesn't match "API", "all", or empty
+	if artifactType != "" && artifactType != "all" && artifactType != "API" {
+		// Return empty list for non-API artifact types
+		listResponse := &GatewayArtifactListResponse{
+			Count: 0,
+			List:  allArtifacts,
+			Pagination: Pagination{
+				Total:  0,
+				Offset: 0,
+				Limit:  0,
+			},
 		}
+		return listResponse, nil
+	}
 
+	// Convert APIs to GatewayArtifact DTOs
+	for _, api := range apis {
 		artifact := GatewayArtifact{
 			ID:        api.Handle,
 			Name:      api.Name,
@@ -666,12 +678,14 @@ func (s *PlatformGatewayService) validateGatewayInput(orgID, name, displayName, 
 	if functionalityType == "" {
 		return errors.New("gateway functionality type is required")
 	}
+	// Normalize to lowercase for consistent validation and storage
+	normalized := strings.ToLower(functionalityType)
 	validTypes := map[string]bool{
-		"Regular": true,
-		"AI":      true,
-		"Event":   true,
+		"regular": true,
+		"ai":      true,
+		"event":   true,
 	}
-	if !validTypes[functionalityType] {
+	if !validTypes[normalized] {
 		return fmt.Errorf("gateway type must be one of: Regular, AI, Event")
 	}
 

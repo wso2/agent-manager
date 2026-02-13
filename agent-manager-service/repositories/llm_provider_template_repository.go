@@ -59,6 +59,28 @@ func NewLLMProviderTemplateRepo(db *gorm.DB) LLMProviderTemplateRepository {
 	return &LLMProviderTemplateRepo{db: db}
 }
 
+// unmarshalConfig unmarshals the Configuration JSON into the template's parsed fields
+func unmarshalConfig(template *models.LLMProviderTemplate) error {
+	if template.Configuration == "" {
+		return nil
+	}
+
+	var cfg llmProviderTemplateConfig
+	if err := json.Unmarshal([]byte(template.Configuration), &cfg); err != nil {
+		return err
+	}
+
+	template.Metadata = cfg.Metadata
+	template.PromptTokens = cfg.PromptTokens
+	template.CompletionTokens = cfg.CompletionTokens
+	template.TotalTokens = cfg.TotalTokens
+	template.RemainingTokens = cfg.RemainingTokens
+	template.RequestModel = cfg.RequestModel
+	template.ResponseModel = cfg.ResponseModel
+
+	return nil
+}
+
 // Create inserts a new LLM provider template
 func (r *LLMProviderTemplateRepo) Create(t *models.LLMProviderTemplate) error {
 	if t.UUID == uuid.Nil {
@@ -97,20 +119,8 @@ func (r *LLMProviderTemplateRepo) GetByHandle(templateHandle, orgUUID string) (*
 		return nil, err
 	}
 
-	templateConfig := template.Configuration
-
-	if templateConfig != "" {
-		var cfg llmProviderTemplateConfig
-		if err := json.Unmarshal([]byte(templateConfig), &cfg); err != nil {
-			return nil, err
-		}
-		template.Metadata = cfg.Metadata
-		template.PromptTokens = cfg.PromptTokens
-		template.CompletionTokens = cfg.CompletionTokens
-		template.TotalTokens = cfg.TotalTokens
-		template.RemainingTokens = cfg.RemainingTokens
-		template.RequestModel = cfg.RequestModel
-		template.ResponseModel = cfg.ResponseModel
+	if err := unmarshalConfig(&template); err != nil {
+		return nil, err
 	}
 
 	return &template, nil
@@ -128,18 +138,8 @@ func (r *LLMProviderTemplateRepo) GetByUUID(uuid, orgUUID string) (*models.LLMPr
 		return nil, err
 	}
 
-	if template.Configuration != "" {
-		var cfg llmProviderTemplateConfig
-		if err := json.Unmarshal([]byte(template.Configuration), &cfg); err != nil {
-			return nil, err
-		}
-		template.Metadata = cfg.Metadata
-		template.PromptTokens = cfg.PromptTokens
-		template.CompletionTokens = cfg.CompletionTokens
-		template.TotalTokens = cfg.TotalTokens
-		template.RemainingTokens = cfg.RemainingTokens
-		template.RequestModel = cfg.RequestModel
-		template.ResponseModel = cfg.ResponseModel
+	if err := unmarshalConfig(&template); err != nil {
+		return nil, err
 	}
 
 	return &template, nil
@@ -153,7 +153,18 @@ func (r *LLMProviderTemplateRepo) List(orgUUID string, limit, offset int) ([]*mo
 		Limit(limit).
 		Offset(offset).
 		Find(&templates).Error
-	return templates, err
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal configuration for each template
+	for _, template := range templates {
+		if err := unmarshalConfig(template); err != nil {
+			return nil, err
+		}
+	}
+
+	return templates, nil
 }
 
 // Count counts LLM provider templates for an organization

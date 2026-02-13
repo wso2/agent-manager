@@ -196,6 +196,9 @@ func loadEnvs() {
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)
 
+	// Validate Internal server configurations
+	validateInternalServerConfigs(config, r)
+
 	r.logAndExitIfErrorsFound()
 
 	slog.Info("configReader: configs loaded")
@@ -220,5 +223,20 @@ func validateHTTPServerConfigs(cfg *Config, r *configReader) {
 	}
 	if cfg.MaxHeaderBytes < 1024 || cfg.MaxHeaderBytes > 1048576 { // 1KB to 1MB
 		r.errors = append(r.errors, fmt.Errorf("HTTP_MAX_HEADER_BYTES must be between 1024 and 1048576, got %d", cfg.MaxHeaderBytes))
+	}
+}
+
+func validateInternalServerConfigs(cfg *Config, r *configReader) {
+	if cfg.InternalServer.Port < 1 || cfg.InternalServer.Port > 65535 {
+		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_PORT must be between 1 and 65535, got %d", cfg.InternalServer.Port))
+	}
+	if cfg.InternalServer.ReadTimeoutSeconds <= 0 {
+		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_READ_TIMEOUT_SECONDS must be greater than 0, got %d", cfg.InternalServer.ReadTimeoutSeconds))
+	}
+	if cfg.InternalServer.WriteTimeoutSeconds <= 0 {
+		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_WRITE_TIMEOUT_SECONDS must be greater than 0, got %d", cfg.InternalServer.WriteTimeoutSeconds))
+	}
+	if cfg.InternalServer.CertDir == "" {
+		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_CERT_DIR must be non-empty"))
 	}
 }

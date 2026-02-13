@@ -23,6 +23,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // GatewayRepository defines the interface for gateway data access
@@ -96,7 +97,7 @@ func (r *GatewayRepo) GetByNameAndOrgID(name, orgID string) (*models.Gateway, er
 	err := r.db.Where("name = ? AND organization_uuid = ?", name, orgID).First(&gateway).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
+			return nil, utils.ErrGatewayNotFound
 		}
 		return nil, err
 	}
@@ -139,7 +140,7 @@ func (r *GatewayRepo) Delete(gatewayID, organizationID string) error {
 // UpdateGateway updates gateway details
 func (r *GatewayRepo) UpdateGateway(gateway *models.Gateway) error {
 	gateway.UpdatedAt = time.Now()
-	return r.db.Model(&models.Gateway{}).
+	res := r.db.Model(&models.Gateway{}).
 		Where("uuid = ?", gateway.UUID).
 		Updates(map[string]interface{}{
 			"display_name": gateway.DisplayName,
@@ -147,17 +148,31 @@ func (r *GatewayRepo) UpdateGateway(gateway *models.Gateway) error {
 			"is_critical":  gateway.IsCritical,
 			"properties":   gateway.Properties,
 			"updated_at":   gateway.UpdatedAt,
-		}).Error
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // UpdateActiveStatus updates the is_active status of a gateway
 func (r *GatewayRepo) UpdateActiveStatus(gatewayId string, isActive bool) error {
-	return r.db.Model(&models.Gateway{}).
+	res := r.db.Model(&models.Gateway{}).
 		Where("uuid = ?", gatewayId).
 		Updates(map[string]interface{}{
 			"is_active":  isActive,
 			"updated_at": time.Now(),
-		}).Error
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // CreateToken inserts a new token

@@ -18,9 +18,9 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/google/uuid"
 
@@ -69,8 +69,8 @@ func (s *environmentService) GetEnvironment(ctx context.Context, orgName string,
 	env, err := s.ocClient.GetEnvironment(ctx, orgName, envID)
 	if err != nil {
 		s.logger.Error("Failed to get environment from OpenChoreo", "orgName", orgName, "envID", envID, "error", err)
-		// Check if it's a 404 error
-		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "not found") {
+		// Check if it's a not-found error
+		if errors.Is(err, utils.ErrEnvironmentNotFound) {
 			return nil, utils.ErrEnvironmentNotFound
 		}
 		return nil, fmt.Errorf("failed to get environment: %w", err)
@@ -165,7 +165,7 @@ func (s *environmentService) GetEnvironmentGateways(ctx context.Context, orgName
 	env, err := s.ocClient.GetEnvironment(ctx, orgName, envID)
 	if err != nil {
 		s.logger.Error("Failed to get environment from OpenChoreo", "orgName", orgName, "envID", envID, "error", err)
-		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, utils.ErrEnvironmentNotFound) {
 			return nil, utils.ErrEnvironmentNotFound
 		}
 		return nil, fmt.Errorf("failed to verify environment: %w", err)

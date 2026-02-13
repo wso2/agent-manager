@@ -26,6 +26,7 @@ import (
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // GatewayInternalAPIService handles internal gateway API operations
@@ -149,7 +150,7 @@ func (s *GatewayInternalAPIService) GetActiveDeploymentByGateway(apiID, orgID, g
 		return nil, fmt.Errorf("failed to get deployment: %w", err)
 	}
 	if deployment == nil {
-		return nil, fmt.Errorf("deployment not active")
+		return nil, utils.ErrDeploymentNotActive
 	}
 
 	// Deployment content is already stored as YAML
@@ -176,7 +177,7 @@ func (s *GatewayInternalAPIService) GetActiveLLMProviderDeploymentByGateway(prov
 		return nil, fmt.Errorf("failed to get deployment: %w", err)
 	}
 	if deployment == nil {
-		return nil, fmt.Errorf("deployment not active")
+		return nil, utils.ErrDeploymentNotActive
 	}
 
 	providerYaml := string(deployment.Content)
@@ -331,6 +332,12 @@ func generateAPIDeploymentYAML(api *models.API) (string, error) {
 		return "", fmt.Errorf("API is required")
 	}
 
+	// Determine the API context to use
+	context := "/api/v1" // Default context
+	if api.Configuration.Context != nil && *api.Configuration.Context != "" {
+		context = *api.Configuration.Context
+	}
+
 	deployment := APIDeploymentYAML{
 		ApiVersion: "gateway.api-platform.wso2.com/v1alpha1",
 		Kind:       api.Kind,
@@ -340,7 +347,7 @@ func generateAPIDeploymentYAML(api *models.API) (string, error) {
 		Spec: APIDeploymentSpec{
 			Name:    api.Name,
 			Version: api.Version,
-			Context: "/api/v1", // Default context
+			Context: context,
 		},
 	}
 

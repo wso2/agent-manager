@@ -23,6 +23,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // ArtifactRepository defines the interface for artifact data access
@@ -96,7 +97,7 @@ func (r *ArtifactRepo) GetByHandle(handle, orgUUID string) (*models.Artifact, er
 		First(&artifact).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
+			return nil, utils.ErrArtifactNotFound
 		}
 		return nil, err
 	}

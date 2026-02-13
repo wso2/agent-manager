@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
@@ -84,7 +85,7 @@ func NewLLMController(
 func (c *llmController) resolveOrgUUID(ctx context.Context, orgName string) (string, error) {
 	org, err := c.orgRepo.GetOrganizationByName(orgName)
 	if err != nil {
-		return "", utils.ErrOrganizationNotFound
+		return "", err
 	}
 	if org == nil {
 		return "", utils.ErrOrganizationNotFound
@@ -96,7 +97,12 @@ func (c *llmController) resolveOrgUUID(ctx context.Context, orgName string) (str
 func (c *llmController) resolveProjectUUID(ctx context.Context, orgName, projectName string) (string, error) {
 	project, err := c.ocClient.GetProject(ctx, orgName, projectName)
 	if err != nil {
-		return "", utils.ErrProjectNotFound
+		// Check if it's specifically a not-found error
+		if errors.Is(err, utils.ErrProjectNotFound) {
+			return "", utils.ErrProjectNotFound
+		}
+		// Return other errors (network, RPC, backend failures) as-is
+		return "", fmt.Errorf("GetProject: %w", err)
 	}
 	if project == nil {
 		return "", utils.ErrProjectNotFound
@@ -113,8 +119,13 @@ func (c *llmController) CreateLLMProviderTemplate(w http.ResponseWriter, r *http
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("CreateLLMProviderTemplate: organization not found", "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("CreateLLMProviderTemplate: organization not found", "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("CreateLLMProviderTemplate: failed to resolve organization", "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -156,8 +167,13 @@ func (c *llmController) ListLLMProviderTemplates(w http.ResponseWriter, r *http.
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("ListLLMProviderTemplates: organization not found", "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("ListLLMProviderTemplates: organization not found", "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("ListLLMProviderTemplates: failed to resolve organization", "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -206,8 +222,13 @@ func (c *llmController) GetLLMProviderTemplate(w http.ResponseWriter, r *http.Re
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("GetLLMProviderTemplate: organization not found", "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("GetLLMProviderTemplate: organization not found", "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("GetLLMProviderTemplate: failed to resolve organization", "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -240,8 +261,13 @@ func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("UpdateLLMProviderTemplate: organization not found", "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("UpdateLLMProviderTemplate: organization not found", "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("UpdateLLMProviderTemplate: failed to resolve organization", "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -296,8 +322,13 @@ func (c *llmController) DeleteLLMProviderTemplate(w http.ResponseWriter, r *http
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("DeleteLLMProviderTemplate: organization not found", "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("DeleteLLMProviderTemplate: organization not found", "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("DeleteLLMProviderTemplate: failed to resolve organization", "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -330,8 +361,13 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("CreateLLMProvider: organization not found", "orgName", orgName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("CreateLLMProvider: organization not found", "orgName", orgName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("CreateLLMProvider: failed to resolve organization", "orgName", orgName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 	log.Info("CreateLLMProvider: organization resolved", "orgName", orgName, "orgID", orgID)
@@ -400,8 +436,13 @@ func (c *llmController) ListLLMProviders(w http.ResponseWriter, r *http.Request)
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("ListLLMProviders: organization not found", "orgName", orgName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("ListLLMProviders: organization not found", "orgName", orgName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("ListLLMProviders: failed to resolve organization", "orgName", orgName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -456,8 +497,13 @@ func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("GetLLMProvider: organization not found", "orgName", orgName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("GetLLMProvider: organization not found", "orgName", orgName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("GetLLMProvider: failed to resolve organization", "orgName", orgName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -498,8 +544,13 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("UpdateLLMProvider: organization not found", "orgName", orgName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("UpdateLLMProvider: organization not found", "orgName", orgName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("UpdateLLMProvider: failed to resolve organization", "orgName", orgName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -569,8 +620,13 @@ func (c *llmController) DeleteLLMProvider(w http.ResponseWriter, r *http.Request
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("DeleteLLMProvider: organization not found", "orgName", orgName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("DeleteLLMProvider: organization not found", "orgName", orgName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("DeleteLLMProvider: failed to resolve organization", "orgName", orgName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -608,16 +664,26 @@ func (c *llmController) CreateLLMProxy(w http.ResponseWriter, r *http.Request) {
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("CreateLLMProxy: organization not found", "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("CreateLLMProxy: organization not found", "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("CreateLLMProxy: failed to resolve organization", "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
 	// Resolve project name to UUID
 	projectUUID, err := c.resolveProjectUUID(ctx, orgName, projectName)
 	if err != nil {
-		log.Error("CreateLLMProxy: project not found", "orgName", orgName, "projectName", projectName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+		if errors.Is(err, utils.ErrProjectNotFound) {
+			log.Error("CreateLLMProxy: project not found", "orgName", orgName, "projectName", projectName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			return
+		}
+		log.Error("CreateLLMProxy: failed to resolve project", "orgName", orgName, "projectName", projectName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -672,16 +738,26 @@ func (c *llmController) ListLLMProxies(w http.ResponseWriter, r *http.Request) {
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("ListLLMProxies: organization not found", "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("ListLLMProxies: organization not found", "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("ListLLMProxies: failed to resolve organization", "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
 	// Resolve project name to UUID
 	projectUUID, err := c.resolveProjectUUID(ctx, orgName, projectName)
 	if err != nil {
-		log.Error("ListLLMProxies: project not found", "orgName", orgName, "projectName", projectName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+		if errors.Is(err, utils.ErrProjectNotFound) {
+			log.Error("ListLLMProxies: project not found", "orgName", orgName, "projectName", projectName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			return
+		}
+		log.Error("ListLLMProxies: failed to resolve project", "orgName", orgName, "projectName", projectName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -734,8 +810,13 @@ func (c *llmController) ListLLMProxiesByProvider(w http.ResponseWriter, r *http.
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("ListLLMProxiesByProvider: organization not found", "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("ListLLMProxiesByProvider: organization not found", "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("ListLLMProxiesByProvider: failed to resolve organization", "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -794,16 +875,26 @@ func (c *llmController) GetLLMProxy(w http.ResponseWriter, r *http.Request) {
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("GetLLMProxy: organization not found", "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("GetLLMProxy: organization not found", "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("GetLLMProxy: failed to resolve organization", "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
 	// Resolve project name to UUID (validates project exists)
 	_, err = c.resolveProjectUUID(ctx, orgName, projectName)
 	if err != nil {
-		log.Error("GetLLMProxy: project not found", "orgName", orgName, "projectName", projectName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+		if errors.Is(err, utils.ErrProjectNotFound) {
+			log.Error("GetLLMProxy: project not found", "orgName", orgName, "projectName", projectName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			return
+		}
+		log.Error("GetLLMProxy: failed to resolve project", "orgName", orgName, "projectName", projectName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -837,16 +928,26 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("UpdateLLMProxy: organization not found", "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("UpdateLLMProxy: organization not found", "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("UpdateLLMProxy: failed to resolve organization", "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
 	// Resolve project name to UUID (validates project exists)
 	projectUUID, err := c.resolveProjectUUID(ctx, orgName, projectName)
 	if err != nil {
-		log.Error("UpdateLLMProxy: project not found", "orgName", orgName, "projectName", projectName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+		if errors.Is(err, utils.ErrProjectNotFound) {
+			log.Error("UpdateLLMProxy: project not found", "orgName", orgName, "projectName", projectName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			return
+		}
+		log.Error("UpdateLLMProxy: failed to resolve project", "orgName", orgName, "projectName", projectName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -899,16 +1000,26 @@ func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("DeleteLLMProxy: organization not found", "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("DeleteLLMProxy: organization not found", "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("DeleteLLMProxy: failed to resolve organization", "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
 	// Resolve project name to UUID (validates project exists)
 	_, err = c.resolveProjectUUID(ctx, orgName, projectName)
 	if err != nil {
-		log.Error("DeleteLLMProxy: project not found", "orgName", orgName, "projectName", projectName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+		if errors.Is(err, utils.ErrProjectNotFound) {
+			log.Error("DeleteLLMProxy: project not found", "orgName", orgName, "projectName", projectName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			return
+		}
+		log.Error("DeleteLLMProxy: failed to resolve project", "orgName", orgName, "projectName", projectName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
