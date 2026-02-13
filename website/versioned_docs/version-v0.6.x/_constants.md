@@ -1,6 +1,6 @@
 {/* This file stores constants used across the documentation */}
 
 export const versions = {
-  latestVersion: 'v0.6.x',
-  quickStartDockerTag: 'v0.6.0'
+  latestVersion: 'v0.5.0',
+  quickStartDockerTag: 'v0.5.0'
 };
