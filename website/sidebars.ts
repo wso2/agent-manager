@@ -48,6 +48,7 @@ const sidebars: SidebarsConfig = {
         'components/amp-console',
         'components/amp-instrumentation',
         'components/amp-trace-observer',
+        'components/amp-eval'
       ],
     },
     {

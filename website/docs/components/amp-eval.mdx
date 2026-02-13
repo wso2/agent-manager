@@ -1,0 +1,978 @@
+# AMP Evaluation Framework
+
+A comprehensive, production-ready evaluation framework for AI agents that works with real execution traces to provide deep insights into agent performance.
+
+## Overview
+
+The evaluation framework is a trace-based system that analyzes real agent executions to measure quality, performance, and reliability. Built for both benchmarking and continuous production monitoring.
+
+### Key Features
+
+- **Trace-Based Evaluation**: Analyze real agent executions from OpenTelemetry/AMP traces
+- **Rich Span Analysis**: Evaluate LLM calls, tool usage, retrievals, and agent reasoning
+- **Built-in Evaluators**: 13+ ready-to-use evaluators for output quality, trajectory, and performance
+- **Flexible Aggregation**: MEAN, MEDIAN, P95, PASS_RATE, and custom aggregations
+- **Two Evaluation Modes**: Benchmark datasets with ground truth OR live production monitoring
+- **Platform Integration**: Publish results to AMP Platform for tracking and dashboards
+- **Extensible Architecture**: Easy to add custom evaluators and aggregations
+
+## Installation
+
+```bash
+pip install amp-evaluation
+```
+
+Or install from source:
+
+```bash
+cd libs/amp-evaluation
+pip install -e .
+```
+
+## Quick Start
+
+### 1. Simple Evaluation with Built-in Evaluators
+
+```python
+from amp_evaluation import Monitor, Config
+
+# Configure connection to trace service
+config = Config.from_env()  # Loads from environment variables
+
+# Create runner with built-in evaluators
+runner = Monitor(
+    config=config,
+    evaluator_names=["answer-length", "exact-match"]
+)
+
+# Fetch and evaluate recent traces
+result = runner.run()
+
+print(f"Evaluated {result.trace_count} traces")
+print(f"Results: {result.aggregated_results}")
+```
+
+### 2. Define a Custom Evaluator
+
+```python
+from amp_evaluation import evaluator, Observation, EvalResult
+from amp_evaluation.evaluators import BaseEvaluator
+
+@evaluator("answer-quality", tags=["quality", "output"])
+class AnswerQualityEvaluator(BaseEvaluator):
+    """Checks if answer meets quality standards."""
+    
+    def evaluate(self, observation: Observation) -> EvalResult:
+        trajectory = observation.trajectory
+        output_length = len(trajectory.output) if trajectory.output else 0
+        
+        # Score based on length and content
+        has_content = output_length > 50
+        no_errors = not trajectory.has_errors
+        
+        score = 1.0 if (has_content and no_errors) else 0.5
+        
+        return EvalResult(
+            score=score,
+            passed=score >= 0.7,
+            explanation=f"Quality check: {output_length} chars, errors={trajectory.has_errors}",
+            details={
+                "output_length": output_length,
+                "error_count": trajectory.metrics.error_count
+            }
+        )
+```
+
+### 3. Use with Ground Truth (Benchmark Mode)
+
+```python
+from amp_evaluation import Experiment, Dataset, Task
+
+# Load benchmark dataset
+dataset = Dataset.from_csv("benchmarks/qa_dataset.csv")
+
+# Create benchmark runner
+runner = Experiment(
+    config=config,
+    evaluators=["exact-match", "answer-relevancy"],
+    dataset=dataset
+)
+
+# Run evaluation
+result = runner.run()
+
+# Access aggregated results
+for eval_name, agg_results in result.aggregated_results.items():
+    print(f"{eval_name}:")
+    print(f"  Mean: {agg_results['mean']:.3f}")
+    print(f"  Median: {agg_results['median']:.3f}")
+    print(f"  Pass Rate (≥0.7): {agg_results.get('pass_rate_threshold_0.7', 'N/A')}")
+```
+
+## Core Concepts
+
+### Trajectory
+The main data structure representing a single agent execution extracted from OpenTelemetry spans.
+
+```python
+from amp_evaluation.trace import Trajectory
+
+# Trajectory contains:
+trajectory.trace_id           # Unique identifier
+trajectory.input              # Agent input
+trajectory.output             # Agent output
+trajectory.steps              # Sequential list of all spans (execution order)
+trajectory.metrics            # Aggregated metrics (tokens, duration, errors)
+trajectory.timestamp          # When the trace occurred
+trajectory.metadata           # Additional context
+
+# Span accessors (filter by span type):
+trajectory.llm_spans          # List[LLMSpan]
+trajectory.tool_spans         # List[ToolSpan]
+trajectory.retriever_spans    # List[RetrieverSpan]
+trajectory.agent_span         # First agent span (if any)
+
+# Convenience properties:
+trajectory.has_output         # bool
+trajectory.has_errors         # bool
+trajectory.success            # bool (no errors)
+trajectory.all_tool_names     # List[str] (in order)
+trajectory.unique_tool_names  # List[str] (unique)
+trajectory.unique_models_used # List[str]
+trajectory.framework          # str (detected framework)
+```
+
+### Observation
+Rich context object passed to evaluators containing the trajectory and optional ground truth.
+
+```python
+from amp_evaluation import Observation
+
+# Always available:
+observation.trajectory         # Trajectory object (the observed execution)
+observation.trace_id           # str (convenience - same as trajectory.trace_id)
+observation.input              # str (convenience - same as trajectory.input)
+observation.output             # str (convenience - same as trajectory.output)
+observation.timestamp          # datetime (when trace occurred)
+observation.metrics            # TraceMetrics (convenience - same as trajectory.metrics)
+observation.is_experiment      # bool (True if Experiment, False if Monitor)
+observation.custom             # Dict[str, Any] (user-defined attributes)
+
+# Expected data (may be unavailable - raises DataNotAvailableError):
+observation.expected_output    # str - Ground truth output
+observation.expected_trajectory # List[Dict] - Expected tool sequence
+observation.expected_outcome   # Dict - Expected side effects
+
+# Guidelines (may be unavailable - raises DataNotAvailableError):
+observation.success_criteria   # str - Human-readable success criteria
+observation.prohibited_content # List[str] - Content that shouldn't appear
+
+# Constraints (optional - returns None if not set):
+observation.constraints        # Optional[Constraints]
+  .max_latency_ms              # float
+  .max_tokens                  # int
+  .max_iterations              # int
+
+# Task reference (optional):
+observation.task               # Optional[Task] - Original task from dataset
+
+# Check availability before access:
+if observation.has_expected_output():
+    expected = observation.expected_output
+
+if observation.constraints and observation.constraints.has_latency_constraint():
+    max_latency = observation.constraints.max_latency_ms
+```
+
+### BaseEvaluator
+Abstract base class for all evaluators. Implements single `evaluate(observation)` interface.
+
+```python
+from amp_evaluation import Observation, EvalResult
+from amp_evaluation.evaluators import BaseEvaluator
+
+class MyEvaluator(BaseEvaluator):
+    def __init__(self, threshold: float = 0.7):
+        super().__init__()
+        self._name = "my-evaluator"
+        self.threshold = threshold
+    
+    def evaluate(self, observation: Observation) -> EvalResult:
+        trajectory = observation.trajectory
+        
+        # Your evaluation logic
+        score = calculate_score(trajectory)
+        
+        return EvalResult(
+            score=score,
+            passed=score >= self.threshold,
+            explanation="Detailed explanation",
+            details={"metric1": 0.8, "metric2": 0.9}
+        )
+```
+
+### EvalResult
+
+Return type for all evaluators. Supports two patterns:
+
+**Success Pattern** - Evaluation completed with a score:
+```python
+# High score (passed)
+return EvalResult(score=0.85, explanation="Good response quality")
+
+# Low score (failed)  
+return EvalResult(score=0.2, explanation="Response too short")
+
+# Zero score (evaluated but completely failed)
+return EvalResult(score=0.0, passed=False, explanation="No relevant content")
+```
+
+**Error Pattern** - Evaluation could not be performed:
+```python
+# Missing dependency
+return EvalResult.skip("DeepEval not installed")
+
+# Missing required data
+return EvalResult.skip("No expected output in task")
+
+# API failure
+return EvalResult.skip(f"API call failed: {error}")
+```
+
+**Key Distinction:**
+- `score=0.0` means "evaluated and completely failed"
+- `skip()` means "could not evaluate at all"
+
+**Safe Access Pattern:**
+```python
+result = evaluator.evaluate(observation)
+
+if result.is_error:
+    print(f"Skipped: {result.error}")
+else:
+    print(f"Score: {result.score}, Passed: {result.passed}")
+```
+
+### Evaluator Types
+
+**Code Evaluators** (Default)
+- Deterministic, rule-based evaluation
+- Fast and reliable
+- Examples: exact match, length check, tool usage
+
+**LLM-as-Judge Evaluators**
+- Use language models to evaluate quality
+- Flexible for subjective criteria
+- Examples: relevancy, helpfulness, coherence
+
+```python
+from amp_evaluation.evaluators import LLMAsJudgeEvaluator
+
+class RelevancyEvaluator(LLMAsJudgeEvaluator):
+    def __init__(self):
+        super().__init__(
+            model="gpt-4",
+            criteria="relevancy to the user's question"
+        )
+        self._name = "llm-relevancy"
+```
+
+**Human Evaluators**
+- Async human review
+- For subjective quality assessment
+- Results collected asynchronously
+
+### RunType Enum
+Evaluation mode indicator.
+
+```python
+from amp_evaluation import RunType
+
+# Two modes:
+RunType.EXPERIMENT  # Evaluating against ground truth dataset
+RunType.MONITOR     # Monitoring live production traces
+```
+
+### Aggregation System
+
+Compute statistics across multiple evaluation results.
+
+**Base Types and Configuration** (`aggregators/base.py`)
+
+```python
+from amp_evaluation.aggregators import AggregationType, Aggregation
+
+# Simple aggregations (no parameters)
+aggregations = [
+    AggregationType.MEAN,
+    AggregationType.MEDIAN,
+    AggregationType.P95,
+    AggregationType.MAX,
+]
+
+# Parameterized aggregations
+aggregations = [
+    Aggregation(AggregationType.PASS_RATE, threshold=0.7),
+    Aggregation(AggregationType.PASS_RATE, threshold=0.9),
+]
+
+# Custom aggregations
+def custom_range(scores, **kwargs):
+    return max(scores) - min(scores)
+
+aggregations = [
+    AggregationType.MEAN,
+    Aggregation(custom_range)  # Inline function
+]
+```
+
+**Built-in Aggregations** (`aggregators/builtin.py`)
+
+```python
+# Statistical aggregations:
+AggregationType.MEAN       # Average
+AggregationType.MEDIAN     # Median
+AggregationType.MIN        # Minimum
+AggregationType.MAX        # Maximum
+AggregationType.SUM        # Sum
+AggregationType.COUNT      # Count
+AggregationType.STDEV      # Standard deviation
+AggregationType.VARIANCE   # Variance
+
+# Percentiles:
+AggregationType.P50        # 50th percentile
+AggregationType.P75        # 75th percentile
+AggregationType.P90        # 90th percentile
+AggregationType.P95        # 95th percentile
+AggregationType.P99        # 99th percentile
+
+# Pass/fail based:
+AggregationType.PASS_RATE  # Requires threshold parameter
+```
+
+**How Aggregation Works**
+
+Aggregations are configured per-evaluator and computed automatically by the runner.
+
+```python
+from amp_evaluation import evaluator, Observation, EvalResult
+from amp_evaluation.aggregators import AggregationType, Aggregation
+
+# Configure aggregations in your evaluator
+@evaluator("quality-check", aggregations=[
+    AggregationType.MEAN,
+    AggregationType.MEDIAN,
+    Aggregation(AggregationType.PASS_RATE, threshold=0.7),
+])
+def quality_check(observation: Observation) -> EvalResult:
+    # ... evaluation logic ...
+    return EvalResult(score=0.85)
+
+# Run evaluation
+result = runner.run()
+
+# Access aggregated results
+summary = result.scores["quality-check"]
+print(summary.aggregated_scores["mean"])           # 0.85
+print(summary.aggregated_scores["pass_rate_0.7"])  # 0.92
+print(summary.count)                                # 100
+print(summary.individual_scores)                    # List[EvaluatorScore]
+```
+
+**Custom Aggregator Registration**
+
+```python
+from amp_evaluation.aggregators import aggregator
+
+@aggregator("weighted_avg")
+def weighted_average(scores, weights=None, **kwargs):
+    if weights:
+        return sum(s * w for s, w in zip(scores, weights)) / sum(weights)
+    return sum(scores) / len(scores)
+
+# Now use it:
+aggregations = [
+    Aggregation("weighted_avg", weights=[0.5, 0.3, 0.2])
+]
+```
+
+### Datasets & Benchmarks
+
+Create reusable benchmark datasets with ground truth.
+
+```python
+from amp_evaluation import Dataset, Task
+
+# Create dataset
+dataset = Dataset(
+    dataset_id="qa-benchmark-v1",
+    name="Q&A Benchmark",
+    description="100 question-answering scenarios with ground truth"
+)
+
+# Add tasks with ground truth
+task = Task(
+    task_id="task_001",
+    input="What is the capital of France?",
+    expected_output="Paris",
+    metadata={"category": "geography", "difficulty": "easy"}
+)
+dataset.add_task(task)
+
+# Save for version control
+dataset.to_csv("benchmarks/qa_benchmark_v1.csv")
+dataset.to_json("benchmarks/qa_benchmark_v1.json")
+
+# Load later
+dataset = Dataset.from_csv("benchmarks/qa_benchmark_v1.csv")
+dataset = Dataset.from_json("benchmarks/qa_benchmark_v1.json")
+```
+
+### Runners
+
+**Experiment** - Evaluate against ground truth dataset
+
+```python
+from amp_evaluation import Experiment, Config
+
+config = Config.from_env()
+dataset = Dataset.from_csv("benchmarks/qa_benchmark.csv")
+
+runner = Experiment(
+    config=config,
+    evaluators=["exact-match", "contains-match"],
+    dataset=dataset
+)
+
+result = runner.run()
+```
+
+**Monitor** - Monitor production traces
+
+```python
+from amp_evaluation import Monitor, Config
+
+config = Config.from_env()
+
+runner = Monitor(
+    config=config,
+    evaluator_names=["has-output", "error-free"],
+    batch_size=50  # Process 50 traces per batch
+)
+
+# Fetch and evaluate recent traces
+result = runner.run(
+    start_time="2024-01-26T00:00:00Z",
+    end_time="2024-01-26T23:59:59Z"
+)
+```
+
+**Filtering Evaluators**
+
+```python
+# By tags
+runner = Monitor(
+    config=config,
+    include_tags=["quality", "safety"],    # Only run these
+    exclude_tags=["slow", "experimental"]  # Skip these
+)
+
+# By name
+runner = Monitor(
+    config=config,
+    evaluator_names=["exact-match", "answer-length"]
+)
+```
+
+## Built-in Evaluators
+
+The framework includes 13 production-ready evaluators in `evaluators/builtin.py`:
+
+### Output Quality Evaluators
+
+| Evaluator                    | Description                                  | Parameters                                  |
+| ---------------------------- | -------------------------------------------- | ------------------------------------------- |
+| `AnswerLengthEvaluator`      | Validates answer length is within bounds     | `min_length`, `max_length`                  |
+| `AnswerRelevancyEvaluator`   | Checks word overlap between input and output | `min_overlap_ratio`                         |
+| `RequiredContentEvaluator`   | Ensures required strings/patterns present    | `required_strings`, `required_patterns`     |
+| `ProhibitedContentEvaluator` | Ensures prohibited content absent            | `prohibited_strings`, `prohibited_patterns` |
+| `ExactMatchEvaluator`        | Exact match with expected output             | `case_sensitive`, `strip_whitespace`        |
+| `ContainsMatchEvaluator`     | Expected output contained in actual          | `case_sensitive`                            |
+
+### Trajectory Evaluators
+
+| Evaluator                  | Description                           | Parameters                    |
+| -------------------------- | ------------------------------------- | ----------------------------- |
+| `ToolSequenceEvaluator`    | Validates tool call sequence          | `expected_sequence`, `strict` |
+| `RequiredToolsEvaluator`   | Checks required tools were used       | `required_tools`              |
+| `StepSuccessRateEvaluator` | Measures trajectory step success rate | `min_success_rate`            |
+
+### Performance Evaluators
+
+| Evaluator                  | Description               | Parameters       |
+| -------------------------- | ------------------------- | ---------------- |
+| `LatencyEvaluator`         | Checks latency within SLA | `max_latency_ms` |
+| `TokenEfficiencyEvaluator` | Validates token usage     | `max_tokens`     |
+| `IterationCountEvaluator`  | Checks iteration count    | `max_iterations` |
+
+### Outcome Evaluators
+
+| Evaluator                  | Description                              | Parameters |
+| -------------------------- | ---------------------------------------- | ---------- |
+| `ExpectedOutcomeEvaluator` | Validates trace success matches expected | -          |
+
+### Using Built-in Evaluators
+
+```python
+from amp_evaluation.evaluators.builtin.standard import (
+    AnswerLengthEvaluator,
+    ExactMatchEvaluator,
+    LatencyEvaluator
+)
+
+# Instantiate with custom parameters
+evaluators = [
+    AnswerLengthEvaluator(min_length=10, max_length=500),
+    ExactMatchEvaluator(case_sensitive=False),
+    LatencyEvaluator(max_latency_ms=2000)
+]
+
+# Or use by name (registered automatically)
+runner = Monitor(
+    config=config,
+    evaluator_names=["answer-length", "exact-match", "latency"]
+)
+```
+
+## Advanced Usage
+
+### Custom Evaluators with Aggregations
+
+```python
+from amp_evaluation import evaluator, Observation, EvalResult
+from amp_evaluation.evaluators import BaseEvaluator
+from amp_evaluation.aggregators import AggregationType, Aggregation
+
+@evaluator("semantic-similarity", tags=["quality", "nlp"])
+class SemanticSimilarityEvaluator(BaseEvaluator):
+    def __init__(self):
+        super().__init__()
+        self._name = "semantic-similarity"
+        
+        # Configure custom aggregations
+        self._aggregations = [
+            AggregationType.MEAN,
+            AggregationType.MEDIAN,
+            AggregationType.P95,
+            Aggregation(AggregationType.PASS_RATE, threshold=0.8),
+        ]
+    
+    def evaluate(self, observation: Observation) -> EvalResult:
+        # Your similarity calculation
+        similarity = calculate_similarity(
+            observation.output,
+            observation.expected_output
+        )
+        
+        return EvalResult(
+            score=similarity,
+            passed=similarity >= 0.8,
+            explanation=f"Semantic similarity: {similarity:.3f}"
+        )
+```
+
+### LLM-as-Judge Pattern
+
+```python
+from amp_evaluation.evaluators import LLMAsJudgeEvaluator
+import openai
+
+class HelpfulnessEvaluator(LLMAsJudgeEvaluator):
+    def __init__(self):
+        super().__init__(
+            model="gpt-4",
+            criteria="helpfulness, clarity, and completeness"
+        )
+        self._name = "llm-helpfulness"
+    
+    def call_llm(self, prompt: str) -> dict:
+        response = openai.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": "You are an expert evaluator."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.0
+        )
+        
+        # Parse structured response
+        content = response.choices[0].message.content
+        score = parse_score(content)  # Extract score 0-1
+        explanation = parse_explanation(content)
+        
+        return {
+            "score": score,
+            "explanation": explanation
+        }
+```
+
+### Function-Based Evaluators
+
+Quick evaluators using the `@evaluator` decorator.
+
+```python
+from amp_evaluation import evaluator, Observation
+
+@evaluator("has-greeting", tags=["output", "simple"])
+def check_greeting(observation: Observation) -> float:
+    """Simple function-based evaluator."""
+    output = observation.output.lower() if observation.output else ""
+    return 1.0 if any(g in output for g in ["hello", "hi", "greetings"]) else 0.0
+```
+
+### Configuration from Environment
+
+```python
+import os
+from amp_evaluation import Config
+
+# Set environment variables
+os.environ["AGENT_UID"] = "my-agent-123"
+os.environ["ENVIRONMENT_UID"] = "production"
+os.environ["TRACE_LOADER_MODE"] = "platform"
+os.environ["PUBLISH_RESULTS"] = "true"
+os.environ["AMP_API_URL"] = "http://localhost:8001"
+os.environ["AMP_API_KEY"] = "your-api-key"
+
+# Automatically validates required fields
+config = Config.from_env()
+```
+
+### Publishing Results to Platform
+
+```python
+from amp_evaluation import Monitor, Config
+
+config = Config.from_env()
+config.publish_results = True  # Enable platform publishing
+
+# Results automatically published
+runner = Monitor(config=config, evaluator_names=["quality-check"])
+result = runner.run()
+
+# Results now visible in platform dashboard
+print(f"Run ID: {result.run_id}")
+print(f"Published: {result.metadata.get('published', False)}")
+```
+
+## Project Structure
+
+```text
+amp-evaluation/
+├── src/amp_evaluation/
+│   ├── __init__.py            # Public API exports
+│   ├── config.py              # Configuration management
+│   ├── invokers.py            # Agent invoker utilities
+│   ├── models.py              # Core data models (EvalResult, Observation, etc.)
+│   ├── registry.py            # Evaluator/aggregator registration system
+│   ├── runner.py              # Evaluation runners (Experiment, Monitor)
+│   │
+│   ├── evaluators/            # Evaluator system
+│   │   ├── __init__.py        # Exports BaseEvaluator, LLMAsJudgeEvaluator, etc.
+│   │   ├── base.py            # Evaluator base classes
+│   │   └── builtin/
+│   │       ├── __init__.py
+│   │       ├── standard.py    # Standard evaluators (Latency, TokenEfficiency, etc.)
+│   │       └── deepeval.py    # DeepEval-based evaluators
+│   │
+│   ├── aggregators/           # Aggregation system
+│   │   ├── __init__.py        # Exports AggregationType, Aggregation
+│   │   ├── base.py            # AggregationType, Aggregation, registry
+│   │   └── builtin.py         # Built-in aggregation functions
+│   │
+│   ├── trace/                 # Trace handling
+│   │   ├── __init__.py        # Exports Trajectory, Span types, etc.
+│   │   ├── models.py          # Trajectory, Span models
+│   │   ├── parser.py          # OTEL → Trajectory conversion
+│   │   └── fetcher.py         # TraceFetcher for API integration
+│   │
+│   └── dataset/               # Dataset module
+│       ├── __init__.py        # Exports Task, Dataset, Constraints, etc.
+│       ├── schema.py          # Dataset schema models (Task, Dataset, Constraints, TrajectoryStep)
+│       └── loader.py          # Dataset CSV/JSON loading and saving
+│
+├── tests/                     # Comprehensive test suite
+├── pyproject.toml             # Package configuration
+└── README.md                  # This file
+```
+
+## Architecture Overview
+
+### Three-Layer Design
+
+1. **Evaluation Layer** (`evaluators/`)
+   - Base classes and interfaces
+   - Built-in evaluators
+   - Custom evaluator registration
+
+2. **Aggregation Layer** (`aggregators/`)
+   - Type definitions and registry (`base.py`)
+   - Built-in aggregation functions (`builtin.py`)
+   - Execution engine (`aggregation.py`)
+
+3. **Execution Layer** (`runner.py`)
+   - Experiment for datasets
+   - Monitor for production monitoring
+   - Result publishing and reporting
+
+## Examples
+
+### Complete Working Example
+
+```python
+from amp_evaluation import Config, Monitor, evaluator, Observation, EvalResult
+from amp_evaluation.evaluators import BaseEvaluator
+from amp_evaluation.aggregators import AggregationType, Aggregation
+
+# 1. Define custom evaluator
+@evaluator("custom-quality", tags=["quality", "custom"])
+class CustomQualityEvaluator(BaseEvaluator):
+    def __init__(self):
+        super().__init__()
+        self._name = "custom-quality"
+        self._aggregations = [
+            AggregationType.MEAN,
+            AggregationType.P95,
+            Aggregation(AggregationType.PASS_RATE, threshold=0.8)
+        ]
+    
+    def evaluate(self, observation: Observation) -> EvalResult:
+        trajectory = observation.trajectory
+        
+        # Multi-factor quality score
+        has_output = 1.0 if trajectory.has_output else 0.0
+        no_errors = 1.0 if not trajectory.has_errors else 0.0
+        output_len = len(trajectory.output) if trajectory.output else 0
+        reasonable_length = 1.0 if 10 <= output_len <= 1000 else 0.5
+        
+        score = (has_output + no_errors + reasonable_length) / 3
+        
+        return EvalResult(
+            score=score,
+            passed=score >= 0.8,
+            explanation=f"Quality score: {score:.2f}",
+            details={
+                "has_output": has_output,
+                "no_errors": no_errors,
+                "length_ok": reasonable_length
+            }
+        )
+
+# 2. Configure
+config = Config.from_env()
+
+# 3. Create runner with multiple evaluators
+runner = Monitor(
+    config=config,
+    evaluator_names=["custom-quality"],
+    include_tags=["quality"],
+    batch_size=100
+)
+
+# 4. Run evaluation
+result = runner.run()
+
+# 5. Analyze results
+print(f"Run ID: {result.run_id}")
+print(f"Run Type: {result.run_type}")
+print(f"Traces Evaluated: {result.trace_count}")
+print(f"Duration: {result.duration_seconds:.2f}s")
+
+for eval_name, agg_results in result.aggregated_results.items():
+    print(f"\n{eval_name}:")
+    print(f"  Mean: {agg_results.mean:.3f}")
+    print(f"  P95: {agg_results['p95']:.3f}")
+    print(f"  Pass Rate (≥0.8): {agg_results['pass_rate_threshold_0.8']:.1%}")
+    print(f"  Count: {agg_results.count}")
+```
+
+See `examples/complete_example.py` for a full working demonstration.
+
+## Testing
+
+Run the test suite:
+
+```bash
+# All tests
+pytest
+
+# Specific test file
+pytest tests/test_aggregators.py -v
+
+# With coverage
+pytest --cov=amp_evaluation --cov-report=html
+```
+
+## Key Features in Detail
+
+### 1. Trace-Based Architecture
+- Works with real OpenTelemetry traces
+- No synthetic data generation needed
+- Supports any agent framework (LangChain, CrewAI, custom, etc.)
+
+### 2. Flexible Evaluation
+- Code-based evaluators (fast, deterministic)
+- LLM-as-judge evaluators (flexible, subjective criteria)
+- Human-in-the-loop support
+- Composite evaluators
+
+### 3. Rich Aggregations
+- 15+ built-in aggregations
+- Custom aggregation functions
+- Parameterized aggregations
+- Per-evaluator configuration
+
+### 4. Two Evaluation Modes
+- **Benchmark**: Compare against ground truth datasets
+- **Live**: Monitor production traces continuously
+
+### 5. Production Ready
+- Config validation
+- Error handling
+- Async support
+- Platform integration
+- Comprehensive logging
+
+## Getting Started Checklist
+
+- [ ] Install package: `pip install amp-evaluation`
+- [ ] Set up environment variables
+- [ ] Start trace service or configure OpenSearch
+- [ ] Try built-in evaluators with `Monitor`
+- [ ] Create custom evaluator for your use case
+- [ ] Set up benchmark dataset (optional)
+- [ ] Configure platform publishing (optional)
+
+## Configuration
+
+The library reads configuration from environment variables when using `Config.from_env()`:
+
+### Core Configuration (Required)
+
+```bash
+# Agent identification
+AGENT_UID="your-agent-id"
+ENVIRONMENT_UID="production"
+
+# Trace loading mode
+TRACE_LOADER_MODE="platform"  # or "file"
+
+# Publishing results to platform
+PUBLISH_RESULTS="true"
+
+# Platform API (required when PUBLISH_RESULTS=true or TRACE_LOADER_MODE=platform)
+AMP_API_URL="http://localhost:8001"
+AMP_API_KEY="xxxxx"
+
+# If using file mode for traces:
+TRACE_FILE_PATH="./traces/my_traces.json"
+```
+
+That's it! All configuration is handled through these environment variables.
+
+For detailed configuration options, see `src/amp_evaluation/config.py`.
+
+## Module Organization
+
+### Dataset Module
+
+All dataset-related functionality is organized in the `dataset/` module:
+
+```python
+from amp_evaluation.dataset import (
+    # Schema models
+    Task,
+    Dataset,
+    Constraints,
+    TrajectoryStep,
+    generate_id,
+    
+    # Loading/saving functions
+    load_dataset_from_json,
+    load_dataset_from_csv,
+    save_dataset_to_json,
+)
+```
+
+**Module Structure:**
+- `dataset/schema.py` - Core dataclass models (Task, Dataset, Constraints, TrajectoryStep)
+- `dataset/loader.py` - JSON/CSV loading and saving functions
+- `dataset/__init__.py` - Public API exports
+
+**Benefits:**
+- All dataset code in one logical place
+- Clear separation: schema vs I/O operations
+- Clean imports from both `amp_evaluation.dataset` and `amp_evaluation`
+- Self-contained and well-tested (25+ unit tests)
+
+**Example Usage:**
+
+```python
+# Load from JSON
+dataset = load_dataset_from_json("benchmarks/customer_support.json")
+
+# Create programmatically
+from amp_evaluation.dataset import Dataset, Task, Constraints
+
+dataset = Dataset(
+    dataset_id="my_dataset",
+    name="My Test Dataset",
+    description="Testing my agent"
+)
+
+task = Task(
+    task_id="task_001",
+    input="How do I reset my password?",
+    expected_output="Click 'Forgot Password' on login page...",
+    constraints=Constraints(max_latency_ms=3000),
+)
+
+dataset.add_task(task)
+
+# Save to JSON
+save_dataset_to_json(dataset, "my_dataset.json")
+```
+
+## Contributing
+
+Contributions welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass: `pytest`
+5. Submit a pull request
+
+## License
+
+Apache License 2.0 - see LICENSE file for details.
+
+## Tips & Best Practices
+
+1. **Start Simple**: Use built-in evaluators first
+2. **Use Tags**: Organize evaluators with tags for easy filtering
+3. **Configure Aggregations**: Set per-evaluator aggregations
+4. **Validate Config**: Always use `Config.from_env()`
+5. **Monitor Production**: Use `Monitor` for continuous monitoring
+
+## FAQ
+
+**Q: Can I use this with LangChain/CrewAI/other frameworks?**  
+A: Yes! Works with any agent producing OpenTelemetry traces.
+
+**Q: Do I need ground truth data?**  
+A: No. Use `Monitor` without ground truth, or `Experiment` with datasets.
+
+**Q: How do I create custom evaluators?**  
+A: Extend `BaseEvaluator` from `amp_evaluation.evaluators` and implement `evaluate(observation)`.
+
