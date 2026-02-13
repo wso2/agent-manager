@@ -54,16 +54,6 @@ const config: Config = {
   plugins: [
     '@signalwire/docusaurus-plugin-llms-txt'],
 
-  headTags: [
-    {
-      tagName: 'meta',
-      attributes: {
-        name: 'algolia-site-verification',
-        content: 'E81C4B874DDE8AE3',
-      },
-    },
-  ],
-
   presets: [
     [
       'classic',
@@ -74,6 +64,10 @@ const config: Config = {
             current: {
               label: 'Next',
               banner: 'unreleased',
+            },
+            [latestVersion]: {
+              label: latestVersion,
+              path: latestVersion,
             },
           },
           sidebarPath: './sidebars.ts',
@@ -147,11 +141,11 @@ const config: Config = {
           items: [
             {
               label: 'Overview',
-              to: '/docs/overview/what-is-amp',
+              to: `/docs/${latestVersion}/overview/what-is-amp`,
             },
             {
               label: 'Quick Start',
-              to: '/docs/getting-started/quick-start',
+              to: `/docs/${latestVersion}/getting-started/quick-start`,
             },
           ],
         },
