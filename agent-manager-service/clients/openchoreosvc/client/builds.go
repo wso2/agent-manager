@@ -122,7 +122,7 @@ func (c *openChoreoClient) ListBuilds(ctx context.Context, orgName, projectName,
 
 func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBuildParametersRequest) error {
 	// Fetch the full component CR with server-managed fields removed
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
 	if err != nil {
 		return fmt.Errorf("failed to get component resource: %w", err)
 	}

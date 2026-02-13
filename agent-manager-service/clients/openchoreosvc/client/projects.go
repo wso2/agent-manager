@@ -79,7 +79,7 @@ func (c *openChoreoClient) GetProject(ctx context.Context, namespaceName, projec
 
 func (c *openChoreoClient) PatchProject(ctx context.Context, namespaceName, projectName string, req PatchProjectRequest) error {
 	// Fetch the full project CR with server-managed fields removed
-	projectCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindProject, projectName, utils.ErrProjectNotFound)
+	projectCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindProject, projectName, utils.ErrProjectNotFound, false)
 	if err != nil {
 		return fmt.Errorf("failed to get project resource: %w", err)
 	}

@@ -326,7 +326,7 @@ func normalizePath(path string) string {
 }
 
 func (c *openChoreoClient) GetComponent(ctx context.Context, namespaceName, projectName, componentName string) (*models.AgentResponse, error) {
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get component resource: %w", err)
 	}
@@ -335,8 +335,9 @@ func (c *openChoreoClient) GetComponent(ctx context.Context, namespaceName, proj
 	return convertComponentCR(componentCR), nil
 }
 
-// getCleanResourceCR fetches a resource CR and removes server-managed fields
-func (c *openChoreoClient) getCleanResourceCR(ctx context.Context, namespaceName, kind, resourceName string, notFoundErr error) (map[string]interface{}, error) {
+// getCleanResourceCR fetches a resource CR and optionally removes server-managed fields
+// keepStatus: if true, preserves the status useful for read operations
+func (c *openChoreoClient) getCleanResourceCR(ctx context.Context, namespaceName, kind, resourceName string, notFoundErr error, keepStatus bool) (map[string]interface{}, error) {
 	resp, err := c.ocClient.GetResourceWithResponse(ctx, namespaceName, kind, resourceName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get resource: %w", err)
@@ -361,19 +362,21 @@ func (c *openChoreoClient) getCleanResourceCR(ctx context.Context, namespaceName
 		delete(metadata, "managedFields")
 		delete(metadata, "resourceVersion")
 		delete(metadata, "generation")
-		delete(metadata, "creationTimestamp")
-		delete(metadata, "uid")
+		if !keepStatus {
+			delete(metadata, "creationTimestamp")
+			delete(metadata, "uid")
+		}
 	}
-
-	// Remove status field (server-managed)
-	delete(componentCR, "status")
+	if !keepStatus {
+		delete(componentCR, "status")
+	}
 
 	return componentCR, nil
 }
 
 func (c *openChoreoClient) UpdateComponentBasicInfo(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentBasicInfoRequest) error {
 	// Fetch the full component CR with server-managed fields removed
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
 	if err != nil {
 		return fmt.Errorf("failed to get component resource: %w", err)
 	}
@@ -429,7 +432,7 @@ func (c *openChoreoClient) UpdateComponentResourceConfigs(ctx context.Context, n
 // updateComponentResourceConfigs updates component-level parameters (defaults for all environments)
 func (c *openChoreoClient) updateComponentResourceConfigs(ctx context.Context, namespaceName, projectName, componentName string, req UpdateComponentResourceConfigsRequest) error {
 	// Fetch the full component CR with server-managed fields removed
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
 	if err != nil {
 		return fmt.Errorf("failed to get component resource: %w", err)
 	}
@@ -596,7 +599,7 @@ func (c *openChoreoClient) updateReleaseBindingResourceConfigs(ctx context.Conte
 // getComponentLevelResourceConfigs fetches component-level default resource configurations
 func (c *openChoreoClient) getComponentLevelResourceConfigs(ctx context.Context, namespaceName, projectName, componentName string) (*ComponentResourceConfigsResponse, error) {
 	// Get the component CR to extract parameters
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get component resource: %w", err)
 	}
@@ -862,7 +865,7 @@ func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, proje
 // UpdateComponentEnvironmentVariables updates the environment variables for a component
 func (c *openChoreoClient) UpdateComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
 	// Fetch the full component CR with server-managed fields removed
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound)
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
 	if err != nil {
 		return fmt.Errorf("failed to get component resource: %w", err)
 	}
@@ -1223,6 +1226,19 @@ func convertComponentCR(componentCR map[string]interface{}) *models.AgentRespons
 		if name, ok := metadata["name"].(string); ok {
 			agent.Name = name
 		}
+
+		// Extract uid from metadata (preferred source)
+		if uid, ok := metadata["uid"].(string); ok {
+			agent.UUID = uid
+		}
+
+		// Extract creationTimestamp from metadata (preferred source)
+		if creationTimestamp, ok := metadata["creationTimestamp"].(string); ok {
+			if t, err := time.Parse(time.RFC3339, creationTimestamp); err == nil {
+				agent.CreatedAt = t
+			}
+		}
+
 		if annotations, ok := metadata["annotations"].(map[string]interface{}); ok {
 			if displayName, ok := annotations[string(AnnotationKeyDisplayName)].(string); ok {
 				agent.DisplayName = displayName
