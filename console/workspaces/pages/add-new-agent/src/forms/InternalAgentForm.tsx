@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Form, TextField } from "@wso2/oxygen-ui";
+import { Alert, Collapse, Form, Stack, TextField, Typography } from "@wso2/oxygen-ui";
 import { useEffect, useMemo, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
@@ -24,6 +24,7 @@ import { useGenerateResourceName } from "@agent-management-platform/api-client";
 import { InputInterface } from "../components/InputInterface";
 import { EnvironmentVariable } from "../components/EnvironmentVariable";
 import type { CreateAgentFormValues } from "../form/schema";
+import { BuildpackIcon } from "@agent-management-platform/views";
 
 interface InternalAgentFormProps {
   formData: CreateAgentFormValues;
@@ -39,6 +40,10 @@ interface InternalAgentFormProps {
     fullData?: CreateAgentFormValues
   ) => string | undefined;
 }
+const languageOptions = [
+  { label: "Python", value: "python" },
+  { label: "Docker", value: "docker" },
+];
 
 export const InternalAgentForm = ({
   formData,
@@ -48,7 +53,7 @@ export const InternalAgentForm = ({
   validateField,
 }: InternalAgentFormProps) => {
   const { projectId } = useParams<{ orgId: string; projectId: string }>();
-  
+
   const { mutate: generateName } = useGenerateResourceName({
     orgName: useParams<{ orgId: string }>().orgId,
   });
@@ -59,12 +64,33 @@ export const InternalAgentForm = ({
         const newData = { ...prevData, [field]: value };
         const error = validateField(field, value, newData);
         setFieldError(field, error);
+        
+        // When language changes, clear errors for conditional fields
+        if (field === 'language') {
+          if (value === 'python') {
+            // Switching to Python - clear Docker errors
+            setFieldError('dockerfilePath', undefined);
+            // Re-validate Python fields
+            const runCommandError = validateField('runCommand', newData.runCommand, newData);
+            const languageVersionError = validateField('languageVersion', newData.languageVersion, newData);
+            setFieldError('runCommand', runCommandError);
+            setFieldError('languageVersion', languageVersionError);
+          } else if (value === 'docker') {
+            // Switching to Docker - clear Python errors
+            setFieldError('runCommand', undefined);
+            setFieldError('languageVersion', undefined);
+            // Re-validate Docker fields
+            const dockerfilePathError = validateField('dockerfilePath', newData.dockerfilePath, newData);
+            setFieldError('dockerfilePath', dockerfilePathError);
+          }
+        }
+        
         return newData;
       });
     },
     [setFormData, validateField, setFieldError]
   );
-  
+
   // Create debounced function for name generation
   const debouncedGenerateName = useMemo(
     () =>
@@ -184,50 +210,109 @@ export const InternalAgentForm = ({
         <Form.Subheader>Build Details</Form.Subheader>
         <Form.Stack spacing={2}>
           <Form.Stack direction="row" spacing={2}>
-            <Form.ElementWrapper label="Language" name="language">
-              <TextField
-                id="language"
-                placeholder="python"
-                disabled
-                value={formData.language}
-                onChange={(e) => handleFieldChange('language', e.target.value)}
-                error={!!errors.language}
-                helperText={
-                  errors.language ||
-                  "e.g., python, nodejs, go"
-                }
-                fullWidth
-              />
-            </Form.ElementWrapper>
-            <Form.ElementWrapper label="Language Version" name="languageVersion">
-              <TextField
-                id="languageVersion"
-                placeholder="3.11"
-                value={formData.languageVersion || ''}
-                onChange={(e) => handleFieldChange('languageVersion', e.target.value)}
-                error={!!errors.languageVersion}
-                helperText={
-                  errors.languageVersion ||
-                  "e.g., 3.11, 20, 1.21"
-                }
-                fullWidth
-              />
-            </Form.ElementWrapper>
+            {
+              languageOptions.map((type) => {
+                const isSelected = formData.language === type.value;
+                return (
+                  <Form.CardButton
+                    key={type.value}
+                    onClick={() => handleFieldChange('language', type.value)}
+                    selected={isSelected}
+                  >
+                    <Form.CardHeader title={<Form.Stack direction="row" spacing={2} justifyContent="center" alignItems="center">
+                      <BuildpackIcon  language={type.value} />
+                      <Form.Body>{type.label}</Form.Body>
+                    </Form.Stack>} />
+                  </Form.CardButton>
+                );
+
+              })
+            }
           </Form.Stack>
-          <Form.ElementWrapper label="Start Command" name="runCommand">
-            <TextField
-              id="runCommand"
-              placeholder="python main.py"
-              value={formData.runCommand}
-              onChange={(e) => handleFieldChange('runCommand', e.target.value)}
-              error={!!errors.runCommand}
-              helperText={
-                errors.runCommand ||
-                "Dependencies auto-install from package.json, requirements.txt, or pyproject.toml"
-              }
-              fullWidth
-            />
-          </Form.ElementWrapper>
+
+      
+              <Collapse in={formData.language === "python"}>
+              <Form.Stack direction="row" spacing={2}>
+                <Form.ElementWrapper label="Start Command" name="runCommand">
+                  <TextField
+                    id="runCommand"
+                    placeholder="python main.py"
+                    value={formData.runCommand}
+                    onChange={(e) => handleFieldChange('runCommand', e.target.value)}
+                    error={!!errors.runCommand}
+                    helperText={
+                      errors.runCommand ||
+                      "Dependencies auto-install from package.json, requirements.txt, or pyproject.toml"
+                    }
+                    fullWidth
+                  />
+                </Form.ElementWrapper>
+                <Form.ElementWrapper label="Language Version" name="languageVersion">
+                  <TextField
+                    id="languageVersion"
+                    placeholder="3.11"
+                    value={formData.languageVersion || ''}
+                    onChange={(e) => handleFieldChange('languageVersion', e.target.value)}
+                    error={!!errors.languageVersion}
+                    helperText={
+                      errors.languageVersion ||
+                      "e.g., 3.11, 20, 1.21"
+                    }
+                    fullWidth
+                  />
+                </Form.ElementWrapper>
+              </Form.Stack>
+            </Collapse>
+          
+
+          <Collapse in={formData.language === "docker"}>
+          <Stack  spacing={2}>
+            <Form.Stack direction="row" spacing={2}>
+              <Form.ElementWrapper label="Dockerfile Path" name="dockerfilePath">
+                <TextField
+                  id="dockerfilePath"
+                  placeholder="e.g., ./Dockerfile"
+                  value={formData.dockerfilePath || ''}
+                  onChange={(e) => handleFieldChange('dockerfilePath', e.target.value)}
+                  error={!!errors.dockerfilePath}
+                  helperText={
+                    errors.dockerfilePath ||
+                    "Path to Dockerfile in your repository"
+                  }
+                  fullWidth
+                />
+              </Form.ElementWrapper>
+            </Form.Stack>
+            <Alert severity="info">
+              <Typography variant="subtitle2" gutterBottom>
+                Tracing Support for Docker-Based Agents
+              </Typography>
+              <Typography variant="body2" paragraph>
+                Docker-based agents require OTEL instrumentation to export traces. 
+                For Python, use{' '}
+                <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                  pip install amp-instrumentation
+                </Typography>
+                {' '}and run with{' '}
+                <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                  amp-instrument python your_script.py
+                </Typography>
+                {' '}for zero-code tracing.
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                Environment variables provided:{' '}
+                <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                  AMP_OTEL_ENDPOINT
+                </Typography>
+                {', '}
+                <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                  AMP_AGENT_API_KEY
+                </Typography>
+              </Typography>
+            </Alert>
+          </Stack>
+          </Collapse> 
+
         </Form.Stack>
       </Form.Section>
 

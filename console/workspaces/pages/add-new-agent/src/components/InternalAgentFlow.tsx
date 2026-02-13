@@ -45,6 +45,7 @@ export const InternalAgentFlow: React.FC = () => {
     runCommand: "python main.py",
     language: "python",
     languageVersion: "3.11",
+    dockerfilePath: "/Dockerfile",
     interfaceType: "DEFAULT" as const,
     port: "" as unknown as number,
     basePath: "/",

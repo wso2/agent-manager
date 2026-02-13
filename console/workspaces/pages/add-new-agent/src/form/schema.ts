@@ -69,9 +69,10 @@ export const createAgentSchema = z.object({
       },
       { message: 'App path must be a valid path (use / for root directory)' }
     ),
-  runCommand: z.string().trim().min(1, 'Start Command is required'),
+  runCommand: z.string().trim().optional(),
   language: z.string().trim().min(1, 'Language is required'),
   languageVersion: z.string().trim().optional(),
+  dockerfilePath: z.string().trim().optional(),
   interfaceType: z.enum(['DEFAULT', 'CUSTOM']),
   port: z
     .union([z.number(), z.string(), z.undefined()])
@@ -121,6 +122,42 @@ export const createAgentSchema = z.object({
     return true;
   },
   { message: 'OpenAPI spec path is required when using custom interface', path: ['openApiPath'] }
+).refine(
+  (data) => {
+    // Validate Python-specific fields: runCommand is required for Python
+    if (data.language === 'python' && !data.runCommand?.trim()) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Start Command is required for Python agents', path: ['runCommand'] }
+).refine(
+  (data) => {
+    // Validate Python-specific fields: languageVersion is required for Python
+    if (data.language === 'python' && !data.languageVersion?.trim()) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Python version is required for Python agents', path: ['languageVersion'] }
+).refine(
+  (data) => {
+    // Validate Docker-specific fields: dockerfilePath is required for Docker
+    if (data.language === 'docker' && !data.dockerfilePath?.trim()) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Dockerfile path is required for Docker agents', path: ['dockerfilePath'] }
+).refine(
+  (data) => {
+    // Validate dockerfilePath must start with /
+    if (data.language === 'docker' && data.dockerfilePath?.trim() && !data.dockerfilePath.startsWith('/')) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Dockerfile path must start with /', path: ['dockerfilePath'] }
 );
 
 // Union type for form values

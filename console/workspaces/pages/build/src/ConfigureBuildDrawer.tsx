@@ -26,6 +26,7 @@ import {
   Alert,
   Divider,
   useTheme,
+  Form,
 } from "@wso2/oxygen-ui";
 import { Settings, CheckCircle, Circle } from "@wso2/oxygen-ui-icons-react";
 import {
@@ -34,6 +35,7 @@ import {
   DrawerContent,
   TextInput,
   useFormValidation,
+  BuildpackIcon,
 } from "@agent-management-platform/views";
 import { z } from "zod";
 import { useUpdateAgentBuildParameters } from "@agent-management-platform/api-client";
@@ -56,9 +58,10 @@ interface ConfigureBuildFormValues {
   repositoryUrl: string;
   branch: string;
   appPath: string;
-  runCommand: string;
+  runCommand?: string;
   language: string;
   languageVersion?: string;
+  dockerfilePath?: string;
   interfaceType: InputInterfaceType;
   port?: number;
   basePath?: string;
@@ -86,9 +89,10 @@ const configureBuildSchema = z.object({
       },
       { message: "App path must be a valid path (use / for root directory)" },
     ),
-  runCommand: z.string().trim().min(1, "Start Command is required"),
+  runCommand: z.string().trim().optional(),
   language: z.string().trim().min(1, "Language is required"),
   languageVersion: z.string().trim().optional(),
+  dockerfilePath: z.string().trim().optional(),
   interfaceType: z.enum(["DEFAULT", "CUSTOM"]),
   port: z
     .union([z.number(), z.string(), z.undefined()])
@@ -132,7 +136,44 @@ const configureBuildSchema = z.object({
     return true;
   },
   { message: "OpenAPI spec path is required when using custom interface", path: ["openApiPath"] }
+).refine(
+  (data) => {
+    if (data.language === 'python' && !data.runCommand?.trim()) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Start Command is required for Python agents', path: ['runCommand'] }
+).refine(
+  (data) => {
+    if (data.language === 'python' && !data.languageVersion?.trim()) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Python version is required for Python agents', path: ['languageVersion'] }
+).refine(
+  (data) => {
+    if (data.language === 'docker' && !data.dockerfilePath?.trim()) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Dockerfile path is required for Docker agents', path: ['dockerfilePath'] }
+).refine(
+  (data) => {
+    if (data.language === 'docker' && data.dockerfilePath?.trim() && !data.dockerfilePath.startsWith('/')) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Dockerfile path must start with /', path: ['dockerfilePath'] }
 );
+
+const languageOptions = [
+  { label: "Python", value: "python" },
+  { label: "Docker", value: "docker" },
+];
 
 const inputInterfaces = [
   {
@@ -171,6 +212,7 @@ export function ConfigureBuildDrawer({
           : "DEFAULT";
   const repo = agent.provisioning?.repository;
   const buildpackConfig = agent.build?.type === 'buildpack' ? agent.build.buildpack : undefined;
+  const dockerConfig = agent.build?.type === 'docker' ? agent.build.docker : undefined;
   const inputInterface = agent.inputInterface;
   const buildDefaults = useMemo(
     () => ({
@@ -181,8 +223,11 @@ export function ConfigureBuildDrawer({
       language:
         buildpackConfig?.language && buildpackConfig.language !== ""
           ? buildpackConfig?.language
-          : "python",
+          : agent.build?.type === 'docker'
+            ? "docker"
+            : "python",
       languageVersion: buildpackConfig?.languageVersion ?? "3.11",
+      dockerfilePath: dockerConfig?.dockerfilePath ?? "/Dockerfile",
       interfaceType: resolvedInterfaceType,
       port: inputInterface?.port,
       basePath: inputInterface?.basePath ?? "",
@@ -195,6 +240,8 @@ export function ConfigureBuildDrawer({
       buildpackConfig?.runCommand,
       buildpackConfig?.language,
       buildpackConfig?.languageVersion,
+      dockerConfig?.dockerfilePath,
+      agent.build?.type,
       inputInterface?.port,
       inputInterface?.basePath,
       inputInterface?.schema?.path,
@@ -221,17 +268,30 @@ export function ConfigureBuildDrawer({
       field: keyof ConfigureBuildFormValues,
       value: string | number | InputInterfaceType | undefined
     ) => {
-    let newData: ConfigureBuildFormValues | null = null;
-    setFormData(prevData => {
-      newData = { ...prevData, [field]: value };
-      return newData;
-    });
+    const newData: ConfigureBuildFormValues = { ...formData, [field]: value };
+    setFormData(newData);
     
-    if (newData) {
-      const error = validateField(field, value, newData);
-      setFieldError(field, error);
+    const error = validateField(field, value, newData);
+    setFieldError(field, error);
+    
+    // When language changes, clear errors for conditional fields and re-validate
+    if (field === 'language') {
+      if (value === 'python') {
+        setFieldError('dockerfilePath', undefined);
+        // Re-validate Python fields
+        const runCommandError = validateField('runCommand', newData.runCommand, newData);
+        const languageVersionError = validateField('languageVersion', newData.languageVersion, newData);
+        setFieldError('runCommand', runCommandError);
+        setFieldError('languageVersion', languageVersionError);
+      } else if (value === 'docker') {
+        setFieldError('runCommand', undefined);
+        setFieldError('languageVersion', undefined);
+        // Re-validate Docker fields
+        const dockerfilePathError = validateField('dockerfilePath', newData.dockerfilePath, newData);
+        setFieldError('dockerfilePath', dockerfilePathError);
+      }
     }
-  }, [validateField, setFieldError]);
+  }, [formData, validateField, setFieldError]);
 
   const handleSelectInterface = useCallback(
     (value: InputInterfaceType) => {
@@ -284,14 +344,19 @@ export function ConfigureBuildDrawer({
         },
       },
       agentType: nextAgentType,
-      build: {
-        type: "buildpack",
-        buildpack: {
-          language: formData.language || "python",
-          languageVersion: formData.languageVersion || "",
-          runCommand: formData.runCommand,
-        },
-      },
+      build: formData.language === "docker"
+        ? {
+            type: "docker" as const,
+            docker: { dockerfilePath: formData.dockerfilePath ?? "./Dockerfile" }
+          }
+        : {
+            type: "buildpack" as const,
+            buildpack: {
+              language: formData.language || "python",
+              languageVersion: formData.languageVersion || "",
+              runCommand: formData.runCommand || "",
+            },
+          },
       inputInterface: {
         type: "HTTP",
         ...(formData.interfaceType === "CUSTOM"
@@ -386,43 +451,69 @@ export function ConfigureBuildDrawer({
                 <Typography variant="h5">Build Details</Typography>
                 <Box display="flex" flexDirection="column" gap={1}>
                   <Box display="flex" flexDirection="row" gap={1}>
+                    {
+                      languageOptions.map((type) => {
+                        const isSelected = formData.language === type.value;
+                        return (
+                          <Form.CardButton
+                            key={type.value}
+                            onClick={() => handleFieldChange('language', type.value)}
+                            selected={isSelected}
+                          >
+                            <Form.CardHeader title={<Form.Stack direction="row" spacing={2} justifyContent="center" alignItems="center">
+                              <BuildpackIcon  language={type.value} />
+                              <Form.Body>{type.label}</Form.Body>
+                            </Form.Stack>} />
+                          </Form.CardButton>
+                        );
+                      })
+                    }
+                  </Box>
+                  <Collapse in={formData.language === "python"}>
+                    <Box display="flex" flexDirection="column" gap={1}>
+                      <TextInput
+                        placeholder="3.11"
+                        label="Language Version"
+                        fullWidth
+                        size="small"
+                        value={formData.languageVersion}
+                        onChange={(e) => handleFieldChange('languageVersion', e.target.value)}
+                        error={!!errors.languageVersion}
+                        helperText={errors.languageVersion || "e.g., 3.11, 20, 1.21"}
+                        disabled={isPending}
+                      />
+                      <TextInput
+                        placeholder="python main.py"
+                        label="Start Command"
+                        fullWidth
+                        size="small"
+                        value={formData.runCommand}
+                        onChange={(e) => handleFieldChange('runCommand', e.target.value)}
+                        error={!!errors.runCommand}
+                        helperText={
+                          errors.runCommand ||
+                          "Dependencies auto-install from package.json, requirements.txt, or pyproject.toml"
+                        }
+                        disabled={isPending}
+                      />
+                    </Box>
+                  </Collapse>
+                  <Collapse in={formData.language === "docker"}>
                     <TextInput
-                      placeholder="python"
-                      disabled
-                      label="Language"
+                      placeholder="./Dockerfile"
+                      label="Dockerfile Path"
                       fullWidth
                       size="small"
-                      value={formData.language}
-                      onChange={(e) => handleFieldChange('language', e.target.value)}
-                      error={!!errors.language}
-                      helperText={errors.language || "e.g., python, nodejs, go"}
-                    />
-                    <TextInput
-                      placeholder="3.11"
-                      label="Language Version"
-                      fullWidth
-                      size="small"
-                      value={formData.languageVersion}
-                      onChange={(e) => handleFieldChange('languageVersion', e.target.value)}
-                      error={!!errors.languageVersion}
-                      helperText={errors.languageVersion || "e.g., 3.11, 20, 1.21"}
+                      value={formData.dockerfilePath}
+                      onChange={(e) => handleFieldChange('dockerfilePath', e.target.value)}
+                      error={!!errors.dockerfilePath}
+                      helperText={
+                        errors.dockerfilePath ||
+                        "Path to Dockerfile in your repository"
+                      }
                       disabled={isPending}
                     />
-                  </Box>
-                  <TextInput
-                    placeholder="python main.py"
-                    label="Start Command"
-                    fullWidth
-                    size="small"
-                    value={formData.runCommand}
-                    onChange={(e) => handleFieldChange('runCommand', e.target.value)}
-                    error={!!errors.runCommand}
-                    helperText={
-                      errors.runCommand ||
-                      "Dependencies auto-install from package.json, requirements.txt, or pyproject.toml"
-                    }
-                    disabled={isPending}
-                  />
+                  </Collapse>
                 </Box>
               </CardContent>
             </Card>
