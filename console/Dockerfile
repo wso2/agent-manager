@@ -3,7 +3,7 @@
 
 # Stage 1: Build stage
 # Use native platform for build to avoid QEMU emulation slowdown
-FROM --platform=$BUILDPLATFORM node:20.19-slim AS builder
+FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/node:20.19-slim AS builder
 
 # Install necessary build tools
 RUN apt-get update && \
@@ -36,7 +36,7 @@ WORKDIR /app/apps/webapp
 RUN pnpm run build
 
 # Stage 2: Production stage with nginx
-FROM nginx:1.27-alpine AS production
+FROM public.ecr.aws/docker/library/nginx:1.27-alpine AS production
 
 # Install runtime dependencies
 RUN apk add --no-cache ca-certificates tzdata

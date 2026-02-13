@@ -1,4 +1,4 @@
-FROM golang:1.25-alpine
+FROM public.ecr.aws/docker/library/golang:1.25-alpine
 
 # Install Air for hot-reloading and bash/openssl for key generation
 RUN apk add --no-cache bash openssl && \

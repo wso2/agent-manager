@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/golang:1.25-alpine AS builder
 
 # Add build args for cross-platform support
 ARG TARGETOS
@@ -25,7 +25,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -o /go/bin/agent-manager-service \
     -buildvcs=false
 
-FROM alpine:3.21
+FROM public.ecr.aws/docker/library/alpine:3.21
 
 # Install runtime dependencies for HTTPS, timezone support, bash and openssl for key generation
 RUN apk add --no-cache ca-certificates tzdata bash openssl
