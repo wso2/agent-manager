@@ -358,3 +358,50 @@
   stroke: #ff7a18 !important;
 }
 
+/* Announcement Bar Styling */
+[data-theme='light'] .announcementBar,
+[data-theme='light'] .announcement-bar,
+[data-theme='light'] div[class*='announcementBar'] {
+  background: #e3e3e3 !important;
+  color: #1c1e21 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+[data-theme='light'] .announcementBar_content,
+[data-theme='light'] .announcement-bar__content,
+[data-theme='light'] div[class*='announcementBar'] > div {
+  color: #1c1e21 !important;
+}
+
+[data-theme='light'] .announcementBar_close,
+[data-theme='light'] .announcement-bar__close,
+[data-theme='light'] button[class*='close'] {
+  color: #1c1e21 !important;
+  opacity: 0.6;
+}
+
+[data-theme='light'] .announcementBar_close:hover,
+[data-theme='light'] .announcement-bar__close:hover,
+[data-theme='light'] button[class*='close']:hover {
+  opacity: 1;
+}
+
+[data-theme='dark'] .announcementBar {
+  background: linear-gradient(90deg, #ff8c3a 0%, #ff7a18 100%);
+  color: #ffffff;
+}
+
+[data-theme='dark'] .announcementBar_content {
+  color: #ffffff;
+}
+
+[data-theme='dark'] .announcementBar_close {
+  color: #ffffff;
+  opacity: 0.8;
+}
+
+[data-theme='dark'] .announcementBar_close:hover {
+  opacity: 1;
+}
+
