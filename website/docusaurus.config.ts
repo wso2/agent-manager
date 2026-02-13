@@ -75,6 +75,10 @@ const config: Config = {
               label: 'Next',
               banner: 'unreleased',
             },
+            [latestVersion]: {
+              label: latestVersion,
+              path: latestVersion,
+            },
           },
           sidebarPath: './sidebars.ts',
           showLastUpdateAuthor: true,
@@ -147,11 +151,11 @@ const config: Config = {
           items: [
             {
               label: 'Overview',
-              to: '/docs/overview/what-is-amp',
+              to: `/docs/${latestVersion}/overview/what-is-amp`,
             },
             {
               label: 'Quick Start',
-              to: '/docs/getting-started/quick-start',
+              to: `/docs/${latestVersion}/getting-started/quick-start`,
             },
           ],
         },
