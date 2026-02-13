@@ -67,7 +67,7 @@ export const InternalAgentOverview = () => {
 
   const repositoryUrl = useMemo(() => {
     const { appPath, branch, url } = agent?.provisioning?.repository ?? {};
-    
+
     // If appPath is "/" (root), don't append it to avoid double slashes
     // Otherwise, remove the leading slash from appPath before appending
     if (appPath && appPath !== '/') {
@@ -166,7 +166,7 @@ export const InternalAgentOverview = () => {
           )}
         </Box>
       </Box>
-      {sortedEnvironmentList?.length && (
+      {sortedEnvironmentList && sortedEnvironmentList?.length > 0 && (
         <>
           {sortedEnvironmentList.map(
             (environment) =>

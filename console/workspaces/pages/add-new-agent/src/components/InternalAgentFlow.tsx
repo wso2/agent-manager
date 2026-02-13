@@ -50,7 +50,7 @@ export const InternalAgentFlow: React.FC = () => {
     port: "" as unknown as number,
     basePath: "/",
     openApiPath: "",
-    env: [{ key: "", value: "" }],
+    env: [],
   });
 
   const { errors, validateForm, setFieldError, validateField } =
