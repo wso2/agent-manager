@@ -24,13 +24,18 @@ All evaluators use the two-parameter interface:
 - task: What it should have done (only for experiments with datasets)
 """
 
+from __future__ import annotations
+
 import logging
 import re
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from amp_evaluation.evaluators.base import BaseEvaluator
-from amp_evaluation.evaluators.config import Config
-from amp_evaluation.models import Observation, Task, EvalResult
+from amp_evaluation.evaluators.config import Param
+from amp_evaluation.models import Observation, EvalResult
+
+if TYPE_CHECKING:
+    from amp_evaluation.dataset import Task
 
 
 logger = logging.getLogger(__name__)
@@ -45,11 +50,12 @@ class AnswerLengthEvaluator(BaseEvaluator):
     """Evaluates if the answer length is within acceptable bounds."""
 
     name = "answer_length"
-    description = "Checks if the answer length is within acceptable bounds"
+    description = "Validates that output character length falls within configured bounds"
+    tags = ["standard", "rule-based", "final-response", "compliance"]
 
-    # Declarative configuration using Config descriptors
-    min_length = Config(int, default=1, min=0, description="Minimum acceptable length")
-    max_length = Config(int, default=10000, min=1, description="Maximum acceptable length")
+    # Declarative configuration using Param descriptors
+    min_length = Param(int, default=1, min=0, description="Minimum acceptable length")
+    max_length = Param(int, default=10000, min=1, description="Maximum acceptable length")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -85,9 +91,10 @@ class AnswerRelevancyEvaluator(BaseEvaluator):
     """Evaluates if the answer is relevant to the input query."""
 
     name = "answer_relevancy"
-    description = "Checks if the answer is relevant to the input query using word overlap"
+    description = "Measures relevancy between input and output using word overlap analysis"
+    tags = ["standard", "rule-based", "final-response", "relevancy"]
 
-    min_overlap_ratio = Config(float, default=0.1, min=0.0, max=1.0, description="Minimum word overlap ratio")
+    min_overlap_ratio = Param(float, default=0.1, min=0.0, max=1.0, description="Minimum word overlap ratio")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -119,11 +126,12 @@ class RequiredContentEvaluator(BaseEvaluator):
     """Evaluates if the output contains all required content."""
 
     name = "required_content"
-    description = "Checks if the output contains all required strings and patterns"
+    description = "Ensures output contains all required strings and regex pattern matches"
+    tags = ["standard", "rule-based", "final-response", "completeness"]
 
-    required_strings = Config(list, default=None, description="List of required strings")
-    required_patterns = Config(list, default=None, description="List of required regex patterns")
-    case_sensitive = Config(bool, default=False, description="Whether to use case-sensitive matching")
+    required_strings = Param(list, default=None, description="List of required strings")
+    required_patterns = Param(list, default=None, description="List of required regex patterns")
+    case_sensitive = Param(bool, default=False, description="Whether to use case-sensitive matching")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -170,12 +178,13 @@ class ProhibitedContentEvaluator(BaseEvaluator):
     """Evaluates if the output avoids prohibited content."""
 
     name = "prohibited_content"
-    description = "Checks if the output avoids prohibited strings and patterns"
+    description = "Detects presence of prohibited strings and regex patterns in output"
+    tags = ["standard", "rule-based", "final-response", "safety"]
 
-    prohibited_strings = Config(list, default=None, description="List of prohibited strings")
-    prohibited_patterns = Config(list, default=None, description="List of prohibited regex patterns")
-    case_sensitive = Config(bool, default=False, description="Whether to use case-sensitive matching")
-    use_context_prohibited = Config(bool, default=True, description="Whether to use task.prohibited_content")
+    prohibited_strings = Param(list, default=None, description="List of prohibited strings")
+    prohibited_patterns = Param(list, default=None, description="List of prohibited regex patterns")
+    case_sensitive = Param(bool, default=False, description="Whether to use case-sensitive matching")
+    use_context_prohibited = Param(bool, default=True, description="Whether to use task.prohibited_content")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -221,10 +230,11 @@ class ExactMatchEvaluator(BaseEvaluator):
     """Evaluates if the output exactly matches the reference output."""
 
     name = "exact_match"
-    description = "Checks if the output exactly matches the expected output"
+    description = "Validates output exactly matches the expected output (ground truth)"
+    tags = ["standard", "rule-based", "final-response", "accuracy"]
 
-    case_sensitive = Config(bool, default=True, description="Whether to use case-sensitive matching")
-    strip_whitespace = Config(bool, default=True, description="Whether to strip whitespace before comparing")
+    case_sensitive = Param(bool, default=True, description="Whether to use case-sensitive matching")
+    strip_whitespace = Param(bool, default=True, description="Whether to strip whitespace before comparing")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -271,9 +281,10 @@ class ContainsMatchEvaluator(BaseEvaluator):
     """Evaluates if the output contains the reference output."""
 
     name = "contains_match"
-    description = "Checks if the output contains the expected output"
+    description = "Validates that expected output substring is present in actual output"
+    tags = ["standard", "rule-based", "final-response", "accuracy"]
 
-    case_sensitive = Config(bool, default=False, description="Whether to use case-sensitive matching")
+    case_sensitive = Param(bool, default=False, description="Whether to use case-sensitive matching")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -305,11 +316,12 @@ class ToolSequenceEvaluator(BaseEvaluator):
     """Evaluates if tools were called in the expected sequence."""
 
     name = "tool_sequence"
-    description = "Checks if tools were called in the expected order"
+    description = "Validates that tools were invoked in the expected sequential order"
+    tags = ["standard", "rule-based", "trajectory", "correctness"]
 
-    expected_sequence = Config(list, default=None, description="List of tool names in expected order")
-    strict = Config(bool, default=False, description="If True, requires exact sequence. If False, allows extra tools")
-    use_context_trajectory = Config(bool, default=True, description="If True, uses task.expected_trajectory")
+    expected_sequence = Param(list, default=None, description="List of tool names in expected order")
+    strict = Param(bool, default=False, description="If True, requires exact sequence. If False, allows extra tools")
+    use_context_trajectory = Param(bool, default=True, description="If True, uses task.expected_trajectory")
 
     def __init__(self, **kwargs):
         """
@@ -368,9 +380,10 @@ class RequiredToolsEvaluator(BaseEvaluator):
     """Evaluates if all required tools were used."""
 
     name = "required_tools"
-    description = "Checks if all required tools were used during execution"
+    description = "Ensures all required tools were invoked at least once during execution"
+    tags = ["standard", "rule-based", "trajectory", "completeness"]
 
-    required_tools = Config(set, default=None, description="Set of required tool names")
+    required_tools = Param(set, default=None, description="Set of required tool names")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -423,9 +436,10 @@ class StepSuccessRateEvaluator(BaseEvaluator):
     """Evaluates the success rate of trajectory steps."""
 
     name = "step_success_rate"
-    description = "Checks the success rate of trajectory steps"
+    description = "Measures the percentage of execution steps completed without errors"
+    tags = ["standard", "rule-based", "trajectory", "reliability"]
 
-    min_success_rate = Config(float, default=0.8, min=0.0, max=1.0, description="Minimum required success rate")
+    min_success_rate = Param(float, default=0.8, min=0.0, max=1.0, description="Minimum required success rate")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -459,10 +473,11 @@ class LatencyEvaluator(BaseEvaluator):
     """Evaluates if the trace completed within latency constraints."""
 
     name = "latency"
-    description = "Checks if the trace completed within latency constraints"
+    description = "Validates total execution time meets configured latency constraints"
+    tags = ["standard", "rule-based", "performance", "efficiency"]
 
-    max_latency_ms = Config(float, default=None, min=0.0, description="Maximum allowed latency in milliseconds")
-    use_task_constraint = Config(bool, default=True, description="Whether to use task.constraints.max_latency_ms")
+    max_latency_ms = Param(float, default=None, min=0.0, description="Maximum allowed latency in milliseconds")
+    use_task_constraint = Param(bool, default=True, description="Whether to use task.constraints.max_latency_ms")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -502,10 +517,11 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
     """Evaluates if token usage is within constraints."""
 
     name = "token_efficiency"
-    description = "Checks if token usage is within constraints"
+    description = "Validates total token consumption stays within configured usage limits"
+    tags = ["standard", "rule-based", "performance", "efficiency"]
 
-    max_tokens = Config(int, default=None, min=1, description="Maximum allowed tokens")
-    use_context_constraint = Config(bool, default=True, description="Whether to use task.constraints.max_tokens")
+    max_tokens = Param(int, default=None, min=1, description="Maximum allowed tokens")
+    use_context_constraint = Param(bool, default=True, description="Whether to use task.constraints.max_tokens")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -549,10 +565,11 @@ class IterationCountEvaluator(BaseEvaluator):
     """Evaluates if the agent completed within iteration constraints."""
 
     name = "iteration_count"
-    description = "Checks if the agent completed within iteration constraints"
+    description = "Validates agent completes task within maximum iteration count limit"
+    tags = ["standard", "rule-based", "performance", "efficiency"]
 
-    max_iterations = Config(int, default=None, min=1, description="Maximum allowed iterations")
-    use_context_constraint = Config(bool, default=True, description="Whether to use task.constraints.max_iterations")
+    max_iterations = Param(int, default=None, min=1, description="Maximum allowed iterations")
+    use_context_constraint = Param(bool, default=True, description="Whether to use task.constraints.max_iterations")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
