@@ -1283,14 +1283,6 @@ func convertComponentCR(componentCR map[string]interface{}) (*models.AgentRespon
 				}
 				agent.InputInterface.BasePath = basePath
 			}
-
-			// Extract port
-			if port, ok := parameters["port"].(float64); ok {
-				if agent.InputInterface == nil {
-					agent.InputInterface = &models.InputInterface{}
-				}
-				agent.InputInterface.Port = int32(port)
-			}
 		}
 
 		// Extract workflow details
