@@ -4,7 +4,7 @@
 ARG PYTHON_VERSION=3.11
 
 ############### STAGE 1 — BUILD INSTRUMENTATION PACKAGES ###############
-FROM python:${PYTHON_VERSION}-slim AS otel-tracing
+FROM public.ecr.aws/docker/library/python:${PYTHON_VERSION}-slim AS otel-tracing
 
 # Set the working directory where all instrumentation-related build files will be stored.
 WORKDIR /instrumentation
@@ -19,7 +19,7 @@ COPY sitecustomize.py packages/sitecustomize.py
 ############### STAGE 2 — FINAL RUNTIME IMAGE ###############
 # Create final OpenLLMetry image
 ARG PYTHON_VERSION=3.11
-FROM python:${PYTHON_VERSION}-slim
+FROM public.ecr.aws/docker/library/python:${PYTHON_VERSION}-slim
 WORKDIR /instrumentations
 
 # Copy the built instrumentation packages from the builder stage.
