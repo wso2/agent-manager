@@ -19,39 +19,36 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box,
-  TextField,
+  Stack,
   Typography,
-  Avatar,
-  ButtonBase,
   Button,
   Alert,
-  useTheme,
   Tooltip,
   Skeleton,
   Chip,
-  alpha,
   IconButton,
   CircularProgress,
+  ListingTable,
+  TablePagination,
+  DataGrid,
+  SearchBar,
 } from "@wso2/oxygen-ui";
 import {
-  Clock as AccessTimeRounded,
   Plus as Add,
   Trash2 as DeleteOutlineOutlined,
   RefreshCcw,
-  Search as SearchRounded,
   User,
   Edit,
+  Bot,
 } from "@wso2/oxygen-ui-icons-react";
+
+const { DataGrid: DataGridComponent } = DataGrid;
 import {
   PageLayout,
-  DataListingTable,
-  TableColumn,
-  NoDataFound,
   FadeIn,
-  InitialState,
   displayProvisionTypes,
 } from "@agent-management-platform/views";
-import { generatePath, Link, useNavigate, useParams } from "react-router-dom";
+import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   absoluteRouteMap,
   AgentResponse,
@@ -72,24 +69,43 @@ dayjs.extend(relativeTime);
 
 export function ListPageSkeleton() {
   return (
-    <Box display="flex" flexDirection="column" gap={2} p={2}>
-      <Box
-        display="flex"
-        flexDirection="row"
-        justifyContent="space-between"
-        gap={2}
-      >
-        <Box display="flex" gap={2}>
-          <Skeleton variant="rounded" width={100} height={100} />
-          <Skeleton variant="rounded" width={400} height={100} />
+    <Stack direction="row" justifyContent="space-between" gap={4}>
+      <Stack direction="column" sx={{ flexGrow: 1 }} spacing={4}>
+        {/* Search and Add Agent button skeleton */}
+        <Stack direction="row" spacing={1}>
+          <Box flexGrow={1}>
+            <Skeleton variant="rounded" width="100%" height={40} />
+          </Box>
+          <Skeleton variant="rounded" width={120} height={40} />
+        </Stack>
+
+        {/* Table skeleton */}
+        <Box display="flex" flexDirection="column" gap={1}>
+          {/* Table header */}
+          <Skeleton variant="rounded" width="100%" height={48} />
+          
+          {/* Table rows */}
+          {Array.from({ length: 5 }).map((_, index) => (
+            <Skeleton
+              key={index}
+              variant="rounded"
+              width="100%"
+              height={72}
+            />
+          ))}
         </Box>
-        <Skeleton variant="rounded" height={40} width={150} />
+
+        {/* Pagination skeleton */}
+        <Box display="flex" justifyContent="flex-end">
+          <Skeleton variant="rounded" width={300} height={40} />
+        </Box>
+      </Stack>
+
+      {/* Agent Type Summary skeleton */}
+      <Box width={250}>
+        <Skeleton variant="rounded" width="100%" height={200} />
       </Box>
-      <Box display="flex" flexDirection="column" gap={2}>
-        <Skeleton variant="rounded" width="100%" height={40} />
-        <Skeleton variant="rounded" width="100%" height={450} />
-      </Box>
-    </Box>
+    </Stack>
   );
 }
 
@@ -100,9 +116,10 @@ export interface AgentWithHref extends AgentResponse {
 }
 
 export const AgentsList: React.FC = () => {
-  const theme = useTheme();
   const [search, setSearch] = useState("");
   const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
   const [editProjectDrawerOpen, setEditProjectDrawerOpen] = useState(false);
 
   // Detect touch device for alternative interaction pattern
@@ -209,161 +226,20 @@ export const AgentsList: React.FC = () => {
     [data?.agents, search, orgId]
   );
 
-  const columns = useMemo(
-    () =>
-      [
-        {
-          id: "agentInfo",
-          label: "Agent Name",
-          sortable: true,
-          width: "25%",
-          render: (value, row) => {
-            const agentInfo = value as {
-              name: string;
-              displayName: string;
-              description: string;
-            };
-            return (
-              <ButtonBase component={Link} to={row?.href}>
-                <Box display="flex" alignItems="center" gap={1}>
-                  <Avatar
-                    variant="circular"
-                    sx={{
-                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                      color: theme.palette.primary.main,
-                      height: 32,
-                      width: 32,
-                    }}
-                  >
-                    {agentInfo.displayName.substring(0, 1).toUpperCase()}
-                  </Avatar>
-                  <Box display="flex" alignItems="flex-start" gap={1}>
-                    <Typography variant="body1">
-                      {agentInfo.displayName}
-                    </Typography>
-                    {row.provisioning.type !== "internal" && (
-                      <Chip
-                        label={displayProvisionTypes(
-                          (row.provisioning as Provisioning).type
-                        )}
-                        size="small"
-                        variant="outlined"
-                      />
-                    )}
-                  </Box>
-                </Box>
-              </ButtonBase>
-            );
-          },
-        },
-        {
-          id: "description",
-          label: "Description",
-          sortable: true,
-          width: "30%",
-          render: (value) => (
-            <Typography
-              variant="body2"
-              noWrap
-              textOverflow="ellipsis"
-              overflow="hidden"
-            >
-              {(value as string).substring(0, 40) +
-                ((value as string).length > 40 ? "..." : "")}
-            </Typography>
-          ),
-        },
-        {
-          id: "createdAt",
-          label: "Last Updated",
-          sortable: true,
-          width: "20%",
-          align: "right",
-          render: (value, row) => (
-            <Box
-              display="flex"
-              alignItems="center"
-              gap={1}
-              justifyContent="flex-end"
-              sx={{ minWidth: 150 }} // Prevent layout shift
-            >
-              {hoveredAgentId === row?.id || isTouchDevice ? (
-                <Box
-                  display="flex"
-                  alignItems="center"
-                  gap={1}
-                  justifyContent="flex-end"
-                >
-                  <FadeIn>
-                    <Tooltip title="Delete Agent">
-                      <Button
-                        startIcon={<DeleteOutlineOutlined size={16} />}
-                        color="error"
-                        variant="outlined"
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation(); // Prevent row click if any
-                          addConfirmation({
-                            title: "Delete Agent?",
-                            description: `Are you sure you want to delete the agent "${row.displayName}"? This action cannot be undone.`,
-                            onConfirm: () => {
-                              handleDeleteAgent(row.name);
-                            },
-                            confirmButtonColor: "error",
-                            confirmButtonIcon: <DeleteOutlineOutlined size={16} />,
-                            confirmButtonText: "Delete",
-                          });
-                        }}
-                      >
-                        Delete
-                      </Button>
-                    </Tooltip>
-                  </FadeIn>
-                </Box>
-              ) : (
-                <>
-                  <AccessTimeRounded fontSize="small" color="disabled" />
-                  <Typography variant="body2" color="text.secondary" noWrap>
-                    {dayjs(value as string).fromNow()}
-                  </Typography>
-                </>
-              )}
-            </Box>
-          ),
-        },
-      ] as TableColumn<AgentWithHref>[],
-    [
-      theme.palette.primary.main,
-      hoveredAgentId,
-      isTouchDevice,
-      addConfirmation,
-      handleDeleteAgent,
-    ]
+  // Reset page to 0 when search or filtered list changes
+  useEffect(() => {
+    setPage(0);
+  }, [agentsWithHref]);
+
+  // Paginate agents
+  const paginatedAgents = useMemo(
+    () => agentsWithHref.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [agentsWithHref, page, rowsPerPage]
   );
 
-  // Define initial state for sorting - most recently updated agents first
-  const tableInitialState: InitialState<AgentWithHref> = useMemo(
-    () => ({
-      sorting: {
-        sortModel: [
-          {
-            field: "createdAt",
-            sort: "desc",
-          },
-        ],
-      },
-    }),
-    []
-  );
-
-  if (
-    isLoading ||
-    isProjectLoading ||
+  const isPageLoading = isProjectLoading ||
     (isRefetching && !data?.agents?.length) ||
-    isDeletingAgent
-  ) {
-    return <ListPageSkeleton />;
-  }
+    isDeletingAgent;
 
   return (
     <>
@@ -373,6 +249,7 @@ export const AgentsList: React.FC = () => {
           project?.description ??
           "Manage and monitor all your AI agents across environments"
         }
+        isLoading={isPageLoading}
         titleTail={
           <Box
             display="flex"
@@ -405,32 +282,29 @@ export const AgentsList: React.FC = () => {
           </Box>
         }
       >
-      <Box
-        display="flex"
+      {isLoading ? (
+        <ListPageSkeleton />
+      ) : (
+      <Stack
+        direction="row"
         justifyContent="space-between"
         gap={4}
-        minHeight="calc(100vh - 250px)"
       >
-        <Box
+        <Stack
+          direction="column"
           sx={{
-            display: "flex",
             flexGrow: 1,
-            flexDirection: "column",
-            gap: 4,
           }}
+          spacing={4}
         >
-          <Box display="flex" justifyContent="flex-end" gap={1}>
+          <Stack direction="row" spacing={1}>
             <Box flexGrow={1}>
-              <TextField
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                slotProps={{
-                  input: { endAdornment: <SearchRounded size={16} /> },
-                }}
-                fullWidth
-                size="small"
-                variant="outlined"
+              <SearchBar
                 placeholder="Search agents"
+                size="small"
+                fullWidth
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+                value={search}
                 disabled={!data?.agents?.length}
               />
             </Box>
@@ -451,7 +325,7 @@ export const AgentsList: React.FC = () => {
             >
               Add Agent
             </Button>
-          </Box>
+          </Stack>
 
           {error && (
             <Alert severity="error" variant="outlined">
@@ -459,56 +333,167 @@ export const AgentsList: React.FC = () => {
             </Alert>
           )}
 
-          {!isLoading && !!data?.agents?.length && (
-            <Box bgcolor="background.paper" borderRadius={1}>
-              <DataListingTable
-                data={agentsWithHref}
-                columns={columns}
-                pagination={true}
-                pageSize={5}
-                maxRows={agentsWithHref?.length}
-                initialState={tableInitialState}
-                onRowMouseEnter={handleRowMouseEnter}
-                onRowMouseLeave={handleRowMouseLeave}
-                onRowFocusIn={handleRowMouseEnter}
-                onRowFocusOut={handleRowMouseLeave}
-                onRowClick={(row) => navigate(row?.href)}
-                emptyStateTitle="No agents found"
-                emptyStateDescription="Looks like there are no agents matching your search."
-              />
-            </Box>
-          )}
-
-          {!isLoading && !data?.agents?.length && !isRefetching && (
-            <NoDataFound
-              message="No agents found"
-              iconElement={User}
-              subtitle="Create a new agent to get started"
-              action={
-                <Button
-                  variant="contained"
-                  color="primary"
-                  startIcon={<Add />}
-                  onClick={() =>
-                    navigate(
-                      generatePath(
-                        absoluteRouteMap.children.org.children.projects.children
-                          .newAgent.path,
-                        { orgId: orgId ?? "", projectId: projectId ?? "" }
-                      )
-                    )
-                  }
-                >
-                  Add New Agent
-                </Button>
-              }
+          {isLoading ? (
+            <DataGridComponent
+              rows={[]}
+              columns={[
+                { field: 'name', headerName: 'Agent Name', flex: 1 },
+                { field: 'description', headerName: 'Description', flex: 2 },
+                { field: 'lastUpdated', headerName: 'Last Updated', flex: 1 },
+              ]}
+              loading
+              hideFooter
             />
-          )}
-        </Box>
+          ) : !!data?.agents?.length && agentsWithHref.length > 0 ? (
+            <ListingTable.Container sx={{ minWidth: 600 }} disablePaper>
+              <ListingTable variant="card">
+                <ListingTable.Head>
+                  <ListingTable.Row>
+                    <ListingTable.Cell>Agent Name</ListingTable.Cell>
+                    <ListingTable.Cell>Description</ListingTable.Cell>
+                    <ListingTable.Cell align="right">Last Updated</ListingTable.Cell>
+                  </ListingTable.Row>
+                </ListingTable.Head>
+                <ListingTable.Body>
+                  {paginatedAgents.map((agent) => (
+                    <ListingTable.Row
+                      key={agent.id}
+                      variant="card"
+                      hover
+                      clickable
+                      onClick={() => navigate(agent.href)}
+                      onMouseEnter={() => handleRowMouseEnter(agent)}
+                      onMouseLeave={handleRowMouseLeave}
+                      onFocus={() => handleRowMouseEnter(agent)}
+                      onBlur={handleRowMouseLeave}
+                    >
+                      <ListingTable.Cell>
+                        <Stack direction="row" alignItems="center" spacing={2}>
+                         <Bot size={24} />
+                          <Stack direction="row" alignItems="flex-start" spacing={1}>
+                            <Typography variant="body1">
+                              {agent.displayName}
+                            </Typography>
+                            {agent.provisioning.type !== "internal" && (
+                              <Chip
+                                label={displayProvisionTypes(
+                                  (agent.provisioning as Provisioning).type
+                                )}
+                                size="small"
+                                variant="outlined"
+                              />
+                            )}
+                          </Stack>
+                        </Stack>
+                      </ListingTable.Cell>
+                      <ListingTable.Cell>
+                        <Typography
+                          variant="body2"
+                          noWrap
+                          textOverflow="ellipsis"
+                          overflow="hidden"
+                        >
+                          {agent.description.substring(0, 40) +
+                            (agent.description.length > 40 ? "..." : "")}
+                        </Typography>
+                      </ListingTable.Cell>
+                      <ListingTable.Cell align="right">
+                        <Stack
+                          direction="row"
+                          alignItems="center"
+                          spacing={1}
+                          justifyContent="flex-end"
+                          sx={{ minWidth: 150 }}
+                        >
+                          {hoveredAgentId === agent.id || isTouchDevice ? (
+                              <FadeIn>
+                                <Tooltip title="Delete Agent">
+                                  <IconButton
+                                    color="error"
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      addConfirmation({
+                                        title: "Delete Agent?",
+                                        description: `Are you sure you want to delete the agent "${agent.displayName}"? This action cannot be undone.`,
+                                        onConfirm: () => {
+                                          handleDeleteAgent(agent.name);
+                                        },
+                                        confirmButtonColor: "error",
+                                        confirmButtonIcon: <DeleteOutlineOutlined size={16} />,
+                                        confirmButtonText: "Delete",
+                                      });
+                                    }}
+                                  >
+                                    <DeleteOutlineOutlined size={14} />
+                                  </IconButton>
+                                </Tooltip>
+                              </FadeIn>
+                          ) : (
+                              <Typography variant="body2" color="text.secondary" noWrap>
+                                {dayjs(agent.createdAt).fromNow()}
+                              </Typography>
+                          )}
+                        </Stack>
+                      </ListingTable.Cell>
+                    </ListingTable.Row>
+                  ))}
+                </ListingTable.Body>
+              </ListingTable>
+              <TablePagination
+                rowsPerPageOptions={[5, 10, 25]}
+                component="div"
+                count={agentsWithHref.length}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={(_, newPage) => setPage(newPage)}
+                onRowsPerPageChange={(e) => {
+                  setRowsPerPage(parseInt(e.target.value, 10));
+                  setPage(0);
+                }}
+              />
+            </ListingTable.Container>
+          ) : !!data?.agents?.length && agentsWithHref.length === 0 ? (
+            <ListingTable.Container>
+              <ListingTable.EmptyState
+                illustration={<User size={64} />}
+                title="No agents found"
+                description="No agents match your search criteria. Try adjusting your search."
+              />
+            </ListingTable.Container>
+          ) : !data?.agents?.length && !isRefetching ? (
+            <ListingTable.Container>
+              <ListingTable.EmptyState
+                illustration={<User size={64} />}
+                title="No agents found"
+                description="Create a new agent to get started"
+                action={
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={<Add />}
+                    onClick={() =>
+                      navigate(
+                        generatePath(
+                          absoluteRouteMap.children.org.children.projects.children
+                            .newAgent.path,
+                          { orgId: orgId ?? "", projectId: projectId ?? "" }
+                        )
+                      )
+                    }
+                  >
+                    Add New Agent
+                  </Button>
+                }
+              />
+            </ListingTable.Container>
+          ) : null}
+        </Stack>
         <Box>
           <AgentTypeSummery />
         </Box>
-      </Box>
+      </Stack>
+      )}
     </PageLayout>
 
       {project && (

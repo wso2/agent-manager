@@ -31,14 +31,7 @@ import {
 
 function AgentOverviewSkeleton() {
   return (
-    <Box display="flex" flexDirection="column" p={3} gap={4} width="100%">
-      <Box display="flex" flexDirection="row" gap={2} alignItems="center">
-        <Skeleton variant="rounded" width={70} height={70} />
-        <Box display="flex" gap={2} flexDirection="column">
-          <Skeleton variant="rounded" width={400} height={30} />
-          <Skeleton variant="rounded" width={500} height={20} />
-        </Box>
-      </Box>
+    <Box display="flex" flexDirection="column" gap={4} width="100%">
       <Skeleton variant="rounded" width="100%" height="40vh" />
     </Box>
   );
@@ -53,15 +46,12 @@ export function AgentOverview() {
     agentName: agentId,
   });
 
-  if (isAgentLoading) {
-    return <AgentOverviewSkeleton />;
-  }
-
   return (
     <>
       <PageLayout
         title={agent?.displayName ?? "Agent"}
         description={agent?.description ?? "No description provided."}
+        isLoading={isAgentLoading}
         titleTail={
           <>
             <Tooltip title="Edit Agent">
@@ -83,10 +73,14 @@ export function AgentOverview() {
           </>
         }
       >
-        <Box display="flex" flexDirection="column" gap={4}>
-          {agent?.provisioning.type === "internal" && <InternalAgentOverview />}
-          {agent?.provisioning.type === "external" && <ExternalAgentOverview />}
-        </Box>
+        {isAgentLoading ? (
+          <AgentOverviewSkeleton />
+        ) : (
+          <Box display="flex" flexDirection="column" gap={4}>
+            {agent?.provisioning?.type === "internal" && <InternalAgentOverview />}
+            {agent?.provisioning?.type === "external" && <ExternalAgentOverview />}
+          </Box>
+        )}
       </PageLayout>
 
       {agent && (

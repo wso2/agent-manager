@@ -16,13 +16,11 @@
  * under the License.
  */
 
-import { Box, CircularProgress, Skeleton } from "@wso2/oxygen-ui";
-import { StatusCard } from "@agent-management-platform/views";
+import { Grid, Skeleton, StatCard, CircularProgress } from "@wso2/oxygen-ui";
 import {
-  CheckCircle as CheckCircleIcon,
-  XCircle as ErrorIcon,
-  Play as PlayArrow,
-  AlertTriangle as Warning,
+  CheckCircle,
+  XCircle,
+  TrendingUp,
 } from "@wso2/oxygen-ui-icons-react";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
@@ -30,56 +28,11 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import { BuildStatus } from "@agent-management-platform/types";
 import { useGetAgentBuilds } from "@agent-management-platform/api-client";
 import { useParams } from "react-router-dom";
+
 dayjs.extend(duration);
 dayjs.extend(relativeTime);
-export interface TopCardsProps {
-  buildCount: number;
-  successfulBuildCount: number;
-  latestBuildTime: number;
-  latestBuildStatus: string;
-  averageBuildTime: number;
-}
-const getBuildIcon = (status: BuildStatus) => {
-  switch (status) {
-    case "Completed":
-    case "Succeeded":
-      return <CheckCircleIcon size={20} />;
-    case "Pending":
-      return <PlayArrow size={20} />;
-    case "Running":
-      return <CircularProgress size={20} color="inherit" />;
-    case "Failed":
-      return <ErrorIcon size={20} />;
-    default:
-      return <ErrorIcon size={20} />;
-  }
-};
-const percIcon = (percentage: number) => {
-  if (isNaN(percentage)) {
-    return <CircularProgress size={20} color="inherit" />;
-  }
-  if (percentage >= 0.9) {
-    return <CheckCircleIcon size={20} />;
-  } else if (percentage >= 0.5) {
-    return <Warning size={20} />;
-  } else {
-    return <ErrorIcon size={20} />;
-  }
-};
-const percIconVariant = (percentage: number) => {
-  if (isNaN(percentage)) {
-    return "warning";
-  }
-  if (percentage >= 0.9) {
-    return "success";
-  } else if (percentage >= 0.5) {
-    return "warning";
-  } else {
-    return "error";
-  }
-};
 
-const getBuildIconVariant = (
+const getBuildIconColor = (
   status: BuildStatus
 ): "success" | "warning" | "error" | "info" => {
   switch (status) {
@@ -96,41 +49,30 @@ const getBuildIconVariant = (
       return "info";
   }
 };
-const getTagVariant = (
-  status: BuildStatus
-): "success" | "warning" | "error" | "info" | "default" => {
-  switch (status) {
-    case "Completed":
-    case "Succeeded":
-      return "success";
-    case "Pending":
-      return "warning";
-    case "Running":
-      return "warning";
-    case "Failed":
-      return "error";
-    default:
-      return "default";
-  }
+
+
+const getSuccessRateColor = (
+  percentage: number
+): "primary" | "success" | "warning" | "error" | "info" | "secondary" => {
+  if (isNaN(percentage)) return "warning";
+  if (percentage >= 0.9) return "success";
+  if (percentage >= 0.5) return "warning";
+  return "error";
 };
 
 function TopCardsSkeleton() {
   return (
-    <Box
-      sx={{
-        display: "grid",
-        gap: 2,
-        gridTemplateColumns: {
-          xs: "1fr",
-          md: "1fr 1fr",
-          lg: "1fr 1fr 1fr",
-        },
-      }}
-    >
-      <Skeleton variant="rectangular" height={100} />
-      <Skeleton variant="rectangular" height={100} />
-      <Skeleton variant="rectangular" height={100} />
-    </Box>
+    <Grid container spacing={3}>
+      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+        <Skeleton variant="rectangular" height={120} />
+      </Grid>
+      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+        <Skeleton variant="rectangular" height={120} />
+      </Grid>
+      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+        <Skeleton variant="rectangular" height={120} />
+      </Grid>
+    </Grid>
   );
 }
 export const TopCards: React.FC = () => {
@@ -144,10 +86,8 @@ export const TopCards: React.FC = () => {
   // Latest Build
   const latestBuild = builds?.builds[0];
   const latestBuildStatus = latestBuild?.status ?? "";
-  const latestBuildStartedTime = latestBuild?.startedAt ?? "";
-
   // Summery
-  const succesfullBuildCount =
+  const successfulBuildCount =
     builds?.builds.filter(
       (build) =>
         build.status === "Completed" || build.status === "Succeeded"
@@ -160,43 +100,46 @@ export const TopCards: React.FC = () => {
     return <TopCardsSkeleton />;
   }
 
+  const totalBuilds = builds?.builds.length ?? 0;
+  const successRate = successfulBuildCount / Math.max(1, successfulBuildCount + failedBuildCount);
+  
+  const isLatestBuildRunning = latestBuildStatus === "Pending" || latestBuildStatus === "Running";
+  const latestBuildIcon = !latestBuild ? (
+    <XCircle size={24} />
+  ) : isLatestBuildRunning ? (
+    <CircularProgress size={24} />
+  ) : latestBuildStatus === "Failed" ? (
+    <XCircle size={24} />
+  ) : (
+    <CheckCircle size={24} />
+  );
+
   return (
-    <Box
-      sx={{
-        display: "grid",
-        gap: 4,
-        gridTemplateColumns: {
-          xs: "1fr",
-          md: "1fr 1fr",
-          lg: "1fr 1fr 1fr",
-        },
-      }}
-    >
-      <StatusCard
-        title="Latest Build"
-        value={latestBuild?.status ?? ""}
-        subtitle={dayjs(latestBuildStartedTime).fromNow()}
-        icon={getBuildIcon(latestBuildStatus as BuildStatus)}
-        iconVariant={getBuildIconVariant(latestBuildStatus as BuildStatus)}
-        tagVariant={getTagVariant(latestBuildStatus as BuildStatus)}
-        minWidth="100%"
-      />
-      <StatusCard
-        title="Build Success Rate"
-        value={`${((succesfullBuildCount / Math.max(1, succesfullBuildCount + failedBuildCount)) * 100).toFixed(2)}%`}
-        subtitle="last 30 days"
-        icon={percIcon(
-          succesfullBuildCount / (succesfullBuildCount + failedBuildCount)
-        )}
-        iconVariant={percIconVariant(
-          succesfullBuildCount / (succesfullBuildCount + failedBuildCount)
-        )}
-        tag={`${succesfullBuildCount}/${succesfullBuildCount + failedBuildCount}`}
-        tagVariant={percIconVariant(
-          succesfullBuildCount / (succesfullBuildCount + failedBuildCount)
-        )}
-        minWidth="100%"
-      />
-    </Box>
+    <Grid container spacing={3}>
+      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+        <StatCard
+          value={latestBuild?.status ?? "No builds"}
+          label="Latest Build Status"
+          icon={latestBuildIcon}
+          iconColor={latestBuild ? getBuildIconColor(latestBuildStatus as BuildStatus) : "error"}
+        />
+      </Grid>
+      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+        <StatCard
+          value={`${(successRate * 100).toFixed(1)}%`}
+          label="Build Success Rate"
+          icon={<TrendingUp size={24} />}
+          iconColor={getSuccessRateColor(successRate)}
+        />
+      </Grid>
+      <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+        <StatCard
+          value={totalBuilds.toString()}
+          label="Total Builds"
+          icon={<CheckCircle size={24} />}
+          iconColor="primary"
+        />
+      </Grid>
+    </Grid>
   );
 };

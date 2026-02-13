@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import {
   Box,
   Button,
@@ -25,13 +25,16 @@ import {
   Typography,
   useTheme,
   type Theme,
+  ListingTable,
+  TablePagination,
+  type ListingTableSortDirection,
+  DataGrid,
 } from "@wso2/oxygen-ui";
 import {
-  DataListingTable,
-  TableColumn,
-  InitialState,
   DrawerWrapper,
 } from "@agent-management-platform/views";
+
+const { DataGrid: DataGridComponent } = DataGrid;
 import {
   CheckCircle,
   Rocket,
@@ -100,7 +103,11 @@ export function BuildTable() {
   const selectedBuildName = searchParams.get("selectedBuild");
   const selectedPanel = searchParams.get("panel"); // 'logs' | 'deploy'
   const { orgId, projectId, agentId } = useParams();
-  const { data: builds } = useGetAgentBuilds({
+  const [sortField, setSortField] = useState<string>('startedAt');
+  const [sortDirection, setSortDirection] = useState<ListingTableSortDirection>('desc');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const { data: builds, isLoading } = useGetAgentBuilds({
     orgName: orgId,
     projName: projectId,
     agentName: agentId,
@@ -132,6 +139,25 @@ export function BuildTable() {
     [orderedBuilds],
   );
 
+  const handleSortChange = useCallback((field: string, direction: ListingTableSortDirection) => {
+    setSortField(field);
+    setSortDirection(direction);
+  }, []);
+
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const aVal = a[sortField as keyof BuildRow];
+      const bVal = b[sortField as keyof BuildRow];
+      const comparison = String(aVal).localeCompare(String(bVal));
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [rows, sortField, sortDirection]);
+
+  const paginatedRows = useMemo(
+    () => sortedRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [sortedRows, page, rowsPerPage]
+  );
+
   const handleBuildClick = useCallback(
     (buildName: string, panel: "logs" | "deploy") => {
       const next = new URLSearchParams(searchParams);
@@ -149,129 +175,148 @@ export function BuildTable() {
     setSearchParams(next);
   }, [searchParams, setSearchParams]);
 
-  const columns: TableColumn<BuildRow>[] = useMemo(
-    () => [
-      {
-        id: "branch",
-        label: "Branch",
-        width: "15%",
-        render: (value, row) => (
-          <Typography noWrap variant="body2">
-            {`${value} : ${row.commit}`}
-          </Typography>
-        ),
-      },
-      {
-        id: "title",
-        label: "Build Name",
-        width: "15%",
-        render: (value) => (
-          <Typography noWrap variant="body2" color="text.primary">
-            {value}
-          </Typography>
-        ),
-      },
-      {
-        id: "startedAt",
-        label: "Started At",
-        width: "15%",
-        render: (value) => (
-          <Typography noWrap variant="body2" color="text.secondary">
-            {dayjs(value as string).format("DD/MM/YYYY HH:mm:ss")}
-          </Typography>
-        ),
-      },
-      {
-        id: "status",
-        label: "Status",
-        width: "12%",
-        render: (value) =>
-          renderStatusChip(
-            {
-              color: BUILD_STATUS_COLOR_MAP[value as BuildStatus],
-              label: value as string,
-            },
-            theme,
-          ),
-      },
-      {
-        id: "actions",
-        label: "",
-        width: "10%",
-        render: (_value, row) => (
-          <Box display="flex" justifyContent="flex-end" gap={1}>
-            <Button
-              variant="text"
-              color="primary"
-              onClick={() => handleBuildClick(row.title, "logs")}
-              size="small"
-            >
-              Details
-            </Button>
-            <Button
-              variant="outlined"
-              color="primary"
-              disabled={
-                row.status === "Pending" ||
-                row.status === "Running" ||
-                row.status === "Failed"
-              }
-              component={Link}
-              to={`${generatePath(
-                absoluteRouteMap.children.org.children.projects.children.agents
-                  .children.deployment.path,
-                { orgId, projectId, agentId },
-              )}?deployPanel=open&selectedBuild=${row.id}`}
-              size="small"
-              startIcon={
-                row.status === "Running" || row.status === "Pending" ? (
-                  <CircularProgress color="inherit" size={14} />
-                ) : (
-                  <Rocket size={16} />
-                )
-              }
-            >
-              {row.status === "Running" || row.status === "Pending"
-                ? "Building"
-                : "Deploy"}
-            </Button>
-          </Box>
-        ),
-      },
-    ],
-    [theme, handleBuildClick, orgId, projectId, agentId],
-  );
-
-  // Define initial state for sorting - most recent builds first
-  const tableInitialState: InitialState<BuildRow> = useMemo(
-    () => ({
-      sorting: {
-        sortModel: [
-          {
-            field: "startedAt",
-            sort: "desc",
-          },
-        ],
-      },
-    }),
-    [],
-  );
-
   return (
-    <Box
-      display="flex"
-      borderRadius={1}
-      flexDirection="column"
-      bgcolor={"background.paper"}
-    >
-      <DataListingTable
-        data={rows}
-        columns={columns}
-        pagination
-        pageSize={5}
-        maxRows={rows.length}
-        initialState={tableInitialState}
-      />
+     <>
+      <ListingTable.Provider
+        sortField={sortField}
+        sortDirection={sortDirection}
+        onSortChange={handleSortChange}
+        page={page}
+        rowsPerPage={rowsPerPage}
+        totalCount={rows.length}
+        onPageChange={setPage}
+        onRowsPerPageChange={(rpp) => {
+          setRowsPerPage(rpp);
+          setPage(0);
+        }}
+      >
+        <ListingTable.Container>
+          {isLoading ? (
+            <DataGridComponent
+              rows={[]}
+              columns={[
+                { field: 'branch', headerName: 'Branch', flex: 1 },
+                { field: 'title', headerName: 'Build Name', flex: 1 },
+                { field: 'startedAt', headerName: 'Started At', flex: 1 },
+                { field: 'status', headerName: 'Status', flex: 1 },
+                { field: 'actions', headerName: '', flex: 1 },
+              ]}
+              loading
+              hideFooter
+            />
+          ) : rows.length > 0 ? (
+            <>
+              <ListingTable>
+            <ListingTable.Head>
+              <ListingTable.Row>
+                <ListingTable.Cell width="15%">
+                  <ListingTable.SortLabel field="branch">Branch</ListingTable.SortLabel>
+                </ListingTable.Cell>
+                <ListingTable.Cell width="15%">
+                  <ListingTable.SortLabel field="title">Build Name</ListingTable.SortLabel>
+                </ListingTable.Cell>
+                <ListingTable.Cell width="15%">
+                  <ListingTable.SortLabel field="startedAt">Started At</ListingTable.SortLabel>
+                </ListingTable.Cell>
+                <ListingTable.Cell width="12%">
+                  <ListingTable.SortLabel field="status">Status</ListingTable.SortLabel>
+                </ListingTable.Cell>
+                <ListingTable.Cell width="10%" align="right"></ListingTable.Cell>
+              </ListingTable.Row>
+            </ListingTable.Head>
+            <ListingTable.Body>
+              {paginatedRows.map((row) => (
+                <ListingTable.Row key={row.id} hover>
+                  <ListingTable.Cell>
+                    <Typography noWrap variant="body2">
+                      {`${row.branch} : ${row.commit.substring(0, 7)}`}
+                    </Typography>
+                  </ListingTable.Cell>
+                  <ListingTable.Cell>
+                    <Typography noWrap variant="body2" color="text.primary">
+                      {row.title}
+                    </Typography>
+                  </ListingTable.Cell>
+                  <ListingTable.Cell>
+                    <Typography noWrap variant="body2" color="text.secondary">
+                      {dayjs(row.startedAt).format("DD/MM/YYYY HH:mm:ss")}
+                    </Typography>
+                  </ListingTable.Cell>
+                  <ListingTable.Cell>
+                    {renderStatusChip(
+                      {
+                        color: BUILD_STATUS_COLOR_MAP[row.status],
+                        label: row.status,
+                      },
+                      theme,
+                    )}
+                  </ListingTable.Cell>
+                  <ListingTable.Cell align="right">
+                    <Box display="flex" justifyContent="flex-end" gap={1}>
+                      <Button
+                        variant="text"
+                        color="primary"
+                        onClick={() => handleBuildClick(row.title, "logs")}
+                        size="small"
+                      >
+                        Details
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        color="primary"
+                        disabled={
+                          row.status === "Pending" ||
+                          row.status === "Running" ||
+                          row.status === "Failed"
+                        }
+                        component={Link}
+                        to={`${generatePath(
+                          absoluteRouteMap.children.org.children.projects.children.agents
+                            .children.deployment.path,
+                          { orgId, projectId, agentId },
+                        )}?deployPanel=open&selectedBuild=${row.id}`}
+                        size="small"
+                        startIcon={
+                          row.status === "Running" ||
+                          row.status === "Pending" ? (
+                            <CircularProgress color="inherit" size={14} />
+                          ) : (
+                            <Rocket size={16} />
+                          )
+                        }
+                      >
+                        {row.status === "Running" || row.status === "Pending"
+                          ? "Building"
+                          : "Deploy"}
+                      </Button>
+                    </Box>
+                  </ListingTable.Cell>
+                </ListingTable.Row>
+              ))}
+            </ListingTable.Body>
+          </ListingTable>
+            <TablePagination
+              rowsPerPageOptions={[5, 10, 25]}
+              component="div"
+              count={rows.length}
+              rowsPerPage={rowsPerPage}
+              page={page}
+              onPageChange={(_, newPage) => setPage(newPage)}
+              onRowsPerPageChange={(e) => {
+                setRowsPerPage(parseInt(e.target.value, 10));
+                setPage(0);
+              }}
+            />
+          </>
+          ) : (
+            <ListingTable.EmptyState
+              illustration={<Rocket size={64} />}
+              title="No builds yet"
+              description="Trigger a build to see it listed here"
+            />
+          )}
+        </ListingTable.Container>
+      </ListingTable.Provider>
       <DrawerWrapper open={!!selectedBuildName} onClose={clearSelectedBuild}>
         {selectedPanel === "logs" && selectedBuildName && (
           <BuildLogs
@@ -283,6 +328,6 @@ export function BuildTable() {
           />
         )}
       </DrawerWrapper>
-    </Box>
+     </>
   );
 }

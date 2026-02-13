@@ -34,6 +34,7 @@ export function FadeIn({ children }: FadeInProps) {
                 },
             },
         }}>
+            
             {children}
         </Box>
     );

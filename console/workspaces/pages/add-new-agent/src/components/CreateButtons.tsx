@@ -28,7 +28,7 @@ interface SummaryPanelProps {
 }
 
 export const CreateButtons = (
-    { isPending, onCancel, onSubmit, mode = 'deploy' }: SummaryPanelProps
+    { isValid, isPending, onCancel, onSubmit, mode = 'deploy' }: SummaryPanelProps
 ) => {
     const isConnectMode = mode === 'connect';    
     return (
@@ -45,7 +45,7 @@ export const CreateButtons = (
                     <Link size={16} /> : 
                     <RocketOutlined size={16} />}
                     onClick={onSubmit}
-                    disabled={isPending}
+                    disabled={!isValid || isPending}
                 >
                     {isConnectMode ? 'Register' : 'Deploy'}
                 </Button>

@@ -19,10 +19,9 @@
 import { useDeployAgent, useGetAgent, useGetAgentConfigurations, useListEnvironments } from "@agent-management-platform/api-client";
 import { Rocket } from "@wso2/oxygen-ui-icons-react";
 import { Box, Button, Skeleton, Typography} from "@wso2/oxygen-ui";
-import { FormProvider, useForm } from "react-hook-form";
 import { EnvironmentVariable } from "./EnvironmentVariable";
 import type { Environment, EnvironmentVariable as EnvVar } from "@agent-management-platform/types";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { TextInput, DrawerHeader, DrawerContent } from "@agent-management-platform/views";
 
 interface DeploymentConfigProps {
@@ -35,10 +34,6 @@ interface DeploymentConfigProps {
     imageId: string;
 }
 
-interface DeploymentFormData {
-    env: Array<{ key: string; value: string }>
-}
-
 export function DeploymentConfig({
     onClose,
     from,
@@ -48,6 +43,8 @@ export function DeploymentConfig({
     agentName,
     imageId,
 }: DeploymentConfigProps) {
+    const [envVariables, setEnvVariables] = useState<Array<{ key: string; value: string }>>([]);
+
     const { mutate: deployAgent, isPending } = useDeployAgent();
     const { data: agent, isLoading: isLoadingAgent } = useGetAgent({
         orgName,
@@ -65,23 +62,13 @@ export function DeploymentConfig({
         environment: to || '',
     });
 
-    const methods = useForm<DeploymentFormData>({
-        defaultValues: {
-            env: configurations?.configurations || [],
-        },
-    });
-
     useEffect(() => {
-        methods.reset({
-            env: configurations?.configurations || [],
-        });
-    }, [configurations, methods]);
+        setEnvVariables(configurations?.configurations || []);
+    }, [configurations]);
 
     const handleDeploy = async () => {
         try {
-            const formData = methods.getValues();
-
-            const envVariables: EnvVar[] = formData.env
+            const filteredEnvVars: EnvVar[] = envVariables
                 .filter((envVar: { key: string; value: string }) => envVar.key && envVar.value)
                 .map((envVar: { key: string; value: string }) => ({
                     key: envVar.key,
@@ -95,7 +82,7 @@ export function DeploymentConfig({
                 },
                 body: {
                     imageId: imageId,
-                    env: envVariables.length > 0 ? envVariables : undefined,
+                    env: filteredEnvVars.length > 0 ? filteredEnvVars : undefined,
                 },
             }, {
                 onSuccess: () => {
@@ -117,60 +104,61 @@ export function DeploymentConfig({
         : `Deploy ${agent?.displayName || 'Agent'} to ${toEnvironment?.displayName ?? to} Environment. Configure environment variables and deploy immediately.`;
 
     return (
-        <FormProvider {...methods}>
-            <Box display="flex" flexDirection="column" height="100%">
-                <DrawerHeader
-                    icon={<Rocket size={24} />}
-                    title={titleText}
-                    onClose={onClose}
-                />
-                <DrawerContent>
-                    <Typography variant="body2" color="text.secondary">
-                        {descriptionText}
-                    </Typography>
+        <Box display="flex" flexDirection="column" height="100%">
+            <DrawerHeader
+                icon={<Rocket size={24} />}
+                title={titleText}
+                onClose={onClose}
+            />
+            <DrawerContent>
+                <Typography variant="body2" color="text.secondary">
+                    {descriptionText}
+                </Typography>
 
-                <Box display="flex" flexDirection="column" gap={3}>
-                    <Box display="flex" flexDirection="column" gap={2}>
-                        <Typography variant="h6">
-                            Deployment Details
-                        </Typography>
-                        <TextInput
-                            label="Image ID"
-                            value={imageId}
-                            size="small"
-                            disabled
-                            fullWidth
-                        />
+            <Box display="flex" flexDirection="column" gap={3}>
+                <Box display="flex" flexDirection="column" gap={2}>
+                    <Typography variant="h6">
+                        Deployment Details
+                    </Typography>
+                    <TextInput
+                        label="Image ID"
+                        value={imageId}
+                        size="small"
+                        disabled
+                        fullWidth
+                    />
+                </Box>
+                {isLoadingConfigurations || isLoadingEnvironments || isLoadingAgent ? (
+                    <Box display="flex" flexDirection="column" gap={1} width="100%">
+                        <Skeleton variant="rectangular" width="100%" height={305} />
                     </Box>
-                    {isLoadingConfigurations || isLoadingEnvironments || isLoadingAgent ? (
-                        <Box display="flex" flexDirection="column" gap={1} width="100%">
-                            <Skeleton variant="rectangular" width="100%" height={305} />
-                        </Box>
-                    ) : (
-                        <EnvironmentVariable />
-                    )}
-                </Box>
-                <Box display="flex" gap={1} justifyContent="flex-end" width="100%">
-                    <Button
-                        variant="outlined"
-                        color="primary"
-                        onClick={onClose}
-                        disabled={isPending}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={handleDeploy}
-                        startIcon={<Rocket size={16} />}
-                        disabled={isPending}
-                    >
-                        {isPending ? "Deploying..." : deployButtonText}
-                    </Button>
-                </Box>
-            </DrawerContent>
-        </Box>
-        </FormProvider>
+                ) : (
+                    <EnvironmentVariable 
+                        envVariables={envVariables}
+                        setEnvVariables={setEnvVariables}
+                    />
+                )}
+            </Box>
+            <Box display="flex" gap={1} justifyContent="flex-end" width="100%">
+                <Button
+                    variant="outlined"
+                    color="primary"
+                    onClick={onClose}
+                    disabled={isPending}
+                >
+                    Cancel
+                </Button>
+                <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={handleDeploy}
+                    startIcon={<Rocket size={16} />}
+                    disabled={isPending}
+                >
+                    {isPending ? "Deploying..." : deployButtonText}
+                </Button>
+            </Box>
+        </DrawerContent>
+    </Box>
     );
 }

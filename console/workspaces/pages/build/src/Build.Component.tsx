@@ -19,7 +19,6 @@
 import React, { useCallback } from "react";
 import { AgentBuild } from "./AgentBuild/AgentBuild";
 import {
-  FadeIn,
   DrawerWrapper,
   PageLayout,
 } from "@agent-management-platform/views";
@@ -69,7 +68,7 @@ export const BuildComponent: React.FC = () => {
   }, [searchParams, setSearchParams]);
 
   return (
-    <FadeIn>
+
       <PageLayout
         title="Build"
         disableIcon
@@ -117,7 +116,7 @@ export const BuildComponent: React.FC = () => {
           />
         )}
       </PageLayout>
-    </FadeIn>
+
   );
 };
 

@@ -45,18 +45,25 @@ export const buildAgentCreationPayload = (
           type: "agent-api",
           subType: data.interfaceType === "CUSTOM" ? "custom-api" : "chat-api",
         },
-        build: {
-          type: "buildpack",
-          buildpack: {
-            language: data.language ?? "python",
-            languageVersion: data.languageVersion ?? "3.11",
-            runCommand: data.runCommand ?? "",
-          },
-        },
+        build: data.language === "docker"
+          ? {
+              type: "docker" as const,
+              docker: {
+                dockerfilePath: data.dockerfilePath ?? "./Dockerfile",
+              },
+            }
+          : {
+              type: "buildpack" as const,
+              buildpack: {
+                language: data.language ?? "python",
+                languageVersion: data.languageVersion ?? "3.11",
+                runCommand: data.runCommand ?? "",
+              },
+            },
         configurations: {
           env: data.env
             .filter((envVar) => envVar.key && envVar.value)
-            .map((envVar) => ({ key: envVar.key!, value: envVar.value! })),
+            .map((envVar) => ({ key: envVar.key!.replace(/\s+/g, '_'), value: envVar.value! })),
         },
         inputInterface: {
           type: "HTTP",

@@ -16,18 +16,9 @@
  * under the License.
  */
 
-import { ArrowLeft } from '@wso2/oxygen-ui-icons-react';
-import {
-  Avatar,
-  Box,
-  Button,
-  Container,
-  Stack,
-  Typography,
-} from '@wso2/oxygen-ui';
+import { Box, PageTitle, PageContent, Skeleton, Stack } from '@wso2/oxygen-ui';
 import { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { FadeIn } from '../FadeIn';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 
 export interface PageLayoutProps {
@@ -40,6 +31,7 @@ export interface PageLayoutProps {
   disableIcon?: boolean;
   actions?: ReactNode;
   disablePadding?: boolean;
+  isLoading?: boolean;
 }
 export function PageLayout({
   children,
@@ -51,101 +43,89 @@ export function PageLayout({
   actions,
   disablePadding = false,
   disableIcon = false,
+  isLoading,
 }: PageLayoutProps) {
   useDocumentTitle(title);
 
-  return (
-    <Box
-      display="flex"
-      flexDirection="column"
-      overflow="auto"
-      py={disablePadding ? 0 : 3}
-      px={disablePadding ? 0 : 3}
-      gap={2}
-      width="100%"
-    >
-      {backHref && (
-        <Box display="flex" alignItems="center">
-          <Button
-            variant="text"
-            color="inherit"
-            size="small"
-            component={Link}
-            startIcon={<ArrowLeft size={16} />}
-            to={backHref}
-          >
-            {backLabel || 'Back'}
-          </Button>
-        </Box>
-      )}
-      <Box
-        flexGrow={1}
-        display="flex"
-        justifyContent="space-between"
-        flexDirection="row"
-        gap={2}
-      >
-        <Box display="flex" alignItems="center" gap={2}>
-          <Box display="flex" flexDirection="column" gap={2}>
-            <FadeIn>
-              <Box display="flex" alignItems="center" justifyContent="start" gap={2}>
-                {!disableIcon && (
-                  <Avatar
-                    variant="rounded"
-                    sx={{
-                      height: 72,
-                      width: 72,
-                      fontSize: "2rem",
-                      "&.MuiAvatar-root":{
-                        bgcolor: 'primary.main',
-                        color: 'background.paper',
-                      }
-                    }}
-                  >
-                    {title?.substring(0, 1).toUpperCase()}
-                  </Avatar>
-                )}
-                <Box
-                  display="flex"
-                  flexDirection="column"
-                  gap={1}
-                >
-                  <Box display="flex" gap={1} alignItems="center">
-                    <Typography
-                      variant={backHref ? 'h3' : 'h2'}
-                    >
-                      {title}
-                    </Typography>
-                    {titleTail ? titleTail : <Box />}
-                  </Box>
-                  {description && (
-                    <Typography
-                      sx={{ maxWidth: '50vw' }}
-                      variant="body2"
-                    >
-                      {description}
-                    </Typography>
-                  )}
-                </Box>
-              </Box>
-            </FadeIn>
-          </Box>
-        </Box>
-        <Box>{actions && <Box>{actions}</Box>}</Box>
-      </Box>
-      <Stack pt={2}>
-        {children}
-      </Stack>
-    </Box>
-  );
-}
+  if (isLoading) {
+    return (
+      <PageContent fullWidth={!disablePadding}>
+        <PageTitle>
+          {backHref && (
+            <PageTitle.BackButton component={<Link to={backHref} />}>
+              {backLabel || 'Back'}
+            </PageTitle.BackButton>
+          )}
 
-export function PageLayoutContent(
-  props: Omit<PageLayoutProps, 'disablePadding'>
-) {
+          {!disableIcon && (
+            <PageTitle.Avatar>
+            <Skeleton variant="circular" width={80} height={80} />
+            </PageTitle.Avatar>
+          )}
+
+          <PageTitle.Header>
+            <Skeleton variant="text" width={200} height={32} />
+          </PageTitle.Header>
+
+          {description && (
+            <PageTitle.SubHeader>
+              <Skeleton variant="text" width={300} height={20} />
+            </PageTitle.SubHeader>
+          )}
+
+          {actions && (
+            <PageTitle.Actions>
+              <Stack direction="row" spacing={1}>
+                <Skeleton variant="circular" width={32} height={32} />
+                <Skeleton variant="circular" width={32} height={32} />
+              </Stack>
+            </PageTitle.Actions>
+          )}
+        </PageTitle>
+        {children}
+      </PageContent>
+    );
+  }
+
   return (
-    <Container maxWidth="lg" disableGutters>
-      <PageLayout disablePadding={true} {...props} />
-    </Container>
+    <PageContent fullWidth={!disablePadding}>
+      <PageTitle>
+        {backHref && (
+          <PageTitle.BackButton component={<Link to={backHref} />}>
+            {backLabel || 'Back'}
+          </PageTitle.BackButton>
+        )}
+
+        {!disableIcon && (
+          <PageTitle.Avatar
+            sx={{
+              bgcolor: "primary.main",
+            }}
+          >
+            {title?.substring(0, 1).toUpperCase()}
+          </PageTitle.Avatar>
+        )}
+
+        <PageTitle.Header>
+          {title}
+          {titleTail && (
+            <Box
+              component="span"
+              sx={{ display: 'inline-flex', alignItems: 'center' }}
+            >
+              {titleTail}
+            </Box>
+          )}
+        </PageTitle.Header>
+
+        {description && (
+          <PageTitle.SubHeader>{description}</PageTitle.SubHeader>
+        )}
+
+        {actions && <PageTitle.Actions>{actions}</PageTitle.Actions>}
+      </PageTitle>
+      {children}
+    </PageContent>
+
   );
 }

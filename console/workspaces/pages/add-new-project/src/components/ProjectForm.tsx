@@ -16,24 +16,40 @@
  * under the License.
  */
 
-import { Box, Card, CardContent, Typography, FormControl, Select, MenuItem, FormHelperText } from "@wso2/oxygen-ui";
-import { useFormContext, Controller, useWatch } from "react-hook-form";
-import { useEffect, useMemo } from "react";
+import { Box, Form, Select, MenuItem, TextField } from "@wso2/oxygen-ui";
+import { useEffect, useMemo, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
-import { TextInput } from "@agent-management-platform/views";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
 import { AddProjectFormValues } from "../form/schema";
 
-export const ProjectForm = () => {
-  const {
-    register,
-    control,
-    formState: { errors },
-    setValue,
-  } = useFormContext<AddProjectFormValues>();
+interface ProjectFormProps {
+  formData: AddProjectFormValues;
+  setFormData: React.Dispatch<React.SetStateAction<AddProjectFormValues>>;
+  errors: Partial<Record<keyof AddProjectFormValues, string>>;
+  validateField: (field: keyof AddProjectFormValues, value: string) => string | undefined;
+  setFieldError: (field: keyof AddProjectFormValues, error: string | undefined) => void;
+  checkDirty: (data: AddProjectFormValues) => void;
+}
+
+export const ProjectForm = ({
+  formData,
+  setFormData, 
+  errors,
+  validateField,
+  setFieldError, 
+  checkDirty,
+}: ProjectFormProps) => {
   const { orgId } = useParams<{ orgId: string }>();
-  const displayName = useWatch({ control, name: "displayName" });
+
+  const handleFieldChange = useCallback((field: keyof AddProjectFormValues, value: string) => {
+    const newData = { ...formData, [field]: value };
+    setFormData(newData);
+    checkDirty(newData);
+    
+    const error = validateField(field, value);
+    setFieldError(field, error);
+  }, [formData, setFormData, checkDirty, validateField, setFieldError]);
 
   const { mutate: generateName } = useGenerateResourceName({
     orgName: orgId,
@@ -48,10 +64,10 @@ export const ProjectForm = () => {
           resourceType: 'project',
         }, {
           onSuccess: (data) => {
-            setValue("name", data.name, {
-              shouldValidate: true,
-              shouldDirty: true,
-              shouldTouch: false,
+            setFormData(prevData => {
+              const newData = { ...prevData, name: data.name };
+              checkDirty(newData);
+              return newData;
             });
           },
           onError: (error) => {
@@ -60,7 +76,7 @@ export const ProjectForm = () => {
           }
         });
       }, 500), // 500ms delay
-    [generateName, setValue, orgId]
+    [generateName, setFormData, checkDirty]
   );
 
   // Cleanup debounce on unmount
@@ -72,78 +88,62 @@ export const ProjectForm = () => {
 
   // Auto-generate name from display name using API with debounce
   useEffect(() => {
-    if (displayName) {
-      debouncedGenerateName(displayName);
-    } else if (!displayName) {
-      // Clear the name field if display name is empty
+    if (formData.displayName && formData.displayName.length >= 3) {
+      debouncedGenerateName(formData.displayName);
+    } else {
+      // Clear the name field if display name is empty or too short
       debouncedGenerateName.cancel();
-      setValue("name", "", {
-        shouldValidate: true,
-        shouldDirty: true,
-        shouldTouch: false,
-      });
+      setFormData(prev => ({ ...prev, name: "" }));
     }
-  }, [displayName, setValue, debouncedGenerateName]);
+  }, [formData.displayName, setFormData, debouncedGenerateName]);
 
   return (
-    <Box display="flex" flexDirection="column" gap={2} flexGrow={1}>
-      <Card variant="outlined">
-        <CardContent sx={{ gap: 1, display: "flex", flexDirection: "column" }}>
-          <Box display="flex" flexDirection="column" gap={1}>
-            <Typography variant="h5">Project Details</Typography>
-          </Box>
-          <Box display="flex" flexDirection="column" gap={1}>
-            <TextInput
+    <Form.Stack spacing={3}>
+      <Form.Section>
+        <Form.Subheader>Project Details</Form.Subheader>
+        <Form.Stack spacing={2}>
+          <Form.ElementWrapper label="Name" name="displayName">
+            <TextField
+              id="displayName"
+              value={formData.displayName}
+              onChange={(e) => handleFieldChange('displayName', e.target.value)}
               placeholder="e.g., Customer Support Platform"
-              label="Name"
-              size="small"
-              fullWidth
               error={!!errors.displayName}
-              helperText={
-                (errors.displayName?.message as string)
-              }
-              {...register("displayName")}
-            />
-            <TextInput
-              placeholder="Short description of this project"
-              label="Description (optional)"
+              helperText={errors.displayName}
               fullWidth
-              size="small"
+            />
+          </Form.ElementWrapper>
+
+          <Form.ElementWrapper label="Description (optional)" name="description">
+            <TextField
+              id="description"
+              value={formData.description}
+              onChange={(e) => handleFieldChange('description', e.target.value)}
+              placeholder="Short description of this project"
               multiline
               minRows={2}
               maxRows={6}
               error={!!errors.description}
-              helperText={errors.description?.message as string}
-              {...register("description")}
+              helperText={errors.description}
+              fullWidth
             />
-            <Box display="none" flexDirection="column" gap={0.5}>
-              <Typography variant="body2" component="label">
-                Deployment Pipeline
-              </Typography>
-              <Controller
-                name="deploymentPipeline"
-                control={control}
-                defaultValue="default"
-                render={({ field }) => (
-                  <FormControl fullWidth size="small" error={!!errors.deploymentPipeline}>
-                    <Select
-                      {...field}
-                    >
-                      <MenuItem value="default">default</MenuItem>
-                    </Select>
-                    {errors.deploymentPipeline && (
-                      <FormHelperText>{errors.deploymentPipeline.message as string}</FormHelperText>
-                    )}
-                    {!errors.deploymentPipeline && (
-                      <FormHelperText>Name of the deployment pipeline to use</FormHelperText>
-                    )}
-                  </FormControl>
-                )}
-              />
-            </Box>
+          </Form.ElementWrapper>
+
+          <Box display="none">
+            <Form.ElementWrapper label="Deployment Pipeline" name="deploymentPipeline">
+              <Select
+                id="deploymentPipeline"
+                value={formData.deploymentPipeline}
+                onChange={(e) => handleFieldChange('deploymentPipeline', e.target.value)}
+                error={!!errors.deploymentPipeline}
+                fullWidth
+              >
+                <MenuItem value="default">default</MenuItem>
+              </Select>
+            </Form.ElementWrapper>
           </Box>
-        </CardContent>
-      </Card>
-    </Box>
+        </Form.Stack>
+      </Form.Section>
+    </Form.Stack>
   );
 };

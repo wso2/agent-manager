@@ -17,12 +17,14 @@
  */
 
 import React, { useCallback, useMemo } from "react";
-import { FadeIn, PageLayout } from "@agent-management-platform/views";
+import { PageLayout } from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
   TraceListTimeRange,
   getTimeRange,
 } from "@agent-management-platform/types";
+import { useGetAgentMetrics } from "@agent-management-platform/api-client";
+import { MetricsView } from "./components/MetricsView/MetricsView";
 import {
   CircularProgress,
   IconButton,
@@ -30,10 +32,11 @@ import {
   MenuItem,
   Select,
   Stack,
-} from "@mui/material";
-import { Clock, RefreshCcw } from "@wso2/oxygen-ui-icons-react";
-import { useGetAgentMetrics } from "@agent-management-platform/api-client";
-import { MetricsView } from "./components/MetricsView/MetricsView";
+} from "@wso2/oxygen-ui";
+import {
+  Clock,
+  RefreshCcw,
+} from "@wso2/oxygen-ui-icons-react";
 
 const TIME_RANGE_OPTIONS = [
   { value: TraceListTimeRange.TEN_MINUTES, label: "10 Minutes" },
@@ -93,26 +96,33 @@ export const MetricsComponent: React.FC = () => {
     refetch();
   }, [refetch]);
 
+  const handleTimeRangeChange = useCallback(
+    (newTimeRange: string) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("timeRange", newTimeRange as TraceListTimeRange);
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams],
+  );
+
   return (
-    <FadeIn>
       <PageLayout
         title="Metrics"
+        disableIcon
         actions={
-          <Stack direction="row" gap={1} alignItems="center">
+          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+            {/* Time Range Selector */}
             <Select
               size="small"
               variant="outlined"
               value={timeRange}
+              onChange={(e) => handleTimeRangeChange(e.target.value)}
               startAdornment={
                 <InputAdornment position="start">
                   <Clock size={16} />
                 </InputAdornment>
               }
-              onChange={(e) => {
-                const next = new URLSearchParams(searchParams);
-                next.set("timeRange", e.target.value as TraceListTimeRange);
-                setSearchParams(next);
-              }}
+              sx={{ minWidth: 150 }}
             >
               {TIME_RANGE_OPTIONS.map((opt) => (
                 <MenuItem key={opt.value} value={opt.value}>
@@ -120,6 +130,8 @@ export const MetricsComponent: React.FC = () => {
                 </MenuItem>
               ))}
             </Select>
+
+            {/* Refresh Button */}
             <IconButton
               size="small"
               disabled={isRefetching}
@@ -134,11 +146,14 @@ export const MetricsComponent: React.FC = () => {
             </IconButton>
           </Stack>
         }
-        disableIcon
       >
-        <MetricsView metrics={metrics} isLoading={isLoading} error={error} />
+        <MetricsView
+          metrics={metrics}
+          isLoading={isLoading}
+          error={error}
+        />
       </PageLayout>
-    </FadeIn>
+
   );
 };
 

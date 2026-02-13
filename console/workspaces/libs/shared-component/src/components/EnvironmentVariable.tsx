@@ -18,49 +18,64 @@
 
 import { Box, Button, Typography } from "@wso2/oxygen-ui";
 import { Plus as Add } from "@wso2/oxygen-ui-icons-react";
-import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import { EnvVariableEditor } from "@agent-management-platform/views";
 
-export const EnvironmentVariable = () => {
-    const { control, formState: { errors }, register } = useFormContext();
-    const { fields, append, remove } = useFieldArray({ control, name: 'env' });
-    const envValues = useWatch({ control, name: 'env' }) || [];
+interface EnvironmentVariableProps {
+    envVariables: Array<{ key: string; value: string }>;
+    setEnvVariables: React.Dispatch<React.SetStateAction<Array<{ key: string; value: string }>>>;
+}
 
-    const isOneEmpty = envValues.some((e: any) => !e?.key || !e?.value);
+export const EnvironmentVariable =
+    ({ envVariables, setEnvVariables }: EnvironmentVariableProps) => {
+        const isOneEmpty = envVariables.some((e) => !e?.key || !e?.value);
 
-    return (
-        <Box display="flex" flexDirection="column" gap={2} width="100%">
-            <Typography variant="h6">
-                Environment Variables (Optional)
-            </Typography>
-            <Typography variant="body2">
-                Set environment variables for your agent deployment.
-            </Typography>
-            <Box display="flex" flexDirection="column" gap={2}>
-                {fields.map((field: any, index: number) => (
-                    <EnvVariableEditor
-                        key={field.id}
-                        fieldName="env"
-                        index={index}
-                        fieldId={field.id}
-                        register={register}
-                        errors={errors}
-                        onRemove={() => remove(index)}
-                    />
-                ))}
+        const handleAdd = () => {
+            setEnvVariables(prev => [...prev, { key: '', value: '' }]);
+        };
+
+        const handleRemove = (index: number) => {
+            setEnvVariables(prev => prev.filter((_, i) => i !== index));
+        };
+
+        const handleChange = (index: number, field: 'key' | 'value', value: string) => {
+            setEnvVariables(prev => prev.map((item, i) =>
+                i === index ? { ...item, [field]: value } : item
+            ));
+        };
+
+        return (
+            <Box display="flex" flexDirection="column" gap={2} width="100%">
+                <Typography variant="h6">
+                    Environment Variables (Optional)
+                </Typography>
+                <Typography variant="body2">
+                    Set environment variables for your agent deployment.
+                </Typography>
+                <Box display="flex" flexDirection="column" gap={2}>
+                    {envVariables.map((envVar, index: number) => (
+                        <EnvVariableEditor
+                            key={index}
+                            index={index}
+                            keyValue={envVar.key}
+                            valueValue={envVar.value}
+                            onKeyChange={(value) => handleChange(index, 'key', value)}
+                            onValueChange={(value) => handleChange(index, 'value', value)}
+                            onRemove={() => handleRemove(index)}
+                        />
+                    ))}
+                </Box>
+                <Box display="flex" justifyContent="flex-start" width="100%">
+                    <Button
+                        startIcon={<Add fontSize="small" />}
+                        disabled={isOneEmpty}
+                        variant="outlined"
+                        color="primary"
+                        onClick={handleAdd}
+                    >
+                        Add
+                    </Button>
+                </Box>
             </Box>
-            <Box display="flex" justifyContent="flex-start" width="100%">
-                <Button
-                    startIcon={<Add fontSize="small" />}
-                    disabled={isOneEmpty}
-                    variant="outlined"
-                    color="primary"
-                    onClick={() => append({ key: '', value: '' })}
-                >
-                    Add
-                </Button>
-            </Box>
-        </Box>
-    );
-};
+        );
+    };
 

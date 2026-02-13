@@ -21,7 +21,6 @@ import {
   DrawerContent,
   DrawerHeader,
   DrawerWrapper,
-  FadeIn,
   PageLayout,
 } from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
@@ -30,28 +29,28 @@ import {
   TraceListTimeRange,
   getTimeRange,
 } from "@agent-management-platform/types";
+// import {
+//   Snackbar,
+//   Alert,
+//   Button,
+//   CircularProgress,
+//   IconButton,
+//   InputAdornment,
+//   MenuItem,
+//   Select,
+//   Stack,
+// } from "@mui/material";
 import {
-  CircularProgress,
-  IconButton,
-  InputAdornment,
-  MenuItem,
-  Select,
-  Skeleton,
-  Stack,
-  Button,
-  Snackbar,
-  Alert,
-} from "@mui/material";
-import {
+  Workflow,
   Clock,
   RefreshCcw,
   SortAsc,
   SortDesc,
-  Workflow,
   Download,
 } from "@wso2/oxygen-ui-icons-react";
 import { useTraceList, useExportTraces } from "@agent-management-platform/api-client";
-import { TraceDetails, TracesTable, TracesTopCards } from "./subComponents";
+import { TraceDetails, TracesView } from "./subComponents";
+import { Alert, Button, CircularProgress, IconButton, InputAdornment, MenuItem, Select, Snackbar, Stack } from "@wso2/oxygen-ui";
 
 const TIME_RANGE_OPTIONS = [
   { value: TraceListTimeRange.TEN_MINUTES, label: "10 Minutes" },
@@ -206,39 +205,76 @@ export const TracesComponent: React.FC = () => {
     }
   }, [orgId, projectId, agentId, envId, timeRange, sortOrder, exportTracesAsync]);
 
+  const handleTimeRangeChange = useCallback(
+    (newTimeRange: string) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("timeRange", newTimeRange as TraceListTimeRange);
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const handleSortOrderChange = useCallback(
+    (newSortOrder: "asc" | "desc") => {
+      const next = new URLSearchParams(searchParams);
+      next.set("sortOrder", newSortOrder);
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const handleRefresh = useCallback(() => {
+    refetch();
+  }, [refetch]);
+
   return (
-    <FadeIn>
+    <>
       <PageLayout
         title="Traces"
+        disableIcon
         actions={
-          <Stack direction="row" gap={1} alignItems="center">
+          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+            {/* Time Range Selector */}
             <Select
               size="small"
               variant="outlined"
               value={timeRange}
+              onChange={(e) => handleTimeRangeChange(e.target.value)}
               startAdornment={
                 <InputAdornment position="start">
                   <Clock size={16} />
                 </InputAdornment>
               }
-              onChange={(e) => {
-                const next = new URLSearchParams(searchParams);
-                next.set("timeRange", e.target.value as TraceListTimeRange);
-                setSearchParams(next);
-              }}
+              sx={{ minWidth: 150 }}
             >
-              {TIME_RANGE_OPTIONS.map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
+              {TIME_RANGE_OPTIONS.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>
+                  {opt.label}
                 </MenuItem>
               ))}
             </Select>
+
+            {/* Sort Toggle */}
+            <IconButton
+              size="small"
+              onClick={() => handleSortOrderChange(sortOrder === "desc" ? "asc" : "desc")}
+              aria-label={
+                sortOrder === "desc" ? "Sort ascending" : "Sort descending"
+              }
+            >
+              {sortOrder === "desc" ? (
+                <SortDesc size={16} />
+              ) : (
+                <SortAsc size={16} />
+              )}
+            </IconButton>
+
+            {/* Refresh Button */}
             <IconButton
               size="small"
               disabled={isRefetching}
-              onClick={() => {
-                refetch();
-              }}
+              onClick={handleRefresh}
+              aria-label="Refresh"
             >
               {isRefetching ? (
                 <CircularProgress size={16} />
@@ -246,50 +282,37 @@ export const TracesComponent: React.FC = () => {
                 <RefreshCcw size={16} />
               )}
             </IconButton>
-            <IconButton
-              size="small"
-              onClick={() => {
-                const next = new URLSearchParams(searchParams);
-                next.set("sortOrder", sortOrder === "desc" ? "asc" : "desc");
-                setSearchParams(next);
-              }}
-            >
-              {sortOrder === "desc" ? (
-                <SortAsc size={16} />
-              ) : (
-                <SortDesc size={16} />
-              )}
-            </IconButton>
+
+            {/* Export Button */}
             <Button
               size="small"
               variant="outlined"
-              startIcon={isExporting ? <CircularProgress size={16} /> : <Download size={16} />}
+              startIcon={
+                isExporting ? (
+                  <CircularProgress size={16} />
+                ) : (
+                  <Download size={16} />
+                )
+              }
               onClick={handleExportTraces}
-              disabled={isExporting || isLoading || !traceData || traceData.totalCount === 0}
+              disabled={isExporting || isLoading || (traceData?.traces ?? []).length === 0}
             >
               Export
             </Button>
           </Stack>
         }
-        disableIcon
       >
-        <Stack direction="column" gap={4}>
-          <TracesTopCards timeRange={timeRange} />
-          {isLoading ? (
-            <Skeleton variant="rounded" height={500} width="100%" />
-          ) : (
-            <TracesTable
-              traces={traceData?.traces ?? []}
-              onTraceSelect={handleTraceSelect}
-              count={count}
-              page={page}
-              rowsPerPage={rowsPerPage}
-              onPageChange={handlePageChange}
-              onRowsPerPageChange={handleRowsPerPageChange}
-              selectedTrace={selectedTrace}
-            />
-          )}
-        </Stack>
+        <TracesView
+          traces={traceData?.traces ?? []}
+          count={count}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          isLoading={isLoading}
+          selectedTrace={selectedTrace}
+          onTraceSelect={handleTraceSelect}
+          onPageChange={handlePageChange}
+          onRowsPerPageChange={handleRowsPerPageChange}
+        />
         <DrawerWrapper
           open={!!selectedTrace}
           disableScroll
@@ -298,7 +321,7 @@ export const TracesComponent: React.FC = () => {
         >
           <DrawerHeader
             title="Trace Details"
-            icon={<Workflow size={16} />}
+            icon={<Workflow size={24} />}
             onClose={() => setSearchParams(new URLSearchParams())}
           />
           <DrawerContent>
@@ -316,6 +339,6 @@ export const TracesComponent: React.FC = () => {
           {exportError}
         </Alert>
       </Snackbar>
-    </FadeIn>
+    </>
   );
 };

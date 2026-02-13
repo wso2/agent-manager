@@ -6,12 +6,12 @@
  * in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
+ * KIND, either express or implied. See the License for the
  * specific language governing permissions and limitations
  * under the License.
  */
@@ -37,7 +37,7 @@ import type {
   MetricsResponse,
 } from "@agent-management-platform/types";
 
-const toGib = (value: number) => value / 1024 ** 3;
+const toGb = (value: number) => value / 1024 ** 3;
 
 type SeriesDefinition = {
   key: string;
@@ -89,7 +89,7 @@ type MetricsTooltipProps = {
 const MetricsTooltip: React.FC<MetricsTooltipProps> = ({
   active,
   payload,
-  formatter,    
+  formatter,
 }) => {
   if (!active || !payload || payload.length === 0) {
     return null;
@@ -98,7 +98,6 @@ const MetricsTooltip: React.FC<MetricsTooltipProps> = ({
   return (
     <Card
       variant="outlined"
-      sx={{ "&.MuiCard-root": { backgroundColor: "background.paper" } }}
     >
       <CardContent>
         <Stack direction="column" gap={0.5}>
@@ -145,11 +144,17 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
   error,
 }) => {
   const theme = useTheme();
-  const hasData = useMemo(
+
+  const hasCpuData = useMemo(
     () =>
       (metrics?.cpuUsage?.length ?? 0) > 0 ||
       (metrics?.cpuRequests?.length ?? 0) > 0 ||
-      (metrics?.cpuLimits?.length ?? 0) > 0 ||
+      (metrics?.cpuLimits?.length ?? 0) > 0,
+    [metrics],
+  );
+
+  const hasMemoryData = useMemo(
+    () =>
       (metrics?.memory?.length ?? 0) > 0 ||
       (metrics?.memoryRequests?.length ?? 0) > 0 ||
       (metrics?.memoryLimits?.length ?? 0) > 0,
@@ -164,15 +169,6 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
     );
   }
 
-  if (!isLoading && !hasData) {
-    return (
-      <NoDataFound
-        message="No metrics found!"
-        subtitle="Try changing the time range"
-      />
-    );
-  }
-
   return (
     <Grid container spacing={3}>
       <Grid size={{ xs: 12, md: 6 }}>
@@ -184,13 +180,26 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
               flexDirection: "column",
               height: "100%",
               "& svg:focus, & svg:focus-visible, & [tabindex]:focus, & [tabindex]:focus-visible":
-                {
-                  outline: "none",
-                },
+              {
+                outline: "none",
+              },
             }}
           >
             {isLoading ? (
               <Skeleton variant="rounded" height={260} width="100%" />
+            ) : !hasCpuData ? (
+              <Box
+                display="flex"
+                justifyContent="center"
+                alignItems="center"
+                height={260}
+              >
+                <NoDataFound
+                  message="No CPU metrics available"
+                  subtitle="Try changing the time range"
+                  disableBackground
+                />
+              </Box>
             ) : (
               <LineChart
                 data={buildSeriesData([
@@ -202,6 +211,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                 tooltip={{ show: false }}
                 xAxis={{ show: true, interval: "preserveStartEnd" }}
                 yAxis={{ show: true, name: "Cores" }}
+                syncId="metricsSync"
                 lines={[
                   {
                     dataKey: "cpuUsage",
@@ -245,43 +255,57 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
       </Grid>
       <Grid size={{ xs: 12, md: 6 }}>
         <Card variant="outlined" sx={{ height: "100%" }}>
-          <CardHeader title="Memory" />
+          <CardHeader title="Memory Usage" />
           <CardContent
             sx={{
               display: "flex",
               flexDirection: "column",
               height: "100%",
               "& svg:focus, & svg:focus-visible, & [tabindex]:focus, & [tabindex]:focus-visible":
-                {
-                  outline: "none",
-                },
+              {
+                outline: "none",
+              },
             }}
           >
             {isLoading ? (
               <Skeleton variant="rounded" height={260} width="100%" />
+            ) : !hasMemoryData ? (
+              <Box
+                display="flex"
+                justifyContent="center"
+                alignItems="center"
+                height={260}
+              >
+                <NoDataFound
+                  message="No memory metrics available"
+                  subtitle="Try changing the time range"
+                  disableBackground
+                />
+              </Box>
             ) : (
               <LineChart
                 data={buildSeriesData([
                   {
                     key: "memoryUsage",
                     points: metrics?.memory,
-                    transform: toGib,
+                    transform: toGb,
                   },
                   {
                     key: "memoryRequests",
                     points: metrics?.memoryRequests,
-                    transform: toGib,
+                    transform: toGb,
                   },
                   {
                     key: "memoryLimits",
                     points: metrics?.memoryLimits,
-                    transform: toGib,
+                    transform: toGb,
                   },
                 ])}
                 xAxisDataKey="label"
                 xAxis={{ show: true, interval: "preserveStartEnd" }}
                 yAxis={{ show: true, name: "GiB" }}
                 tooltip={{ show: false }}
+                syncId="metricsSync"
                 lines={[
                   {
                     dataKey: "memoryUsage",
@@ -289,7 +313,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                     stroke: theme.palette.primary.main,
                     dot: false,
                     connectNulls: true,
-                    unit: " GiB",
+                    unit: " GB",
                   },
                   {
                     dataKey: "memoryRequests",
@@ -297,7 +321,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                     stroke: theme.palette.secondary.main,
                     dot: false,
                     connectNulls: true,
-                    unit: " GiB",
+                    unit: " GB",
                   },
                   {
                     dataKey: "memoryLimits",
@@ -306,7 +330,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                     dot: false,
                     connectNulls: true,
                     strokeDasharray: "0",
-                    unit: " GiB",
+                    unit: " GB",
                   },
                 ]}
               >
@@ -314,7 +338,7 @@ export const MetricsView: React.FC<MetricsViewProps> = ({
                   content={
                     <MetricsTooltip
                       title="Memory"
-                      formatter={(value) => `${value.toFixed(2)} GiB`}
+                      formatter={(value) => `${value.toFixed(2)} GB`}
                     />
                   }
                 />

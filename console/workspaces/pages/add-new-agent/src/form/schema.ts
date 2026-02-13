@@ -16,134 +16,171 @@
  * under the License.
  */
 
-import * as yup from 'yup';
+import { z } from 'zod';
 import type { InputInterfaceType } from '@agent-management-platform/types';
 
 export type InterfaceType = InputInterfaceType;
 
-export interface AddAgentFormValues {
-  deploymentType?: 'new' | 'existing';
-  name: string;
-  displayName: string;
-  description?: string;
-  repositoryUrl?: string;
-  branch?: string;
-  appPath: string;
-  runCommand?: string;
-  language?: string;
-  languageVersion?: string;
-  interfaceType: InterfaceType;
-  port?: number;
-  basePath?: string;
-  openApiPath?: string;
-  env: Array<{ key?: string; value?: string }>;
-}
-
-export const addAgentSchema = yup.object({
-  deploymentType: yup.mixed<'new' | 'existing'>().oneOf(['new', 'existing']),
-  displayName: yup
+// Base fields shared by both flows
+const baseAgentFields = {
+  displayName: z
     .string()
     .trim()
-    .required('Name is required')
+    .min(1, 'Name is required')
     .min(3, 'Name must be at least 3 characters')
     .max(100, 'Name must be at most 100 characters'),
-  name: yup
+  name: z
     .string()
     .trim()
-    .required('Name is required')
-    .matches(/^[a-z0-9-]+$/, 'Name must be lowercase letters, numbers, and hyphens only (no spaces)')
+    .min(1, 'Name is required')
+    .regex(/^[a-z0-9-]+$/, 'Name must be lowercase letters, numbers, and hyphens only (no spaces)')
     .min(3, 'Name must be at least 3 characters')
     .max(50, 'Name must be at most 50 characters'),
-  language: yup.string().trim().when('deploymentType', {
-    is: 'new',
-    then: (schema) => schema.required('Language is required'),
-    otherwise: (schema) => schema.notRequired(),
-  }),
-  repositoryUrl: yup
+  description: z.string().trim().optional(),
+};
+
+// Schema for connecting to an existing agent (minimal fields)
+export const connectAgentSchema = z.object({
+  ...baseAgentFields,
+  deploymentType: z.literal('existing').optional(),
+});
+
+// Schema for creating a new agent from source (full validation)
+export const createAgentSchema = z.object({
+  ...baseAgentFields,
+  deploymentType: z.literal('new').optional(),
+  repositoryUrl: z
     .string()
     .trim()
-    .url('Must be a valid URL')
-    .when('deploymentType', {
-      is: 'new',
-      then: (schema) => schema.required('Repository URL is required'),
-      otherwise: (schema) => schema.notRequired(),
-    }),
-  description: yup.string().trim(),
-  branch: yup.string().trim().when('deploymentType', {
-    is: 'new',
-    then: (schema) => schema.required('Branch is required'),
-    otherwise: (schema) => schema.notRequired(),
-  }),
-  appPath: yup
+    .min(1, 'Repository URL is required')
+    .url('Must be a valid URL'),
+  branch: z.string().trim().min(1, 'Branch is required'),
+  appPath: z
     .string()
     .trim()
-    .required('App path is required')
-    .test(
-      'starts-with-slash',
-      'App path must start with /',
+    .min(1, 'App path is required')
+    .refine((value) => value.startsWith('/'), {
+      message: 'App path must start with /',
+    })
+    .refine((value) => !/\.\./.test(value), {
+      message: 'Path traversal is not allowed',
+    })
+    .refine((value) => /^\/[A-Za-z0-9._\-/]*$/.test(value), {
+      message: 'App path can only contain letters, numbers, ., _, -, and /',
+    })
+    .refine(
       (value) => {
-        if (!value) return false; // Empty is not valid
-        return value.startsWith('/');
-      }
-    )
-    .test(
-      'valid-path',
-      'App path must be a valid path (use / for root directory)',
-      (value) => {
-        if (!value) return false;
-        // Must be either "/" or a valid path starting with "/"
         if (value === '/') return true;
-        // Should not end with slash if not root
         return !value.endsWith('/');
-      }
+      },
+      { message: 'App path must be a valid path (use / for root directory)' }
     ),
-  runCommand: yup.string().trim().when('deploymentType', {
-    is: 'new',
-    then: (schema) => schema.required('Start Command is required'),
-    otherwise: (schema) => schema.notRequired(),
-  }),
-  languageVersion: yup.string().trim(),
-  interfaceType: yup.mixed<InterfaceType>().oneOf(['DEFAULT', 'CUSTOM']).required(),
-  port: yup
-    .number()
-    .transform((v, o) => (o === '' || o === null ? undefined : v))
-    .when('interfaceType', {
-      is: 'CUSTOM',
-      then: (schema) => schema
-        .typeError('Port must be a number')
-        .required('Port is required')
-        .min(1, 'Port must be at least 1')
-        .max(65535, 'Port must be at most 65535'),
-      otherwise: (schema) => schema.notRequired(),
-    }),
-  basePath: yup.string().trim().when('interfaceType', {
-    is: 'CUSTOM',
-    then: (schema) => schema.required('Base path is required'),
-    otherwise: (schema) => schema.notRequired(),
-  }),
-  openApiPath: yup.string().trim().when('interfaceType', {
-    is: 'CUSTOM',
-    then: (schema) => schema.required('OpenAPI spec path is required'),
-    otherwise: (schema) => schema.notRequired(),
-  }),
-  env: yup
-    .array()
-    .of(
-      yup.object({
-        key: yup.string().trim(),
-        value: yup.string().trim(),
+  runCommand: z.string().trim().optional(),
+  language: z.string().trim().min(1, 'Language is required'),
+  languageVersion: z.string().trim().optional(),
+  dockerfilePath: z.string().trim().optional(),
+  interfaceType: z.enum(['DEFAULT', 'CUSTOM']),
+  port: z
+    .union([z.number(), z.string(), z.undefined()])
+    .transform((val) => {
+      if (val === '' || val === null || val === undefined) return undefined;
+      return typeof val === 'string' ? Number(val) : val;
+    })
+    .optional(),
+  basePath: z.string().trim().optional(),
+  openApiPath: z.string().trim().optional(),
+  env: z
+    .array(
+      z.object({
+        key: z
+          .string()
+          .trim()
+          .min(1, 'Environment variable key is required')
+          .max(64, 'Environment variable key must be at most 64 characters')
+          .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Env keys must match /^[A-Za-z_][A-Za-z0-9_]*$/')
+          .optional(),
+        value: z
+          .string()
+          .trim()
+          .max(2048, 'Environment variable value must be at most 2048 characters')
+          .optional(),
       })
     )
-    .test('complete-pairs', 'Both key and value must be filled or both empty', (list) => {
-      if (!list) return true;
-      return list.every((e) => (e.key && e.value) || (!e.key && !e.value));
-    })
-    .test('unique-keys', 'Environment variable keys must be unique', (list) => {
-      if (!list) return true;
-      const keys = list.map((e) => e.key).filter(Boolean);
-      return new Set(keys).size === keys.length;
-    })
-    .required(),
-});
+    .max(50, 'A maximum of 50 environment variables is allowed'),
+}).refine(
+  (data) => {
+    if (data.interfaceType === 'CUSTOM' && !data.port) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Port is required when using custom interface', path: ['port'] }
+).refine(
+  (data) => {
+    if (data.interfaceType === 'CUSTOM' && data.port !== undefined) {
+      if (!Number.isInteger(data.port)) return false;
+      if (data.port < 1 || data.port > 65535) return false;
+    }
+    return true;
+  },
+  { message: 'Port must be between 1 and 65535', path: ['port'] }
+).refine(
+  (data) => {
+    if (data.interfaceType === 'CUSTOM' && !data.basePath) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Base path is required when using custom interface', path: ['basePath'] }
+).refine(
+  (data) => {
+    if (data.interfaceType === 'CUSTOM' && !data.openApiPath) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'OpenAPI spec path is required when using custom interface', path: ['openApiPath'] }
+).refine(
+  (data) => {
+    // Validate Python-specific fields: runCommand is required for Python
+    if (data.language === 'python' && !data.runCommand?.trim()) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Start Command is required for Python agents', path: ['runCommand'] }
+).refine(
+  (data) => {
+    // Validate Python-specific fields: languageVersion is required for Python
+    if (data.language === 'python' && !data.languageVersion?.trim()) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Python version is required for Python agents', path: ['languageVersion'] }
+).refine(
+  (data) => {
+    // Validate Docker-specific fields: dockerfilePath is required for Docker
+    if (data.language === 'docker' && !data.dockerfilePath?.trim()) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Dockerfile path is required for Docker agents', path: ['dockerfilePath'] }
+).refine(
+  (data) => {
+    // Validate dockerfilePath must start with /
+    if (data.language === 'docker' && data.dockerfilePath?.trim() && !data.dockerfilePath.startsWith('/')) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Dockerfile path must start with /', path: ['dockerfilePath'] }
+);
+
+// Union type for form values
+export type ConnectAgentFormValues = z.infer<typeof connectAgentSchema>;
+export type CreateAgentFormValues = z.infer<typeof createAgentSchema>;
+export type AddAgentFormValues = ConnectAgentFormValues | CreateAgentFormValues;
 
 

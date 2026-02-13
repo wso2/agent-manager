@@ -17,33 +17,28 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { FadeIn, PageLayout } from "@agent-management-platform/views";
+import { PageLayout } from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
   TraceListTimeRange,
-  getTimeRange,
 } from "@agent-management-platform/types";
+import { debounce } from "lodash";
+import { useAgentRuntimeLogs } from "@agent-management-platform/api-client";
+import { LogsView } from "./components/LogsView/LogsView";
 import {
-  Button,
   CircularProgress,
   IconButton,
   InputAdornment,
   MenuItem,
   Select,
-  Snackbar,
-  Alert,
   Stack,
-} from "@mui/material";
-import { debounce } from "lodash";
+} from "@wso2/oxygen-ui";
 import {
   Clock,
-  Download,
   RefreshCcw,
   SortAsc,
   SortDesc,
 } from "@wso2/oxygen-ui-icons-react";
-import { useAgentRuntimeLogs } from "@agent-management-platform/api-client";
-import { LogsView } from "./components/LogsView/LogsView";
 
 const TIME_RANGE_OPTIONS = [
   { value: TraceListTimeRange.TEN_MINUTES, label: "10 Minutes" },
@@ -65,8 +60,6 @@ type SortOrder = "asc" | "desc";
 export const LogsComponent: React.FC = () => {
   const { agentId, orgId, projectId, envId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
 
   const timeRange = useMemo(
     () =>
@@ -129,12 +122,6 @@ export const LogsComponent: React.FC = () => {
     refetch();
   }, [refetch]);
 
-  const handleSortToggle = useCallback(() => {
-    const next = new URLSearchParams(searchParams);
-    next.set("sortOrder", sortOrder === "desc" ? "asc" : "desc");
-    setSearchParams(next);
-  }, [searchParams, setSearchParams, sortOrder]);
-
   const handleSearch = useCallback(
     (searchValue: string) => {
       const next = new URLSearchParams(searchParams);
@@ -144,147 +131,95 @@ export const LogsComponent: React.FC = () => {
     [searchParams, setSearchParams],
   );
 
-  const handleExport = useCallback(async () => {
-    if (!orgId || !projectId || !agentId || !envId) {
-      setExportError("Missing required parameters for export");
-      return;
-    }
+  const handleTimeRangeChange = useCallback(
+    (newTimeRange: string) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("timeRange", newTimeRange as TraceListTimeRange);
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams],
+  );
 
-    try {
-      setExportError(null);
-      setIsExporting(true);
-
-      const range = getTimeRange(timeRange);
-      const exportPayload = {
-        timeRange,
-        sortOrder,
-        ...(range && { startTime: range.startTime, endTime: range.endTime }),
-        exportedAt: new Date().toISOString(),
-        orgId,
-        projectId,
-        agentId,
-        envId,
-        logs: [] as unknown[],
-      };
-
-      const blob = new Blob([JSON.stringify(exportPayload, null, 2)], {
-        type: "application/json",
-      });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `logs-export-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (exportErr) {
-      setExportError(
-        exportErr instanceof Error
-          ? exportErr.message
-          : "Failed to export logs",
-      );
-    } finally {
-      setIsExporting(false);
-    }
-  }, [orgId, projectId, agentId, envId, timeRange, sortOrder]);
+  const handleSortOrderChange = useCallback(
+    (newSortOrder: "asc" | "desc") => {
+      const next = new URLSearchParams(searchParams);
+      next.set("sortOrder", newSortOrder);
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams],
+  );
 
   return (
-    <FadeIn>
-      <PageLayout
-        title="Runtime Logs"
-        actions={
-          <Stack direction="row" gap={1} alignItems="center">
-            <Select
-              size="small"
-              variant="outlined"
-              value={timeRange}
-              startAdornment={
-                <InputAdornment position="start">
-                  <Clock size={16} />
-                </InputAdornment>
-              }
-              onChange={(e) => {
-                const next = new URLSearchParams(searchParams);
-                next.set("timeRange", e.target.value as TraceListTimeRange);
-                setSearchParams(next);
-              }}
-            >
-              {TIME_RANGE_OPTIONS.map((opt) => (
-                <MenuItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </MenuItem>
-              ))}
-            </Select>
-            <IconButton
-              size="small"
-              disabled={isRefetching}
-              onClick={handleRefresh}
-              aria-label="Refresh"
-            >
-              {isRefetching ? (
-                <CircularProgress size={16} />
-              ) : (
-                <RefreshCcw size={16} />
-              )}
-            </IconButton>
-            <IconButton
-              size="small"
-              onClick={handleSortToggle}
-              aria-label={
-                sortOrder === "desc" ? "Sort ascending" : "Sort descending"
-              }
-            >
-              {sortOrder === "desc" ? (
-                <SortAsc size={16} />
-              ) : (
-                <SortDesc size={16} />
-              )}
-            </IconButton>
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={
-                isExporting ? (
-                  <CircularProgress size={16} />
-                ) : (
-                  <Download size={16} />
-                )
-              }
-              disabled
-              onClick={handleExport}
-            >
-              Export
-            </Button>
-          </Stack>
-        }
-        disableIcon
-      >
-        <LogsView
-          logs={logs}
-          isLoading={isLoading}
-          error={error}
-          hasMoreUp={hasMoreUp}
-          hasMoreDown={hasMoreDown}
-          isLoadingUp={isLoadingUp}
-          isLoadingDown={isLoadingDown}
-          onLoadUp={loadUp}
-          onLoadDown={loadDown}
-          onSearch={handleSearch}
-          search={search}
-        />
-      </PageLayout>
-      <Snackbar
-        open={!!exportError}
-        autoHideDuration={6000}
-        onClose={() => setExportError(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert onClose={() => setExportError(null)} severity="error">
-          {exportError}
-        </Alert>
-      </Snackbar>
-    </FadeIn>
+    <PageLayout
+      title="Runtime Logs"
+      disableIcon
+      actions={
+        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+          {/* Time Range Selector */}
+          <Select
+            size="small"
+            variant="outlined"
+            value={timeRange}
+            onChange={(e) => handleTimeRangeChange(e.target.value)}
+            startAdornment={
+              <InputAdornment position="start">
+                <Clock size={16} />
+              </InputAdornment>
+            }
+            sx={{ minWidth: 150 }}
+          >
+            {TIME_RANGE_OPTIONS.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </MenuItem>
+            ))}
+          </Select>
+
+          {/* Sort Toggle */}
+          <IconButton
+            size="small"
+            onClick={() => handleSortOrderChange(sortOrder === "desc" ? "asc" : "desc")}
+            aria-label={
+              sortOrder === "desc" ? "Sort ascending" : "Sort descending"
+            }
+          >
+            {sortOrder === "desc" ? (
+              <SortDesc size={16} />
+            ) : (
+              <SortAsc size={16} />
+            )}
+          </IconButton>
+
+          {/* Refresh Button */}
+          <IconButton
+            size="small"
+            disabled={isRefetching}
+            onClick={handleRefresh}
+            aria-label="Refresh"
+          >
+            {isRefetching ? (
+              <CircularProgress size={16} />
+            ) : (
+              <RefreshCcw size={16} />
+            )}
+          </IconButton>
+        </Stack>
+      }
+    >
+      <LogsView
+        logs={logs}
+        isLoading={isLoading}
+        error={error}
+        hasMoreUp={hasMoreUp}
+        hasMoreDown={hasMoreDown}
+        isLoadingUp={isLoadingUp}
+        isLoadingDown={isLoadingDown}
+        onLoadUp={loadUp}
+        onLoadDown={loadDown}
+        onSearch={handleSearch}
+        search={search}
+      />
+    </PageLayout>
   );
 };
 

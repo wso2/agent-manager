@@ -17,7 +17,6 @@
  */
 
 import { lazy, type ComponentType, type FC } from "react";
-import { PageLayout } from "@agent-management-platform/views";
 import { metaData as overviewMetadata } from "@agent-management-platform/overview";
 import { metaData as buildMetadata } from "@agent-management-platform/build";
 import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
@@ -36,9 +35,7 @@ export const LazyOverviewComponent = overviewMetadata.levels.component as FC;
 export const LazyBuildComponent = buildMetadata.levels.component as FC;
 
 export const LazyDeploymentComponent: FC = () => (
-  <PageLayout title={deploymentMetadata.title} disableIcon>
     <deploymentMetadata.levels.component />
-  </PageLayout>
 );
 
 export const LazyTestComponent = testMetadata.levels.component as FC;

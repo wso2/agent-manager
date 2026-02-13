@@ -35,19 +35,14 @@ import {
   FormHelperText,
   Chip,
 } from "@wso2/oxygen-ui";
-import { FormProvider, useForm } from "react-hook-form";
 import { DrawerHeader, DrawerContent } from "@agent-management-platform/views";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 interface BuildPanelProps {
   onClose: () => void;
   orgName: string;
   projName: string;
   agentName: string;
-}
-
-interface BuildFormData {
-  commitId?: string;
 }
 
 /**
@@ -81,17 +76,13 @@ export function BuildPanel({
   projName,
   agentName,
 }: BuildPanelProps) {
+  const [commitId, setCommitId] = useState<string>("");
+
   const { mutate: buildAgent, isPending } = useBuildAgent();
   const { data: agent, isLoading: isLoadingAgent } = useGetAgent({
     orgName,
     projName,
     agentName,
-  });
-
-  const methods = useForm<BuildFormData>({
-    defaultValues: {
-      commitId: "",
-    },
   });
 
   // Get the branch from the agent's repository configuration
@@ -118,12 +109,11 @@ export function BuildPanel({
   // User can explicitly select a specific commit if needed
 
   const handleCommitChange = (event: SelectChangeEvent<string>) => {
-    methods.setValue("commitId", event.target.value);
+    setCommitId(event.target.value);
   };
 
   const handleBuild = async () => {
     try {
-      const formData = methods.getValues();
       buildAgent(
         {
           params: {
@@ -132,7 +122,7 @@ export function BuildPanel({
             agentName,
           },
           query: {
-            commitId: formData.commitId || "",
+            commitId: commitId || "",
           },
         },
         {
@@ -149,114 +139,112 @@ export function BuildPanel({
   const commits = commitsData?.commits || [];
 
   return (
-    <FormProvider {...methods}>
-      <Box display="flex" flexDirection="column" height="100%">
-        <DrawerHeader
-          icon={<Wrench size={24} />}
-          title="Trigger Build"
-          onClose={onClose}
-        />
-        <DrawerContent>
-          <Typography variant="body2" color="text.secondary">
-            Build {agent?.displayName || agentName} from a specific commit.
-          </Typography>
+    <Box display="flex" flexDirection="column" height="100%">
+      <DrawerHeader
+        icon={<Wrench size={24} />}
+        title="Trigger Build"
+        onClose={onClose}
+      />
+      <DrawerContent>
+        <Typography variant="body2" color="text.secondary">
+          Build {agent?.displayName || agentName} from a specific commit.
+        </Typography>
 
-          <Box display="flex" flexDirection="column" gap={2}>
-            <FormControl fullWidth size="small">
-              <InputLabel id="commit-select-label" shrink>
-                Commit
-              </InputLabel>
-              <Select
-                notched
-                displayEmpty
-                labelId="commit-select-label"
-                id="commit-select"
-                value={methods.watch("commitId") || ""}
-                label="Commit"
-                onChange={handleCommitChange}
-                disabled={isLoadingCommits || !selectedBranch}
-                renderValue={(selected) => {
-                  if (!selected) {
-                    return (
-                      <Typography variant="body2" color="text.secondary">
-                        Using latest commit
-                      </Typography>
-                    );
-                  }
-                  const commit = commits.find((c) => c.sha === selected);
-                  if (commit) {
-                    return (
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="body2" noWrap>
-                          {commit.message?.split("\n")[0] || commit.shortSha}
-                        </Typography>
-                      </Box>
-                    );
-                  }
-                  return selected;
-                }}
-                endAdornment={
-                  isLoadingCommits ? (
-                    <CircularProgress size={20} sx={{ mr: 2 }} />
-                  ) : undefined
-                }
-                MenuProps={{
-                  PaperProps: {
-                    style: {
-                      maxHeight: 300,
-                    },
-                  },
-                }}
-              >
-                {commits.length === 0 && (
-                  <MenuItem value="" disabled>
+        <Box display="flex" flexDirection="column" gap={2}>
+          <FormControl fullWidth size="small">
+            <InputLabel id="commit-select-label" shrink>
+              Commit
+            </InputLabel>
+            <Select
+              notched
+              displayEmpty
+              labelId="commit-select-label"
+              id="commit-select"
+              value={commitId || ""}
+              label="Commit"
+              onChange={handleCommitChange}
+              disabled={isLoadingCommits || !selectedBranch}
+              renderValue={(selected) => {
+                if (!selected) {
+                  return (
                     <Typography variant="body2" color="text.secondary">
                       Using latest commit
                     </Typography>
-                  </MenuItem>
-                )}
-                {commits.map((commit, index) => (
-                  <MenuItem key={commit.sha} value={commit.sha}>
-                    <Box display="flex" flexDirection="column" width="100%">
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <Typography
-                          variant="body2"
-                          noWrap
-                          sx={{ maxWidth: 350 }}
-                        >
-                          {commit.message?.split("\n")[0] || ""}
-                        </Typography>
-                        {index === 0 && (
-                          <Chip label="Latest" size="small" color="primary" />
-                        )}
-                      </Box>
-                      <Typography variant="caption" color="text.secondary">
-                        {commit.shortSha}
+                  );
+                }
+                const commit = commits.find((c) => c.sha === selected);
+                if (commit) {
+                  return (
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography variant="body2" noWrap>
+                        {commit.message?.split("\n")[0] || commit.shortSha}
                       </Typography>
                     </Box>
-                  </MenuItem>
-                ))}
-              </Select>
-              <FormHelperText>Select the commit to build</FormHelperText>
-            </FormControl>
-          </Box>
-
-          <Box display="flex" gap={1} justifyContent="flex-end" width="100%">
-            <Button variant="outlined" color="primary" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={handleBuild}
-              startIcon={<Wrench size={16} />}
-              disabled={isPending || isLoadingAgent || !selectedBranch}
+                  );
+                }
+                return selected;
+              }}
+              endAdornment={
+                isLoadingCommits ? (
+                  <CircularProgress size={20} sx={{ mr: 2 }} />
+                ) : undefined
+              }
+              MenuProps={{
+                PaperProps: {
+                  style: {
+                    maxHeight: 300,
+                  },
+                },
+              }}
             >
-              Trigger Build
-            </Button>
-          </Box>
-        </DrawerContent>
-      </Box>
-    </FormProvider>
+              {commits.length === 0 && (
+                <MenuItem value="" disabled>
+                  <Typography variant="body2" color="text.secondary">
+                    Using latest commit
+                  </Typography>
+                </MenuItem>
+              )}
+              {commits.map((commit, index) => (
+                <MenuItem key={commit.sha} value={commit.sha}>
+                  <Box display="flex" flexDirection="column" width="100%">
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography
+                        variant="body2"
+                        noWrap
+                        sx={{ maxWidth: 350 }}
+                      >
+                        {commit.message?.split("\n")[0] || ""}
+                      </Typography>
+                      {index === 0 && (
+                        <Chip label="Latest" size="small" color="primary" />
+                      )}
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                      {commit.shortSha}
+                    </Typography>
+                  </Box>
+                </MenuItem>
+              ))}
+            </Select>
+            <FormHelperText>Select the commit to build</FormHelperText>
+          </FormControl>
+        </Box>
+
+        <Box display="flex" gap={1} justifyContent="flex-end" width="100%">
+          <Button variant="outlined" color="primary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleBuild}
+            startIcon={<Wrench size={16} />}
+            disabled={isPending || isLoadingAgent || !selectedBranch}
+          >
+            Trigger Build
+          </Button>
+        </Box>
+      </DrawerContent>
+    </Box>
   );
 }
