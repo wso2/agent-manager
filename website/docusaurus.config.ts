@@ -7,6 +7,11 @@ import fs from 'fs';
 const versions: string[] = JSON.parse(fs.readFileSync('./versions.json', 'utf-8'));
 const latestVersion = versions[0]; // First entry is always the latest
 
+// Read quickStartDockerTag from _constants.md
+const constantsFile = fs.readFileSync('./docs/_constants.md', 'utf-8');
+const dockerTagMatch = constantsFile.match(/quickStartDockerTag:\s*['"]([^'"]+)['"]/);
+const quickStartDockerTag = dockerTagMatch ? dockerTagMatch[1] : latestVersion;
+
 const config: Config = {
   title: 'WSO2 Agent Manager',
   tagline: 'Build, Deploy, and Manage AI Agents at Scale',
@@ -91,9 +96,9 @@ const config: Config = {
     // Replace with your project's social card
     // image: 'img/amp-social-card.png',
     announcementBar: {
-      id: `release_${latestVersion.replace(/\./g, '_')}`,
+      id: `release_${quickStartDockerTag.replace(/\./g, '_')}`,
       content:
-        `🎉 WSO2 Agent Manager <a target="_blank" rel="noopener noreferrer" href="https://github.com/wso2/agent-manager/releases/tag/amp%2F${latestVersion}">${latestVersion}</a> has been released! Explore what's new. 🎉`,
+        `🎉 WSO2 Agent Manager <a target="_blank" rel="noopener noreferrer" href="https://github.com/wso2/agent-manager/releases/tag/amp%2F${quickStartDockerTag}">${quickStartDockerTag}</a> has been released! Explore what's new. 🎉`,
       isCloseable: true,
     },
 
