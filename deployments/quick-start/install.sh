@@ -204,7 +204,7 @@ helm_install_idempotent() {
     fi
 }
 
-# Wait for pods to be ready
+# Wait for pods to be ready (excludes Succeeded/Completed pods like Jobs)
 wait_for_pods() {
     local namespace=$1
     local timeout=$2
@@ -213,12 +213,12 @@ wait_for_pods() {
     log_info "Waiting for pods in ${namespace} to be ready (timeout: ${timeout}s)..."
 
     if [ -n "$selector" ]; then
-        kubectl wait --for=condition=Ready pod -l "${selector}" -n "${namespace}" --timeout="${timeout}s" || {
+        kubectl wait --for=condition=Ready pod -l "${selector}" --field-selector=status.phase!=Succeeded -n "${namespace}" --timeout="${timeout}s" || {
             log_warning "Some pods may still be starting (non-fatal)"
             return 0
         }
     else
-        kubectl wait --for=condition=Ready pod --all -n "${namespace}" --timeout="${timeout}s" || {
+        kubectl wait --for=condition=Ready pod --all --field-selector=status.phase!=Succeeded -n "${namespace}" --timeout="${timeout}s" || {
             log_warning "Some pods may still be starting (non-fatal)"
             return 0
         }
