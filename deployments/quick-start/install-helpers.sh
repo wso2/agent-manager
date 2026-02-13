@@ -9,7 +9,7 @@ set -euo pipefail
 # ============================================================================
 
 # Version
-VERSION="${VERSION:-0.0.0-dev}"
+VERSION="${VERSION:-0.6.0-rc1}"
 
 # Helm chart registry and versions
 HELM_CHART_REGISTRY="${HELM_CHART_REGISTRY:-ghcr.io/wso2}"
