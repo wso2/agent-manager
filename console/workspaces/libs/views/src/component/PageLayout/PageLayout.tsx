@@ -20,6 +20,7 @@ import { Box, PageTitle, PageContent, Skeleton, Stack } from '@wso2/oxygen-ui';
 import { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
+import { PageErrorBoundary } from './PageErrorBoundary';
 
 export interface PageLayoutProps {
   children: ReactNode;
@@ -59,7 +60,7 @@ export function PageLayout({
 
           {!disableIcon && (
             <PageTitle.Avatar>
-            <Skeleton variant="circular" width={80} height={80} />
+              <Skeleton variant="circular" width={80} height={80} />
             </PageTitle.Avatar>
           )}
 
@@ -88,44 +89,45 @@ export function PageLayout({
   }
 
   return (
-    <PageContent fullWidth={!disablePadding}>
-      <PageTitle>
-        {backHref && (
-          <PageTitle.BackButton component={<Link to={backHref} />}>
-            {backLabel || 'Back'}
-          </PageTitle.BackButton>
-        )}
-
-        {!disableIcon && (
-          <PageTitle.Avatar
-            sx={{
-              bgcolor: "primary.main",
-            }}
-          >
-            {title?.substring(0, 1).toUpperCase()}
-          </PageTitle.Avatar>
-        )}
-
-        <PageTitle.Header>
-          {title}
-          {titleTail && (
-            <Box
-              component="span"
-              sx={{ display: 'inline-flex', alignItems: 'center' }}
-            >
-              {titleTail}
-            </Box>
+    <PageErrorBoundary title={title} fullWidth={!disablePadding}>
+      <PageContent fullWidth={!disablePadding}>
+        <PageTitle>
+          {backHref && (
+            <PageTitle.BackButton component={<Link to={backHref} />}>
+              {backLabel || 'Back'}
+            </PageTitle.BackButton>
           )}
-        </PageTitle.Header>
 
-        {description && (
-          <PageTitle.SubHeader>{description}</PageTitle.SubHeader>
-        )}
+          {!disableIcon && (
+            <PageTitle.Avatar
+              sx={{
+                bgcolor: "primary.main",
+              }}
+            >
+              {title?.substring(0, 1).toUpperCase()}
+            </PageTitle.Avatar>
+          )}
 
-        {actions && <PageTitle.Actions>{actions}</PageTitle.Actions>}
-      </PageTitle>
-      {children}
-    </PageContent>
+          <PageTitle.Header>
+            {title}
+            {titleTail && (
+              <Box
+                component="span"
+                sx={{ display: 'inline-flex', alignItems: 'center' }}
+              >
+                {titleTail}
+              </Box>
+            )}
+          </PageTitle.Header>
 
+          {description && (
+            <PageTitle.SubHeader>{description}</PageTitle.SubHeader>
+          )}
+
+          {actions && <PageTitle.Actions>{actions}</PageTitle.Actions>}
+        </PageTitle>
+        {children}
+      </PageContent>
+    </PageErrorBoundary>
   );
 }

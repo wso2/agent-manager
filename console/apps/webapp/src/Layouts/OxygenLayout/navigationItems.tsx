@@ -54,7 +54,7 @@ export function useNavigationItems(): Array<
     useListEnvironments({
       orgName: orgId,
     });
-  const defaultEnv = envId ?? environments?.[0]?.name;
+  const defaultEnv = envId ??(environments && environments?.length > 0 )? environments?.[0]?.name : '';
   const { pathname } = useLocation();
 
   if (isLoadingAgent || (isLoadingEnvironments && agentId)) {

@@ -56,6 +56,30 @@ export const EnvironmentVariable = ({
     }));
   };
 
+  const handleInitialEdit = (field: 'key' | 'value', value: string) => {
+    setFormData((prev) => {
+      const envList = prev.env || [];
+      if (envList.length > 0) {
+        return {
+          ...prev,
+          env: envList.map((item, i) =>
+            i === 0 ? { ...item, [field]: value } : item
+          ),
+        };
+      }
+
+      return {
+        ...prev,
+        env: [
+          {
+            key: field === 'key' ? value : '',
+            value: field === 'value' ? value : '',
+          },
+        ],
+      };
+    });
+  };
+
   return (
     <Card variant="outlined">
       <CardContent>
@@ -65,7 +89,7 @@ export const EnvironmentVariable = ({
           </Typography>
         </Box>
         <Box display="flex" flexDirection="column" py={2} gap={2}>
-          {envVariables.map((item, index) => (
+          {envVariables.length ? envVariables.map((item, index) => (
             <EnvVariableEditor
               key={`env-${index}`}
               index={index}
@@ -75,7 +99,17 @@ export const EnvironmentVariable = ({
               onValueChange={(value) => handleChange(index, 'value', value)}
               onRemove={() => handleRemove(index)}
             />
-          ))}
+          )) :
+            <EnvVariableEditor
+              key={`env-0`}
+              index={0}
+              keyValue={envVariables?.[0]?.key || ''}
+              valueValue={envVariables?.[0]?.value || ''}
+              onKeyChange={(value) => handleInitialEdit('key', value)}
+              onValueChange={(value) => handleInitialEdit('value', value)}
+              onRemove={() => handleRemove(0)}
+            />
+          }
         </Box>
         <Button
           startIcon={<Add fontSize="small" />}
