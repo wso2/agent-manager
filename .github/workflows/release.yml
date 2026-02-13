@@ -21,7 +21,8 @@ env:
 jobs:
   prepare-release:
     name: Prepare Release
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     concurrency:
       group: release-${{ inputs.target-release }}
       cancel-in-progress: false
@@ -193,7 +194,8 @@ jobs:
   load-config:
     name: Load Release Configuration
     needs: prepare-release
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     outputs:
       images: ${{ steps.set-matrix.outputs.images }}
       python-versions: ${{ steps.set-matrix.outputs.python-versions }}
@@ -242,7 +244,8 @@ jobs:
   build-images:
     name: Build ${{ matrix.image.name }}
     needs: load-config
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     permissions:
       contents: read
       packages: write
@@ -279,7 +282,8 @@ jobs:
   build-python-instrumentation-provider-images:
     name: Build Instrumentation Provider Python ${{ matrix.python-version }}
     needs: load-config
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     permissions:
       contents: read
       packages: write
@@ -316,7 +320,8 @@ jobs:
     name: Package ${{ matrix.chart.name }}
     needs:
       [load-config, build-images, build-python-instrumentation-provider-images]
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     permissions:
       contents: read
       packages: write
@@ -354,7 +359,8 @@ jobs:
         build-python-instrumentation-provider-images,
         package-charts,
       ]
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     permissions:
       contents: write
     steps:
