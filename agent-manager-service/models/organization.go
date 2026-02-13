@@ -20,18 +20,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
-// Organization is the database model for organizations
+// Organization is the database model for storing organization UUID mappings
+// Organizations are managed by OpenChoreo, but we need to maintain UUIDs locally
+// since OpenChoreo doesn't provide organization UUIDs
 type Organization struct {
-	UUID      uuid.UUID      `gorm:"column:uuid;primaryKey"`
-	Name      string         `gorm:"column:name;uniqueIndex"`
-	Handle    string         `gorm:"column:handle;uniqueIndex"`
-	Region    string         `gorm:"column:region"`
-	CreatedAt time.Time      `gorm:"column:created_at"`
-	UpdatedAt time.Time      `gorm:"column:updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index"`
+	UUID      uuid.UUID `gorm:"column:uuid;primaryKey"`
+	Name      string    `gorm:"column:name;uniqueIndex;not null"`
+	CreatedAt time.Time `gorm:"column:created_at;not null;default:CURRENT_TIMESTAMP"`
 }
 
 // TableName returns the table name for GORM

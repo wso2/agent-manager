@@ -31,7 +31,7 @@ import (
 // LLMProviderRepository defines the interface for LLM provider persistence
 type LLMProviderRepository interface {
 	Create(tx *gorm.DB, p *models.LLMProvider, handle, name, version string, orgUUID uuid.UUID) error
-	GetByID(providerID, orgUUID string) (*models.LLMProvider, error)
+	GetByUUID(providerID, orgUUID string) (*models.LLMProvider, error)
 	List(orgUUID string, limit, offset int) ([]*models.LLMProvider, error)
 	Count(orgUUID string) (int, error)
 	Update(p *models.LLMProvider, handle string, orgUUID uuid.UUID) error
@@ -92,7 +92,7 @@ func (r *LLMProviderRepo) Create(tx *gorm.DB, p *models.LLMProvider, handle, nam
 }
 
 // GetByID retrieves an LLM provider by ID (handle)
-func (r *LLMProviderRepo) GetByID(providerID, orgUUID string) (*models.LLMProvider, error) {
+func (r *LLMProviderRepo) GetByUUID(providerID, orgUUID string) (*models.LLMProvider, error) {
 	slog.Info("LLMProviderRepo.GetByID: starting", "providerID", providerID, "orgUUID", orgUUID)
 
 	var provider models.LLMProvider

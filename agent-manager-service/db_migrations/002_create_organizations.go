@@ -20,24 +20,20 @@ import (
 	"gorm.io/gorm"
 )
 
-// Create organizations table for storing organization metadata
-var migration003 = migration{
-	ID: 3,
+// Create organizations table for storing organization UUID mappings
+// Organizations are managed by OpenChoreo, but we need to maintain UUIDs locally
+// since OpenChoreo doesn't provide organization UUIDs
+var migration002 = migration{
+	ID: 2,
 	Migrate: func(db *gorm.DB) error {
 		createOrganizationsSQL := `
 			CREATE TABLE organizations (
-				uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+				uuid UUID PRIMARY KEY NOT NULL,
 				name VARCHAR(100) NOT NULL UNIQUE,
-				handle VARCHAR(100) NOT NULL UNIQUE,
-				region VARCHAR(50) NOT NULL DEFAULT 'US',
-				created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-				updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-				deleted_at TIMESTAMP
+				created_at TIMESTAMP NOT NULL DEFAULT NOW()
 			);
 
 			CREATE INDEX idx_organizations_name ON organizations(name);
-			CREATE INDEX idx_organizations_handle ON organizations(handle);
-			CREATE INDEX idx_organizations_deleted ON organizations(deleted_at);
 		`
 		return db.Transaction(func(tx *gorm.DB) error {
 			return runSQL(tx, createOrganizationsSQL)

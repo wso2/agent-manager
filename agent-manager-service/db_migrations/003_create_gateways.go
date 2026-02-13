@@ -21,8 +21,8 @@ import (
 )
 
 // Create gateways and gateway_tokens tables for API Platform integration
-var migration004 = migration{
-	ID: 4,
+var migration003 = migration{
+	ID: 3,
 	Migrate: func(db *gorm.DB) error {
 		createGatewaysSQL := `
 			-- Gateways table
@@ -81,7 +81,7 @@ var migration004 = migration{
 			CREATE TABLE gateway_environment_mappings (
 				id SERIAL PRIMARY KEY,
 				gateway_uuid UUID NOT NULL,
-				environment_uuid UUID NOT NULL REFERENCES environments(uuid) ON DELETE CASCADE,
+				environment_uuid UUID NOT NULL,
 				created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 				CONSTRAINT fk_gateway_env_mapping_gateway FOREIGN KEY (gateway_uuid)
 					REFERENCES gateways(uuid) ON DELETE CASCADE,

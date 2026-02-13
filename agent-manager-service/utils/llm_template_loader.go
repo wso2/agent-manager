@@ -17,9 +17,7 @@
 package utils
 
 import (
-	"encoding/json"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -117,10 +115,6 @@ func LoadLLMProviderTemplatesFromDirectory(dirPath string) ([]*models.LLMProvide
 			ResponseModel:    mapExtractionIdentifier(doc.Spec.ResponseModel),
 		})
 	}
-
-	b, _ := json.Marshal(res)
-
-	slog.Info(string(b))
 
 	return res, nil
 }

@@ -114,20 +114,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Sync organizations first, then environments
-	slog.Info("Syncing organizations from OpenChoreo to local DB and API Platform")
-	if err := dependencies.OrganizationSyncer.SyncOrganizationsFromOpenChoreo(context.Background()); err != nil {
-		slog.Warn("Failed to sync organizations", "error", err)
-		// Don't exit on error - the service can still function
-	}
-
-	slog.Info("Syncing environments from OpenChoreo")
-	if err := dependencies.EnvironmentSyncer.SyncEnvironmentsFromOpenChoreo(context.Background()); err != nil {
-		slog.Warn("Failed to sync environments from OpenChoreo", "error", err)
-		// Don't exit on error - the service can still function
-		// Environments can be created manually via API
-	}
-
 	// Load and seed LLM provider templates for all organizations
 	if err := loadAndSeedLLMTemplates(cfg, dependencies); err != nil {
 		slog.Warn("Failed to load and seed LLM provider templates", "error", err)

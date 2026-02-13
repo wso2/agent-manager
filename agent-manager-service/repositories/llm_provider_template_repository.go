@@ -40,7 +40,7 @@ type llmProviderTemplateConfig struct {
 // LLMProviderTemplateRepository defines the interface for LLM provider template persistence
 type LLMProviderTemplateRepository interface {
 	Create(t *models.LLMProviderTemplate) error
-	GetByID(templateID, orgUUID string) (*models.LLMProviderTemplate, error)
+	GetByHandle(templateHandle, orgUUID string) (*models.LLMProviderTemplate, error)
 	GetByUUID(uuid, orgUUID string) (*models.LLMProviderTemplate, error)
 	List(orgUUID string, limit, offset int) ([]*models.LLMProviderTemplate, error)
 	Count(orgUUID string) (int, error)
@@ -86,9 +86,9 @@ func (r *LLMProviderTemplateRepo) Create(t *models.LLMProviderTemplate) error {
 }
 
 // GetByID retrieves an LLM provider template by ID (handle)
-func (r *LLMProviderTemplateRepo) GetByID(templateID, orgUUID string) (*models.LLMProviderTemplate, error) {
+func (r *LLMProviderTemplateRepo) GetByHandle(templateHandle, orgUUID string) (*models.LLMProviderTemplate, error) {
 	var template models.LLMProviderTemplate
-	err := r.db.Where("handle = ? AND organization_uuid = ?", templateID, orgUUID).
+	err := r.db.Where("handle = ? AND organization_uuid = ?", templateHandle, orgUUID).
 		First(&template).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

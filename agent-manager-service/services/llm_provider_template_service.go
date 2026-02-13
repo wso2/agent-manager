@@ -80,7 +80,7 @@ func (s *LLMProviderTemplateService) Create(orgID, createdBy string, template *m
 	}
 
 	// Fetch created template
-	created, err := s.templateRepo.GetByID(template.Handle, orgID)
+	created, err := s.templateRepo.GetByHandle(template.Handle, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch created template: %w", err)
 	}
@@ -124,7 +124,7 @@ func (s *LLMProviderTemplateService) Get(orgID, templateID string) (*models.LLMP
 		return nil, utils.ErrInvalidInput
 	}
 
-	template, err := s.templateRepo.GetByID(templateID, orgID)
+	template, err := s.templateRepo.GetByHandle(templateID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get template: %w", err)
 	}
@@ -173,7 +173,7 @@ func (s *LLMProviderTemplateService) Update(orgID, templateID string, updates *m
 	}
 
 	// Fetch updated template
-	updated, err := s.templateRepo.GetByID(templateID, orgID)
+	updated, err := s.templateRepo.GetByHandle(templateID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch updated template: %w", err)
 	}

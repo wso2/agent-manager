@@ -21,12 +21,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -64,6 +66,7 @@ type GatewayController interface {
 type gatewayController struct {
 	gatewayService *services.PlatformGatewayService
 	orgRepo        repositories.OrganizationRepository
+	ocClient       occlient.OpenChoreoClient
 	db             *gorm.DB
 }
 
@@ -71,24 +74,27 @@ type gatewayController struct {
 func NewGatewayController(
 	gatewayService *services.PlatformGatewayService,
 	orgRepo repositories.OrganizationRepository,
+	ocClient occlient.OpenChoreoClient,
 	db *gorm.DB,
 ) GatewayController {
 	return &gatewayController{
 		gatewayService: gatewayService,
 		orgRepo:        orgRepo,
+		ocClient:       ocClient,
 		db:             db,
 	}
 }
 
 // resolveOrgUUID resolves organization handle to UUID
 func (c *gatewayController) resolveOrgUUID(ctx context.Context, orgName string) (string, error) {
-	org, err := c.orgRepo.GetOrganizationByHandle(orgName)
+	org, err := c.orgRepo.GetOrganizationByName(orgName)
 	if err != nil {
 		return "", utils.ErrOrganizationNotFound
 	}
 	if org == nil {
 		return "", utils.ErrOrganizationNotFound
 	}
+	slog.Info("organization", org.UUID.String(), org.Name)
 	return org.UUID.String(), nil
 }
 
@@ -395,13 +401,13 @@ func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *htt
 	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	// Get environments from DB
+	// Get environments from DB (via OpenChoreo)
 	environments := c.getGatewayEnvironmentsFromDB(ctx, orgName, gatewayID)
 
 	// Convert to spec responses
 	specEnvs := make([]spec.GatewayEnvironmentResponse, len(environments))
 	for i, env := range environments {
-		specEnvs[i] = convertDBEnvironmentToSpecResponse(&env)
+		specEnvs[i] = convertGatewayEnvironmentToSpecResponse(&env)
 	}
 
 	response := spec.GetGatewayEnvironments200Response{
@@ -565,15 +571,6 @@ func (c *gatewayController) assignGatewayToEnvironmentInDB(ctx context.Context, 
 		return fmt.Errorf("invalid environment UUID: %w", err)
 	}
 
-	// Verify environment exists and belongs to organization
-	var env models.Environment
-	if err := db.DB(ctx).Where("uuid = ? AND organization_name = ?", envUUID, orgName).First(&env).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return utils.ErrEnvironmentNotFound
-		}
-		return fmt.Errorf("failed to verify environment: %w", err)
-	}
-
 	// Check if mapping already exists
 	var existing models.GatewayEnvironmentMapping
 	err = db.DB(ctx).Where("gateway_uuid = ? AND environment_uuid = ?", gwUUID, envUUID).
@@ -601,24 +598,62 @@ func (c *gatewayController) assignGatewayToEnvironmentInDB(ctx context.Context, 
 	return nil
 }
 
-// getGatewayEnvironmentsFromDB retrieves environments associated with a gateway from the DB
-func (c *gatewayController) getGatewayEnvironmentsFromDB(ctx context.Context, orgName, gatewayID string) []models.Environment {
+// getGatewayEnvironmentsFromDB retrieves environments associated with a gateway
+// Fetches environment UUIDs from DB mappings, then gets environment details from OpenChoreo
+func (c *gatewayController) getGatewayEnvironmentsFromDB(ctx context.Context, orgName, gatewayID string) []models.GatewayEnvironmentResponse {
 	log := logger.GetLogger(ctx)
 
 	gwUUID, err := uuid.Parse(gatewayID)
 	if err != nil {
 		log.Warn("getGatewayEnvironmentsFromDB: invalid gateway UUID", "error", err)
-		return []models.Environment{}
+		return []models.GatewayEnvironmentResponse{}
 	}
 
-	var environments []models.Environment
+	// Get environment UUIDs from mapping table
+	var mappings []models.GatewayEnvironmentMapping
 	err = db.DB(ctx).
-		Joins("JOIN gateway_environment_mappings ON gateway_environment_mappings.environment_uuid = environments.uuid").
-		Where("gateway_environment_mappings.gateway_uuid = ? AND environments.organization_name = ?", gwUUID, orgName).
-		Find(&environments).Error
+		Where("gateway_uuid = ?", gwUUID).
+		Find(&mappings).Error
 	if err != nil {
-		log.Warn("getGatewayEnvironmentsFromDB: failed to get environments", "error", err)
-		return []models.Environment{}
+		log.Warn("getGatewayEnvironmentsFromDB: failed to get environment mappings", "error", err)
+		return []models.GatewayEnvironmentResponse{}
+	}
+
+	if len(mappings) == 0 {
+		return []models.GatewayEnvironmentResponse{}
+	}
+
+	// Fetch all environments from OpenChoreo for this organization
+	ocEnvironments, err := c.ocClient.ListEnvironments(ctx, orgName)
+	if err != nil {
+		log.Warn("getGatewayEnvironmentsFromDB: failed to list environments from OpenChoreo", "error", err)
+		return []models.GatewayEnvironmentResponse{}
+	}
+
+	// Create a map of environment UUIDs for quick lookup
+	envMap := make(map[string]*models.EnvironmentResponse)
+	for _, env := range ocEnvironments {
+		envMap[env.UUID] = env
+	}
+
+	// Match mapped environments with OpenChoreo data
+	var environments []models.GatewayEnvironmentResponse
+	for _, mapping := range mappings {
+		envUUIDStr := mapping.EnvironmentUUID.String()
+		if ocEnv, found := envMap[envUUIDStr]; found {
+			environments = append(environments, models.GatewayEnvironmentResponse{
+				UUID:             ocEnv.UUID,
+				OrganizationName: orgName,
+				Name:             ocEnv.Name,
+				DisplayName:      ocEnv.DisplayName,
+				Description:      "",
+				DataplaneRef:     ocEnv.DataplaneRef,
+				DNSPrefix:        ocEnv.DNSPrefix,
+				IsProduction:     ocEnv.IsProduction,
+				CreatedAt:        ocEnv.CreatedAt,
+				UpdatedAt:        ocEnv.CreatedAt,
+			})
+		}
 	}
 
 	return environments
@@ -626,7 +661,7 @@ func (c *gatewayController) getGatewayEnvironmentsFromDB(ctx context.Context, or
 
 // Helper conversion functions
 
-func convertGatewayToSpecResponse(gw *services.GatewayResponse, orgName string, environments []models.Environment) spec.GatewayResponse {
+func convertGatewayToSpecResponse(gw *services.GatewayResponse, orgName string, environments []models.GatewayEnvironmentResponse) spec.GatewayResponse {
 	response := spec.GatewayResponse{
 		Uuid:             gw.ID,
 		OrganizationName: orgName,
@@ -644,7 +679,7 @@ func convertGatewayToSpecResponse(gw *services.GatewayResponse, orgName string, 
 	if len(environments) > 0 {
 		envs := make([]spec.GatewayEnvironmentResponse, len(environments))
 		for i, env := range environments {
-			envs[i] = convertDBEnvironmentToSpecResponse(&env)
+			envs[i] = convertGatewayEnvironmentToSpecResponse(&env)
 		}
 		response.Environments = envs
 	}
@@ -659,9 +694,9 @@ func convertStatusToGatewayStatus(isActive bool) spec.GatewayStatus {
 	return "INACTIVE"
 }
 
-func convertDBEnvironmentToSpecResponse(env *models.Environment) spec.GatewayEnvironmentResponse {
-	return spec.GatewayEnvironmentResponse{
-		Id:               env.UUID.String(),
+func convertGatewayEnvironmentToSpecResponse(env *models.GatewayEnvironmentResponse) spec.GatewayEnvironmentResponse {
+	response := spec.GatewayEnvironmentResponse{
+		Id:               env.UUID,
 		OrganizationName: env.OrganizationName,
 		Name:             env.Name,
 		DisplayName:      env.DisplayName,
@@ -671,4 +706,8 @@ func convertDBEnvironmentToSpecResponse(env *models.Environment) spec.GatewayEnv
 		CreatedAt:        env.CreatedAt,
 		UpdatedAt:        env.UpdatedAt,
 	}
+	if env.Description != "" {
+		response.Description = &env.Description
+	}
+	return response
 }

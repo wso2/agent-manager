@@ -135,15 +135,6 @@ func (s *PlatformGatewayService) RegisterGateway(
 		return nil, err
 	}
 
-	// 2. Validate organization exists
-	org, err := s.orgRepo.GetOrganizationByUUID(orgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query organization: %w", err)
-	}
-	if org == nil {
-		return nil, errors.New("organization not found")
-	}
-
 	// 3. Check gateway name uniqueness within organization
 	existing, err := s.gatewayRepo.GetByNameAndOrgID(name, orgID)
 	if err != nil {

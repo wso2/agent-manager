@@ -61,8 +61,6 @@ var serviceProviderSet = wire.NewSet(
 	services.NewMonitorSchedulerService,
 	services.NewEvaluatorManagerService,
 	services.NewEnvironmentService,
-	services.NewEnvironmentSyncer,
-	services.NewOrganizationSyncer,
 	services.NewPlatformGatewayService,
 	services.NewLLMProviderTemplateService,
 	services.NewLLMProviderService,

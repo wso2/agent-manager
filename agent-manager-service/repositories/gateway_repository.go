@@ -96,7 +96,7 @@ func (r *GatewayRepo) GetByNameAndOrgID(name, orgID string) (*models.Gateway, er
 	err := r.db.Where("name = ? AND organization_uuid = ?", name, orgID).First(&gateway).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, err
+			return nil, nil
 		}
 		return nil, err
 	}

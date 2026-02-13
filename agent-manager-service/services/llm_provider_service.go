@@ -154,7 +154,7 @@ func (s *LLMProviderService) Create(orgID, createdBy string, provider *models.LL
 	slog.Info("LLMProviderService.Create: provider created, fetching details", "orgID", orgID, "handle", handle)
 
 	// Fetch created provider
-	created, err := s.providerRepo.GetByID(handle, orgID)
+	created, err := s.providerRepo.GetByUUID(handle, orgID)
 	if err != nil {
 		slog.Error("LLMProviderService.Create: failed to fetch created provider", "orgID", orgID, "handle", handle, "error", err)
 		return nil, fmt.Errorf("failed to fetch created provider: %w", err)
@@ -214,7 +214,7 @@ func (s *LLMProviderService) Get(providerID, orgID string) (*models.LLMProvider,
 		return nil, utils.ErrInvalidInput
 	}
 
-	provider, err := s.providerRepo.GetByID(providerID, orgID)
+	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
 		slog.Error("LLMProviderService.Get: failed to get provider", "orgID", orgID, "providerID", providerID, "error", err)
 		return nil, fmt.Errorf("failed to get provider: %w", err)
@@ -292,7 +292,7 @@ func (s *LLMProviderService) Update(providerID, orgID string, updates *models.LL
 
 	// Fetch updated provider
 	slog.Info("LLMProviderService.Update: fetching updated provider", "orgID", orgID, "providerID", providerID)
-	updated, err := s.providerRepo.GetByID(providerID, orgID)
+	updated, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
 		slog.Error("LLMProviderService.Update: failed to fetch updated provider", "orgID", orgID, "providerID", providerID, "error", err)
 		return nil, fmt.Errorf("failed to fetch updated provider: %w", err)
@@ -345,7 +345,7 @@ func (s *LLMProviderService) ListProxiesByProvider(providerID, orgID string, lim
 	}
 
 	// Get provider to get its UUID
-	provider, err := s.providerRepo.GetByID(providerID, orgID)
+	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get provider: %w", err)
 	}

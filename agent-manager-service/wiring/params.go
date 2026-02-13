@@ -52,9 +52,7 @@ type AppParams struct {
 	GatewayInternalController controllers.GatewayInternalController
 
 	// Services
-	EnvironmentSyncer  services.EnvironmentSynchronizer
-	OrganizationSyncer services.OrganizationSynchronizer
-	LLMTemplateSeeder  *services.LLMTemplateSeeder
+	LLMTemplateSeeder *services.LLMTemplateSeeder
 
 	// Repositories
 	OrganizationRepository repositories.OrganizationRepository

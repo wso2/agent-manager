@@ -129,7 +129,7 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 
 	// Get LLM provider
 	slog.Info("LLMProviderDeploymentService.DeployLLMProvider: getting provider", "providerID", providerID, "orgID", orgID)
-	provider, err := s.providerRepo.GetByID(providerID, orgID)
+	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
 		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to get provider", "providerID", providerID, "orgID", orgID, "error", err)
 		return nil, fmt.Errorf("failed to get provider: %w", err)
@@ -238,7 +238,7 @@ func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID,
 
 	// Get provider
 	slog.Info("LLMProviderDeploymentService.UndeployLLMProviderDeployment: getting provider", "providerID", providerID, "orgID", orgID)
-	provider, err := s.providerRepo.GetByID(providerID, orgID)
+	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
 		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: failed to get provider", "providerID", providerID, "error", err)
 		return nil, fmt.Errorf("failed to get provider: %w", err)
@@ -305,7 +305,7 @@ func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID,
 // RestoreLLMProviderDeployment restores a previous deployment
 func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, deploymentID, gatewayID, orgID string) (*models.Deployment, error) {
 	// Get provider
-	provider, err := s.providerRepo.GetByID(providerID, orgID)
+	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
@@ -366,7 +366,7 @@ func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, 
 // GetLLMProviderDeployments retrieves all deployments for a provider
 func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, orgID string, gatewayID *string, status *string) ([]*models.Deployment, error) {
 	// Get provider
-	provider, err := s.providerRepo.GetByID(providerID, orgID)
+	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
@@ -398,7 +398,7 @@ func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, org
 // GetLLMProviderDeployment retrieves a specific deployment
 func (s *LLMProviderDeploymentService) GetLLMProviderDeployment(providerID, deploymentID, orgID string) (*models.Deployment, error) {
 	// Get provider
-	provider, err := s.providerRepo.GetByID(providerID, orgID)
+	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
@@ -421,7 +421,7 @@ func (s *LLMProviderDeploymentService) GetLLMProviderDeployment(providerID, depl
 // DeleteLLMProviderDeployment deletes a deployment
 func (s *LLMProviderDeploymentService) DeleteLLMProviderDeployment(providerID, deploymentID, orgID string) error {
 	// Get provider
-	provider, err := s.providerRepo.GetByID(providerID, orgID)
+	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get provider: %w", err)
 	}

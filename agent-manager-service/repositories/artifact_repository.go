@@ -96,7 +96,7 @@ func (r *ArtifactRepo) GetByHandle(handle, orgUUID string) (*models.Artifact, er
 		First(&artifact).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, err
+			return nil, nil
 		}
 		return nil, err
 	}

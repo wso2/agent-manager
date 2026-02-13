@@ -82,7 +82,7 @@ func NewLLMController(
 
 // resolveOrgUUID resolves organization handle to UUID
 func (c *llmController) resolveOrgUUID(ctx context.Context, orgName string) (string, error) {
-	org, err := c.orgRepo.GetOrganizationByHandle(orgName)
+	org, err := c.orgRepo.GetOrganizationByName(orgName)
 	if err != nil {
 		return "", utils.ErrOrganizationNotFound
 	}

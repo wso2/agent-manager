@@ -81,7 +81,7 @@ func (s *LLMProxyService) Create(orgID, createdBy string, proxy *models.LLMProxy
 	}
 
 	// Validate provider exists
-	providerModel, err := s.providerRepo.GetByID(provider, orgID)
+	providerModel, err := s.providerRepo.GetByUUID(provider, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate provider: %w", err)
 	}
@@ -193,7 +193,7 @@ func (s *LLMProxyService) Update(proxyID, orgID string, updates *models.LLMProxy
 	// Validate provider if specified
 	provider := updates.Configuration.Provider
 	if provider != "" {
-		providerModel, err := s.providerRepo.GetByID(provider, orgID)
+		providerModel, err := s.providerRepo.GetByUUID(provider, orgID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to validate provider: %w", err)
 		}
@@ -252,7 +252,7 @@ func (s *LLMProxyService) ListByProvider(orgID, providerID string, limit, offset
 	}
 
 	// Get provider to get its UUID
-	provider, err := s.providerRepo.GetByID(providerID, orgID)
+	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get provider: %w", err)
 	}
