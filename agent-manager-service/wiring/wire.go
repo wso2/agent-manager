@@ -66,6 +66,9 @@ var serviceProviderSet = wire.NewSet(
 	services.NewLLMProviderService,
 	services.NewLLMProxyService,
 	services.NewLLMProviderDeploymentService,
+	services.NewLLMProviderAPIKeyService,
+	services.NewLLMProxyAPIKeyService,
+	services.NewLLMProxyDeploymentService,
 	services.NewGatewayInternalAPIService,
 	ProvideLLMTemplateSeeder,
 )
@@ -80,8 +83,13 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewGatewayController,
 	controllers.NewLLMController,
 	controllers.NewLLMDeploymentController,
+	controllers.NewLLMProviderAPIKeyController,
+	controllers.NewLLMProxyAPIKeyController,
+	controllers.NewLLMProxyDeploymentController,
 	ProvideWebSocketController,
 	controllers.NewGatewayInternalController,
+	controllers.NewMonitorController,
+	controllers.NewEvaluatorController,
 )
 
 var testClientProviderSet = wire.NewSet(
@@ -131,6 +139,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideLLMProviderTemplateRepository,
 	ProvideLLMProviderRepository,
 	ProvideLLMProxyRepository,
+	ProvideLLMProviderGatewayMappingRepository,
 	ProvideDeploymentRepository,
 	ProvideArtifactRepository,
 )
@@ -196,6 +205,10 @@ func ProvideLLMProviderRepository(db *gorm.DB) repositories.LLMProviderRepositor
 
 func ProvideLLMProxyRepository(db *gorm.DB) repositories.LLMProxyRepository {
 	return repositories.NewLLMProxyRepo(db)
+}
+
+func ProvideLLMProviderGatewayMappingRepository(db *gorm.DB) repositories.LLMProviderGatewayMappingRepository {
+	return repositories.NewLLMProviderGatewayMappingRepository(db)
 }
 
 func ProvideDeploymentRepository(db *gorm.DB) repositories.DeploymentRepository {

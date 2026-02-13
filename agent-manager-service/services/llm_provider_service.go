@@ -23,6 +23,7 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -42,6 +43,7 @@ type LLMProviderService struct {
 	providerRepo repositories.LLMProviderRepository
 	templateRepo repositories.LLMProviderTemplateRepository
 	proxyRepo    repositories.LLMProxyRepository
+	mappingRepo  repositories.LLMProviderGatewayMappingRepository
 }
 
 // NewLLMProviderService creates a new LLM provider service
@@ -50,12 +52,14 @@ func NewLLMProviderService(
 	providerRepo repositories.LLMProviderRepository,
 	templateRepo repositories.LLMProviderTemplateRepository,
 	proxyRepo repositories.LLMProxyRepository,
+	mappingRepo repositories.LLMProviderGatewayMappingRepository,
 ) *LLMProviderService {
 	return &LLMProviderService{
 		db:           db,
 		providerRepo: providerRepo,
 		templateRepo: templateRepo,
 		proxyRepo:    proxyRepo,
+		mappingRepo:  mappingRepo,
 	}
 }
 
@@ -90,29 +94,6 @@ func (s *LLMProviderService) Create(orgID, createdBy string, provider *models.LL
 		return nil, utils.ErrInvalidInput
 	}
 
-	slog.Info("LLMProviderService.Create: validating template", "orgID", orgID, "handle", handle, "template", template)
-	templateExists, err := s.templateRepo.Exists(template, orgID)
-	if err != nil {
-		slog.Error("LLMProviderService.Create: failed to validate template", "orgID", orgID, "handle", handle, "template", template, "error", err)
-		return nil, fmt.Errorf("failed to validate template: %w", err)
-	}
-	if !templateExists {
-		slog.Warn("LLMProviderService.Create: template not found", "orgID", orgID, "handle", handle, "template", template)
-		return nil, utils.ErrLLMProviderTemplateNotFound
-	}
-
-	// Check if provider already exists
-	slog.Info("LLMProviderService.Create: checking if provider exists", "orgID", orgID, "handle", handle)
-	exists, err := s.providerRepo.Exists(handle, orgID)
-	if err != nil {
-		slog.Error("LLMProviderService.Create: failed to check provider exists", "orgID", orgID, "handle", handle, "error", err)
-		return nil, fmt.Errorf("failed to check provider exists: %w", err)
-	}
-	if exists {
-		slog.Warn("LLMProviderService.Create: provider already exists", "orgID", orgID, "handle", handle)
-		return nil, utils.ErrLLMProviderExists
-	}
-
 	// Parse organization UUID
 	orgUUID, err := uuid.Parse(orgID)
 	if err != nil {
@@ -141,12 +122,35 @@ func (s *LLMProviderService) Create(orgID, createdBy string, provider *models.LL
 		provider.ModelList = string(modelListBytes)
 	}
 
-	// Create provider in transaction
+	// Create provider in transaction with validation
 	slog.Info("LLMProviderService.Create: creating provider in database", "orgID", orgID, "handle", handle, "name", name, "version", version)
 	err = s.db.Transaction(func(tx *gorm.DB) error {
+		// Validate template exists within transaction
+		slog.Info("LLMProviderService.Create: validating template in transaction", "orgID", orgID, "handle", handle, "template", template)
+		templateExists, err := s.templateRepo.Exists(template, orgID)
+		if err != nil {
+			slog.Error("LLMProviderService.Create: failed to validate template", "orgID", orgID, "handle", handle, "template", template, "error", err)
+			return fmt.Errorf("failed to validate template: %w", err)
+		}
+		if !templateExists {
+			slog.Warn("LLMProviderService.Create: template not found", "orgID", orgID, "handle", handle, "template", template)
+			return utils.ErrLLMProviderTemplateNotFound
+		}
+
+		// Create provider - uniqueness enforced by DB constraint
 		return s.providerRepo.Create(tx, provider, handle, name, version, orgUUID)
 	})
 	if err != nil {
+		// Check for unique constraint violation
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
+			slog.Warn("LLMProviderService.Create: provider already exists (unique constraint)", "orgID", orgID, "handle", handle)
+			return nil, utils.ErrLLMProviderExists
+		}
+		// Return template not found error directly
+		if errors.Is(err, utils.ErrLLMProviderTemplateNotFound) {
+			return nil, err
+		}
 		slog.Error("LLMProviderService.Create: failed to create provider", "orgID", orgID, "handle", handle, "error", err)
 		return nil, fmt.Errorf("failed to create provider: %w", err)
 	}
@@ -338,6 +342,122 @@ func (s *LLMProviderService) Delete(providerID, orgID string) error {
 	return nil
 }
 
+// UpdateAndSync updates an LLM provider and syncs its gateway deployments
+func (s *LLMProviderService) UpdateAndSync(providerID, orgID string, updates *models.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*models.LLMProvider, error) {
+	slog.Info("LLMProviderService.UpdateAndSync: starting", "providerID", providerID, "orgID", orgID, "gatewayCount", len(gatewayIDs))
+
+	// First, update the provider using the existing Update method
+	updated, err := s.Update(providerID, orgID, updates)
+	if err != nil {
+		slog.Error("LLMProviderService.UpdateAndSync: failed to update provider", "providerID", providerID, "orgID", orgID, "error", err)
+		return nil, err
+	}
+
+	slog.Info("LLMProviderService.UpdateAndSync: provider updated successfully", "providerID", providerID, "providerUUID", updated.UUID)
+
+	// Parse UUIDs
+	providerUUID, err := uuid.Parse(providerID)
+	if err != nil {
+		slog.Error("LLMProviderService.UpdateAndSync: invalid provider UUID", "providerID", providerID, "error", err)
+		return updated, fmt.Errorf("invalid provider UUID: %w", err)
+	}
+
+	// Convert gateway IDs to UUIDs
+	gatewayUUIDs := make([]uuid.UUID, 0, len(gatewayIDs))
+	for _, gatewayID := range gatewayIDs {
+		gatewayUUID, err := uuid.Parse(gatewayID)
+		if err != nil {
+			slog.Error("LLMProviderService.UpdateAndSync: invalid gateway UUID", "orgID", orgID, "gatewayID", gatewayID, "error", err)
+			continue
+		}
+		gatewayUUIDs = append(gatewayUUIDs, gatewayUUID)
+	}
+
+	// Get current gateway mappings
+	currentGateways, err := s.mappingRepo.GetByProvider(providerUUID)
+	if err != nil {
+		slog.Error("LLMProviderService.UpdateAndSync: failed to get current mappings", "providerID", providerID, "error", err)
+		return updated, err
+	}
+
+	// Replace mappings in database
+	if err := s.mappingRepo.ReplaceForProvider(providerUUID, gatewayUUIDs); err != nil {
+		slog.Error("LLMProviderService.UpdateAndSync: failed to replace gateway mappings", "providerID", providerID, "error", err)
+		return updated, err
+	}
+
+	slog.Info("LLMProviderService.UpdateAndSync: gateway mappings replaced", "providerID", providerID, "newCount", len(gatewayUUIDs), "oldCount", len(currentGateways))
+
+	// Determine which gateways to add and which to remove
+	currentGatewayMap := make(map[string]bool)
+	for _, gw := range currentGateways {
+		currentGatewayMap[gw] = true
+	}
+
+	newGatewayMap := make(map[string]bool)
+	for _, gw := range gatewayUUIDs {
+		newGatewayMap[gw.String()] = true
+	}
+
+	// Deploy to newly added gateways
+	deploymentIndex := 1
+	for _, gatewayUUID := range gatewayUUIDs {
+		if !currentGatewayMap[gatewayUUID.String()] {
+			gatewayID := gatewayUUID.String()
+			slog.Info("LLMProviderService.UpdateAndSync: deploying to new gateway", "providerID", providerID, "gatewayID", gatewayID)
+
+			deploymentName := fmt.Sprintf("%s-deployment-%d", updated.Configuration.Name, deploymentIndex)
+			deployReq := &models.DeployAPIRequest{
+				Name:      deploymentName,
+				Base:      "current",
+				GatewayID: gatewayID,
+				Metadata: map[string]interface{}{
+					"auto_deployed": true,
+					"sync_update":   true,
+				},
+			}
+
+			if _, err := deploymentService.DeployLLMProvider(providerID, deployReq, orgID); err != nil {
+				slog.Error("LLMProviderService.UpdateAndSync: failed to deploy to new gateway", "providerID", providerID, "gatewayID", gatewayID, "error", err)
+			} else {
+				slog.Info("LLMProviderService.UpdateAndSync: deployed to new gateway successfully", "providerID", providerID, "gatewayID", gatewayID)
+			}
+			deploymentIndex++
+		}
+	}
+
+	// Undeploy from removed gateways
+	for _, gatewayUUID := range currentGateways {
+		if !newGatewayMap[gatewayUUID] {
+			gatewayID := gatewayUUID
+			slog.Info("LLMProviderService.UpdateAndSync: undeploying from removed gateway", "providerID", providerID, "gatewayID", gatewayID)
+
+			// Get current deployment for this gateway
+			deployments, err := deploymentService.GetLLMProviderDeployments(providerID, orgID, &gatewayID, nil)
+			if err != nil {
+				slog.Error("LLMProviderService.UpdateAndSync: failed to get deployments for gateway", "providerID", providerID, "gatewayID", gatewayID, "error", err)
+				continue
+			}
+
+			// Find the deployed deployment and undeploy it
+			for _, deployment := range deployments {
+				if deployment.Status != nil && *deployment.Status == models.DeploymentStatusDeployed {
+					if _, err := deploymentService.UndeployLLMProviderDeployment(providerID, deployment.DeploymentID.String(), gatewayID, orgID); err != nil {
+						slog.Error("LLMProviderService.UpdateAndSync: failed to undeploy from removed gateway", "providerID", providerID, "gatewayID", gatewayID, "deploymentID", deployment.DeploymentID, "error", err)
+					} else {
+						slog.Info("LLMProviderService.UpdateAndSync: undeployed from removed gateway successfully", "providerID", providerID, "gatewayID", gatewayID)
+					}
+					break
+				}
+			}
+		}
+	}
+
+	slog.Info("LLMProviderService.UpdateAndSync: completed", "providerID", providerID, "newGatewayCount", len(gatewayUUIDs), "previousGatewayCount", len(currentGateways))
+
+	return updated, nil
+}
+
 // ListProxiesByProvider lists all LLM proxies for a provider
 func (s *LLMProviderService) ListProxiesByProvider(providerID, orgID string, limit, offset int) ([]*models.LLMProxy, int, error) {
 	if providerID == "" {
@@ -365,4 +485,88 @@ func (s *LLMProviderService) ListProxiesByProvider(providerID, orgID string, lim
 	}
 
 	return proxies, totalCount, nil
+}
+
+// CreateAndDeploy creates an LLM provider and deploys it to the specified gateways
+func (s *LLMProviderService) CreateAndDeploy(orgID, createdBy string, provider *models.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*models.LLMProvider, error) {
+	slog.Info("LLMProviderService.CreateAndDeploy: starting", "orgID", orgID, "createdBy", createdBy, "gatewayCount", len(gatewayIDs))
+
+	// First, create the provider using the existing Create method
+	created, err := s.Create(orgID, createdBy, provider)
+	if err != nil {
+		slog.Error("LLMProviderService.CreateAndDeploy: failed to create provider", "orgID", orgID, "error", err)
+		return nil, err
+	}
+
+	slog.Info("LLMProviderService.CreateAndDeploy: provider created successfully", "orgID", orgID, "providerUUID", created.UUID)
+
+	mappings := make([]*models.LLMProviderGatewayMapping, 0, len(gatewayIDs))
+
+	for _, gatewayID := range gatewayIDs {
+		gatewayUUID, err := uuid.Parse(gatewayID)
+		if err != nil {
+			slog.Error("LLMProviderService.CreateAndDeploy: invalid gateway UUID", "orgID", orgID, "gatewayID", gatewayID, "error", err)
+			continue
+		}
+		mappings = append(mappings, &models.LLMProviderGatewayMapping{
+			LLMProviderUUID: created.UUID.String(),
+			GatewayUUID:     gatewayUUID.String(),
+		})
+	}
+
+	// Store mappings in database
+	if len(mappings) > 0 {
+		if err := s.mappingRepo.CreateBatch(mappings); err != nil {
+			slog.Error("LLMProviderService.CreateAndDeploy: failed to store gateway mappings", "orgID", orgID, "providerUUID", created.UUID, "error", err)
+			// Continue with deployment even if mapping storage fails
+		} else {
+			slog.Info("LLMProviderService.CreateAndDeploy: gateway mappings stored", "orgID", orgID, "providerUUID", created.UUID, "mappingCount", len(mappings))
+		}
+	}
+
+	// Deploy to each gateway
+	for i, gatewayID := range gatewayIDs {
+		slog.Info("LLMProviderService.CreateAndDeploy: deploying to gateway", "orgID", orgID, "providerUUID", created.UUID, "gatewayID", gatewayID, "index", i+1, "total", len(gatewayIDs))
+
+		// Generate deployment name: provider-name-gateway-index
+		deploymentName := fmt.Sprintf("%s-deployment-%d", created.Configuration.Name, i+1)
+
+		// Create deployment request
+		deployReq := &models.DeployAPIRequest{
+			Name:      deploymentName,
+			Base:      "current", // Use current provider configuration
+			GatewayID: gatewayID,
+			Metadata: map[string]interface{}{
+				"auto_deployed": true,
+				"gateway_index": i + 1,
+			},
+		}
+
+		// Deploy to gateway
+		deployment, err := deploymentService.DeployLLMProvider(created.UUID.String(), deployReq, orgID)
+		if err != nil {
+			slog.Error("LLMProviderService.CreateAndDeploy: failed to deploy to gateway", "orgID", orgID, "providerUUID", created.UUID, "gatewayID", gatewayID, "error", err)
+			// Log error but continue with other gateways
+			continue
+		}
+
+		slog.Info("LLMProviderService.CreateAndDeploy: deployed to gateway successfully", "orgID", orgID, "providerUUID", created.UUID, "gatewayID", gatewayID, "deploymentID", deployment.DeploymentID)
+	}
+
+	slog.Info("LLMProviderService.CreateAndDeploy: completed", "orgID", orgID, "providerUUID", created.UUID, "successfulDeployments", len(gatewayIDs))
+
+	return created, nil
+}
+
+func (s *LLMProviderService) GetProviderGatewayMapping(providerId uuid.UUID) ([]string, error) {
+	gws, err := s.mappingRepo.GetByProvider(providerId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Warn("no gateway mapping found for provider")
+			return make([]string, 0), nil
+		}
+		slog.Error("error while fetching gateway mapping for provider", providerId.String(), err)
+		return nil, err
+	}
+	return gws, nil
 }

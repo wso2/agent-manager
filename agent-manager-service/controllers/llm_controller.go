@@ -25,6 +25,7 @@ import (
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
@@ -57,11 +58,12 @@ type LLMController interface {
 }
 
 type llmController struct {
-	templateService *services.LLMProviderTemplateService
-	providerService *services.LLMProviderService
-	proxyService    *services.LLMProxyService
-	orgRepo         repositories.OrganizationRepository
-	ocClient        client.OpenChoreoClient
+	templateService   *services.LLMProviderTemplateService
+	providerService   *services.LLMProviderService
+	proxyService      *services.LLMProxyService
+	deploymentService *services.LLMProviderDeploymentService
+	orgRepo           repositories.OrganizationRepository
+	ocClient          client.OpenChoreoClient
 }
 
 // NewLLMController creates a new LLM controller
@@ -69,15 +71,17 @@ func NewLLMController(
 	templateService *services.LLMProviderTemplateService,
 	providerService *services.LLMProviderService,
 	proxyService *services.LLMProxyService,
+	deploymentService *services.LLMProviderDeploymentService,
 	orgRepo repositories.OrganizationRepository,
 	ocClient client.OpenChoreoClient,
 ) LLMController {
 	return &llmController{
-		templateService: templateService,
-		providerService: providerService,
-		proxyService:    proxyService,
-		orgRepo:         orgRepo,
-		ocClient:        ocClient,
+		templateService:   templateService,
+		providerService:   providerService,
+		proxyService:      proxyService,
+		deploymentService: deploymentService,
+		orgRepo:           orgRepo,
+		ocClient:          ocClient,
 	}
 }
 
@@ -381,7 +385,8 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 	log.Info("CreateLLMProvider: request decoded", "orgName", orgName, "templateUUID", req.TemplateUuid,
 		"configName", ptrToStringLog(req.Configuration.Name),
 		"configVersion", ptrToStringLog(req.Configuration.Version),
-		"configTemplate", ptrToStringLog(req.Configuration.Template))
+		"configTemplate", ptrToStringLog(req.Configuration.Template),
+		"gatewayCount", len(req.Gateways))
 
 	// Convert spec request to model
 	provider := utils.ConvertSpecToModelLLMProvider(&req, orgID)
@@ -390,7 +395,17 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 		"providerVersion", provider.Configuration.Version,
 		"templateUUID", provider.TemplateUUID)
 
-	created, err := c.providerService.Create(orgID, "system", provider)
+	var created *models.LLMProvider
+
+	// Check if gateways list is present and not empty
+	if len(req.Gateways) > 0 {
+		log.Info("CreateLLMProvider: creating and deploying provider to gateways", "orgName", orgName, "gatewayCount", len(req.Gateways))
+		created, err = c.providerService.CreateAndDeploy(orgID, "system", provider, req.Gateways, c.deploymentService)
+	} else {
+		log.Info("CreateLLMProvider: creating provider without deployment", "orgName", orgName)
+		created, err = c.providerService.Create(orgID, "system", provider)
+	}
+
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderExists):
@@ -531,6 +546,16 @@ func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
 
 	// Convert model to spec response
 	response := utils.ConvertModelToSpecLLMProviderResponse(provider)
+
+	gatewayMappings, err := c.providerService.GetProviderGatewayMapping(provider.UUID)
+	if err != nil {
+		log.Error("error while fetching gateway mappings for provider", providerID, err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Error fetching gateway mappings")
+		return
+	}
+
+	response.SetGateways(gatewayMappings)
+
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
@@ -562,7 +587,8 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	}
 
 	log.Info("UpdateLLMProvider: request decoded", "orgName", orgName, "providerID", providerID,
-		"templateUUID", ptrToStringLog(req.TemplateUuid))
+		"templateUUID", ptrToStringLog(req.TemplateUuid),
+		"gatewayCount", len(req.Gateways))
 	if req.Configuration != nil {
 		log.Info("UpdateLLMProvider: config details",
 			"configName", ptrToStringLog(req.Configuration.Name),
@@ -581,7 +607,17 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 
 	log.Info("UpdateLLMProvider: calling service layer", "orgName", orgName, "orgID", orgID, "providerID", providerID)
 
-	updated, err := c.providerService.Update(orgID, providerID, provider)
+	var updated *models.LLMProvider
+
+	// Check if gateways list is present (not nil), if so use UpdateAndSync
+	if req.Gateways != nil {
+		log.Info("UpdateLLMProvider: updating and syncing deployments to gateways", "orgName", orgName, "gatewayCount", len(req.Gateways))
+		updated, err = c.providerService.UpdateAndSync(providerID, orgID, provider, req.Gateways, c.deploymentService)
+	} else {
+		log.Info("UpdateLLMProvider: updating provider without deployment sync", "orgName", orgName)
+		updated, err = c.providerService.Update(providerID, orgID, provider)
+	}
+
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
@@ -632,7 +668,7 @@ func (c *llmController) DeleteLLMProvider(w http.ResponseWriter, r *http.Request
 
 	log.Info("DeleteLLMProvider: calling service layer", "orgName", orgName, "orgID", orgID, "providerID", providerID)
 
-	if err := c.providerService.Delete(orgID, providerID); err != nil {
+	if err := c.providerService.Delete(providerID, orgID); err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("DeleteLLMProvider: provider not found", "orgName", orgName, "providerID", providerID)

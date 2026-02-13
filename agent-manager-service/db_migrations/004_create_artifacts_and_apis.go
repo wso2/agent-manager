@@ -42,20 +42,6 @@ var migration004 = migration{
 				CONSTRAINT uq_artifact_name_version_org UNIQUE(name, version, organization_uuid)
 			);
 
-			-- REST APIs table
-			CREATE TABLE rest_apis (
-				uuid UUID PRIMARY KEY,
-				description TEXT,
-				created_by VARCHAR(200),
-				project_uuid UUID NOT NULL,
-				lifecycle_status VARCHAR(20) DEFAULT 'CREATED',
-				transport VARCHAR(255), -- JSON array as TEXT
-				configuration JSONB NOT NULL,
-
-				CONSTRAINT fk_rest_api_artifact FOREIGN KEY (uuid)
-					REFERENCES artifacts(uuid) ON DELETE CASCADE
-			);
-
 			-- Deployments table (immutable deployment artifacts)
 			CREATE TABLE deployments (
 				deployment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -118,7 +104,6 @@ var migration004 = migration{
 			);
 
 			-- Indexes for performance
-			CREATE INDEX idx_rest_apis_project ON rest_apis(project_uuid);
 			CREATE INDEX idx_artifacts_org ON artifacts(organization_uuid);
 			CREATE INDEX idx_deployments_artifact_gateway ON deployments(artifact_uuid, gateway_uuid);
 			CREATE INDEX idx_deployments_created_at ON deployments(artifact_uuid, gateway_uuid, created_at);

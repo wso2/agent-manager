@@ -26,6 +26,14 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
+// GatewayFilterOptions defines filtering options for gateway queries
+type GatewayFilterOptions struct {
+	OrganizationID    string
+	FunctionalityType *string // Filter by gateway_functionality_type (ai, regular, event)
+	Status            *bool   // Filter by is_active
+	EnvironmentID     *string // Filter by environment (via gateway_environment_mappings)
+}
+
 // GatewayRepository defines the interface for gateway data access
 type GatewayRepository interface {
 	// Gateway operations
@@ -34,6 +42,7 @@ type GatewayRepository interface {
 	GetByOrganizationID(orgID string) ([]*models.Gateway, error)
 	GetByNameAndOrgID(name, orgID string) (*models.Gateway, error)
 	List() ([]*models.Gateway, error)
+	ListWithFilters(filters GatewayFilterOptions) ([]*models.Gateway, error)
 	Delete(gatewayID, organizationID string) error
 	UpdateGateway(gateway *models.Gateway) error
 	UpdateActiveStatus(gatewayId string, isActive bool) error
@@ -108,6 +117,37 @@ func (r *GatewayRepo) GetByNameAndOrgID(name, orgID string) (*models.Gateway, er
 func (r *GatewayRepo) List() ([]*models.Gateway, error) {
 	var gateways []*models.Gateway
 	err := r.db.Order("created_at DESC").Find(&gateways).Error
+	return gateways, err
+}
+
+// ListWithFilters retrieves gateways with optional filtering
+func (r *GatewayRepo) ListWithFilters(filters GatewayFilterOptions) ([]*models.Gateway, error) {
+	query := r.db.Model(&models.Gateway{})
+
+	// Filter by organization
+	if filters.OrganizationID != "" {
+		query = query.Where("organization_uuid = ?", filters.OrganizationID)
+	}
+
+	// Filter by functionality type
+	if filters.FunctionalityType != nil && *filters.FunctionalityType != "" {
+		query = query.Where("gateway_functionality_type = ?", *filters.FunctionalityType)
+	}
+
+	// Filter by status (is_active)
+	if filters.Status != nil {
+		query = query.Where("is_active = ?", *filters.Status)
+	}
+
+	// Filter by environment (via gateway_environment_mappings)
+	if filters.EnvironmentID != nil && *filters.EnvironmentID != "" {
+		query = query.Joins("INNER JOIN gateway_environment_mappings ON gateway_environment_mappings.gateway_uuid = gateways.uuid").
+			Where("gateway_environment_mappings.environment_uuid = ?", *filters.EnvironmentID).
+			Distinct()
+	}
+
+	var gateways []*models.Gateway
+	err := query.Order("gateways.created_at DESC").Find(&gateways).Error
 	return gateways, err
 }
 
@@ -206,12 +246,20 @@ func (r *GatewayRepo) GetTokenByUUID(tokenId string) (*models.GatewayToken, erro
 // RevokeToken updates token status to revoked
 func (r *GatewayRepo) RevokeToken(tokenId string) error {
 	now := time.Now()
-	return r.db.Model(&models.GatewayToken{}).
+	result := r.db.Model(&models.GatewayToken{}).
 		Where("uuid = ?", tokenId).
 		Updates(map[string]interface{}{
 			"status":     "revoked",
 			"revoked_at": now,
-		}).Error
+		})
+
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // CountActiveTokens counts the number of active tokens for a gateway

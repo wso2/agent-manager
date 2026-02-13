@@ -233,13 +233,31 @@ func (s *PlatformGatewayService) RegisterGateway(
 	return response, nil
 }
 
+// GatewayListFilters contains optional filters for listing gateways
+type GatewayListFilters struct {
+	FunctionalityType *string // Filter by gateway type (ai, regular, event)
+	Status            *bool   // Filter by is_active status
+	EnvironmentID     *string // Filter by environment UUID
+}
+
 // ListGateways retrieves all gateways with constitution-compliant envelope structure
-func (s *PlatformGatewayService) ListGateways(orgID *string) (*GatewayListResponse, error) {
+func (s *PlatformGatewayService) ListGateways(orgID *string, filters *GatewayListFilters) (*GatewayListResponse, error) {
 	var gateways []*models.Gateway
 	var err error
 
-	// If orgID provided and non-empty, filter by organization
-	if orgID != nil && *orgID != "" {
+	// If filters provided, use filtered query
+	if filters != nil && (filters.FunctionalityType != nil || filters.Status != nil || filters.EnvironmentID != nil) {
+		filterOpts := repositories.GatewayFilterOptions{
+			FunctionalityType: filters.FunctionalityType,
+			Status:            filters.Status,
+			EnvironmentID:     filters.EnvironmentID,
+		}
+		if orgID != nil && *orgID != "" {
+			filterOpts.OrganizationID = *orgID
+		}
+		gateways, err = s.gatewayRepo.ListWithFilters(filterOpts)
+	} else if orgID != nil && *orgID != "" {
+		// If orgID provided and non-empty, filter by organization
 		gateways, err = s.gatewayRepo.GetByOrganizationID(*orgID)
 	} else {
 		gateways, err = s.gatewayRepo.List()

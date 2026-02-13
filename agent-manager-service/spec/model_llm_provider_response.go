@@ -35,6 +35,7 @@ type LLMProviderResponse struct {
 	Status        string            `json:"status"`
 	Configuration LLMProviderConfig `json:"configuration"`
 	Artifact      *Artifact         `json:"artifact,omitempty"`
+	Gateways      []string          `json:"gateways,omitempty"`
 }
 
 // NewLLMProviderResponse instantiates a new LLMProviderResponse object
@@ -314,6 +315,38 @@ func (o *LLMProviderResponse) SetArtifact(v Artifact) {
 	o.Artifact = &v
 }
 
+// GetGateways returns the Gateways field value if set, zero value otherwise.
+func (o *LLMProviderResponse) GetGateways() []string {
+	if o == nil || IsNil(o.Gateways) {
+		var ret []string
+		return ret
+	}
+	return o.Gateways
+}
+
+// GetGatewaysOk returns a tuple with the Gateways field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *LLMProviderResponse) GetGatewaysOk() ([]string, bool) {
+	if o == nil || IsNil(o.Gateways) {
+		return nil, false
+	}
+	return o.Gateways, true
+}
+
+// HasGateways returns a boolean if a field has been set.
+func (o *LLMProviderResponse) HasGateways() bool {
+	if o != nil && !IsNil(o.Gateways) {
+		return true
+	}
+
+	return false
+}
+
+// SetGateways gets a reference to the given []string and assigns it to the Gateways field.
+func (o *LLMProviderResponse) SetGateways(v []string) {
+	o.Gateways = v
+}
+
 func (o LLMProviderResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -342,6 +375,9 @@ func (o LLMProviderResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["configuration"] = o.Configuration
 	if !IsNil(o.Artifact) {
 		toSerialize["artifact"] = o.Artifact
+	}
+	if !IsNil(o.Gateways) {
+		toSerialize["gateways"] = o.Gateways
 	}
 	return toSerialize, nil
 }

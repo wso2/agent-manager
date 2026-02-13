@@ -151,9 +151,6 @@ func main() {
 			slog.Error("error stopping monitor scheduler", "error", err)
 		}
 
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-
 		// Shutdown WebSocket manager
 		if dependencies.WebSocketManager != nil {
 			slog.Info("Shutting down WebSocket manager")

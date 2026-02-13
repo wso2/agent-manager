@@ -20,19 +20,10 @@ import (
 	"net/http"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware"
 )
 
-// RegisterGatewayInternalRoutes registers all gateway internal API routes
-// These routes use API key authentication instead of JWT
-func RegisterGatewayInternalRoutes(mux *http.ServeMux, ctrl controllers.GatewayInternalController) {
-	// API endpoints
-	mux.HandleFunc("GET /apis", ctrl.GetAPIsByOrganization)
-	mux.HandleFunc("GET /apis/{apiId}", ctrl.GetAPI)
-	mux.HandleFunc("POST /apis/{apiId}/gateway-deployments", ctrl.CreateGatewayDeployment)
-
-	// LLM Provider endpoints
-	mux.HandleFunc("GET /llm-providers/{providerId}", ctrl.GetLLMProvider)
-
-	// LLM Proxy endpoints
-	mux.HandleFunc("GET /llm-proxies/{proxyId}", ctrl.GetLLMProxy)
+// RegisterLLMProxyAPIKeyRoutes registers API key routes for LLM proxies
+func RegisterLLMProxyAPIKeyRoutes(mux *http.ServeMux, ctrl controllers.LLMProxyAPIKeyController) {
+	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys", ctrl.CreateAPIKey)
 }

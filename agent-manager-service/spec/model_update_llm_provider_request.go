@@ -28,6 +28,7 @@ type UpdateLLMProviderRequest struct {
 	// Updated model list
 	ModelList     []LLMModelProvider `json:"modelList,omitempty"`
 	Configuration *LLMProviderConfig `json:"configuration,omitempty"`
+	Gateways      []string           `json:"gateways,omitempty"`
 }
 
 // NewUpdateLLMProviderRequest instantiates a new UpdateLLMProviderRequest object
@@ -207,6 +208,38 @@ func (o *UpdateLLMProviderRequest) SetConfiguration(v LLMProviderConfig) {
 	o.Configuration = &v
 }
 
+// GetGateways returns the Gateways field value if set, zero value otherwise.
+func (o *UpdateLLMProviderRequest) GetGateways() []string {
+	if o == nil || IsNil(o.Gateways) {
+		var ret []string
+		return ret
+	}
+	return o.Gateways
+}
+
+// GetGatewaysOk returns a tuple with the Gateways field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *UpdateLLMProviderRequest) GetGatewaysOk() ([]string, bool) {
+	if o == nil || IsNil(o.Gateways) {
+		return nil, false
+	}
+	return o.Gateways, true
+}
+
+// HasGateways returns a boolean if a field has been set.
+func (o *UpdateLLMProviderRequest) HasGateways() bool {
+	if o != nil && !IsNil(o.Gateways) {
+		return true
+	}
+
+	return false
+}
+
+// SetGateways gets a reference to the given []string and assigns it to the Gateways field.
+func (o *UpdateLLMProviderRequest) SetGateways(v []string) {
+	o.Gateways = v
+}
+
 func (o UpdateLLMProviderRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -231,6 +264,9 @@ func (o UpdateLLMProviderRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Configuration) {
 		toSerialize["configuration"] = o.Configuration
+	}
+	if !IsNil(o.Gateways) {
+		toSerialize["gateways"] = o.Gateways
 	}
 	return toSerialize, nil
 }

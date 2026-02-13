@@ -34,6 +34,7 @@ type GatewayInternalController interface {
 	GetAPI(w http.ResponseWriter, r *http.Request)
 	CreateGatewayDeployment(w http.ResponseWriter, r *http.Request)
 	GetLLMProvider(w http.ResponseWriter, r *http.Request)
+	GetLLMProxy(w http.ResponseWriter, r *http.Request)
 }
 
 type gatewayInternalController struct {
@@ -331,5 +332,72 @@ func (c *gatewayInternalController) GetLLMProvider(w http.ResponseWriter, r *htt
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(zipData); err != nil {
 		log.Error("Failed to write ZIP response", "providerID", providerID, "error", err)
+	}
+}
+
+// GetLLMProxy handles GET /api/internal/v1/llm-proxies/:proxyId
+func (c *gatewayInternalController) GetLLMProxy(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	// Extract client IP for logging
+	clientIP := getClientIP(r)
+
+	// Extract and validate API key from header
+	apiKey := r.Header.Get("api-key")
+	if apiKey == "" {
+		log.Warn("Unauthorized access attempt - Missing API key", "ip", clientIP)
+		http.Error(w, "API key is required. Provide 'api-key' header.", http.StatusUnauthorized)
+		return
+	}
+
+	// Authenticate gateway using API key
+	gateway, err := c.gatewayService.VerifyToken(apiKey)
+	if err != nil {
+		log.Warn("Authentication failed", "ip", clientIP, "error", err)
+		http.Error(w, "Invalid or expired API key", http.StatusUnauthorized)
+		return
+	}
+
+	orgID := gateway.OrganizationUUID.String()
+	gatewayID := gateway.UUID.String()
+	proxyID := r.PathValue("proxyId")
+	if proxyID == "" {
+		http.Error(w, "Proxy ID is required", http.StatusBadRequest)
+		return
+	}
+
+	proxy, err := c.gatewayInternalService.GetActiveLLMProxyDeploymentByGateway(proxyID, orgID, gatewayID)
+	if err != nil {
+		if errors.Is(err, utils.ErrDeploymentNotActive) {
+			http.Error(w, "No active deployment found for this LLM proxy on this gateway", http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, utils.ErrLLMProxyNotFound) {
+			http.Error(w, "LLM proxy not found", http.StatusNotFound)
+			return
+		}
+		log.Error("Failed to get LLM proxy", "error", err)
+		http.Error(w, "Failed to get LLM proxy", http.StatusInternalServerError)
+		return
+	}
+
+	// Create ZIP file from LLM proxy YAML file
+	zipData, err := utils.CreateLLMProxyYamlZip(proxy)
+	if err != nil {
+		log.Error("Failed to create ZIP file for LLM proxy", "proxyID", proxyID, "error", err)
+		http.Error(w, "Failed to create LLM proxy package", http.StatusInternalServerError)
+		return
+	}
+
+	// Set headers for ZIP file download
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"llm-proxy-%s.zip\"", proxyID))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(zipData)))
+
+	// Return ZIP file
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(zipData); err != nil {
+		log.Error("Failed to write ZIP response", "proxyID", proxyID, "error", err)
 	}
 }

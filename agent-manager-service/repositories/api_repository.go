@@ -297,7 +297,7 @@ func (r *APIRepo) CheckAPIExistsByHandleInOrganization(handle, orgUUID string) (
 func (r *APIRepo) CheckAPIExistsByNameAndVersionInOrganization(name, version, orgUUID, excludeHandle string) (bool, error) {
 	var count int64
 	query := r.db.Model(&models.Artifact{}).
-		Where("name = ? AND version = ? AND organization_uuid = ?", name, version, orgUUID)
+		Where("name = ? AND version = ? AND organization_uuid = ? AND kind = ?", name, version, orgUUID, models.KindRestAPI)
 
 	if excludeHandle != "" {
 		query = query.Where("handle != ?", excludeHandle)

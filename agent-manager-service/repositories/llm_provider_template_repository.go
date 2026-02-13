@@ -179,6 +179,22 @@ func (r *LLMProviderTemplateRepo) Count(orgUUID string) (int, error) {
 // Update modifies an existing LLM provider template
 func (r *LLMProviderTemplateRepo) Update(t *models.LLMProviderTemplate) error {
 	t.UpdatedAt = time.Now()
+
+	// Marshal configuration from parsed fields
+	configJSON, err := json.Marshal(&llmProviderTemplateConfig{
+		Metadata:         t.Metadata,
+		PromptTokens:     t.PromptTokens,
+		CompletionTokens: t.CompletionTokens,
+		TotalTokens:      t.TotalTokens,
+		RemainingTokens:  t.RemainingTokens,
+		RequestModel:     t.RequestModel,
+		ResponseModel:    t.ResponseModel,
+	})
+	if err != nil {
+		return err
+	}
+	t.Configuration = string(configJSON)
+
 	result := r.db.Model(&models.LLMProviderTemplate{}).
 		Where("handle = ? AND organization_uuid = ?", t.Handle, t.OrganizationUUID).
 		Updates(map[string]interface{}{

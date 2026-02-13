@@ -61,3 +61,23 @@ type LLMProviderUndeploymentEvent struct {
 	GatewayID      string `json:"gatewayId"`
 	OrganizationID string `json:"organizationId"`
 }
+
+// LLMProxyDeploymentEvent represents an LLM proxy deployment event
+type LLMProxyDeploymentEvent struct {
+	ProxyID        string `json:"proxyId"`
+	DeploymentID   string `json:"deploymentId"`
+	Vhost          string `json:"vhost"`
+	Environment    string `json:"environment"`
+	GatewayID      string `json:"gatewayId"`
+	OrganizationID string `json:"organizationId"`
+	Status         string `json:"status"`
+}
+
+// LLMProxyUndeploymentEvent represents an LLM proxy undeployment event
+type LLMProxyUndeploymentEvent struct {
+	ProxyID        string `json:"proxyId"`
+	Vhost          string `json:"vhost"`
+	Environment    string `json:"environment"`
+	GatewayID      string `json:"gatewayId"`
+	OrganizationID string `json:"organizationId"`
+}

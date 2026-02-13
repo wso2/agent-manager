@@ -21,8 +21,8 @@ import (
 )
 
 // Create LLM provider tables for AI gateway functionality
-var migration005 = migration{
-	ID: 5,
+var migration007 = migration{
+	ID: 7,
 	Migrate: func(db *gorm.DB) error {
 		createLLMProvidersSQL := `
 			-- LLM Provider Templates table

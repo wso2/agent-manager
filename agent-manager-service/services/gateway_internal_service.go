@@ -33,6 +33,7 @@ import (
 type GatewayInternalAPIService struct {
 	apiRepo          repositories.APIRepository
 	providerRepo     repositories.LLMProviderRepository
+	proxyRepo        repositories.LLMProxyRepository
 	deploymentRepo   repositories.DeploymentRepository
 	gatewayRepo      repositories.GatewayRepository
 	orgRepo          repositories.OrganizationRepository
@@ -84,6 +85,7 @@ type Operation struct {
 func NewGatewayInternalAPIService(
 	apiRepo repositories.APIRepository,
 	providerRepo repositories.LLMProviderRepository,
+	proxyRepo repositories.LLMProxyRepository,
 	deploymentRepo repositories.DeploymentRepository,
 	gatewayRepo repositories.GatewayRepository,
 	orgRepo repositories.OrganizationRepository,
@@ -92,6 +94,7 @@ func NewGatewayInternalAPIService(
 	return &GatewayInternalAPIService{
 		apiRepo:          apiRepo,
 		providerRepo:     providerRepo,
+		proxyRepo:        proxyRepo,
 		deploymentRepo:   deploymentRepo,
 		gatewayRepo:      gatewayRepo,
 		orgRepo:          orgRepo,
@@ -185,6 +188,31 @@ func (s *GatewayInternalAPIService) GetActiveLLMProviderDeploymentByGateway(prov
 		providerID: providerYaml,
 	}
 	return providerYamlMap, nil
+}
+
+// GetActiveLLMProxyDeploymentByGateway retrieves the currently deployed LLM proxy artifact
+func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(proxyID, orgID, gatewayID string) (map[string]string, error) {
+	proxy, err := s.proxyRepo.GetByID(proxyID, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get LLM proxy: %w", err)
+	}
+	if proxy == nil {
+		return nil, utils.ErrLLMProxyNotFound
+	}
+
+	deployment, err := s.deploymentRepo.GetCurrentByGateway(proxy.UUID.String(), gatewayID, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get deployment: %w", err)
+	}
+	if deployment == nil {
+		return nil, utils.ErrDeploymentNotActive
+	}
+
+	proxyYaml := string(deployment.Content)
+	proxyYamlMap := map[string]string{
+		proxyID: proxyYaml,
+	}
+	return proxyYamlMap, nil
 }
 
 // CreateGatewayDeployment handles the registration of an API deployment from a gateway

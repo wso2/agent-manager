@@ -1,4 +1,4 @@
-// Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file except
@@ -14,19 +14,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package dbmigrations
+package models
 
-const latestVersion = 8
+// LLMProviderGatewayMapping represents the mapping between an LLM provider and a gateway
+type LLMProviderGatewayMapping struct {
+	LLMProviderUUID string `gorm:"column:llm_provider_uuid;type:uuid;not null" json:"llmProviderUuid"`
+	GatewayUUID     string `gorm:"column:gateway_uuid;type:uuid;not null" json:"gatewayUuid"`
+}
 
-// migration list sorted by version.  Add new migrations to the end of the list.
-// Previous migrations should not be modified.
-var migrations = []migration{
-	migration001,
-	migration002,
-	migration003,
-	migration004,
-	migration005,
-	migration006,
-	migration007,
-	migration008,
+// TableName returns the table name for the LLMProviderGatewayMapping model
+func (LLMProviderGatewayMapping) TableName() string {
+	return "llm_provider_gateway_mappings"
 }

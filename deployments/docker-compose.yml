@@ -113,5 +113,5 @@ volumes:
 networks:
   agent-manager:
     driver: bridge
-  k3d-openchoreo-local-v0.13.0:
+  k3d-openchoreo-local-v0.14.0:
     external: true

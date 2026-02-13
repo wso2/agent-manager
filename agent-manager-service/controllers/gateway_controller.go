@@ -98,6 +98,30 @@ func (c *gatewayController) resolveOrgUUID(ctx context.Context, orgName string) 
 	return org.UUID.String(), nil
 }
 
+// resolveEnvironmentUUID resolves environment name or UUID to UUID
+func (c *gatewayController) resolveEnvironmentUUID(ctx context.Context, orgName, envIdentifier string) (string, error) {
+	// First try to parse as UUID
+	if _, err := uuid.Parse(envIdentifier); err == nil {
+		// It's a valid UUID, return it
+		return envIdentifier, nil
+	}
+
+	// Not a UUID, try to resolve by name using OpenChoreo client
+	environments, err := c.ocClient.ListEnvironments(ctx, orgName)
+	if err != nil {
+		return "", fmt.Errorf("failed to list environments: %w", err)
+	}
+
+	// Find environment by name
+	for _, env := range environments {
+		if env.Name == envIdentifier {
+			return env.UUID, nil
+		}
+	}
+
+	return "", fmt.Errorf("environment not found: %s", envIdentifier)
+}
+
 func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
 	case errors.Is(err, utils.ErrGatewayNotFound):
@@ -221,8 +245,36 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 	limit := getIntQueryParam(r, "limit", defaultLimit)
 	offset := getIntQueryParam(r, "offset", defaultOffset)
 
-	// Get gateways from local service
-	gatewaysResp, err := c.gatewayService.ListGateways(&orgID)
+	// Parse filter parameters
+	filters := &services.GatewayListFilters{}
+
+	// Filter by type (functionality type)
+	if typeParam := r.URL.Query().Get("type"); typeParam != "" {
+		// Normalize to lowercase for consistent storage/comparison
+		normalizedType := strings.ToLower(typeParam)
+		filters.FunctionalityType = &normalizedType
+	}
+
+	// Filter by status
+	if statusParam := r.URL.Query().Get("status"); statusParam != "" {
+		isActive := statusParam == "ACTIVE"
+		filters.Status = &isActive
+	}
+
+	// Filter by environment
+	if envParam := r.URL.Query().Get("environment"); envParam != "" {
+		// envParam could be UUID or name, we need to resolve it to UUID
+		envUUID, err := c.resolveEnvironmentUUID(ctx, orgName, envParam)
+		if err != nil {
+			log.Warn("ListGateways: failed to resolve environment", "environment", envParam, "error", err)
+			// Continue without environment filter if resolution fails
+		} else {
+			filters.EnvironmentID = &envUUID
+		}
+	}
+
+	// Get gateways from local service with filters
+	gatewaysResp, err := c.gatewayService.ListGateways(&orgID, filters)
 	if err != nil {
 		log.Error("ListGateways: failed to list gateways", "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list gateways")

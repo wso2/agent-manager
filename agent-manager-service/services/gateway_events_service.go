@@ -353,3 +353,213 @@ func (s *GatewayEventsService) BroadcastLLMProviderUndeploymentEvent(gatewayID s
 
 	return nil
 }
+
+// BroadcastLLMProxyDeploymentEvent sends an LLM proxy deployment event
+func (s *GatewayEventsService) BroadcastLLMProxyDeploymentEvent(gatewayID string, deployment *models.LLMProxyDeploymentEvent) error {
+	correlationID := uuid.New().String()
+
+	payloadJSON, err := json.Marshal(deployment)
+	if err != nil {
+		log.Printf("[ERROR] Failed to serialize LLM proxy deployment event: gatewayID=%s error=%v", gatewayID, err)
+		return fmt.Errorf("failed to serialize LLM proxy deployment event: %w", err)
+	}
+
+	if len(payloadJSON) > MaxEventPayloadSize {
+		err := fmt.Errorf("event payload exceeds maximum size: %d bytes (limit: %d bytes)", len(payloadJSON), MaxEventPayloadSize)
+		log.Printf("[ERROR] Payload size validation failed: gatewayID=%s size=%d error=%v", gatewayID, len(payloadJSON), err)
+		return err
+	}
+
+	eventDTO := GatewayEventDTO{
+		Type:          "llmproxy.deployed",
+		Payload:       deployment,
+		Timestamp:     time.Now().Format(time.RFC3339),
+		CorrelationID: correlationID,
+	}
+
+	eventJSON, err := json.Marshal(eventDTO)
+	if err != nil {
+		log.Printf("[ERROR] Failed to marshal event DTO: gatewayID=%s correlationId=%s error=%v", gatewayID, correlationID, err)
+		return fmt.Errorf("failed to marshal event: %w", err)
+	}
+
+	if s.manager == nil {
+		log.Printf("[WARN] WebSocket manager not initialized")
+		return nil
+	}
+
+	connections := s.manager.GetConnections(gatewayID)
+	if len(connections) == 0 {
+		log.Printf("[WARN] No active connections for gateway: gatewayID=%s correlationId=%s", gatewayID, correlationID)
+		return fmt.Errorf("no active connections for gateway: %s", gatewayID)
+	}
+
+	successCount := 0
+	failureCount := 0
+	var lastError error
+
+	for _, conn := range connections {
+		err := conn.Send(eventJSON)
+		if err != nil {
+			failureCount++
+			lastError = err
+			log.Printf("[ERROR] Failed to send LLM proxy deployment event: gatewayID=%s connectionID=%s correlationId=%s error=%v",
+				gatewayID, conn.ConnectionID, correlationID, err)
+			conn.DeliveryStats.IncrementFailed(fmt.Sprintf("send error: %v", err))
+		} else {
+			successCount++
+			log.Printf("[INFO] LLM proxy deployment event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
+				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
+			conn.DeliveryStats.IncrementTotalSent()
+		}
+	}
+
+	log.Printf("[INFO] LLM proxy deployment broadcast summary: gatewayID=%s correlationId=%s total=%d success=%d failed=%d",
+		gatewayID, correlationID, len(connections), successCount, failureCount)
+
+	if successCount == 0 {
+		return fmt.Errorf("failed to deliver LLM proxy deployment event to any connection: %w", lastError)
+	}
+
+	return nil
+}
+
+// BroadcastLLMProxyUndeploymentEvent sends an LLM proxy undeployment event
+func (s *GatewayEventsService) BroadcastLLMProxyUndeploymentEvent(gatewayID string, undeployment *models.LLMProxyUndeploymentEvent) error {
+	correlationID := uuid.New().String()
+
+	payloadJSON, err := json.Marshal(undeployment)
+	if err != nil {
+		log.Printf("[ERROR] Failed to serialize LLM proxy undeployment event: gatewayID=%s error=%v", gatewayID, err)
+		return fmt.Errorf("failed to serialize LLM proxy undeployment event: %w", err)
+	}
+
+	if len(payloadJSON) > MaxEventPayloadSize {
+		err := fmt.Errorf("event payload exceeds maximum size: %d bytes (limit: %d bytes)", len(payloadJSON), MaxEventPayloadSize)
+		log.Printf("[ERROR] Payload size validation failed: gatewayID=%s size=%d error=%v", gatewayID, len(payloadJSON), err)
+		return err
+	}
+
+	eventDTO := GatewayEventDTO{
+		Type:          "llmproxy.undeployed",
+		Payload:       undeployment,
+		Timestamp:     time.Now().Format(time.RFC3339),
+		CorrelationID: correlationID,
+	}
+
+	eventJSON, err := json.Marshal(eventDTO)
+	if err != nil {
+		log.Printf("[ERROR] Failed to marshal event DTO: gatewayID=%s correlationId=%s error=%v", gatewayID, correlationID, err)
+		return fmt.Errorf("failed to marshal event: %w", err)
+	}
+
+	if s.manager == nil {
+		log.Printf("[WARN] WebSocket manager not initialized")
+		return nil
+	}
+
+	connections := s.manager.GetConnections(gatewayID)
+	if len(connections) == 0 {
+		log.Printf("[WARN] No active connections for gateway: gatewayID=%s correlationId=%s", gatewayID, correlationID)
+		return fmt.Errorf("no active connections for gateway: %s", gatewayID)
+	}
+
+	successCount := 0
+	failureCount := 0
+	var lastError error
+
+	for _, conn := range connections {
+		err := conn.Send(eventJSON)
+		if err != nil {
+			failureCount++
+			lastError = err
+			log.Printf("[ERROR] Failed to send LLM proxy undeployment event: gatewayID=%s connectionID=%s correlationId=%s error=%v",
+				gatewayID, conn.ConnectionID, correlationID, err)
+			conn.DeliveryStats.IncrementFailed(fmt.Sprintf("send error: %v", err))
+		} else {
+			successCount++
+			log.Printf("[INFO] LLM proxy undeployment event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
+				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
+			conn.DeliveryStats.IncrementTotalSent()
+		}
+	}
+
+	log.Printf("[INFO] LLM proxy undeployment broadcast summary: gatewayID=%s correlationId=%s total=%d success=%d failed=%d",
+		gatewayID, correlationID, len(connections), successCount, failureCount)
+
+	if successCount == 0 {
+		return fmt.Errorf("failed to deliver LLM proxy undeployment event to any connection: %w", lastError)
+	}
+
+	return nil
+}
+
+// BroadcastAPIKeyCreatedEvent sends an API key created event to target gateway
+func (s *GatewayEventsService) BroadcastAPIKeyCreatedEvent(gatewayID string, event *models.APIKeyCreatedEvent) error {
+	correlationID := uuid.New().String()
+
+	payloadJSON, err := json.Marshal(event)
+	if err != nil {
+		log.Printf("[ERROR] Failed to serialize API key created event: gatewayID=%s error=%v", gatewayID, err)
+		return fmt.Errorf("failed to serialize API key created event: %w", err)
+	}
+
+	if len(payloadJSON) > MaxEventPayloadSize {
+		err := fmt.Errorf("event payload exceeds maximum size: %d bytes (limit: %d bytes)", len(payloadJSON), MaxEventPayloadSize)
+		log.Printf("[ERROR] Payload size validation failed: gatewayID=%s size=%d error=%v", gatewayID, len(payloadJSON), err)
+		return err
+	}
+
+	eventDTO := GatewayEventDTO{
+		Type:          "apikey.created",
+		Payload:       event,
+		Timestamp:     time.Now().Format(time.RFC3339),
+		CorrelationID: correlationID,
+	}
+
+	eventJSON, err := json.Marshal(eventDTO)
+	if err != nil {
+		log.Printf("[ERROR] Failed to marshal event DTO: gatewayID=%s correlationId=%s error=%v", gatewayID, correlationID, err)
+		return fmt.Errorf("failed to marshal event: %w", err)
+	}
+
+	if s.manager == nil {
+		log.Printf("[WARN] WebSocket manager not initialized")
+		return nil
+	}
+
+	connections := s.manager.GetConnections(gatewayID)
+	if len(connections) == 0 {
+		log.Printf("[WARN] No active connections for gateway: gatewayID=%s correlationId=%s", gatewayID, correlationID)
+		return fmt.Errorf("no active connections for gateway: %s", gatewayID)
+	}
+
+	successCount := 0
+	failureCount := 0
+	var lastError error
+
+	for _, conn := range connections {
+		err := conn.Send(eventJSON)
+		if err != nil {
+			failureCount++
+			lastError = err
+			log.Printf("[ERROR] Failed to send API key created event: gatewayID=%s connectionID=%s correlationId=%s error=%v",
+				gatewayID, conn.ConnectionID, correlationID, err)
+			conn.DeliveryStats.IncrementFailed(fmt.Sprintf("send error: %v", err))
+		} else {
+			successCount++
+			log.Printf("[INFO] API key created event sent: gatewayID=%s connectionID=%s correlationId=%s type=%s",
+				gatewayID, conn.ConnectionID, correlationID, eventDTO.Type)
+			conn.DeliveryStats.IncrementTotalSent()
+		}
+	}
+
+	log.Printf("[INFO] API key created broadcast summary: gatewayID=%s correlationId=%s total=%d success=%d failed=%d",
+		gatewayID, correlationID, len(connections), successCount, failureCount)
+
+	if successCount == 0 {
+		return fmt.Errorf("failed to deliver API key created event to any connection: %w", lastError)
+	}
+
+	return nil
+}
