@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/api"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
@@ -152,7 +153,7 @@ func main() {
 
 	// Setup graceful shutdown
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(1)
 
 	go func() {
 		<-stopCh
@@ -173,13 +174,16 @@ func main() {
 		}
 
 		// Shutdown main server
-		if err := mainServer.Shutdown(shutdownCtx); err != nil {
+		mainCtx, mainCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer mainCancel()
+		if err := mainServer.Shutdown(mainCtx); err != nil {
 			slog.Error("Main server forced shutdown after timeout", "error", err)
 		}
-		wg.Done()
 
 		// Shutdown internal server
-		if err := internalServer.Shutdown(shutdownCtx); err != nil {
+		internalCtx, internalCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer internalCancel()
+		if err := internalServer.Shutdown(internalCtx); err != nil {
 			slog.Error("Internal server forced shutdown after timeout", "error", err)
 		}
 		wg.Done()
@@ -200,7 +204,7 @@ func main() {
 
 	// Start main server (blocking)
 	slog.Info("Main API server is running", "address", mainServer.Addr)
-	if err := mainServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	if err := mainServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("Failed to start main server", "error", err)
 		os.Exit(1)
 	}
@@ -213,10 +217,10 @@ func main() {
 // loadAndSeedLLMTemplates loads template files and seeds them for all organizations
 func loadAndSeedLLMTemplates(cfg *config.Config, dependencies *wiring.AppParams) error {
 	// Load default templates from directory
-	cfg.LLMTemplateDefinitionsPath = strings.TrimSpace(cfg.LLMTemplateDefinitionsPath)
-	defaultTemplates, err := utils.LoadLLMProviderTemplatesFromDirectory(cfg.LLMTemplateDefinitionsPath)
+	templatePath := strings.TrimSpace(cfg.LLMTemplateDefinitionsPath)
+	defaultTemplates, err := utils.LoadLLMProviderTemplatesFromDirectory(templatePath)
 	if err != nil {
-		cleanPath := filepath.Clean(cfg.LLMTemplateDefinitionsPath)
+		cleanPath := filepath.Clean(templatePath)
 		fallbackPath := ""
 		if cleanPath != "" && cleanPath != "." && cleanPath != "src" && !filepath.IsAbs(cleanPath) && !strings.HasPrefix(cleanPath, "src"+string(os.PathSeparator)) {
 			fallbackPath = filepath.Join("src", cleanPath)
@@ -224,14 +228,14 @@ func loadAndSeedLLMTemplates(cfg *config.Config, dependencies *wiring.AppParams)
 		if fallbackPath != "" {
 			if templates, fallbackErr := utils.LoadLLMProviderTemplatesFromDirectory(fallbackPath); fallbackErr == nil {
 				defaultTemplates = templates
-				cfg.LLMTemplateDefinitionsPath = fallbackPath
+				templatePath = fallbackPath
 				err = nil
 			} else {
 				slog.Warn("Failed to load default LLM provider templates from fallback path", "path", fallbackPath, "error", fallbackErr)
 			}
 		}
 		if err != nil {
-			return fmt.Errorf("failed to load LLM provider templates from %s: %w", cfg.LLMTemplateDefinitionsPath, err)
+			return fmt.Errorf("failed to load LLM provider templates from %s: %w", templatePath, err)
 		}
 	}
 
@@ -240,7 +244,7 @@ func loadAndSeedLLMTemplates(cfg *config.Config, dependencies *wiring.AppParams)
 		return nil
 	}
 
-	slog.Info("Loaded LLM provider templates", "count", len(defaultTemplates), "path", cfg.LLMTemplateDefinitionsPath)
+	slog.Info("Loaded LLM provider templates", "count", len(defaultTemplates), "path", templatePath)
 
 	// Set templates in the seeder
 	dependencies.LLMTemplateSeeder.SetTemplates(defaultTemplates)
@@ -260,7 +264,7 @@ func loadAndSeedLLMTemplates(cfg *config.Config, dependencies *wiring.AppParams)
 		}
 
 		for _, org := range orgs {
-			if org == nil || org.UUID.String() == "" {
+			if org == nil || org.UUID == uuid.Nil {
 				continue
 			}
 			if err := dependencies.LLMTemplateSeeder.SeedForOrg(org.UUID); err != nil {

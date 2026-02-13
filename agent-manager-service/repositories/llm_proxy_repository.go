@@ -173,16 +173,18 @@ func (r *LLMProxyRepo) Update(p *models.LLMProxy, handle string, orgUUID uuid.UU
 		now := time.Now()
 
 		// Get the proxy UUID from handle
-		var proxyUUID uuid.UUID
-		if err := tx.Table("artifacts").
+		var artifact struct{ UUID uuid.UUID }
+		result := tx.Table("artifacts").
 			Select("uuid").
 			Where("handle = ? AND organization_uuid = ? AND kind = ?", handle, orgUUID, models.KindLLMAPI).
-			Scan(&proxyUUID).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return gorm.ErrRecordNotFound
-			}
-			return err
+			Scan(&artifact)
+		if result.Error != nil {
+			return result.Error
 		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		proxyUUID := artifact.UUID
 
 		// Update artifacts table
 		if err := r.artifactRepo.Update(tx, &models.Artifact{
@@ -194,7 +196,7 @@ func (r *LLMProxyRepo) Update(p *models.LLMProxy, handle string, orgUUID uuid.UU
 		}
 
 		// Update llm_proxies table
-		result := tx.Model(&models.LLMProxy{}).
+		updateResult := tx.Model(&models.LLMProxy{}).
 			Where("uuid = ?", proxyUUID).
 			Updates(map[string]interface{}{
 				"description":   p.Description,
@@ -204,10 +206,10 @@ func (r *LLMProxyRepo) Update(p *models.LLMProxy, handle string, orgUUID uuid.UU
 				"configuration": p.Configuration,
 			})
 
-		if result.Error != nil {
-			return fmt.Errorf("failed to update proxy: %w", result.Error)
+		if updateResult.Error != nil {
+			return fmt.Errorf("failed to update proxy: %w", updateResult.Error)
 		}
-		if result.RowsAffected == 0 {
+		if updateResult.RowsAffected == 0 {
 			return gorm.ErrRecordNotFound
 		}
 		return nil
@@ -218,16 +220,18 @@ func (r *LLMProxyRepo) Update(p *models.LLMProxy, handle string, orgUUID uuid.UU
 func (r *LLMProxyRepo) Delete(proxyID, orgUUID string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		// Get the proxy UUID from handle
-		var proxyUUID uuid.UUID
-		if err := tx.Table("artifacts").
+		var artifact struct{ UUID uuid.UUID }
+		result := tx.Table("artifacts").
 			Select("uuid").
-			Where("handle = ? AND organization_uuid = ? AND a.kind = ?", proxyID, orgUUID, models.KindLLMAPI).
-			Scan(&proxyUUID).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return gorm.ErrRecordNotFound
-			}
-			return err
+			Where("handle = ? AND organization_uuid = ? AND kind = ?", proxyID, orgUUID, models.KindLLMAPI).
+			Scan(&artifact)
+		if result.Error != nil {
+			return result.Error
 		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		proxyUUID := artifact.UUID
 
 		// Delete from llm_proxies first
 		if err := tx.Where("uuid = ?", proxyUUID).Delete(&models.LLMProxy{}).Error; err != nil {

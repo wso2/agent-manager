@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
@@ -59,6 +60,9 @@ func NewLLMDeploymentController(
 func (c *llmDeploymentController) resolveOrgUUID(ctx context.Context, orgName string) (string, error) {
 	org, err := c.orgRepo.GetOrganizationByHandle(orgName)
 	if err != nil {
+		return "", fmt.Errorf("failed to resolve organization: %w", err)
+	}
+	if org == nil {
 		return "", utils.ErrOrganizationNotFound
 	}
 	return org.UUID.String(), nil
@@ -74,8 +78,13 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("DeployLLMProvider: organization not found", "orgName", orgName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Warn("DeployLLMProvider: organization not found", "orgName", orgName)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+		} else {
+			log.Error("DeployLLMProvider: failed to resolve organization", "orgName", orgName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
+		}
 		return
 	}
 
@@ -180,8 +189,13 @@ func (c *llmDeploymentController) UndeployLLMProviderDeployment(w http.ResponseW
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("UndeployLLMProviderDeployment: organization not found", "orgName", orgName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Warn("UndeployLLMProviderDeployment: organization not found", "orgName", orgName)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+		} else {
+			log.Error("UndeployLLMProviderDeployment: failed to resolve organization", "orgName", orgName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
+		}
 		return
 	}
 
@@ -257,8 +271,13 @@ func (c *llmDeploymentController) RestoreLLMProviderDeployment(w http.ResponseWr
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("RestoreLLMProviderDeployment: organization not found", "orgName", orgName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Warn("RestoreLLMProviderDeployment: organization not found", "orgName", orgName)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+		} else {
+			log.Error("RestoreLLMProviderDeployment: failed to resolve organization", "orgName", orgName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
+		}
 		return
 	}
 
@@ -329,8 +348,13 @@ func (c *llmDeploymentController) DeleteLLMProviderDeployment(w http.ResponseWri
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("DeleteLLMProviderDeployment: organization not found", "orgName", orgName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Warn("DeleteLLMProviderDeployment: organization not found", "orgName", orgName)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+		} else {
+			log.Error("DeleteLLMProviderDeployment: failed to resolve organization", "orgName", orgName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
+		}
 		return
 	}
 
@@ -387,8 +411,13 @@ func (c *llmDeploymentController) GetLLMProviderDeployment(w http.ResponseWriter
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("GetLLMProviderDeployment: organization not found", "orgName", orgName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Warn("GetLLMProviderDeployment: organization not found", "orgName", orgName)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+		} else {
+			log.Error("GetLLMProviderDeployment: failed to resolve organization", "orgName", orgName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
+		}
 		return
 	}
 
@@ -445,8 +474,13 @@ func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWrite
 
 	orgID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("GetLLMProviderDeployments: organization not found", "orgName", orgName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Warn("GetLLMProviderDeployments: organization not found", "orgName", orgName)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+		} else {
+			log.Error("GetLLMProviderDeployments: failed to resolve organization", "orgName", orgName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
+		}
 		return
 	}
 

@@ -86,6 +86,9 @@ func (c *gatewayController) resolveOrgUUID(ctx context.Context, orgName string) 
 	if err != nil {
 		return "", utils.ErrOrganizationNotFound
 	}
+	if org == nil {
+		return "", utils.ErrOrganizationNotFound
+	}
 	return org.UUID.String(), nil
 }
 

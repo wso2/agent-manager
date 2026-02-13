@@ -217,7 +217,7 @@ func (c *gatewayInternalController) CreateGatewayDeployment(w http.ResponseWrite
 	var notificationReq models.DeploymentNotification
 	if err := json.NewDecoder(r.Body).Decode(&notificationReq); err != nil {
 		log.Warn("Invalid request body", "ip", clientIP, "error", err)
-		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 

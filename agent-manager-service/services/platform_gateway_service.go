@@ -58,6 +58,7 @@ func NewPlatformGatewayService(
 type GatewayResponse struct {
 	ID                string                 `json:"id"`
 	OrganizationID    string                 `json:"organizationId"`
+	Token             string                 `json:"token,omitempty"`
 	Name              string                 `json:"name"`
 	DisplayName       string                 `json:"displayName"`
 	Description       string                 `json:"description"`
@@ -224,6 +225,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 	response := &GatewayResponse{
 		ID:                gateway.UUID.String(),
 		OrganizationID:    gateway.OrganizationUUID.String(),
+		Token:             plainToken,
 		Name:              gateway.Name,
 		DisplayName:       gateway.DisplayName,
 		Description:       gateway.Description,
