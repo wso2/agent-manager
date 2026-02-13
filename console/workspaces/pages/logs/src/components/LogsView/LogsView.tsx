@@ -236,6 +236,11 @@ export const LogsView: React.FC<LogsViewProps> = ({
     }
   }, [logs, isLoading]);
 
+  const isNoLogs = !isLoading && (logs?.length ?? 0) === 0;
+  const isShowPanel = logs && logs.length > 0 && !isLoading;
+  const reversedLogs = useMemo(() => (logs ? [...logs].reverse() : []), [logs]);
+
+
   if (error) {
     return (
       <Alert severity="error">
@@ -244,9 +249,6 @@ export const LogsView: React.FC<LogsViewProps> = ({
     );
   }
 
-  const isNoLogs = !isLoading && (logs?.length ?? 0) === 0;
-  const isShowPanel = logs && logs.length > 0 && !isLoading;
-  const reversedLogs = useMemo(() => (logs ? [...logs].reverse() : []), [logs]);
 
   return (
     <Stack direction="column" gap={2} height="calc(100vh - 340px)">
@@ -323,7 +325,7 @@ export const LogsView: React.FC<LogsViewProps> = ({
                     <ArrowUp size={16} />
                   )
                 }
- 
+
               >
                 {isLoadingUp ? "Loading more logs..." : "Load more logs"}
               </Button>
