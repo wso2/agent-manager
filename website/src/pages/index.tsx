@@ -199,7 +199,7 @@ function QuickStartSection() {
 {`docker run --rm -it --name amp-quick-start \\
   -v /var/run/docker.sock:/var/run/docker.sock \\
   --network=host \\
-  ghcr.io/wso2/amp-quick-start:${versions.latestVersion}
+  ghcr.io/wso2/amp-quick-start:${versions.quickStartDockerTag}
 
 # Inside container
 ./install.sh`}

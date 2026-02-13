@@ -12,7 +12,7 @@ help:
 	@echo "  make clean            - Clean build artifacts"
 	@echo ""
 	@echo "Versioning:"
-	@echo "  make version VERSION=v0.4.x        - Create new documentation version"
+	@echo "  make version VERSION=v0.5.x DOCKER_TAG=v0.5.0  - Create new documentation version"
 
 # Install dependencies
 install:
@@ -37,8 +37,13 @@ clean:
 # Create a new documentation version
 version:
 ifndef VERSION
-	@echo "Error: VERSION is required"
-	@echo "Usage: make version VERSION=v0.4.x"
+	@echo "Error: VERSION and DOCKER_TAG are required"
+	@echo "Usage: make version VERSION=v0.5.x DOCKER_TAG=v0.5.0"
+	@exit 1
+endif
+ifndef DOCKER_TAG
+	@echo "Error: VERSION and DOCKER_TAG are required"
+	@echo "Usage: make version VERSION=v0.5.x DOCKER_TAG=v0.5.0"
 	@exit 1
 endif
 	@echo "Creating documentation version $(VERSION)..."
@@ -48,6 +53,7 @@ endif
 	else \
 		npm run docusaurus docs:version $(VERSION); \
 		sed -i '' "s/latestVersion: '.*'/latestVersion: '$(VERSION)'/" docs/_constants.md; \
+		sed -i '' "s/quickStartDockerTag: '.*'/quickStartDockerTag: '$(DOCKER_TAG)'/" docs/_constants.md; \
 		echo "✓ Version $(VERSION) created successfully!"; \
-		echo "✓ Updated docs/_constants.md with latestVersion: $(VERSION)"; \
+		echo "✓ Updated docs/_constants.md with latestVersion: $(VERSION) and quickStartDockerTag: $(DOCKER_TAG)"; \
 	fi
