@@ -74,6 +74,25 @@ export function Login() {
     [],
   );
 
+  const safeRedirectPath = useMemo(() => {
+    if (!from || typeof from !== "string") {
+      return "/";
+    }
+
+    try {
+      const resolvedUrl = new URL(from, window.location.origin);
+
+      if (resolvedUrl.origin === window.location.origin) {
+        return `${resolvedUrl.pathname}${resolvedUrl.search}${resolvedUrl.hash}`;
+      }
+    } catch {
+      // Ignore parsing errors and fall through to the default redirect.
+      console.warn("Invalid redirect URL, falling back to default:", from);
+    }
+
+    return "/";
+  }, [from]);
+
   useEffect(() => {
     // Only auto-trigger login if:
     // - Not authenticated
@@ -98,9 +117,9 @@ export function Login() {
   // Handle redirect after successful authentication
   useEffect(() => {
     if (userInfo) {
-      window.location.href = from;
+      window.location.assign(safeRedirectPath);
     }
-  }, [userInfo]);
+  }, [safeRedirectPath, userInfo]);
 
   // Show loader while auth is in progress
   // For OAuth callback: show loader only while not yet authenticated (SDK is processing)

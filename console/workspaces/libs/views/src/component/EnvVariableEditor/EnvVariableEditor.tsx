@@ -88,7 +88,7 @@ export function EnvVariableEditor({
           fullWidth
           size="small"
           value={keyValue}
-          onChange={(e) => onKeyChange(e.target.value)}
+          onChange={(e) => onKeyChange(e.target.value.replace(/\s/g, '_'))}
           error={!!keyError}
           helperText={keyError}
         />

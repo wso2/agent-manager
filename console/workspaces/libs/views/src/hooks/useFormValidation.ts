@@ -93,7 +93,6 @@ export function useFormValidation<T extends Record<string, any>>(
 
   return {
     errors,
-    setErrors,
     validateField,
     validateForm,
     clearErrors,

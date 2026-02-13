@@ -82,6 +82,12 @@ const configureBuildSchema = z.object({
     .refine((value) => value.startsWith("/"), {
       message: "App path must start with /",
     })
+    .refine((value) => !/\.\./.test(value), {
+      message: "Path traversal is not allowed",
+    })
+    .refine((value) => /^\/[A-Za-z0-9._\-/]*$/.test(value), {
+      message: "App path can only contain letters, numbers, ., _, -, and /",
+    })
     .refine(
       (value) => {
         if (value === "/") return true;

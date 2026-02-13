@@ -62,6 +62,12 @@ export const createAgentSchema = z.object({
     .refine((value) => value.startsWith('/'), {
       message: 'App path must start with /',
     })
+    .refine((value) => !/\.\./.test(value), {
+      message: 'Path traversal is not allowed',
+    })
+    .refine((value) => /^\/[A-Za-z0-9._\-/]*$/.test(value), {
+      message: 'App path can only contain letters, numbers, ., _, -, and /',
+    })
     .refine(
       (value) => {
         if (value === '/') return true;
@@ -83,12 +89,24 @@ export const createAgentSchema = z.object({
     .optional(),
   basePath: z.string().trim().optional(),
   openApiPath: z.string().trim().optional(),
-  env: z.array(
-    z.object({
-      key: z.string().optional(),
-      value: z.string().optional(),
-    })
-  ),
+  env: z
+    .array(
+      z.object({
+        key: z
+          .string()
+          .trim()
+          .min(1, 'Environment variable key is required')
+          .max(64, 'Environment variable key must be at most 64 characters')
+          .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Env keys must match /^[A-Za-z_][A-Za-z0-9_]*$/')
+          .optional(),
+        value: z
+          .string()
+          .trim()
+          .max(2048, 'Environment variable value must be at most 2048 characters')
+          .optional(),
+      })
+    )
+    .max(50, 'A maximum of 50 environment variables is allowed'),
 }).refine(
   (data) => {
     if (data.interfaceType === 'CUSTOM' && !data.port) {
@@ -100,7 +118,7 @@ export const createAgentSchema = z.object({
 ).refine(
   (data) => {
     if (data.interfaceType === 'CUSTOM' && data.port !== undefined) {
-      if (isNaN(data.port)) return false;
+      if (!Number.isInteger(data.port)) return false;
       if (data.port < 1 || data.port > 65535) return false;
     }
     return true;

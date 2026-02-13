@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import dayjs from "dayjs";
 import {
   ArrowUp,
@@ -69,14 +69,11 @@ interface LogEntryItemProps {
 
 const LogEntryItem: React.FC<LogEntryItemProps> = ({ entry }) => {
   const [expanded, setExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
       await navigator.clipboard.writeText(entry.log);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy:', err);
     }
@@ -201,7 +198,6 @@ const LogEntryItem: React.FC<LogEntryItemProps> = ({ entry }) => {
               size="small"
               onClick={handleCopy}
               aria-label="Copy log"
-              disabled={copied}
             >
               <Copy size={16} />
             </IconButton>
@@ -250,6 +246,7 @@ export const LogsView: React.FC<LogsViewProps> = ({
 
   const isNoLogs = !isLoading && (logs?.length ?? 0) === 0;
   const isShowPanel = logs && logs.length > 0 && !isLoading;
+  const reversedLogs = useMemo(() => (logs ? [...logs].reverse() : []), [logs]);
 
   return (
     <Stack direction="column" gap={2} height="calc(100vh - 340px)">
@@ -333,7 +330,7 @@ export const LogsView: React.FC<LogsViewProps> = ({
             </Box>
 
             {/* Log Entries */}
-            {[...logs].reverse().map((entry, idx) => (
+            {reversedLogs.map((entry, idx) => (
               <LogEntryItem
                 key={`${entry.timestamp}-${idx}`}
                 entry={entry}
