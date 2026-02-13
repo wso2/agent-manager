@@ -147,7 +147,7 @@ class TestListBuiltinEvaluators:
     def test_list_contains_required_keys(self):
         """Each evaluator dict should have required keys."""
         evaluators = list_builtin_evaluators()
-        required_keys = {"name", "class_name", "module", "metadata"}
+        required_keys = {"name", "description", "tags", "version", "config_schema", "metadata"}
 
         for ev in evaluators:
             assert all(key in ev for key in required_keys), f"Missing keys in {ev}"
@@ -175,12 +175,12 @@ class TestListBuiltinEvaluators:
         for ev in evaluators:
             assert isinstance(ev["metadata"], dict)
 
-    def test_list_metadata_contains_name(self):
-        """Metadata should contain name field."""
+    def test_list_metadata_contains_implementation_details(self):
+        """Metadata should contain implementation details."""
         evaluators = list_builtin_evaluators()
         for ev in evaluators:
-            assert "name" in ev["metadata"]
-            assert ev["metadata"]["name"] == ev["name"]
+            assert "class_name" in ev["metadata"]
+            assert "module" in ev["metadata"]
 
     def test_list_module_identifies_correctly(self):
         """Module field should correctly identify source file."""
@@ -188,11 +188,11 @@ class TestListBuiltinEvaluators:
 
         # Find a standard evaluator
         latency = next(ev for ev in evaluators if ev["name"] == "latency")
-        assert latency["module"] == "standard"
+        assert latency["metadata"]["module"] == "standard"
 
         # Find a deepeval evaluator
         plan_quality = next(ev for ev in evaluators if ev["name"] == "deepeval/plan-quality")
-        assert plan_quality["module"] == "deepeval"
+        assert plan_quality["metadata"]["module"] == "deepeval"
 
     def test_list_no_duplicates(self):
         """Should not have duplicate evaluator names."""
@@ -203,7 +203,7 @@ class TestListBuiltinEvaluators:
     def test_list_excludes_base_evaluator(self):
         """Should not include BaseEvaluator."""
         evaluators = list_builtin_evaluators()
-        class_names = [ev["class_name"] for ev in evaluators]
+        class_names = [ev["metadata"]["class_name"] for ev in evaluators]
         assert "BaseEvaluator" not in class_names
 
 
@@ -380,7 +380,8 @@ class TestEdgeCases:
         # All returned evaluators should have valid metadata
         for ev in evaluators:
             assert isinstance(ev["metadata"], dict)
-            assert "name" in ev["metadata"]
+            assert "class_name" in ev["metadata"]
+            assert "module" in ev["metadata"]
 
 
 class TestIntegrationScenarios:

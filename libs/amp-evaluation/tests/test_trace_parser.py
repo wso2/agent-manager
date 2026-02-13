@@ -36,10 +36,13 @@ from amp_evaluation.trace import (
     ToolCall,
     parse_trace_for_evaluation,
     parse_traces_for_evaluation,
-    # OTEL models from fetcher
-    OTELTrace,
-    OTELSpan,
-    OTELTraceStatus,
+)
+
+# OTEL models from fetcher (internal)
+from amp_evaluation.trace.fetcher import (
+    Trace as OTELTrace,
+    Span as OTELSpan,
+    TraceStatus as OTELTraceStatus,
 )
 
 # Also import the internal parse function from fetcher to convert real OTEL JSON
