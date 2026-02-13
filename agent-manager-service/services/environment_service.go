@@ -28,6 +28,7 @@ import (
 	"gorm.io/gorm"
 
 	apiplatformclient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/client"
+	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
@@ -46,13 +47,15 @@ type EnvironmentService interface {
 type environmentService struct {
 	logger            *slog.Logger
 	apiPlatformClient apiplatformclient.APIPlatformClient
+	ocClient          occlient.OpenChoreoClient
 }
 
 // NewEnvironmentService creates a new environment service
-func NewEnvironmentService(logger *slog.Logger, apiPlatformClient apiplatformclient.APIPlatformClient) EnvironmentService {
+func NewEnvironmentService(logger *slog.Logger, apiPlatformClient apiplatformclient.APIPlatformClient, ocClient occlient.OpenChoreoClient) EnvironmentService {
 	return &environmentService{
 		logger:            logger,
 		apiPlatformClient: apiPlatformClient,
+		ocClient:          ocClient,
 	}
 }
 
@@ -127,29 +130,57 @@ func (s *environmentService) GetEnvironment(ctx context.Context, orgName string,
 }
 
 func (s *environmentService) ListEnvironments(ctx context.Context, orgName string, limit, offset int32) (*models.EnvironmentListResponse, error) {
-	s.logger.Info("Listing environments", "orgName", orgName, "limit", limit, "offset", offset)
+	s.logger.Info("Listing environments from OpenChoreo", "orgName", orgName, "limit", limit, "offset", offset)
 
-	var environments []models.Environment
-	var total int64
-
-	query := db.DB(ctx).Model(&models.Environment{}).Where("organization_name = ?", orgName)
-
-	if err := query.Count(&total).Error; err != nil {
-		return nil, fmt.Errorf("failed to count environments: %w", err)
-	}
-
-	if err := query.Limit(int(limit)).Offset(int(offset)).Order("created_at DESC").Find(&environments).Error; err != nil {
+	// Fetch environments directly from OpenChoreo
+	ocEnvironments, err := s.ocClient.ListEnvironments(ctx, orgName)
+	if err != nil {
+		s.logger.Error("Failed to list environments from OpenChoreo", "orgName", orgName, "error", err)
 		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}
 
-	responses := make([]models.GatewayEnvironmentResponse, len(environments))
-	for i, env := range environments {
-		responses[i] = *env.ToResponse()
+	total := int32(len(ocEnvironments))
+
+	// Apply pagination
+	start := int(offset)
+	end := start + int(limit)
+
+	if start >= len(ocEnvironments) {
+		// Offset is beyond available data
+		return &models.EnvironmentListResponse{
+			Environments: []models.GatewayEnvironmentResponse{},
+			Total:        total,
+			Limit:        limit,
+			Offset:       offset,
+		}, nil
+	}
+
+	if end > len(ocEnvironments) {
+		end = len(ocEnvironments)
+	}
+
+	paginatedEnvs := ocEnvironments[start:end]
+
+	// Convert OpenChoreo environment responses to gateway environment responses
+	responses := make([]models.GatewayEnvironmentResponse, len(paginatedEnvs))
+	for i, env := range paginatedEnvs {
+		responses[i] = models.GatewayEnvironmentResponse{
+			UUID:             env.UUID,
+			OrganizationName: orgName,
+			Name:             env.Name,
+			DisplayName:      env.DisplayName,
+			Description:      "", // OpenChoreo EnvironmentResponse doesn't have description
+			DataplaneRef:     env.DataplaneRef,
+			DNSPrefix:        env.DNSPrefix,
+			IsProduction:     env.IsProduction,
+			CreatedAt:        env.CreatedAt,
+			UpdatedAt:        env.CreatedAt,
+		}
 	}
 
 	return &models.EnvironmentListResponse{
 		Environments: responses,
-		Total:        int32(total),
+		Total:        total,
 		Limit:        limit,
 		Offset:       offset,
 	}, nil
