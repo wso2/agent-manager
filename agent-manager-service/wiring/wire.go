@@ -59,8 +59,6 @@ var serviceProviderSet = wire.NewSet(
 	services.NewAgentTokenManagerService,
 	services.NewRepositoryService,
 	services.NewEnvironmentService,
-	services.NewEnvironmentSyncer,
-	services.NewOrganizationSyncer,
 )
 
 var controllerProviderSet = wire.NewSet(
