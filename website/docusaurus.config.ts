@@ -54,16 +54,6 @@ const config: Config = {
   plugins: [
     '@signalwire/docusaurus-plugin-llms-txt'],
 
-  headTags: [
-    {
-      tagName: 'meta',
-      attributes: {
-        name: 'algolia-site-verification',
-        content: 'E81C4B874DDE8AE3',
-      },
-    },
-  ],
-
   presets: [
     [
       'classic',

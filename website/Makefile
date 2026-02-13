@@ -47,5 +47,7 @@ endif
 		exit 1; \
 	else \
 		npm run docusaurus docs:version $(VERSION); \
+		sed -i '' "s/latestVersion: '.*'/latestVersion: '$(VERSION)'/" docs/_constants.md; \
 		echo "✓ Version $(VERSION) created successfully!"; \
+		echo "✓ Updated docs/_constants.md with latestVersion: $(VERSION)"; \
 	fi
