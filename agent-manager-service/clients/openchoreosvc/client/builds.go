@@ -168,6 +168,26 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 		}
 	}
 
+	// Update spec.parameters.basePath and port if InputInterface is provided
+	if req.InputInterface != nil {
+		// Get or create parameters section in spec
+		parameters, ok := spec["parameters"].(map[string]interface{})
+		if !ok {
+			parameters = make(map[string]interface{})
+			spec["parameters"] = parameters
+		}
+
+		// Update basePath if provided
+		if req.InputInterface.BasePath != "" {
+			parameters["basePath"] = req.InputInterface.BasePath
+		}
+
+		// Update port if provided
+		if req.InputInterface.Port > 0 {
+			parameters["port"] = req.InputInterface.Port
+		}
+	}
+
 	// Apply the updated component CR
 	applyResp, err := c.ocClient.ApplyResourceWithResponse(ctx, componentCR)
 	if err != nil {
@@ -243,12 +263,13 @@ func buildEndpointsFromInputInterface(componentName string, inputInterface *Inpu
 			"name": fmt.Sprintf("%s-endpoint", componentName),
 			"type": inputInterface.Type,
 			"port": inputInterface.Port,
-			// schemaFilePath is only applicable for custom-api type, so we add it conditionally below
+			// schemaFilePath and schemaType are only applicable for custom-api type
 		},
 	}
 
 	if inputInterface.SchemaPath != "" {
 		endpoints[0]["schemaFilePath"] = inputInterface.SchemaPath
+		endpoints[0]["schemaType"] = "REST"
 	}
 	return endpoints, nil
 }
