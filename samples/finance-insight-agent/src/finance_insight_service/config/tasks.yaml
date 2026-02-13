@@ -1,0 +1,222 @@
+research_task:
+  description: >
+    You are given a research request:
+    User request: {user_request}
+    Current date: {current_date}
+    Current year: {current_year}
+    Query: {query}
+    Tickers: {tickers}
+    Sites (optional): {sites}
+    Lookback days: {days}
+    Max articles: {max_articles}
+    Search query: {search_query}
+
+    IMPORTANT: Today is {current_date} (year {current_year}). Use this as reference when
+    evaluating article recency and relevance. Focus on articles from recent months/years.
+
+    Use the configured search tool (serpapi_news_search) to
+    discover relevant articles with search_query. If tickers are provided, include
+    them in the search terms. If sites are provided, use site: filters
+    (for example: site:reuters.com OR site:bloomberg.com). The search is not limited to
+    3 sources; gather up to Max articles.
+
+    For each article you choose, use ScrapeWebsiteTool to read the full content. If the
+    search results include a source_url, prefer that; otherwise use the link. If a URL
+    times out or fails to load (connection error, bot protection, etc.), note it in
+    limitations and try other sources. Do not fail the entire task. Aim to successfully
+    scrape at least 2-3 sources from the search results.
+
+    Extract for each article:
+    - headline or title (if present)
+    - published timestamp (ISO 8601 if present; otherwise use "unknown")
+    - 1 to 3 key points grounded in the article
+
+    Cluster the articles into 2 to 4 drivers (earnings, macro, regulation, product
+    news, etc.). For each driver, explain "why it matters" using only evidence from
+    the scraped sources.
+
+    Scope:
+    - If user_request is not about finance, markets, companies, macroeconomics, or
+      investing, do not call any tools. Return empty drivers/articles/metrics_formulas
+      and add a limitation stating the request is out of scope.
+    - If the user_request is ambiguous, do not ask follow-up questions. Return empty
+      drivers/articles/metrics_formulas and add a limitation stating what is ambiguous
+      and what information is needed to proceed.
+
+    Rules:
+    - Do not invent facts, dates, or citations.
+    - If a URL cannot be accessed or lacks a publish time, note that in limitations.
+    - Use only the sources you retrieved in this run.
+    - If the user request involves predictions, ratios, or valuation metrics, extract
+      formulas and variable definitions into metrics_formulas for internal use; do not
+      surface formulas in the final response unless the user requests them or they are
+      directly explanatory.
+  expected_output: >
+    Return strict JSON with these keys:
+    - drivers: list of 2 to 4 objects with fields:
+      - driver: short title
+      - why_it_matters: 1 to 3 sentences
+      - citations: list of objects with fields url, published_at, evidence
+    - articles: list of objects with fields:
+      - url
+      - headline
+      - published_at
+      - key_points (list of strings)
+    - metrics_formulas: list of objects with fields:
+      - metric
+      - formula
+      - variables
+      - citation_url
+    - limitations: list of strings (empty if none)
+
+quant_task:
+  description: >
+    You are given a quantitative request:
+    Symbol: {symbol}
+    Interval: {interval}
+    Output size: {outputsize}
+    Horizon days: {horizon_days}
+    Request: {request}
+    Current date: {current_date}
+    Current year: {current_year}
+    Provided data (optional): {provided_data}
+
+    IMPORTANT: Today is {current_date} (year {current_year}). Use this as your reference
+    point for all time-based analysis. If you need to verify or use dates in calculations,
+    you can confirm via safe_python_exec with datetime module.
+
+    Scope:
+    - If the Request is not about financial markets, companies, or quantitative analysis,
+      do not call any tools. Return a minimal snapshot with limitations noting the request
+      is out of scope.
+    - If the Request is ambiguous, do not ask follow-up questions. Return a minimal
+      snapshot and add a limitation stating what is ambiguous and what information is
+      needed to proceed.
+
+    Decide which computations are needed based on the Request. Do not compute everything
+    by default.
+
+    If provided_data is supplied, use it and do not call price_history_fetch unless the
+    Request explicitly asks for fresh market data.
+    If provided_data is not supplied and market data is needed, use price_history_fetch.
+    If the Request needs fundamentals or ratios (ROE, margins, FCF, D/E, P/E, P/B),
+    use company_fundamentals_fetch unless provided_data already includes those metrics.
+    company_fundamentals_fetch returns overview plus income/balance/cashflow reports; extract
+    ratio fields from overview and compute others from the statements as needed.
+
+    Use safe_python_exec as a calculator. Prefer small, single-purpose scripts.
+    Each call should accept simplified input data, compute one logical step,
+    and print a single JSON object to stdout. Allowed modules: math, statistics,
+    datetime, time, json, numpy, pandas.
+    Always call safe_python_exec with both code and simplified data.
+    If you need to inspect data, do it outside the safe_python_exec.
+    If multiple symbols are mentioned, handle one symbol per call; if only one
+    quant task is available, pick the first symbol and note the limitation.
+    Do not pass a multi-symbol dict into a single safe_python_exec call.
+    Prefer simplified inputs: extract only the needed arrays/dicts from any
+    tool output before calling safe_python_exec (for example, pass a list of
+    closes or a list of OHLCV dicts, not the full provider wrapper).
+    Always pass data_json as a list of row dicts or a dict of lists. Do not
+    pass the full provider wrapper; extract provider_output["data"] first.
+    If you only have a single row dict, wrap it in a list.
+    Never pass data_json as a JSON string. Only use json.loads if you
+    explicitly passed a JSON string.
+
+    If safe_python_exec returns CODE_ERROR, fix the code and retry. Do not proceed
+    until you get SUCCESS or you have retried 3 times, then return the error in
+    limitations.
+
+    Coding rules (important to avoid exec errors):
+    - No leading indentation at top-level lines.
+    - Use 4 spaces for indents inside blocks only.
+    - Do not include code fences or markdown in the code string.
+    - Always include `import json` when printing results.
+    - Always end with print(json.dumps(result, ensure_ascii=True)).
+    - Prefer single-line expressions over multi-line blocks where possible.
+    - When parsing dates, use pandas to_datetime with errors="coerce" and format="mixed".
+    - Normalize input data before building the DataFrame:
+      - If data is a JSON string, parse it with json.loads.
+      - If data is already a dict or list, use it directly; do not call json.loads.
+      - If data is a dict with a "data" key, use data["data"] as records.
+      - If data is a list, use it directly as records.
+      - If records are strings, parse each element with json.loads.
+      - If required columns are missing, return a limitation explaining it.
+    - Do not call exit(); return a limitations list instead.
+
+    Default fallback (when Request is empty or unclear):
+    - last_close, returns_1d, volatility_annualized, data_points.
+
+    Scenarios (only if relevant to the Request):
+    - base: expected return over horizon_days
+    - bull: expected return + 1.0 * volatility over horizon_days
+    - bear: expected return - 1.0 * volatility over horizon_days
+
+    Use the last_close as the starting price if scenarios are computed. Explain
+    assumptions in the output.
+
+    Output must include as_of, snapshot, and limitations. Include scenarios only
+    if you computed them.
+
+    Use only the available data; if data is missing, state limitations.
+  expected_output: >
+    Return strict JSON with these keys:
+    - as_of: object with timestamp and provider
+    - snapshot: object with data_points and computed metrics (keys vary by Request)
+    - scenarios: optional object with base, bull, bear each containing price_target,
+      range_low, range_high, and assumptions
+    - limitations: list of strings (empty if none)
+
+audit_task:
+  description: >
+    You are the Auditor.
+    User request: {user_request}
+    Use Research output and Quant output from context.
+
+    Validate the outputs for:
+    - evidence quality and citations (research)
+    - numeric sanity and required metrics (quant)
+    - alignment with the user request
+
+    If something is missing or inconsistent, set audit_status to REJECTED or PARTIAL
+    and explain issues with precise fix actions. Provide a concise audit_summary for
+    the report writer to use.
+
+    Scope:
+    - If user_request is unrelated to finance, markets, companies, macroeconomics, or
+      investing, set audit_status to REJECTED and add an issue with category "scope".
+    - If user_request is ambiguous, set audit_status to PARTIAL and add an issue with
+      category "ambiguity". Do not ask follow-up questions.
+  expected_output: >
+    Return strict JSON with these keys:
+    - audit_status: APPROVED | REJECTED | PARTIAL
+    - issues: list of objects with category, problem, fix_action
+    - notes: list of strings
+    - audit_summary: string (1 to 3 sentences for the report writer)
+
+report_task:
+  description: >
+    You are the Report writer.
+    User request: {user_request}
+    Use Research output, Quant output, and Audit output from context.
+
+    Generate the final user-facing response. The response must be concise, direct,
+    and not conversational. Do not ask follow-up questions.
+
+    Rules:
+    - If audit_status is REJECTED, respond with a brief refusal and mention the key
+      limitation from the audit issues.
+    - If audit_status is PARTIAL, provide a minimal response and include a
+      "Limitations:" section describing what is missing.
+    - Do not invent facts or numbers.
+    - Only use numbers present in quant output.
+    - If research_output is missing, avoid news claims and state limitations.
+    - Do not include citations unless the user explicitly requested sources.
+    - Do not include formulas/variable definitions unless the user requested them.
+
+    Formatting:
+    - Main response: 2 to 4 sentences or 3 to 5 bullet points.
+    - Add "Limitations:" if needed.
+    - Add "Sources:" only if requested.
+  expected_output: >
+    Return strict JSON with these keys:
+    - final_response: string (main answer, then Limitations:/Sources: sections if applicable)
