@@ -18,9 +18,28 @@ package models
 
 import (
 	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
-// API Response DTO
+// Organization is the database model for organizations
+type Organization struct {
+	UUID      uuid.UUID      `gorm:"column:uuid;primaryKey"`
+	Name      string         `gorm:"column:name;uniqueIndex"`
+	Handle    string         `gorm:"column:handle;uniqueIndex"`
+	Region    string         `gorm:"column:region"`
+	CreatedAt time.Time      `gorm:"column:created_at"`
+	UpdatedAt time.Time      `gorm:"column:updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index"`
+}
+
+// TableName returns the table name for GORM
+func (Organization) TableName() string {
+	return "organizations"
+}
+
+// API Response DTO (from OpenChoreo)
 type OrganizationResponse struct {
 	Name        string    `json:"name"`
 	DisplayName string    `json:"displayName,omitempty"`

@@ -37,9 +37,6 @@ import (
 )
 
 var (
-	buildTestOrgId     = uuid.New()
-	buildTestUserIdpId = uuid.New()
-	buildTestProjId    = uuid.New()
 	buildTestOrgName   = fmt.Sprintf("build-test-org-%s", uuid.New().String()[:5])
 	buildTestProjName  = fmt.Sprintf("build-test-project-%s", uuid.New().String()[:5])
 	buildTestAgentName = fmt.Sprintf("build-test-agent-%s", uuid.New().String()[:5])

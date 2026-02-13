@@ -49,6 +49,16 @@ type APIClient struct {
 	// API Services
 
 	DefaultAPI *DefaultAPIService
+
+	EnvironmentsAPI *EnvironmentsAPIService
+
+	GatewayEnvironmentMappingsAPI *GatewayEnvironmentMappingsAPIService
+
+	GatewayTokensAPI *GatewayTokensAPIService
+
+	GatewaysAPI *GatewaysAPIService
+
+	HealthAPI *HealthAPIService
 }
 
 type service struct {
@@ -68,6 +78,11 @@ func NewAPIClient(cfg *Configuration) *APIClient {
 
 	// API Services
 	c.DefaultAPI = (*DefaultAPIService)(&c.common)
+	c.EnvironmentsAPI = (*EnvironmentsAPIService)(&c.common)
+	c.GatewayEnvironmentMappingsAPI = (*GatewayEnvironmentMappingsAPIService)(&c.common)
+	c.GatewayTokensAPI = (*GatewayTokensAPIService)(&c.common)
+	c.GatewaysAPI = (*GatewaysAPIService)(&c.common)
+	c.HealthAPI = (*HealthAPIService)(&c.common)
 
 	return c
 }

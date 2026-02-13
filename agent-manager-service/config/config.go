@@ -67,6 +67,9 @@ type Config struct {
 
 	// OpenChoreo API configuration
 	OpenChoreo OpenChoreoConfig
+
+	// API Platform configuration
+	APIPlatform APIPlatformConfig
 }
 
 // OpenChoreoConfig holds OpenChoreo API configuration
@@ -182,4 +185,10 @@ type PublicKeyConfig struct {
 // PublicKeysConfig represents the structure of the public keys JSON configuration file
 type PublicKeysConfig struct {
 	Keys []PublicKeyConfig `json:"keys"`
+}
+
+// APIPlatformConfig holds API Platform client configuration
+type APIPlatformConfig struct {
+	BaseURL string // Base URL for API Platform
+	Enable  bool
 }

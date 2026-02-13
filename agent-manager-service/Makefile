@@ -69,6 +69,16 @@ gen-observer-client: ## Generate Observer API client from OpenChoreo GitHub repo
 	@$(MAKE) fmt
 	@echo "Observer client generated successfully"
 
+.PHONY: gen-api-platform-client
+gen-api-platform-client: ## Generate API Platform API client from upstream OpenAPI spec.
+	@echo "Generating Gateway client"
+	@curl -sL "https://raw.githubusercontent.com/wso2/api-platform/refs/heads/main/platform-api/src/resources/openapi.yaml" -o /tmp/gw-api.yaml
+	@oapi-codegen -config clients/apiplatformsvc/gen/oapi-codegen.yaml /tmp/gw-api.yaml
+	@oapi-codegen -config clients/apiplatformsvc/gen/oapi-codegen-client.yaml /tmp/gw-api.yaml
+	@rm /tmp/gw-api.yaml
+	@$(MAKE) fmt
+	@echo "API Platform client generated successfully"
+
 .PHONY: codegenfmt-check
 codegenfmt-check:
 	@$(MAKE) wire
@@ -77,10 +87,10 @@ codegenfmt-check:
 	@$(MAKE) fmt
 	@go mod tidy
 	@echo ""
-	@if [ ! -z "$$(git status --porcelain)" ]; then \
-	  git diff --color | cat; \
-	  git status --porcelain; \
-      echo "There are new changes after the code generation & formatting."; \
-	  echo "Please run 'codegenfmt-check' locally and commit the changes."; \
+	@if [ ! -z "$$(git status --porcelain -- '*.go')" ]; then \
+	  git diff --color -- '*.go' | cat; \
+	  git status --porcelain -- '*.go'; \
+      echo "There are new changes to .go files after code generation & formatting."; \
+	  echo "Please run 'make codegenfmt-check' locally and commit the changes."; \
       exit 1; \
     fi
