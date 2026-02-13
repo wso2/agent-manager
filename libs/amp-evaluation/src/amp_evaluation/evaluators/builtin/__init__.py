@@ -95,6 +95,15 @@ def discover_evaluator(name: str) -> Optional[Type[BaseEvaluator]]:
                 if not issubclass(obj, BaseEvaluator) or obj is BaseEvaluator:
                     continue
 
+                # Skip abstract base classes (those that end with "Base" or have abstract methods)
+                if class_name.endswith("Base") or class_name.endswith("BaseEvaluator"):
+                    continue
+
+                # Skip classes with abstract methods
+                abstract_methods = getattr(obj, "__abstractmethods__", set())
+                if abstract_methods:
+                    continue
+
                 # Skip classes imported from other modules
                 if obj.__module__ != module.__name__:
                     continue
@@ -122,7 +131,9 @@ def list_builtin_evaluators() -> List[Dict[str, Any]]:
     Automatically discovers evaluators from all .py files in the builtin/ directory.
 
     Returns:
-        List of dicts with 'name', 'class_name', 'module', and 'metadata' keys
+        List of dicts with evaluator definition:
+        - name, description, tags, version, config_schema (top level)
+        - metadata: {class_name, module} (implementation details)
     """
     evaluators = []
     modules = _get_evaluator_modules()
@@ -136,6 +147,15 @@ def list_builtin_evaluators() -> List[Dict[str, Any]]:
                 if not issubclass(obj, BaseEvaluator) or obj is BaseEvaluator:
                     continue
 
+                # Skip abstract base classes (those that end with "Base" or have abstract methods)
+                if class_name.endswith("Base") or class_name.endswith("BaseEvaluator"):
+                    continue
+
+                # Skip classes with abstract methods
+                abstract_methods = getattr(obj, "__abstractmethods__", set())
+                if abstract_methods:
+                    continue
+
                 # Skip classes imported from other modules
                 if obj.__module__ != module.__name__:
                     continue
@@ -144,12 +164,24 @@ def list_builtin_evaluators() -> List[Dict[str, Any]]:
                 try:
                     instance = obj()
                     metadata = instance.get_metadata()
+
+                    # Ensure module name is in tags for filtering
+                    tags = metadata.get("tags", [])
+                    if module_name not in tags:
+                        tags = [module_name] + tags
+
+                    # Restructure: top-level functional details, metadata has implementation details
                     evaluators.append(
                         {
                             "name": metadata.get("name", instance.name),
-                            "class_name": class_name,
-                            "module": module_name,
-                            "metadata": metadata,
+                            "description": metadata.get("description", ""),
+                            "tags": tags,
+                            "version": metadata.get("version", "1.0"),
+                            "config_schema": metadata.get("config_schema", []),
+                            "metadata": {
+                                "class_name": class_name,
+                                "module": module_name,
+                            },
                         }
                     )
                 except Exception:

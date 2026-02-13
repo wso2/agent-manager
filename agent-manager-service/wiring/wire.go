@@ -58,6 +58,10 @@ var serviceProviderSet = wire.NewSet(
 	services.NewObservabilityManager,
 	services.NewAgentTokenManagerService,
 	services.NewRepositoryService,
+	services.NewMonitorExecutor,
+	services.NewMonitorManagerService,
+	services.NewMonitorSchedulerService,
+	services.NewEvaluatorManagerService,
 	services.NewEnvironmentService,
 )
 
@@ -69,6 +73,8 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewRepositoryController,
 	controllers.NewEnvironmentController,
 	controllers.NewGatewayController,
+	controllers.NewMonitorController,
+	controllers.NewEvaluatorController,
 )
 
 var testClientProviderSet = wire.NewSet(
@@ -180,6 +186,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 		controllerProviderSet,
 		ProvideAuthMiddleware,
 		ProvideJWTSigningConfig,
+		ProvideMonitorServiceConfig,
 		wire.Struct(new(AppParams), "*"),
 	)
 	return &AppParams{}, nil
@@ -199,6 +206,7 @@ func InitializeTestAppParamsWithClientMocks(
 		controllerProviderSet,
 		configProviderSet,
 		ProvideJWTSigningConfig,
+		ProvideMonitorServiceConfig,
 		wire.Struct(new(AppParams), "*"),
 	)
 	return &AppParams{}, nil

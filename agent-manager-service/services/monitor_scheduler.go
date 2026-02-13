@@ -1,0 +1,371 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package services
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+)
+
+const (
+	schedulerTickInterval = 1 * time.Minute
+	schedulerLockID       = int64(739281456) // PostgreSQL advisory lock ID for scheduler
+)
+
+// MonitorSchedulerService handles scheduled monitor execution
+type MonitorSchedulerService interface {
+	Start(ctx context.Context) error
+	Stop() error
+}
+
+type monitorSchedulerService struct {
+	ocClient client.OpenChoreoClient
+	logger   *slog.Logger
+	executor MonitorExecutor
+	stopCh   chan struct{}
+	config   MonitorServiceConfig
+}
+
+// NewMonitorSchedulerService creates a new monitor scheduler service
+func NewMonitorSchedulerService(
+	ocClient client.OpenChoreoClient,
+	logger *slog.Logger,
+	executor MonitorExecutor,
+	config MonitorServiceConfig,
+) MonitorSchedulerService {
+	return &monitorSchedulerService{
+		ocClient: ocClient,
+		logger:   logger,
+		executor: executor,
+		stopCh:   make(chan struct{}),
+		config:   config,
+	}
+}
+
+// Start begins the scheduler
+func (s *monitorSchedulerService) Start(ctx context.Context) error {
+	s.logger.Info("Initializing monitor scheduler")
+
+	// Run scheduler loop in background
+	go s.runSchedulerLoop(ctx)
+
+	s.logger.Info("Monitor scheduler started")
+	return nil
+}
+
+// Stop stops the scheduler
+func (s *monitorSchedulerService) Stop() error {
+	close(s.stopCh)
+	s.logger.Info("Monitor scheduler stopped")
+	return nil
+}
+
+// runSchedulerLoop runs the main scheduler loop (only when leader)
+func (s *monitorSchedulerService) runSchedulerLoop(ctx context.Context) {
+	ticker := time.NewTicker(schedulerTickInterval)
+	defer ticker.Stop()
+
+	// Run immediately on start
+	s.runSchedulerCycle(ctx)
+
+	for {
+		select {
+		case <-ticker.C:
+			s.runSchedulerCycle(ctx)
+		case <-s.stopCh:
+			s.logger.Info("Scheduler loop stopped")
+			return
+		case <-ctx.Done():
+			s.logger.Info("Scheduler loop context cancelled")
+			return
+		}
+	}
+}
+
+// runSchedulerCycle executes one cycle of the scheduler
+func (s *monitorSchedulerService) runSchedulerCycle(ctx context.Context) {
+	// Try to acquire PostgreSQL advisory lock
+	var locked bool
+	if err := db.DB(ctx).Raw("SELECT pg_try_advisory_lock(?)", schedulerLockID).Scan(&locked).Error; err != nil {
+		s.logger.Error("Failed to try advisory lock", "error", err)
+		return
+	}
+	if !locked {
+		s.logger.Debug("Another instance is running scheduler, skipping cycle")
+		return
+	}
+	// Release lock when done
+	defer db.DB(ctx).Exec("SELECT pg_advisory_unlock(?)", schedulerLockID)
+
+	s.logger.Debug("Running scheduler cycle")
+
+	// Trigger pending monitors
+	if err := s.triggerPendingMonitors(ctx); err != nil {
+		s.logger.Error("Failed to trigger pending monitors", "error", err)
+	}
+
+	// Sync run status
+	if err := s.syncRunStatus(ctx); err != nil {
+		s.logger.Error("Failed to sync run status", "error", err)
+	}
+}
+
+// triggerPendingMonitors checks for monitors that need to run and creates WorkflowRun CRs
+func (s *monitorSchedulerService) triggerPendingMonitors(ctx context.Context) error {
+	var monitors []models.Monitor
+	err := db.DB(ctx).
+		Where("type = ? AND next_run_time <= ?", models.MonitorTypeFuture, time.Now()).
+		Find(&monitors).Error
+	if err != nil {
+		return fmt.Errorf("failed to query pending monitors: %w", err)
+	}
+
+	if len(monitors) == 0 {
+		return nil
+	}
+
+	s.logger.Info("Found monitors to trigger", "count", len(monitors))
+
+	for _, monitor := range monitors {
+		if err := s.triggerMonitor(ctx, &monitor); err != nil {
+			s.logger.Error("Failed to trigger monitor", "monitor", monitor.Name, "error", err)
+			// Continue with next monitor
+		}
+	}
+
+	return nil
+}
+
+// triggerMonitor creates a WorkflowRun CR for a single monitor
+func (s *monitorSchedulerService) triggerMonitor(ctx context.Context, monitor *models.Monitor) error {
+	if monitor.IntervalMinutes == nil {
+		return fmt.Errorf("interval_minutes is nil for monitor %s", monitor.Name)
+	}
+
+	// Calculate safety delta (5% of interval)
+	safetyDelta := time.Duration(float64(*monitor.IntervalMinutes)*models.SafetyDeltaPercent) * time.Minute
+	interval := time.Duration(*monitor.IntervalMinutes) * time.Minute
+
+	// Calculate time window for this run - ensures continuous coverage with no gaps
+	// Look back from next_run_time by one interval to create overlapping windows
+	startTime := monitor.NextRunTime.Add(-interval)
+	// End at current time minus safety delta (to avoid missing late-arriving traces)
+	endTime := time.Now().Add(-safetyDelta)
+
+	// Next run starts interval minutes after this window ends
+	nextRunTime := endTime.Add(interval)
+
+	// Execute the monitor run
+	result, err := s.executor.ExecuteMonitorRun(ctx, ExecuteMonitorRunParams{
+		OrgName:    monitor.OrgName,
+		Monitor:    monitor,
+		StartTime:  startTime,
+		EndTime:    endTime,
+		Evaluators: monitor.Evaluators, // Snapshot at execution time
+	})
+	if err != nil {
+		s.logger.Error("Failed to execute monitor run", "error", err)
+		return err
+	}
+
+	// Update monitor's next_run_time AFTER successful CR creation
+	// If workflow execution fails later, that's tracked in monitor_runs status
+	if err := s.executor.UpdateNextRunTime(ctx, monitor.ID, nextRunTime); err != nil {
+		s.logger.Error("Failed to update next_run_time", "monitor", monitor.Name, "error", err)
+		// Don't fail - the workflow is already running
+	}
+
+	s.logger.Info("Monitor triggered successfully",
+		"monitor", monitor.Name,
+		"workflowRunName", result.Name,
+		"nextScheduledRun", nextRunTime)
+
+	return nil
+}
+
+// syncRunStatus queries OpenChoreo API for pending/running workflows and updates DB
+func (s *monitorSchedulerService) syncRunStatus(ctx context.Context) error {
+	var runs []models.MonitorRun
+	err := db.DB(ctx).
+		Where("status IN ?", []string{models.RunStatusPending, models.RunStatusRunning}).
+		Limit(100).
+		Find(&runs).Error
+	if err != nil {
+		return fmt.Errorf("failed to query pending/running runs: %w", err)
+	}
+
+	if len(runs) == 0 {
+		return nil
+	}
+
+	s.logger.Debug("Syncing run status", "count", len(runs))
+
+	for _, run := range runs {
+		if err := s.syncSingleRunStatus(ctx, &run); err != nil {
+			s.logger.Error("Failed to sync run status", "runID", run.ID, "error", err)
+			// Continue with next run
+		}
+	}
+
+	return nil
+}
+
+// syncSingleRunStatus queries OpenChoreo API for a single run and updates DB
+func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *models.MonitorRun) error {
+	// Get monitor to find orgName
+	var monitor models.Monitor
+	if err := db.DB(ctx).Where("id = ?", run.MonitorID).First(&monitor).Error; err != nil {
+		return fmt.Errorf("failed to get monitor: %w", err)
+	}
+
+	// Query OpenChoreo API for WorkflowRun status
+	cr, err := s.ocClient.GetResource(ctx, monitor.OrgName, "WorkflowRun", run.Name)
+	if err != nil {
+		// If CR not found, it might have been deleted - mark as error
+		s.logger.Warn("WorkflowRun CR not found", "workflowRunName", run.Name)
+		return fmt.Errorf("failed to get workflow run: %w", err)
+	}
+
+	// Extract status from CR
+	status, err := s.extractWorkflowStatus(cr)
+	if err != nil {
+		return fmt.Errorf("failed to extract workflow status: %w", err)
+	}
+
+	// Update DB based on status
+	updates := make(map[string]interface{})
+
+	switch status {
+	case "Succeeded":
+		updates["status"] = models.RunStatusSuccess
+		now := time.Now()
+		updates["completed_at"] = now
+		if run.StartedAt == nil {
+			updates["started_at"] = now
+		}
+
+	case "Failed", "Error":
+		updates["status"] = models.RunStatusFailed
+		now := time.Now()
+		updates["completed_at"] = now
+		if run.StartedAt == nil {
+			updates["started_at"] = now
+		}
+		// Extract error message if available
+		if errorMsg := s.extractErrorMessage(cr); errorMsg != "" {
+			updates["error_message"] = errorMsg
+		}
+
+	case "Running":
+		if run.Status != models.RunStatusRunning {
+			updates["status"] = models.RunStatusRunning
+			if run.StartedAt == nil {
+				now := time.Now()
+				updates["started_at"] = now
+			}
+		}
+
+	case "Pending":
+		// Keep as pending
+		return nil
+
+	default:
+		s.logger.Warn("Unknown workflow status", "status", status, "workflowRunName", run.Name)
+		return nil
+	}
+
+	if len(updates) > 0 {
+		if err := db.DB(ctx).Model(run).Updates(updates).Error; err != nil {
+			return fmt.Errorf("failed to update run status: %w", err)
+		}
+		s.logger.Info("Updated run status", "runID", run.ID, "status", updates["status"])
+	}
+
+	return nil
+}
+
+// extractWorkflowStatus extracts the status from a WorkflowRun CR
+func (s *monitorSchedulerService) extractWorkflowStatus(cr map[string]interface{}) (string, error) {
+	status, ok := cr["status"].(map[string]interface{})
+	if !ok {
+		return "Pending", nil
+	}
+
+	conditions, ok := status["conditions"].([]interface{})
+	if !ok || len(conditions) == 0 {
+		return "Pending", nil
+	}
+
+	// Look for WorkflowCompleted condition
+	for _, cond := range conditions {
+		condMap, ok := cond.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		condType, _ := condMap["type"].(string)
+		if condType == "WorkflowCompleted" {
+			condStatus, _ := condMap["status"].(string)
+			reason, _ := condMap["reason"].(string)
+
+			if condStatus == "True" {
+				// Check if it succeeded or failed
+				if reason == "WorkflowSucceeded" {
+					return "Succeeded", nil
+				}
+				return "Failed", nil
+			}
+			return "Running", nil
+		}
+	}
+
+	return "Pending", nil
+}
+
+// extractErrorMessage extracts error message from WorkflowRun CR
+func (s *monitorSchedulerService) extractErrorMessage(cr map[string]interface{}) string {
+	status, ok := cr["status"].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	conditions, ok := status["conditions"].([]interface{})
+	if !ok {
+		return ""
+	}
+
+	for _, cond := range conditions {
+		condMap, ok := cond.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		condType, _ := condMap["type"].(string)
+		if condType == "WorkflowCompleted" {
+			message, _ := condMap["message"].(string)
+			return message
+		}
+	}
+
+	return ""
+}

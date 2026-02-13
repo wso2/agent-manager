@@ -11,109 +11,10 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
 
-// OpenChoreoClientMock is a mock implementation of client.OpenChoreoClient.
-//
-//	func TestSomethingThatUsesOpenChoreoClient(t *testing.T) {
-//
-//		// make and configure a mocked client.OpenChoreoClient
-//		mockedOpenChoreoClient := &OpenChoreoClientMock{
-//			AttachTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) error {
-//				panic("mock out the AttachTrait method")
-//			},
-//			ComponentExistsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, verifyProject bool) (bool, error) {
-//				panic("mock out the ComponentExists method")
-//			},
-//			CreateComponentFunc: func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error {
-//				panic("mock out the CreateComponent method")
-//			},
-//			CreateProjectFunc: func(ctx context.Context, namespaceName string, req client.CreateProjectRequest) error {
-//				panic("mock out the CreateProject method")
-//			},
-//			DeleteComponentFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) error {
-//				panic("mock out the DeleteComponent method")
-//			},
-//			DeleteProjectFunc: func(ctx context.Context, namespaceName string, projectName string) error {
-//				panic("mock out the DeleteProject method")
-//			},
-//			DeployFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.DeployRequest) error {
-//				panic("mock out the Deploy method")
-//			},
-//			GetBuildFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
-//				panic("mock out the GetBuild method")
-//			},
-//			GetComponentFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) (*models.AgentResponse, error) {
-//				panic("mock out the GetComponent method")
-//			},
-//			GetComponentConfigurationsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) ([]models.EnvVars, error) {
-//				panic("mock out the GetComponentConfigurations method")
-//			},
-//			GetComponentEndpointsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) (map[string]models.EndpointsResponse, error) {
-//				panic("mock out the GetComponentEndpoints method")
-//			},
-//			GetComponentResourceConfigsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) (*client.ComponentResourceConfigsResponse, error) {
-//				panic("mock out the GetComponentResourceConfigs method")
-//			},
-//			GetDeploymentsFunc: func(ctx context.Context, namespaceName string, pipelineName string, projectName string, componentName string) ([]*models.DeploymentResponse, error) {
-//				panic("mock out the GetDeployments method")
-//			},
-//			GetEnvironmentFunc: func(ctx context.Context, namespaceName string, environmentName string) (*models.EnvironmentResponse, error) {
-//				panic("mock out the GetEnvironment method")
-//			},
-//			GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
-//				panic("mock out the GetOrganization method")
-//			},
-//			GetProjectFunc: func(ctx context.Context, namespaceName string, projectName string) (*models.ProjectResponse, error) {
-//				panic("mock out the GetProject method")
-//			},
-//			GetProjectDeploymentPipelineFunc: func(ctx context.Context, namespaceName string, projectName string) (*models.DeploymentPipelineResponse, error) {
-//				panic("mock out the GetProjectDeploymentPipeline method")
-//			},
-//			ListBuildsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]*models.BuildResponse, error) {
-//				panic("mock out the ListBuilds method")
-//			},
-//			ListComponentsFunc: func(ctx context.Context, namespaceName string, projectName string) ([]*models.AgentResponse, error) {
-//				panic("mock out the ListComponents method")
-//			},
-//			ListDataPlanesFunc: func(ctx context.Context, namespaceName string) ([]*models.DataPlaneResponse, error) {
-//				panic("mock out the ListDataPlanes method")
-//			},
-//			ListDeploymentPipelinesFunc: func(ctx context.Context, namespaceName string) ([]*models.DeploymentPipelineResponse, error) {
-//				panic("mock out the ListDeploymentPipelines method")
-//			},
-//			ListEnvironmentsFunc: func(ctx context.Context, namespaceName string) ([]*models.EnvironmentResponse, error) {
-//				panic("mock out the ListEnvironments method")
-//			},
-//			ListOrganizationsFunc: func(ctx context.Context) ([]*models.OrganizationResponse, error) {
-//				panic("mock out the ListOrganizations method")
-//			},
-//			ListProjectsFunc: func(ctx context.Context, namespaceName string) ([]*models.ProjectResponse, error) {
-//				panic("mock out the ListProjects method")
-//			},
-//			PatchProjectFunc: func(ctx context.Context, namespaceName string, projectName string, req client.PatchProjectRequest) error {
-//				panic("mock out the PatchProject method")
-//			},
-//			TriggerBuildFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, commitID string) (*models.BuildResponse, error) {
-//				panic("mock out the TriggerBuild method")
-//			},
-//			UpdateComponentBasicInfoFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentBasicInfoRequest) error {
-//				panic("mock out the UpdateComponentBasicInfo method")
-//			},
-//			UpdateComponentBuildParametersFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentBuildParametersRequest) error {
-//				panic("mock out the UpdateComponentBuildParameters method")
-//			},
-//			UpdateComponentEnvironmentVariablesFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
-//				panic("mock out the UpdateComponentEnvironmentVariables method")
-//			},
-//			UpdateComponentResourceConfigsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string, req client.UpdateComponentResourceConfigsRequest) error {
-//				panic("mock out the UpdateComponentResourceConfigs method")
-//			},
-//		}
-//
-//		// use mockedOpenChoreoClient in code that requires client.OpenChoreoClient
-//		// and then make assertions.
-//
-//	}
 type OpenChoreoClientMock struct {
+	// ApplyResourceFunc mocks the ApplyResource method.
+	ApplyResourceFunc func(ctx context.Context, body map[string]interface{}) error
+
 	// AttachTraitFunc mocks the AttachTrait method.
 	AttachTraitFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) error
 
@@ -131,6 +32,9 @@ type OpenChoreoClientMock struct {
 
 	// DeleteProjectFunc mocks the DeleteProject method.
 	DeleteProjectFunc func(ctx context.Context, namespaceName string, projectName string) error
+
+	// DeleteResourceFunc mocks the DeleteResource method.
+	DeleteResourceFunc func(ctx context.Context, body map[string]interface{}) error
 
 	// DeployFunc mocks the Deploy method.
 	DeployFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.DeployRequest) error
@@ -164,6 +68,9 @@ type OpenChoreoClientMock struct {
 
 	// GetProjectDeploymentPipelineFunc mocks the GetProjectDeploymentPipeline method.
 	GetProjectDeploymentPipelineFunc func(ctx context.Context, namespaceName string, projectName string) (*models.DeploymentPipelineResponse, error)
+
+	// GetResourceFunc mocks the GetResource method.
+	GetResourceFunc func(ctx context.Context, namespaceName string, kind string, name string) (map[string]interface{}, error)
 
 	// ListBuildsFunc mocks the ListBuilds method.
 	ListBuildsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]*models.BuildResponse, error)
@@ -206,6 +113,13 @@ type OpenChoreoClientMock struct {
 
 	// calls tracks calls to the methods.
 	calls struct {
+		// ApplyResource holds details about calls to the ApplyResource method.
+		ApplyResource []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Body is the body argument value.
+			Body map[string]interface{}
+		}
 		// AttachTrait holds details about calls to the AttachTrait method.
 		AttachTrait []struct {
 			// Ctx is the ctx argument value.
@@ -271,6 +185,13 @@ type OpenChoreoClientMock struct {
 			NamespaceName string
 			// ProjectName is the projectName argument value.
 			ProjectName string
+		}
+		// DeleteResource holds details about calls to the DeleteResource method.
+		DeleteResource []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Body is the body argument value.
+			Body map[string]interface{}
 		}
 		// Deploy holds details about calls to the Deploy method.
 		Deploy []struct {
@@ -394,6 +315,17 @@ type OpenChoreoClientMock struct {
 			NamespaceName string
 			// ProjectName is the projectName argument value.
 			ProjectName string
+		}
+		// GetResource holds details about calls to the GetResource method.
+		GetResource []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// Kind is the kind argument value.
+			Kind string
+			// Name is the name argument value.
+			Name string
 		}
 		// ListBuilds holds details about calls to the ListBuilds method.
 		ListBuilds []struct {
@@ -527,12 +459,14 @@ type OpenChoreoClientMock struct {
 			Req client.UpdateComponentResourceConfigsRequest
 		}
 	}
+	lockApplyResource                       sync.RWMutex
 	lockAttachTrait                         sync.RWMutex
 	lockComponentExists                     sync.RWMutex
 	lockCreateComponent                     sync.RWMutex
 	lockCreateProject                       sync.RWMutex
 	lockDeleteComponent                     sync.RWMutex
 	lockDeleteProject                       sync.RWMutex
+	lockDeleteResource                      sync.RWMutex
 	lockDeploy                              sync.RWMutex
 	lockGetBuild                            sync.RWMutex
 	lockGetComponent                        sync.RWMutex
@@ -544,6 +478,7 @@ type OpenChoreoClientMock struct {
 	lockGetOrganization                     sync.RWMutex
 	lockGetProject                          sync.RWMutex
 	lockGetProjectDeploymentPipeline        sync.RWMutex
+	lockGetResource                         sync.RWMutex
 	lockListBuilds                          sync.RWMutex
 	lockListComponents                      sync.RWMutex
 	lockListDataPlanes                      sync.RWMutex
@@ -557,6 +492,42 @@ type OpenChoreoClientMock struct {
 	lockUpdateComponentBuildParameters      sync.RWMutex
 	lockUpdateComponentEnvironmentVariables sync.RWMutex
 	lockUpdateComponentResourceConfigs      sync.RWMutex
+}
+
+// ApplyResource calls ApplyResourceFunc.
+func (mock *OpenChoreoClientMock) ApplyResource(ctx context.Context, body map[string]interface{}) error {
+	if mock.ApplyResourceFunc == nil {
+		panic("OpenChoreoClientMock.ApplyResourceFunc: method is nil but OpenChoreoClient.ApplyResource was just called")
+	}
+	callInfo := struct {
+		Ctx  context.Context
+		Body map[string]interface{}
+	}{
+		Ctx:  ctx,
+		Body: body,
+	}
+	mock.lockApplyResource.Lock()
+	mock.calls.ApplyResource = append(mock.calls.ApplyResource, callInfo)
+	mock.lockApplyResource.Unlock()
+	return mock.ApplyResourceFunc(ctx, body)
+}
+
+// ApplyResourceCalls gets all the calls that were made to ApplyResource.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.ApplyResourceCalls())
+func (mock *OpenChoreoClientMock) ApplyResourceCalls() []struct {
+	Ctx  context.Context
+	Body map[string]interface{}
+} {
+	var calls []struct {
+		Ctx  context.Context
+		Body map[string]interface{}
+	}
+	mock.lockApplyResource.RLock()
+	calls = mock.calls.ApplyResource
+	mock.lockApplyResource.RUnlock()
+	return calls
 }
 
 // AttachTrait calls AttachTraitFunc.
@@ -820,6 +791,42 @@ func (mock *OpenChoreoClientMock) DeleteProjectCalls() []struct {
 	mock.lockDeleteProject.RLock()
 	calls = mock.calls.DeleteProject
 	mock.lockDeleteProject.RUnlock()
+	return calls
+}
+
+// DeleteResource calls DeleteResourceFunc.
+func (mock *OpenChoreoClientMock) DeleteResource(ctx context.Context, body map[string]interface{}) error {
+	if mock.DeleteResourceFunc == nil {
+		panic("OpenChoreoClientMock.DeleteResourceFunc: method is nil but OpenChoreoClient.DeleteResource was just called")
+	}
+	callInfo := struct {
+		Ctx  context.Context
+		Body map[string]interface{}
+	}{
+		Ctx:  ctx,
+		Body: body,
+	}
+	mock.lockDeleteResource.Lock()
+	mock.calls.DeleteResource = append(mock.calls.DeleteResource, callInfo)
+	mock.lockDeleteResource.Unlock()
+	return mock.DeleteResourceFunc(ctx, body)
+}
+
+// DeleteResourceCalls gets all the calls that were made to DeleteResource.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.DeleteResourceCalls())
+func (mock *OpenChoreoClientMock) DeleteResourceCalls() []struct {
+	Ctx  context.Context
+	Body map[string]interface{}
+} {
+	var calls []struct {
+		Ctx  context.Context
+		Body map[string]interface{}
+	}
+	mock.lockDeleteResource.RLock()
+	calls = mock.calls.DeleteResource
+	mock.lockDeleteResource.RUnlock()
 	return calls
 }
 
@@ -1308,6 +1315,50 @@ func (mock *OpenChoreoClientMock) GetProjectDeploymentPipelineCalls() []struct {
 	mock.lockGetProjectDeploymentPipeline.RLock()
 	calls = mock.calls.GetProjectDeploymentPipeline
 	mock.lockGetProjectDeploymentPipeline.RUnlock()
+	return calls
+}
+
+// GetResource calls GetResourceFunc.
+func (mock *OpenChoreoClientMock) GetResource(ctx context.Context, namespaceName string, kind string, name string) (map[string]interface{}, error) {
+	if mock.GetResourceFunc == nil {
+		panic("OpenChoreoClientMock.GetResourceFunc: method is nil but OpenChoreoClient.GetResource was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		Kind          string
+		Name          string
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		Kind:          kind,
+		Name:          name,
+	}
+	mock.lockGetResource.Lock()
+	mock.calls.GetResource = append(mock.calls.GetResource, callInfo)
+	mock.lockGetResource.Unlock()
+	return mock.GetResourceFunc(ctx, namespaceName, kind, name)
+}
+
+// GetResourceCalls gets all the calls that were made to GetResource.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.GetResourceCalls())
+func (mock *OpenChoreoClientMock) GetResourceCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	Kind          string
+	Name          string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		Kind          string
+		Name          string
+	}
+	mock.lockGetResource.RLock()
+	calls = mock.calls.GetResource
+	mock.lockGetResource.RUnlock()
 	return calls
 }
 

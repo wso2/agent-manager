@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"math/big"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -168,13 +169,21 @@ func (s *agentTokenManagerService) loadPublicKeysFromJSON() error {
 		return fmt.Errorf("no keys found in public keys configuration")
 	}
 
+	// Get the directory of the config file to resolve relative paths
+	configDir := filepath.Dir(s.config.PublicKeysConfigPath)
+
 	// Load each public key
 	for _, keyConfig := range keysConfig.Keys {
-		publicKey, err := s.loadPublicKey(keyConfig.PublicKeyPath)
+		// Resolve relative paths based on config file directory
+		keyPath := keyConfig.PublicKeyPath
+		if !filepath.IsAbs(keyPath) {
+			keyPath = filepath.Join(configDir, keyPath)
+		}
+		publicKey, err := s.loadPublicKey(keyPath)
 		if err != nil {
 			s.logger.Warn("Failed to load public key, skipping",
 				"kid", keyConfig.Kid,
-				"path", keyConfig.PublicKeyPath,
+				"path", keyPath,
 				"error", err)
 			continue
 		}

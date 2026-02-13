@@ -71,6 +71,7 @@ type ComponentLogsParams struct {
 
 type ObservabilitySvcClient interface {
 	GetBuildLogs(ctx context.Context, params BuildLogsParams) (*models.LogsResponse, error)
+	GetWorkflowRunLogs(ctx context.Context, workflowRunName string) (*models.LogsResponse, error)
 	GetComponentMetrics(ctx context.Context, params ComponentMetricsParams, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error)
 	GetComponentLogs(ctx context.Context, params ComponentLogsParams, payload spec.LogFilterRequest) (*models.LogsResponse, error)
 }
@@ -85,6 +86,8 @@ type Config struct {
 type observabilitySvcClient struct {
 	baseURL        string
 	observerClient *gen.ClientWithResponses
+	httpClient     requests.HttpClient
+	authProvider   client.AuthProvider
 }
 
 func NewObservabilitySvcClient(cfg *Config) (ObservabilitySvcClient, error) {
@@ -167,6 +170,36 @@ func (o *observabilitySvcClient) GetBuildLogs(ctx context.Context, params BuildL
 
 	if resp.JSON200 == nil {
 		return nil, fmt.Errorf("observabilitysvc.GetBuildLogs: empty response body")
+	}
+
+	return convertToLogsResponse(resp.JSON200), nil
+}
+
+// GetWorkflowRunLogs retrieves workflow run logs for a specific workflow execution from the observer service
+func (o *observabilitySvcClient) GetWorkflowRunLogs(ctx context.Context, workflowRunName string) (*models.LogsResponse, error) {
+	// Calculate time range: 30 days ago to now
+	endTime := time.Now()
+	startTime := endTime.Add(-30 * 24 * time.Hour)
+
+	sortOrder := gen.Asc
+	requestBody := gen.WorkflowRunLogsRequest{
+		StartTime: startTime,
+		EndTime:   endTime,
+		Limit:     utils.IntAsIntPointer(1000),
+		SortOrder: &sortOrder,
+	}
+
+	resp, err := o.observerClient.GetWorkflowRunLogsWithResponse(ctx, workflowRunName, requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("observabilitysvc.GetWorkflowRunLogs: request failed: %w", err)
+	}
+
+	if resp.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("observabilitysvc.GetWorkflowRunLogs: failed with status code %d [%s]", resp.StatusCode(), string(resp.Body))
+	}
+
+	if resp.JSON200 == nil {
+		return nil, fmt.Errorf("observabilitysvc.GetWorkflowRunLogs: empty response body")
 	}
 
 	return convertToLogsResponse(resp.JSON200), nil

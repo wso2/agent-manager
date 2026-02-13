@@ -42,8 +42,7 @@ from typing import Optional, List, Any
 
 from amp_evaluation.evaluators.base import BaseEvaluator
 from amp_evaluation.evaluators.config import Config
-from amp_evaluation.models import Observation, EvalResult
-from amp_evaluation.dataset.schema import Task
+from amp_evaluation.models import Observation, Task, EvalResult
 
 logger = logging.getLogger(__name__)
 
