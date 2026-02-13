@@ -44,6 +44,8 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	registerRepositoryRoutes(apiMux, params.RepositoryController)
 	registerEnvironmentRoutes(apiMux, params.EnvironmentController)
 	RegisterGatewayRoutes(apiMux, params.GatewayController)
+	registerMonitorRoutes(apiMux, params.MonitorController)
+	registerEvaluatorRoutes(apiMux, params.EvaluatorController)
 
 	// Apply middleware in reverse order (last middleware is applied first)
 	apiHandler := http.Handler(apiMux)

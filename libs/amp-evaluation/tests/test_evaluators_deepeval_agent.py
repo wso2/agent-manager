@@ -40,14 +40,13 @@ from amp_evaluation.evaluators.builtin.deepeval import (
     DeepEvalTaskCompletionEvaluator,
     DeepEvalStepEfficiencyEvaluator,
 )
-from amp_evaluation.models import Observation
+from amp_evaluation.models import Observation, Task
 from amp_evaluation.trace import (
     Trajectory,
     TraceMetrics,
     TokenUsage,
     ToolSpan,
 )
-from amp_evaluation.dataset.schema import Task
 
 
 # ============================================================================

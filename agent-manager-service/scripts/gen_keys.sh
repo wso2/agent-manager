@@ -76,16 +76,16 @@ echo ""
 
 # Check if JSON config exists
 if [ ! -f "${JSON_CONFIG}" ]; then
-    # Create initial JSON config with absolute paths
-    cat > "${JSON_CONFIG}" <<EOF
+    # Create initial JSON config with path relative to config file directory
+    cat > \"${JSON_CONFIG}\" <<EOF
 {
-  "keys": [
+  \"keys\": [
     {
-      "kid": "${KEY_ID}",
-      "algorithm": "RS256",
-      "publicKeyPath": "${PUBLIC_KEY_PATH}",
-      "description": "Initial JWT signing key",
-      "createdAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+      \"kid\": \"${KEY_ID}\",
+      \"algorithm\": \"RS256\",
+      \"publicKeyPath\": \"$(basename \"${PUBLIC_KEY_PATH}\")\",
+      \"description\": \"Initial JWT signing key\",
+      \"createdAt\": \"$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")\"
     }
   ]
 }
@@ -101,7 +101,7 @@ else
     echo "   {"
     echo "     \"kid\": \"${KEY_ID}\","
     echo "     \"algorithm\": \"RS256\","
-    echo "     \"publicKeyPath\": \"${PUBLIC_KEY_PATH}\","
+    echo "     \"publicKeyPath\": \"$(basename "${PUBLIC_KEY_PATH}")\","
     echo "     \"description\": \"Key for rotation\","
     echo "     \"createdAt\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\""
     echo "   }"

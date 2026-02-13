@@ -27,8 +27,7 @@ from typing import List, Optional, Callable, TYPE_CHECKING, Any, Dict
 import logging
 import inspect
 
-from ..models import EvalResult, Observation
-from ..dataset.schema import Task
+from ..models import EvalResult, Observation, Task
 from .config import Config
 
 if TYPE_CHECKING:

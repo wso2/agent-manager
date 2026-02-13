@@ -83,6 +83,11 @@ type OpenChoreoClient interface {
 	GetProjectDeploymentPipeline(ctx context.Context, namespaceName, projectName string) (*models.DeploymentPipelineResponse, error)
 	ListDeploymentPipelines(ctx context.Context, namespaceName string) ([]*models.DeploymentPipelineResponse, error)
 	ListDataPlanes(ctx context.Context, namespaceName string) ([]*models.DataPlaneResponse, error)
+
+	// Generic Resource Operations
+	ApplyResource(ctx context.Context, body map[string]interface{}) error
+	GetResource(ctx context.Context, namespaceName, kind, name string) (map[string]interface{}, error)
+	DeleteResource(ctx context.Context, body map[string]interface{}) error
 }
 
 type openChoreoClient struct {

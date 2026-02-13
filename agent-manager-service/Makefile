@@ -37,7 +37,11 @@ format: ## Format code (alias for fmt).
 	sh scripts/fmt.sh
 
 .PHONY: test
-test: gen-keys ## Run tests.
+test: gen-keys ## Run tests with isolated test database.
+	bash scripts/run_tests_isolated.sh
+
+.PHONY: test-main
+test-main: gen-keys ## Run tests against main database (for development).
 	bash scripts/run_tests.sh
 
 .PHONY: lint
@@ -58,14 +62,10 @@ gen-oc-client: ## Generate OpenChoreo API client from local OpenAPI spec.
 	@echo "OpenChoreo client generated successfully"
 
 .PHONY: gen-observer-client
-gen-observer-client: ## Generate Observer API client from OpenChoreo GitHub repo.
-	@echo "Fetching Observer OpenAPI spec from GitHub"
-	@curl -s https://raw.githubusercontent.com/openchoreo/openchoreo/release-v0.14/cmd/observer/openapi.yaml -o clients/observabilitysvc/observer-api.yaml
-	@echo "Generating Observer client"
+gen-observer-client: ## Generate Observer API client from local OpenAPI spec.
+	@echo "Generating Observer client from local spec"
 	@oapi-codegen -config clients/observabilitysvc/gen/oapi-codegen.yaml clients/observabilitysvc/observer-api.yaml
 	@oapi-codegen -config clients/observabilitysvc/gen/oapi-codegen-client.yaml clients/observabilitysvc/observer-api.yaml
-	@echo "Cleaning up downloaded spec"
-	@rm clients/observabilitysvc/observer-api.yaml
 	@$(MAKE) fmt
 	@echo "Observer client generated successfully"
 
