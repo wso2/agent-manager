@@ -94,3 +94,26 @@ codegenfmt-check:
 	  echo "Please run 'make codegenfmt-check' locally and commit the changes."; \
       exit 1; \
     fi
+
+.PHONY: gen-builtin-evaluators-dev
+gen-builtin-evaluators-dev: ## Generate builtin evaluators JSON using local amp-evaluation SDK
+	@echo "Generating builtin evaluators (dev mode)..."
+	@bash scripts/generate-builtin-evaluators.sh --dev --output $(PROJECT_ROOT)/data/builtin_evaluators.json
+	@echo "✅ Generated: data/builtin_evaluators.json"
+
+.PHONY: gen-builtin-evaluators
+gen-builtin-evaluators: ## Generate builtin evaluators JSON using PyPI amp-evaluation SDK
+	@echo "Generating builtin evaluators (prod mode)..."
+	@if [ -z "$(AMP_EVALUATION_VERSION)" ]; then \
+		echo "❌ AMP_EVALUATION_VERSION must be set"; \
+		echo "   Usage: make gen-builtin-evaluators AMP_EVALUATION_VERSION=0.0.1"; \
+		exit 1; \
+	fi
+	@bash scripts/generate-builtin-evaluators.sh --amp-eval-version $(AMP_EVALUATION_VERSION) --output $(PROJECT_ROOT)/data/builtin_evaluators.json
+	@echo "✅ Generated: data/builtin_evaluators.json (using amp-evaluation $(AMP_EVALUATION_VERSION))"
+
+.PHONY: dev-migrate
+dev-migrate: gen-builtin-evaluators-dev ## Generate evaluators and run migrations
+	@echo "🗄️  Running database migrations..."
+	@go run -mod=readonly . -migrate -server=false
+	@echo "✅ Migrations completed"

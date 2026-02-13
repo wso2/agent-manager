@@ -1,4 +1,4 @@
-.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward setup-kubeconfig-docker setup-evaluators setup-evaluators-k3d
+.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward setup-kubeconfig-docker
 
 # Default target
 help:
@@ -15,16 +15,12 @@ help:
 	@echo "  make setup-console-local-force - Force reinstall console deps"
 	@echo ""
 	@echo "💻 Daily Development:"
-	@echo "  make dev-up             - Start platform services (console, service, db)"
-	@echo "  make dev-down           - Stop platform services"
-	@echo "  make dev-restart        - Restart platform services"
-	@echo "  make dev-rebuild        - Rebuild images and restart services"
-	@echo "  make dev-logs           - Tail all platform logs"
-	@echo "  make dev-migrate        - Run database migrations in service container"
-	@echo ""
-	@echo "🔨 Image Management:"
-	@echo "  make setup-evaluators       - Build amp-evaluation image and generate evaluator catalog"
-	@echo "  make setup-evaluators-k3d   - Build amp-evaluation image, load to k3d, and generate catalog"
+	@echo "  make dev-up                  - Start platform services (console, service, db)"
+	@echo "  make dev-down                - Stop platform services"
+	@echo "  make dev-restart             - Restart platform services"
+	@echo "  make dev-rebuild             - Rebuild images and restart services"
+	@echo "  make dev-logs                - Tail all platform logs"
+	@echo "  make dev-migrate             - Generate evaluators and run database migrations"
 	@echo ""
 	@echo "☸️  OpenChoreo Runtime:"
 	@echo "  make openchoreo-up      - Start OpenChoreo cluster"
@@ -77,19 +73,7 @@ gen-keys:
 	@cd agent-manager-service && make gen-keys
 	@echo "✅ JWT signing keys generated in agent-manager-service/keys/"
 
-setup-evaluators:
-	@echo "📊 Setting up evaluators (build dev image + generate catalog)..."
-	@cd evaluation-job && make docker-build-dev
-	@cd deployments/scripts && ./generate-builtin-evaluators.sh --dev --output ../../agent-manager-service/data/builtin_evaluators.json
-	@echo "✅ Evaluators setup complete"
-
-setup-evaluators-k3d:
-	@echo "📊 Setting up evaluators for k3d (build dev image + load to k3d + generate catalog)..."
-	@cd evaluation-job && make docker-load-k3d
-	@cd deployments/scripts && ./generate-builtin-evaluators.sh --dev --output ../../agent-manager-service/data/builtin_evaluators.json
-	@echo "✅ Evaluators setup complete (k3d)"
-
-setup-platform: gen-keys setup-evaluators
+setup-platform: gen-keys
 	@cd deployments/scripts && ./setup-platform.sh
 
 # Console local setup with dependency tracking
@@ -166,7 +150,7 @@ dev-logs:
 
 dev-migrate:
 	@echo "🗄️  Running database migrations..."
-	@docker exec agent-manager-service sh -c "go run -mod=readonly . -migrate -server=false"
+	@docker exec agent-manager-service sh -c "cd /go/src && make dev-migrate"
 	@echo "✅ Migrations completed"
 
 # OpenChoreo lifecycle management

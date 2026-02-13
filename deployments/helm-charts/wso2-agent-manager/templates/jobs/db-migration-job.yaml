@@ -45,6 +45,30 @@ spec:
                 secretKeyRef:
                   name: {{ include "agent-management-platform.postgresql.secretName" . }}
                   key: {{ include "agent-management-platform.postgresql.secretPasswordKey" . }}
+
+        # Generate builtin evaluators JSON using versioned SDK
+        - name: generate-builtin-evaluators
+          image: "{{ .Values.dbMigration.evaluatorGenerator.image.repository }}:{{ .Values.dbMigration.evaluatorGenerator.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.dbMigration.evaluatorGenerator.image.pullPolicy }}
+          command:
+            - python
+            - -c
+            - |
+              import json
+              from amp_evaluation.evaluators.builtin import list_builtin_evaluators
+
+              evaluators = list_builtin_evaluators()
+              with open('/data/builtin_evaluators.json', 'w') as f:
+                  json.dump(evaluators, f, indent=2, default=str)
+
+              print(f"✅ Generated {len(evaluators)} builtin evaluators")
+          volumeMounts:
+            - name: evaluators-data
+              mountPath: /data
+          {{- with .Values.dbMigration.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       {{- end }}
       containers:
         - name: db-migration
@@ -81,8 +105,18 @@ spec:
               value: "INFO"
             - name: OPEN_CHOREO_BASE_URL
               value: "http://openchoreo-api.openchoreo-control-plane:8080/api/v1"
+            # Point to generated evaluators JSON
+            - name: BUILTIN_EVALUATORS_PATH
+              value: "/data/builtin_evaluators.json"
+          volumeMounts:
+            - name: evaluators-data
+              mountPath: /data
+              readOnly: true
           {{- with .Values.dbMigration.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+      volumes:
+        - name: evaluators-data
+          emptyDir: {}
 {{- end }}
