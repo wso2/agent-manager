@@ -42,6 +42,8 @@ service/bin/
 *.swo
 *~
 .DS_Store
+.github/skills
+.github/copilot-instructions.md
 
 # Docker
 .dockerignore

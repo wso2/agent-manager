@@ -98,3 +98,310 @@
   font-weight: 700;
   color: var(--ifm-font-color-base);
 }
+
+/* LIGHT MODE — white base, black text, orange accents */
+[data-theme='light'] .DocSearch {
+  --docsearch-primary-color: #ff7a18; /* orange */
+  --docsearch-text-color: #000000;
+  --docsearch-muted-color: #555555;
+
+  --docsearch-container-background: rgba(0, 0, 0, 0.6);
+
+  /* Modal */
+  --docsearch-modal-background: #ffffff;
+
+  /* Search box */
+  --docsearch-searchbox-background: #ffffff;
+  --docsearch-searchbox-focus-background: #ffffff;
+
+  /* Hit */
+  --docsearch-hit-color: #000000;
+  --docsearch-hit-active-color: #ffffff;
+  --docsearch-hit-background: #ffffff;
+
+  /* Footer */
+  --docsearch-footer-background: #ffffff;
+
+  /* Accents */
+  --docsearch-highlight-color: #ff7a18;
+  --docsearch-logo-color: #ff7a18;
+}
+
+
+/* DARK MODE — black base, white text, orange accents */
+[data-theme='dark'] .DocSearch {
+  --docsearch-primary-color: #ff7a18; /* orange */
+  --docsearch-text-color: #ffffff;
+  --docsearch-muted-color: #b0b0b0;
+
+  --docsearch-container-background: rgba(0, 0, 0, 0.85);
+
+  /* Modal */
+  --docsearch-modal-background: #0f0f0f;
+
+  /* Search box */
+  --docsearch-searchbox-background: #1a1a1a;
+  --docsearch-searchbox-focus-background: #000000;
+
+  /* Hit */
+  --docsearch-hit-color: #ffffff;
+  --docsearch-hit-active-color: #000000;
+  --docsearch-hit-background: #1a1a1a;
+  --docsearch-hit-shadow: none;
+
+  /* Footer */
+  --docsearch-footer-background: #0f0f0f;
+
+  /* Keys / subtle depth */
+  --docsearch-key-gradient: linear-gradient(
+    -26.5deg,
+    #2a2a2a 0%,
+    #111111 100%
+  );
+
+  /* Accents */
+  --docsearch-highlight-color: #ff7a18;
+  --docsearch-logo-color: #ff7a18;
+}
+
+/* LIGHT MODE - Light theme for search */
+[data-theme='light'] .DocSearch-AskAI {
+  background: #f5f5f5 !important;
+  border: 1px solid #ff7a18;
+}
+
+[data-theme='light'] .DocSearch-Button {
+  background: #ffffff !important;
+  border: 1px solid #e0e0e0 !important;
+  color: #000000 !important;
+}
+
+[data-theme='light'] .DocSearch-Button:hover,
+[data-theme='light'] .DocSearch-Button:focus,
+[data-theme='light'] .DocSearch-Button:active {
+  background: #f5f5f5 !important;
+  border-color: #ff7a18 !important;
+  box-shadow: none !important;
+}
+
+[data-theme='light'] .DocSearch-Form {
+  background: #ffffff !important;
+  border: 1px solid #e0e0e0 !important;
+  box-shadow: none !important;
+}
+
+[data-theme='light'] .DocSearch-Input {
+  background: transparent !important;
+  color: #000000 !important;
+}
+
+[data-theme='light'] .DocSearch-Input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+[data-theme='light'] .DocSearch-Hit[aria-selected="true"] a,
+[data-theme='light'] .DocSearch-Hit--active {
+  background: #f0f0f0 !important;
+  color: #000000 !important;
+}
+
+[data-theme='light'] .DocSearch-AskAI,
+[data-theme='light'] .DocSearch-StartScreen .DocSearch-Help,
+[data-theme='light'] [class*="DocSearch"][class*="AskAI"] {
+  background: #f5f5f5 !important;
+  background-color: #f5f5f5 !important;
+}
+
+[data-theme='light'] .DocSearch-Button-Key {
+  background: #f0f0f0 !important;
+  border-color: #d0d0d0 !important;
+  color: #ff7a18 !important;
+  box-shadow: none !important;
+}
+
+[data-theme='light'] .DocSearch-Button-Placeholder {
+  color: #666666 !important;
+}
+
+[data-theme='light'] .DocSearch-Button:hover .DocSearch-Button-Key,
+[data-theme='light'] .DocSearch-Button:focus .DocSearch-Button-Key {
+  background: #e8e8e8 !important;
+  border-color: #ff7a18 !important;
+}
+
+[data-theme='light'] .DocSearch-Commands-Key,
+[data-theme='light'] .DocSearch-Footer button,
+[data-theme='light'] .DocSearch-Footer kbd {
+  background: #f0f0f0 !important;
+  border-color: #d0d0d0 !important;
+  color: #000000 !important;
+}
+
+[data-theme='light'] [class*="DocSearch"] kbd {
+  background: #f0f0f0 !important;
+  color: #000000 !important;
+  border: 1px solid #d0d0d0 !important;
+  box-shadow: none !important;
+}
+
+[data-theme='light'] .DocSearch-Footer {
+  background: #ffffff !important;
+  border-top: 1px solid #e0e0e0 !important;
+}
+
+[data-theme='light'] .DocSearch-StartScreen,
+[data-theme='light'] .DocSearch-NoResults {
+  background: transparent !important;
+}
+
+[data-theme='light'] .DocSearch-NoResults .DocSearch-StartScreen-Icon,
+[data-theme='light'] .DocSearch-NoResults svg {
+  color: #ff7a18 !important;
+  stroke: #ff7a18 !important;
+}
+
+/* DARK MODE - Dark theme for search */
+[data-theme='dark'] .DocSearch-AskAI {
+  background: #0e0e0e !important;
+  border: 1px solid #ff7a18;
+}
+
+[data-theme='dark'] .DocSearch-Button {
+  background: #1a1a1a !important;
+  border: 1px solid #2a2a2a !important;
+  color: #ffffff !important;
+}
+
+[data-theme='dark'] .DocSearch-Button:hover,
+[data-theme='dark'] .DocSearch-Button:focus,
+[data-theme='dark'] .DocSearch-Button:active {
+  background: #2a2a2a !important;
+  border-color: #ff7a18 !important;
+  box-shadow: none !important;
+}
+
+[data-theme='dark'] .DocSearch-Form {
+  background: #1a1a1a !important;
+  border: 1px solid #2a2a2a !important;
+  box-shadow: none !important;
+}
+
+[data-theme='dark'] .DocSearch-Input {
+  background: transparent !important;
+  color: #ffffff !important;
+}
+
+[data-theme='dark'] .DocSearch-Input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+[data-theme='dark'] .DocSearch-Hit[aria-selected="true"] a,
+[data-theme='dark'] .DocSearch-Hit--active {
+  background: #2a2a2a !important;
+  color: #ffffff !important;
+}
+
+[data-theme='dark'] .DocSearch-AskAI,
+[data-theme='dark'] .DocSearch-StartScreen .DocSearch-Help,
+[data-theme='dark'] [class*="DocSearch"][class*="AskAI"] {
+  background: #1a1a1a !important;
+  background-color: #1a1a1a !important;
+}
+
+[data-theme='dark'] .DocSearch-Button-Key {
+  background: #2a2a2a !important;
+  border-color: #ff7a18 !important;
+  color: #ff7a18 !important;
+  box-shadow: none !important;
+}
+
+[data-theme='dark'] .DocSearch-Button-Placeholder {
+  color: #b0b0b0 !important;
+}
+
+[data-theme='dark'] .DocSearch-Button:hover .DocSearch-Button-Key,
+[data-theme='dark'] .DocSearch-Button:focus .DocSearch-Button-Key {
+  background: #3a3a3a !important;
+  border-color: #ff7a18 !important;
+}
+
+[data-theme='dark'] .DocSearch-Commands-Key,
+[data-theme='dark'] .DocSearch-Footer button,
+[data-theme='dark'] .DocSearch-Footer kbd {
+  background: #2a2a2a !important;
+  border-color: #3a3a3a !important;
+  color: #ffffff !important;
+}
+
+[data-theme='dark'] [class*="DocSearch"] kbd {
+  background: #2a2a2a !important;
+  color: #ffffff !important;
+  border: 1px solid #3a3a3a !important;
+  box-shadow: none !important;
+}
+
+[data-theme='dark'] .DocSearch-Footer {
+  background: #0f0f0f !important;
+  border-top: 1px solid #2a2a2a !important;
+}
+
+[data-theme='dark'] .DocSearch-StartScreen,
+[data-theme='dark'] .DocSearch-NoResults {
+  background: transparent !important;
+}
+
+[data-theme='dark'] .DocSearch-NoResults .DocSearch-StartScreen-Icon,
+[data-theme='dark'] .DocSearch-NoResults svg {
+  color: #ff7a18 !important;
+  stroke: #ff7a18 !important;
+}
+
+/* Announcement Bar Styling */
+[data-theme='light'] .announcementBar,
+[data-theme='light'] .announcement-bar,
+[data-theme='light'] div[class*='announcementBar'] {
+  background: #e3e3e3 !important;
+  color: #1c1e21 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+[data-theme='light'] .announcementBar_content,
+[data-theme='light'] .announcement-bar__content,
+[data-theme='light'] div[class*='announcementBar'] > div {
+  color: #1c1e21 !important;
+}
+
+[data-theme='light'] .announcementBar_close,
+[data-theme='light'] .announcement-bar__close,
+[data-theme='light'] button[class*='close'] {
+  color: #1c1e21 !important;
+  opacity: 0.6;
+}
+
+[data-theme='light'] .announcementBar_close:hover,
+[data-theme='light'] .announcement-bar__close:hover,
+[data-theme='light'] button[class*='close']:hover {
+  opacity: 1;
+}
+
+[data-theme='dark'] .announcementBar {
+  background: linear-gradient(90deg, #ff8c3a 0%, #ff7a18 100%);
+  color: #ffffff;
+}
+
+[data-theme='dark'] .announcementBar_content {
+  color: #ffffff;
+}
+
+[data-theme='dark'] .announcementBar_close {
+  color: #ffffff;
+  opacity: 0.8;
+}
+
+[data-theme='dark'] .announcementBar_close:hover {
+  opacity: 1;
+}
+
