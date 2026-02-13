@@ -18,3 +18,4 @@
 
 export { ExternalAgentIcon, type ExternalAgentIconProps } from './ExternalAgentIcon';
 export { InternalAgentIcon, type InternalAgentIconProps } from './InternalAgentIcon';
+export { BuildpackIcon, type BuildpackIconProps } from './BuildpackIcon';
