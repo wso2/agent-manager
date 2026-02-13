@@ -332,7 +332,7 @@ func (c *openChoreoClient) GetComponent(ctx context.Context, namespaceName, proj
 	}
 
 	// Convert component CR to AgentResponse
-	return convertComponentCR(componentCR), nil
+	return convertComponentCR(componentCR)
 }
 
 // getCleanResourceCR fetches a resource CR and optionally removes server-managed fields
@@ -1214,9 +1214,9 @@ func convertComponent(comp *gen.ComponentResponse) *models.AgentResponse {
 }
 
 // convertComponentCR converts a component CR (map[string]interface{}) to models.AgentResponse
-func convertComponentCR(componentCR map[string]interface{}) *models.AgentResponse {
+func convertComponentCR(componentCR map[string]interface{}) (*models.AgentResponse, error) {
 	if componentCR == nil {
-		return nil
+		return nil, fmt.Errorf("componentCR is nil")
 	}
 
 	agent := &models.AgentResponse{}
@@ -1314,7 +1314,7 @@ func convertComponentCR(componentCR map[string]interface{}) *models.AgentRespons
 		}
 	}
 
-	return agent
+	return agent, nil
 }
 
 // extractWorkflowDetailsFromCR extracts workflow details from component CR
