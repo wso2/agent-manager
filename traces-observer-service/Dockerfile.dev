@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.25-alpine AS builder
+FROM public.ecr.aws/docker/library/golang:1.25-alpine AS builder
 
 # Add build args for cross-platform support
 ARG TARGETOS
@@ -24,7 +24,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -o /go/bin/traces-observer \
     -buildvcs=false
 
-FROM alpine:3.21
+FROM public.ecr.aws/docker/library/alpine:3.21
 
 # Install runtime dependencies for HTTPS and timezone support
 RUN apk add --no-cache ca-certificates tzdata
