@@ -11,7 +11,8 @@ on:
 jobs:
   build:
     name: Build Documentation Site
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
       - uses: actions/checkout@v4
@@ -54,7 +55,8 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Deploy to GitHub Pages
         id: deployment

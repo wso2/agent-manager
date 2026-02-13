@@ -10,7 +10,8 @@ on:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     defaults:
       run:
         working-directory: libs/amp-instrumentation
@@ -72,7 +73,8 @@ jobs:
 
   type-check:
     name: Type Check
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     defaults:
       run:
         working-directory: libs/amp-instrumentation
@@ -96,7 +98,8 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     defaults:
       run:
         working-directory: libs/amp-instrumentation

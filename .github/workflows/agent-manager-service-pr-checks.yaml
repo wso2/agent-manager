@@ -10,7 +10,8 @@ on:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -91,7 +92,8 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -111,7 +113,8 @@ jobs:
 
   codegen-format:
     name: Code Generation & Format Check
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

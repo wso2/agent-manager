@@ -13,7 +13,8 @@ env:
 jobs:
   detect-changes:
     name: Detect Changed Charts
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     outputs:
       charts: ${{ steps.detect.outputs.charts }}
       has-changes: ${{ steps.detect.outputs.has-changes }}
@@ -62,7 +63,8 @@ jobs:
     name: Helm Lint
     needs: detect-changes
     if: needs.detect-changes.outputs.has-changes == 'true'
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     strategy:
       fail-fast: false
       matrix:
@@ -88,7 +90,8 @@ jobs:
     name: Helm Template
     needs: detect-changes
     if: needs.detect-changes.outputs.has-changes == 'true'
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     strategy:
       fail-fast: false
       matrix:
@@ -135,7 +138,8 @@ jobs:
     name: Kubeconform Validation
     needs: detect-changes
     if: needs.detect-changes.outputs.has-changes == 'true'
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     strategy:
       fail-fast: false
       matrix:
@@ -183,7 +187,8 @@ jobs:
     name: PR Check Summary
     needs: [detect-changes, helm-lint, helm-template, kubeconform]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Check all jobs status
         run: |
