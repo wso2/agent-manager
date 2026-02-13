@@ -511,9 +511,12 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	}
 
 	log.Info("UpdateLLMProvider: request decoded", "orgName", orgName, "providerID", providerID,
-		"templateUUID", ptrToStringLog(req.TemplateUuid),
-		"configName", ptrToStringLog(req.Configuration.Name),
-		"configVersion", ptrToStringLog(req.Configuration.Version))
+		"templateUUID", ptrToStringLog(req.TemplateUuid))
+	if req.Configuration != nil {
+		log.Info("UpdateLLMProvider: config details",
+			"configName", ptrToStringLog(req.Configuration.Name),
+			"configVersion", ptrToStringLog(req.Configuration.Version))
+	}
 
 	// Convert spec request to model - create minimal provider with only updatable fields
 	providerReq := &spec.CreateLLMProviderRequest{
@@ -840,7 +843,7 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve project name to UUID (validates project exists)
-	_, err = c.resolveProjectUUID(ctx, orgName, projectName)
+	projectUUID, err := c.resolveProjectUUID(ctx, orgName, projectName)
 	if err != nil {
 		log.Error("UpdateLLMProxy: project not found", "orgName", orgName, "projectName", projectName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
@@ -861,7 +864,7 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 		Openapi:       req.Openapi,
 		Configuration: utils.GetOrDefaultProxyConfig(req.Configuration),
 	}
-	proxy := utils.ConvertSpecToModelLLMProxy(proxyReq, orgID)
+	proxy := utils.ConvertSpecToModelLLMProxy(proxyReq, projectUUID)
 
 	updated, err := c.proxyService.Update(orgID, proxyID, proxy)
 	if err != nil {

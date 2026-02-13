@@ -33,6 +33,7 @@ var migration005 = migration{
 				description TEXT,
 				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 				updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+				deleted_at TIMESTAMP,
 
 				CONSTRAINT fk_ap_project_organization FOREIGN KEY (organization_uuid)
 					REFERENCES organizations(uuid) ON DELETE CASCADE,

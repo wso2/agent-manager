@@ -19,7 +19,6 @@ package repositories
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -83,15 +82,13 @@ func (r *LLMProviderTemplateRepo) Create(t *models.LLMProviderTemplate) error {
 
 	t.Configuration = string(configJSON)
 
-	slog.Info(t.Configuration)
-
 	return r.db.Create(t).Error
 }
 
 // GetByID retrieves an LLM provider template by ID (handle)
 func (r *LLMProviderTemplateRepo) GetByID(templateID, orgUUID string) (*models.LLMProviderTemplate, error) {
 	var template models.LLMProviderTemplate
-	err := r.db.Where("uuid = ? AND organization_uuid = ?", templateID, orgUUID).
+	err := r.db.Where("handle = ? AND organization_uuid = ?", templateID, orgUUID).
 		First(&template).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -130,6 +127,21 @@ func (r *LLMProviderTemplateRepo) GetByUUID(uuid, orgUUID string) (*models.LLMPr
 		}
 		return nil, err
 	}
+
+	if template.Configuration != "" {
+		var cfg llmProviderTemplateConfig
+		if err := json.Unmarshal([]byte(template.Configuration), &cfg); err != nil {
+			return nil, err
+		}
+		template.Metadata = cfg.Metadata
+		template.PromptTokens = cfg.PromptTokens
+		template.CompletionTokens = cfg.CompletionTokens
+		template.TotalTokens = cfg.TotalTokens
+		template.RemainingTokens = cfg.RemainingTokens
+		template.RequestModel = cfg.RequestModel
+		template.ResponseModel = cfg.ResponseModel
+	}
+
 	return &template, nil
 }
 

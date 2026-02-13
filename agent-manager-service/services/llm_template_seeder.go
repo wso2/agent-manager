@@ -83,7 +83,6 @@ func (s *LLMTemplateSeeder) SeedForOrg(orgUUID uuid.UUID) error {
 
 	// Seed each template
 	for _, tpl := range s.templates {
-		fmt.Println(tpl)
 		if tpl == nil || tpl.Handle == "" {
 			continue
 		}
@@ -129,7 +128,7 @@ func (s *LLMTemplateSeeder) SeedForOrg(orgUUID uuid.UUID) error {
 			ResponseModel:    tpl.ResponseModel,
 			Configuration:    tpl.Configuration,
 		}
-		fmt.Println("to create", toCreate)
+
 		if err := s.templateRepo.Create(toCreate); err != nil {
 			// Be tolerant to concurrent startup / repeated seeding
 			exists, existsErr := s.templateRepo.Exists(tpl.Handle, orgUUIDStr)

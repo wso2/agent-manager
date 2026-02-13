@@ -150,18 +150,20 @@ func (r *LLMProviderRepo) Update(p *models.LLMProvider, handle string, orgUUID u
 
 		// Get the provider UUID from handle
 		slog.Info("LLMProviderRepo.Update: resolving handle to UUID", "handle", handle, "orgUUID", orgUUID)
-		var providerUUID uuid.UUID
-		if err := tx.Table("artifacts").
+		var artifact struct{ UUID uuid.UUID }
+		result := tx.Table("artifacts").
 			Select("uuid").
 			Where("handle = ? AND organization_uuid = ? AND kind = ?", handle, orgUUID, models.KindLLMAPI).
-			Scan(&providerUUID).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
+			Take(&artifact)
+		if result.Error != nil {
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				slog.Warn("LLMProviderRepo.Update: provider not found", "handle", handle, "orgUUID", orgUUID)
 				return gorm.ErrRecordNotFound
 			}
-			slog.Error("LLMProviderRepo.Update: failed to resolve handle", "handle", handle, "orgUUID", orgUUID, "error", err)
-			return err
+			slog.Error("LLMProviderRepo.Update: failed to resolve handle", "handle", handle, "orgUUID", orgUUID, "error", result.Error)
+			return result.Error
 		}
+		providerUUID := artifact.UUID
 
 		slog.Info("LLMProviderRepo.Update: resolved UUID", "handle", handle, "uuid", providerUUID)
 
@@ -178,7 +180,7 @@ func (r *LLMProviderRepo) Update(p *models.LLMProvider, handle string, orgUUID u
 
 		// Update llm_providers table
 		slog.Info("LLMProviderRepo.Update: updating provider fields", "handle", handle, "uuid", providerUUID)
-		result := tx.Model(&models.LLMProvider{}).
+		result = tx.Model(&models.LLMProvider{}).
 			Where("uuid = ?", providerUUID).
 			Updates(map[string]any{
 				"description":   p.Description,
@@ -210,18 +212,20 @@ func (r *LLMProviderRepo) Delete(providerID, orgUUID string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		// Get the provider UUID from handle
 		slog.Info("LLMProviderRepo.Delete: resolving handle to UUID", "providerID", providerID, "orgUUID", orgUUID)
-		var providerUUID uuid.UUID
-		if err := tx.Table("artifacts").
+		var artifact struct{ UUID uuid.UUID }
+		result := tx.Table("artifacts").
 			Select("uuid").
 			Where("handle = ? AND organization_uuid = ? AND kind = ?", providerID, orgUUID, models.KindLLMAPI).
-			Scan(&providerUUID).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
+			Take(&artifact)
+		if result.Error != nil {
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				slog.Warn("LLMProviderRepo.Delete: provider not found", "providerID", providerID, "orgUUID", orgUUID)
 				return gorm.ErrRecordNotFound
 			}
-			slog.Error("LLMProviderRepo.Delete: failed to resolve handle", "providerID", providerID, "orgUUID", orgUUID, "error", err)
-			return err
+			slog.Error("LLMProviderRepo.Delete: failed to resolve handle", "providerID", providerID, "orgUUID", orgUUID, "error", result.Error)
+			return result.Error
 		}
+		providerUUID := artifact.UUID
 
 		slog.Info("LLMProviderRepo.Delete: resolved UUID", "providerID", providerID, "uuid", providerUUID)
 

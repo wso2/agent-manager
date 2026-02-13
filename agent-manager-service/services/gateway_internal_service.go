@@ -278,11 +278,25 @@ func (s *GatewayInternalAPIService) CreateGatewayDeployment(
 		return nil, fmt.Errorf("failed to serialize deployment content: %w", err)
 	}
 
+	// Parse UUIDs
+	artifactUUID, err := uuid.Parse(apiUUID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid API UUID: %w", err)
+	}
+	gwUUID, err := uuid.Parse(gatewayID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid gateway UUID: %w", err)
+	}
+	orgUUID, err := uuid.Parse(orgID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid organization UUID: %w", err)
+	}
+
 	deployment := &models.Deployment{
 		Name:             deploymentName,
-		ArtifactUUID:     uuid.MustParse(apiUUID),
-		GatewayUUID:      uuid.MustParse(gatewayID),
-		OrganizationUUID: uuid.MustParse(orgID),
+		ArtifactUUID:     artifactUUID,
+		GatewayUUID:      gwUUID,
+		OrganizationUUID: orgUUID,
 		Content:          deploymentContent,
 		Status:           &deployed,
 		CreatedAt:        now,
