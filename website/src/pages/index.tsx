@@ -26,7 +26,7 @@ function HomepageHeader() {
           <div className={styles.buttons}>
             <Link
               className="button button--secondary button--lg"
-              to="/docs/overview/what-is-amp">
+              to={`/docs/${versions.latestVersion}/overview/what-is-amp`}>
               Get Started →
             </Link>
             <Link
@@ -199,7 +199,7 @@ function QuickStartSection() {
 {`docker run --rm -it --name amp-quick-start \\
   -v /var/run/docker.sock:/var/run/docker.sock \\
   --network=host \\
-  ghcr.io/wso2/amp-quick-start:${versions.dockerTag}
+  ghcr.io/wso2/amp-quick-start:${versions.quickStartDockerTag}
 
 # Inside container
 ./install.sh`}
@@ -209,12 +209,12 @@ function QuickStartSection() {
             <div className="text--center margin-top--lg">
               <Link
                 className="button button--primary button--lg"
-                to="/docs/getting-started/quick-start">
+                to={`/docs/${versions.latestVersion}/getting-started/quick-start`}>
                 View Full Quick Start Guide →
               </Link>
               <Link
                 className="button button--secondary button--lg margin-left--md"
-                to="/docs/getting-started/self-hosted-cluster">
+                to={`/docs/${versions.latestVersion}/getting-started/self-hosted-cluster`}>
                 Self-Hosted Cluster Installation
               </Link>
             </div>
