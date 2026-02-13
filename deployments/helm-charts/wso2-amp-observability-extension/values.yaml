@@ -6,7 +6,7 @@ tracesObserver:
   replicaCount: 1
   image:
     repository: ghcr.io/wso2/amp-traces-observer
-    tag: "0.0.0-dev"
+    tag: "v0.6.0-rc4"
     pullPolicy: IfNotPresent
   port: 9098
   opensearchUrl: https://opensearch.openchoreo-observability-plane.svc.cluster.local:9200
