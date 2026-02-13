@@ -17,6 +17,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -29,12 +30,12 @@ import (
 
 // GatewayInternalAPIService handles internal gateway API operations
 type GatewayInternalAPIService struct {
-	apiRepo        repositories.APIRepository
-	providerRepo   repositories.LLMProviderRepository
-	deploymentRepo repositories.DeploymentRepository
-	gatewayRepo    repositories.GatewayRepository
-	orgRepo        repositories.OrganizationRepository
-	projectRepo    repositories.ProjectRepository
+	apiRepo          repositories.APIRepository
+	providerRepo     repositories.LLMProviderRepository
+	deploymentRepo   repositories.DeploymentRepository
+	gatewayRepo      repositories.GatewayRepository
+	orgRepo          repositories.OrganizationRepository
+	infraResourceMgr InfraResourceManager
 }
 
 // DeploymentNotification represents the notification from gateway
@@ -85,15 +86,15 @@ func NewGatewayInternalAPIService(
 	deploymentRepo repositories.DeploymentRepository,
 	gatewayRepo repositories.GatewayRepository,
 	orgRepo repositories.OrganizationRepository,
-	projectRepo repositories.ProjectRepository,
+	infraResourceMgr InfraResourceManager,
 ) *GatewayInternalAPIService {
 	return &GatewayInternalAPIService{
-		apiRepo:        apiRepo,
-		providerRepo:   providerRepo,
-		deploymentRepo: deploymentRepo,
-		gatewayRepo:    gatewayRepo,
-		orgRepo:        orgRepo,
-		projectRepo:    projectRepo,
+		apiRepo:          apiRepo,
+		providerRepo:     providerRepo,
+		deploymentRepo:   deploymentRepo,
+		gatewayRepo:      gatewayRepo,
+		orgRepo:          orgRepo,
+		infraResourceMgr: infraResourceMgr,
 	}
 }
 
@@ -208,16 +209,25 @@ func (s *GatewayInternalAPIService) CreateGatewayDeployment(
 		return nil, fmt.Errorf("gateway not found")
 	}
 
-	// Find the project by name
+	// Get organization name for GetProject call
+	org, err := s.orgRepo.GetOrganizationByUUID(orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get organization: %w", err)
+	}
+	if org == nil {
+		return nil, fmt.Errorf("organization not found")
+	}
+
+	// Get the project using InfraResourceManager
 	projectName := notification.ProjectIdentifier
-	project, err := s.projectRepo.GetProjectByNameAndOrgID(projectName, orgID)
+	project, err := s.infraResourceMgr.GetProject(context.Background(), org.Name, projectName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get project by name: %w", err)
 	}
 	if project == nil {
 		return nil, fmt.Errorf("project not found: %s", projectName)
 	}
-	projectID := project.ID
+	projectID := project.UUID
 
 	// Check if API exists
 	existingAPI, err := s.apiRepo.GetAPIMetadataByHandle(apiHandle, orgID)

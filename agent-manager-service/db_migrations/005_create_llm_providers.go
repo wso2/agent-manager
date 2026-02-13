@@ -72,8 +72,6 @@ var migration005 = migration{
 
 				CONSTRAINT fk_llm_proxy_artifact FOREIGN KEY (uuid)
 					REFERENCES artifacts(uuid) ON DELETE CASCADE,
-				CONSTRAINT fk_llm_proxy_project FOREIGN KEY (project_uuid)
-					REFERENCES ap_projects(uuid) ON DELETE CASCADE,
 				CONSTRAINT fk_llm_proxy_provider FOREIGN KEY (provider_uuid)
 					REFERENCES llm_providers(uuid) ON DELETE RESTRICT
 			);

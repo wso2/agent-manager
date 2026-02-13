@@ -32,19 +32,16 @@ import (
 type LLMProxyService struct {
 	proxyRepo    repositories.LLMProxyRepository
 	providerRepo repositories.LLMProviderRepository
-	projectRepo  repositories.ProjectRepository
 }
 
 // NewLLMProxyService creates a new LLM proxy service
 func NewLLMProxyService(
 	proxyRepo repositories.LLMProxyRepository,
 	providerRepo repositories.LLMProviderRepository,
-	projectRepo repositories.ProjectRepository,
 ) *LLMProxyService {
 	return &LLMProxyService{
 		proxyRepo:    proxyRepo,
 		providerRepo: providerRepo,
-		projectRepo:  projectRepo,
 	}
 }
 
@@ -67,19 +64,9 @@ func (s *LLMProxyService) Create(orgID, createdBy string, proxy *models.LLMProxy
 		return nil, utils.ErrInvalidInput
 	}
 
-	// Validate project exists
 	if proxy.ProjectUUID == uuid.Nil {
 		return nil, utils.ErrInvalidInput
 	}
-
-	project, err := s.projectRepo.GetProjectByUUID(proxy.ProjectUUID.String())
-	if err != nil {
-		return nil, fmt.Errorf("failed to validate project: %w", err)
-	}
-	if project == nil || project.OrganizationUUID != orgID {
-		return nil, utils.ErrProjectNotFound
-	}
-
 	// Validate provider exists
 	providerModel, err := s.providerRepo.GetByUUID(provider, orgID)
 	if err != nil {
@@ -133,16 +120,7 @@ func (s *LLMProxyService) List(orgID string, projectID *string, limit, offset in
 	var totalCount int
 	var err error
 
-	// Validate project if specified
 	if projectID != nil && *projectID != "" {
-		project, err := s.projectRepo.GetProjectByUUID(*projectID)
-		if err != nil {
-			return nil, 0, fmt.Errorf("failed to validate project: %w", err)
-		}
-		if project == nil || project.OrganizationUUID != orgID {
-			return nil, 0, utils.ErrProjectNotFound
-		}
-
 		proxies, err = s.proxyRepo.ListByProject(orgID, *projectID, limit, offset)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to list proxies by project: %w", err)

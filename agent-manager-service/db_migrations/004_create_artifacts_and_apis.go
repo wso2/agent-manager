@@ -25,21 +25,6 @@ var migration004 = migration{
 	ID: 4,
 	Migrate: func(db *gorm.DB) error {
 		createArtifactsAndAPIsSQL := `
-			-- Projects table (API Platform schema)
-			CREATE TABLE IF NOT EXISTS ap_projects (
-				uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-				name VARCHAR(255) NOT NULL,
-				organization_uuid UUID NOT NULL,
-				description TEXT,
-				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-				updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-				deleted_at TIMESTAMP,
-
-				CONSTRAINT fk_ap_project_organization FOREIGN KEY (organization_uuid)
-					REFERENCES organizations(uuid) ON DELETE CASCADE,
-				CONSTRAINT uq_ap_project_org_name UNIQUE(name, organization_uuid)
-			);
-
 			-- Artifacts table
 			CREATE TABLE artifacts (
 				uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -68,9 +53,7 @@ var migration004 = migration{
 				configuration JSONB NOT NULL,
 
 				CONSTRAINT fk_rest_api_artifact FOREIGN KEY (uuid)
-					REFERENCES artifacts(uuid) ON DELETE CASCADE,
-				CONSTRAINT fk_rest_api_project FOREIGN KEY (project_uuid)
-					REFERENCES ap_projects(uuid) ON DELETE CASCADE
+					REFERENCES artifacts(uuid) ON DELETE CASCADE
 			);
 
 			-- Deployments table (immutable deployment artifacts)
@@ -135,7 +118,6 @@ var migration004 = migration{
 			);
 
 			-- Indexes for performance
-			CREATE INDEX idx_ap_projects_organization ON ap_projects(organization_uuid);
 			CREATE INDEX idx_rest_apis_project ON rest_apis(project_uuid);
 			CREATE INDEX idx_artifacts_org ON artifacts(organization_uuid);
 			CREATE INDEX idx_deployments_artifact_gateway ON deployments(artifact_uuid, gateway_uuid);

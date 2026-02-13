@@ -7,7 +7,12 @@
 package wiring
 
 import (
+	"log/slog"
+	"time"
+
 	"github.com/google/wire"
+	"gorm.io/gorm"
+
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
@@ -18,9 +23,6 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
-	"gorm.io/gorm"
-	"log/slog"
-	"time"
 )
 
 // Injectors from wire.go:
@@ -66,8 +68,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 	llmProviderRepository := ProvideLLMProviderRepository(db)
 	llmProxyRepository := ProvideLLMProxyRepository(db)
 	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmProxyRepository)
-	projectRepository := ProvideProjectRepository(db)
-	llmProxyService := services.NewLLMProxyService(llmProxyRepository, llmProviderRepository, projectRepository)
+	llmProxyService := services.NewLLMProxyService(llmProxyRepository, llmProviderRepository)
 	llmController := controllers.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, organizationRepository, openChoreoClient)
 	deploymentRepository := ProvideDeploymentRepository(db)
 	manager := ProvideWebSocketManager(configConfig)
@@ -75,7 +76,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 	llmProviderDeploymentService := services.NewLLMProviderDeploymentService(deploymentRepository, llmProviderRepository, llmProviderTemplateRepository, gatewayRepository, gatewayEventsService)
 	llmDeploymentController := controllers.NewLLMDeploymentController(llmProviderDeploymentService, organizationRepository)
 	webSocketController := ProvideWebSocketController(manager, platformGatewayService, configConfig)
-	gatewayInternalAPIService := services.NewGatewayInternalAPIService(apiRepository, llmProviderRepository, deploymentRepository, gatewayRepository, organizationRepository, projectRepository)
+	gatewayInternalAPIService := services.NewGatewayInternalAPIService(apiRepository, llmProviderRepository, deploymentRepository, gatewayRepository, organizationRepository, infraResourceManager)
 	gatewayInternalController := controllers.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService)
 	llmTemplateSeeder := ProvideLLMTemplateSeeder(llmProviderTemplateRepository)
 	appParams := &AppParams{
@@ -133,8 +134,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	llmProviderRepository := ProvideLLMProviderRepository(db)
 	llmProxyRepository := ProvideLLMProxyRepository(db)
 	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmProxyRepository)
-	projectRepository := ProvideProjectRepository(db)
-	llmProxyService := services.NewLLMProxyService(llmProxyRepository, llmProviderRepository, projectRepository)
+	llmProxyService := services.NewLLMProxyService(llmProxyRepository, llmProviderRepository)
 	llmController := controllers.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, organizationRepository, openChoreoClient)
 	deploymentRepository := ProvideDeploymentRepository(db)
 	manager := ProvideWebSocketManager(configConfig)
@@ -142,7 +142,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	llmProviderDeploymentService := services.NewLLMProviderDeploymentService(deploymentRepository, llmProviderRepository, llmProviderTemplateRepository, gatewayRepository, gatewayEventsService)
 	llmDeploymentController := controllers.NewLLMDeploymentController(llmProviderDeploymentService, organizationRepository)
 	webSocketController := ProvideWebSocketController(manager, platformGatewayService, configConfig)
-	gatewayInternalAPIService := services.NewGatewayInternalAPIService(apiRepository, llmProviderRepository, deploymentRepository, gatewayRepository, organizationRepository, projectRepository)
+	gatewayInternalAPIService := services.NewGatewayInternalAPIService(apiRepository, llmProviderRepository, deploymentRepository, gatewayRepository, organizationRepository, infraResourceManager)
 	gatewayInternalController := controllers.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService)
 	llmTemplateSeeder := ProvideLLMTemplateSeeder(llmProviderTemplateRepository)
 	appParams := &AppParams{
@@ -225,7 +225,6 @@ var loggerProviderSet = wire.NewSet(
 
 var repositoryProviderSet = wire.NewSet(
 	ProvideOrganizationRepository,
-	ProvideProjectRepository,
 	ProvideGatewayRepository,
 	ProvideAPIRepository,
 	ProvideLLMProviderTemplateRepository,
@@ -275,10 +274,6 @@ func ProvideWebSocketController(
 // Repository providers (injecting *gorm.DB)
 func ProvideOrganizationRepository(db *gorm.DB) repositories.OrganizationRepository {
 	return repositories.NewOrganizationRepo(db)
-}
-
-func ProvideProjectRepository(db *gorm.DB) repositories.ProjectRepository {
-	return repositories.NewProjectRepo(db)
 }
 
 func ProvideGatewayRepository(db *gorm.DB) repositories.GatewayRepository {
