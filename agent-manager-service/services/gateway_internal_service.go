@@ -22,9 +22,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gopkg.in/yaml.v3"
+
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
-	"gopkg.in/yaml.v3"
 )
 
 // GatewayInternalAPIService handles internal gateway API operations
@@ -53,10 +54,10 @@ type GatewayDeploymentResponse struct {
 
 // APIDeploymentYAML represents the API deployment YAML structure
 type APIDeploymentYAML struct {
-	ApiVersion string                  `yaml:"apiVersion"`
-	Kind       string                  `yaml:"kind"`
-	Metadata   DeploymentMetadata      `yaml:"metadata"`
-	Spec       APIDeploymentSpec       `yaml:"spec"`
+	ApiVersion string             `yaml:"apiVersion"`
+	Kind       string             `yaml:"kind"`
+	Metadata   DeploymentMetadata `yaml:"metadata"`
+	Spec       APIDeploymentSpec  `yaml:"spec"`
 }
 
 // DeploymentMetadata represents metadata in deployment

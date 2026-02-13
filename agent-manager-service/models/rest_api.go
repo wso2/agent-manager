@@ -22,16 +22,16 @@ import (
 
 // RestAPI represents a REST API entity in the platform
 type RestAPI struct {
-	UUID            uuid.UUID       `gorm:"column:uuid;primaryKey" json:"id"`
-	Description     string          `gorm:"column:description" json:"description,omitempty"`
-	CreatedBy       string          `gorm:"column:created_by" json:"createdBy,omitempty"`
-	ProjectUUID     uuid.UUID       `gorm:"column:project_uuid" json:"projectId"`
-	LifecycleStatus string          `gorm:"column:lifecycle_status" json:"lifeCycleStatus,omitempty"`
-	Transport       string          `gorm:"column:transport" json:"transport,omitempty"` // JSON array as TEXT
-	Configuration   RestAPIConfig   `gorm:"column:configuration;type:jsonb;serializer:json" json:"configuration"`
+	UUID            uuid.UUID     `gorm:"column:uuid;primaryKey" json:"id"`
+	Description     string        `gorm:"column:description" json:"description,omitempty"`
+	CreatedBy       string        `gorm:"column:created_by" json:"createdBy,omitempty"`
+	ProjectUUID     uuid.UUID     `gorm:"column:project_uuid" json:"projectId"`
+	LifecycleStatus string        `gorm:"column:lifecycle_status" json:"lifeCycleStatus,omitempty"`
+	Transport       string        `gorm:"column:transport" json:"transport,omitempty"` // JSON array as TEXT
+	Configuration   RestAPIConfig `gorm:"column:configuration;type:jsonb;serializer:json" json:"configuration"`
 
 	// Relations - populated via joins
-	Artifact        *Artifact       `gorm:"foreignKey:UUID;references:UUID" json:"artifact,omitempty"`
+	Artifact *Artifact `gorm:"foreignKey:UUID;references:UUID" json:"artifact,omitempty"`
 }
 
 // TableName returns the table name for the RestAPI model

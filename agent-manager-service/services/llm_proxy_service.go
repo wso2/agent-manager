@@ -22,10 +22,11 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
+
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
-	"gorm.io/gorm"
 )
 
 // LLMProxyService handles LLM proxy business logic
@@ -55,10 +56,13 @@ func (s *LLMProxyService) Create(orgID, createdBy string, proxy *models.LLMProxy
 	}
 
 	// Extract handle, name, and version from configuration
-	handle := proxy.Artifact.Handle
+	// Note: handle is not in Configuration, so we use name as handle
 	name := proxy.Configuration.Name
 	version := proxy.Configuration.Version
 	provider := proxy.Configuration.Provider
+
+	// Use name as handle (artifact identifier)
+	handle := name
 
 	if handle == "" || name == "" || version == "" || provider == "" {
 		return nil, utils.ErrInvalidInput

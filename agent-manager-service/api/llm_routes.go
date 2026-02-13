@@ -41,9 +41,9 @@ func RegisterLLMRoutes(mux *http.ServeMux, ctrl controllers.LLMController) {
 	middleware.HandleFuncWithValidation(mux, "DELETE /orgs/{orgName}/llm-providers/{id}", ctrl.DeleteLLMProvider)
 
 	// LLM Proxies
-	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/projects/{projectName}/llm-proxies", ctrl.CreateLLMProxy)
-	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projectName}/llm-proxies", ctrl.ListLLMProxies)
-	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projectName}/llm-proxies/{id}", ctrl.GetLLMProxy)
-	middleware.HandleFuncWithValidation(mux, "PUT /orgs/{orgName}/projects/{projectName}/llm-proxies/{id}", ctrl.UpdateLLMProxy)
-	middleware.HandleFuncWithValidation(mux, "DELETE /orgs/{orgName}/projects/{projectName}/llm-proxies/{id}", ctrl.DeleteLLMProxy)
+	middleware.HandleFuncWithValidation(mux, "POST /orgs/{orgName}/projects/{projName}/llm-proxies", ctrl.CreateLLMProxy)
+	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/llm-proxies", ctrl.ListLLMProxies)
+	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/projects/{projName}/llm-proxies/{id}", ctrl.GetLLMProxy)
+	middleware.HandleFuncWithValidation(mux, "PUT /orgs/{orgName}/projects/{projName}/llm-proxies/{id}", ctrl.UpdateLLMProxy)
+	middleware.HandleFuncWithValidation(mux, "DELETE /orgs/{orgName}/projects/{projName}/llm-proxies/{id}", ctrl.DeleteLLMProxy)
 }

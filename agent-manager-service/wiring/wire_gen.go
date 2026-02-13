@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/google/wire"
+	"gorm.io/gorm"
+
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
@@ -21,7 +23,6 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
-	"gorm.io/gorm"
 )
 
 // Injectors from wire.go:
@@ -69,11 +70,12 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmProxyRepository)
 	projectRepository := ProvideProjectRepository(db)
 	llmProxyService := services.NewLLMProxyService(llmProxyRepository, llmProviderRepository, projectRepository)
-	llmController := controllers.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, organizationRepository)
+	llmController := controllers.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, organizationRepository, openChoreoClient)
 	deploymentRepository := ProvideDeploymentRepository(db)
-	llmProviderDeploymentService := services.NewLLMProviderDeploymentService(deploymentRepository, llmProviderRepository, llmProviderTemplateRepository, gatewayRepository)
-	llmDeploymentController := controllers.NewLLMDeploymentController(llmProviderDeploymentService, organizationRepository)
 	manager := ProvideWebSocketManager(configConfig)
+	gatewayEventsService := services.NewGatewayEventsService(manager)
+	llmProviderDeploymentService := services.NewLLMProviderDeploymentService(deploymentRepository, llmProviderRepository, llmProviderTemplateRepository, gatewayRepository, gatewayEventsService)
+	llmDeploymentController := controllers.NewLLMDeploymentController(llmProviderDeploymentService, organizationRepository)
 	webSocketController := ProvideWebSocketController(manager, platformGatewayService, configConfig)
 	gatewayInternalAPIService := services.NewGatewayInternalAPIService(apiRepository, llmProviderRepository, deploymentRepository, gatewayRepository, organizationRepository, projectRepository)
 	gatewayInternalController := controllers.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService)
@@ -139,11 +141,12 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmProxyRepository)
 	projectRepository := ProvideProjectRepository(db)
 	llmProxyService := services.NewLLMProxyService(llmProxyRepository, llmProviderRepository, projectRepository)
-	llmController := controllers.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, organizationRepository)
+	llmController := controllers.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, organizationRepository, openChoreoClient)
 	deploymentRepository := ProvideDeploymentRepository(db)
-	llmProviderDeploymentService := services.NewLLMProviderDeploymentService(deploymentRepository, llmProviderRepository, llmProviderTemplateRepository, gatewayRepository)
-	llmDeploymentController := controllers.NewLLMDeploymentController(llmProviderDeploymentService, organizationRepository)
 	manager := ProvideWebSocketManager(configConfig)
+	gatewayEventsService := services.NewGatewayEventsService(manager)
+	llmProviderDeploymentService := services.NewLLMProviderDeploymentService(deploymentRepository, llmProviderRepository, llmProviderTemplateRepository, gatewayRepository, gatewayEventsService)
+	llmDeploymentController := controllers.NewLLMDeploymentController(llmProviderDeploymentService, organizationRepository)
 	webSocketController := ProvideWebSocketController(manager, platformGatewayService, configConfig)
 	gatewayInternalAPIService := services.NewGatewayInternalAPIService(apiRepository, llmProviderRepository, deploymentRepository, gatewayRepository, organizationRepository, projectRepository)
 	gatewayInternalController := controllers.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService)
@@ -243,7 +246,7 @@ var repositoryProviderSet = wire.NewSet(
 )
 
 var websocketProviderSet = wire.NewSet(
-	ProvideWebSocketManager,
+	ProvideWebSocketManager, services.NewGatewayEventsService,
 )
 
 // Test client providers

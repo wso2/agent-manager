@@ -23,18 +23,20 @@ import (
 )
 
 // LLMProviderTemplate represents an LLM provider template
+// This structure matches api_platform/platform-api/src/internal/model/llm.go:129
 type LLMProviderTemplate struct {
-	UUID             uuid.UUID                    `gorm:"column:uuid;primaryKey" json:"uuid"`
-	OrganizationUUID uuid.UUID                    `gorm:"column:organization_uuid" json:"organizationId"`
-	Handle           string                       `gorm:"column:handle" json:"id"`
-	Name             string                       `gorm:"column:name" json:"name"`
-	Description      string                       `gorm:"column:description" json:"description,omitempty"`
-	CreatedBy        string                       `gorm:"column:created_by" json:"createdBy,omitempty"`
-	Configuration    string                       `gorm:"column:configuration;type:text" json:"-"` // TEXT field stores raw config
-	CreatedAt        time.Time                    `gorm:"column:created_at" json:"createdAt"`
-	UpdatedAt        time.Time                    `gorm:"column:updated_at" json:"updatedAt"`
+	UUID             uuid.UUID `gorm:"column:uuid;primaryKey" json:"uuid"`
+	OrganizationUUID uuid.UUID `gorm:"column:organization_uuid" json:"organizationId"`
+	Handle           string    `gorm:"column:handle" json:"id"`
+	Name             string    `gorm:"column:name" json:"name"`
+	Description      string    `gorm:"column:description" json:"description,omitempty"`
+	CreatedBy        string    `gorm:"column:created_by" json:"createdBy,omitempty"`
+	Configuration    string    `gorm:"column:configuration;type:text" json:"-"` // TEXT field stores raw config as JSON
+	CreatedAt        time.Time `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt        time.Time `gorm:"column:updated_at" json:"updatedAt"`
 
 	// Parsed configuration fields (not stored in DB, populated from Configuration field)
+	// These match the API Platform structure exactly
 	Metadata         *LLMProviderTemplateMetadata `gorm:"-" json:"metadata,omitempty"`
 	PromptTokens     *ExtractionIdentifier        `gorm:"-" json:"promptTokens,omitempty"`
 	CompletionTokens *ExtractionIdentifier        `gorm:"-" json:"completionTokens,omitempty"`

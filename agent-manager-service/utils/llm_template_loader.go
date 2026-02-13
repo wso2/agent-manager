@@ -17,13 +17,16 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"gopkg.in/yaml.v3"
+
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
 
 type extractionIdentifierYAML struct {
@@ -114,6 +117,10 @@ func LoadLLMProviderTemplatesFromDirectory(dirPath string) ([]*models.LLMProvide
 			ResponseModel:    mapExtractionIdentifier(doc.Spec.ResponseModel),
 		})
 	}
+
+	b, _ := json.Marshal(res)
+
+	slog.Info(string(b))
 
 	return res, nil
 }

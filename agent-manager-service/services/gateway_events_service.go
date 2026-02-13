@@ -23,7 +23,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
 )
 
 const (
@@ -31,27 +33,9 @@ const (
 	MaxEventPayloadSize = 1024 * 1024
 )
 
-// WebSocketManager interface for websocket operations (will be implemented in Phase 5)
-type WebSocketManager interface {
-	GetConnections(gatewayID string) []*WebSocketConnection
-}
-
-// WebSocketConnection represents a websocket connection (will be implemented in Phase 5)
-type WebSocketConnection struct {
-	ConnectionID  string
-	DeliveryStats *DeliveryStats
-}
-
-// DeliveryStats tracks delivery statistics (will be implemented in Phase 5)
-type DeliveryStats struct{}
-
-func (d *DeliveryStats) IncrementFailed(reason string) {}
-func (d *DeliveryStats) IncrementTotalSent()           {}
-func (c *WebSocketConnection) Send(data []byte) error  { return nil }
-
 // GatewayEventsService handles broadcasting events to connected gateways
 type GatewayEventsService struct {
-	manager WebSocketManager
+	manager *websocket.Manager
 }
 
 // GatewayEventDTO represents a gateway event
@@ -64,7 +48,7 @@ type GatewayEventDTO struct {
 }
 
 // NewGatewayEventsService creates a new gateway events service
-func NewGatewayEventsService(manager WebSocketManager) *GatewayEventsService {
+func NewGatewayEventsService(manager *websocket.Manager) *GatewayEventsService {
 	return &GatewayEventsService{
 		manager: manager,
 	}

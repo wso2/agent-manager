@@ -82,7 +82,7 @@ func (s *InternalServer) Start() error {
 	if cert.Certificate == nil {
 		slog.Info("Generating self-signed certificate for internal server")
 		// Ensure cert directory exists
-		if err := os.MkdirAll(s.cfg.CertDir, 0755); err != nil {
+		if err := os.MkdirAll(s.cfg.CertDir, 0o755); err != nil {
 			return fmt.Errorf("failed to create cert directory: %w", err)
 		}
 		generatedCert, err := generateSelfSignedCert(certPath, keyPath)
@@ -162,10 +162,10 @@ func generateSelfSignedCert(certPath, keyPath string) (tls.Certificate, error) {
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
 
 	// Save certificate and key to disk for persistence
-	if err := os.WriteFile(certPath, certPEM, 0644); err != nil {
+	if err := os.WriteFile(certPath, certPEM, 0o644); err != nil {
 		return tls.Certificate{}, fmt.Errorf("failed to save certificate: %w", err)
 	}
-	if err := os.WriteFile(keyPath, keyPEM, 0600); err != nil {
+	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
 		return tls.Certificate{}, fmt.Errorf("failed to save private key: %w", err)
 	}
 	slog.Info("Saved certificate", "certPath", certPath, "keyPath", keyPath)

@@ -23,7 +23,6 @@ import (
 func TestLoadLLMProviderTemplatesFromDirectory(t *testing.T) {
 	// Test with the actual templates directory
 	templates, err := LoadLLMProviderTemplatesFromDirectory("../resources/default-llm-provider-templates")
-
 	if err != nil {
 		t.Fatalf("Failed to load templates: %v", err)
 	}
@@ -36,13 +35,13 @@ func TestLoadLLMProviderTemplatesFromDirectory(t *testing.T) {
 
 	// Verify expected templates
 	expectedTemplates := map[string]string{
-		"openai":          "OpenAI",
-		"anthropic":       "Anthropic",
-		"mistral":         "Mistral",
-		"azureopenai":     "Azure OpenAI",
-		"awsbedrock":      "AWS Bedrock",
-		"azureaifoundry":  "Azure AI Foundry",
-		"gemini":          "Gemini",
+		"openai":         "OpenAI",
+		"anthropic":      "Anthropic",
+		"mistral":        "Mistral",
+		"azureopenai":    "Azure OpenAI",
+		"awsbedrock":     "AWS Bedrock",
+		"azureaifoundry": "Azure AI Foundry",
+		"gemini":         "Gemini",
 	}
 
 	foundTemplates := make(map[string]bool)

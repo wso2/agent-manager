@@ -23,9 +23,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
 
 // DeploymentRepository defines the interface for deployment data operations
@@ -137,7 +138,6 @@ func (r *DeploymentRepo) GetWithContent(deploymentID, artifactUUID, orgUUID stri
 	err := r.db.Where("deployment_id = ? AND artifact_uuid = ? AND organization_uuid = ?",
 		deploymentID, artifactUUID, orgUUID).
 		First(&deployment).Error
-
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("deployment not found")
@@ -180,7 +180,6 @@ func (r *DeploymentRepo) GetCurrentByGateway(artifactUUID, gatewayID, orgUUID st
 		Order("d.created_at DESC").
 		Limit(1).
 		Scan(&deployment).Error
-
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -241,7 +240,6 @@ func (r *DeploymentRepo) GetStatus(artifactUUID, orgUUID, gatewayID string) (str
 		Where("artifact_uuid = ? AND organization_uuid = ? AND gateway_uuid = ?",
 			artifactUUID, orgUUID, gatewayID).
 		Scan(&result).Error
-
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", "", nil, nil
@@ -273,7 +271,6 @@ func (r *DeploymentRepo) GetWithState(deploymentID, artifactUUID, orgUUID string
 		Where("d.deployment_id = ? AND d.artifact_uuid = ? AND d.organization_uuid = ?",
 			deploymentID, artifactUUID, orgUUID).
 		Scan(&deployment).Error
-
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("deployment not found")

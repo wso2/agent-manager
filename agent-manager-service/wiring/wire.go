@@ -140,6 +140,7 @@ var repositoryProviderSet = wire.NewSet(
 
 var websocketProviderSet = wire.NewSet(
 	ProvideWebSocketManager,
+	services.NewGatewayEventsService,
 )
 
 // Test client providers

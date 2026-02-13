@@ -22,13 +22,13 @@ import (
 
 // LLMProxy represents an LLM proxy entity
 type LLMProxy struct {
-	UUID         uuid.UUID      `gorm:"column:uuid;primaryKey" json:"uuid"`
-	ProjectUUID  uuid.UUID      `gorm:"column:project_uuid" json:"projectId"`
-	Description  string         `gorm:"column:description" json:"description,omitempty"`
-	CreatedBy    string         `gorm:"column:created_by" json:"createdBy,omitempty"`
-	ProviderUUID uuid.UUID      `gorm:"column:provider_uuid" json:"providerUuid"`
-	OpenAPISpec  string         `gorm:"column:openapi_spec;type:text" json:"openapi,omitempty"`
-	Status       string         `gorm:"column:status" json:"status"`
+	UUID          uuid.UUID      `gorm:"column:uuid;primaryKey" json:"uuid"`
+	ProjectUUID   uuid.UUID      `gorm:"column:project_uuid" json:"projectId"`
+	Description   string         `gorm:"column:description" json:"description,omitempty"`
+	CreatedBy     string         `gorm:"column:created_by" json:"createdBy,omitempty"`
+	ProviderUUID  uuid.UUID      `gorm:"column:provider_uuid" json:"providerUuid"`
+	OpenAPISpec   string         `gorm:"column:openapi_spec;type:text" json:"openapi,omitempty"`
+	Status        string         `gorm:"column:status" json:"status"`
 	Configuration LLMProxyConfig `gorm:"column:configuration;type:jsonb;serializer:json" json:"configuration"`
 
 	// Relations - populated via joins

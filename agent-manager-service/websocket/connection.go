@@ -48,7 +48,7 @@ type Connection struct {
 	AuthToken string
 
 	// DeliveryStats tracks event delivery statistics for this connection
-	DeliveryStats *DeliveryStats
+	DeliveryStats *Stats
 
 	// mu protects concurrent access to mutable fields (LastHeartbeat, closed state)
 	mu sync.RWMutex
@@ -67,7 +67,7 @@ func NewConnection(gatewayID, connectionID string, transport Transport, authToke
 		LastHeartbeat: now,
 		Transport:     transport,
 		AuthToken:     authToken,
-		DeliveryStats: &DeliveryStats{},
+		DeliveryStats: NewStats(),
 		closed:        false,
 	}
 }

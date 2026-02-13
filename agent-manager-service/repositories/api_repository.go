@@ -23,8 +23,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"gorm.io/gorm"
+
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
 
 // APIRepository defines the interface for API data operations
@@ -128,7 +129,6 @@ func (r *APIRepo) GetAPIByUUID(apiUUID, orgUUID string) (*models.API, error) {
 		Joins("INNER JOIN artifacts art ON a.uuid = art.uuid").
 		Where("a.uuid = ? AND art.organization_uuid = ?", apiUUID, orgUUID).
 		Scan(&api).Error
-
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -145,7 +145,6 @@ func (r *APIRepo) GetAPIMetadataByHandle(handle, orgUUID string) (*models.APIMet
 		Select("uuid, handle, name, version, kind, organization_uuid").
 		Where("handle = ? AND organization_uuid = ?", handle, orgUUID).
 		Scan(&metadata).Error
-
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil

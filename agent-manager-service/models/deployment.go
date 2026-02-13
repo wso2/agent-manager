@@ -38,8 +38,9 @@ type Deployment struct {
 
 	// Lifecycle state fields (from deployment_status table via JOIN)
 	// nil values indicate ARCHIVED state (no record in status table)
-	Status    *DeploymentStatus `gorm:"column:status" json:"status,omitempty"`
-	UpdatedAt *time.Time        `gorm:"column:status_updated_at" json:"updatedAt,omitempty"`
+	// Read-only fields - populated via JOIN, never inserted/updated directly
+	Status    *DeploymentStatus `gorm:"column:status;->" json:"status,omitempty"`
+	UpdatedAt *time.Time        `gorm:"column:status_updated_at;->" json:"updatedAt,omitempty"`
 }
 
 // TableName returns the table name for the Deployment model

@@ -21,8 +21,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"gorm.io/gorm"
+
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
 
 // ArtifactRepository defines the interface for artifact data access

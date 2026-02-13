@@ -18,13 +18,26 @@
 package repositories
 
 import (
+	"encoding/json"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"gorm.io/gorm"
+
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
+
+type llmProviderTemplateConfig struct {
+	Metadata         *models.LLMProviderTemplateMetadata `json:"metadata,omitempty"`
+	PromptTokens     *models.ExtractionIdentifier        `json:"promptTokens,omitempty"`
+	CompletionTokens *models.ExtractionIdentifier        `json:"completionTokens,omitempty"`
+	TotalTokens      *models.ExtractionIdentifier        `json:"totalTokens,omitempty"`
+	RemainingTokens  *models.ExtractionIdentifier        `json:"remainingTokens,omitempty"`
+	RequestModel     *models.ExtractionIdentifier        `json:"requestModel,omitempty"`
+	ResponseModel    *models.ExtractionIdentifier        `json:"responseModel,omitempty"`
+}
 
 // LLMProviderTemplateRepository defines the interface for LLM provider template persistence
 type LLMProviderTemplateRepository interface {
@@ -55,13 +68,31 @@ func (r *LLMProviderTemplateRepo) Create(t *models.LLMProviderTemplate) error {
 	}
 	t.CreatedAt = time.Now()
 	t.UpdatedAt = time.Now()
+
+	configJSON, err := json.Marshal(&llmProviderTemplateConfig{
+		Metadata:         t.Metadata,
+		PromptTokens:     t.PromptTokens,
+		CompletionTokens: t.CompletionTokens,
+		TotalTokens:      t.TotalTokens,
+		RemainingTokens:  t.RemainingTokens,
+		RequestModel:     t.RequestModel,
+		ResponseModel:    t.ResponseModel,
+	})
+	if err != nil {
+		return err
+	}
+
+	t.Configuration = string(configJSON)
+
+	slog.Info(t.Configuration)
+
 	return r.db.Create(t).Error
 }
 
 // GetByID retrieves an LLM provider template by ID (handle)
 func (r *LLMProviderTemplateRepo) GetByID(templateID, orgUUID string) (*models.LLMProviderTemplate, error) {
 	var template models.LLMProviderTemplate
-	err := r.db.Where("handle = ? AND organization_uuid = ?", templateID, orgUUID).
+	err := r.db.Where("uuid = ? AND organization_uuid = ?", templateID, orgUUID).
 		First(&template).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -69,6 +100,23 @@ func (r *LLMProviderTemplateRepo) GetByID(templateID, orgUUID string) (*models.L
 		}
 		return nil, err
 	}
+
+	templateConfig := template.Configuration
+
+	if templateConfig != "" {
+		var cfg llmProviderTemplateConfig
+		if err := json.Unmarshal([]byte(templateConfig), &cfg); err != nil {
+			return nil, err
+		}
+		template.Metadata = cfg.Metadata
+		template.PromptTokens = cfg.PromptTokens
+		template.CompletionTokens = cfg.CompletionTokens
+		template.TotalTokens = cfg.TotalTokens
+		template.RemainingTokens = cfg.RemainingTokens
+		template.RequestModel = cfg.RequestModel
+		template.ResponseModel = cfg.ResponseModel
+	}
+
 	return &template, nil
 }
 

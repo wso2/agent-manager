@@ -23,8 +23,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"gorm.io/gorm"
+
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
 
 // LLMProxyRepository defines the interface for LLM proxy persistence
@@ -86,12 +87,11 @@ func (r *LLMProxyRepo) Create(p *models.LLMProxy, handle, name, version string, 
 // GetByID retrieves an LLM proxy by ID (handle)
 func (r *LLMProxyRepo) GetByID(proxyID, orgUUID string) (*models.LLMProxy, error) {
 	var proxy models.LLMProxy
-	err := r.db.Table("llm_proxies p").
-		Select("p.*").
-		Joins("JOIN artifacts a ON p.uuid = a.uuid").
+	err := r.db.
+		Preload("Artifact").
+		Joins("JOIN artifacts a ON llm_proxies.uuid = a.uuid").
 		Where("a.handle = ? AND a.organization_uuid = ? AND a.kind = ?", proxyID, orgUUID, models.KindLLMAPI).
-		Scan(&proxy).Error
-
+		First(&proxy).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -104,42 +104,42 @@ func (r *LLMProxyRepo) GetByID(proxyID, orgUUID string) (*models.LLMProxy, error
 // List retrieves LLM proxies with pagination
 func (r *LLMProxyRepo) List(orgUUID string, limit, offset int) ([]*models.LLMProxy, error) {
 	var proxies []*models.LLMProxy
-	err := r.db.Table("llm_proxies p").
-		Select("p.*").
-		Joins("JOIN artifacts a ON p.uuid = a.uuid").
+	err := r.db.
+		Preload("Artifact").
+		Joins("JOIN artifacts a ON llm_proxies.uuid = a.uuid").
 		Where("a.organization_uuid = ? AND a.kind = ?", orgUUID, models.KindLLMAPI).
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
-		Scan(&proxies).Error
+		Find(&proxies).Error
 	return proxies, err
 }
 
 // ListByProject retrieves LLM proxies for a specific project with pagination
 func (r *LLMProxyRepo) ListByProject(orgUUID, projectUUID string, limit, offset int) ([]*models.LLMProxy, error) {
 	var proxies []*models.LLMProxy
-	err := r.db.Table("llm_proxies p").
-		Select("p.*").
-		Joins("JOIN artifacts a ON p.uuid = a.uuid").
-		Where("a.organization_uuid = ? AND p.project_uuid = ? AND a.kind = ?", orgUUID, projectUUID, models.KindLLMAPI).
+	err := r.db.
+		Preload("Artifact").
+		Joins("JOIN artifacts a ON llm_proxies.uuid = a.uuid").
+		Where("a.organization_uuid = ? AND llm_proxies.project_uuid = ? AND a.kind = ?", orgUUID, projectUUID, models.KindLLMAPI).
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
-		Scan(&proxies).Error
+		Find(&proxies).Error
 	return proxies, err
 }
 
 // ListByProvider retrieves LLM proxies for a specific provider with pagination
 func (r *LLMProxyRepo) ListByProvider(orgUUID, providerUUID string, limit, offset int) ([]*models.LLMProxy, error) {
 	var proxies []*models.LLMProxy
-	err := r.db.Table("llm_proxies p").
-		Select("p.*").
-		Joins("JOIN artifacts a ON p.uuid = a.uuid").
-		Where("a.organization_uuid = ? AND p.provider_uuid = ? AND a.kind = ?", orgUUID, providerUUID, models.KindLLMAPI).
+	err := r.db.
+		Preload("Artifact").
+		Joins("JOIN artifacts a ON llm_proxies.uuid = a.uuid").
+		Where("a.organization_uuid = ? AND llm_proxies.provider_uuid = ? AND a.kind = ?", orgUUID, providerUUID, models.KindLLMAPI).
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
-		Scan(&proxies).Error
+		Find(&proxies).Error
 	return proxies, err
 }
 

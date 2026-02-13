@@ -21,8 +21,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"gorm.io/gorm"
+
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
 
 // ProjectRepository defines the interface for project data access
