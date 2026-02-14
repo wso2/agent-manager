@@ -38,7 +38,7 @@ paths:
       operationId: health
       security: []
       responses:
-        '200':
+        "200":
           description: Service is healthy
           content:
             application/json:
@@ -48,7 +48,7 @@ paths:
                   status:
                     type: string
                     example: healthy
-        '503':
+        "503":
           description: Service is unhealthy
           content:
             application/json:
@@ -82,26 +82,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BuildLogsRequest'
+              $ref: "#/components/schemas/BuildLogsRequest"
       responses:
-        '200':
+        "200":
           description: Successfully retrieved build logs
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogResponse'
-        '400':
+                $ref: "#/components/schemas/LogResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/v1/workflow-runs/{workflowRunName}/logs:
     post:
@@ -123,26 +123,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/WorkflowRunLogsRequest'
+              $ref: "#/components/schemas/WorkflowRunLogsRequest"
       responses:
-        '200':
+        "200":
           description: Successfully retrieved workflow run logs
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogResponse'
-        '400':
+                $ref: "#/components/schemas/LogResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/logs/component/{componentId}:
     post:
@@ -164,26 +164,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ComponentLogsRequest'
+              $ref: "#/components/schemas/ComponentLogsRequest"
       responses:
-        '200':
+        "200":
           description: Successfully retrieved component logs
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogResponse'
-        '400':
+                $ref: "#/components/schemas/LogResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/logs/project/{projectId}:
     post:
@@ -205,26 +205,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ProjectLogsRequest'
+              $ref: "#/components/schemas/ProjectLogsRequest"
       responses:
-        '200':
+        "200":
           description: Successfully retrieved project logs
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogResponse'
-        '400':
+                $ref: "#/components/schemas/LogResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/logs/gateway:
     post:
@@ -238,26 +238,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GatewayLogsRequest'
+              $ref: "#/components/schemas/GatewayLogsRequest"
       responses:
-        '200':
+        "200":
           description: Successfully retrieved gateway logs
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogResponse'
-        '400':
+                $ref: "#/components/schemas/LogResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/logs/namespace/{namespaceName}:
     post:
@@ -279,26 +279,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/NamespaceLogsRequest'
+              $ref: "#/components/schemas/NamespaceLogsRequest"
       responses:
-        '200':
+        "200":
           description: Successfully retrieved namespace logs
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogResponse'
-        '400':
+                $ref: "#/components/schemas/LogResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/traces:
     post:
@@ -312,26 +312,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TracesRequest'
+              $ref: "#/components/schemas/TracesRequest"
       responses:
-        '200':
+        "200":
           description: Successfully retrieved component traces
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TraceResponse'
-        '400':
+                $ref: "#/components/schemas/TraceResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/metrics/component/http:
     post:
@@ -345,26 +345,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MetricsRequest'
+              $ref: "#/components/schemas/MetricsRequest"
       responses:
-        '200':
+        "200":
           description: Successfully retrieved HTTP metrics
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPMetricsTimeSeries'
-        '400':
+                $ref: "#/components/schemas/HTTPMetricsTimeSeries"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/metrics/component/usage:
     post:
@@ -378,26 +378,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MetricsRequest'
+              $ref: "#/components/schemas/MetricsRequest"
       responses:
-        '200':
+        "200":
           description: Successfully retrieved resource metrics
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ResourceMetricsTimeSeries'
-        '400':
+                $ref: "#/components/schemas/ResourceMetricsTimeSeries"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/alerting/rule/:
     put:
@@ -411,26 +411,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AlertingRuleRequest'
+              $ref: "#/components/schemas/AlertingRuleRequest"
       responses:
-        '200':
+        "200":
           description: Successfully created or updated alerting rule
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AlertingRuleSyncResponse'
-        '400':
+                $ref: "#/components/schemas/AlertingRuleSyncResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/alerting/rule/{sourceType}/{ruleName}:
     delete:
@@ -455,30 +455,30 @@ paths:
             type: string
             example: "high-error-rate"
       responses:
-        '200':
+        "200":
           description: Successfully deleted alerting rule
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AlertingRuleSyncResponse'
-        '404':
+                $ref: "#/components/schemas/AlertingRuleSyncResponse"
+        "404":
           description: Alerting rule not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AlertingRuleSyncResponse'
-        '400':
+                $ref: "#/components/schemas/AlertingRuleSyncResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
 components:
   schemas:
@@ -653,7 +653,7 @@ components:
 
     ProjectLogsRequest:
       allOf:
-        - $ref: '#/components/schemas/ComponentLogsRequest'
+        - $ref: "#/components/schemas/ComponentLogsRequest"
         - type: object
           properties:
             componentIds:
@@ -723,7 +723,7 @@ components:
 
     NamespaceLogsRequest:
       allOf:
-        - $ref: '#/components/schemas/ComponentLogsRequest'
+        - $ref: "#/components/schemas/ComponentLogsRequest"
         - type: object
           properties:
             podLabels:
@@ -757,7 +757,11 @@ components:
             type: string
             format: uuid
           description: Array of component UIDs to filter traces (optional)
-          example: ["8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b", "3f7b9e1a-4c6d-4e8f-a2b5-7d1c3e8f4a9b"]
+          example:
+            [
+              "8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b",
+              "3f7b9e1a-4c6d-4e8f-a2b5-7d1c3e8f4a9b",
+            ]
         environmentUid:
           type: string
           format: uuid
@@ -775,7 +779,7 @@ components:
             - Prefix match: `63d7c3065ab2537*`
             - Suffix match: `*135a77db`
             - Single char wildcard: `63d7c3065ab2537?e6c5d6bb135a77db`
-          pattern: '^[a-fA-F0-9*?]+$'
+          pattern: "^[a-fA-F0-9*?]+$"
           example: "63d7c3065ab25375*"
         startTime:
           type: string
@@ -900,7 +904,7 @@ components:
         logs:
           type: array
           items:
-            $ref: '#/components/schemas/LogEntry'
+            $ref: "#/components/schemas/LogEntry"
           description: Array of log entries
         totalCount:
           type: integer
@@ -917,7 +921,7 @@ components:
         traces:
           type: array
           items:
-            $ref: '#/components/schemas/Trace'
+            $ref: "#/components/schemas/Trace"
           description: Array of traces with their spans
         tookMs:
           type: integer
@@ -943,12 +947,12 @@ components:
         traceId:
           type: string
           description: Unique trace identifier (32 hexadecimal characters)
-          pattern: '^[a-fA-F0-9]{32}$'
+          pattern: "^[a-fA-F0-9]{32}$"
           example: "f3a7b9e1c4d2f5a8b6e3c9f1d4a7e2b8"
         spans:
           type: array
           items:
-            $ref: '#/components/schemas/Span'
+            $ref: "#/components/schemas/Span"
           description: Array of spans belonging to this trace
 
     Span:
@@ -957,7 +961,7 @@ components:
         spanId:
           type: string
           description: Unique span identifier (16 hex characters)
-          pattern: '^[a-f0-9]{16}$'
+          pattern: "^[a-f0-9]{16}$"
           example: "ad3537e3f48207d0"
         name:
           type: string
@@ -981,7 +985,7 @@ components:
         parentSpanId:
           type: string
           description: Parent span identifier (empty if root span)
-          pattern: '^[a-f0-9]{0,16}$'
+          pattern: "^[a-f0-9]{0,16}$"
           example: "b72e731db5edfd1d"
         openchoreoComponentUid:
           type: string
@@ -1014,32 +1018,32 @@ components:
         cpuUsage:
           type: array
           items:
-            $ref: '#/components/schemas/TimeValuePoint'
+            $ref: "#/components/schemas/TimeValuePoint"
           description: CPU usage time series (in cores)
         cpuRequests:
           type: array
           items:
-            $ref: '#/components/schemas/TimeValuePoint'
+            $ref: "#/components/schemas/TimeValuePoint"
           description: CPU requests time series (in cores)
         cpuLimits:
           type: array
           items:
-            $ref: '#/components/schemas/TimeValuePoint'
+            $ref: "#/components/schemas/TimeValuePoint"
           description: CPU limits time series (in cores)
         memory:
           type: array
           items:
-            $ref: '#/components/schemas/TimeValuePoint'
+            $ref: "#/components/schemas/TimeValuePoint"
           description: Memory usage time series (in bytes)
         memoryRequests:
           type: array
           items:
-            $ref: '#/components/schemas/TimeValuePoint'
+            $ref: "#/components/schemas/TimeValuePoint"
           description: Memory requests time series (in bytes)
         memoryLimits:
           type: array
           items:
-            $ref: '#/components/schemas/TimeValuePoint'
+            $ref: "#/components/schemas/TimeValuePoint"
           description: Memory limits time series (in bytes)
       example:
         cpuUsage:
@@ -1079,37 +1083,37 @@ components:
         requestCount:
           type: array
           items:
-            $ref: '#/components/schemas/TimeValuePoint'
+            $ref: "#/components/schemas/TimeValuePoint"
           description: Total HTTP request count time series (requests per second)
         successfulRequestCount:
           type: array
           items:
-            $ref: '#/components/schemas/TimeValuePoint'
+            $ref: "#/components/schemas/TimeValuePoint"
           description: Successful HTTP request count time series (status 200, requests per second)
         unsuccessfulRequestCount:
           type: array
           items:
-            $ref: '#/components/schemas/TimeValuePoint'
+            $ref: "#/components/schemas/TimeValuePoint"
           description: Unsuccessful HTTP request count time series (status != 200, requests per second)
         meanLatency:
           type: array
           items:
-            $ref: '#/components/schemas/TimeValuePoint'
+            $ref: "#/components/schemas/TimeValuePoint"
           description: Mean HTTP request latency time series (in seconds)
         latencyPercentile50th:
           type: array
           items:
-            $ref: '#/components/schemas/TimeValuePoint'
+            $ref: "#/components/schemas/TimeValuePoint"
           description: 50th percentile (median) HTTP request latency time series (in seconds)
         latencyPercentile90th:
           type: array
           items:
-            $ref: '#/components/schemas/TimeValuePoint'
+            $ref: "#/components/schemas/TimeValuePoint"
           description: 90th percentile HTTP request latency time series (in seconds)
         latencyPercentile99th:
           type: array
           items:
-            $ref: '#/components/schemas/TimeValuePoint'
+            $ref: "#/components/schemas/TimeValuePoint"
           description: 99th percentile HTTP request latency time series (in seconds)
       example:
         requestCount:
@@ -1180,11 +1184,11 @@ components:
         - condition
       properties:
         metadata:
-          $ref: '#/components/schemas/AlertingRuleMetadata'
+          $ref: "#/components/schemas/AlertingRuleMetadata"
         source:
-          $ref: '#/components/schemas/AlertingRuleSource'
+          $ref: "#/components/schemas/AlertingRuleSource"
         condition:
-          $ref: '#/components/schemas/AlertingRuleCondition'
+          $ref: "#/components/schemas/AlertingRuleCondition"
 
     AlertingRuleMetadata:
       type: object
@@ -1321,21 +1325,21 @@ components:
         summary:
           type: string
           description: Concise summary of the investigation and outcome
-          example: 'Database connection pool exhaustion caused analytics service errors. RCA identified memory leak in connection handling.'
+          example: "Database connection pool exhaustion caused analytics service errors. RCA identified memory leak in connection handling."
         result:
           description: The result of the RCA - either issues identified with root causes, or explanation of why RCA was not performed
           discriminator:
             propertyName: type
             mapping:
-              issue_identified: '#/components/schemas/IssueIdentified'
-              rca_not_performed: '#/components/schemas/RCANotPerformed'
+              issue_identified: "#/components/schemas/IssueIdentified"
+              rca_not_performed: "#/components/schemas/RCANotPerformed"
           oneOf:
-            - $ref: '#/components/schemas/IssueIdentified'
-            - $ref: '#/components/schemas/RCANotPerformed'
+            - $ref: "#/components/schemas/IssueIdentified"
+            - $ref: "#/components/schemas/RCANotPerformed"
         investigation_path:
           type: array
           items:
-            $ref: '#/components/schemas/InvestigationStep'
+            $ref: "#/components/schemas/InvestigationStep"
           description: Sequential steps the agent took during investigation. Include only significant investigative actions
 
     IssueIdentified:
@@ -1354,20 +1358,20 @@ components:
           type: array
           minItems: 1
           items:
-            $ref: '#/components/schemas/RootCause'
+            $ref: "#/components/schemas/RootCause"
           description: Identified root causes in order of significance. Each contains its own supporting evidence.
         timeline:
           type: array
           items:
-            $ref: '#/components/schemas/TimelineEvent'
+            $ref: "#/components/schemas/TimelineEvent"
           description: Chronological sequence of significant system events discovered through analysis
         excluded_causes:
           type: array
           items:
-            $ref: '#/components/schemas/ExcludedCause'
+            $ref: "#/components/schemas/ExcludedCause"
           description: Potential causes that were investigated and ruled out with reasoning, helping narrow down the actual root cause.
         recommendations:
-          $ref: '#/components/schemas/Recommendations'
+          $ref: "#/components/schemas/Recommendations"
 
     RCANotPerformed:
       type: object
@@ -1383,11 +1387,11 @@ components:
         reason:
           type: string
           description: Explanation of why RCA was not performed (e.g., insufficient telemetry data, false positive, no issue detected)
-          example: 'Insufficient telemetry data available for the time period'
+          example: "Insufficient telemetry data available for the time period"
         recommendations:
           nullable: true
           allOf:
-            - $ref: '#/components/schemas/Recommendations'
+            - $ref: "#/components/schemas/Recommendations"
           description: Recommendations for improving tracing, observability, monitoring, or alerting to enable better RCA in the future
 
     RootCause:
@@ -1400,28 +1404,28 @@ components:
         description:
           type: string
           description: Detailed description of the root cause. Be specific about what failed and why.
-          example: 'Database connection pool exhausted due to connections not being properly released after query completion'
+          example: "Database connection pool exhausted due to connections not being properly released after query completion"
         confidence:
-          $ref: '#/components/schemas/ConfidenceLevel'
+          $ref: "#/components/schemas/ConfidenceLevel"
         evidences:
           type: array
           items:
             discriminator:
               propertyName: type
               mapping:
-                log: '#/components/schemas/LogEvidenceItem'
-                metric: '#/components/schemas/MetricEvidenceItem'
-                trace: '#/components/schemas/TraceEvidenceItem'
+                log: "#/components/schemas/LogEvidenceItem"
+                metric: "#/components/schemas/MetricEvidenceItem"
+                trace: "#/components/schemas/TraceEvidenceItem"
             oneOf:
-              - $ref: '#/components/schemas/LogEvidenceItem'
-              - $ref: '#/components/schemas/MetricEvidenceItem'
-              - $ref: '#/components/schemas/TraceEvidenceItem'
+              - $ref: "#/components/schemas/LogEvidenceItem"
+              - $ref: "#/components/schemas/MetricEvidenceItem"
+              - $ref: "#/components/schemas/TraceEvidenceItem"
           description: Specific evidence supporting this root cause (logs, metrics, traces). Each entry should be significant for RCA
         analysis:
           type: string
           nullable: true
           description: Explains how the evidences correlate with each other and collectively support this root cause determination
-          example: 'Error logs showing connection timeouts correlate with metric spikes in connection pool usage, and traces reveal slow database queries at the same timestamp'
+          example: "Error logs showing connection timeouts correlate with metric spikes in connection pool usage, and traces reveal slow database queries at the same timestamp"
 
     ConfidenceLevel:
       type: string
@@ -1450,22 +1454,22 @@ components:
         component_uid:
           type: string
           description: Component UID this evidence relates to
-          example: '8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b'
+          example: "8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b"
         project_uid:
           type: string
           description: Project UID this evidence relates to
-          example: '1c4e7a9b-3f6d-4e2a-8b5c-7d9f1e3a4c6b'
+          example: "1c4e7a9b-3f6d-4e2a-8b5c-7d9f1e3a4c6b"
         log_level:
-          $ref: '#/components/schemas/LogLevel'
+          $ref: "#/components/schemas/LogLevel"
         timestamp:
           type: string
           format: date-time
           description: ISO 8601 timestamp when log occurred
-          example: '2025-01-10T08:15:23.456Z'
+          example: "2025-01-10T08:15:23.456Z"
         log_message:
           type: string
           description: The significant log message implying root cause
-          example: 'ERROR: Database connection timeout after 30s'
+          example: "ERROR: Database connection timeout after 30s"
 
     MetricEvidenceItem:
       type: object
@@ -1492,27 +1496,27 @@ components:
         component_uid:
           type: string
           description: Component UID this evidence relates to
-          example: '8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b'
+          example: "8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b"
         project_uid:
           type: string
           description: Project UID this evidence relates to
-          example: '1c4e7a9b-3f6d-4e2a-8b5c-7d9f1e3a4c6b'
+          example: "1c4e7a9b-3f6d-4e2a-8b5c-7d9f1e3a4c6b"
         metric_name:
           type: string
           description: Human-readable name of the metric (e.g., 'RAM usage', 'CPU utilization', 'Request latency p99')
-          example: 'RAM usage'
+          example: "RAM usage"
         value:
           type: string
           description: Formatted metric value with unit (e.g., '95.5%', '1.2 cores', '64 req/s', '2.5 GB/s')
-          example: '95.5%'
+          example: "95.5%"
         description:
           type: string
           description: Self-contained explanation of the anomaly and its RCA relevance (e.g., 'RAM usage at 95.5% exceeds 90% threshold, causing OOM kills')
-          example: 'RAM usage at 95.5% exceeds 90% threshold, causing OOM kills'
+          example: "RAM usage at 95.5% exceeds 90% threshold, causing OOM kills"
         severity:
-          $ref: '#/components/schemas/MetricSeverity'
+          $ref: "#/components/schemas/MetricSeverity"
         time_range:
-          $ref: '#/components/schemas/TimeRange'
+          $ref: "#/components/schemas/TimeRange"
 
     TraceEvidenceItem:
       type: object
@@ -1532,15 +1536,15 @@ components:
         component_uid:
           type: string
           description: Component UID this evidence relates to
-          example: '8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b'
+          example: "8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b"
         project_uid:
           type: string
           description: Project UID this evidence relates to
-          example: '1c4e7a9b-3f6d-4e2a-8b5c-7d9f1e3a4c6b'
+          example: "1c4e7a9b-3f6d-4e2a-8b5c-7d9f1e3a4c6b"
         trace_id:
           type: string
           description: Unique trace identifier for reference
-          example: 'f3a7b9e1c4d2f5a8b6e3c9f1d4a7e2b8'
+          example: "f3a7b9e1c4d2f5a8b6e3c9f1d4a7e2b8"
         total_duration_ms:
           type: number
           description: Total trace duration in milliseconds
@@ -1548,7 +1552,7 @@ components:
         significant_spans:
           type: array
           items:
-            $ref: '#/components/schemas/SpanInfo'
+            $ref: "#/components/schemas/SpanInfo"
           description: Key spans that are significant for RCA (e.g., slowest spans, error spans, bottlenecks)
 
     SpanInfo:
@@ -1565,15 +1569,15 @@ components:
         span_id:
           type: string
           description: Unique span identifier
-          example: 'ad3537e3f48207d0'
+          example: "ad3537e3f48207d0"
         name:
           type: string
           description: Span operation name (e.g., 'GET /api/users', 'db.query', 'redis.get')
-          example: 'database-query'
+          example: "database-query"
         component_uid:
           type: string
           description: Component that executed this span
-          example: '8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b'
+          example: "8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b"
         duration_ms:
           type: number
           description: Span duration in milliseconds
@@ -1582,12 +1586,12 @@ components:
           type: string
           format: date-time
           description: ISO 8601 timestamp when span started
-          example: '2025-01-10T08:15:23.100Z'
+          example: "2025-01-10T08:15:23.100Z"
         end_time:
           type: string
           format: date-time
           description: ISO 8601 timestamp when span ended
-          example: '2025-01-10T08:15:27.900Z'
+          example: "2025-01-10T08:15:27.900Z"
         is_error:
           type: boolean
           nullable: true
@@ -1597,12 +1601,12 @@ components:
           type: string
           nullable: true
           description: Error message if is_error is True
-          example: 'Connection timeout'
+          example: "Connection timeout"
         parent_span_id:
           type: string
           nullable: true
           description: Parent span ID to show request flow hierarchy
-          example: 'b72e731db5edfd1d'
+          example: "b72e731db5edfd1d"
 
     LogLevel:
       type: string
@@ -1632,12 +1636,12 @@ components:
           type: string
           format: date-time
           description: ISO 8601 timestamp for range start
-          example: '2025-01-10T08:00:00Z'
+          example: "2025-01-10T08:00:00Z"
         end:
           type: string
           format: date-time
           description: ISO 8601 timestamp for range end
-          example: '2025-01-10T09:00:00Z'
+          example: "2025-01-10T09:00:00Z"
 
     ExcludedCause:
       type: object
@@ -1649,11 +1653,11 @@ components:
         description:
           type: string
           description: The potential cause that was investigated and excluded
-          example: 'Network connectivity issues'
+          example: "Network connectivity issues"
         reason:
           type: string
           description: Why this was ruled out as a root cause based on evidence
-          example: 'Network latency metrics remained stable throughout the incident period'
+          example: "Network latency metrics remained stable throughout the incident period"
 
     TimelineEvent:
       type: object
@@ -1667,13 +1671,13 @@ components:
           type: string
           format: date-time
           description: ISO 8601 timestamp when the event occurred
-          example: '2025-01-10T08:15:00Z'
+          example: "2025-01-10T08:15:00Z"
         description:
           type: string
           description: Description of what happened in the system (e.g., 'analytics-service started returning 500 errors')
-          example: 'analytics-service started returning 500 errors'
+          example: "analytics-service started returning 500 errors"
         source_type:
-          $ref: '#/components/schemas/EvidenceType'
+          $ref: "#/components/schemas/EvidenceType"
         aggregated_count:
           type: integer
           nullable: true
@@ -1698,16 +1702,16 @@ components:
         action:
           type: string
           description: What the agent investigated (e.g., 'Analyzed error logs from analytics-service')
-          example: 'Analyzed error logs from analytics-service'
+          example: "Analyzed error logs from analytics-service"
         rationale:
           type: string
           nullable: true
           description: Why the agent took this step (e.g., 'Previous step showed high error rate')
-          example: 'Previous step showed high error rate from this component'
+          example: "Previous step showed high error rate from this component"
         outcome:
           type: string
           description: What the agent found or concluded from this step
-          example: 'Found 47 database connection timeout errors between 08:15 and 08:20 UTC'
+          example: "Found 47 database connection timeout errors between 08:15 and 08:20 UTC"
 
     Recommendations:
       type: object
@@ -1716,14 +1720,18 @@ components:
         actions:
           type: array
           items:
-            $ref: '#/components/schemas/Action'
+            $ref: "#/components/schemas/Action"
           description: Prioritized actions sorted by priority
         monitoring_improvements:
           type: array
           items:
             type: string
           description: Suggestions for additional monitoring, alerting, or observability improvements
-          example: ['Add alerting for database connection pool usage above 80%', 'Implement distributed tracing for database queries']
+          example:
+            [
+              "Add alerting for database connection pool usage above 80%",
+              "Implement distributed tracing for database queries",
+            ]
 
     Action:
       type: object
@@ -1734,12 +1742,12 @@ components:
         description:
           type: string
           description: Description of the action to take
-          example: 'Review and fix connection pooling logic to ensure connections are properly released'
+          example: "Review and fix connection pooling logic to ensure connections are properly released"
         rationale:
           type: string
           nullable: true
           description: Why this action is recommended
-          example: 'Will prevent connection pool exhaustion from recurring'
+          example: "Will prevent connection pool exhaustion from recurring"
 
   securitySchemes:
     BearerAuth:
