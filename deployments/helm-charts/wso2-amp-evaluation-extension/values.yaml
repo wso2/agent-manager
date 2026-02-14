@@ -35,3 +35,6 @@ ampEvaluation:
   # When true, image will be prefixed with registry endpoint
   # When false, uses repository:tag directly (for k3d imported images or external registries)
   useLocalRegistry: false
+
+  # -- In-cluster URL for the traces observer API
+  tracesApiEndpoint: "http://amp-traces-observer.openchoreo-observability-plane.svc.cluster.local:9098"

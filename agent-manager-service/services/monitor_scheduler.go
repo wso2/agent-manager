@@ -208,6 +208,7 @@ func (s *monitorSchedulerService) syncRunStatus(ctx context.Context) error {
 	var runs []models.MonitorRun
 	err := db.DB(ctx).
 		Where("status IN ?", []string{models.RunStatusPending, models.RunStatusRunning}).
+		Order("created_at ASC").
 		Limit(100).
 		Find(&runs).Error
 	if err != nil {
@@ -252,6 +253,11 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 		return fmt.Errorf("failed to extract workflow status: %w", err)
 	}
 
+	s.logger.Debug("WorkflowRun status extracted",
+		"runName", run.Name,
+		"currentDBStatus", run.Status,
+		"extractedStatus", status)
+
 	// Update DB based on status
 	updates := make(map[string]interface{})
 
@@ -264,16 +270,18 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 			updates["started_at"] = now
 		}
 
-	case "Failed", "Error":
+	case "Failed":
 		updates["status"] = models.RunStatusFailed
 		now := time.Now()
 		updates["completed_at"] = now
 		if run.StartedAt == nil {
 			updates["started_at"] = now
 		}
-		// Extract error message if available
 		if errorMsg := s.extractErrorMessage(cr); errorMsg != "" {
 			updates["error_message"] = errorMsg
+		} else {
+			msg := "workflow failed to start — check WorkflowRun CR conditions"
+			updates["error_message"] = msg
 		}
 
 	case "Running":
@@ -329,13 +337,29 @@ func (s *monitorSchedulerService) extractWorkflowStatus(cr map[string]interface{
 			reason, _ := condMap["reason"].(string)
 
 			if condStatus == "True" {
-				// Check if it succeeded or failed
 				if reason == "WorkflowSucceeded" {
 					return "Succeeded", nil
 				}
 				return "Failed", nil
 			}
-			return "Running", nil
+
+			// status is "False" or "Unknown"
+			switch reason {
+			case "WorkflowPending":
+				return "Pending", nil
+			case "WorkflowRunning":
+				return "Running", nil
+			default:
+				// Unknown reason — could be a controller error (e.g., render failure)
+				message, _ := condMap["message"].(string)
+				if message != "" {
+					s.logger.Error("WorkflowRun has error condition",
+						"reason", reason, "message", message)
+					return "Failed", nil
+				}
+				// No message — stay pending, let timeout handle it
+				return "Pending", nil
+			}
 		}
 	}
 

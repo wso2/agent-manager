@@ -67,8 +67,7 @@ type monitorManagerService struct {
 
 // MonitorServiceConfig holds configuration for the monitor service
 type MonitorServiceConfig struct {
-	TracesAPIEndpoint string
-	MonitorImage      string
+	MonitorImage string
 }
 
 // NewMonitorManagerService creates a new monitor manager service instance
