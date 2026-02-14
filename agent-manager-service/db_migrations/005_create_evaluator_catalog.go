@@ -50,7 +50,7 @@ const defaultBuiltinEvaluatorsPath = "data/builtin_evaluators.json"
 
 // Create evaluator_catalog table and seed builtin evaluators from JSON file
 var migration005 = migration{
-	ID: 2,
+	ID: 5,
 	Migrate: func(db *gorm.DB) error {
 		createEvaluatorCatalogTable := `
 		CREATE TABLE IF NOT EXISTS evaluator_catalog (
