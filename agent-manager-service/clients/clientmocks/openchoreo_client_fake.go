@@ -11,6 +11,117 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
 
+// OpenChoreoClientMock is a mock implementation of client.OpenChoreoClient.
+//
+//	func TestSomethingThatUsesOpenChoreoClient(t *testing.T) {
+//
+//		// make and configure a mocked client.OpenChoreoClient
+//		mockedOpenChoreoClient := &OpenChoreoClientMock{
+//			ApplyResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
+//				panic("mock out the ApplyResource method")
+//			},
+//			AttachTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) error {
+//				panic("mock out the AttachTrait method")
+//			},
+//			ComponentExistsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, verifyProject bool) (bool, error) {
+//				panic("mock out the ComponentExists method")
+//			},
+//			CreateComponentFunc: func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error {
+//				panic("mock out the CreateComponent method")
+//			},
+//			CreateProjectFunc: func(ctx context.Context, namespaceName string, req client.CreateProjectRequest) error {
+//				panic("mock out the CreateProject method")
+//			},
+//			DeleteComponentFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) error {
+//				panic("mock out the DeleteComponent method")
+//			},
+//			DeleteProjectFunc: func(ctx context.Context, namespaceName string, projectName string) error {
+//				panic("mock out the DeleteProject method")
+//			},
+//			DeleteResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
+//				panic("mock out the DeleteResource method")
+//			},
+//			DeployFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.DeployRequest) error {
+//				panic("mock out the Deploy method")
+//			},
+//			GetBuildFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
+//				panic("mock out the GetBuild method")
+//			},
+//			GetComponentFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) (*models.AgentResponse, error) {
+//				panic("mock out the GetComponent method")
+//			},
+//			GetComponentConfigurationsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) ([]models.EnvVars, error) {
+//				panic("mock out the GetComponentConfigurations method")
+//			},
+//			GetComponentEndpointsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) (map[string]models.EndpointsResponse, error) {
+//				panic("mock out the GetComponentEndpoints method")
+//			},
+//			GetComponentResourceConfigsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string) (*client.ComponentResourceConfigsResponse, error) {
+//				panic("mock out the GetComponentResourceConfigs method")
+//			},
+//			GetDeploymentsFunc: func(ctx context.Context, namespaceName string, pipelineName string, projectName string, componentName string) ([]*models.DeploymentResponse, error) {
+//				panic("mock out the GetDeployments method")
+//			},
+//			GetEnvironmentFunc: func(ctx context.Context, namespaceName string, environmentName string) (*models.EnvironmentResponse, error) {
+//				panic("mock out the GetEnvironment method")
+//			},
+//			GetOrganizationFunc: func(ctx context.Context, orgName string) (*models.OrganizationResponse, error) {
+//				panic("mock out the GetOrganization method")
+//			},
+//			GetProjectFunc: func(ctx context.Context, namespaceName string, projectName string) (*models.ProjectResponse, error) {
+//				panic("mock out the GetProject method")
+//			},
+//			GetProjectDeploymentPipelineFunc: func(ctx context.Context, namespaceName string, projectName string) (*models.DeploymentPipelineResponse, error) {
+//				panic("mock out the GetProjectDeploymentPipeline method")
+//			},
+//			GetResourceFunc: func(ctx context.Context, namespaceName string, kind string, name string) (map[string]interface{}, error) {
+//				panic("mock out the GetResource method")
+//			},
+//			ListBuildsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]*models.BuildResponse, error) {
+//				panic("mock out the ListBuilds method")
+//			},
+//			ListComponentsFunc: func(ctx context.Context, namespaceName string, projectName string) ([]*models.AgentResponse, error) {
+//				panic("mock out the ListComponents method")
+//			},
+//			ListDataPlanesFunc: func(ctx context.Context, namespaceName string) ([]*models.DataPlaneResponse, error) {
+//				panic("mock out the ListDataPlanes method")
+//			},
+//			ListDeploymentPipelinesFunc: func(ctx context.Context, namespaceName string) ([]*models.DeploymentPipelineResponse, error) {
+//				panic("mock out the ListDeploymentPipelines method")
+//			},
+//			ListEnvironmentsFunc: func(ctx context.Context, namespaceName string) ([]*models.EnvironmentResponse, error) {
+//				panic("mock out the ListEnvironments method")
+//			},
+//			ListOrganizationsFunc: func(ctx context.Context) ([]*models.OrganizationResponse, error) {
+//				panic("mock out the ListOrganizations method")
+//			},
+//			ListProjectsFunc: func(ctx context.Context, namespaceName string) ([]*models.ProjectResponse, error) {
+//				panic("mock out the ListProjects method")
+//			},
+//			PatchProjectFunc: func(ctx context.Context, namespaceName string, projectName string, req client.PatchProjectRequest) error {
+//				panic("mock out the PatchProject method")
+//			},
+//			TriggerBuildFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, commitID string) (*models.BuildResponse, error) {
+//				panic("mock out the TriggerBuild method")
+//			},
+//			UpdateComponentBasicInfoFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentBasicInfoRequest) error {
+//				panic("mock out the UpdateComponentBasicInfo method")
+//			},
+//			UpdateComponentBuildParametersFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.UpdateComponentBuildParametersRequest) error {
+//				panic("mock out the UpdateComponentBuildParameters method")
+//			},
+//			UpdateComponentEnvironmentVariablesFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
+//				panic("mock out the UpdateComponentEnvironmentVariables method")
+//			},
+//			UpdateComponentResourceConfigsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string, req client.UpdateComponentResourceConfigsRequest) error {
+//				panic("mock out the UpdateComponentResourceConfigs method")
+//			},
+//		}
+//
+//		// use mockedOpenChoreoClient in code that requires client.OpenChoreoClient
+//		// and then make assertions.
+//
+//	}
 type OpenChoreoClientMock struct {
 	// ApplyResourceFunc mocks the ApplyResource method.
 	ApplyResourceFunc func(ctx context.Context, body map[string]interface{}) error

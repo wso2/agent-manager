@@ -55,12 +55,6 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	repositoryController := controllers.NewRepositoryController(repositoryService)
-	clientAuthProvider := ProvideAPIPlatformAuthProvider(configConfig)
-	clientConfig := ProvideAPIPlatformConfig(configConfig, clientAuthProvider)
-	apiPlatformClient := ProvideAPIPlatformClient(clientConfig)
-	environmentService := services.NewEnvironmentService(logger, apiPlatformClient, openChoreoClient)
-	environmentController := controllers.NewEnvironmentController(environmentService)
-	gatewayController := controllers.NewGatewayController(apiPlatformClient, db)
 	monitorServiceConfig := ProvideMonitorServiceConfig(configConfig)
 	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger, monitorServiceConfig)
 	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, monitorServiceConfig)
@@ -68,6 +62,12 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger)
 	evaluatorController := controllers.NewEvaluatorController(evaluatorManagerService)
 	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, logger, monitorExecutor, monitorServiceConfig)
+	clientAuthProvider := ProvideAPIPlatformAuthProvider(configConfig)
+	clientConfig := ProvideAPIPlatformConfig(configConfig, clientAuthProvider)
+	apiPlatformClient := ProvideAPIPlatformClient(clientConfig)
+	environmentService := services.NewEnvironmentService(logger, apiPlatformClient, openChoreoClient)
+	environmentController := controllers.NewEnvironmentController(environmentService)
+	gatewayController := controllers.NewGatewayController(apiPlatformClient, db)
 	appParams := &AppParams{
 		AuthMiddleware:          middleware,
 		Logger:                  logger,
@@ -76,13 +76,13 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 		ObservabilityController: observabilityController,
 		AgentTokenController:    agentTokenController,
 		RepositoryController:    repositoryController,
+		MonitorController:       monitorController,
+		EvaluatorController:     evaluatorController,
+		MonitorScheduler:        monitorSchedulerService,
 		EnvironmentController:   environmentController,
 		GatewayController:       gatewayController,
 		APIPlatformClient:       apiPlatformClient,
 		DB:                      db,
-		MonitorController:       monitorController,
-		EvaluatorController:     evaluatorController,
-		MonitorScheduler:        monitorSchedulerService,
 	}
 	return appParams, nil
 }
@@ -108,10 +108,6 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	observabilityController := controllers.NewObservabilityController(observabilityManagerService)
 	agentTokenController := controllers.NewAgentTokenController(agentTokenManagerService)
 	repositoryController := controllers.NewRepositoryController(repositoryService)
-	apiPlatformClient := ProvideTestAPIPlatformClient(testClients)
-	environmentService := services.NewEnvironmentService(logger, apiPlatformClient, openChoreoClient)
-	environmentController := controllers.NewEnvironmentController(environmentService)
-	gatewayController := controllers.NewGatewayController(apiPlatformClient, db)
 	monitorServiceConfig := ProvideMonitorServiceConfig(configConfig)
 	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger, monitorServiceConfig)
 	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, monitorServiceConfig)
@@ -119,6 +115,10 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger)
 	evaluatorController := controllers.NewEvaluatorController(evaluatorManagerService)
 	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, logger, monitorExecutor, monitorServiceConfig)
+	apiPlatformClient := ProvideTestAPIPlatformClient(testClients)
+	environmentService := services.NewEnvironmentService(logger, apiPlatformClient, openChoreoClient)
+	environmentController := controllers.NewEnvironmentController(environmentService)
+	gatewayController := controllers.NewGatewayController(apiPlatformClient, db)
 	appParams := &AppParams{
 		AuthMiddleware:          authMiddleware,
 		Logger:                  logger,
@@ -127,13 +127,13 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		ObservabilityController: observabilityController,
 		AgentTokenController:    agentTokenController,
 		RepositoryController:    repositoryController,
+		MonitorController:       monitorController,
+		EvaluatorController:     evaluatorController,
+		MonitorScheduler:        monitorSchedulerService,
 		EnvironmentController:   environmentController,
 		GatewayController:       gatewayController,
 		APIPlatformClient:       apiPlatformClient,
 		DB:                      db,
-		MonitorController:       monitorController,
-		EvaluatorController:     evaluatorController,
-		MonitorScheduler:        monitorSchedulerService,
 	}
 	return appParams, nil
 }
@@ -153,7 +153,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideAPIPlatformClient,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewEnvironmentService, services.NewMonitorExecutor, services.NewMonitorManagerService, services.NewMonitorSchedulerService, services.NewEvaluatorManagerService)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, services.NewMonitorSchedulerService, services.NewEvaluatorManagerService, services.NewEnvironmentService)
 
 var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewMonitorController, controllers.NewEvaluatorController)
 

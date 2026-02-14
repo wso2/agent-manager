@@ -12,6 +12,30 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 )
 
+// ObservabilitySvcClientMock is a mock implementation of observabilitysvc.ObservabilitySvcClient.
+//
+//	func TestSomethingThatUsesObservabilitySvcClient(t *testing.T) {
+//
+//		// make and configure a mocked observabilitysvc.ObservabilitySvcClient
+//		mockedObservabilitySvcClient := &ObservabilitySvcClientMock{
+//			GetBuildLogsFunc: func(ctx context.Context, params observabilitysvc.BuildLogsParams) (*models.LogsResponse, error) {
+//				panic("mock out the GetBuildLogs method")
+//			},
+//			GetComponentLogsFunc: func(ctx context.Context, params observabilitysvc.ComponentLogsParams, payload spec.LogFilterRequest) (*models.LogsResponse, error) {
+//				panic("mock out the GetComponentLogs method")
+//			},
+//			GetComponentMetricsFunc: func(ctx context.Context, params observabilitysvc.ComponentMetricsParams, payload spec.MetricsFilterRequest) (*models.MetricsResponse, error) {
+//				panic("mock out the GetComponentMetrics method")
+//			},
+//			GetWorkflowRunLogsFunc: func(ctx context.Context, workflowRunName string) (*models.LogsResponse, error) {
+//				panic("mock out the GetWorkflowRunLogs method")
+//			},
+//		}
+//
+//		// use mockedObservabilitySvcClient in code that requires observabilitysvc.ObservabilitySvcClient
+//		// and then make assertions.
+//
+//	}
 type ObservabilitySvcClientMock struct {
 	// GetBuildLogsFunc mocks the GetBuildLogs method.
 	GetBuildLogsFunc func(ctx context.Context, params observabilitysvc.BuildLogsParams) (*models.LogsResponse, error)
