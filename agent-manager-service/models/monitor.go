@@ -17,6 +17,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,26 +47,53 @@ const (
 	RunStatusFailed  = "failed"
 )
 
+// MonitorEvaluator represents an evaluator with its configuration
+type MonitorEvaluator struct {
+	Name   string                 `json:"name" validate:"required,min=1"`
+	Config map[string]interface{} `json:"config,omitempty"`
+}
+
+// UnmarshalJSON provides backward compatibility for reading old string format
+// Old format: "latency" -> New format: {"name": "latency", "config": {}}
+func (e *MonitorEvaluator) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as string (old format)
+	var name string
+	if err := json.Unmarshal(data, &name); err == nil {
+		e.Name = name
+		e.Config = nil
+		return nil
+	}
+
+	// Unmarshal as object (new format)
+	type Alias MonitorEvaluator
+	aux := &struct {
+		*Alias
+	}{
+		Alias: (*Alias)(e),
+	}
+	return json.Unmarshal(data, aux)
+}
+
 // Monitor is the GORM model for the monitors table
 type Monitor struct {
-	ID              uuid.UUID  `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
-	Name            string     `gorm:"column:name;not null"`
-	DisplayName     string     `gorm:"column:display_name;not null;default:''"`
-	Type            string     `gorm:"column:type;not null"`
-	OrgName         string     `gorm:"column:org_name;not null"`
-	ProjectName     string     `gorm:"column:project_name;not null"`
-	AgentName       string     `gorm:"column:agent_name;not null"`
-	AgentID         string     `gorm:"column:agent_id;not null"`
-	EnvironmentName string     `gorm:"column:environment_name;not null"`
-	EnvironmentID   string     `gorm:"column:environment_id;not null"`
-	Evaluators      []string   `gorm:"column:evaluators;type:jsonb;serializer:json;not null;default:'[]'"`
-	IntervalMinutes *int       `gorm:"column:interval_minutes"`
-	NextRunTime     *time.Time `gorm:"column:next_run_time"`
-	TraceStart      *time.Time `gorm:"column:trace_start"`
-	TraceEnd        *time.Time `gorm:"column:trace_end"`
-	SamplingRate    float64    `gorm:"column:sampling_rate;not null;default:1.00"`
-	CreatedAt       time.Time  `gorm:"column:created_at;not null;default:NOW()"`
-	UpdatedAt       time.Time  `gorm:"column:updated_at;not null;default:NOW()"`
+	ID              uuid.UUID          `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
+	Name            string             `gorm:"column:name;not null"`
+	DisplayName     string             `gorm:"column:display_name;not null;default:''"`
+	Type            string             `gorm:"column:type;not null"`
+	OrgName         string             `gorm:"column:org_name;not null"`
+	ProjectName     string             `gorm:"column:project_name;not null"`
+	AgentName       string             `gorm:"column:agent_name;not null"`
+	AgentID         string             `gorm:"column:agent_id;not null"`
+	EnvironmentName string             `gorm:"column:environment_name;not null"`
+	EnvironmentID   string             `gorm:"column:environment_id;not null"`
+	Evaluators      []MonitorEvaluator `gorm:"column:evaluators;type:jsonb;serializer:json;not null;default:'[]'"`
+	IntervalMinutes *int               `gorm:"column:interval_minutes"`
+	NextRunTime     *time.Time         `gorm:"column:next_run_time"`
+	TraceStart      *time.Time         `gorm:"column:trace_start"`
+	TraceEnd        *time.Time         `gorm:"column:trace_end"`
+	SamplingRate    float64            `gorm:"column:sampling_rate;not null;default:1.00"`
+	CreatedAt       time.Time          `gorm:"column:created_at;not null;default:NOW()"`
+	UpdatedAt       time.Time          `gorm:"column:updated_at;not null;default:NOW()"`
 }
 
 func (Monitor) TableName() string { return "monitors" }
@@ -97,17 +125,17 @@ func (m *Monitor) ToResponse(status MonitorStatus, latestRun *MonitorRunResponse
 
 // MonitorRun is the GORM model for the monitor_runs table
 type MonitorRun struct {
-	ID           uuid.UUID  `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
-	MonitorID    uuid.UUID  `gorm:"column:monitor_id;not null"`
-	Name         string     `gorm:"column:name;not null"` // WorkflowRun name for querying OpenChoreo API
-	Evaluators   []string   `gorm:"column:evaluators;type:jsonb;serializer:json;not null;default:'[]'"`
-	TraceStart   time.Time  `gorm:"column:trace_start;not null"`
-	TraceEnd     time.Time  `gorm:"column:trace_end;not null"`
-	StartedAt    *time.Time `gorm:"column:started_at"`
-	CompletedAt  *time.Time `gorm:"column:completed_at"`
-	Status       string     `gorm:"column:status;not null;default:'pending'"`
-	ErrorMessage *string    `gorm:"column:error_message"`
-	CreatedAt    time.Time  `gorm:"column:created_at;not null;default:NOW()"`
+	ID           uuid.UUID          `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
+	MonitorID    uuid.UUID          `gorm:"column:monitor_id;not null"`
+	Name         string             `gorm:"column:name;not null"` // WorkflowRun name for querying OpenChoreo API
+	Evaluators   []MonitorEvaluator `gorm:"column:evaluators;type:jsonb;serializer:json;not null;default:'[]'"`
+	TraceStart   time.Time          `gorm:"column:trace_start;not null"`
+	TraceEnd     time.Time          `gorm:"column:trace_end;not null"`
+	StartedAt    *time.Time         `gorm:"column:started_at"`
+	CompletedAt  *time.Time         `gorm:"column:completed_at"`
+	Status       string             `gorm:"column:status;not null;default:'pending'"`
+	ErrorMessage *string            `gorm:"column:error_message"`
+	CreatedAt    time.Time          `gorm:"column:created_at;not null;default:NOW()"`
 }
 
 func (MonitorRun) TableName() string { return "monitor_runs" }
@@ -129,13 +157,13 @@ func (r *MonitorRun) ToResponse() *MonitorRunResponse {
 
 // CreateMonitorRequest is the request body for creating a monitor
 type CreateMonitorRequest struct {
-	Name            string   `json:"name" validate:"required,min=1,max=63"`
-	DisplayName     string   `json:"displayName" validate:"required,min=1,max=128"`
-	ProjectName     string   `json:"projectName" validate:"required,min=1,max=63"`
-	AgentName       string   `json:"agentName" validate:"required,min=1,max=63"`
-	EnvironmentName string   `json:"environmentName" validate:"required,min=1,max=63"`
-	Evaluators      []string `json:"evaluators" validate:"required,min=1"`
-	Type            string   `json:"type" validate:"required,oneof=future past"`
+	Name            string             `json:"name" validate:"required,min=1,max=63"`
+	DisplayName     string             `json:"displayName" validate:"required,min=1,max=128"`
+	ProjectName     string             `json:"projectName" validate:"required,min=1,max=63"`
+	AgentName       string             `json:"agentName" validate:"required,min=1,max=63"`
+	EnvironmentName string             `json:"environmentName" validate:"required,min=1,max=63"`
+	Evaluators      []MonitorEvaluator `json:"evaluators" validate:"required,min=1,dive"`
+	Type            string             `json:"type" validate:"required,oneof=future past"`
 	// Future monitor fields
 	IntervalMinutes *int `json:"intervalMinutes,omitempty" validate:"omitempty,min=1"`
 	// Past monitor fields
@@ -147,13 +175,13 @@ type CreateMonitorRequest struct {
 
 // UpdateMonitorRequest is the request body for updating a monitor
 type UpdateMonitorRequest struct {
-	DisplayName     *string    `json:"displayName,omitempty" validate:"omitempty,min=1,max=128"`
-	Evaluators      *[]string  `json:"evaluators,omitempty" validate:"omitempty,min=1"`
-	IntervalMinutes *int       `json:"intervalMinutes,omitempty" validate:"omitempty,min=1"`
-	TraceStart      *time.Time `json:"traceStart,omitempty"`
-	TraceEnd        *time.Time `json:"traceEnd,omitempty"`
-	SamplingRate    *float64   `json:"samplingRate,omitempty"`
-	Suspended       *bool      `json:"suspended,omitempty"`
+	DisplayName     *string             `json:"displayName,omitempty" validate:"omitempty,min=1,max=128"`
+	Evaluators      *[]MonitorEvaluator `json:"evaluators,omitempty" validate:"omitempty,min=1,dive"`
+	IntervalMinutes *int                `json:"intervalMinutes,omitempty" validate:"omitempty,min=1"`
+	TraceStart      *time.Time          `json:"traceStart,omitempty"`
+	TraceEnd        *time.Time          `json:"traceEnd,omitempty"`
+	SamplingRate    *float64            `json:"samplingRate,omitempty"`
+	Suspended       *bool               `json:"suspended,omitempty"`
 }
 
 // MonitorResponse is the API response for a monitor
@@ -168,7 +196,7 @@ type MonitorResponse struct {
 	AgentID         string              `json:"agentId"`
 	EnvironmentID   string              `json:"environmentId"`
 	EnvironmentName string              `json:"environmentName"`
-	Evaluators      []string            `json:"evaluators"`
+	Evaluators      []MonitorEvaluator  `json:"evaluators"`
 	IntervalMinutes *int                `json:"intervalMinutes,omitempty"`
 	NextRunTime     *time.Time          `json:"nextRunTime,omitempty"`
 	TraceStart      *time.Time          `json:"traceStart,omitempty"`
@@ -187,15 +215,15 @@ type MonitorListResponse struct {
 
 // MonitorRunResponse represents a single monitor execution run
 type MonitorRunResponse struct {
-	ID           string     `json:"id"`
-	MonitorName  string     `json:"monitorName,omitempty"`
-	Evaluators   []string   `json:"evaluators"`
-	TraceStart   time.Time  `json:"traceStart"`
-	TraceEnd     time.Time  `json:"traceEnd"`
-	StartedAt    *time.Time `json:"startedAt,omitempty"`
-	CompletedAt  *time.Time `json:"completedAt,omitempty"`
-	Status       string     `json:"status"`
-	ErrorMessage *string    `json:"errorMessage,omitempty"`
+	ID           string             `json:"id"`
+	MonitorName  string             `json:"monitorName,omitempty"`
+	Evaluators   []MonitorEvaluator `json:"evaluators"`
+	TraceStart   time.Time          `json:"traceStart"`
+	TraceEnd     time.Time          `json:"traceEnd"`
+	StartedAt    *time.Time         `json:"startedAt,omitempty"`
+	CompletedAt  *time.Time         `json:"completedAt,omitempty"`
+	Status       string             `json:"status"`
+	ErrorMessage *string            `json:"errorMessage,omitempty"`
 }
 
 // MonitorRunsListResponse is the API response for listing monitor runs

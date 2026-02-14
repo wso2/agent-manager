@@ -36,8 +36,8 @@ type MonitorResponse struct {
 	AgentName string `json:"agentName"`
 	// Environment name
 	EnvironmentName string `json:"environmentName"`
-	// List of evaluator IDs
-	Evaluators []string `json:"evaluators"`
+	// List of evaluators with configuration
+	Evaluators []MonitorEvaluator `json:"evaluators"`
 	// Interval in minutes (only for 'future' type)
 	IntervalMinutes *int32 `json:"intervalMinutes,omitempty"`
 	// Next scheduled run time (only for 'future' type)
@@ -59,7 +59,7 @@ type MonitorResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewMonitorResponse(id string, name string, displayName string, type_ string, orgName string, projectName string, agentName string, environmentName string, evaluators []string, samplingRate float32, status string, createdAt time.Time) *MonitorResponse {
+func NewMonitorResponse(id string, name string, displayName string, type_ string, orgName string, projectName string, agentName string, environmentName string, evaluators []MonitorEvaluator, samplingRate float32, status string, createdAt time.Time) *MonitorResponse {
 	this := MonitorResponse{}
 	this.Id = id
 	this.Name = name
@@ -277,9 +277,9 @@ func (o *MonitorResponse) SetEnvironmentName(v string) {
 }
 
 // GetEvaluators returns the Evaluators field value
-func (o *MonitorResponse) GetEvaluators() []string {
+func (o *MonitorResponse) GetEvaluators() []MonitorEvaluator {
 	if o == nil {
-		var ret []string
+		var ret []MonitorEvaluator
 		return ret
 	}
 
@@ -288,7 +288,7 @@ func (o *MonitorResponse) GetEvaluators() []string {
 
 // GetEvaluatorsOk returns a tuple with the Evaluators field value
 // and a boolean to check if the value has been set.
-func (o *MonitorResponse) GetEvaluatorsOk() ([]string, bool) {
+func (o *MonitorResponse) GetEvaluatorsOk() ([]MonitorEvaluator, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -296,7 +296,7 @@ func (o *MonitorResponse) GetEvaluatorsOk() ([]string, bool) {
 }
 
 // SetEvaluators sets field value
-func (o *MonitorResponse) SetEvaluators(v []string) {
+func (o *MonitorResponse) SetEvaluators(v []MonitorEvaluator) {
 	o.Evaluators = v
 }
 

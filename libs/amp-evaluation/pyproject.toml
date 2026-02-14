@@ -20,6 +20,7 @@ dependencies = [
   "opentelemetry-instrumentation-requests>=0.41b0",
   "pydantic>=2.0.0",
   "pydantic-settings>=2.0.0",
+  "deepeval>=3.8.4"
 ]
 
 [project.optional-dependencies]

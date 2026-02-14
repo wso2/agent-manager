@@ -25,20 +25,22 @@ Uses the amp-evaluation SDK to register evaluators and run the monitor.
 Usage:
     python main.py \
         --monitor-name=my-monitor \
-        --agent-name=my-agent \
-        --evaluators=latency,hallucination \
+        --agent-id=agent-uid-123 \
+        --environment-id=env-uid-456 \
+        --evaluators='[{"name":"latency","config":{"max_latency_ms":3000}}]' \
         --sampling-rate=1.0 \
         --trace-start=2026-01-01T00:00:00Z \
         --trace-end=2026-01-02T00:00:00Z \
-        --traces-api-endpoint=http://traces-observer:8080 \
-        --org-name=my-org
+        --traces-api-endpoint=http://traces-observer:8080
 """
 
 import argparse
+import json
 import sys
 from datetime import datetime
 
 from amp_evaluation import Monitor, register_builtin
+from amp_evaluation.trace import TraceFetcher
 
 
 def parse_args():
@@ -55,15 +57,21 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--agent-name",
+        "--agent-id",
         required=True,
-        help="Name of the agent to monitor",
+        help="Unique identifier (UID) of the agent",
+    )
+
+    parser.add_argument(
+        "--environment-id",
+        required=True,
+        help="Unique identifier (UID) of the environment",
     )
 
     parser.add_argument(
         "--evaluators",
         required=True,
-        help="Comma-separated list of evaluator names (e.g., latency,hallucination)",
+        help='JSON array of evaluator configurations (e.g., \'[{"name":"latency","config":{"max_latency_ms":3000}}]\')',
     )
 
     parser.add_argument(
@@ -89,19 +97,6 @@ def parse_args():
         "--traces-api-endpoint",
         required=True,
         help="Traces API endpoint (e.g., http://traces-observer-service:8080)",
-    )
-
-    parser.add_argument(
-        "--org-name",
-        required=True,
-        help="Organization name",
-    )
-
-    parser.add_argument(
-        "--limit",
-        type=int,
-        default=1000,
-        help="Maximum number of traces to evaluate, default: 1000",
     )
 
     parser.add_argument(
@@ -131,12 +126,11 @@ def main():
     print("  AMP Monitor Evaluation")
     print("=" * 70)
     print(f"  Monitor:      {args.monitor_name}")
-    print(f"  Agent:        {args.agent_name}")
-    print(f"  Organization: {args.org_name}")
+    print(f"  Agent ID:     {args.agent_id}")
+    print(f"  Environment ID:  {args.environment_id}")
     print(f"  Evaluators:   {args.evaluators}")
     print(f"  Time Range:   {args.trace_start} → {args.trace_end}")
     print(f"  Sampling:     {args.sampling_rate}")
-    print(f"  Limit:        {args.limit}")
     print(f"  API Endpoint: {args.traces_api_endpoint}")
     print("=" * 70)
     print()
@@ -152,38 +146,59 @@ def main():
         print("   Expected ISO 8601 format (e.g., 2026-01-01T00:00:00Z)")
         sys.exit(1)
 
-    # Split evaluator names
-    evaluator_names = [e.strip() for e in args.evaluators.split(",") if e.strip()]
-    if not evaluator_names:
-        print("Error: No evaluators specified")
+    # Parse evaluators JSON
+    try:
+        evaluators_config = json.loads(args.evaluators)
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON in --evaluators: {e}")
         sys.exit(1)
 
-    print(f"Running {len(evaluator_names)} evaluators:")
-    for name in evaluator_names:
-        print(f"   - {name}")
+    if not evaluators_config or not isinstance(evaluators_config, list):
+        print("Error: --evaluators must be a non-empty array")
+        sys.exit(1)
+
+    print(f"Running {len(evaluators_config)} evaluators:")
+    for evaluator in evaluators_config:
+        name = evaluator.get("name")
+        config = evaluator.get("config", {})
+        print(f"   - {name}" + (f" (with config: {config})" if config else ""))
     print()
 
-    # Register built-in evaluators from the amp-evaluation SDK
-    for name in evaluator_names:
+    # Register built-in evaluators with configurations
+    evaluator_names = []
+    for evaluator in evaluators_config:
+        name = evaluator.get("name")
+        if not name:
+            print("Error: Evaluator missing 'name' field")
+            sys.exit(1)
+
+        config = evaluator.get("config", {})
+
         try:
-            register_builtin(name)
+            register_builtin(name, **config)  # Pass config as kwargs
+            evaluator_names.append(name)
         except (ValueError, ImportError) as e:
             print(f"Error: Failed to register evaluator '{name}': {e}")
+            sys.exit(1)
+        except TypeError as e:
+            print(f"Error: Invalid config for evaluator '{name}': {e}")
             sys.exit(1)
 
     # Initialize and run monitor
     try:
+        fetcher = TraceFetcher(
+            base_url=args.traces_api_endpoint,
+            agent_uid=args.agent_id,
+            environment_uid=args.environment_id,
+        )
+
         monitor = Monitor(
-            trace_service_url=args.traces_api_endpoint,
+            trace_fetcher=fetcher,
             include=evaluator_names,  # Only run these registered evaluators
         )
 
         # Run evaluation
-        result = monitor.run(
-            start_time=args.trace_start,
-            end_time=args.trace_end,
-            limit=args.limit,
-        )
+        result = monitor.run(start_time=args.trace_start, end_time=args.trace_end)
 
         # Check if any traces were evaluated
         if result.traces_evaluated == 0:

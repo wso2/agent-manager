@@ -4418,11 +4418,17 @@ components:
           example: "development"
         evaluators:
           type: array
-          description: List of evaluator IDs to use for evaluation
+          description: List of evaluators with optional configuration
           items:
-            type: string
+            $ref: "#/components/schemas/MonitorEvaluator"
           minItems: 1
-          example: ["hallucination", "answer-relevance"]
+          example:
+            - name: "latency"
+              config:
+                max_latency_ms: 3000
+            - name: "answer_relevancy"
+              config:
+                min_overlap_ratio: 0.2
         type:
           type: string
           description: Monitor type - 'future' for continuous monitoring, 'past' for one-time historical analysis
@@ -4461,9 +4467,9 @@ components:
           maxLength: 128
         evaluators:
           type: array
-          description: List of evaluator IDs to use for evaluation
+          description: List of evaluators with optional configuration
           items:
-            type: string
+            $ref: "#/components/schemas/MonitorEvaluator"
           minItems: 1
         intervalMinutes:
           type: integer
@@ -4527,10 +4533,14 @@ components:
           example: "development"
         evaluators:
           type: array
-          description: List of evaluator IDs
+          description: List of evaluators with configuration
           items:
-            type: string
-          example: ["hallucination", "answer-relevance"]
+            $ref: "#/components/schemas/MonitorEvaluator"
+          example:
+            - name: "latency"
+              config:
+                max_latency_ms: 3000
+            - name: "answer_relevancy"
         intervalMinutes:
           type: integer
           description: Interval in minutes (only for 'future' type)
@@ -4607,8 +4617,12 @@ components:
           type: array
           description: Evaluators used in this run (snapshot at run time)
           items:
-            type: string
-          example: ["hallucination", "answer-relevance"]
+            $ref: "#/components/schemas/MonitorEvaluator"
+          example:
+            - name: "latency"
+              config:
+                max_latency_ms: 3000
+            - name: "answer_relevancy"
         traceStart:
           type: string
           format: date-time
@@ -4654,6 +4668,24 @@ components:
           type: integer
           description: Total number of runs
           example: 24
+
+    MonitorEvaluator:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Evaluator identifier (e.g., "latency", "answer_relevancy", "deepeval/plan-quality")
+          example: "latency"
+          minLength: 1
+        config:
+          type: object
+          description: Optional evaluator-specific configuration parameters
+          additionalProperties: true
+          example:
+            max_latency_ms: 3000
+            use_task_constraint: false
 
     EvaluatorResponse:
       type: object

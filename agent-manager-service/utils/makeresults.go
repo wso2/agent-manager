@@ -21,6 +21,38 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 )
 
+// Helper functions to convert between spec and models MonitorEvaluator types
+
+// convertSpecEvaluatorsToModels converts []spec.MonitorEvaluator to []models.MonitorEvaluator
+func convertSpecEvaluatorsToModels(specEvals []spec.MonitorEvaluator) []models.MonitorEvaluator {
+	if len(specEvals) == 0 {
+		return []models.MonitorEvaluator{}
+	}
+	modelsEvals := make([]models.MonitorEvaluator, len(specEvals))
+	for i, eval := range specEvals {
+		modelsEvals[i] = models.MonitorEvaluator{
+			Name:   eval.Name,
+			Config: eval.Config,
+		}
+	}
+	return modelsEvals
+}
+
+// convertModelsEvaluatorsToSpec converts []models.MonitorEvaluator to []spec.MonitorEvaluator
+func convertModelsEvaluatorsToSpec(modelsEvals []models.MonitorEvaluator) []spec.MonitorEvaluator {
+	if len(modelsEvals) == 0 {
+		return []spec.MonitorEvaluator{}
+	}
+	specEvals := make([]spec.MonitorEvaluator, len(modelsEvals))
+	for i, eval := range modelsEvals {
+		specEvals[i] = spec.MonitorEvaluator{
+			Name:   eval.Name,
+			Config: eval.Config,
+		}
+	}
+	return specEvals
+}
+
 func ConvertToAgentListResponse(components []*models.AgentResponse) []spec.AgentResponse {
 	if len(components) == 0 {
 		return []spec.AgentResponse{}
@@ -515,7 +547,7 @@ func ConvertToCreateMonitorRequest(req *spec.CreateMonitorRequest) *models.Creat
 		ProjectName:     req.ProjectName,
 		AgentName:       req.AgentName,
 		EnvironmentName: req.EnvironmentName,
-		Evaluators:      req.Evaluators,
+		Evaluators:      convertSpecEvaluatorsToModels(req.Evaluators),
 		Type:            req.Type,
 		IntervalMinutes: intervalMinutes,
 		TraceStart:      req.TraceStart,
@@ -545,9 +577,10 @@ func ConvertToUpdateMonitorRequest(req *spec.UpdateMonitorRequest) *models.Updat
 	}
 
 	// Convert Evaluators - handle empty vs nil
-	var evaluators *[]string
+	var evaluators *[]models.MonitorEvaluator
 	if len(req.Evaluators) > 0 {
-		evaluators = &req.Evaluators
+		converted := convertSpecEvaluatorsToModels(req.Evaluators)
+		evaluators = &converted
 	}
 
 	return &models.UpdateMonitorRequest{
@@ -580,7 +613,7 @@ func ConvertToMonitorResponse(monitor *models.MonitorResponse) spec.MonitorRespo
 		ProjectName:     monitor.ProjectName,
 		AgentName:       monitor.AgentName,
 		EnvironmentName: monitor.EnvironmentName,
-		Evaluators:      monitor.Evaluators,
+		Evaluators:      convertModelsEvaluatorsToSpec(monitor.Evaluators),
 		IntervalMinutes: intervalMinutes,
 		NextRunTime:     monitor.NextRunTime,
 		TraceStart:      monitor.TraceStart,
@@ -627,7 +660,7 @@ func ConvertToMonitorRunResponse(run *models.MonitorRunResponse) spec.MonitorRun
 
 	response := spec.MonitorRunResponse{
 		Id:           run.ID,
-		Evaluators:   run.Evaluators,
+		Evaluators:   convertModelsEvaluatorsToSpec(run.Evaluators),
 		TraceStart:   run.TraceStart,
 		TraceEnd:     run.TraceEnd,
 		StartedAt:    run.StartedAt,

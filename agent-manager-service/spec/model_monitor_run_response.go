@@ -25,7 +25,7 @@ type MonitorRunResponse struct {
 	// Name of the monitor
 	MonitorName *string `json:"monitorName,omitempty"`
 	// Evaluators used in this run (snapshot at run time)
-	Evaluators []string `json:"evaluators"`
+	Evaluators []MonitorEvaluator `json:"evaluators"`
 	// Trace collection start time
 	TraceStart time.Time `json:"traceStart"`
 	// Trace collection end time
@@ -44,7 +44,7 @@ type MonitorRunResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewMonitorRunResponse(id string, evaluators []string, traceStart time.Time, traceEnd time.Time, status string) *MonitorRunResponse {
+func NewMonitorRunResponse(id string, evaluators []MonitorEvaluator, traceStart time.Time, traceEnd time.Time, status string) *MonitorRunResponse {
 	this := MonitorRunResponse{}
 	this.Id = id
 	this.Evaluators = evaluators
@@ -119,9 +119,9 @@ func (o *MonitorRunResponse) SetMonitorName(v string) {
 }
 
 // GetEvaluators returns the Evaluators field value
-func (o *MonitorRunResponse) GetEvaluators() []string {
+func (o *MonitorRunResponse) GetEvaluators() []MonitorEvaluator {
 	if o == nil {
-		var ret []string
+		var ret []MonitorEvaluator
 		return ret
 	}
 
@@ -130,7 +130,7 @@ func (o *MonitorRunResponse) GetEvaluators() []string {
 
 // GetEvaluatorsOk returns a tuple with the Evaluators field value
 // and a boolean to check if the value has been set.
-func (o *MonitorRunResponse) GetEvaluatorsOk() ([]string, bool) {
+func (o *MonitorRunResponse) GetEvaluatorsOk() ([]MonitorEvaluator, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -138,7 +138,7 @@ func (o *MonitorRunResponse) GetEvaluatorsOk() ([]string, bool) {
 }
 
 // SetEvaluators sets field value
-func (o *MonitorRunResponse) SetEvaluators(v []string) {
+func (o *MonitorRunResponse) SetEvaluators(v []MonitorEvaluator) {
 	o.Evaluators = v
 }
 

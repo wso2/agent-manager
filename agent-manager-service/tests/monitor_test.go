@@ -127,7 +127,7 @@ func TestCreateFutureMonitor(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1", "eval-2"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}, {Name: "eval-2"}},
 		SamplingRate:    float32Ptr(1.0),
 	}
 
@@ -155,7 +155,7 @@ func TestCreateFutureMonitor(t *testing.T) {
 	assert.Equal(t, "future", result.Type)
 	assert.NotNil(t, result.IntervalMinutes)
 	assert.Equal(t, int32(60), *result.IntervalMinutes)
-	assert.Equal(t, []string{"eval-1", "eval-2"}, result.Evaluators)
+	assert.Equal(t, []spec.MonitorEvaluator{{Name: "eval-1"}, {Name: "eval-2"}}, result.Evaluators)
 	assert.Equal(t, "Active", result.Status)
 
 	// Future monitor should NOT trigger immediate CR creation
@@ -199,7 +199,7 @@ func TestCreatePastMonitor(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
 		TraceEnd:        timePtr(endTime),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 		SamplingRate:    float32Ptr(0.5),
 	}
 
@@ -245,7 +245,7 @@ func TestCreatePastMonitor_MissingTraceTime(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "past",
 		TraceEnd:        timePtr(time.Now()),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -290,7 +290,7 @@ func TestCreatePastMonitor_InvalidTimeRange(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(time.Now()),
 		TraceEnd:        timePtr(time.Now().Add(-1 * time.Hour)), // End before start
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -320,7 +320,7 @@ func TestCreateMonitor_DuplicateName(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 	}
 
 	// Create first monitor
@@ -367,7 +367,7 @@ func TestCreateMonitor_AgentNotFound(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -414,7 +414,7 @@ func TestCreateMonitor_InvalidDNSName(t *testing.T) {
 				EnvironmentName: "dev",
 				Type:            "future",
 				IntervalMinutes: int32Ptr(60),
-				Evaluators:      []string{"eval-1"},
+				Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 			}
 
 			body, _ := json.Marshal(reqBody)
@@ -450,7 +450,7 @@ func TestCreateMonitor_MissingRequiredFields(t *testing.T) {
 				EnvironmentName: "dev",
 				Type:            "future",
 				IntervalMinutes: int32Ptr(60),
-				Evaluators:      []string{"eval-1"},
+				Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 			},
 			missingField: "name",
 		},
@@ -463,7 +463,7 @@ func TestCreateMonitor_MissingRequiredFields(t *testing.T) {
 				EnvironmentName: "dev",
 				Type:            "future",
 				IntervalMinutes: int32Ptr(60),
-				Evaluators:      []string{"eval-1"},
+				Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 			},
 			missingField: "projectName",
 		},
@@ -475,7 +475,7 @@ func TestCreateMonitor_MissingRequiredFields(t *testing.T) {
 				ProjectName:     "test-project",
 				Type:            "future",
 				IntervalMinutes: int32Ptr(60),
-				Evaluators:      []string{"eval-1"},
+				Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 			},
 			missingField: "agentName",
 		},
@@ -488,7 +488,7 @@ func TestCreateMonitor_MissingRequiredFields(t *testing.T) {
 				AgentName:       "test-agent",
 				EnvironmentName: "dev",
 				IntervalMinutes: int32Ptr(60),
-				Evaluators:      []string{"eval-1"},
+				Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 			},
 			missingField: "type",
 		},
@@ -536,7 +536,7 @@ func TestCreateMonitor_InvalidType(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "invalid",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -567,7 +567,7 @@ func TestGetMonitor_Success(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1", "eval-2"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}, {Name: "eval-2"}},
 	}
 
 	body, _ := json.Marshal(createReq)
@@ -597,7 +597,7 @@ func TestGetMonitor_Success(t *testing.T) {
 	assert.Equal(t, monitorName, result.Name)
 	assert.Equal(t, "Get Test Monitor", result.DisplayName)
 	assert.Equal(t, "future", result.Type)
-	assert.Equal(t, []string{"eval-1", "eval-2"}, result.Evaluators)
+	assert.Equal(t, []spec.MonitorEvaluator{{Name: "eval-1"}, {Name: "eval-2"}}, result.Evaluators)
 	assert.NotEmpty(t, result.Status)
 }
 
@@ -632,7 +632,7 @@ func TestGetMonitor_StatusEnrichment_FutureActive(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 	}
 
 	body, _ := json.Marshal(createReq)
@@ -685,7 +685,7 @@ func TestGetMonitor_StatusEnrichment_PastMonitor(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
 		TraceEnd:        timePtr(endTime),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 	}
 
 	body, _ := json.Marshal(createReq)
@@ -786,7 +786,7 @@ func TestListMonitors_PaginationOrder(t *testing.T) {
 			EnvironmentName: "dev",
 			Type:            "future",
 			IntervalMinutes: int32Ptr(60),
-			Evaluators:      []string{"eval-1"},
+			Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 		}
 
 		body, _ := json.Marshal(reqBody)
@@ -857,7 +857,7 @@ func TestUpdateMonitor(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -916,7 +916,7 @@ func TestUpdateMonitor_Evaluators(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -932,8 +932,8 @@ func TestUpdateMonitor_Evaluators(t *testing.T) {
 	require.Equal(t, http.StatusCreated, w.Code)
 
 	// Update evaluators
-	updateBody := map[string]interface{}{
-		"evaluators": []string{"new-eval-1", "new-eval-2"},
+	updateBody := spec.UpdateMonitorRequest{
+		Evaluators: []spec.MonitorEvaluator{{Name: "new-eval-1"}, {Name: "new-eval-2"}},
 	}
 
 	body, _ = json.Marshal(updateBody)
@@ -947,7 +947,8 @@ func TestUpdateMonitor_Evaluators(t *testing.T) {
 	var updated spec.MonitorResponse
 	err := json.Unmarshal(w.Body.Bytes(), &updated)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"new-eval-1", "new-eval-2"}, updated.Evaluators)
+	expectedEvals := []spec.MonitorEvaluator{{Name: "new-eval-1"}, {Name: "new-eval-2"}}
+	assert.Equal(t, expectedEvals, updated.Evaluators)
 }
 
 // TestUpdateMonitor_IntervalMinutes tests updating interval for future monitor
@@ -967,7 +968,7 @@ func TestUpdateMonitor_IntervalMinutes(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1019,7 +1020,7 @@ func TestUpdateMonitor_SamplingRate(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 		SamplingRate:    float32Ptr(1.0),
 	}
 
@@ -1091,7 +1092,7 @@ func TestUpdateMonitor_PartialUpdate(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1", "eval-2"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}, {Name: "eval-2"}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1125,8 +1126,8 @@ func TestUpdateMonitor_PartialUpdate(t *testing.T) {
 
 	// Verify only displayName changed
 	assert.Equal(t, "New Name", updated.DisplayName)
-	assert.Equal(t, []string{"eval-1", "eval-2"}, updated.Evaluators) // Unchanged
-	assert.Equal(t, int32(60), *updated.IntervalMinutes)              // Unchanged
+	assert.Equal(t, []spec.MonitorEvaluator{{Name: "eval-1"}, {Name: "eval-2"}}, updated.Evaluators) // Unchanged
+	assert.Equal(t, int32(60), *updated.IntervalMinutes)                                             // Unchanged
 }
 
 // TestDeleteMonitor tests deleting a monitor
@@ -1151,7 +1152,7 @@ func TestDeleteMonitor(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1227,7 +1228,7 @@ func TestDeleteMonitor_CRDeletionFailure(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1294,7 +1295,7 @@ func TestRerunMonitor(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
 		TraceEnd:        timePtr(endTime),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 		SamplingRate:    float32Ptr(1.0),
 	}
 
@@ -1393,7 +1394,7 @@ func TestGetMonitorRunLogs(t *testing.T) {
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
 		TraceEnd:        timePtr(endTime),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 		SamplingRate:    float32Ptr(1.0),
 	}
 
@@ -1464,7 +1465,7 @@ func TestStopMonitor(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1546,7 +1547,7 @@ func TestStopMonitor_PastMonitor(t *testing.T) {
 		Type:            "past",
 		TraceStart:      &traceStart,
 		TraceEnd:        &now,
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 		SamplingRate:    float32Ptr(0.5),
 	}
 
@@ -1599,7 +1600,7 @@ func TestStopMonitor_AlreadyStopped(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1656,7 +1657,7 @@ func TestStartMonitor(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 	}
 
 	body, _ := json.Marshal(reqBody)
@@ -1748,7 +1749,7 @@ func TestStartMonitor_PastMonitor(t *testing.T) {
 		Type:            "past",
 		TraceStart:      &traceStart,
 		TraceEnd:        &now,
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 		SamplingRate:    float32Ptr(0.5),
 	}
 
@@ -1801,7 +1802,7 @@ func TestStartMonitor_AlreadyActive(t *testing.T) {
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
-		Evaluators:      []string{"eval-1"},
+		Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
 	}
 
 	body, _ := json.Marshal(reqBody)

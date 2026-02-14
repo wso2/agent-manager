@@ -366,7 +366,7 @@ func TestGetEvaluator(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Make request
-		encodedIdentifier := url.PathEscape("deepeval/answer-relevancy")
+		encodedIdentifier := url.PathEscape("deepeval/argument-correctness")
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/orgs/test-org/evaluators/%s", encodedIdentifier), nil)
 		resp := httptest.NewRecorder()
 		app.ServeHTTP(resp, req)
@@ -378,7 +378,7 @@ func TestGetEvaluator(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		assert.Equal(t, "deepeval/answer-relevancy", result.Identifier)
+		assert.Equal(t, "deepeval/argument-correctness", result.Identifier)
 		assert.Equal(t, "deepeval", result.Provider)
 		assert.Contains(t, result.Tags, "deepeval")
 	})
@@ -453,18 +453,18 @@ func TestGetEvaluator(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		standardEvaluators := []string{
-			"answer_relevancy",
-			"faithfulness",
-			"contextual_precision",
-			"contextual_recall",
-			"contextual_relevancy",
-			"hallucination",
-			"bias",
-			"toxicity",
-			"ragas_context_precision",
-			"ragas_context_recall",
-			"summarization_score",
 			"answer_length",
+			"answer_relevancy",
+			"contains_match",
+			"exact_match",
+			"iteration_count",
+			"latency",
+			"prohibited_content",
+			"required_content",
+			"required_tools",
+			"step_success_rate",
+			"token_efficiency",
+			"tool_sequence",
 		}
 
 		for _, identifier := range standardEvaluators {
@@ -487,11 +487,11 @@ func TestGetEvaluator(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		deepevalEvaluators := []string{
-			"deepeval/answer-relevancy",
-			"deepeval/faithfulness",
-			"deepeval/contextual-precision",
-			"deepeval/contextual-recall",
-			"deepeval/contextual-relevancy",
+			"deepeval/argument-correctness",
+			"deepeval/plan-adherence",
+			"deepeval/plan-quality",
+			"deepeval/step-efficiency",
+			"deepeval/task-completion",
 			"deepeval/tool-correctness",
 		}
 

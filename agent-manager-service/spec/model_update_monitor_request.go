@@ -21,8 +21,8 @@ var _ MappedNullable = &UpdateMonitorRequest{}
 type UpdateMonitorRequest struct {
 	// Human-readable display name
 	DisplayName *string `json:"displayName,omitempty"`
-	// List of evaluator IDs to use for evaluation
-	Evaluators []string `json:"evaluators,omitempty"`
+	// List of evaluators with optional configuration
+	Evaluators []MonitorEvaluator `json:"evaluators,omitempty"`
 	// Interval in minutes for continuous monitoring (only for 'future' type)
 	IntervalMinutes *int32 `json:"intervalMinutes,omitempty"`
 	// Sampling rate for trace collection (0.0 to 1.0)
@@ -79,9 +79,9 @@ func (o *UpdateMonitorRequest) SetDisplayName(v string) {
 }
 
 // GetEvaluators returns the Evaluators field value if set, zero value otherwise.
-func (o *UpdateMonitorRequest) GetEvaluators() []string {
+func (o *UpdateMonitorRequest) GetEvaluators() []MonitorEvaluator {
 	if o == nil || IsNil(o.Evaluators) {
-		var ret []string
+		var ret []MonitorEvaluator
 		return ret
 	}
 	return o.Evaluators
@@ -89,7 +89,7 @@ func (o *UpdateMonitorRequest) GetEvaluators() []string {
 
 // GetEvaluatorsOk returns a tuple with the Evaluators field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *UpdateMonitorRequest) GetEvaluatorsOk() ([]string, bool) {
+func (o *UpdateMonitorRequest) GetEvaluatorsOk() ([]MonitorEvaluator, bool) {
 	if o == nil || IsNil(o.Evaluators) {
 		return nil, false
 	}
@@ -105,8 +105,8 @@ func (o *UpdateMonitorRequest) HasEvaluators() bool {
 	return false
 }
 
-// SetEvaluators gets a reference to the given []string and assigns it to the Evaluators field.
-func (o *UpdateMonitorRequest) SetEvaluators(v []string) {
+// SetEvaluators gets a reference to the given []MonitorEvaluator and assigns it to the Evaluators field.
+func (o *UpdateMonitorRequest) SetEvaluators(v []MonitorEvaluator) {
 	o.Evaluators = v
 }
 
