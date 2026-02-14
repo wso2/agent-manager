@@ -18,9 +18,9 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,7 +46,7 @@ type ExecuteMonitorRunParams struct {
 	Monitor    *models.Monitor
 	StartTime  time.Time
 	EndTime    time.Time
-	Evaluators []string // Snapshot of evaluators to use (for rerun cases, use original evaluators)
+	Evaluators []models.MonitorEvaluator // Snapshot of evaluators to use (for rerun cases, use original evaluators)
 }
 
 // ExecuteMonitorRunResult contains the outcome of a monitor run execution
@@ -85,7 +85,7 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		evaluators = params.Monitor.Evaluators
 	}
 
-	e.logger.Info("Executing monitor run",
+	e.logger.Debug("Executing monitor run",
 		"monitor", params.Monitor.Name,
 		"workflowRunName", workflowRunName,
 		"startTime", params.StartTime,
@@ -153,7 +153,7 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 	monitor *models.Monitor,
 	workflowRunName string,
 	startTime, endTime time.Time,
-	evaluators []string,
+	evaluators []models.MonitorEvaluator,
 ) map[string]interface{} {
 	return map[string]interface{}{
 		"apiVersion": workflowRunAPIVersion,
@@ -178,19 +178,29 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 						"displayName": monitor.DisplayName,
 					},
 					"agent": map[string]interface{}{
-						"name": monitor.AgentName,
+						"id": monitor.AgentID,
+					},
+					"environment": map[string]interface{}{
+						"id": monitor.EnvironmentID,
 					},
 					"evaluation": map[string]interface{}{
-						"evaluators":   strings.Join(evaluators, ","),
+						"evaluators":   serializeEvaluators(evaluators, e.logger),
 						"samplingRate": monitor.SamplingRate,
 						"traceStart":   startTime.Format(time.RFC3339),
 						"traceEnd":     endTime.Format(time.RFC3339),
-					},
-					"config": map[string]interface{}{
-						"tracesApiEndpoint": e.config.TracesAPIEndpoint,
 					},
 				},
 			},
 		},
 	}
+}
+
+// serializeEvaluators converts evaluators to JSON string for workflow parameter
+func serializeEvaluators(evaluators []models.MonitorEvaluator, logger *slog.Logger) string {
+	evaluatorsJSON, err := json.Marshal(evaluators)
+	if err != nil {
+		logger.Error("Failed to serialize evaluators", "error", err)
+		return "[]"
+	}
+	return string(evaluatorsJSON)
 }
