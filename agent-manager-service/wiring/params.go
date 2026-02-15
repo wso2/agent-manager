@@ -75,8 +75,3 @@ func ProvideAuthMiddleware(config config.Config) jwtassertion.Middleware {
 func ProvideJWTSigningConfig(config config.Config) config.JWTSigningConfig {
 	return config.JWTSigning
 }
-
-// ProvideMonitorServiceConfig provides the monitor service configuration
-func ProvideMonitorServiceConfig(config config.Config) services.MonitorServiceConfig {
-	return services.MonitorServiceConfig{}
-}

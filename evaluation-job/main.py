@@ -51,14 +51,17 @@ class JsonFormatter(logging.Formatter):
     """Format log records as single-line JSON matching Go slog output."""
 
     def format(self, record):
-        return json.dumps(
-            {
-                "time": self.formatTime(record, self.datefmt),
-                "level": record.levelname,
-                "msg": record.getMessage(),
-                "logger": record.name,
-            }
-        )
+        log_entry = {
+            "time": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "msg": record.getMessage(),
+            "logger": record.name,
+        }
+        if record.exc_info and record.exc_info[0] is not None:
+            log_entry["trace"] = self.formatException(record.exc_info)
+        if record.stack_info:
+            log_entry["stack"] = self.formatStack(record.stack_info)
+        return json.dumps(log_entry)
 
 
 def configure_logging():
@@ -180,6 +183,11 @@ def main():
     if not evaluators_config or not isinstance(evaluators_config, list):
         logger.error("--evaluators must be a non-empty array")
         sys.exit(1)
+
+    for i, evaluator in enumerate(evaluators_config):
+        if not isinstance(evaluator, dict):
+            logger.error("Evaluator at index %d must be an object/dict, got %s", i, type(evaluator).__name__)
+            sys.exit(1)
 
     evaluator_names_summary = [e.get("name", "unknown") for e in evaluators_config]
     logger.info("Evaluators to run: %s", ", ".join(evaluator_names_summary))

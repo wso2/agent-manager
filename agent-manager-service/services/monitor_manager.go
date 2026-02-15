@@ -62,12 +62,6 @@ type monitorManagerService struct {
 	ocClient               client.OpenChoreoClient
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient
 	executor               MonitorExecutor
-	config                 MonitorServiceConfig
-}
-
-// MonitorServiceConfig holds configuration for the monitor service
-type MonitorServiceConfig struct {
-	MonitorImage string
 }
 
 // NewMonitorManagerService creates a new monitor manager service instance
@@ -76,14 +70,12 @@ func NewMonitorManagerService(
 	ocClient client.OpenChoreoClient,
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient,
 	executor MonitorExecutor,
-	config MonitorServiceConfig,
 ) MonitorManagerService {
 	return &monitorManagerService{
 		logger:                 logger,
 		ocClient:               ocClient,
 		observabilitySvcClient: observabilitySvcClient,
 		executor:               executor,
-		config:                 config,
 	}
 }
 
@@ -255,6 +247,9 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, moni
 		monitor.Evaluators = *req.Evaluators
 	}
 	if req.IntervalMinutes != nil {
+		if *req.IntervalMinutes < 5 {
+			return nil, fmt.Errorf("intervalMinutes must be at least 5: %w", utils.ErrInvalidInput)
+		}
 		monitor.IntervalMinutes = req.IntervalMinutes
 	}
 	if req.TraceStart != nil {
@@ -264,6 +259,9 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, moni
 		monitor.TraceEnd = req.TraceEnd
 	}
 	if req.SamplingRate != nil {
+		if *req.SamplingRate <= 0 || *req.SamplingRate > 1 {
+			return nil, fmt.Errorf("samplingRate must be between 0 (exclusive) and 1 (inclusive): %w", utils.ErrInvalidInput)
+		}
 		monitor.SamplingRate = *req.SamplingRate
 	}
 	if req.Suspended != nil {
@@ -573,6 +571,19 @@ func (s *monitorManagerService) validateCreateRequest(req *models.CreateMonitorR
 		}
 		if !req.TraceEnd.After(*req.TraceStart) {
 			return fmt.Errorf("traceEnd must be after traceStart: %w", utils.ErrInvalidInput)
+		}
+		if req.TraceEnd.After(time.Now()) {
+			return fmt.Errorf("traceEnd must not be in the future: %w", utils.ErrInvalidInput)
+		}
+	}
+	if req.IntervalMinutes != nil {
+		if *req.IntervalMinutes < 5 {
+			return fmt.Errorf("intervalMinutes must be at least 5: %w", utils.ErrInvalidInput)
+		}
+	}
+	if req.SamplingRate != nil {
+		if *req.SamplingRate <= 0 || *req.SamplingRate > 1 {
+			return fmt.Errorf("samplingRate must be between 0 (exclusive) and 1 (inclusive): %w", utils.ErrInvalidInput)
 		}
 	}
 	return nil

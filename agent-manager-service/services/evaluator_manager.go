@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -78,9 +77,8 @@ func (s *evaluatorManagerService) ListEvaluators(ctx context.Context, orgID *uui
 
 	// Filter by tags if provided (ANY match using JSONB contains operator)
 	if len(filters.Tags) > 0 {
-		// PostgreSQL JSONB containment: tags @> '["tag"]'
 		for _, tag := range filters.Tags {
-			query = query.Where("tags @> ?", fmt.Sprintf(`["%s"]`, tag))
+			query = query.Where("tags @> jsonb_build_array(?::text)", tag)
 		}
 	}
 
@@ -89,10 +87,12 @@ func (s *evaluatorManagerService) ListEvaluators(ctx context.Context, orgID *uui
 		query = query.Where("provider = ?", filters.Provider)
 	}
 
-	// Full-text search on display_name and description
+	// Full-text search on display_name and description (uses idx_evaluator_search GIN index)
 	if filters.Search != "" {
-		searchPattern := "%" + strings.ToLower(filters.Search) + "%"
-		query = query.Where("LOWER(display_name) LIKE ? OR LOWER(description) LIKE ?", searchPattern, searchPattern)
+		query = query.Where(
+			"to_tsvector('english', display_name || ' ' || description) @@ plainto_tsquery('english', ?)",
+			filters.Search,
+		)
 	}
 
 	// Get total count before pagination

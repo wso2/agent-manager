@@ -147,11 +147,16 @@ var migration005 = migration{
 				return err
 			}
 
-			// Load builtin evaluators from JSON file
+			// Load builtin evaluators from JSON file (wrapped in savepoint for all-or-nothing seeding)
+			if err := tx.SavePoint("sp_seed").Error; err != nil {
+				return fmt.Errorf("failed to create savepoint: %w", err)
+			}
 			if err := loadBuiltinEvaluatorsFromJSON(tx); err != nil {
-				// Log warning but don't fail migration - loading can be done later
-				slog.Warn("Failed to load builtin evaluators from JSON file", "error", err)
+				slog.Warn("Failed to load builtin evaluators, rolling back seed data", "error", err)
 				slog.Info("You can populate evaluators later by placing builtin_evaluators.json in the data directory")
+				if rbErr := tx.RollbackTo("sp_seed").Error; rbErr != nil {
+					return fmt.Errorf("failed to rollback savepoint after seed error: %w", rbErr)
+				}
 			}
 
 			return nil
@@ -200,13 +205,22 @@ func loadBuiltinEvaluatorsFromJSON(tx *gorm.DB) error {
 
 // insertEvaluator inserts a single evaluator with upsert logic
 func insertEvaluator(tx *gorm.DB, evalDef EvaluatorDefinition) error {
-	// Marshal tags and config_schema to JSON
-	tagsJSON, err := json.Marshal(evalDef.Tags)
+	// Default nil slices to empty slices so JSON marshals to "[]" not "null"
+	tags := evalDef.Tags
+	if tags == nil {
+		tags = []string{}
+	}
+	configSchema := evalDef.ConfigSchema
+	if configSchema == nil {
+		configSchema = []map[string]interface{}{}
+	}
+
+	tagsJSON, err := json.Marshal(tags)
 	if err != nil {
 		return fmt.Errorf("failed to marshal tags: %w", err)
 	}
 
-	configSchemaJSON, err := json.Marshal(evalDef.ConfigSchema)
+	configSchemaJSON, err := json.Marshal(configSchema)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config_schema: %w", err)
 	}

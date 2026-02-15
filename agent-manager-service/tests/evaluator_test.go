@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -733,9 +734,9 @@ func TestListEvaluators(t *testing.T) {
 
 		// All should have "correctness" in identifier, displayName, or description
 		for _, evaluator := range result.Evaluators {
-			hasMatch := contains(evaluator.Identifier, "correctness") ||
-				contains(evaluator.DisplayName, "correctness") ||
-				contains(evaluator.Description, "correctness")
+			hasMatch := strings.Contains(strings.ToLower(evaluator.Identifier), "correctness") ||
+				strings.Contains(strings.ToLower(evaluator.DisplayName), "correctness") ||
+				strings.Contains(strings.ToLower(evaluator.Description), "correctness")
 			assert.True(t, hasMatch, "Evaluator %s should contain 'correctness'", evaluator.Identifier)
 		}
 	})
@@ -781,9 +782,9 @@ func TestListEvaluators(t *testing.T) {
 
 		for _, evaluator := range result.Evaluators {
 			assert.Equal(t, "deepeval", evaluator.Provider)
-			hasMatch := contains(evaluator.Identifier, "tool") ||
-				contains(evaluator.DisplayName, "tool") ||
-				contains(evaluator.Description, "tool")
+			hasMatch := strings.Contains(strings.ToLower(evaluator.Identifier), "tool") ||
+				strings.Contains(strings.ToLower(evaluator.DisplayName), "tool") ||
+				strings.Contains(strings.ToLower(evaluator.Description), "tool")
 			assert.True(t, hasMatch)
 		}
 	})
@@ -1071,35 +1072,4 @@ func TestGetEvaluator(t *testing.T) {
 			assert.Equal(t, "deepeval", result.Provider)
 		}
 	})
-}
-
-// Helper function for case-insensitive substring match
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr ||
-		len(substr) > 0 && (s[:len(substr)] == substr ||
-			len(s) > len(substr) && contains(s[1:], substr) ||
-			containsCaseInsensitive(s, substr)))
-}
-
-func containsCaseInsensitive(s, substr string) bool {
-	s = toLower(s)
-	substr = toLower(substr)
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
-
-func toLower(s string) string {
-	result := make([]rune, len(s))
-	for i, r := range s {
-		if r >= 'A' && r <= 'Z' {
-			result[i] = r + 32
-		} else {
-			result[i] = r
-		}
-	}
-	return string(result)
 }

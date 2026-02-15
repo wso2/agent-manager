@@ -36,8 +36,8 @@ fmt: ## Format code.
 format: ## Format code (alias for fmt).
 	sh scripts/fmt.sh
 
-.PHONY: test-dev
-test-dev: gen-keys ## Run tests with isolated test database.
+.PHONY: dev-test
+dev-test: gen-keys ## Run tests with isolated test database.
 	bash scripts/run_tests_isolated.sh
 
 .PHONY: test

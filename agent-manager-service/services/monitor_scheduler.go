@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
@@ -43,7 +44,7 @@ type monitorSchedulerService struct {
 	logger   *slog.Logger
 	executor MonitorExecutor
 	stopCh   chan struct{}
-	config   MonitorServiceConfig
+	stopOnce sync.Once
 }
 
 // NewMonitorSchedulerService creates a new monitor scheduler service
@@ -51,14 +52,12 @@ func NewMonitorSchedulerService(
 	ocClient client.OpenChoreoClient,
 	logger *slog.Logger,
 	executor MonitorExecutor,
-	config MonitorServiceConfig,
 ) MonitorSchedulerService {
 	return &monitorSchedulerService{
 		ocClient: ocClient,
 		logger:   logger,
 		executor: executor,
 		stopCh:   make(chan struct{}),
-		config:   config,
 	}
 }
 
@@ -75,8 +74,10 @@ func (s *monitorSchedulerService) Start(ctx context.Context) error {
 
 // Stop stops the scheduler
 func (s *monitorSchedulerService) Stop() error {
-	close(s.stopCh)
-	s.logger.Info("Monitor scheduler stopped")
+	s.stopOnce.Do(func() {
+		close(s.stopCh)
+		s.logger.Info("Monitor scheduler stopped")
+	})
 	return nil
 }
 
@@ -104,9 +105,17 @@ func (s *monitorSchedulerService) runSchedulerLoop(ctx context.Context) {
 
 // runSchedulerCycle executes one cycle of the scheduler
 func (s *monitorSchedulerService) runSchedulerCycle(ctx context.Context) {
-	// Try to acquire PostgreSQL advisory lock
+	// Use a transaction to pin the advisory lock to a single connection.
+	// pg_try_advisory_xact_lock auto-releases when the transaction ends.
+	tx := db.DB(ctx).Begin()
+	if tx.Error != nil {
+		s.logger.Error("Failed to begin transaction for advisory lock", "error", tx.Error)
+		return
+	}
+	defer tx.Rollback()
+
 	var locked bool
-	if err := db.DB(ctx).Raw("SELECT pg_try_advisory_lock(?)", schedulerLockID).Scan(&locked).Error; err != nil {
+	if err := tx.Raw("SELECT pg_try_advisory_xact_lock(?)", schedulerLockID).Scan(&locked).Error; err != nil {
 		s.logger.Error("Failed to try advisory lock", "error", err)
 		return
 	}
@@ -114,8 +123,6 @@ func (s *monitorSchedulerService) runSchedulerCycle(ctx context.Context) {
 		s.logger.Debug("Another instance is running scheduler, skipping cycle")
 		return
 	}
-	// Release lock when done
-	defer db.DB(ctx).Exec("SELECT pg_advisory_unlock(?)", schedulerLockID)
 
 	s.logger.Debug("Running scheduler cycle")
 
@@ -128,6 +135,8 @@ func (s *monitorSchedulerService) runSchedulerCycle(ctx context.Context) {
 	if err := s.syncRunStatus(ctx); err != nil {
 		s.logger.Error("Failed to sync run status", "error", err)
 	}
+
+	tx.Commit()
 }
 
 // triggerPendingMonitors checks for monitors that need to run and creates WorkflowRun CRs
@@ -160,6 +169,9 @@ func (s *monitorSchedulerService) triggerPendingMonitors(ctx context.Context) er
 func (s *monitorSchedulerService) triggerMonitor(ctx context.Context, monitor *models.Monitor) error {
 	if monitor.IntervalMinutes == nil {
 		return fmt.Errorf("interval_minutes is nil for monitor %s", monitor.Name)
+	}
+	if monitor.NextRunTime == nil {
+		return fmt.Errorf("next_run_time is nil for monitor %s", monitor.Name)
 	}
 
 	// Calculate safety delta (5% of interval)

@@ -186,7 +186,6 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 		controllerProviderSet,
 		ProvideAuthMiddleware,
 		ProvideJWTSigningConfig,
-		ProvideMonitorServiceConfig,
 		wire.Struct(new(AppParams), "*"),
 	)
 	return &AppParams{}, nil
@@ -206,7 +205,6 @@ func InitializeTestAppParamsWithClientMocks(
 		controllerProviderSet,
 		configProviderSet,
 		ProvideJWTSigningConfig,
-		ProvideMonitorServiceConfig,
 		wire.Struct(new(AppParams), "*"),
 	)
 	return &AppParams{}, nil

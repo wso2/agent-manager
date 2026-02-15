@@ -58,19 +58,16 @@ type ExecuteMonitorRunResult struct {
 type monitorExecutor struct {
 	ocClient client.OpenChoreoClient
 	logger   *slog.Logger
-	config   MonitorServiceConfig
 }
 
 // NewMonitorExecutor creates a new monitor executor instance
 func NewMonitorExecutor(
 	ocClient client.OpenChoreoClient,
 	logger *slog.Logger,
-	config MonitorServiceConfig,
 ) MonitorExecutor {
 	return &monitorExecutor{
 		ocClient: ocClient,
 		logger:   logger,
-		config:   config,
 	}
 }
 
@@ -93,7 +90,7 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		"evaluators", evaluators)
 
 	// Build WorkflowRun CR
-	workflowRunCR := e.buildWorkflowRunCR(
+	workflowRunCR, err := e.buildWorkflowRunCR(
 		params.OrgName,
 		params.Monitor,
 		workflowRunName,
@@ -101,6 +98,9 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		params.EndTime,
 		evaluators,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build WorkflowRun CR: %w", err)
+	}
 
 	// Create WorkflowRun via OpenChoreo API
 	if err := e.ocClient.ApplyResource(ctx, workflowRunCR); err != nil {
@@ -120,7 +120,18 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 
 	if err := db.DB(ctx).Create(run).Error; err != nil {
 		e.logger.Error("Failed to create monitor_runs entry", "error", err, "workflowRunName", workflowRunName)
-		// Note: WorkflowRun CR already created - observer will update the status
+		// Best-effort cleanup of orphaned WorkflowRun CR
+		deleteCR := map[string]interface{}{
+			"apiVersion": workflowRunAPIVersion,
+			"kind":       resourceKindWorkflowRun,
+			"metadata": map[string]interface{}{
+				"name":      workflowRunName,
+				"namespace": params.OrgName,
+			},
+		}
+		if delErr := e.ocClient.DeleteResource(ctx, deleteCR); delErr != nil {
+			e.logger.Error("Failed to cleanup orphaned WorkflowRun CR", "error", delErr, "workflowRunName", workflowRunName)
+		}
 		return nil, fmt.Errorf("failed to create monitor run entry: %w", err)
 	}
 
@@ -154,7 +165,12 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 	workflowRunName string,
 	startTime, endTime time.Time,
 	evaluators []models.MonitorEvaluator,
-) map[string]interface{} {
+) (map[string]interface{}, error) {
+	evaluatorsJSON, err := serializeEvaluators(evaluators)
+	if err != nil {
+		return nil, err
+	}
+
 	return map[string]interface{}{
 		"apiVersion": workflowRunAPIVersion,
 		"kind":       resourceKindWorkflowRun,
@@ -184,7 +200,7 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 						"id": monitor.EnvironmentID,
 					},
 					"evaluation": map[string]interface{}{
-						"evaluators":   serializeEvaluators(evaluators, e.logger),
+						"evaluators":   evaluatorsJSON,
 						"samplingRate": monitor.SamplingRate,
 						"traceStart":   startTime.Format(time.RFC3339),
 						"traceEnd":     endTime.Format(time.RFC3339),
@@ -192,15 +208,20 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 				},
 			},
 		},
-	}
+	}, nil
 }
 
-// serializeEvaluators converts evaluators to JSON string for workflow parameter
-func serializeEvaluators(evaluators []models.MonitorEvaluator, logger *slog.Logger) string {
+// serializeEvaluators converts evaluators to JSON string for workflow parameter.
+// Returns an error identifying the problematic evaluator if serialization fails.
+func serializeEvaluators(evaluators []models.MonitorEvaluator) (string, error) {
+	for i, eval := range evaluators {
+		if _, err := json.Marshal(eval); err != nil {
+			return "", fmt.Errorf("failed to serialize evaluator %d (%s): %w", i, eval.Name, err)
+		}
+	}
 	evaluatorsJSON, err := json.Marshal(evaluators)
 	if err != nil {
-		logger.Error("Failed to serialize evaluators", "error", err)
-		return "[]"
+		return "", fmt.Errorf("failed to serialize evaluators: %w", err)
 	}
-	return string(evaluatorsJSON)
+	return string(evaluatorsJSON), nil
 }

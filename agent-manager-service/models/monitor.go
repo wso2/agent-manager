@@ -165,7 +165,7 @@ type CreateMonitorRequest struct {
 	Evaluators      []MonitorEvaluator `json:"evaluators" validate:"required,min=1,dive"`
 	Type            string             `json:"type" validate:"required,oneof=future past"`
 	// Future monitor fields
-	IntervalMinutes *int `json:"intervalMinutes,omitempty" validate:"omitempty,min=1"`
+	IntervalMinutes *int `json:"intervalMinutes,omitempty" validate:"omitempty,min=5"`
 	// Past monitor fields
 	TraceStart *time.Time `json:"traceStart,omitempty"`
 	TraceEnd   *time.Time `json:"traceEnd,omitempty"`
@@ -177,10 +177,10 @@ type CreateMonitorRequest struct {
 type UpdateMonitorRequest struct {
 	DisplayName     *string             `json:"displayName,omitempty" validate:"omitempty,min=1,max=128"`
 	Evaluators      *[]MonitorEvaluator `json:"evaluators,omitempty" validate:"omitempty,min=1,dive"`
-	IntervalMinutes *int                `json:"intervalMinutes,omitempty" validate:"omitempty,min=1"`
+	IntervalMinutes *int                `json:"intervalMinutes,omitempty" validate:"omitempty,min=5"`
 	TraceStart      *time.Time          `json:"traceStart,omitempty"`
 	TraceEnd        *time.Time          `json:"traceEnd,omitempty"`
-	SamplingRate    *float64            `json:"samplingRate,omitempty"`
+	SamplingRate    *float64            `json:"samplingRate,omitempty" validate:"omitempty,gt=0,lte=1"`
 	Suspended       *bool               `json:"suspended,omitempty"`
 }
 
