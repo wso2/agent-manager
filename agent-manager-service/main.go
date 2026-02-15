@@ -99,6 +99,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Start monitor scheduler with background context
+	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
+	if err := dependencies.MonitorScheduler.Start(schedulerCtx); err != nil {
+		slog.Error("failed to start monitor scheduler", "error", err)
+		os.Exit(1)
+	}
+
 	handler := api.MakeHTTPHandler(dependencies)
 	server := &http.Server{
 		Addr:           fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
@@ -113,6 +120,15 @@ func main() {
 
 	go func() {
 		<-stopCh
+		slog.Info("Shutdown signal received, stopping services...")
+
+		// Stop scheduler first
+		schedulerCancel()
+		if err := dependencies.MonitorScheduler.Stop(); err != nil {
+			slog.Error("error stopping monitor scheduler", "error", err)
+		}
+
+		// Then shutdown HTTP server
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 

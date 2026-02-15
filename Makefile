@@ -1,4 +1,4 @@
-.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward setup-kubeconfig-docker
+.PHONY: help setup setup-colima setup-k3d setup-openchoreo setup-platform setup-console-local setup-console-local-force dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate openchoreo-up openchoreo-down openchoreo-status teardown db-connect db-logs service-logs service-shell console-logs port-forward setup-kubeconfig-docker
 
 # Default target
 help:
@@ -15,12 +15,12 @@ help:
 	@echo "  make setup-console-local-force - Force reinstall console deps"
 	@echo ""
 	@echo "💻 Daily Development:"
-	@echo "  make dev-up             - Start platform services (console, service, db)"
-	@echo "  make dev-down           - Stop platform services"
-	@echo "  make dev-restart        - Restart platform services"
-	@echo "  make dev-rebuild        - Rebuild images and restart services"
-	@echo "  make dev-logs           - Tail all platform logs"
-	@echo "  make dev-migrate        - Run database migrations in service container"
+	@echo "  make dev-up                  - Start platform services (console, service, db)"
+	@echo "  make dev-down                - Stop platform services"
+	@echo "  make dev-restart             - Restart platform services"
+	@echo "  make dev-rebuild             - Rebuild images and restart services"
+	@echo "  make dev-logs                - Tail all platform logs"
+	@echo "  make dev-migrate             - Generate evaluators and run database migrations"
 	@echo ""
 	@echo "☸️  OpenChoreo Runtime:"
 	@echo "  make openchoreo-up      - Start OpenChoreo cluster"
@@ -150,7 +150,7 @@ dev-logs:
 
 dev-migrate:
 	@echo "🗄️  Running database migrations..."
-	@docker exec agent-manager-service sh -c "go run -mod=readonly . -migrate -server=false"
+	@docker exec agent-manager-service sh -c "cd /go/src && make dev-migrate"
 	@echo "✅ Migrations completed"
 
 # OpenChoreo lifecycle management

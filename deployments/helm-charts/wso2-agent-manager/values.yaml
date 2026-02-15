@@ -245,6 +245,13 @@ dbMigration:
       memory: 256Mi
       cpu: 200m
 
+  # Builtin evaluator generator configuration
+  evaluatorGenerator:
+    image:
+      repository: ghcr.io/wso2/amp-evaluation-monitor
+      tag: "0.0.0-dev"  # In prod: must match amp-evaluation SDK version
+      pullPolicy: IfNotPresent
+
   backoffLimit: 3
   podSecurityContext: {}
   securityContext: {}

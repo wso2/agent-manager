@@ -41,13 +41,13 @@ from amp_evaluation.evaluators.builtin.deepeval import (
     DeepEvalStepEfficiencyEvaluator,
 )
 from amp_evaluation.models import Observation
+from amp_evaluation.dataset import Task
 from amp_evaluation.trace import (
     Trajectory,
     TraceMetrics,
     TokenUsage,
     ToolSpan,
 )
-from amp_evaluation.dataset.schema import Task
 
 
 # ============================================================================
@@ -520,7 +520,7 @@ class TestDeepEvalEvaluatorsIntegration:
             tags = metadata.get("tags", [])
 
             assert "deepeval" in tags, f"{cls.__name__} missing 'deepeval' tag"
-            assert "agent" in tags, f"{cls.__name__} missing 'agent' tag"
+            assert "llm-judge" in tags, f"{cls.__name__} missing 'llm-judge' tag"
 
     def test_all_evaluators_registered(self):
         """Test that all DeepEval evaluators are available in builtin registry."""

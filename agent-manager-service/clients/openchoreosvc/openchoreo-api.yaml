@@ -118,14 +118,14 @@ components:
         secretStores:
           type: array
           items:
-            $ref: '#/components/schemas/SecretStoreReference'
+            $ref: "#/components/schemas/SecretStoreReference"
         refreshInterval:
           type: string
           description: Duration string for refresh interval (e.g., "5m", "1h")
         data:
           type: array
           items:
-            $ref: '#/components/schemas/SecretDataSourceInfo'
+            $ref: "#/components/schemas/SecretDataSourceInfo"
         createdAt:
           type: string
           format: date-time
@@ -158,7 +158,7 @@ components:
         secretKey:
           type: string
         remoteRef:
-          $ref: '#/components/schemas/RemoteReferenceInfo'
+          $ref: "#/components/schemas/RemoteReferenceInfo"
 
     RemoteReferenceInfo:
       type: object
@@ -260,7 +260,7 @@ components:
         promotionPaths:
           type: array
           items:
-            $ref: '#/components/schemas/PromotionPath'
+            $ref: "#/components/schemas/PromotionPath"
 
     PromotionPath:
       type: object
@@ -273,7 +273,7 @@ components:
         targetEnvironmentRefs:
           type: array
           items:
-            $ref: '#/components/schemas/TargetEnvironmentRef'
+            $ref: "#/components/schemas/TargetEnvironmentRef"
 
     TargetEnvironmentRef:
       type: object
@@ -340,7 +340,7 @@ components:
           type: object
           additionalProperties: true
         componentWorkflow:
-          $ref: '#/components/schemas/ComponentWorkflow'
+          $ref: "#/components/schemas/ComponentWorkflow"
 
     CreateComponentRequest:
       type: object
@@ -357,7 +357,7 @@ components:
         type:
           type: string
         workflow:
-          $ref: '#/components/schemas/ComponentWorkflow'
+          $ref: "#/components/schemas/ComponentWorkflow"
 
     PatchComponentRequest:
       type: object
@@ -414,7 +414,7 @@ components:
           type: array
           description: Array of trait instances to attach to the component (replaces all existing traits)
           items:
-            $ref: '#/components/schemas/ComponentTraitRequest'
+            $ref: "#/components/schemas/ComponentTraitRequest"
 
     # Environment
     EnvironmentResponse:
@@ -534,7 +534,7 @@ components:
         observabilityPlaneRef:
           type: string
         agentConnection:
-          $ref: '#/components/schemas/AgentConnectionStatusResponse'
+          $ref: "#/components/schemas/AgentConnectionStatusResponse"
         createdAt:
           type: string
           format: date-time
@@ -595,7 +595,7 @@ components:
         observabilityPlaneRef:
           type: string
         agentConnection:
-          $ref: '#/components/schemas/AgentConnectionStatusResponse'
+          $ref: "#/components/schemas/AgentConnectionStatusResponse"
         createdAt:
           type: string
           format: date-time
@@ -621,7 +621,7 @@ components:
         observerURL:
           type: string
         agentConnection:
-          $ref: '#/components/schemas/AgentConnectionStatusResponse'
+          $ref: "#/components/schemas/AgentConnectionStatusResponse"
         createdAt:
           type: string
           format: date-time
@@ -671,7 +671,7 @@ components:
         parameters:
           type: array
           items:
-            $ref: '#/components/schemas/BuildTemplateParameter'
+            $ref: "#/components/schemas/BuildTemplateParameter"
         createdAt:
           type: string
           format: date-time
@@ -774,7 +774,7 @@ components:
         image:
           type: string
         workflow:
-          $ref: '#/components/schemas/ComponentWorkflowConfigResponse'
+          $ref: "#/components/schemas/ComponentWorkflowConfigResponse"
 
     # ComponentWorkflowConfig
     ComponentWorkflowConfigResponse:
@@ -785,7 +785,7 @@ components:
         name:
           type: string
         systemParameters:
-          $ref: '#/components/schemas/SystemParametersResponse'
+          $ref: "#/components/schemas/SystemParametersResponse"
         parameters:
           type: object
           additionalProperties: true
@@ -796,7 +796,7 @@ components:
       type: object
       properties:
         repository:
-          $ref: '#/components/schemas/RepositoryResponse'
+          $ref: "#/components/schemas/RepositoryResponse"
 
     # Repository
     RepositoryResponse:
@@ -810,7 +810,7 @@ components:
         appPath:
           type: string
         revision:
-          $ref: '#/components/schemas/RepositoryRevisionResponse'
+          $ref: "#/components/schemas/RepositoryRevisionResponse"
 
     # RepositoryRevision
     RepositoryRevisionResponse:
@@ -865,13 +865,13 @@ components:
         environment:
           type: string
         status:
-          $ref: '#/components/schemas/BindingStatus'
+          $ref: "#/components/schemas/BindingStatus"
         serviceBinding:
-          $ref: '#/components/schemas/ServiceBinding'
+          $ref: "#/components/schemas/ServiceBinding"
         webApplicationBinding:
-          $ref: '#/components/schemas/WebApplicationBinding'
+          $ref: "#/components/schemas/WebApplicationBinding"
         scheduledTaskBinding:
-          $ref: '#/components/schemas/ScheduledTaskBinding'
+          $ref: "#/components/schemas/ScheduledTaskBinding"
 
     BindingStatus:
       type: object
@@ -898,7 +898,7 @@ components:
         endpoints:
           type: array
           items:
-            $ref: '#/components/schemas/EndpointStatus'
+            $ref: "#/components/schemas/EndpointStatus"
         image:
           type: string
         releaseState:
@@ -910,7 +910,7 @@ components:
         endpoints:
           type: array
           items:
-            $ref: '#/components/schemas/EndpointStatus'
+            $ref: "#/components/schemas/EndpointStatus"
         image:
           type: string
         releaseState:
@@ -935,11 +935,11 @@ components:
         type:
           type: string
         project:
-          $ref: '#/components/schemas/ExposedEndpoint'
+          $ref: "#/components/schemas/ExposedEndpoint"
         namespace:
-          $ref: '#/components/schemas/ExposedEndpoint'
+          $ref: "#/components/schemas/ExposedEndpoint"
         public:
-          $ref: '#/components/schemas/ExposedEndpoint'
+          $ref: "#/components/schemas/ExposedEndpoint"
 
     ExposedEndpoint:
       type: object
@@ -994,7 +994,7 @@ components:
             - WebApplication
           description: The workload type determines how the workload is deployed
         owner:
-          $ref: '#/components/schemas/WorkloadOwner'
+          $ref: "#/components/schemas/WorkloadOwner"
         metadata:
           type: object
           additionalProperties: true
@@ -1004,15 +1004,15 @@ components:
         containers:
           type: object
           additionalProperties:
-            $ref: '#/components/schemas/Container'
+            $ref: "#/components/schemas/Container"
         endpoints:
           type: object
           additionalProperties:
-            $ref: '#/components/schemas/WorkloadEndpoint'
+            $ref: "#/components/schemas/WorkloadEndpoint"
         connections:
           type: object
           additionalProperties:
-            $ref: '#/components/schemas/Connection'
+            $ref: "#/components/schemas/Connection"
 
     ComponentWorkflow:
       type: object
@@ -1023,7 +1023,7 @@ components:
         name:
           type: string
         systemParameters:
-          $ref: '#/components/schemas/ComponentWorkflowSystemParams'
+          $ref: "#/components/schemas/ComponentWorkflowSystemParams"
         parameters:
           type: object
           additionalProperties: true
@@ -1118,7 +1118,7 @@ components:
           type: object
           additionalProperties: true
         workloadOverrides:
-          $ref: '#/components/schemas/WorkloadOverrides'
+          $ref: "#/components/schemas/WorkloadOverrides"
         createdAt:
           type: string
           format: date-time
@@ -1139,7 +1139,7 @@ components:
           type: object
           additionalProperties: true
         workloadOverrides:
-          $ref: '#/components/schemas/WorkloadOverrides'
+          $ref: "#/components/schemas/WorkloadOverrides"
 
     WorkloadOverrides:
       type: object
@@ -1147,7 +1147,7 @@ components:
         containers:
           type: object
           additionalProperties:
-            $ref: '#/components/schemas/ContainerOverride'
+            $ref: "#/components/schemas/ContainerOverride"
 
     ContainerOverride:
       type: object
@@ -1155,11 +1155,11 @@ components:
         env:
           type: array
           items:
-            $ref: '#/components/schemas/EnvVar'
+            $ref: "#/components/schemas/EnvVar"
         files:
           type: array
           items:
-            $ref: '#/components/schemas/FileVar'
+            $ref: "#/components/schemas/FileVar"
 
     FileVar:
       type: object
@@ -1174,7 +1174,7 @@ components:
         value:
           type: string
         valueFrom:
-          $ref: '#/components/schemas/EnvVarValueFrom'
+          $ref: "#/components/schemas/EnvVarValueFrom"
 
     DeployReleaseRequest:
       type: object
@@ -1194,13 +1194,13 @@ components:
         value:
           type: string
         valueFrom:
-          $ref: '#/components/schemas/EnvVarValueFrom'
+          $ref: "#/components/schemas/EnvVarValueFrom"
 
     EnvVarValueFrom:
       type: object
       properties:
         secretRef:
-          $ref: '#/components/schemas/SecretKeyRef'
+          $ref: "#/components/schemas/SecretKeyRef"
 
     SecretKeyRef:
       type: object
@@ -1231,7 +1231,7 @@ components:
         env:
           type: array
           items:
-            $ref: '#/components/schemas/EnvVar'
+            $ref: "#/components/schemas/EnvVar"
 
     WorkloadEndpoint:
       type: object
@@ -1241,11 +1241,11 @@ components:
       properties:
         type:
           type: string
-          enum: ['TCP', 'UDP', 'HTTP', 'REST', 'gRPC', 'Websocket', 'GraphQL']
+          enum: ["TCP", "UDP", "HTTP", "REST", "gRPC", "Websocket", "GraphQL"]
         port:
           type: integer
         schema:
-          $ref: '#/components/schemas/Schema'
+          $ref: "#/components/schemas/Schema"
 
     Connection:
       type: object
@@ -1254,9 +1254,9 @@ components:
         - type
       properties:
         inject:
-          $ref: '#/components/schemas/ConnectionInject'
+          $ref: "#/components/schemas/ConnectionInject"
         params:
-          $ref: '#/components/schemas/ConnectionParams'
+          $ref: "#/components/schemas/ConnectionParams"
         type:
           type: string
 
@@ -1291,7 +1291,7 @@ components:
         env:
           type: array
           items:
-            $ref: '#/components/schemas/ConnectionInjectEnv'
+            $ref: "#/components/schemas/ConnectionInjectEnv"
 
     ConnectionInjectEnv:
       type: object
@@ -1320,9 +1320,9 @@ components:
         - status
       properties:
         spec:
-          $ref: '#/components/schemas/ReleaseSpec'
+          $ref: "#/components/schemas/ReleaseSpec"
         status:
-          $ref: '#/components/schemas/ReleaseStatus'
+          $ref: "#/components/schemas/ReleaseStatus"
 
     ReleaseSpec:
       type: object
@@ -1331,14 +1331,14 @@ components:
         - environmentName
       properties:
         owner:
-          $ref: '#/components/schemas/ReleaseOwner'
+          $ref: "#/components/schemas/ReleaseOwner"
         environmentName:
           type: string
           minLength: 1
         resources:
           type: array
           items:
-            $ref: '#/components/schemas/Resource'
+            $ref: "#/components/schemas/Resource"
         interval:
           type: string
           pattern: '^([0-9]+(\.[0-9]+)?(ms|s|m|h))+$'
@@ -1354,11 +1354,11 @@ components:
         resources:
           type: array
           items:
-            $ref: '#/components/schemas/ResourceStatus'
+            $ref: "#/components/schemas/ResourceStatus"
         conditions:
           type: array
           items:
-            $ref: '#/components/schemas/Condition'
+            $ref: "#/components/schemas/Condition"
 
     ReleaseOwner:
       type: object
@@ -1442,8 +1442,8 @@ components:
         status:
           type: string
           enum:
-            - 'True'
-            - 'False'
+            - "True"
+            - "False"
             - Unknown
         observedGeneration:
           type: integer
@@ -1464,7 +1464,7 @@ components:
           type: string
           description: Name of the workflow to initialize (optional, required for initialization)
         systemParameters:
-          $ref: '#/components/schemas/ComponentWorkflowSystemParams'
+          $ref: "#/components/schemas/ComponentWorkflowSystemParams"
         parameters:
           type: object
           additionalProperties: true
@@ -1476,7 +1476,7 @@ components:
         - repository
       properties:
         repository:
-          $ref: '#/components/schemas/ComponentWorkflowRepository'
+          $ref: "#/components/schemas/ComponentWorkflowRepository"
 
     ComponentWorkflowRepository:
       type: object
@@ -1487,7 +1487,7 @@ components:
         url:
           type: string
         revision:
-          $ref: '#/components/schemas/ComponentWorkflowRepositoryRevision'
+          $ref: "#/components/schemas/ComponentWorkflowRepositoryRevision"
         appPath:
           type: string
 
@@ -1593,9 +1593,9 @@ components:
               type: string
               description: Name of the cluster role to bind
         entitlement:
-          $ref: '#/components/schemas/Entitlement'
+          $ref: "#/components/schemas/Entitlement"
         effect:
-          $ref: '#/components/schemas/PolicyEffectType'
+          $ref: "#/components/schemas/PolicyEffectType"
 
     ClusterRoleBindingRequest:
       type: object
@@ -1661,7 +1661,7 @@ components:
               type: string
               description: Namespace of the role
         entitlement:
-          $ref: '#/components/schemas/Entitlement'
+          $ref: "#/components/schemas/Entitlement"
         hierarchy:
           type: object
           description: Hierarchy scope for the binding
@@ -1676,7 +1676,7 @@ components:
               type: string
               description: Component name to scope the binding
         effect:
-          $ref: '#/components/schemas/PolicyEffectType'
+          $ref: "#/components/schemas/PolicyEffectType"
 
     NamespaceRoleBindingRequest:
       type: object
@@ -1751,7 +1751,7 @@ components:
           type: string
           description: Authentication mechanism type (e.g., "jwt", "oauth2", "api_key")
         entitlement:
-          $ref: '#/components/schemas/EntitlementConfig'
+          $ref: "#/components/schemas/EntitlementConfig"
 
     UserTypeConfig:
       type: object
@@ -1762,7 +1762,7 @@ components:
         - authMechanisms
       properties:
         type:
-          $ref: '#/components/schemas/SubjectType'
+          $ref: "#/components/schemas/SubjectType"
         displayName:
           type: string
         priority:
@@ -1770,7 +1770,7 @@ components:
         authMechanisms:
           type: array
           items:
-            $ref: '#/components/schemas/AuthMechanismConfig'
+            $ref: "#/components/schemas/AuthMechanismConfig"
 
     Subject:
       type: object
@@ -1791,7 +1791,7 @@ components:
         id:
           type: string
         hierarchy:
-          $ref: '#/components/schemas/AuthzResourceHierarchy'
+          $ref: "#/components/schemas/AuthzResourceHierarchy"
 
     EvaluateRequest:
       type: object
@@ -1801,9 +1801,9 @@ components:
         - action
       properties:
         subject:
-          $ref: '#/components/schemas/Subject'
+          $ref: "#/components/schemas/Subject"
         resource:
-          $ref: '#/components/schemas/AuthzResource'
+          $ref: "#/components/schemas/AuthzResource"
         action:
           type: string
         context:
@@ -1817,7 +1817,7 @@ components:
         requests:
           type: array
           items:
-            $ref: '#/components/schemas/EvaluateRequest'
+            $ref: "#/components/schemas/EvaluateRequest"
 
     DecisionContext:
       type: object
@@ -1833,7 +1833,7 @@ components:
         decision:
           type: boolean
         context:
-          $ref: '#/components/schemas/DecisionContext'
+          $ref: "#/components/schemas/DecisionContext"
 
     BatchEvaluateResponse:
       type: object
@@ -1843,7 +1843,7 @@ components:
         decisions:
           type: array
           items:
-            $ref: '#/components/schemas/Decision'
+            $ref: "#/components/schemas/Decision"
 
     CapabilityResource:
       type: object
@@ -1861,17 +1861,17 @@ components:
         allowed:
           type: array
           items:
-            $ref: '#/components/schemas/CapabilityResource'
+            $ref: "#/components/schemas/CapabilityResource"
         denied:
           type: array
           items:
-            $ref: '#/components/schemas/CapabilityResource'
+            $ref: "#/components/schemas/CapabilityResource"
 
     SubjectContext:
       type: object
       properties:
         Type:
-          $ref: '#/components/schemas/SubjectType'
+          $ref: "#/components/schemas/SubjectType"
         EntitlementClaim:
           type: string
         EntitlementValues:
@@ -1883,11 +1883,11 @@ components:
       type: object
       properties:
         user:
-          $ref: '#/components/schemas/SubjectContext'
+          $ref: "#/components/schemas/SubjectContext"
         capabilities:
           type: object
           additionalProperties:
-            $ref: '#/components/schemas/ActionCapability'
+            $ref: "#/components/schemas/ActionCapability"
         evaluatedAt:
           type: string
           format: date-time
@@ -1951,7 +1951,7 @@ paths:
         - Health
       security: []
       responses:
-        '200':
+        "200":
           description: Service is healthy
           content:
             text/plain:
@@ -1966,7 +1966,7 @@ paths:
         - Health
       security: []
       responses:
-        '200':
+        "200":
           description: Service is ready
           content:
             text/plain:
@@ -1982,12 +1982,12 @@ paths:
         - Health
       security: []
       responses:
-        '200':
+        "200":
           description: Server version information
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VersionResponse'
+                $ref: "#/components/schemas/VersionResponse"
 
   # Webhook endpoints (public - called by Git providers)
   /webhooks/github:
@@ -2005,17 +2005,17 @@ paths:
               type: object
               additionalProperties: true
       responses:
-        '200':
+        "200":
           description: Webhook processed successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/WebhookEventResponse'
+                        $ref: "#/components/schemas/WebhookEventResponse"
 
   /webhooks/gitlab:
     post:
@@ -2032,17 +2032,17 @@ paths:
               type: object
               additionalProperties: true
       responses:
-        '200':
+        "200":
           description: Webhook processed successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/WebhookEventResponse'
+                        $ref: "#/components/schemas/WebhookEventResponse"
 
   /webhooks/bitbucket:
     post:
@@ -2059,17 +2059,17 @@ paths:
               type: object
               additionalProperties: true
       responses:
-        '200':
+        "200":
           description: Webhook processed successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/WebhookEventResponse'
+                        $ref: "#/components/schemas/WebhookEventResponse"
 
   # Apply/Delete operations (kubectl-like)
   /apply:
@@ -2087,18 +2087,18 @@ paths:
               description: Kubernetes-style resource definition
               additionalProperties: true
       responses:
-        '200':
+        "200":
           description: Resource applied successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIResponse'
-        '201':
+                $ref: "#/components/schemas/APIResponse"
+        "201":
           description: Resource created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIResponse'
+                $ref: "#/components/schemas/APIResponse"
 
   /delete:
     delete:
@@ -2115,12 +2115,12 @@ paths:
               description: Kubernetes-style resource definition
               additionalProperties: true
       responses:
-        '200':
+        "200":
           description: Resource deleted successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIResponse'
+                $ref: "#/components/schemas/APIResponse"
 
   /namespaces/{namespaceName}/resources/{kind}/{name}:
     get:
@@ -2148,25 +2148,25 @@ paths:
             type: string
           description: Resource name
       responses:
-        '200':
+        "200":
           description: Resource retrieved successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         type: object
                         description: Kubernetes-style resource definition
                         additionalProperties: true
-        '404':
+        "404":
           description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIResponse'
+                $ref: "#/components/schemas/APIResponse"
 
   # Namespaces
   /namespaces:
@@ -2176,24 +2176,24 @@ paths:
       tags:
         - Namespaces
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         allOf:
-                          - $ref: '#/components/schemas/ListResponse'
+                          - $ref: "#/components/schemas/ListResponse"
                           - type: object
                             properties:
                               items:
                                 type: array
                                 items:
-                                  $ref: '#/components/schemas/NamespaceResponse'
+                                  $ref: "#/components/schemas/NamespaceResponse"
 
   /namespaces/{namespaceName}:
     get:
@@ -2208,18 +2208,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/NamespaceResponse'
-        '404':
+                        $ref: "#/components/schemas/NamespaceResponse"
+        "404":
           description: Namespace not found
 
   /namespaces/{namespaceName}/secret-references:
@@ -2235,25 +2235,25 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         allOf:
-                          - $ref: '#/components/schemas/ListResponse'
+                          - $ref: "#/components/schemas/ListResponse"
                           - type: object
                             properties:
                               items:
                                 type: array
                                 items:
-                                  $ref: '#/components/schemas/SecretReferenceResponse'
-        '404':
+                                  $ref: "#/components/schemas/SecretReferenceResponse"
+        "404":
           description: Namespace not found
 
   # Git Secrets
@@ -2270,25 +2270,25 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         allOf:
-                          - $ref: '#/components/schemas/ListResponse'
+                          - $ref: "#/components/schemas/ListResponse"
                           - type: object
                             properties:
                               items:
                                 type: array
                                 items:
-                                  $ref: '#/components/schemas/GitSecretResponse'
-        '404':
+                                  $ref: "#/components/schemas/GitSecretResponse"
+        "404":
           description: Namespace not found
 
     post:
@@ -2307,22 +2307,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateGitSecretRequest'
+              $ref: "#/components/schemas/CreateGitSecretRequest"
       responses:
-        '201':
+        "201":
           description: Git secret created successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/GitSecretResponse'
-        '400':
+                        $ref: "#/components/schemas/GitSecretResponse"
+        "400":
           description: Invalid request
-        '409':
+        "409":
           description: Git secret already exists
 
   /namespaces/{namespaceName}/git-secrets/{secretName}:
@@ -2343,9 +2343,9 @@ paths:
           schema:
             type: string
       responses:
-        '204':
+        "204":
           description: Git secret deleted successfully
-        '404':
+        "404":
           description: Git secret not found
 
   # DataPlanes
@@ -2362,24 +2362,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         allOf:
-                          - $ref: '#/components/schemas/ListResponse'
+                          - $ref: "#/components/schemas/ListResponse"
                           - type: object
                             properties:
                               items:
                                 type: array
                                 items:
-                                  $ref: '#/components/schemas/DataPlaneResponse'
+                                  $ref: "#/components/schemas/DataPlaneResponse"
 
     post:
       summary: Create a new data plane
@@ -2397,19 +2397,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateDataPlaneRequest'
+              $ref: "#/components/schemas/CreateDataPlaneRequest"
       responses:
-        '201':
+        "201":
           description: Data plane created successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/DataPlaneResponse'
+                        $ref: "#/components/schemas/DataPlaneResponse"
 
   /namespaces/{namespaceName}/dataplanes/{dpName}:
     get:
@@ -2429,17 +2429,17 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/DataPlaneResponse'
+                        $ref: "#/components/schemas/DataPlaneResponse"
 
   # Environments
   /namespaces/{namespaceName}/environments:
@@ -2455,24 +2455,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         allOf:
-                          - $ref: '#/components/schemas/ListResponse'
+                          - $ref: "#/components/schemas/ListResponse"
                           - type: object
                             properties:
                               items:
                                 type: array
                                 items:
-                                  $ref: '#/components/schemas/EnvironmentResponse'
+                                  $ref: "#/components/schemas/EnvironmentResponse"
 
     post:
       summary: Create a new environment
@@ -2490,19 +2490,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateEnvironmentRequest'
+              $ref: "#/components/schemas/CreateEnvironmentRequest"
       responses:
-        '201':
+        "201":
           description: Environment created successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/EnvironmentResponse'
+                        $ref: "#/components/schemas/EnvironmentResponse"
 
   /namespaces/{namespaceName}/environments/{envName}:
     get:
@@ -2522,17 +2522,17 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/EnvironmentResponse'
+                        $ref: "#/components/schemas/EnvironmentResponse"
 
   /namespaces/{namespaceName}/environments/{envName}/observer-url:
     get:
@@ -2552,18 +2552,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ObserverUrlData'
-        '404':
+                        $ref: "#/components/schemas/ObserverUrlData"
+        "404":
           description: Environment or DataPlane not found
 
   /namespaces/{namespaceName}/environments/{envName}/rca-agent-url:
@@ -2585,18 +2585,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: RCA agent URL information
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/RCAAgentUrlData'
-        '404':
+                        $ref: "#/components/schemas/RCAAgentUrlData"
+        "404":
           description: Environment or RCA agent not found
 
   # BuildPlanes
@@ -2613,19 +2613,19 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         type: array
                         items:
-                          $ref: '#/components/schemas/BuildPlaneResponse'
+                          $ref: "#/components/schemas/BuildPlaneResponse"
 
   # ObservabilityPlanes
   /namespaces/{namespaceName}/observabilityplanes:
@@ -2641,19 +2641,19 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         type: array
                         items:
-                          $ref: '#/components/schemas/ObservabilityPlaneResponse'
+                          $ref: "#/components/schemas/ObservabilityPlaneResponse"
 
   # ComponentTypes
   /namespaces/{namespaceName}/component-types:
@@ -2669,24 +2669,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         allOf:
-                          - $ref: '#/components/schemas/ListResponse'
+                          - $ref: "#/components/schemas/ListResponse"
                           - type: object
                             properties:
                               items:
                                 type: array
                                 items:
-                                  $ref: '#/components/schemas/ComponentTypeResponse'
+                                  $ref: "#/components/schemas/ComponentTypeResponse"
 
   /namespaces/{namespaceName}/component-types/{ctName}/schema:
     get:
@@ -2706,20 +2706,20 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         type: object
                         description: JSON Schema for the component type
                         additionalProperties: true
-        '404':
+        "404":
           description: Component type not found
 
   /namespaces/{namespaceName}/component-types/{ctName}/definition:
@@ -2740,20 +2740,20 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         type: object
                         description: Full Kubernetes CRD as unstructured JSON
                         additionalProperties: true
-        '404':
+        "404":
           description: Component type not found
     put:
       summary: Create or update a component type definition
@@ -2780,17 +2780,17 @@ paths:
               description: Full Kubernetes CRD as unstructured JSON
               additionalProperties: true
       responses:
-        '200':
+        "200":
           description: Resource applied successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ResourceCRUDResponse'
+                        $ref: "#/components/schemas/ResourceCRUDResponse"
     delete:
       summary: Delete a component type definition
       operationId: deleteComponentTypeDefinition
@@ -2808,18 +2808,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Resource deleted successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ResourceCRUDResponse'
-        '404':
+                        $ref: "#/components/schemas/ResourceCRUDResponse"
+        "404":
           description: Component type not found
 
   # Workflows (generic workflows)
@@ -2836,24 +2836,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         allOf:
-                          - $ref: '#/components/schemas/ListResponse'
+                          - $ref: "#/components/schemas/ListResponse"
                           - type: object
                             properties:
                               items:
                                 type: array
                                 items:
-                                  $ref: '#/components/schemas/WorkflowResponse'
+                                  $ref: "#/components/schemas/WorkflowResponse"
 
   /namespaces/{namespaceName}/workflows/{workflowName}/schema:
     get:
@@ -2873,20 +2873,20 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         type: object
                         description: JSON Schema for the workflow
                         additionalProperties: true
-        '404':
+        "404":
           description: Workflow not found
 
   /namespaces/{namespaceName}/workflows/{workflowName}/definition:
@@ -2907,20 +2907,20 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         type: object
                         description: Full Kubernetes CRD as unstructured JSON
                         additionalProperties: true
-        '404':
+        "404":
           description: Workflow not found
     put:
       summary: Create or update a workflow definition
@@ -2947,17 +2947,17 @@ paths:
               description: Full Kubernetes CRD as unstructured JSON
               additionalProperties: true
       responses:
-        '200':
+        "200":
           description: Resource applied successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ResourceCRUDResponse'
+                        $ref: "#/components/schemas/ResourceCRUDResponse"
     delete:
       summary: Delete a workflow definition
       operationId: deleteWorkflowDefinition
@@ -2975,18 +2975,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Resource deleted successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ResourceCRUDResponse'
-        '404':
+                        $ref: "#/components/schemas/ResourceCRUDResponse"
+        "404":
           description: Workflow not found
 
   # ComponentWorkflows (component-specific workflows)
@@ -3003,24 +3003,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         allOf:
-                          - $ref: '#/components/schemas/ListResponse'
+                          - $ref: "#/components/schemas/ListResponse"
                           - type: object
                             properties:
                               items:
                                 type: array
                                 items:
-                                  $ref: '#/components/schemas/WorkflowResponse'
+                                  $ref: "#/components/schemas/WorkflowResponse"
 
   /namespaces/{namespaceName}/component-workflows/{cwName}/schema:
     get:
@@ -3040,20 +3040,20 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         type: object
                         description: JSON Schema for the component workflow
                         additionalProperties: true
-        '404':
+        "404":
           description: Component workflow not found
 
   /namespaces/{namespaceName}/component-workflows/{cwName}/definition:
@@ -3074,20 +3074,20 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         type: object
                         description: Full Kubernetes CRD as unstructured JSON
                         additionalProperties: true
-        '404':
+        "404":
           description: Component workflow not found
     put:
       summary: Create or update a component workflow definition
@@ -3114,17 +3114,17 @@ paths:
               description: Full Kubernetes CRD as unstructured JSON
               additionalProperties: true
       responses:
-        '200':
+        "200":
           description: Resource applied successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ResourceCRUDResponse'
+                        $ref: "#/components/schemas/ResourceCRUDResponse"
     delete:
       summary: Delete a component workflow definition
       operationId: deleteComponentWorkflowDefinition
@@ -3142,18 +3142,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Resource deleted successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ResourceCRUDResponse'
-        '404':
+                        $ref: "#/components/schemas/ResourceCRUDResponse"
+        "404":
           description: Component workflow not found
 
   # Traits
@@ -3170,24 +3170,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         allOf:
-                          - $ref: '#/components/schemas/ListResponse'
+                          - $ref: "#/components/schemas/ListResponse"
                           - type: object
                             properties:
                               items:
                                 type: array
                                 items:
-                                  $ref: '#/components/schemas/TraitResponse'
+                                  $ref: "#/components/schemas/TraitResponse"
 
   /namespaces/{namespaceName}/traits/{traitName}/schema:
     get:
@@ -3207,20 +3207,20 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         type: object
                         description: JSON Schema for the trait
                         additionalProperties: true
-        '404':
+        "404":
           description: Trait not found
 
   /namespaces/{namespaceName}/traits/{traitName}/definition:
@@ -3241,20 +3241,20 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         type: object
                         description: Full Kubernetes CRD as unstructured JSON
                         additionalProperties: true
-        '404':
+        "404":
           description: Trait not found
     put:
       summary: Create or update a trait definition
@@ -3281,17 +3281,17 @@ paths:
               description: Full Kubernetes CRD as unstructured JSON
               additionalProperties: true
       responses:
-        '200':
+        "200":
           description: Resource applied successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ResourceCRUDResponse'
+                        $ref: "#/components/schemas/ResourceCRUDResponse"
     delete:
       summary: Delete a trait definition
       operationId: deleteTraitDefinition
@@ -3309,18 +3309,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Resource deleted successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ResourceCRUDResponse'
-        '404':
+                        $ref: "#/components/schemas/ResourceCRUDResponse"
+        "404":
           description: Trait not found
 
   # Projects
@@ -3337,24 +3337,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         allOf:
-                          - $ref: '#/components/schemas/ListResponse'
+                          - $ref: "#/components/schemas/ListResponse"
                           - type: object
                             properties:
                               items:
                                 type: array
                                 items:
-                                  $ref: '#/components/schemas/ProjectResponse'
+                                  $ref: "#/components/schemas/ProjectResponse"
 
     post:
       summary: Create a new project
@@ -3372,19 +3372,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateProjectRequest'
+              $ref: "#/components/schemas/CreateProjectRequest"
       responses:
-        '201':
+        "201":
           description: Project created successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ProjectResponse'
+                        $ref: "#/components/schemas/ProjectResponse"
 
   /namespaces/{namespaceName}/projects/{projectName}:
     get:
@@ -3404,17 +3404,17 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ProjectResponse'
+                        $ref: "#/components/schemas/ProjectResponse"
     delete:
       summary: Delete a project
       operationId: deleteProject
@@ -3432,9 +3432,9 @@ paths:
           schema:
             type: string
       responses:
-        '204':
+        "204":
           description: Project deleted successfully
-        '404':
+        "404":
           description: Project not found
 
   /namespaces/{namespaceName}/projects/{projectName}/deployment-pipeline:
@@ -3455,17 +3455,17 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/DeploymentPipelineResponse'
+                        $ref: "#/components/schemas/DeploymentPipelineResponse"
 
   # Components
   /namespaces/{namespaceName}/projects/{projectName}/components:
@@ -3486,24 +3486,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         allOf:
-                          - $ref: '#/components/schemas/ListResponse'
+                          - $ref: "#/components/schemas/ListResponse"
                           - type: object
                             properties:
                               items:
                                 type: array
                                 items:
-                                  $ref: '#/components/schemas/ComponentResponse'
+                                  $ref: "#/components/schemas/ComponentResponse"
 
     post:
       summary: Create a new component
@@ -3526,19 +3526,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateComponentRequest'
+              $ref: "#/components/schemas/CreateComponentRequest"
       responses:
-        '201':
+        "201":
           description: Component created successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ComponentResponse'
+                        $ref: "#/components/schemas/ComponentResponse"
 
   /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}:
     get:
@@ -3570,17 +3570,17 @@ paths:
             description: Comma-separated list of additional resources to include (e.g., "type,workload")
           description: Additional resources to include in the response. Valid values are "type" and "workload".
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ComponentResponse'
+                        $ref: "#/components/schemas/ComponentResponse"
     patch:
       summary: Patch a component
       operationId: patchComponent
@@ -3607,24 +3607,24 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchComponentRequest'
+              $ref: "#/components/schemas/PatchComponentRequest"
       responses:
-        '200':
+        "200":
           description: Component successfully patched
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ComponentResponse'
-        '400':
+                        $ref: "#/components/schemas/ComponentResponse"
+        "400":
           description: Bad request - invalid input
-        '404':
+        "404":
           description: Component or project not found
-        '500':
+        "500":
           description: Internal server error
     delete:
       summary: Delete a component
@@ -3648,9 +3648,9 @@ paths:
           schema:
             type: string
       responses:
-        '204':
+        "204":
           description: Component deleted successfully
-        '404':
+        "404":
           description: Component or project not found
 
   /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/schema:
@@ -3676,18 +3676,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ComponentSchemaResponse'
-        '404':
+                        $ref: "#/components/schemas/ComponentSchemaResponse"
+        "404":
           description: Component not found
 
   /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/traits:
@@ -3713,28 +3713,28 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ListResponse'
+                        $ref: "#/components/schemas/ListResponse"
                       totalCount:
                         type: integer
                       page:
                         type: integer
                       pageSize:
                         type: integer
-        '400':
+        "400":
           description: Bad request
-        '403':
+        "403":
           description: Forbidden
-        '404':
+        "404":
           description: Component not found
 
     put:
@@ -3763,30 +3763,30 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateComponentTraitsRequest'
+              $ref: "#/components/schemas/UpdateComponentTraitsRequest"
       responses:
-        '200':
+        "200":
           description: Traits updated successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ListResponse'
+                        $ref: "#/components/schemas/ListResponse"
                       totalCount:
                         type: integer
                       page:
                         type: integer
                       pageSize:
                         type: integer
-        '400':
+        "400":
           description: Bad request
-        '403':
+        "403":
           description: Forbidden
-        '404':
+        "404":
           description: Component or trait not found
 
   /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/workflow-parameters:
@@ -3816,19 +3816,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateComponentWorkflowRequest'
+              $ref: "#/components/schemas/UpdateComponentWorkflowRequest"
       responses:
-        '200':
+        "200":
           description: Workflow parameters updated successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ComponentResponse'
+                        $ref: "#/components/schemas/ComponentResponse"
 
   /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/workflow-runs:
     post:
@@ -3859,18 +3859,18 @@ paths:
             type: string
           description: Git commit SHA (7-40 hexadecimal characters)
       responses:
-        '201':
+        "201":
           description: Component workflow run created successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ComponentWorkflowRunResponse'
-        '400':
+                        $ref: "#/components/schemas/ComponentWorkflowRunResponse"
+        "400":
           description: Invalid commit SHA format
 
     get:
@@ -3895,24 +3895,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         allOf:
-                          - $ref: '#/components/schemas/ListResponse'
+                          - $ref: "#/components/schemas/ListResponse"
                           - type: object
                             properties:
                               items:
                                 type: array
                                 items:
-                                  $ref: '#/components/schemas/ComponentWorkflowRunResponse'
+                                  $ref: "#/components/schemas/ComponentWorkflowRunResponse"
 
   /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/workflow-runs/{runName}:
     get:
@@ -3942,18 +3942,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ComponentWorkflowRunResponse'
-        '404':
+                        $ref: "#/components/schemas/ComponentWorkflowRunResponse"
+        "404":
           description: Component workflow run not found
 
   # Component Bindings
@@ -3980,24 +3980,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         allOf:
-                          - $ref: '#/components/schemas/ListResponse'
+                          - $ref: "#/components/schemas/ListResponse"
                           - type: object
                             properties:
                               items:
                                 type: array
                                 items:
-                                  $ref: '#/components/schemas/BindingResponse'
+                                  $ref: "#/components/schemas/BindingResponse"
 
   /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/bindings/{bindingName}:
     patch:
@@ -4031,14 +4031,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateBindingRequest'
+              $ref: "#/components/schemas/UpdateBindingRequest"
       responses:
-        '200':
+        "200":
           description: Binding updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIResponse'
+                $ref: "#/components/schemas/APIResponse"
 
   # Component Releases
   /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/component-releases:
@@ -4064,24 +4064,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         allOf:
-                          - $ref: '#/components/schemas/ListResponse'
+                          - $ref: "#/components/schemas/ListResponse"
                           - type: object
                             properties:
                               items:
                                 type: array
                                 items:
-                                  $ref: '#/components/schemas/ComponentReleaseResponse'
+                                  $ref: "#/components/schemas/ComponentReleaseResponse"
 
     post:
       summary: Create a component release
@@ -4109,19 +4109,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateComponentReleaseRequest'
+              $ref: "#/components/schemas/CreateComponentReleaseRequest"
       responses:
-        '201':
+        "201":
           description: Component release created successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ComponentReleaseResponse'
+                        $ref: "#/components/schemas/ComponentReleaseResponse"
 
   /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/component-releases/{releaseName}:
     get:
@@ -4151,17 +4151,17 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ComponentReleaseResponse'
+                        $ref: "#/components/schemas/ComponentReleaseResponse"
 
   /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/component-releases/{releaseName}/schema:
     get:
@@ -4191,18 +4191,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ComponentSchemaResponse'
-        '404':
+                        $ref: "#/components/schemas/ComponentSchemaResponse"
+        "404":
           description: Component release not found
 
   # Release Bindings
@@ -4229,24 +4229,24 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         allOf:
-                          - $ref: '#/components/schemas/ListResponse'
+                          - $ref: "#/components/schemas/ListResponse"
                           - type: object
                             properties:
                               items:
                                 type: array
                                 items:
-                                  $ref: '#/components/schemas/ReleaseBindingResponse'
+                                  $ref: "#/components/schemas/ReleaseBindingResponse"
 
   /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/release-bindings/{bindingName}:
     patch:
@@ -4280,14 +4280,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchReleaseBindingRequest'
+              $ref: "#/components/schemas/PatchReleaseBindingRequest"
       responses:
-        '200':
+        "200":
           description: Release binding updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIResponse'
+                $ref: "#/components/schemas/APIResponse"
 
   # Component Deployment
   /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/deploy:
@@ -4317,14 +4317,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeployReleaseRequest'
+              $ref: "#/components/schemas/DeployReleaseRequest"
       responses:
-        '200':
+        "200":
           description: Release deployed successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIResponse'
+                $ref: "#/components/schemas/APIResponse"
 
   # Component Promotion
   /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/promote:
@@ -4354,26 +4354,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PromoteComponentRequest'
+              $ref: "#/components/schemas/PromoteComponentRequest"
       responses:
-        '200':
+        "200":
           description: Component promoted successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         allOf:
-                          - $ref: '#/components/schemas/ListResponse'
+                          - $ref: "#/components/schemas/ListResponse"
                           - type: object
                             properties:
                               items:
                                 type: array
                                 items:
-                                  $ref: '#/components/schemas/BindingResponse'
+                                  $ref: "#/components/schemas/BindingResponse"
 
   # Observer URLs
   /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/environments/{environmentName}/observer-url:
@@ -4404,17 +4404,17 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ObserverUrlData'
+                        $ref: "#/components/schemas/ObserverUrlData"
 
   /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/observer-url:
     get:
@@ -4439,17 +4439,17 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ObserverUrlData'
+                        $ref: "#/components/schemas/ObserverUrlData"
 
   /namespaces/{namespaceName}/projects/{projectName}/components/{componentName}/environments/{environmentName}/release:
     get:
@@ -4479,18 +4479,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ReleaseResponse'
-        '404':
+                        $ref: "#/components/schemas/ReleaseResponse"
+        "404":
           description: Release not found for the specified environment
 
   # Workloads
@@ -4525,17 +4525,17 @@ paths:
               description: Workload specification
               additionalProperties: true
       responses:
-        '200':
+        "200":
           description: Workload created successfully
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/WorkloadResponse'
+                        $ref: "#/components/schemas/WorkloadResponse"
 
     get:
       summary: Get workload for component
@@ -4559,17 +4559,17 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/WorkloadResponse'
+                        $ref: "#/components/schemas/WorkloadResponse"
 
   /authz/actions:
     get:
@@ -4578,13 +4578,13 @@ paths:
       tags:
         - Authorization
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
@@ -4600,19 +4600,19 @@ paths:
       tags:
         - Authorization
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         type: array
                         items:
-                          $ref: '#/components/schemas/ClusterRole'
+                          $ref: "#/components/schemas/ClusterRole"
     post:
       summary: Create a new cluster role
       operationId: createClusterRole
@@ -4623,19 +4623,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ClusterRole'
+              $ref: "#/components/schemas/ClusterRole"
       responses:
-        '201':
+        "201":
           description: Cluster role created
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ClusterRole'
+                        $ref: "#/components/schemas/ClusterRole"
 
   /clusterroles/{name}:
     get:
@@ -4650,18 +4650,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ClusterRole'
-        '404':
+                        $ref: "#/components/schemas/ClusterRole"
+        "404":
           description: Cluster role not found
     put:
       summary: Update a cluster role
@@ -4688,17 +4688,17 @@ paths:
                 description:
                   type: string
       responses:
-        '200':
+        "200":
           description: Cluster role updated
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ClusterRole'
+                        $ref: "#/components/schemas/ClusterRole"
     delete:
       summary: Delete a cluster role
       operationId: deleteClusterRole
@@ -4711,9 +4711,9 @@ paths:
           schema:
             type: string
       responses:
-        '204':
+        "204":
           description: Cluster role deleted
-        '404':
+        "404":
           description: Cluster role not found
 
   # Namespace-scoped roles
@@ -4730,19 +4730,19 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         type: array
                         items:
-                          $ref: '#/components/schemas/NamespaceRole'
+                          $ref: "#/components/schemas/NamespaceRole"
     post:
       summary: Create a new namespace role
       operationId: createNamespaceRole
@@ -4759,19 +4759,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/NamespaceRole'
+              $ref: "#/components/schemas/NamespaceRole"
       responses:
-        '201':
+        "201":
           description: Namespace role created
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/NamespaceRole'
+                        $ref: "#/components/schemas/NamespaceRole"
 
   /namespaces/{namespace}/roles/{name}:
     get:
@@ -4791,18 +4791,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/NamespaceRole'
-        '404':
+                        $ref: "#/components/schemas/NamespaceRole"
+        "404":
           description: Namespace role not found
     put:
       summary: Update a namespace role
@@ -4834,17 +4834,17 @@ paths:
                 description:
                   type: string
       responses:
-        '200':
+        "200":
           description: Namespace role updated
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/NamespaceRole'
+                        $ref: "#/components/schemas/NamespaceRole"
     delete:
       summary: Delete a namespace role
       operationId: deleteNamespaceRole
@@ -4862,9 +4862,9 @@ paths:
           schema:
             type: string
       responses:
-        '204':
+        "204":
           description: Namespace role deleted
-        '404':
+        "404":
           description: Namespace role not found
 
   # Cluster role bindings
@@ -4894,21 +4894,21 @@ paths:
           in: query
           required: false
           schema:
-            $ref: '#/components/schemas/PolicyEffectType'
+            $ref: "#/components/schemas/PolicyEffectType"
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         type: array
                         items:
-                          $ref: '#/components/schemas/ClusterRoleBinding'
+                          $ref: "#/components/schemas/ClusterRoleBinding"
     post:
       summary: Create a new cluster role binding
       operationId: createClusterRoleBinding
@@ -4919,19 +4919,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ClusterRoleBindingRequest'
+              $ref: "#/components/schemas/ClusterRoleBindingRequest"
       responses:
-        '201':
+        "201":
           description: Cluster role binding created
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ClusterRoleBinding'
+                        $ref: "#/components/schemas/ClusterRoleBinding"
 
   /clusterrolebindings/{name}:
     get:
@@ -4946,18 +4946,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ClusterRoleBinding'
-        '404':
+                        $ref: "#/components/schemas/ClusterRoleBinding"
+        "404":
           description: Cluster role binding not found
     put:
       summary: Update a cluster role binding
@@ -4975,19 +4975,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ClusterRoleBindingRequest'
+              $ref: "#/components/schemas/ClusterRoleBindingRequest"
       responses:
-        '200':
+        "200":
           description: Cluster role binding updated
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ClusterRoleBinding'
+                        $ref: "#/components/schemas/ClusterRoleBinding"
     delete:
       summary: Delete a cluster role binding
       operationId: deleteClusterRoleBinding
@@ -5000,9 +5000,9 @@ paths:
           schema:
             type: string
       responses:
-        '204':
+        "204":
           description: Cluster role binding deleted
-        '404':
+        "404":
           description: Cluster role binding not found
 
   # Namespace role bindings
@@ -5042,21 +5042,21 @@ paths:
           in: query
           required: false
           schema:
-            $ref: '#/components/schemas/PolicyEffectType'
+            $ref: "#/components/schemas/PolicyEffectType"
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         type: array
                         items:
-                          $ref: '#/components/schemas/NamespaceRoleBinding'
+                          $ref: "#/components/schemas/NamespaceRoleBinding"
     post:
       summary: Create a new namespace role binding
       operationId: createNamespaceRoleBinding
@@ -5073,19 +5073,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/NamespaceRoleBindingRequest'
+              $ref: "#/components/schemas/NamespaceRoleBindingRequest"
       responses:
-        '201':
+        "201":
           description: Namespace role binding created
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/NamespaceRoleBinding'
+                        $ref: "#/components/schemas/NamespaceRoleBinding"
 
   /namespaces/{namespace}/rolebindings/{name}:
     get:
@@ -5105,18 +5105,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/NamespaceRoleBinding'
-        '404':
+                        $ref: "#/components/schemas/NamespaceRoleBinding"
+        "404":
           description: Namespace role binding not found
     put:
       summary: Update a namespace role binding
@@ -5139,19 +5139,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/NamespaceRoleBindingRequest'
+              $ref: "#/components/schemas/NamespaceRoleBindingRequest"
       responses:
-        '200':
+        "200":
           description: Namespace role binding updated
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/NamespaceRoleBinding'
+                        $ref: "#/components/schemas/NamespaceRoleBinding"
     delete:
       summary: Delete a namespace role binding
       operationId: deleteNamespaceRoleBinding
@@ -5169,9 +5169,9 @@ paths:
           schema:
             type: string
       responses:
-        '204':
+        "204":
           description: Namespace role binding deleted
-        '404':
+        "404":
           description: Namespace role binding not found
 
   /user-types:
@@ -5181,19 +5181,19 @@ paths:
       tags:
         - Configuration
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
                         type: array
                         items:
-                          $ref: '#/components/schemas/UserTypeConfig'
+                          $ref: "#/components/schemas/UserTypeConfig"
 
   /authz/evaluate:
     post:
@@ -5206,19 +5206,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/EvaluateRequest'
+              $ref: "#/components/schemas/EvaluateRequest"
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/Decision'
+                        $ref: "#/components/schemas/Decision"
 
   /authz/batch-evaluate:
     post:
@@ -5231,19 +5231,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BatchEvaluateRequest'
+              $ref: "#/components/schemas/BatchEvaluateRequest"
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/BatchEvaluateResponse'
+                        $ref: "#/components/schemas/BatchEvaluateResponse"
 
   /authz/profile:
     get:
@@ -5279,14 +5279,14 @@ paths:
               type: string
           description: Namespace units scope (optional)
       responses:
-        '200':
+        "200":
           description: Successful response
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/APIResponse'
+                  - $ref: "#/components/schemas/APIResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/UserCapabilitiesResponse'
+                        $ref: "#/components/schemas/UserCapabilitiesResponse"

@@ -20,14 +20,14 @@ Evaluators subpackage.
 Import Strategy:
 ----------------
 
-1. Base classes (always available, no dependencies):
-   >>> from amp_evaluation.evaluators import BaseEvaluator, FunctionEvaluator
+1. Base classes and parameter descriptors (always available, no dependencies):
+   >>> from amp_evaluation.evaluators import BaseEvaluator, Param
 
 2. Standard evaluators (no external dependencies):
    >>> from amp_evaluation.evaluators.builtin.standard import LatencyEvaluator, TokenEfficiencyEvaluator
 
 3. DeepEval evaluators (requires deepeval package):
-   >>> from amp_evaluation.evaluators.builtin.deepeval import PlanQualityEvaluator
+   >>> from amp_evaluation.evaluators.builtin.deepeval import DeepEvalPlanQualityEvaluator
 
 4. Registry-based access (lazy loading, recommended):
    >>> from amp_evaluation import get_evaluator
@@ -39,13 +39,13 @@ subpackage and are auto-discovered via the registry for lazy loading.
 
 # Base classes - always available
 from .base import BaseEvaluator, LLMAsJudgeEvaluator, FunctionEvaluator
-from .config import Config
+from .config import Param
 
 __all__ = [
     # Base classes
     "BaseEvaluator",
     "LLMAsJudgeEvaluator",
     "FunctionEvaluator",
-    # Configuration
-    "Config",
+    # Parameter descriptor
+    "Param",
 ]

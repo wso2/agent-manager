@@ -2850,6 +2850,496 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/monitors:
+    get:
+      summary: List all evaluation monitors
+      description: Returns a list of all evaluation monitors for an organization
+      operationId: listMonitors
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+      responses:
+        "200":
+          description: List of monitors
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonitorListResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Create a new evaluation monitor
+      description: |
+        Creates a new evaluation monitor for continuous or one-time evaluation of agent traces.
+        Supports two types: 'future' for continuous monitoring and 'past' for one-time historical analysis.
+      operationId: createMonitor
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMonitorRequest"
+      responses:
+        "201":
+          description: Monitor created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonitorResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Monitor with same name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/monitors/{monitorName}:
+    get:
+      summary: Get monitor details
+      description: Retrieves detailed information about a specific evaluation monitor
+      operationId: getMonitor
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: monitorName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Monitor name
+      responses:
+        "200":
+          description: Monitor details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonitorResponse"
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      summary: Update monitor configuration
+      description: Updates the configuration of an existing evaluation monitor
+      operationId: updateMonitor
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: monitorName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Monitor name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMonitorRequest"
+      responses:
+        "200":
+          description: Monitor updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonitorResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete a monitor
+      description: Deletes an evaluation monitor and all associated runs
+      operationId: deleteMonitor
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: monitorName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Monitor name
+      responses:
+        "204":
+          description: Monitor deleted successfully
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/monitors/{monitorName}/stop:
+    post:
+      summary: Stop a monitor
+      description: Stops a future monitor by unscheduling it. The monitor will no longer execute on schedule but can be started again later.
+      operationId: stopMonitor
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: monitorName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Monitor name
+      responses:
+        "200":
+          description: Monitor stopped successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonitorResponse"
+        "400":
+          description: Invalid request (e.g., trying to stop a past monitor)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Monitor already stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/monitors/{monitorName}/start:
+    post:
+      summary: Start a monitor
+      description: Starts a stopped future monitor by scheduling it to run immediately. The scheduler will pick it up within 60 seconds.
+      operationId: startMonitor
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: monitorName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Monitor name
+      responses:
+        "200":
+          description: Monitor started successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonitorResponse"
+        "400":
+          description: Invalid request (e.g., trying to start a past monitor)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Monitor already active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/monitors/{monitorName}/runs:
+    get:
+      summary: List monitor runs
+      description: Returns a list of all execution runs for a specific monitor
+      operationId: listMonitorRuns
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: monitorName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Monitor name
+      responses:
+        "200":
+          description: List of monitor runs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonitorRunListResponse"
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/monitors/{monitorName}/runs/{runId}/rerun:
+    post:
+      summary: Rerun a monitor with same parameters
+      description: Creates a new workflow execution with the same time parameters as an existing run
+      operationId: rerunMonitor
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: monitorName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Monitor name
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Run ID to rerun
+      responses:
+        "201":
+          description: New run created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonitorRunResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Monitor or run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/monitors/{monitorName}/runs/{runId}/logs:
+    get:
+      summary: Get monitor run logs
+      description: Retrieves execution logs for a specific monitor run
+      operationId: getMonitorRunLogs
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: monitorName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Monitor name
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Run ID
+      responses:
+        "200":
+          description: Monitor run logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogsResponse"
+        "404":
+          description: Monitor or run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/evaluators:
+    get:
+      summary: List all evaluators
+      description: Returns a list of all available evaluators for an organization
+      operationId: listEvaluators
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+      responses:
+        "200":
+          description: List of evaluators
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluatorListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/evaluators/{evaluatorId}:
+    get:
+      summary: Get evaluator details
+      description: Retrieves detailed information about a specific evaluator
+      operationId: getEvaluator
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: evaluatorId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Evaluator ID
+      responses:
+        "200":
+          description: Evaluator details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluatorResponse"
+        "404":
+          description: Evaluator not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     CreateOrganizationRequest:
@@ -3889,6 +4379,451 @@ components:
         - total
         - limit
         - offset
+
+    CreateMonitorRequest:
+      type: object
+      required:
+        - name
+        - displayName
+        - projectName
+        - agentName
+        - environmentName
+        - evaluators
+        - type
+      properties:
+        name:
+          type: string
+          description: Unique DNS-compatible name for the monitor (lowercase, alphanumeric, hyphens only)
+          pattern: '^[a-z0-9-]+$'
+          minLength: 1
+          maxLength: 63
+          example: "customer-support-quality"
+        displayName:
+          type: string
+          description: Human-readable display name
+          minLength: 1
+          maxLength: 128
+          example: "Customer Support Quality Monitor"
+        projectName:
+          type: string
+          description: Name of the project containing the agent
+          example: "customer-support-project"
+        agentName:
+          type: string
+          description: Name of the agent to monitor
+          example: "support-agent"
+        environmentName:
+          type: string
+          description: Name of the environment to monitor
+          example: "development"
+        evaluators:
+          type: array
+          description: List of evaluators with optional configuration
+          items:
+            $ref: "#/components/schemas/MonitorEvaluator"
+          minItems: 1
+          example:
+            - name: "latency"
+              config:
+                max_latency_ms: 3000
+            - name: "answer_relevancy"
+              config:
+                min_overlap_ratio: 0.2
+        type:
+          type: string
+          description: Monitor type - 'future' for continuous monitoring, 'past' for one-time historical analysis
+          enum: [future, past]
+          example: "future"
+        intervalMinutes:
+          type: integer
+          description: Interval in minutes for continuous monitoring (required for 'future' type, default 60)
+          minimum: 5
+          example: 60
+        traceStart:
+          type: string
+          format: date-time
+          description: Start time for trace collection (required for 'past' type)
+          example: "2026-02-01T00:00:00Z"
+        traceEnd:
+          type: string
+          format: date-time
+          description: End time for trace collection (required for 'past' type)
+          example: "2026-02-12T00:00:00Z"
+        samplingRate:
+          type: number
+          format: float
+          description: Sampling rate for trace collection (0.0 to 1.0, default 1.0)
+          minimum: 0.0
+          maximum: 1.0
+          example: 1.0
+
+    UpdateMonitorRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+          description: Human-readable display name
+          minLength: 1
+          maxLength: 128
+        evaluators:
+          type: array
+          description: List of evaluators with optional configuration
+          items:
+            $ref: "#/components/schemas/MonitorEvaluator"
+          minItems: 1
+        intervalMinutes:
+          type: integer
+          description: Interval in minutes for continuous monitoring (only for 'future' type)
+          minimum: 5
+        samplingRate:
+          type: number
+          format: float
+          description: Sampling rate for trace collection (0.0 to 1.0)
+          minimum: 0.0
+          maximum: 1.0
+
+    MonitorResponse:
+      type: object
+      required:
+        - id
+        - name
+        - displayName
+        - type
+        - orgName
+        - projectName
+        - agentName
+        - environmentName
+        - evaluators
+        - samplingRate
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the monitor
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        name:
+          type: string
+          description: Monitor name
+          example: "customer-support-quality"
+        displayName:
+          type: string
+          description: Display name
+          example: "Customer Support Quality Monitor"
+        type:
+          type: string
+          description: Monitor type
+          enum: [future, past]
+          example: "future"
+        orgName:
+          type: string
+          description: Organization name
+          example: "default"
+        projectName:
+          type: string
+          description: Project name
+          example: "customer-support-project"
+        agentName:
+          type: string
+          description: Agent name
+          example: "support-agent"
+        environmentName:
+          type: string
+          description: Environment name
+          example: "development"
+        evaluators:
+          type: array
+          description: List of evaluators with configuration
+          items:
+            $ref: "#/components/schemas/MonitorEvaluator"
+          example:
+            - name: "latency"
+              config:
+                max_latency_ms: 3000
+            - name: "answer_relevancy"
+        intervalMinutes:
+          type: integer
+          description: Interval in minutes (only for 'future' type)
+          example: 60
+        nextRunTime:
+          type: string
+          format: date-time
+          description: Next scheduled run time (only for 'future' type)
+          example: "2026-02-12T14:30:00Z"
+        traceStart:
+          type: string
+          format: date-time
+          description: Start time for traces (only for 'past' type)
+          example: "2026-02-01T00:00:00Z"
+        traceEnd:
+          type: string
+          format: date-time
+          description: End time for traces (only for 'past' type)
+          example: "2026-02-12T00:00:00Z"
+        samplingRate:
+          type: number
+          format: float
+          description: Sampling rate for trace collection
+          example: 1.0
+          minimum: 0.0
+          maximum: 1.0
+        status:
+          type: string
+          description: Current monitor status
+          enum: [active, suspended, failed, unknown]
+          example: "active"
+        latestRun:
+          $ref: "#/components/schemas/MonitorRunResponse"
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2026-02-10T09:00:00Z"
+
+    MonitorListResponse:
+      type: object
+      required:
+        - monitors
+        - total
+      properties:
+        monitors:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonitorResponse"
+          description: List of monitors
+        total:
+          type: integer
+          description: Total number of monitors
+          example: 5
+
+    MonitorRunResponse:
+      type: object
+      required:
+        - id
+        - evaluators
+        - traceStart
+        - traceEnd
+        - status
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the run
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        monitorName:
+          type: string
+          description: Name of the monitor
+          example: "customer-support-quality"
+        evaluators:
+          type: array
+          description: Evaluators used in this run (snapshot at run time)
+          items:
+            $ref: "#/components/schemas/MonitorEvaluator"
+          example:
+            - name: "latency"
+              config:
+                max_latency_ms: 3000
+            - name: "answer_relevancy"
+        traceStart:
+          type: string
+          format: date-time
+          description: Trace collection start time
+          example: "2026-02-12T13:00:00Z"
+        traceEnd:
+          type: string
+          format: date-time
+          description: Trace collection end time
+          example: "2026-02-12T14:00:00Z"
+        startedAt:
+          type: string
+          format: date-time
+          description: When the run execution started
+          example: "2026-02-12T14:00:05Z"
+        completedAt:
+          type: string
+          format: date-time
+          description: When the run execution completed
+          example: "2026-02-12T14:05:30Z"
+        status:
+          type: string
+          description: Run execution status
+          enum: [pending, running, success, failed]
+          example: "success"
+        errorMessage:
+          type: string
+          description: Error message if status is 'failed'
+          example: "Failed to fetch traces from observer service"
+
+    MonitorRunListResponse:
+      type: object
+      required:
+        - runs
+        - total
+      properties:
+        runs:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonitorRunResponse"
+          description: List of monitor runs
+        total:
+          type: integer
+          description: Total number of runs
+          example: 24
+
+    MonitorEvaluator:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Evaluator identifier (e.g., "latency", "answer_relevancy", "deepeval/plan-quality")
+          example: "latency"
+          minLength: 1
+        config:
+          type: object
+          description: Optional evaluator-specific configuration parameters
+          additionalProperties: true
+          example:
+            max_latency_ms: 3000
+            use_task_constraint: false
+
+    EvaluatorResponse:
+      type: object
+      required:
+        - id
+        - identifier
+        - displayName
+        - description
+        - version
+        - provider
+        - tags
+        - isBuiltin
+        - configSchema
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: Unique evaluator ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        identifier:
+          type: string
+          description: Evaluator identifier (e.g., hallucination)
+          example: "hallucination"
+        displayName:
+          type: string
+          description: Human-readable display name
+          example: "Hallucination Detection"
+        description:
+          type: string
+          description: Description of what the evaluator does
+          example: "Detects hallucinations in LLM responses by checking factual consistency"
+        version:
+          type: string
+          description: Evaluator version
+          example: "1.0"
+        provider:
+          type: string
+          description: SDK binding provider
+          example: "deepeval"
+        tags:
+          type: array
+          items:
+            type: string
+          description: Classification tags
+          example: ["quality", "factuality"]
+        isBuiltin:
+          type: boolean
+          description: Whether this is a platform-provided builtin evaluator
+          example: true
+        configSchema:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluatorConfigParam"
+          description: Configuration schema for the evaluator
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2026-01-01T00:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2026-01-01T00:00:00Z"
+
+    EvaluatorConfigParam:
+      type: object
+      required:
+        - key
+        - type
+        - description
+        - required
+      properties:
+        key:
+          type: string
+          description: Parameter key/name
+          example: "threshold"
+        type:
+          type: string
+          description: Parameter type
+          enum: [string, integer, float, boolean, array, enum]
+          example: "float"
+        description:
+          type: string
+          description: Parameter description
+          example: "Threshold for hallucination detection"
+        required:
+          type: boolean
+          description: Whether this parameter is required
+          example: false
+        default:
+          description: Default value for the parameter
+          example: 0.5
+        min:
+          type: number
+          format: double
+          description: Minimum value (for numeric types)
+          example: 0.0
+        max:
+          type: number
+          format: double
+          description: Maximum value (for numeric types)
+          example: 1.0
+        enumValues:
+          type: array
+          items:
+            type: string
+          description: Possible values (for enum type)
+          example: ["strict", "moderate", "lenient"]
+
+    EvaluatorListResponse:
+      type: object
+      required:
+        - evaluators
+        - total
+        - limit
+        - offset
+      properties:
+        evaluators:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluatorResponse"
+          description: List of evaluators
+        total:
+          type: integer
+          description: Total number of evaluators
+          example: 8
+        limit:
+          type: integer
+          format: int32
+          description: Number of evaluators per page
+          example: 10
+        offset:
+          type: integer
+          format: int32
+          description: Number of evaluators to skip
+          example: 0
 
     ErrorResponse:
       type: object

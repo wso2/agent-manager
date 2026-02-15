@@ -21,6 +21,38 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 )
 
+// Helper functions to convert between spec and models MonitorEvaluator types
+
+// convertSpecEvaluatorsToModels converts []spec.MonitorEvaluator to []models.MonitorEvaluator
+func convertSpecEvaluatorsToModels(specEvals []spec.MonitorEvaluator) []models.MonitorEvaluator {
+	if len(specEvals) == 0 {
+		return []models.MonitorEvaluator{}
+	}
+	modelsEvals := make([]models.MonitorEvaluator, len(specEvals))
+	for i, eval := range specEvals {
+		modelsEvals[i] = models.MonitorEvaluator{
+			Name:   eval.Name,
+			Config: eval.Config,
+		}
+	}
+	return modelsEvals
+}
+
+// convertModelsEvaluatorsToSpec converts []models.MonitorEvaluator to []spec.MonitorEvaluator
+func convertModelsEvaluatorsToSpec(modelsEvals []models.MonitorEvaluator) []spec.MonitorEvaluator {
+	if len(modelsEvals) == 0 {
+		return []spec.MonitorEvaluator{}
+	}
+	specEvals := make([]spec.MonitorEvaluator, len(modelsEvals))
+	for i, eval := range modelsEvals {
+		specEvals[i] = spec.MonitorEvaluator{
+			Name:   eval.Name,
+			Config: eval.Config,
+		}
+	}
+	return specEvals
+}
+
 func ConvertToAgentListResponse(components []*models.AgentResponse) []spec.AgentResponse {
 	if len(components) == 0 {
 		return []spec.AgentResponse{}
@@ -487,4 +519,180 @@ func ConvertToDataPlaneListResponse(dataPlanes []*models.DataPlaneResponse) []sp
 	}
 
 	return responses
+}
+
+// ConvertToCreateMonitorRequest converts a spec.CreateMonitorRequest to models.CreateMonitorRequest
+func ConvertToCreateMonitorRequest(req *spec.CreateMonitorRequest) *models.CreateMonitorRequest {
+	if req == nil {
+		return nil
+	}
+
+	// Convert IntervalMinutes from *int32 to *int
+	var intervalMinutes *int
+	if req.IntervalMinutes != nil {
+		val := int(*req.IntervalMinutes)
+		intervalMinutes = &val
+	}
+
+	// Convert SamplingRate from *float32 to *float64
+	var samplingRate *float64
+	if req.SamplingRate != nil {
+		val := float64(*req.SamplingRate)
+		samplingRate = &val
+	}
+
+	return &models.CreateMonitorRequest{
+		Name:            req.Name,
+		DisplayName:     req.DisplayName,
+		ProjectName:     req.ProjectName,
+		AgentName:       req.AgentName,
+		EnvironmentName: req.EnvironmentName,
+		Evaluators:      convertSpecEvaluatorsToModels(req.Evaluators),
+		Type:            req.Type,
+		IntervalMinutes: intervalMinutes,
+		TraceStart:      req.TraceStart,
+		TraceEnd:        req.TraceEnd,
+		SamplingRate:    samplingRate,
+	}
+}
+
+// ConvertToUpdateMonitorRequest converts a spec.UpdateMonitorRequest to models.UpdateMonitorRequest
+func ConvertToUpdateMonitorRequest(req *spec.UpdateMonitorRequest) *models.UpdateMonitorRequest {
+	if req == nil {
+		return nil
+	}
+
+	// Convert IntervalMinutes from *int32 to *int
+	var intervalMinutes *int
+	if req.IntervalMinutes != nil {
+		val := int(*req.IntervalMinutes)
+		intervalMinutes = &val
+	}
+
+	// Convert SamplingRate from *float32 to *float64
+	var samplingRate *float64
+	if req.SamplingRate != nil {
+		val := float64(*req.SamplingRate)
+		samplingRate = &val
+	}
+
+	// Convert Evaluators - handle empty vs nil
+	var evaluators *[]models.MonitorEvaluator
+	if len(req.Evaluators) > 0 {
+		converted := convertSpecEvaluatorsToModels(req.Evaluators)
+		evaluators = &converted
+	}
+
+	return &models.UpdateMonitorRequest{
+		DisplayName:     req.DisplayName,
+		Evaluators:      evaluators,
+		IntervalMinutes: intervalMinutes,
+		SamplingRate:    samplingRate,
+	}
+}
+
+// ConvertToMonitorResponse converts a models.MonitorResponse to spec.MonitorResponse
+func ConvertToMonitorResponse(monitor *models.MonitorResponse) spec.MonitorResponse {
+	if monitor == nil {
+		return spec.MonitorResponse{}
+	}
+
+	// Convert IntervalMinutes from *int to *int32
+	var intervalMinutes *int32
+	if monitor.IntervalMinutes != nil {
+		val := int32(*monitor.IntervalMinutes)
+		intervalMinutes = &val
+	}
+
+	response := spec.MonitorResponse{
+		Id:              monitor.ID,
+		Name:            monitor.Name,
+		DisplayName:     monitor.DisplayName,
+		Type:            monitor.Type,
+		OrgName:         monitor.OrgName,
+		ProjectName:     monitor.ProjectName,
+		AgentName:       monitor.AgentName,
+		EnvironmentName: monitor.EnvironmentName,
+		Evaluators:      convertModelsEvaluatorsToSpec(monitor.Evaluators),
+		IntervalMinutes: intervalMinutes,
+		NextRunTime:     monitor.NextRunTime,
+		TraceStart:      monitor.TraceStart,
+		TraceEnd:        monitor.TraceEnd,
+		SamplingRate:    float32(monitor.SamplingRate),
+		Status:          string(monitor.Status),
+		CreatedAt:       monitor.CreatedAt,
+	}
+
+	// Convert LatestRun if present
+	if monitor.LatestRun != nil {
+		latestRun := ConvertToMonitorRunResponse(monitor.LatestRun)
+		response.LatestRun = &latestRun
+	}
+
+	return response
+}
+
+// ConvertToMonitorListResponse converts a models.MonitorListResponse to spec.MonitorListResponse
+func ConvertToMonitorListResponse(monitorList *models.MonitorListResponse) spec.MonitorListResponse {
+	if monitorList == nil || len(monitorList.Monitors) == 0 {
+		return spec.MonitorListResponse{
+			Monitors: []spec.MonitorResponse{},
+			Total:    0,
+		}
+	}
+
+	responses := make([]spec.MonitorResponse, len(monitorList.Monitors))
+	for i, monitor := range monitorList.Monitors {
+		responses[i] = ConvertToMonitorResponse(&monitor)
+	}
+
+	return spec.MonitorListResponse{
+		Monitors: responses,
+		Total:    int32(monitorList.Total),
+	}
+}
+
+// ConvertToMonitorRunResponse converts a models.MonitorRunResponse to spec.MonitorRunResponse
+func ConvertToMonitorRunResponse(run *models.MonitorRunResponse) spec.MonitorRunResponse {
+	if run == nil {
+		return spec.MonitorRunResponse{}
+	}
+
+	response := spec.MonitorRunResponse{
+		Id:           run.ID,
+		Evaluators:   convertModelsEvaluatorsToSpec(run.Evaluators),
+		TraceStart:   run.TraceStart,
+		TraceEnd:     run.TraceEnd,
+		StartedAt:    run.StartedAt,
+		CompletedAt:  run.CompletedAt,
+		Status:       run.Status,
+		ErrorMessage: run.ErrorMessage,
+	}
+
+	// Add MonitorName if present
+	if run.MonitorName != "" {
+		response.MonitorName = &run.MonitorName
+	}
+
+	return response
+}
+
+// ConvertToMonitorRunListResponse converts a models.MonitorRunsListResponse to spec.MonitorRunListResponse
+func ConvertToMonitorRunListResponse(runList *models.MonitorRunsListResponse) spec.MonitorRunListResponse {
+	if runList == nil || len(runList.Runs) == 0 {
+		return spec.MonitorRunListResponse{
+			Runs:  []spec.MonitorRunResponse{},
+			Total: 0,
+		}
+	}
+
+	responses := make([]spec.MonitorRunResponse, len(runList.Runs))
+	for i, run := range runList.Runs {
+		responses[i] = ConvertToMonitorRunResponse(&run)
+	}
+
+	return spec.MonitorRunListResponse{
+		Runs:  responses,
+		Total: int32(runList.Total),
+	}
 }

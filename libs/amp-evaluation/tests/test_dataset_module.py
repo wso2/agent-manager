@@ -12,9 +12,8 @@ from amp_evaluation.dataset import (
     load_dataset_from_json,
     load_dataset_from_csv,
     save_dataset_to_json,
-    parse_dataset_dict,
-    parse_task_dict,
 )
+from amp_evaluation.dataset.loader import parse_dataset_dict, parse_task_dict
 
 
 class TestGenerateId:

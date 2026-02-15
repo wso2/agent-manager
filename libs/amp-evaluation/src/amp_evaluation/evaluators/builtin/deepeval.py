@@ -32,23 +32,24 @@ These metrics are designed to evaluate AI agents across three layers:
    - TaskCompletionMetric: Evaluates if the agent completes the task
    - StepEfficiencyMetric: Evaluates if the agent completes tasks efficiently
 
-All evaluators have mandatory tags: ["deepeval", "agent"]
+All evaluators have tags: ["deepeval", "llm-judge"] plus layer and aspect-specific tags.
 
 Reference: https://deepeval.com/guides/guides-ai-agent-evaluation-metrics
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Optional, List, Any
+from typing import Optional, List, Any, TYPE_CHECKING
 
 from amp_evaluation.evaluators.base import BaseEvaluator
-from amp_evaluation.evaluators.config import Config
+from amp_evaluation.evaluators.config import Param
 from amp_evaluation.models import Observation, EvalResult
-from amp_evaluation.dataset.schema import Task
+
+if TYPE_CHECKING:
+    from amp_evaluation.dataset import Task
 
 logger = logging.getLogger(__name__)
-
-# Mandatory tags for all DeepEval agent evaluators
-DEEPEVAL_AGENT_TAGS = ["deepeval", "agent"]
 
 
 def _check_deepeval_installed() -> bool:
@@ -81,14 +82,11 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
     and DeepEval data structures.
     """
 
-    # Default tags - subclasses can extend
-    TAGS: List[str] = DEEPEVAL_AGENT_TAGS
-
-    # Config descriptors
-    threshold = Config(float, default=0.7, min=0.0, max=1.0, description="Minimum score for passing")
-    model = Config(str, default="gpt-4o", description="LLM model to use for evaluation")
-    include_reason = Config(bool, default=True, description="Whether to include reasoning in the result")
-    strict_mode = Config(bool, default=False, description="If True, use binary scoring (0 or 1)")
+    # Param descriptors
+    threshold = Param(float, default=0.7, min=0.0, max=1.0, description="Minimum score for passing")
+    model = Param(str, default="gpt-4o", description="LLM model to use for evaluation")
+    include_reason = Param(bool, default=True, description="Whether to include reasoning in the result")
+    strict_mode = Param(bool, default=False, description="If True, use binary scoring (0 or 1)")
 
     def __init__(self, **kwargs):
         """
@@ -267,8 +265,8 @@ class DeepEvalPlanQualityEvaluator(DeepEvalBaseEvaluator):
 
     # Class-level metadata
     name = "deepeval/plan-quality"
-    description = "Evaluates whether the agent's plan is logical, complete, and efficient for the task. Uses DeepEval's PlanQualityMetric."
-    tags = DEEPEVAL_AGENT_TAGS + ["reasoning", "planning"]
+    description = "Assesses whether agent's plan is logical, complete and efficient for task"
+    tags = ["deepeval", "llm-judge", "reasoning", "planning"]
     evaluator_type = "agent"
     version = "1.0"
 
@@ -312,10 +310,8 @@ class DeepEvalPlanAdherenceEvaluator(DeepEvalBaseEvaluator):
 
     # Class-level metadata
     name = "deepeval/plan-adherence"
-    description = (
-        "Evaluates whether the agent follows its own plan during execution. Uses DeepEval's PlanAdherenceMetric."
-    )
-    tags = DEEPEVAL_AGENT_TAGS + ["reasoning", "planning"]
+    description = "Measures how faithfully the agent follows its stated plan during execution"
+    tags = ["deepeval", "llm-judge", "reasoning", "planning"]
     evaluator_type = "agent"
     version = "1.0"
 
@@ -367,19 +363,17 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
 
     # Class-level metadata
     name = "deepeval/tool-correctness"
-    description = (
-        "Evaluates whether the agent selects the correct tools for the task. Uses DeepEval's ToolCorrectnessMetric."
-    )
-    tags = DEEPEVAL_AGENT_TAGS + ["action", "tool-use"]
+    description = "Validates agent selects appropriate tools based on task requirements"
+    tags = ["deepeval", "llm-judge", "action", "correctness"]
     evaluator_type = "agent"
     version = "1.0"
 
-    # Additional Config descriptors beyond base class
-    evaluate_input = Config(bool, default=False, description="If True, also check input arguments match")
-    evaluate_output = Config(bool, default=False, description="If True, also check outputs match")
-    evaluate_order = Config(bool, default=False, description="If True, enforce call sequence")
-    exact_match = Config(bool, default=False, description="If True, require exact match of tools called vs expected")
-    available_tools = Config(list, default=None, description="List of available tool names for LLM-based evaluation")
+    # Additional Param descriptors beyond base class
+    evaluate_input = Param(bool, default=False, description="If True, also check input arguments match")
+    evaluate_output = Param(bool, default=False, description="If True, also check outputs match")
+    evaluate_order = Param(bool, default=False, description="If True, enforce call sequence")
+    exact_match = Param(bool, default=False, description="If True, require exact match of tools called vs expected")
+    available_tools = Param(list, default=None, description="List of available tool names for LLM-based evaluation")
 
     def __init__(self, **kwargs):
         """
@@ -488,8 +482,8 @@ class DeepEvalArgumentCorrectnessEvaluator(DeepEvalBaseEvaluator):
 
     # Class-level metadata
     name = "deepeval/argument-correctness"
-    description = "Evaluates whether the agent generates correct arguments for tool calls. Uses DeepEval's ArgumentCorrectnessMetric."
-    tags = DEEPEVAL_AGENT_TAGS + ["action", "tool-use"]
+    description = "Validates correctness of arguments and parameters passed to each tool call"
+    tags = ["deepeval", "llm-judge", "action", "correctness"]
     evaluator_type = "agent"
     version = "1.0"
 
@@ -556,15 +550,13 @@ class DeepEvalTaskCompletionEvaluator(DeepEvalBaseEvaluator):
 
     # Class-level metadata
     name = "deepeval/task-completion"
-    description = (
-        "Evaluates whether the agent successfully accomplishes the intended task. Uses DeepEval's TaskCompletionMetric."
-    )
-    tags = DEEPEVAL_AGENT_TAGS + ["execution", "task-completion"]
+    description = "Measures whether agent successfully completed the intended task goal"
+    tags = ["deepeval", "llm-judge", "execution", "completeness"]
     evaluator_type = "agent"
     version = "1.0"
 
-    # Additional Config descriptor beyond base class
-    custom_task = Config(str, default=None, description="Optional custom task description (overrides auto-inference)")
+    # Additional Param descriptor beyond base class
+    custom_task = Param(str, default=None, description="Optional custom task description (overrides auto-inference)")
 
     def __init__(self, **kwargs):
         """
@@ -631,10 +623,8 @@ class DeepEvalStepEfficiencyEvaluator(DeepEvalBaseEvaluator):
 
     # Class-level metadata
     name = "deepeval/step-efficiency"
-    description = (
-        "Evaluates whether the agent completes tasks without unnecessary steps. Uses DeepEval's StepEfficiencyMetric."
-    )
-    tags = DEEPEVAL_AGENT_TAGS + ["execution", "efficiency"]
+    description = "Assesses execution efficiency by detecting redundant or unnecessary steps"
+    tags = ["deepeval", "llm-judge", "execution", "efficiency"]
     evaluator_type = "agent"
     version = "1.0"
 

@@ -30,6 +30,12 @@ var (
 	ErrProjectAlreadyExists       = errors.New("project already exists")
 	ErrDeploymentPipelineNotFound = errors.New("deployment pipeline not found")
 	ErrProjectHasAssociatedAgents = errors.New("project has associated agents")
+	ErrMonitorNotFound            = errors.New("monitor not found")
+	ErrMonitorAlreadyExists       = errors.New("monitor already exists")
+	ErrMonitorRunNotFound         = errors.New("monitor run not found")
+	ErrMonitorAlreadyStopped      = errors.New("monitor already stopped")
+	ErrMonitorAlreadyActive       = errors.New("monitor already active")
+	ErrEvaluatorNotFound          = errors.New("evaluator not found")
 	ErrInvalidInput               = errors.New("invalid input")
 	ErrImmutableFieldChange       = errors.New("cannot change immutable field")
 

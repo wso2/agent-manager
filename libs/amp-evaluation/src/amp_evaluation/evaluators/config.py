@@ -15,9 +15,9 @@
 # under the License.
 
 """
-Configuration descriptor for evaluators.
+Parameter descriptor for evaluators.
 
-Provides declarative configuration with type validation, defaults, and constraints.
+Provides declarative parameter definition with type validation, defaults, and constraints.
 """
 
 from typing import Any, Optional, List
@@ -27,9 +27,9 @@ from typing import Any, Optional, List
 _NO_DEFAULT = object()
 
 
-class Config:
+class Param:
     """
-    Descriptor for evaluator configuration parameters.
+    Descriptor for evaluator parameters.
 
     Provides:
       - Type validation
@@ -39,8 +39,8 @@ class Config:
 
     Usage:
         class MyEvaluator(BaseEvaluator):
-            threshold = Config(float, default=0.7, description="Min score to pass")
-            model = Config(str, default="gpt-4o-mini", description="LLM model")
+            threshold = Param(float, default=0.7, description="Min score to pass")
+            model = Param(str, default="gpt-4o-mini", description="LLM model")
 
             def evaluate(self, observation):
                 print(self.threshold)  # 0.7 or whatever was passed
@@ -79,7 +79,7 @@ class Config:
         self._attr_name = name
 
     def __get__(self, obj, objtype=None):
-        """Get the config value from the instance, or the descriptor from the class."""
+        """Get the param value from the instance, or the descriptor from the class."""
         if obj is None:
             # Class-level access — return the descriptor itself
             # This allows introspection: MyEvaluator.threshold.description
@@ -90,13 +90,13 @@ class Config:
         return None if self.default is _NO_DEFAULT else self.default
 
     def __set__(self, obj, value):
-        """Set and validate the config value."""
+        """Set and validate the param value."""
         if value is not None:
             value = self._validate(value)
         obj.__dict__[self._attr_name] = value
 
     def _validate(self, value):
-        """Validate a config value against constraints. Returns the coerced value."""
+        """Validate a param value against constraints. Returns the coerced value."""
         # Type coercion for common cases
         if self.type is set and isinstance(value, (list, tuple)):
             value = set(value)
@@ -109,17 +109,17 @@ class Config:
             if self.type is float and isinstance(value, int):
                 value = float(value)
             else:
-                raise TypeError(f"Config '{self._attr_name}' expects {self.type.__name__}, got {type(value).__name__}")
+                raise TypeError(f"Param '{self._attr_name}' expects {self.type.__name__}, got {type(value).__name__}")
 
         # Range check
         if self.min is not None and value < self.min:
-            raise ValueError(f"Config '{self._attr_name}' must be >= {self.min}, got {value}")
+            raise ValueError(f"Param '{self._attr_name}' must be >= {self.min}, got {value}")
         if self.max is not None and value > self.max:
-            raise ValueError(f"Config '{self._attr_name}' must be <= {self.max}, got {value}")
+            raise ValueError(f"Param '{self._attr_name}' must be <= {self.max}, got {value}")
 
         # Enum check
         if self.enum is not None and value not in self.enum:
-            raise ValueError(f"Config '{self._attr_name}' must be one of {self.enum}, got {value}")
+            raise ValueError(f"Param '{self._attr_name}' must be one of {self.enum}, got {value}")
 
         return value
 
@@ -153,3 +153,7 @@ class Config:
             schema["enum_values"] = self.enum
 
         return schema
+
+
+# Backward compatibility alias
+Config = Param

@@ -48,8 +48,8 @@ from amp_evaluation.trace import (
     TraceMetrics,
     TokenUsage,
     ToolSpan,
-    ToolMetrics,
 )
+from amp_evaluation.trace.models import ToolMetrics
 
 
 # ============================================================================

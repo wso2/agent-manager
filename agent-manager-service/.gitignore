@@ -19,3 +19,6 @@ tmp/*
 keys/*.pem
 keys/*.key
 keys/public-keys-config.json
+
+# Evaluator artifacts
+data/builtin_evaluators.json

@@ -208,8 +208,15 @@ helm upgrade --install amp-custom-build-ci-workflows "${SCRIPT_DIR}/../helm-char
 echo "✅ Custom Build CI Workflows installed/upgraded successfully"
 echo ""
 
+# ============================================================================
+# Install Evaluation Workflows Extension
+echo "7️⃣ Installing/Upgrading Evaluation Workflows Extension..."
+helm upgrade --install amp-evaluation-workflows-extension "${SCRIPT_DIR}/../helm-charts/wso2-amp-evaluation-extension" --namespace openchoreo-build-plane
+echo "✅ Evaluation Workflows Extension installed/upgraded successfully"
+echo ""
+
 # Install Default Platform Resources
-echo "7️⃣ Installing/Upgrading Default Platform Resources..."
+echo "8️⃣ Installing/Upgrading Default Platform Resources..."
 echo "   Creating default Organization, Project, Environment, and DeploymentPipeline..."
 helm upgrade --install amp-default-platform-resources "${SCRIPT_DIR}/../helm-charts/wso2-amp-platform-resources-extension" --namespace default
 echo "✅ Default Platform Resources installed/upgraded successfully"
@@ -217,7 +224,7 @@ echo ""
 
 # ============================================================================
 # Step 4: Install OpenChoreo  Observability Plane
-echo "8️⃣  Installing OpenChoreo Observability Plane..."
+echo "9️⃣  Installing OpenChoreo Observability Plane..."
 if helm status openchoreo-observability-plane -n openchoreo-observability-plane &>/dev/null; then
     echo "⏭️  Observability Plane already installed, skipping..."
 else

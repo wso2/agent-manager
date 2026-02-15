@@ -1,0 +1,67 @@
+apiVersion: openchoreo.dev/v1alpha1
+kind: Workflow
+metadata:
+  name: monitor-evaluation-workflow
+  namespace: default
+  annotations:
+    openchoreo.dev/description: "Periodic evaluation monitor for AI agents - runs evaluators against agent traces"
+spec:
+  # Template Variable Reference (processed by controller):
+  # ${metadata.workflowRunName}  - WorkflowRun CR name
+  # ${metadata.namespaceName}    - Namespace name (organization)
+  # ${parameters.*}              - Developer-provided values from parameters schema
+
+  # Schema definition for monitor workflows
+  # Note: These parameters are populated by the Go scheduler for each run
+  schema:
+    parameters:
+      monitor:
+        name: "string | description=\"Monitor unique name\""
+        displayName: "string | default=\"\" description=\"Human-readable monitor name\""
+      agent:
+        id: "string | description=\"Agent unique identifier\""
+      environment:
+        id: "string | description=\"Environment unique identifier\""
+      evaluation:
+        evaluators: "string | description=\"Comma-separated evaluator names (e.g., latency,hallucination)\""
+        samplingRate: "number | default=1.0 description=\"Sampling rate for traces (0.0-1.0)\""
+        traceStart: "string | description=\"Start time for trace evaluation (ISO 8601 format, calculated by scheduler)\""
+        traceEnd: "string | description=\"End time for trace evaluation (ISO 8601 format, calculated by scheduler)\""
+
+  # Rendered workflow resource for WorkflowRun executions
+  # Each WorkflowRun creates a single Workflow (not CronWorkflow)
+  # The Go scheduler creates WorkflowRuns on-demand with calculated time windows
+  runTemplate:
+    apiVersion: argoproj.io/v1alpha1
+    kind: Workflow
+    metadata:
+      name: ${metadata.workflowRunName}
+      namespace: openchoreo-ci-${metadata.namespaceName}
+      labels:
+        app.kubernetes.io/name: amp-monitor
+        app.kubernetes.io/component: evaluation
+        amp.wso2.com/monitor-name: ${parameters.monitor.name}
+        amp.wso2.com/agent-id: ${parameters.agent.id}
+    spec:
+      serviceAccountName: workflow-sa
+      arguments:
+        parameters:
+          - name: monitor-name
+            value: ${parameters.monitor.name}
+          - name: agent-id
+            value: ${parameters.agent.id}
+          - name: environment-id
+            value: ${parameters.environment.id}
+          - name: evaluators
+            value: ${parameters.evaluation.evaluators}
+          - name: sampling-rate
+            value: ${parameters.evaluation.samplingRate}
+          - name: trace-start
+            value: ${parameters.evaluation.traceStart}
+          - name: trace-end
+            value: ${parameters.evaluation.traceEnd}
+          - name: traces-api-endpoint
+            value: {{ .Values.ampEvaluation.tracesApiEndpoint | quote }}
+      workflowTemplateRef:
+        clusterScope: true
+        name: amp-monitor-evaluation
