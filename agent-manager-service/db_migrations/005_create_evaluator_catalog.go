@@ -78,12 +78,16 @@ var migration005 = migration{
 
 			-- Timestamps
 			created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-			-- One evaluator (identifier + version) per scope (org or global)
-			CONSTRAINT uq_evaluator_identifier_version_org
-				UNIQUE NULLS NOT DISTINCT (identifier, version, org_id)
+			updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`
+
+		// Uniqueness constraints as partial indexes (PG 14+ compatible, replaces NULLS NOT DISTINCT)
+		createUniqueIndexes := []string{
+			// Unique (identifier, version) per org
+			`CREATE UNIQUE INDEX IF NOT EXISTS uq_evaluator_id_ver_org ON evaluator_catalog (identifier, version, org_id) WHERE org_id IS NOT NULL`,
+			// Unique (identifier, version) for global/builtin evaluators
+			`CREATE UNIQUE INDEX IF NOT EXISTS uq_evaluator_id_ver_global ON evaluator_catalog (identifier, version) WHERE org_id IS NULL`,
+		}
 
 		createIndexes := []string{
 			// Tag filtering (GIN for JSONB array containment queries)
@@ -122,6 +126,13 @@ var migration005 = migration{
 			// Create table
 			if err := runSQL(tx, createEvaluatorCatalogTable); err != nil {
 				return err
+			}
+
+			// Create uniqueness constraints (partial indexes for PG 14+ compatibility)
+			for _, idx := range createUniqueIndexes {
+				if err := runSQL(tx, idx); err != nil {
+					return err
+				}
 			}
 
 			// Create indexes
@@ -179,12 +190,11 @@ func loadBuiltinEvaluatorsFromJSON(tx *gorm.DB) error {
 	// Insert each evaluator
 	for _, evalDef := range evaluators {
 		if err := insertEvaluator(tx, evalDef); err != nil {
-			slog.Warn("Failed to insert evaluator", "identifier", evalDef.Name, "error", err)
-			// Continue with other evaluators
+			return fmt.Errorf("failed to insert evaluator %s: %w", evalDef.Name, err)
 		}
 	}
 
-	slog.Info("Finished loading builtin evaluators")
+	slog.Info("Finished loading builtin evaluators", "count", len(evaluators))
 	return nil
 }
 
@@ -224,7 +234,7 @@ func insertEvaluator(tx *gorm.DB, evalDef EvaluatorDefinition) error {
 			$1, $2, $3, $4, $5, $6,
 			$7::jsonb, $8::jsonb, true, NULL, 'system'
 		)
-		ON CONFLICT (identifier, version, org_id) WHERE org_id IS NULL
+		ON CONFLICT (identifier, version) WHERE org_id IS NULL
 		DO UPDATE SET
 			display_name = EXCLUDED.display_name,
 			description = EXCLUDED.description,
