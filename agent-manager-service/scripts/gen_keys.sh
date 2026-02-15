@@ -77,15 +77,15 @@ echo ""
 # Check if JSON config exists
 if [ ! -f "${JSON_CONFIG}" ]; then
     # Create initial JSON config with path relative to config file directory
-    cat > \"${JSON_CONFIG}\" <<EOF
+    cat > "${JSON_CONFIG}" <<EOF
 {
-  \"keys\": [
+  "keys": [
     {
-      \"kid\": \"${KEY_ID}\",
-      \"algorithm\": \"RS256\",
-      \"publicKeyPath\": \"$(basename \"${PUBLIC_KEY_PATH}\")\",
-      \"description\": \"Initial JWT signing key\",
-      \"createdAt\": \"$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")\"
+      "kid": "${KEY_ID}",
+      "algorithm": "RS256",
+      "publicKeyPath": "$(basename "${PUBLIC_KEY_PATH}")",
+      "description": "Initial JWT signing key",
+      "createdAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     }
   ]
 }
