@@ -76,7 +76,7 @@ jobs:
 
       - name: Run database migrations
         working-directory: ./agent-manager-service
-        run: ENV_FILE_PATH=.env go run main.go --migrate --server=false
+        run: ENV_FILE_PATH=.env make dev-migrate
 
       - name: Run tests
         working-directory: ./agent-manager-service
