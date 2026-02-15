@@ -411,10 +411,8 @@ func (c *monitorController) GetMonitorRunLogs(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(result); err != nil {
-		log.Error("Failed to encode response", "error", err)
-	}
+	logsResponse := utils.ConvertToLogsResponse(*result)
+	utils.WriteSuccessResponse(w, http.StatusOK, logsResponse)
 }
 
 // StopMonitor handles POST /orgs/{orgName}/monitors/{monitorName}/stop

@@ -36,11 +36,38 @@ Usage:
 
 import argparse
 import json
+import logging
+import os
 import sys
 from datetime import datetime
 
 from amp_evaluation import Monitor, register_builtin
 from amp_evaluation.trace import TraceFetcher
+
+logger = logging.getLogger(__name__)
+
+
+class JsonFormatter(logging.Formatter):
+    """Format log records as single-line JSON matching Go slog output."""
+
+    def format(self, record):
+        return json.dumps(
+            {
+                "time": self.formatTime(record, self.datefmt),
+                "level": record.levelname,
+                "msg": record.getMessage(),
+                "logger": record.name,
+            }
+        )
+
+
+def configure_logging():
+    """Configure JSON logging from LOG_LEVEL env var (default: INFO)."""
+    level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+    handler = logging.StreamHandler()
+    handler.setFormatter(JsonFormatter(datefmt="%Y-%m-%dT%H:%M:%S"))
+    logging.basicConfig(level=level, handlers=[handler])
 
 
 def parse_args():
@@ -99,12 +126,6 @@ def parse_args():
         help="Traces API endpoint (e.g., http://traces-observer-service:8080)",
     )
 
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Enable verbose logging",
-    )
-
     return parser.parse_args()
 
 
@@ -120,56 +141,59 @@ def validate_time_format(time_str: str) -> bool:
 def main():
     """Main entry point for monitor job."""
     args = parse_args()
+    configure_logging()
 
-    # Print configuration
-    print("=" * 70)
-    print("  AMP Monitor Evaluation")
-    print("=" * 70)
-    print(f"  Monitor:      {args.monitor_name}")
-    print(f"  Agent ID:     {args.agent_id}")
-    print(f"  Environment ID:  {args.environment_id}")
-    print(f"  Evaluators:   {args.evaluators}")
-    print(f"  Time Range:   {args.trace_start} → {args.trace_end}")
-    print(f"  Sampling:     {args.sampling_rate}")
-    print(f"  API Endpoint: {args.traces_api_endpoint}")
-    print("=" * 70)
-    print()
+    logger.info(
+        "Starting monitor evaluation monitor=%s agent=%s env=%s "
+        "time_range=%s..%s sampling=%.1f endpoint=%s",
+        args.monitor_name,
+        args.agent_id,
+        args.environment_id,
+        args.trace_start,
+        args.trace_end,
+        args.sampling_rate,
+        args.traces_api_endpoint,
+    )
 
     # Validate time formats
     if not validate_time_format(args.trace_start):
-        print(f"Error: Invalid time format for --trace-start: {args.trace_start}")
-        print("   Expected ISO 8601 format (e.g., 2026-01-01T00:00:00Z)")
+        logger.error(
+            "Invalid time format for --trace-start: %s. Expected ISO 8601 format",
+            args.trace_start,
+        )
         sys.exit(1)
 
     if not validate_time_format(args.trace_end):
-        print(f"Error: Invalid time format for --trace-end: {args.trace_end}")
-        print("   Expected ISO 8601 format (e.g., 2026-01-01T00:00:00Z)")
+        logger.error(
+            "Invalid time format for --trace-end: %s. Expected ISO 8601 format",
+            args.trace_end,
+        )
         sys.exit(1)
 
     # Parse evaluators JSON
     try:
         evaluators_config = json.loads(args.evaluators)
     except json.JSONDecodeError as e:
-        print(f"Error: Invalid JSON in --evaluators: {e}")
+        logger.error("Invalid JSON in --evaluators: %s", e)
         sys.exit(1)
 
     if not evaluators_config or not isinstance(evaluators_config, list):
-        print("Error: --evaluators must be a non-empty array")
+        logger.error("--evaluators must be a non-empty array")
         sys.exit(1)
 
-    print(f"Running {len(evaluators_config)} evaluators:")
+    evaluator_names_summary = [e.get("name", "unknown") for e in evaluators_config]
+    logger.info("Evaluators to run: %s", ", ".join(evaluator_names_summary))
     for evaluator in evaluators_config:
-        name = evaluator.get("name")
         config = evaluator.get("config", {})
-        print(f"   - {name}" + (f" (with config: {config})" if config else ""))
-    print()
+        if config:
+            logger.debug("Evaluator '%s' config: %s", evaluator.get("name"), config)
 
     # Register built-in evaluators with configurations
     evaluator_names = []
     for evaluator in evaluators_config:
         name = evaluator.get("name")
         if not name:
-            print("Error: Evaluator missing 'name' field")
+            logger.error("Evaluator missing 'name' field")
             sys.exit(1)
 
         config = evaluator.get("config", {})
@@ -178,10 +202,10 @@ def main():
             register_builtin(name, **config)  # Pass config as kwargs
             evaluator_names.append(name)
         except (ValueError, ImportError) as e:
-            print(f"Error: Failed to register evaluator '{name}': {e}")
+            logger.error("Failed to register evaluator '%s': %s", name, e)
             sys.exit(1)
         except TypeError as e:
-            print(f"Error: Invalid config for evaluator '{name}': {e}")
+            logger.error("Invalid config for evaluator '%s': %s", name, e)
             sys.exit(1)
 
     # Initialize and run monitor
@@ -202,58 +226,51 @@ def main():
 
         # Check if any traces were evaluated
         if result.traces_evaluated == 0:
-            print("=" * 70)
-            print("  No traces found in the specified time range")
-            print("=" * 70)
+            logger.warning(
+                "No traces found in time range %s..%s",
+                args.trace_start,
+                args.trace_end,
+            )
             sys.exit(0)
 
-        # Print results
-        print("=" * 70)
-        print("  EVALUATION RESULTS")
-        print("=" * 70)
-        print(f"  Traces Evaluated:    {result.traces_evaluated}")
-        print(f"  Duration:            {result.duration_seconds:.1f}s")
-        print(f"  Status:              {'SUCCESS' if result.success else 'FAILED'}")
-        print()
+        # Log results
+        logger.info(
+            "Evaluation complete traces_evaluated=%d duration=%.1fs status=%s",
+            result.traces_evaluated,
+            result.duration_seconds,
+            "SUCCESS" if result.success else "FAILED",
+        )
 
         if result.scores:
-            print("  Evaluator Scores:")
-            print("  " + "-" * 66)
             for name, summary in result.scores.items():
-                # Get mean score if available
                 agg_scores = summary.aggregated_scores
                 if "mean" in agg_scores:
-                    mean_val = agg_scores["mean"]
-                    print(f"  {name:<30} Mean: {mean_val:.3f}")
+                    logger.debug(
+                        "Evaluator score %s mean=%.3f", name, agg_scores["mean"]
+                    )
                 elif agg_scores:
-                    # Print first available aggregation
                     first_key = next(iter(agg_scores))
-                    first_val = agg_scores[first_key]
-                    if isinstance(first_val, (int, float)):
-                        print(f"  {name:<30} {first_key}: {first_val:.3f}")
-                    else:
-                        print(f"  {name:<30} {first_key}: {first_val}")
-            print("  " + "-" * 66)
-        print()
+                    logger.debug(
+                        "Evaluator score %s %s=%s",
+                        name,
+                        first_key,
+                        agg_scores[first_key],
+                    )
 
-        # Print errors if any
+        # Log errors if any
         if result.errors:
-            print("  Errors:")
-            for error in result.errors[:10]:  # Limit to first 10 errors
-                print(f"    - {error}")
-            if len(result.errors) > 10:
-                print(f"    ... and {len(result.errors) - 10} more errors")
-            print()
+            logger.warning("Evaluation produced %d error(s)", len(result.errors))
+            for error in result.errors[:5]:
+                logger.debug("Evaluation error: %s", error)
+            if len(result.errors) > 5:
+                logger.debug("... and %d more errors", len(result.errors) - 5)
 
         # Exit with appropriate code
         sys.exit(0 if result.success else 1)
 
     except Exception as e:
-        print(f"Error during monitor execution: {e}")
-        if args.verbose:
-            import traceback
-
-            traceback.print_exc()
+        logger.error("Monitor execution failed: %s", e)
+        logger.debug("Monitor execution failed", exc_info=True)
         sys.exit(1)
 
 

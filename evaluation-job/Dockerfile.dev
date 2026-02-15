@@ -45,6 +45,7 @@ USER ampuser
 
 # Set Python to run in unbuffered mode for better logging
 ENV PYTHONUNBUFFERED=1
+ENV LOG_LEVEL=DEBUG
 
 # Run the monitor job
 ENTRYPOINT ["python", "main.py"]
