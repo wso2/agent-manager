@@ -22,15 +22,9 @@ import {
   XCircle,
   TrendingUp,
 } from "@wso2/oxygen-ui-icons-react";
-import dayjs from "dayjs";
-import duration from "dayjs/plugin/duration";
-import relativeTime from "dayjs/plugin/relativeTime";
 import { BuildStatus } from "@agent-management-platform/types";
 import { useGetAgentBuilds } from "@agent-management-platform/api-client";
 import { useParams } from "react-router-dom";
-
-dayjs.extend(duration);
-dayjs.extend(relativeTime);
 
 const getBuildIconColor = (
   status: BuildStatus

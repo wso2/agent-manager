@@ -42,9 +42,9 @@ import {
   EnvStatus,
   DeploymentStatus,
 } from "@agent-management-platform/shared-component";
-import dayjs from "dayjs";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { extractBuildIdFromImageId } from "../utils/extractBuildIdFromImageId";
+import { formatDistanceToNow } from "date-fns";
 
 interface DeployCardProps {
   currentEnvironment: Environment;
@@ -62,6 +62,11 @@ export function DeployCard(props: DeployCardProps) {
     });
   const currentDeployment = deployments?.[currentEnvironment.name];
   const selectedBuildId = extractBuildIdFromImageId(currentDeployment?.imageId);
+  const lastDeployedText = currentDeployment?.lastDeployed
+    ? formatDistanceToNow(new Date(currentDeployment.lastDeployed), {
+        addSuffix: true,
+      })
+    : "Unknown";
 
   if (isDeploymentsLoading) {
     return (
@@ -126,9 +131,7 @@ export function DeployCard(props: DeployCardProps) {
           <Stack direction="row" gap={1} alignItems="center">
             <Typography variant="body2">Last Deployed</Typography>
             <Clock size={16} />
-            <Typography variant="body2">
-              {dayjs(currentDeployment?.lastDeployed).fromNow()}
-            </Typography>
+            <Typography variant="body2">{lastDeployedText}</Typography>
           </Stack>
           {currentDeployment?.imageId && (
             <TextInput

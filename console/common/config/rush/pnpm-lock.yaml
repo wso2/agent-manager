@@ -83,19 +83,19 @@ importers:
         version: 5.90.5(react@19.1.1)
       '@wso2/oxygen-ui':
         specifier: 0.5.0
-        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-charts-react':
         specifier: 0.5.0
-        version: 0.5.0(@types/react@19.1.16)(@wso2/oxygen-ui@0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.4)(react@19.1.1)(redux@5.0.1)
+        version: 0.5.0(@types/react@19.1.16)(@wso2/oxygen-ui@0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.4)(react@19.1.1)(redux@5.0.1)
       '@wso2/oxygen-ui-icons-react':
         specifier: 0.5.0
         version: 0.5.0(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       lodash:
         specifier: 4.17.21
         version: 4.17.21
@@ -175,9 +175,9 @@ importers:
       clsx:
         specifier: 2.1.1
         version: 2.1.1
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       lodash:
         specifier: 4.17.21
         version: 4.17.21
@@ -227,9 +227,9 @@ importers:
       clsx:
         specifier: 2.1.1
         version: 2.1.1
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       lodash:
         specifier: 4.17.21
         version: 4.17.21
@@ -267,9 +267,9 @@ importers:
       '@eslint/js':
         specifier: 9.36.0
         version: 9.36.0
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       eslint-plugin-react:
         specifier: 7.37.5
         version: 7.37.5(eslint@9.36.0)
@@ -315,16 +315,16 @@ importers:
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
         specifier: 0.5.0
-        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
         specifier: 0.5.0
         version: 0.5.0(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
@@ -473,9 +473,9 @@ importers:
       '@asgardeo/auth-react':
         specifier: 3.0.0
         version: 3.0.0(@babel/runtime-corejs3@7.29.0)(react-dom@19.1.1(react@19.1.1))(react-router-dom@6.28.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react@19.1.1)
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       zod:
         specifier: 4.3.6
         version: 4.3.6
@@ -515,13 +515,13 @@ importers:
         version: 8.16.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@mui/x-date-pickers':
         specifier: 8.16.0
-        version: 8.16.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(date-fns@4.1.0)(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 8.16.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(date-fns@4.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@mui/x-tree-view':
         specifier: 8.14.0
         version: 8.14.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
         specifier: 0.5.0
-        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
         specifier: 0.5.0
         version: 0.5.0(react@19.1.1)
@@ -531,9 +531,6 @@ importers:
       date-fns:
         specifier: 4.1.0
         version: 4.1.0
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
       lucide-react:
         specifier: 0.545.0
         version: 0.545.0(react@19.1.1)
@@ -718,9 +715,9 @@ importers:
 
   ../../workspaces/pages/.template:
     dependencies:
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       yeoman-generator:
         specifier: 5.0.0
         version: 5.0.0
@@ -750,16 +747,16 @@ importers:
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
         specifier: 0.5.0
-        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
         specifier: 0.5.0
         version: 0.5.0(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       lodash:
         specifier: 4.17.21
         version: 4.17.21
@@ -925,16 +922,16 @@ importers:
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
         specifier: 0.5.0
-        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
         specifier: 0.5.0
         version: 0.5.0(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       lodash:
         specifier: 4.17.21
         version: 4.17.21
@@ -1103,16 +1100,16 @@ importers:
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
         specifier: 0.5.0
-        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
         specifier: 0.5.0
         version: 0.5.0(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
@@ -1278,16 +1275,16 @@ importers:
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
         specifier: 0.5.0
-        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
         specifier: 0.5.0
         version: 0.5.0(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
@@ -1447,16 +1444,16 @@ importers:
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
         specifier: 0.5.0
-        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
         specifier: 0.5.0
         version: 0.5.0(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       lodash:
         specifier: 4.17.21
         version: 4.17.21
@@ -1622,16 +1619,16 @@ importers:
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
         specifier: 0.5.0
-        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
         specifier: 0.5.0
         version: 0.5.0(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       lodash:
         specifier: 4.17.21
         version: 4.17.21
@@ -1797,19 +1794,19 @@ importers:
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
         specifier: 0.5.0
-        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-charts-react':
         specifier: 0.5.0
-        version: 0.5.0(@types/react@19.1.16)(@wso2/oxygen-ui@0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.4)(react@19.1.1)(redux@5.0.1)
+        version: 0.5.0(@types/react@19.1.16)(@wso2/oxygen-ui@0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.4)(react@19.1.1)(redux@5.0.1)
       '@wso2/oxygen-ui-icons-react':
         specifier: 0.5.0
         version: 0.5.0(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       lodash:
         specifier: 4.17.21
         version: 4.17.21
@@ -1984,16 +1981,16 @@ importers:
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
         specifier: 0.5.0
-        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
         specifier: 0.5.0
         version: 0.5.0(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
@@ -2156,16 +2153,16 @@ importers:
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
         specifier: 0.5.0
-        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
         specifier: 0.5.0
         version: 0.5.0(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
@@ -2337,16 +2334,16 @@ importers:
         version: 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui':
         specifier: 0.5.0
-        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react':
         specifier: 0.5.0
         version: 0.5.0(react@19.1.1)
       clsx:
         specifier: 2.1.1
         version: 2.1.1
-      dayjs:
-        specifier: 1.11.18
-        version: 1.11.18
+      date-fns:
+        specifier: 4.1.0
+        version: 4.1.0
       react-dom:
         specifier: 19.1.1
         version: 19.1.1(react@19.1.1)
@@ -5385,9 +5382,6 @@ packages:
 
   date-fns@4.1.0:
     resolution: {integrity: sha512-Ukq0owbQXxa/U3EGtsdVBkR1w7KOQ5gIBqdH2hkvknzZPYvBxb/aa6E8L7tmjFtkwZBu3UXBbjIgPo/Ez4xaNg==}
-
-  dayjs@1.11.18:
-    resolution: {integrity: sha512-zFBQ7WFRvVRhKcWoUh+ZA1g2HVgUbsZm9sbddh8EC5iv93sui8DVVz1Npvz+r6meo9VKfa8NyLWBsQK1VvIKPA==}
 
   de-indent@1.0.2:
     resolution: {integrity: sha512-e/1zu3xH5MQryN2zdVaF0OrdNLUbvWxzMbi+iNA6Bky7l1RoP8a2fIbRocyHclXt/arDrrR6lL3TqFD9pMQTsg==}
@@ -10119,7 +10113,7 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react'
 
-  '@mui/x-date-pickers@8.16.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(date-fns@4.1.0)(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
+  '@mui/x-date-pickers@8.16.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@mui/material@7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(date-fns@4.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
     dependencies:
       '@babel/runtime': 7.28.6
       '@mui/material': 7.0.0(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -10136,11 +10130,10 @@ snapshots:
       '@emotion/react': 11.13.5(@types/react@19.1.16)(react@19.1.1)
       '@emotion/styled': 11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
       date-fns: 4.1.0
-      dayjs: 1.11.18
     transitivePeerDependencies:
       - '@types/react'
 
-  '@mui/x-date-pickers@8.16.0(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@mui/material@7.3.4(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(date-fns@4.1.0)(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
+  '@mui/x-date-pickers@8.16.0(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@mui/material@7.3.4(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(date-fns@4.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
     dependencies:
       '@babel/runtime': 7.28.6
       '@mui/material': 7.3.4(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -10157,7 +10150,6 @@ snapshots:
       '@emotion/react': 11.14.0(@types/react@19.1.16)(react@19.1.1)
       '@emotion/styled': 11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
       date-fns: 4.1.0
-      dayjs: 1.11.18
     transitivePeerDependencies:
       - '@types/react'
 
@@ -11890,9 +11882,9 @@ snapshots:
 
   '@vue/shared@3.5.28': {}
 
-  '@wso2/oxygen-ui-charts-react@0.5.0(@types/react@19.1.16)(@wso2/oxygen-ui@0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.4)(react@19.1.1)(redux@5.0.1)':
+  '@wso2/oxygen-ui-charts-react@0.5.0(@types/react@19.1.16)(@wso2/oxygen-ui@0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react-is@19.2.4)(react@19.1.1)(redux@5.0.1)':
     dependencies:
-      '@wso2/oxygen-ui': 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@wso2/oxygen-ui': 0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       react: 19.1.1
       react-dom: 19.1.1(react@19.1.1)
       react-is: 19.2.4
@@ -11906,14 +11898,14 @@ snapshots:
       lucide-react: 0.545.0(react@19.1.1)
       react: 19.1.1
 
-  '@wso2/oxygen-ui@0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
+  '@wso2/oxygen-ui@0.5.0(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(@wso2/oxygen-ui-icons-react@0.5.0(react@19.1.1))(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
     dependencies:
       '@emotion/react': 11.14.0(@types/react@19.1.16)(react@19.1.1)
       '@emotion/styled': 11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1)
       '@fontsource-variable/inter': 5.2.8
       '@mui/material': 7.3.4(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@mui/x-data-grid': 8.16.0(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@mui/material@7.3.4(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
-      '@mui/x-date-pickers': 8.16.0(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@mui/material@7.3.4(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(date-fns@4.1.0)(dayjs@1.11.18)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@mui/x-date-pickers': 8.16.0(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@mui/material@7.3.4(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(date-fns@4.1.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@mui/x-tree-view': 8.14.0(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@mui/material@7.3.4(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@mui/system@7.3.8(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react@19.1.1))(@types/react@19.1.16)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@wso2/oxygen-ui-icons-react': 0.5.0(react@19.1.1)
       date-fns: 4.1.0
@@ -12688,8 +12680,6 @@ snapshots:
       is-data-view: 1.0.2
 
   date-fns@4.1.0: {}
-
-  dayjs@1.11.18: {}
 
   de-indent@1.0.2: {}
 

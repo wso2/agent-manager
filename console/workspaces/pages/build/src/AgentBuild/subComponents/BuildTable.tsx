@@ -54,7 +54,7 @@ import {
   BUILD_STATUS_COLOR_MAP,
   absoluteRouteMap,
 } from "@agent-management-platform/types";
-import dayjs from "dayjs";
+import { format } from "date-fns";
 
 interface BuildRow {
   id: string;
@@ -239,7 +239,7 @@ export function BuildTable() {
                   </ListingTable.Cell>
                   <ListingTable.Cell>
                     <Typography noWrap variant="body2" color="text.secondary">
-                      {dayjs(row.startedAt).format("DD/MM/YYYY HH:mm:ss")}
+                      {format(new Date(row.startedAt), "dd/MM/yyyy HH:mm:ss")}
                     </Typography>
                   </ListingTable.Cell>
                   <ListingTable.Cell>

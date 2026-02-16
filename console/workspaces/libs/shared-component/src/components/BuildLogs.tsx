@@ -35,7 +35,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { BuildSteps } from "./BuildSteps";
-import dayjs from "dayjs";
+import { formatDistanceToNow } from "date-fns";
 
 export interface BuildLogsProps {
   onClose: () => void;
@@ -132,7 +132,7 @@ export function BuildLogs({
             <Stack direction="row" gap={1} alignItems="center">
               <Clock size={16} />
               <Typography variant="body2" color="text.secondary">
-                Triggered {dayjs(build?.startedAt).fromNow()}
+                Triggered {formatDistanceToNow(new Date(build.startedAt), { addSuffix: true })}
               </Typography>
             </Stack>
           )}

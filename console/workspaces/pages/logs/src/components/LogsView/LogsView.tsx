@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import dayjs from "dayjs";
+import { format } from "date-fns";
 import {
   ArrowUp,
   ArrowDown,
@@ -155,7 +155,7 @@ const LogEntryItem: React.FC<LogEntryItemProps> = ({ entry }) => {
                 color="text.secondary"
                 sx={{ fontFamily: "monospace", whiteSpace: "nowrap" }}
               >
-                {dayjs(entry.timestamp).format("DD/MM/YYYY HH:mm:ss")}
+                {format(new Date(entry.timestamp), "dd/MM/yyyy HH:mm:ss")}
               </Typography>
 
               {/* Level Chip */}

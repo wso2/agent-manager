@@ -40,8 +40,6 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import {
   Package,
   Plus,
@@ -51,8 +49,7 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import { type MouseEvent, useCallback, useMemo, useState } from "react";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
-
-dayjs.extend(relativeTime);
+import { formatDistanceToNow } from "date-fns";
 
 const projectGridTemplate = {
   xs: "repeat(1, minmax(0, 1fr))",
@@ -91,6 +88,10 @@ function ProjectCard(props: {
     },
     [handleDeleteProject, project]
   );
+
+  const createdAtText = project.createdAt
+    ? formatDistanceToNow(new Date(project.createdAt), { addSuffix: true })
+    : "—";
 
   return (
     <Link to={projectPath} style={{ textDecoration: "none" }}>
@@ -157,7 +158,7 @@ function ProjectCard(props: {
             sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
           >
             <TimerOutlined size={16} opacity={0.5} />
-            {dayjs(project.createdAt).fromNow()}
+            {createdAtText}
           </Typography>
         </Form.CardActions>
       </Form.CardButton>

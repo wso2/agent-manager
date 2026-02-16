@@ -18,7 +18,8 @@
 
 import {AuthReactConfig} from '@asgardeo/auth-react'
 import { TraceListTimeRange } from '../api/traces';
-import dayjs from 'dayjs';
+import { sub } from 'date-fns';
+import type { Duration } from 'date-fns';
 export interface AppConfig {
   authConfig: AuthReactConfig;
   apiBaseUrl: string;
@@ -36,27 +37,36 @@ declare global {
 
 export const globalConfig: AppConfig = window.__RUNTIME_CONFIG__;
 
+const buildRange = (duration: Duration) => {
+  const endTime = new Date();
+
+  return {
+    startTime: sub(endTime, duration).toISOString(),
+    endTime: endTime.toISOString(),
+  };
+};
+
 export const getTimeRange = (timeRange: TraceListTimeRange) => {
   switch (timeRange) {
     case TraceListTimeRange.TEN_MINUTES:
-      return { startTime: dayjs().subtract(10, 'minutes').toISOString(), endTime: dayjs().toISOString() };
+      return buildRange({ minutes: 10 });
     case TraceListTimeRange.THIRTY_MINUTES:
-      return { startTime: dayjs().subtract(30, 'minutes').toISOString(), endTime: dayjs().toISOString() };
+      return buildRange({ minutes: 30 });
     case TraceListTimeRange.ONE_HOUR:
-      return { startTime: dayjs().subtract(1, 'hour').toISOString(), endTime: dayjs().toISOString() };
+      return buildRange({ hours: 1 });
     case TraceListTimeRange.THREE_HOURS:
-      return { startTime: dayjs().subtract(3, 'hours').toISOString(), endTime: dayjs().toISOString() };
+      return buildRange({ hours: 3 });
     case TraceListTimeRange.SIX_HOURS:
-      return { startTime: dayjs().subtract(6, 'hours').toISOString(), endTime: dayjs().toISOString() };
+      return buildRange({ hours: 6 });
     case TraceListTimeRange.TWELVE_HOURS:
-      return { startTime: dayjs().subtract(12, 'hours').toISOString(), endTime: dayjs().toISOString() };
+      return buildRange({ hours: 12 });
     case TraceListTimeRange.ONE_DAY:
-      return { startTime: dayjs().subtract(1, 'day').toISOString(), endTime: dayjs().toISOString() };
+      return buildRange({ days: 1 });
     case TraceListTimeRange.THREE_DAYS:
-      return { startTime: dayjs().subtract(3, 'days').toISOString(), endTime: dayjs().toISOString() };
+      return buildRange({ days: 3 });
     case TraceListTimeRange.SEVEN_DAYS:
-      return { startTime: dayjs().subtract(7, 'days').toISOString(), endTime: dayjs().toISOString() };
+      return buildRange({ days: 7 });
     case TraceListTimeRange.THIRTY_DAYS:
-      return { startTime: dayjs().subtract(30, 'days').toISOString(), endTime: dayjs().toISOString() };
+      return buildRange({ days: 30 });
   }
 }

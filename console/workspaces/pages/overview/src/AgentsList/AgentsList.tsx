@@ -59,13 +59,10 @@ import {
   useDeleteAgent,
   useGetProject,
 } from "@agent-management-platform/api-client";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import { AgentTypeSummery } from "./subComponents/AgentTypeSummery";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { EditProjectDrawer } from "../ProjectList/EditProjectDrawer";
-
-dayjs.extend(relativeTime);
+import { formatDistanceToNow } from "date-fns";
 
 export function ListPageSkeleton() {
   return (
@@ -168,6 +165,13 @@ export const AgentsList: React.FC = () => {
 
   const handleRowMouseLeave = useCallback(() => {
     setHoveredAgentId(null);
+  }, []);
+
+  const getRelativeTime = useCallback((date?: string) => {
+    if (!date) {
+      return "—";
+    }
+    return formatDistanceToNow(new Date(date), { addSuffix: true });
   }, []);
 
   const getAgentPath = (isInternal: boolean) => {
@@ -431,7 +435,7 @@ export const AgentsList: React.FC = () => {
                               </FadeIn>
                           ) : (
                               <Typography variant="body2" color="text.secondary" noWrap>
-                                {dayjs(agent.createdAt).fromNow()}
+                                {getRelativeTime(agent.createdAt)}
                               </Typography>
                           )}
                         </Stack>

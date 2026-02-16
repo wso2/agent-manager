@@ -18,30 +18,31 @@
 
 import React from "react";
 import { PageLayout } from "@agent-management-platform/views";
-import { Card, CardContent, Stack, Typography, Button } from "@wso2/oxygen-ui";
+import { generatePath, useParams } from "react-router-dom";
+import { absoluteRouteMap } from "@agent-management-platform/types";
+import { CreateMonitorForm } from "./subComponents/CreateMonitorForm";
 
-export const CreateMonitorComponent: React.FC = () => (
-  <PageLayout
-    title="Create Monitor"
-    description="Define a new eval monitor by selecting targets, thresholds, and alerting rules."
-    disableIcon
-  >
-    <Stack spacing={3}>
-      <Card variant="outlined">
-        <CardContent>
-          <Stack spacing={2}>
-            <Typography variant="h6">Monitor builder</Typography>
-            <Typography variant="body2" color="text.secondary">
-              This is a placeholder until the monitor creation workflow is wired to backend services.
-            </Typography>
-            <Button variant="contained" color="primary" disabled>
-              Configure inputs
-            </Button>
-          </Stack>
-        </CardContent>
-      </Card>
-    </Stack>
-  </PageLayout>
-);
+export const CreateMonitorComponent: React.FC = () => {
+    const { agentId, envId, orgId, projectId } = useParams<{
+        agentId: string, envId: string, orgId: string, projectId: string
+    }>();
+
+    return (
+        <PageLayout
+            title="Create Monitor"
+            description="Define a new eval monitor by selecting targets, thresholds, and alerting rules."
+            disableIcon
+            backLabel="Back to Monitors"
+            backHref={
+                generatePath(
+                    absoluteRouteMap.children.org.children.projects.children.agents
+                        .children.environment.children.evaluation.children.monitor.path,
+                    { orgId, envId, projectId, agentId })
+            }
+        >
+            <CreateMonitorForm />
+        </PageLayout>
+    )
+};
 
 export default CreateMonitorComponent;

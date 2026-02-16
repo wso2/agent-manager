@@ -28,7 +28,7 @@
     "@agent-management-platform/api-client": "workspace:*",
     "@agent-management-platform/views": "workspace:*",
     "clsx": "2.1.1",
-    "dayjs": "1.11.18",
+    "date-fns": "4.1.0",
     "lodash": "4.17.21",
     "@mui/material": "7.0.0",
     "@mui/icons-material": "7.0.0",
