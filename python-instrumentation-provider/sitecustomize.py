@@ -22,8 +22,6 @@ try:
     # Set Traceloop environment variables
     os.environ["TRACELOOP_TRACE_CONTENT"] = trace_content
     os.environ["TRACELOOP_METRICS_ENABLED"] = "false"
-    # Intentional for development environment
-    os.environ["OTEL_EXPORTER_OTLP_INSECURE"] = "true"
 
     # Initialize Traceloop with environment variables
     Traceloop.init(
