@@ -52,6 +52,7 @@ export default defineConfig({
       '@agent-management-platform/traces': path.resolve(__dirname, '../../workspaces/pages/traces/src'),
       '@agent-management-platform/logs': path.resolve(__dirname, '../../workspaces/pages/logs/src'),
       '@agent-management-platform/metrics': path.resolve(__dirname, '../../workspaces/pages/metrics/src'),
+      '@agent-management-platform/eval': path.resolve(__dirname, '../../workspaces/pages/eval/src'),
     },
   },
   server: {

@@ -95,6 +95,28 @@ export const generatedRouteMap =  {
                           "children": {}
                         }
                       }
+                    },
+                    "evaluation": {
+                      "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation",
+                      "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/*",
+                      "children": {
+                        "monitor": {
+                          "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor",
+                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor/*",
+                          "children": {
+                            "create": {
+                              "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor/create",
+                              "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor/create/*",
+                              "children": {}
+                            },
+                            "view": {
+                              "path": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor/view/:monitorId",
+                              "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/evaluation/monitor/view/:monitorId/*",
+                              "children": {}
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 }

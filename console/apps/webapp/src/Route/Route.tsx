@@ -33,6 +33,9 @@ import {
   LazyTracesComponent,
   LazyLogsComponent,
   LazyMetricsComponent,
+  LazyEvalMonitorsComponent,
+  LazyCreateMonitorComponent,
+  LazyViewMonitorComponent,
 } from "../pages";
 import { LoadingFallback } from "../components/LoadingFallback";
 import { relativeRouteMap } from "@agent-management-platform/types";
@@ -144,6 +147,47 @@ export function RootRouter() {
                         .children.metrics.path
                     }
                     element={<LazyMetricsComponent />}
+                  />
+                  <Route
+                    path={
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.evaluation.path +
+                      "/" +
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.evaluation
+                        .children.monitor.path
+                    }
+                    element={<LazyEvalMonitorsComponent />}
+                  />
+                  <Route
+                    path={
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.evaluation.path +
+                      "/" +
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.evaluation
+                        .children.monitor.path +
+                      "/" +
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.evaluation
+                        .children.monitor.children.create.path
+                    }
+                    element={<LazyCreateMonitorComponent />}
+                  />
+                  <Route
+                    path={
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.evaluation.path +
+                      "/" +
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.evaluation
+                        .children.monitor.path +
+                      "/" +
+                      relativeRouteMap.children.org.children.projects.children
+                        .agents.children.environment.children.evaluation
+                        .children.monitor.children.view.path
+                    }
+                    element={<LazyViewMonitorComponent />}
                   />
                 </Route>
               </Route>

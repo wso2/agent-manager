@@ -115,6 +115,28 @@ export const rootRouteMap: AppRoute = {
                                             },
                                         },
                                     },
+                                    evaluation: {
+                                        path: 'evaluation',
+                                        index: true,
+                                        children: {
+                                            monitor: { 
+                                                path: 'monitor',
+                                                index: true,
+                                                children: {
+                                                    create: {
+                                                        path: 'create',
+                                                        index: true,
+                                                        children: {},
+                                                    },
+                                                    view: {
+                                                        path: 'view/:monitorId',
+                                                        index: true,
+                                                        children: {},
+                                                    },
+                                                },
+                                            }
+                                        },
+                                    }
                                 }
                             },
                         },

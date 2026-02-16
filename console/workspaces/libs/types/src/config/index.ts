@@ -26,6 +26,7 @@ export interface AppConfig {
   instrumentationUrl: string;
 }
 
+
 // Extend the Window interface to include our config
 declare global {
   interface Window {
