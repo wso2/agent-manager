@@ -238,6 +238,10 @@ func (s *LLMProviderService) Get(providerID, orgID string) (*models.LLMProvider,
 
 	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Warn("LLMProviderService.Get: provider not found", "orgID", orgID, "providerID", providerID)
+			return nil, utils.ErrLLMProviderNotFound
+		}
 		slog.Error("LLMProviderService.Get: failed to get provider", "orgID", orgID, "providerID", providerID, "error", err)
 		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
@@ -337,8 +341,8 @@ func (s *LLMProviderService) Update(providerID, orgID string, updates *models.LL
 	return updated, nil
 }
 
-// Delete deletes an LLM provider
-func (s *LLMProviderService) Delete(providerID, orgID string) error {
+// Delete deletes an LLM provider after undeploying from all gateways
+func (s *LLMProviderService) Delete(providerID, orgID string, deploymentService *LLMProviderDeploymentService) error {
 	slog.Info("LLMProviderService.Delete: starting", "orgID", orgID, "providerID", providerID)
 
 	if providerID == "" {
@@ -346,6 +350,87 @@ func (s *LLMProviderService) Delete(providerID, orgID string) error {
 		return utils.ErrInvalidInput
 	}
 
+	// Verify provider exists
+	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Warn("LLMProviderService.Delete: provider not found", "orgID", orgID, "providerID", providerID)
+			return utils.ErrLLMProviderNotFound
+		}
+		slog.Error("LLMProviderService.Delete: failed to get provider", "orgID", orgID, "providerID", providerID, "error", err)
+		return fmt.Errorf("failed to get provider: %w", err)
+	}
+	if provider == nil {
+		slog.Warn("LLMProviderService.Delete: provider not found", "orgID", orgID, "providerID", providerID)
+		return utils.ErrLLMProviderNotFound
+	}
+
+	// Get all gateway mappings for this provider
+	providerUUID, err := uuid.Parse(providerID)
+	if err != nil {
+		slog.Error("LLMProviderService.Delete: invalid provider UUID", "providerID", providerID, "error", err)
+		return fmt.Errorf("invalid provider UUID: %w", err)
+	}
+
+	gatewayIDs, err := s.mappingRepo.GetByProvider(providerUUID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		slog.Error("LLMProviderService.Delete: failed to get gateway mappings", "orgID", orgID, "providerID", providerID, "error", err)
+		return fmt.Errorf("failed to get gateway mappings: %w", err)
+	}
+
+	slog.Info("LLMProviderService.Delete: found gateway mappings", "orgID", orgID, "providerID", providerID, "gatewayCount", len(gatewayIDs))
+
+	// Undeploy from all gateways before deleting
+	if len(gatewayIDs) > 0 {
+		undeploymentErrors := []string{}
+		successfulUndeployments := 0
+
+		for _, gatewayID := range gatewayIDs {
+			slog.Info("LLMProviderService.Delete: undeploying from gateway", "orgID", orgID, "providerID", providerID, "gatewayID", gatewayID)
+
+			// Get current deployment for this gateway
+			deployments, err := deploymentService.GetLLMProviderDeployments(providerID, orgID, &gatewayID, nil)
+			if err != nil {
+				slog.Error("LLMProviderService.Delete: failed to get deployments for gateway", "orgID", orgID, "providerID", providerID, "gatewayID", gatewayID, "error", err)
+				undeploymentErrors = append(undeploymentErrors, fmt.Sprintf("gateway %s: failed to fetch deployments: %v", gatewayID, err))
+				continue
+			}
+
+			// Find the deployed deployment and undeploy it
+			found := false
+			for _, deployment := range deployments {
+				if deployment.Status != nil && *deployment.Status == models.DeploymentStatusDeployed {
+					found = true
+					if _, err := deploymentService.UndeployLLMProviderDeployment(providerID, deployment.DeploymentID.String(), gatewayID, orgID); err != nil {
+						slog.Error("LLMProviderService.Delete: failed to undeploy from gateway", "orgID", orgID, "providerID", providerID, "gatewayID", gatewayID, "deploymentID", deployment.DeploymentID, "error", err)
+						undeploymentErrors = append(undeploymentErrors, fmt.Sprintf("gateway %s: %v", gatewayID, err))
+					} else {
+						slog.Info("LLMProviderService.Delete: undeployed from gateway successfully", "orgID", orgID, "providerID", providerID, "gatewayID", gatewayID)
+						successfulUndeployments++
+					}
+					break
+				}
+			}
+			if !found {
+				slog.Warn("LLMProviderService.Delete: no deployed deployment found for gateway", "orgID", orgID, "providerID", providerID, "gatewayID", gatewayID)
+			}
+		}
+
+		slog.Info("LLMProviderService.Delete: undeployment results", "orgID", orgID, "providerID", providerID, "successfulUndeployments", successfulUndeployments, "totalGateways", len(gatewayIDs), "errorCount", len(undeploymentErrors))
+
+		// If all undeployments failed, return error
+		if len(undeploymentErrors) > 0 && successfulUndeployments == 0 {
+			slog.Error("LLMProviderService.Delete: all undeployments failed", "orgID", orgID, "providerID", providerID, "errors", undeploymentErrors)
+			return fmt.Errorf("failed to undeploy from all %d gateways: %v", len(gatewayIDs), undeploymentErrors)
+		}
+
+		// If some undeployments failed, log warning but continue with deletion
+		if len(undeploymentErrors) > 0 {
+			slog.Warn("LLMProviderService.Delete: some undeployments failed, continuing with deletion", "orgID", orgID, "providerID", providerID, "errors", undeploymentErrors)
+		}
+	}
+
+	// Now delete the provider from database (cascade deletes mappings)
 	slog.Info("LLMProviderService.Delete: deleting provider from database", "orgID", orgID, "providerID", providerID)
 	if err := s.providerRepo.Delete(providerID, orgID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -437,9 +522,9 @@ func (s *LLMProviderService) UpdateAndSync(providerID, orgID string, updates *mo
 	attemptedDeployments := 0
 
 	for _, gatewayUUID := range gatewayUUIDs {
+		gatewayID := gatewayUUID.String()
 		if !currentGatewayMap[gatewayUUID.String()] {
 			attemptedDeployments++
-			gatewayID := gatewayUUID.String()
 			slog.Info("LLMProviderService.UpdateAndSync: deploying to new gateway", "providerID", providerID, "gatewayID", gatewayID)
 
 			deploymentName := fmt.Sprintf("%s-deployment-%d", updated.Configuration.Name, deploymentIndex)
@@ -455,6 +540,44 @@ func (s *LLMProviderService) UpdateAndSync(providerID, orgID string, updates *mo
 
 			if _, err := deploymentService.DeployLLMProvider(providerID, deployReq, orgID); err != nil {
 				slog.Error("LLMProviderService.UpdateAndSync: failed to deploy to new gateway", "providerID", providerID, "gatewayID", gatewayID, "error", err)
+				deploymentResults = append(deploymentResults, DeploymentResult{
+					GatewayID: gatewayID,
+					Success:   false,
+					Error:     err.Error(),
+				})
+			} else {
+				slog.Info("LLMProviderService.UpdateAndSync: deployed to new gateway successfully", "providerID", providerID, "gatewayID", gatewayID)
+				successfulDeployments++
+				deploymentResults = append(deploymentResults, DeploymentResult{
+					GatewayID: gatewayID,
+					Success:   true,
+				})
+			}
+			deploymentIndex++
+		} else {
+			attemptedDeployments++
+			slog.Info("LLMProviderService.UpdateAndSync: updating the current deployment", "providerID", providerID, "gatewayID", gatewayID)
+			currentDeployment, err := deploymentService.deploymentRepo.GetCurrentByGateway(providerID, gatewayID, orgID)
+			if err != nil {
+				deploymentResults = append(deploymentResults, DeploymentResult{
+					GatewayID: gatewayID,
+					Success:   false,
+					Error:     err.Error(),
+				})
+			}
+
+			deployReq := &models.DeployAPIRequest{
+				Name:      currentDeployment.Name,
+				Base:      currentDeployment.DeploymentID.String(),
+				GatewayID: gatewayID,
+				Metadata: map[string]interface{}{
+					"auto_deployed": true,
+					"sync_update":   true,
+				},
+			}
+
+			if _, err := deploymentService.DeployLLMProvider(providerID, deployReq, orgID); err != nil {
+				slog.Error("LLMProviderService.UpdateAndSync: failed to update deployment in gateway", "providerID", providerID, "gatewayID", gatewayID, "error", err)
 				deploymentResults = append(deploymentResults, DeploymentResult{
 					GatewayID: gatewayID,
 					Success:   false,

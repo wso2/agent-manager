@@ -334,7 +334,7 @@ func (r *DeploymentRepo) GetDeploymentsWithState(artifactUUID, orgUUID string, g
         SELECT
 			deployment_id, name, artifact_uuid, organization_uuid, gateway_uuid,
             base_deployment_id, metadata, created_at,
-            current_status, status_updated_at
+            current_status as status, status_updated_at
         FROM AnnotatedDeployments
         WHERE rank_idx <= ?`
 

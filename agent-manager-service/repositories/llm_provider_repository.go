@@ -34,7 +34,7 @@ type LLMProviderRepository interface {
 	GetByUUID(providerID, orgUUID string) (*models.LLMProvider, error)
 	List(orgUUID string, limit, offset int) ([]*models.LLMProvider, error)
 	Count(orgUUID string) (int, error)
-	Update(p *models.LLMProvider, handle string, orgUUID uuid.UUID) error
+	Update(p *models.LLMProvider, providerID string, orgUUID uuid.UUID) error
 	Delete(providerID, orgUUID string) error
 	Exists(providerID, orgUUID string) (bool, error)
 }
@@ -142,46 +142,33 @@ func (r *LLMProviderRepo) Count(orgUUID string) (int, error) {
 }
 
 // Update modifies an existing LLM provider
-func (r *LLMProviderRepo) Update(p *models.LLMProvider, handle string, orgUUID uuid.UUID) error {
-	slog.Info("LLMProviderRepo.Update: starting", "handle", handle, "orgUUID", orgUUID)
+func (r *LLMProviderRepo) Update(p *models.LLMProvider, providerID string, orgUUID uuid.UUID) error {
+	slog.Info("LLMProviderRepo.Update: starting", "providerID", providerID, "orgUUID", orgUUID)
 
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
 
-		// Get the provider UUID from handle
-		slog.Info("LLMProviderRepo.Update: resolving handle to UUID", "handle", handle, "orgUUID", orgUUID)
-		var artifact struct{ UUID uuid.UUID }
-		result := tx.Table("artifacts").
-			Select("uuid").
-			Where("handle = ? AND organization_uuid = ? AND kind = ?", handle, orgUUID, models.KindLLMProvider).
-			Take(&artifact)
-		if result.Error != nil {
-			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				slog.Warn("LLMProviderRepo.Update: provider not found", "handle", handle, "orgUUID", orgUUID)
-				return gorm.ErrRecordNotFound
-			}
-			slog.Error("LLMProviderRepo.Update: failed to resolve handle", "handle", handle, "orgUUID", orgUUID, "error", result.Error)
-			return result.Error
+		slog.Info("LLMProviderRepo.Update: resolved UUID", "providerID", providerID)
+
+		providerUUID, err := uuid.Parse(providerID)
+		if err != nil {
+			return fmt.Errorf("error parsing provider id: %s, error: %w", providerID, err)
 		}
-		providerUUID := artifact.UUID
-
-		slog.Info("LLMProviderRepo.Update: resolved UUID", "handle", handle, "uuid", providerUUID)
-
 		// Update artifacts table
-		slog.Info("LLMProviderRepo.Update: updating artifact", "handle", handle, "uuid", providerUUID)
+		slog.Info("LLMProviderRepo.Update: updating artifact", "handle", providerID)
 		if err := r.artifactRepo.Update(tx, &models.Artifact{
 			UUID:             providerUUID,
 			OrganizationUUID: orgUUID,
 			UpdatedAt:        now,
 		}); err != nil {
-			slog.Error("LLMProviderRepo.Update: failed to update artifact", "handle", handle, "uuid", providerUUID, "error", err)
+			slog.Error("LLMProviderRepo.Update: failed to update artifact", "handle", providerID, "error", err)
 			return fmt.Errorf("failed to update artifact: %w", err)
 		}
 
 		// Update llm_providers table
-		slog.Info("LLMProviderRepo.Update: updating provider fields", "handle", handle, "uuid", providerUUID)
-		result = tx.Model(&models.LLMProvider{}).
-			Where("uuid = ?", providerUUID).
+		slog.Info("LLMProviderRepo.Update: updating provider fields", "handle", providerID)
+		result := tx.Model(&models.LLMProvider{}).
+			Where("uuid = ?", providerID).
 			Updates(map[string]any{
 				"description":   p.Description,
 				"template_uuid": p.TemplateUUID,
@@ -192,15 +179,15 @@ func (r *LLMProviderRepo) Update(p *models.LLMProvider, handle string, orgUUID u
 			})
 
 		if result.Error != nil {
-			slog.Error("LLMProviderRepo.Update: failed to update provider", "handle", handle, "uuid", providerUUID, "error", result.Error)
+			slog.Error("LLMProviderRepo.Update: failed to update provider", "handle", providerID, "error", result.Error)
 			return fmt.Errorf("failed to update provider: %w", result.Error)
 		}
 		if result.RowsAffected == 0 {
-			slog.Warn("LLMProviderRepo.Update: no rows affected", "handle", handle, "uuid", providerUUID)
+			slog.Warn("LLMProviderRepo.Update: no rows affected", "handle", providerID)
 			return gorm.ErrRecordNotFound
 		}
 
-		slog.Info("LLMProviderRepo.Update: completed successfully", "handle", handle, "uuid", providerUUID, "rowsAffected", result.RowsAffected)
+		slog.Info("LLMProviderRepo.Update: completed successfully", "handle", providerID, "rowsAffected", result.RowsAffected)
 		return nil
 	})
 }
@@ -209,25 +196,31 @@ func (r *LLMProviderRepo) Update(p *models.LLMProvider, handle string, orgUUID u
 func (r *LLMProviderRepo) Delete(providerID, orgUUID string) error {
 	slog.Info("LLMProviderRepo.Delete: starting", "providerID", providerID, "orgUUID", orgUUID)
 
+	// Parse providerID as UUID
+	providerUUID, err := uuid.Parse(providerID)
+	if err != nil {
+		slog.Error("LLMProviderRepo.Delete: invalid provider UUID", "providerID", providerID, "error", err)
+		return fmt.Errorf("invalid provider UUID: %w", err)
+	}
+
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Get the provider UUID from handle
-		slog.Info("LLMProviderRepo.Delete: resolving handle to UUID", "providerID", providerID, "orgUUID", orgUUID)
+		// Verify the provider exists and belongs to the organization
+		slog.Info("LLMProviderRepo.Delete: verifying provider exists", "providerID", providerID, "uuid", providerUUID, "orgUUID", orgUUID)
 		var artifact struct{ UUID uuid.UUID }
 		result := tx.Table("artifacts").
 			Select("uuid").
-			Where("handle = ? AND organization_uuid = ? AND kind = ?", providerID, orgUUID, models.KindLLMProvider).
+			Where("uuid = ? AND organization_uuid = ? AND kind = ?", providerUUID, orgUUID, models.KindLLMProvider).
 			Take(&artifact)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				slog.Warn("LLMProviderRepo.Delete: provider not found", "providerID", providerID, "orgUUID", orgUUID)
+				slog.Warn("LLMProviderRepo.Delete: provider not found", "providerID", providerID, "uuid", providerUUID, "orgUUID", orgUUID)
 				return gorm.ErrRecordNotFound
 			}
-			slog.Error("LLMProviderRepo.Delete: failed to resolve handle", "providerID", providerID, "orgUUID", orgUUID, "error", result.Error)
+			slog.Error("LLMProviderRepo.Delete: failed to verify provider", "providerID", providerID, "uuid", providerUUID, "orgUUID", orgUUID, "error", result.Error)
 			return result.Error
 		}
-		providerUUID := artifact.UUID
 
-		slog.Info("LLMProviderRepo.Delete: resolved UUID", "providerID", providerID, "uuid", providerUUID)
+		slog.Info("LLMProviderRepo.Delete: provider verified", "providerID", providerID, "uuid", providerUUID)
 
 		// Delete from llm_providers first
 		slog.Info("LLMProviderRepo.Delete: deleting from llm_providers table", "providerID", providerID, "uuid", providerUUID)
