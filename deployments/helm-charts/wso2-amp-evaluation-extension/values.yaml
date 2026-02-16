@@ -1,0 +1,40 @@
+# Default values for wso2-amp-evaluation-extension
+# This chart deploys monitor evaluation workflows
+
+# Global configuration (inherited from parent chart)
+global:
+  # -- Base domain for external access
+  baseDomain: ""
+  
+  # -- Container registry configuration
+  registry:
+    # -- Registry endpoint for pushing and pulling images
+    # For local registry: "host.k3d.internal:10082"
+    # For external registry with baseDomain: automatically uses "registry.<baseDomain>"
+    endpoint: "host.k3d.internal:10082"
+
+# AMP Evaluation image configuration
+ampEvaluation:
+  # -- Docker image configuration for monitor evaluation
+  image:
+    # -- Image repository
+    # For local development: will be pushed to local registry
+    # For production: ghcr.io/wso2/amp-evaluation-monitor
+    repository: "amp-evaluation-monitor"
+
+    # -- Image tag
+    # IMPORTANT: For production, this should match the amp-evaluation SDK version
+    # used in dbMigration.evaluatorGenerator.image.tag in the wso2-agent-manager chart.
+    # Example: If using amp-evaluation==0.1.5, set this to "0.1.5"
+    tag: "0.0.0-dev"
+
+    # -- Image pull policy
+    pullPolicy: "IfNotPresent"
+  
+  # -- Whether to use local registry or external image
+  # When true, image will be prefixed with registry endpoint
+  # When false, uses repository:tag directly (for k3d imported images or external registries)
+  useLocalRegistry: false
+
+  # -- In-cluster URL for the traces observer API
+  tracesApiEndpoint: "http://amp-traces-observer.openchoreo-observability-plane.svc.cluster.local:9098"

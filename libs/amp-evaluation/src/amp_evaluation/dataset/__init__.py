@@ -17,20 +17,16 @@
 """
 Dataset module - everything related to datasets and tasks.
 
-Exports:
-    - Core models: Task, Dataset, Constraints, TrajectoryStep
-    - Loading functions: load_dataset_from_json, load_dataset_from_csv
-    - Saving functions: save_dataset_to_json
+Public API:
+    >>> from amp_evaluation.dataset import (
+    ...     Task, Dataset, Constraints, TrajectoryStep,
+    ...     generate_id,
+    ...     load_dataset_from_json, load_dataset_from_csv, save_dataset_to_json,
+    ... )
 """
 
 from .schema import Task, Dataset, Constraints, TrajectoryStep, generate_id
-from .loader import (
-    load_dataset_from_json,
-    load_dataset_from_csv,
-    save_dataset_to_json,
-    parse_dataset_dict,
-    parse_task_dict,
-)
+from .loader import load_dataset_from_json, load_dataset_from_csv, save_dataset_to_json
 
 __all__ = [
     # Schema models
@@ -43,6 +39,4 @@ __all__ = [
     "load_dataset_from_json",
     "load_dataset_from_csv",
     "save_dataset_to_json",
-    "parse_dataset_dict",
-    "parse_task_dict",
 ]

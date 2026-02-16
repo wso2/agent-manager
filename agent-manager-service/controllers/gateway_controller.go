@@ -449,7 +449,7 @@ func (c *gatewayController) assignGatewayToEnvironmentInDB(ctx context.Context, 
 		return nil // Already assigned, treat as success
 	}
 
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("failed to check existing mapping: %w", err)
 	}
 

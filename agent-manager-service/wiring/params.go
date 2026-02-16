@@ -28,6 +28,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 )
 
 // AppParams contains all wired application dependencies
@@ -42,6 +43,9 @@ type AppParams struct {
 	ObservabilityController controllers.ObservabilityController
 	AgentTokenController    controllers.AgentTokenController
 	RepositoryController    controllers.RepositoryController
+	MonitorController       controllers.MonitorController
+	EvaluatorController     controllers.EvaluatorController
+	MonitorScheduler        services.MonitorSchedulerService
 	EnvironmentController   controllers.EnvironmentController
 	GatewayController       controllers.GatewayController
 

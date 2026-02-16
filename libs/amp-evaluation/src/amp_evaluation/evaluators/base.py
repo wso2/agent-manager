@@ -22,17 +22,18 @@ Two-parameter architecture: evaluate(observation, task)
 - task: What we expected (only for experiments)
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import List, Optional, Callable, TYPE_CHECKING, Any, Dict
 import logging
 import inspect
 
 from ..models import EvalResult, Observation
-from ..dataset.schema import Task
-from .config import Config
+from .config import Param
 
 if TYPE_CHECKING:
-    pass
+    from ..dataset import Task
 
 
 logger = logging.getLogger(__name__)
@@ -113,29 +114,29 @@ class BaseEvaluator(ABC):
         if hasattr(self.__class__, "_default_aggregations") and self.__class__._default_aggregations:
             self._aggregations = self.__class__._default_aggregations
 
-        # Initialize Config descriptors from kwargs
-        self._init_config_from_kwargs(kwargs)
+        # Initialize Param descriptors from kwargs
+        self._init_params_from_kwargs(kwargs)
 
-        # Validate that built-in evaluators use Config descriptors properly
-        self._validate_config_usage()
+        # Validate that built-in evaluators use Param descriptors properly
+        self._validate_param_usage()
 
-    def _init_config_from_kwargs(self, kwargs: Dict[str, Any]):
+    def _init_params_from_kwargs(self, kwargs: Dict[str, Any]):
         """
-        Initialize Config descriptors from kwargs.
+        Initialize Param descriptors from kwargs.
 
         This allows evaluators to be instantiated with:
             evaluator = MyEvaluator(threshold=0.8, model="gpt-4")
 
-        Even when the evaluator uses Config descriptors instead of __init__ parameters.
+        Even when the evaluator uses Param descriptors instead of __init__ parameters.
 
         Raises:
             TypeError: If unknown kwargs are passed
         """
-        # Find all Config descriptors on the class
+        # Find all Param descriptors on the class
         valid_config_names = set()
         for attr_name in dir(type(self)):
             attr = getattr(type(self), attr_name, None)
-            if isinstance(attr, Config):
+            if isinstance(attr, Param):
                 valid_config_names.add(attr_name)
                 # If a value was passed in kwargs, set it
                 if attr_name in kwargs:
@@ -149,15 +150,15 @@ class BaseEvaluator(ABC):
                 f"{', '.join(sorted(unknown_kwargs))}"
             )
 
-    def _validate_config_usage(self):
+    def _validate_param_usage(self):
         """
-        Validate that built-in evaluators use Config descriptors instead of __init__ params.
+        Validate that built-in evaluators use Param descriptors instead of __init__ params.
 
-        This ensures all built-in evaluators follow the declarative Config pattern.
+        This ensures all built-in evaluators follow the declarative Param pattern.
         Only validates evaluators in the amp_evaluation.evaluators.builtin package.
 
         Raises:
-            ValueError: If a built-in evaluator has __init__ parameters that aren't Config descriptors
+            ValueError: If a built-in evaluator has __init__ parameters that aren't Param descriptors
         """
         # Only validate built-in evaluators
         module_name = self.__class__.__module__
@@ -168,49 +169,49 @@ class BaseEvaluator(ABC):
         init_method = self.__class__.__init__
         sig = inspect.signature(init_method)
 
-        # Get all Config descriptors on the class
-        config_attrs = set()
+        # Get all Param descriptors on the class
+        param_attrs = set()
         for attr_name in dir(type(self)):
             attr = getattr(type(self), attr_name, None)
-            if isinstance(attr, Config):
-                config_attrs.add(attr_name)
+            if isinstance(attr, Param):
+                param_attrs.add(attr_name)
 
-        # Check for __init__ parameters that aren't Config descriptors
+        # Check for __init__ parameters that aren't Param descriptors
         invalid_params = []
         for param_name, param in sig.parameters.items():
             # Skip 'self' and 'kwargs'
             if param_name in ("self", "kwargs"):
                 continue
 
-            # If it's not a Config descriptor, it's invalid
-            if param_name not in config_attrs:
+            # If it's not a Param descriptor, it's invalid
+            if param_name not in param_attrs:
                 invalid_params.append(param_name)
 
         if invalid_params:
             raise ValueError(
                 f"Built-in evaluator '{self.__class__.__name__}' has __init__ parameters "
-                f"{invalid_params} that are not defined as Config descriptors. "
-                f"Built-in evaluators must use Config descriptors for all configuration. "
+                f"{invalid_params} that are not defined as Param descriptors. "
+                f"Built-in evaluators must use Param descriptors for all configuration. "
                 f"Example:\n"
                 f"  class {self.__class__.__name__}(BaseEvaluator):\n"
-                f"      {invalid_params[0]} = Config(type, default=..., description='...')\n"
+                f"      {invalid_params[0]} = Param(type, default=..., description='...')\n"
                 f"      def __init__(self, **kwargs):\n"
                 f"          super().__init__(**kwargs)"
             )
 
     def _extract_config_schema(self) -> List[Dict[str, Any]]:
         """
-        Extract configuration schema from Config descriptors.
+        Extract configuration schema from Param descriptors.
 
-        Scans the evaluator class for Config descriptors and builds
+        Scans the evaluator class for Param descriptors and builds
         a schema describing what parameters this evaluator accepts.
         """
         schema = []
 
-        # Find all Config descriptors on the class
+        # Find all Param descriptors on the class
         for attr_name in dir(type(self)):
             attr = getattr(type(self), attr_name, None)
-            if isinstance(attr, Config):
+            if isinstance(attr, Param):
                 schema.append(attr.to_schema())
 
         return schema
@@ -230,7 +231,7 @@ class BaseEvaluator(ABC):
         Get evaluator metadata including configuration schema.
 
         For class-based evaluators, the config schema is derived from
-        Config descriptors defined as class attributes.
+        Param descriptors defined as class attributes.
 
         Excludes internal fields (name, description, tags, version)
         and fields starting with underscore.

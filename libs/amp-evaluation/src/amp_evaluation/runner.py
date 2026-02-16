@@ -1074,7 +1074,7 @@ class Monitor(BaseRunner):
                 error_msg = f"Failed to fetch traces: {e}"
                 logger.error(error_msg, exc_info=True)
 
-                from .models import generate_id
+                from .dataset import generate_id
 
                 return RunResult(
                     run_id=generate_id("run"),

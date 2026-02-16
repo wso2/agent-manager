@@ -1,0 +1,1757 @@
+openapi: 3.1.0
+info:
+  title: OpenChoreo Observer API
+  description: |
+    The OpenChoreo Observer API provides endpoints for querying build logs, component logs,
+    traces, and metrics from components, projects, gateways, and namespaces.
+    It integrates with OpenSearch for logs, build logs, and traces,
+    and with Prometheus for metrics.
+  version: 1.0.0
+  contact:
+    name: OpenChoreo Team
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+tags:
+  - name: Logs
+    description: Log retrieval endpoints
+  - name: Traces
+    description: Trace retrieval endpoints
+  - name: Metrics
+    description: Resource metrics endpoints
+  - name: Alerting
+    description: Alerting rule management endpoints
+  - name: Health
+    description: Health check endpoints
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check the health status of the observer service including OpenSearch and Prometheus connectivity
+      operationId: health
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+        "503":
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: unhealthy
+                  error:
+                    type: string
+                    example: "opensearch: connection failed"
+
+  /api/logs/build/{buildId}:
+    post:
+      tags:
+        - Logs
+      summary: Get build logs
+      description: Retrieve logs for a specific build
+      operationId: getBuildLogs
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          description: The unique identifier of the build
+          schema:
+            type: string
+            example: "build-123"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BuildLogsRequest"
+      responses:
+        "200":
+          description: Successfully retrieved build logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogResponse"
+        "400":
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/workflow-runs/{workflowRunName}/logs:
+    post:
+      tags:
+        - Logs
+      summary: Get workflow run logs
+      description: Retrieve logs for a specific workflow run execution
+      operationId: getWorkflowRunLogs
+      parameters:
+        - name: workflowRunName
+          in: path
+          required: true
+          description: The unique name of the workflow run
+          schema:
+            type: string
+            example: "workflow-run-abc123"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowRunLogsRequest"
+      responses:
+        "200":
+          description: Successfully retrieved workflow run logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogResponse"
+        "400":
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/logs/component/{componentId}:
+    post:
+      tags:
+        - Logs
+      summary: Get component logs
+      description: Retrieve logs for a specific component
+      operationId: getComponentLogs
+      parameters:
+        - name: componentId
+          in: path
+          required: true
+          description: The unique identifier of the component
+          schema:
+            type: string
+            example: "comp-123"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComponentLogsRequest"
+      responses:
+        "200":
+          description: Successfully retrieved component logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogResponse"
+        "400":
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/logs/project/{projectId}:
+    post:
+      tags:
+        - Logs
+      summary: Get project logs
+      description: Retrieve logs for all components in a specific project
+      operationId: getProjectLogs
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          description: The unique identifier of the project
+          schema:
+            type: string
+            example: "proj-456"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectLogsRequest"
+      responses:
+        "200":
+          description: Successfully retrieved project logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogResponse"
+        "400":
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/logs/gateway:
+    post:
+      tags:
+        - Logs
+      summary: Get gateway logs
+      description: Retrieve logs from API gateway
+      operationId: getGatewayLogs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GatewayLogsRequest"
+      responses:
+        "200":
+          description: Successfully retrieved gateway logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogResponse"
+        "400":
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/logs/namespace/{namespaceName}:
+    post:
+      tags:
+        - Logs
+      summary: Get namespace logs
+      description: Retrieve logs for an entire namespace
+      operationId: getNamespaceLogs
+      parameters:
+        - name: namespaceName
+          in: path
+          required: true
+          description: The unique identifier of the namespace
+          schema:
+            type: string
+            example: "namespace-789"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NamespaceLogsRequest"
+      responses:
+        "200":
+          description: Successfully retrieved namespace logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogResponse"
+        "400":
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/traces:
+    post:
+      tags:
+        - Traces
+      summary: Get traces
+      description: Retrieve distributed traces
+      operationId: getTraces
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TracesRequest"
+      responses:
+        "200":
+          description: Successfully retrieved component traces
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TraceResponse"
+        "400":
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/metrics/component/http:
+    post:
+      tags:
+        - Metrics
+      summary: Get component HTTP metrics
+      description: Retrieve HTTP request metrics (request counts, latency percentiles) for a component as time series data
+      operationId: getComponentHTTPMetrics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MetricsRequest"
+      responses:
+        "200":
+          description: Successfully retrieved HTTP metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPMetricsTimeSeries"
+        "400":
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/metrics/component/usage:
+    post:
+      tags:
+        - Metrics
+      summary: Get component resource metrics
+      description: Retrieve resource usage metrics (CPU, memory) for a component as time series data
+      operationId: getComponentResourceMetrics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MetricsRequest"
+      responses:
+        "200":
+          description: Successfully retrieved resource metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceMetricsTimeSeries"
+        "400":
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/alerting/rule/:
+    put:
+      tags:
+        - Alerting
+      summary: Create or update alerting rule
+      description: Create or update an alerting rule for monitoring logs or metrics
+      operationId: createOrUpdateAlertingRule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertingRuleRequest"
+      responses:
+        "200":
+          description: Successfully created or updated alerting rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertingRuleSyncResponse"
+        "400":
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/alerting/rule/{sourceType}/{ruleName}:
+    delete:
+      tags:
+        - Alerting
+      summary: Delete alerting rule
+      description: Delete an alerting rule by source type and rule name
+      operationId: deleteAlertingRule
+      parameters:
+        - name: sourceType
+          in: path
+          required: true
+          description: The source type of the alerting rule (e.g., "log", "metric")
+          schema:
+            type: string
+            example: "log"
+        - name: ruleName
+          in: path
+          required: true
+          description: The name of the alerting rule to delete
+          schema:
+            type: string
+            example: "high-error-rate"
+      responses:
+        "200":
+          description: Successfully deleted alerting rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertingRuleSyncResponse"
+        "404":
+          description: Alerting rule not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertingRuleSyncResponse"
+        "400":
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    BuildLogsRequest:
+      type: object
+      required:
+        - startTime
+        - endTime
+        - componentName
+        - projectName
+        - namespaceName
+      properties:
+        startTime:
+          type: string
+          format: date-time
+          description: Start time for log query in RFC3339 format
+          example: "2025-01-10T00:00:00Z"
+        endTime:
+          type: string
+          format: date-time
+          description: End time for log query in RFC3339 format
+          example: "2025-01-10T23:59:59Z"
+        limit:
+          type: integer
+          description: Maximum number of log entries to return
+          default: 100
+          minimum: 1
+          maximum: 10000
+          example: 100
+        sortOrder:
+          type: string
+          description: Sort order for logs (build logs are sorted in ascending order by default)
+          enum: [asc, desc]
+          default: asc
+          example: "asc"
+        componentName:
+          type: string
+          description: Component name
+          example: "my-component"
+        projectName:
+          type: string
+          description: Project name
+          example: "my-project"
+        namespaceName:
+          type: string
+          description: Namespace name
+          example: "my-namespace"
+
+    WorkflowRunLogsRequest:
+      type: object
+      required:
+        - startTime
+        - endTime
+      properties:
+        startTime:
+          type: string
+          format: date-time
+          description: Start time for log query in RFC3339 format
+          example: "2025-01-10T00:00:00Z"
+        endTime:
+          type: string
+          format: date-time
+          description: End time for log query in RFC3339 format
+          example: "2025-01-10T23:59:59Z"
+        limit:
+          type: integer
+          description: Maximum number of log entries to return
+          default: 1000
+          minimum: 1
+          maximum: 10000
+          example: 1000
+        sortOrder:
+          type: string
+          description: Sort order for logs
+          enum: [asc, desc]
+          default: asc
+          example: "asc"
+
+    ComponentLogsRequest:
+      type: object
+      required:
+        - startTime
+        - endTime
+        - environmentId
+        - componentName
+        - projectName
+        - namespaceName
+        - environmentName
+      properties:
+        startTime:
+          type: string
+          format: date-time
+          description: Start time for log query in RFC3339 format
+          example: "2025-01-10T00:00:00Z"
+        endTime:
+          type: string
+          format: date-time
+          description: End time for log query in RFC3339 format
+          example: "2025-01-10T23:59:59Z"
+        environmentId:
+          type: string
+          description: Environment identifier
+          example: "env-dev"
+        namespace:
+          type: string
+          description: Kubernetes namespace
+          example: "default"
+        searchPhrase:
+          type: string
+          description: Search phrase to filter logs
+          example: "error"
+        logLevels:
+          type: array
+          items:
+            type: string
+          description: Filter by log levels
+          example: ["ERROR", "WARN"]
+        versions:
+          type: array
+          items:
+            type: string
+          description: Component versions to filter
+          example: ["v1.0.0", "v1.0.1"]
+        versionIds:
+          type: array
+          items:
+            type: string
+          description: Version IDs to filter
+          example: ["ver-123", "ver-456"]
+        limit:
+          type: integer
+          description: Maximum number of log entries to return
+          default: 100
+          minimum: 1
+          maximum: 10000
+          example: 100
+        sortOrder:
+          type: string
+          description: Sort order for logs
+          enum: [asc, desc]
+          default: desc
+          example: "desc"
+        logType:
+          type: string
+          description: Type of logs to retrieve
+          enum: [runtime, build]
+          example: "runtime"
+        buildId:
+          type: string
+          description: Build ID for build logs
+          example: "build-123"
+        buildUuid:
+          type: string
+          description: Build UUID for build logs
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        componentName:
+          type: string
+          description: Component name
+          example: "my-component"
+        projectName:
+          type: string
+          description: Project name
+          example: "my-project"
+        environmentName:
+          type: string
+          description: Environment name
+          example: "my-environment"
+        namespaceName:
+          type: string
+          description: Namespace name
+          example: "my-namespace"
+
+    ProjectLogsRequest:
+      allOf:
+        - $ref: "#/components/schemas/ComponentLogsRequest"
+        - type: object
+          properties:
+            componentIds:
+              type: array
+              items:
+                type: string
+              description: Filter logs by specific component IDs
+              example: ["comp-123", "comp-456"]
+
+    GatewayLogsRequest:
+      type: object
+      required:
+        - startTime
+        - endTime
+        - namespaceName
+      properties:
+        startTime:
+          type: string
+          format: date-time
+          description: Start time for log query in RFC3339 format
+          example: "2025-01-10T00:00:00Z"
+        endTime:
+          type: string
+          format: date-time
+          description: End time for log query in RFC3339 format
+          example: "2025-01-10T23:59:59Z"
+        namespaceName:
+          type: string
+          description: Namespace identifier
+          example: "namespace-789"
+        searchPhrase:
+          type: string
+          description: Search phrase to filter logs
+          example: "error"
+        apiIdToVersionMap:
+          type: object
+          additionalProperties:
+            type: string
+          description: Map of API IDs to their versions
+          example:
+            api-123: "v1"
+            api-456: "v2"
+        gatewayVHosts:
+          type: array
+          items:
+            type: string
+          description: Gateway virtual hosts to filter
+          example: ["api.example.com", "gateway.example.com"]
+        limit:
+          type: integer
+          description: Maximum number of log entries to return
+          default: 100
+          minimum: 1
+          maximum: 10000
+          example: 100
+        sortOrder:
+          type: string
+          description: Sort order for logs
+          enum: [asc, desc]
+          default: desc
+          example: "desc"
+        logType:
+          type: string
+          description: Type of logs to retrieve
+          enum: [runtime, build]
+          example: "runtime"
+
+    NamespaceLogsRequest:
+      allOf:
+        - $ref: "#/components/schemas/ComponentLogsRequest"
+        - type: object
+          properties:
+            podLabels:
+              type: object
+              additionalProperties:
+                type: string
+              description: Kubernetes pod labels to filter logs
+              example:
+                app: "myapp"
+                tier: "backend"
+
+    TracesRequest:
+      type: object
+      required:
+        - projectUid
+        - startTime
+        - endTime
+        - componentNames
+        - projectName
+        - namespaceName
+        - environmentName
+      properties:
+        projectUid:
+          type: string
+          format: uuid
+          description: Project UID (required)
+          example: "1c4e7a9b-3f6d-4e2a-8b5c-7d9f1e3a4c6b"
+        componentUids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Array of component UIDs to filter traces (optional)
+          example:
+            [
+              "8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b",
+              "3f7b9e1a-4c6d-4e8f-a2b5-7d1c3e8f4a9b",
+            ]
+        environmentUid:
+          type: string
+          format: uuid
+          description: Environment UID to filter traces (optional)
+          example: "2f5a8c1e-7d9b-4e3f-6a4c-8e1f2d7a9b5c"
+        traceId:
+          type: string
+          description: |
+            Trace ID to filter by (optional). Supports wildcard characters:
+            - `*` matches zero or more characters
+            - `?` matches exactly one character
+
+            Examples:
+            - Exact match: `63d7c3065ab25375e6c5d6bb135a77db`
+            - Prefix match: `63d7c3065ab2537*`
+            - Suffix match: `*135a77db`
+            - Single char wildcard: `63d7c3065ab2537?e6c5d6bb135a77db`
+          pattern: "^[a-fA-F0-9*?]+$"
+          example: "63d7c3065ab25375*"
+        startTime:
+          type: string
+          format: date-time
+          description: Start time for trace query in RFC3339 format (required)
+          example: "2025-01-10T00:00:00Z"
+        endTime:
+          type: string
+          format: date-time
+          description: End time for trace query in RFC3339 format (required)
+          example: "2025-01-10T23:59:59Z"
+        limit:
+          type: integer
+          description: Maximum number of traces to return
+          default: 100
+          minimum: 1
+          maximum: 10000
+          example: 100
+        sortOrder:
+          type: string
+          description: Sort order for traces
+          enum: [asc, desc]
+          default: desc
+          example: "desc"
+        componentNames:
+          type: array
+          items:
+            type: string
+          description: Component names to filter traces
+          example: ["my-component", "my-component-2"]
+        projectName:
+          type: string
+          description: Project name
+          example: "my-project"
+        environmentName:
+          type: string
+          description: Environment name
+          example: "my-environment"
+        namespaceName:
+          type: string
+          description: Namespace name
+          example: "my-namespace"
+
+    MetricsRequest:
+      type: object
+      required:
+        - componentId
+        - environmentId
+        - projectId
+        - componentName
+        - projectName
+        - namespaceName
+        - environmentName
+      properties:
+        componentId:
+          type: string
+          description: Component identifier
+          example: "comp-123"
+        environmentId:
+          type: string
+          description: Environment identifier
+          example: "env-dev"
+        projectId:
+          type: string
+          description: Project identifier
+          example: "proj-456"
+        startTime:
+          type: string
+          format: date-time
+          description: Start time for metrics query in RFC3339 format
+          example: "2025-01-10T00:00:00Z"
+        endTime:
+          type: string
+          format: date-time
+          description: End time for metrics query in RFC3339 format
+          example: "2025-01-10T23:59:59Z"
+        componentName:
+          type: string
+          description: Component name
+          example: "my-component"
+        projectName:
+          type: string
+          description: Project name
+          example: "my-project"
+        environmentName:
+          type: string
+          description: Environment name
+          example: "my-environment"
+        namespaceName:
+          type: string
+          description: Namespace name
+          example: "my-namespace"
+
+    LogEntry:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the log entry
+          example: "2025-01-10T12:34:56.789Z"
+        log:
+          type: string
+          description: The actual log message
+          example: "Request processed successfully"
+        level:
+          type: string
+          description: Log level
+          example: "INFO"
+        stream:
+          type: string
+          description: Log stream (stdout/stderr)
+          example: "stdout"
+        kubernetes:
+          type: object
+          description: Kubernetes metadata
+          additionalProperties: true
+
+    LogResponse:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/LogEntry"
+          description: Array of log entries
+        totalCount:
+          type: integer
+          description: Total number of matching logs
+          example: 1234
+        tookMs:
+          type: integer
+          description: Query execution time in milliseconds
+          example: 42
+
+    TraceResponse:
+      type: object
+      properties:
+        traces:
+          type: array
+          items:
+            $ref: "#/components/schemas/Trace"
+          description: Array of traces with their spans
+        tookMs:
+          type: integer
+          description: Query execution time in milliseconds
+          example: 15
+      example:
+        traces:
+          - traceId: "f3a7b9e1c4d2f5a8b6e3c9f1d4a7e2b8"
+            spans:
+              - spanId: "ad3537e3f48207d0"
+                name: "lets-go"
+                durationNanoseconds: 12300000
+                startTime: "2025-12-03T09:16:56.84456548Z"
+                endTime: "2025-12-03T09:16:56.84468848Z"
+                parentSpanId: ""
+                openchoreoComponentUid: "8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b"
+                openchoreoProjectUid: "1c4e7a9b-3f6d-4e2a-8b5c-7d9f1e3a4c6b"
+        tookMs: 15
+
+    Trace:
+      type: object
+      properties:
+        traceId:
+          type: string
+          description: Unique trace identifier (32 hexadecimal characters)
+          pattern: "^[a-fA-F0-9]{32}$"
+          example: "f3a7b9e1c4d2f5a8b6e3c9f1d4a7e2b8"
+        spans:
+          type: array
+          items:
+            $ref: "#/components/schemas/Span"
+          description: Array of spans belonging to this trace
+
+    Span:
+      type: object
+      properties:
+        spanId:
+          type: string
+          description: Unique span identifier (16 hex characters)
+          pattern: "^[a-f0-9]{16}$"
+          example: "ad3537e3f48207d0"
+        name:
+          type: string
+          description: Span name/operation
+          example: "database-query"
+        durationNanoseconds:
+          type: integer
+          format: int64
+          description: Span duration in nanoseconds (calculated from endTime - startTime)
+          example: 101018208
+        startTime:
+          type: string
+          format: date-time
+          description: Span start time in RFC3339Nano format
+          example: "2025-10-28T11:13:56.484388Z"
+        endTime:
+          type: string
+          format: date-time
+          description: Span end time in RFC3339Nano format
+          example: "2025-10-28T11:13:56.585406208Z"
+        parentSpanId:
+          type: string
+          description: Parent span identifier (empty if root span)
+          pattern: "^[a-f0-9]{0,16}$"
+          example: "b72e731db5edfd1d"
+        openchoreoComponentUid:
+          type: string
+          format: uuid
+          description: OpenChoreo component UID from resource attributes
+          example: "8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b"
+        openchoreoProjectUid:
+          type: string
+          format: uuid
+          description: OpenChoreo project UID from resource attributes
+          example: "1c4e7a9b-3f6d-4e2a-8b5c-7d9f1e3a4c6b"
+
+    TimeValuePoint:
+      type: object
+      properties:
+        time:
+          type: string
+          format: date-time
+          description: Timestamp in ISO 8601 format
+          example: "2025-01-10T12:00:00Z"
+        value:
+          type: number
+          format: double
+          description: Metric value at this timestamp
+          example: 0.75
+
+    ResourceMetricsTimeSeries:
+      type: object
+      properties:
+        cpuUsage:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeValuePoint"
+          description: CPU usage time series (in cores)
+        cpuRequests:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeValuePoint"
+          description: CPU requests time series (in cores)
+        cpuLimits:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeValuePoint"
+          description: CPU limits time series (in cores)
+        memory:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeValuePoint"
+          description: Memory usage time series (in bytes)
+        memoryRequests:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeValuePoint"
+          description: Memory requests time series (in bytes)
+        memoryLimits:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeValuePoint"
+          description: Memory limits time series (in bytes)
+      example:
+        cpuUsage:
+          - time: "2025-01-10T12:00:00Z"
+            value: 0.25
+          - time: "2025-01-10T12:05:00Z"
+            value: 0.30
+        cpuRequests:
+          - time: "2025-01-10T12:00:00Z"
+            value: 0.5
+          - time: "2025-01-10T12:05:00Z"
+            value: 0.5
+        cpuLimits:
+          - time: "2025-01-10T12:00:00Z"
+            value: 1.0
+          - time: "2025-01-10T12:05:00Z"
+            value: 1.0
+        memory:
+          - time: "2025-01-10T12:00:00Z"
+            value: 536870912
+          - time: "2025-01-10T12:05:00Z"
+            value: 549453824
+        memoryRequests:
+          - time: "2025-01-10T12:00:00Z"
+            value: 1073741824
+          - time: "2025-01-10T12:05:00Z"
+            value: 1073741824
+        memoryLimits:
+          - time: "2025-01-10T12:00:00Z"
+            value: 2147483648
+          - time: "2025-01-10T12:05:00Z"
+            value: 2147483648
+
+    HTTPMetricsTimeSeries:
+      type: object
+      properties:
+        requestCount:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeValuePoint"
+          description: Total HTTP request count time series (requests per second)
+        successfulRequestCount:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeValuePoint"
+          description: Successful HTTP request count time series (status 200, requests per second)
+        unsuccessfulRequestCount:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeValuePoint"
+          description: Unsuccessful HTTP request count time series (status != 200, requests per second)
+        meanLatency:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeValuePoint"
+          description: Mean HTTP request latency time series (in seconds)
+        latencyPercentile50th:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeValuePoint"
+          description: 50th percentile (median) HTTP request latency time series (in seconds)
+        latencyPercentile90th:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeValuePoint"
+          description: 90th percentile HTTP request latency time series (in seconds)
+        latencyPercentile99th:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeValuePoint"
+          description: 99th percentile HTTP request latency time series (in seconds)
+      example:
+        requestCount:
+          - time: "2025-01-10T12:00:00Z"
+            value: 125.5
+          - time: "2025-01-10T12:05:00Z"
+            value: 143.2
+        successfulRequestCount:
+          - time: "2025-01-10T12:00:00Z"
+            value: 120.0
+          - time: "2025-01-10T12:05:00Z"
+            value: 138.5
+        unsuccessfulRequestCount:
+          - time: "2025-01-10T12:00:00Z"
+            value: 5.5
+          - time: "2025-01-10T12:05:00Z"
+            value: 4.7
+        meanLatency:
+          - time: "2025-01-10T12:00:00Z"
+            value: 0.125
+          - time: "2025-01-10T12:05:00Z"
+            value: 0.132
+        latencyPercentile50th:
+          - time: "2025-01-10T12:00:00Z"
+            value: 0.095
+          - time: "2025-01-10T12:05:00Z"
+            value: 0.102
+        latencyPercentile90th:
+          - time: "2025-01-10T12:00:00Z"
+            value: 0.250
+          - time: "2025-01-10T12:05:00Z"
+            value: 0.265
+        latencyPercentile99th:
+          - time: "2025-01-10T12:00:00Z"
+            value: 0.500
+          - time: "2025-01-10T12:05:00Z"
+            value: 0.520
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - code
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type
+          enum:
+            - missingParameter
+            - invalidRequest
+            - internalError
+          example: "invalidRequest"
+        code:
+          type: string
+          description: Error code
+          example: "OBS-L-12"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Invalid request format"
+
+    AlertingRuleRequest:
+      type: object
+      required:
+        - metadata
+        - source
+        - condition
+      properties:
+        metadata:
+          $ref: "#/components/schemas/AlertingRuleMetadata"
+        source:
+          $ref: "#/components/schemas/AlertingRuleSource"
+        condition:
+          $ref: "#/components/schemas/AlertingRuleCondition"
+
+    AlertingRuleMetadata:
+      type: object
+      required:
+        - name
+        - component-uid
+        - project-uid
+        - environment-uid
+        - severity
+      properties:
+        name:
+          type: string
+          description: Name of the alerting rule
+          example: "high-error-rate"
+        component-uid:
+          type: string
+          format: uuid
+          description: Component UID associated with the alerting rule
+          example: "8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b"
+        project-uid:
+          type: string
+          format: uuid
+          description: Project UID associated with the alerting rule
+          example: "1c4e7a9b-3f6d-4e2a-8b5c-7d9f1e3a4c6b"
+        environment-uid:
+          type: string
+          format: uuid
+          description: Environment UID associated with the alerting rule
+          example: "2f5a8c1e-7d9b-4e3f-6a4c-8e1f2d7a9b5c"
+        severity:
+          type: string
+          description: Severity level of the alert
+          example: "high"
+        enableAiRootCauseAnalysis:
+          type: boolean
+          description: Enable AI-powered root cause analysis for this alerting rule
+          example: false
+
+    AlertingRuleSource:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          description: Source type for the alerting rule
+          enum:
+            - log
+          example: "log"
+        query:
+          type: string
+          description: Query string for log-based alert rules (required when type is "log")
+          example: "fields.message: *error*"
+
+    AlertingRuleCondition:
+      type: object
+      required:
+        - enabled
+        - window
+        - interval
+        - operator
+        - threshold
+      properties:
+        enabled:
+          type: boolean
+          description: Whether the alerting rule is enabled
+          example: true
+        window:
+          type: string
+          description: Time window for evaluating the condition (e.g., "5m", "1h")
+          example: "5m"
+        interval:
+          type: string
+          description: Evaluation interval for the condition (e.g., "1m", "30s"). Must not exceed the window duration.
+          example: "1m"
+        operator:
+          type: string
+          description: Comparison operator for the condition
+          enum:
+            - gt
+            - gte
+            - lt
+            - lte
+            - eq
+            - neq
+          example: "gt"
+        threshold:
+          type: number
+          format: double
+          description: Threshold value for the condition
+          minimum: 0
+          exclusiveMinimum: true
+          example: 10.0
+
+    AlertingRuleSyncResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          description: Status of the alerting rule operation
+          enum:
+            - synced
+            - not_found
+          example: "synced"
+        logicalId:
+          type: string
+          description: Logical identifier (rule name) of the alerting rule
+          example: "high-error-rate"
+        backendId:
+          type: string
+          description: Backend identifier of the alerting rule in the observability backend
+          example: "monitor-12345"
+        action:
+          type: string
+          description: Action performed (created, updated, or deleted)
+          enum:
+            - created
+            - updated
+            - deleted
+          example: "created"
+        lastSynced:
+          type: string
+          format: date-time
+          description: Timestamp when the rule was last synced in RFC3339 format
+          example: "2025-01-10T12:34:56Z"
+
+    RCAReport:
+      type: object
+      description: Complete Root Cause Analysis Report for OpenChoreo incidents
+      required:
+        - summary
+        - result
+      properties:
+        summary:
+          type: string
+          description: Concise summary of the investigation and outcome
+          example: "Database connection pool exhaustion caused analytics service errors. RCA identified memory leak in connection handling."
+        result:
+          description: The result of the RCA - either issues identified with root causes, or explanation of why RCA was not performed
+          discriminator:
+            propertyName: type
+            mapping:
+              issue_identified: "#/components/schemas/IssueIdentified"
+              rca_not_performed: "#/components/schemas/RCANotPerformed"
+          oneOf:
+            - $ref: "#/components/schemas/IssueIdentified"
+            - $ref: "#/components/schemas/RCANotPerformed"
+        investigation_path:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvestigationStep"
+          description: Sequential steps the agent took during investigation. Include only significant investigative actions
+
+    IssueIdentified:
+      type: object
+      description: RCA was performed and issues were identified
+      required:
+        - root_causes
+        - recommendations
+      properties:
+        type:
+          type: string
+          enum: [issue_identified]
+          default: issue_identified
+          description: Discriminator value for issue identified result
+        root_causes:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/RootCause"
+          description: Identified root causes in order of significance. Each contains its own supporting evidence.
+        timeline:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimelineEvent"
+          description: Chronological sequence of significant system events discovered through analysis
+        excluded_causes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExcludedCause"
+          description: Potential causes that were investigated and ruled out with reasoning, helping narrow down the actual root cause.
+        recommendations:
+          $ref: "#/components/schemas/Recommendations"
+
+    RCANotPerformed:
+      type: object
+      description: RCA was not performed due to insufficient data or other reasons
+      required:
+        - reason
+      properties:
+        type:
+          type: string
+          enum: [rca_not_performed]
+          default: rca_not_performed
+          description: Discriminator value for RCA not performed result
+        reason:
+          type: string
+          description: Explanation of why RCA was not performed (e.g., insufficient telemetry data, false positive, no issue detected)
+          example: "Insufficient telemetry data available for the time period"
+        recommendations:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/Recommendations"
+          description: Recommendations for improving tracing, observability, monitoring, or alerting to enable better RCA in the future
+
+    RootCause:
+      type: object
+      description: An identified root cause with its supporting evidence
+      required:
+        - description
+        - confidence
+      properties:
+        description:
+          type: string
+          description: Detailed description of the root cause. Be specific about what failed and why.
+          example: "Database connection pool exhausted due to connections not being properly released after query completion"
+        confidence:
+          $ref: "#/components/schemas/ConfidenceLevel"
+        evidences:
+          type: array
+          items:
+            discriminator:
+              propertyName: type
+              mapping:
+                log: "#/components/schemas/LogEvidenceItem"
+                metric: "#/components/schemas/MetricEvidenceItem"
+                trace: "#/components/schemas/TraceEvidenceItem"
+            oneOf:
+              - $ref: "#/components/schemas/LogEvidenceItem"
+              - $ref: "#/components/schemas/MetricEvidenceItem"
+              - $ref: "#/components/schemas/TraceEvidenceItem"
+          description: Specific evidence supporting this root cause (logs, metrics, traces). Each entry should be significant for RCA
+        analysis:
+          type: string
+          nullable: true
+          description: Explains how the evidences correlate with each other and collectively support this root cause determination
+          example: "Error logs showing connection timeouts correlate with metric spikes in connection pool usage, and traces reveal slow database queries at the same timestamp"
+
+    ConfidenceLevel:
+      type: string
+      description: Confidence level in root cause determination
+      enum:
+        - high
+        - medium
+        - low
+
+    LogEvidenceItem:
+      type: object
+      description: Evidence from application logs showing significant issues. Contains the actual log message that implies a root cause.
+      required:
+        - type
+        - component_uid
+        - project_uid
+        - log_level
+        - timestamp
+        - log_message
+      properties:
+        type:
+          type: string
+          enum: [log]
+          default: log
+          description: Evidence type discriminator
+        component_uid:
+          type: string
+          description: Component UID this evidence relates to
+          example: "8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b"
+        project_uid:
+          type: string
+          description: Project UID this evidence relates to
+          example: "1c4e7a9b-3f6d-4e2a-8b5c-7d9f1e3a4c6b"
+        log_level:
+          $ref: "#/components/schemas/LogLevel"
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when log occurred
+          example: "2025-01-10T08:15:23.456Z"
+        log_message:
+          type: string
+          description: The significant log message implying root cause
+          example: "ERROR: Database connection timeout after 30s"
+
+    MetricEvidenceItem:
+      type: object
+      description: |
+        Evidence from metrics - rendered as a styled value
+
+        Example- metric_name="RAM usage", value="95.5%", severity=CRITICAL
+        renders as "95.5% RAM usage" with value in red
+      required:
+        - type
+        - component_uid
+        - project_uid
+        - metric_name
+        - value
+        - description
+        - severity
+        - time_range
+      properties:
+        type:
+          type: string
+          enum: [metric]
+          default: metric
+          description: Evidence type discriminator
+        component_uid:
+          type: string
+          description: Component UID this evidence relates to
+          example: "8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b"
+        project_uid:
+          type: string
+          description: Project UID this evidence relates to
+          example: "1c4e7a9b-3f6d-4e2a-8b5c-7d9f1e3a4c6b"
+        metric_name:
+          type: string
+          description: Human-readable name of the metric (e.g., 'RAM usage', 'CPU utilization', 'Request latency p99')
+          example: "RAM usage"
+        value:
+          type: string
+          description: Formatted metric value with unit (e.g., '95.5%', '1.2 cores', '64 req/s', '2.5 GB/s')
+          example: "95.5%"
+        description:
+          type: string
+          description: Self-contained explanation of the anomaly and its RCA relevance (e.g., 'RAM usage at 95.5% exceeds 90% threshold, causing OOM kills')
+          example: "RAM usage at 95.5% exceeds 90% threshold, causing OOM kills"
+        severity:
+          $ref: "#/components/schemas/MetricSeverity"
+        time_range:
+          $ref: "#/components/schemas/TimeRange"
+
+    TraceEvidenceItem:
+      type: object
+      description: Evidence from distributed traces showing request flow patterns. Context and analysis provided by root cause description.
+      required:
+        - type
+        - component_uid
+        - project_uid
+        - trace_id
+        - total_duration_ms
+      properties:
+        type:
+          type: string
+          enum: [trace]
+          default: trace
+          description: Evidence type discriminator
+        component_uid:
+          type: string
+          description: Component UID this evidence relates to
+          example: "8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b"
+        project_uid:
+          type: string
+          description: Project UID this evidence relates to
+          example: "1c4e7a9b-3f6d-4e2a-8b5c-7d9f1e3a4c6b"
+        trace_id:
+          type: string
+          description: Unique trace identifier for reference
+          example: "f3a7b9e1c4d2f5a8b6e3c9f1d4a7e2b8"
+        total_duration_ms:
+          type: number
+          description: Total trace duration in milliseconds
+          example: 5200.0
+        significant_spans:
+          type: array
+          items:
+            $ref: "#/components/schemas/SpanInfo"
+          description: Key spans that are significant for RCA (e.g., slowest spans, error spans, bottlenecks)
+
+    SpanInfo:
+      type: object
+      description: Information about a significant span within a trace
+      required:
+        - span_id
+        - name
+        - component_uid
+        - duration_ms
+        - start_time
+        - end_time
+      properties:
+        span_id:
+          type: string
+          description: Unique span identifier
+          example: "ad3537e3f48207d0"
+        name:
+          type: string
+          description: Span operation name (e.g., 'GET /api/users', 'db.query', 'redis.get')
+          example: "database-query"
+        component_uid:
+          type: string
+          description: Component that executed this span
+          example: "8a4c5e2f-9d3b-4a7e-b1f6-2c8d4e9f3a7b"
+        duration_ms:
+          type: number
+          description: Span duration in milliseconds
+          example: 4800.0
+        start_time:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when span started
+          example: "2025-01-10T08:15:23.100Z"
+        end_time:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when span ended
+          example: "2025-01-10T08:15:27.900Z"
+        is_error:
+          type: boolean
+          nullable: true
+          description: Whether this span had an error
+          example: false
+        error_message:
+          type: string
+          nullable: true
+          description: Error message if is_error is True
+          example: "Connection timeout"
+        parent_span_id:
+          type: string
+          nullable: true
+          description: Parent span ID to show request flow hierarchy
+          example: "b72e731db5edfd1d"
+
+    LogLevel:
+      type: string
+      description: Log severity levels
+      enum:
+        - ERROR
+        - WARN
+        - INFO
+        - DEBUG
+
+    MetricSeverity:
+      type: string
+      description: Severity level for metric values - used for color coding in UI
+      enum:
+        - critical
+        - warning
+        - normal
+
+    TimeRange:
+      type: object
+      description: Time range for metric observations
+      required:
+        - start
+        - end
+      properties:
+        start:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp for range start
+          example: "2025-01-10T08:00:00Z"
+        end:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp for range end
+          example: "2025-01-10T09:00:00Z"
+
+    ExcludedCause:
+      type: object
+      description: A potential cause that was investigated and ruled out
+      required:
+        - description
+        - reason
+      properties:
+        description:
+          type: string
+          description: The potential cause that was investigated and excluded
+          example: "Network connectivity issues"
+        reason:
+          type: string
+          description: Why this was ruled out as a root cause based on evidence
+          example: "Network latency metrics remained stable throughout the incident period"
+
+    TimelineEvent:
+      type: object
+      description: A significant system event observed in telemetry data. Represents actual system behavior, not agent investigation actions.
+      required:
+        - timestamp
+        - description
+        - source_type
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when the event occurred
+          example: "2025-01-10T08:15:00Z"
+        description:
+          type: string
+          description: Description of what happened in the system (e.g., 'analytics-service started returning 500 errors')
+          example: "analytics-service started returning 500 errors"
+        source_type:
+          $ref: "#/components/schemas/EvidenceType"
+        aggregated_count:
+          type: integer
+          nullable: true
+          description: If this event represents multiple similar occurrences, how many times did it occur
+          example: 47
+
+    EvidenceType:
+      type: string
+      description: Types of evidence that can support a root cause
+      enum:
+        - log
+        - metric
+        - trace
+
+    InvestigationStep:
+      type: object
+      description: A significant step the agent took during investigation
+      required:
+        - action
+        - outcome
+      properties:
+        action:
+          type: string
+          description: What the agent investigated (e.g., 'Analyzed error logs from analytics-service')
+          example: "Analyzed error logs from analytics-service"
+        rationale:
+          type: string
+          nullable: true
+          description: Why the agent took this step (e.g., 'Previous step showed high error rate')
+          example: "Previous step showed high error rate from this component"
+        outcome:
+          type: string
+          description: What the agent found or concluded from this step
+          example: "Found 47 database connection timeout errors between 08:15 and 08:20 UTC"
+
+    Recommendations:
+      type: object
+      description: Actionable recommendations to prevent recurrence
+      properties:
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Action"
+          description: Prioritized actions sorted by priority
+        monitoring_improvements:
+          type: array
+          items:
+            type: string
+          description: Suggestions for additional monitoring, alerting, or observability improvements
+          example:
+            [
+              "Add alerting for database connection pool usage above 80%",
+              "Implement distributed tracing for database queries",
+            ]
+
+    Action:
+      type: object
+      description: An actionable recommendation
+      required:
+        - description
+      properties:
+        description:
+          type: string
+          description: Description of the action to take
+          example: "Review and fix connection pooling logic to ensure connections are properly released"
+        rationale:
+          type: string
+          nullable: true
+          description: Why this action is recommended
+          example: "Will prevent connection pool exhaustion from recurring"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication. Include the token in the Authorization header as 'Bearer <token>'.

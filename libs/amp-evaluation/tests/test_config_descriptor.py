@@ -15,9 +15,9 @@
 # under the License.
 
 """
-Unit tests for Config descriptor.
+Unit tests for Param descriptor.
 
-Tests the Config descriptor functionality for evaluator configuration.
+Tests the Param descriptor functionality for evaluator configuration.
 """
 
 import pytest
@@ -27,7 +27,7 @@ from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from amp_evaluation.evaluators.config import Config
+from amp_evaluation.evaluators.config import Param
 from amp_evaluation.evaluators.base import BaseEvaluator
 from amp_evaluation.models import Observation, EvalResult
 from amp_evaluation.trace import Trajectory, TraceMetrics, TokenUsage
@@ -45,7 +45,7 @@ class TestConfigDescriptor:
         """Test Config descriptor with default value."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Config(float, default=0.7, description="Test threshold")
+            threshold = Param(float, default=0.7, description="Test threshold")
 
             def evaluate(self, observation, task=None):
                 return EvalResult(score=self.threshold)
@@ -57,7 +57,7 @@ class TestConfigDescriptor:
         """Test setting Config value via __init__ kwargs."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Config(float, default=0.7, description="Test threshold")
+            threshold = Param(float, default=0.7, description="Test threshold")
 
             def evaluate(self, observation, task=None):
                 return EvalResult(score=self.threshold)
@@ -69,7 +69,7 @@ class TestConfigDescriptor:
         """Test setting Config value directly on instance."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Config(float, default=0.7, description="Test threshold")
+            threshold = Param(float, default=0.7, description="Test threshold")
 
             def evaluate(self, observation, task=None):
                 return EvalResult(score=self.threshold)
@@ -82,13 +82,13 @@ class TestConfigDescriptor:
         """Test accessing Config descriptor at class level."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Config(float, default=0.7, description="Test threshold")
+            threshold = Param(float, default=0.7, description="Test threshold")
 
             def evaluate(self, observation, task=None):
                 return EvalResult(score=self.threshold)
 
         # Class-level access returns the descriptor itself
-        assert isinstance(TestEvaluator.threshold, Config)
+        assert isinstance(TestEvaluator.threshold, Param)
         assert TestEvaluator.threshold.description == "Test threshold"
 
 
@@ -104,7 +104,7 @@ class TestConfigValidation:
         """Test type validation passes for correct type."""
 
         class TestEvaluator(BaseEvaluator):
-            count = Config(int, default=5, description="Count")
+            count = Param(int, default=5, description="Count")
 
             def evaluate(self, observation, task=None):
                 return EvalResult(score=1.0)
@@ -116,7 +116,7 @@ class TestConfigValidation:
         """Test type validation fails for wrong type."""
 
         class TestEvaluator(BaseEvaluator):
-            count = Config(int, default=5, description="Count")
+            count = Param(int, default=5, description="Count")
 
             def evaluate(self, observation, task=None):
                 return EvalResult(score=1.0)
@@ -128,7 +128,7 @@ class TestConfigValidation:
         """Test int is accepted for float type."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Config(float, default=0.7, description="Threshold")
+            threshold = Param(float, default=0.7, description="Threshold")
 
             def evaluate(self, observation, task=None):
                 return EvalResult(score=1.0)
@@ -140,7 +140,7 @@ class TestConfigValidation:
         """Test min constraint validation."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Config(float, default=0.7, min=0.0, max=1.0, description="Threshold")
+            threshold = Param(float, default=0.7, min=0.0, max=1.0, description="Threshold")
 
             def evaluate(self, observation, task=None):
                 return EvalResult(score=1.0)
@@ -157,7 +157,7 @@ class TestConfigValidation:
         """Test max constraint validation."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Config(float, default=0.7, min=0.0, max=1.0, description="Threshold")
+            threshold = Param(float, default=0.7, min=0.0, max=1.0, description="Threshold")
 
             def evaluate(self, observation, task=None):
                 return EvalResult(score=1.0)
@@ -174,7 +174,7 @@ class TestConfigValidation:
         """Test enum constraint validation."""
 
         class TestEvaluator(BaseEvaluator):
-            model = Config(
+            model = Param(
                 str, default="gpt-4o-mini", enum=["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"], description="Model name"
             )
 
@@ -202,8 +202,8 @@ class TestConfigSchema:
         """Test basic schema generation from Config descriptors."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Config(float, default=0.7, description="Test threshold")
-            model = Config(str, default="gpt-4o-mini", description="Model name")
+            threshold = Param(float, default=0.7, description="Test threshold")
+            model = Param(str, default="gpt-4o-mini", description="Model name")
 
             def evaluate(self, observation, task=None):
                 return EvalResult(score=1.0)
@@ -234,8 +234,8 @@ class TestConfigSchema:
         """Test schema generation includes constraints."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Config(float, default=0.7, min=0.0, max=1.0, description="Threshold with constraints")
-            model = Config(str, default="gpt-4o-mini", enum=["gpt-4o", "gpt-4o-mini"], description="Model with enum")
+            threshold = Param(float, default=0.7, min=0.0, max=1.0, description="Threshold with constraints")
+            model = Param(str, default="gpt-4o-mini", enum=["gpt-4o", "gpt-4o-mini"], description="Model with enum")
 
             def evaluate(self, observation, task=None):
                 return EvalResult(score=1.0)
@@ -257,7 +257,7 @@ class TestConfigSchema:
         """Test schema generation for required fields."""
 
         class TestEvaluator(BaseEvaluator):
-            api_key = Config(str, required=True, description="Required API key")
+            api_key = Param(str, required=True, description="Required API key")
 
             def evaluate(self, observation, task=None):
                 return EvalResult(score=1.0)
@@ -356,10 +356,10 @@ class TestMultipleConfigs:
         """Test evaluator with multiple Config descriptors."""
 
         class ComplexEvaluator(BaseEvaluator):
-            threshold = Config(float, default=0.7, min=0.0, max=1.0, description="Score threshold")
-            model = Config(str, default="gpt-4o-mini", description="LLM model")
-            max_retries = Config(int, default=3, min=1, max=10, description="Max retries")
-            strict_mode = Config(bool, default=False, description="Enable strict mode")
+            threshold = Param(float, default=0.7, min=0.0, max=1.0, description="Score threshold")
+            model = Param(str, default="gpt-4o-mini", description="LLM model")
+            max_retries = Param(int, default=3, min=1, max=10, description="Max retries")
+            strict_mode = Param(bool, default=False, description="Enable strict mode")
 
             def evaluate(self, observation, task=None):
                 return EvalResult(score=self.threshold)
@@ -410,7 +410,7 @@ class TestConfigEnforcement:
         # Manually set the module to simulate a built-in evaluator
         BadBuiltinEvaluator.__module__ = "amp_evaluation.evaluators.builtin.test"
 
-        with pytest.raises(ValueError, match="has __init__ parameters.*that are not defined as Config descriptors"):
+        with pytest.raises(ValueError, match="has __init__ parameters.*that are not defined as Param descriptors"):
             BadBuiltinEvaluator(threshold=0.8)
 
     def test_builtin_evaluator_with_config_passes(self):
@@ -419,7 +419,7 @@ class TestConfigEnforcement:
         class GoodBuiltinEvaluator(BaseEvaluator):
             """Simulates a properly configured built-in evaluator."""
 
-            threshold = Config(float, default=0.7, description="Threshold")
+            threshold = Param(float, default=0.7, description="Threshold")
 
             def __init__(self, **kwargs):
                 super().__init__(**kwargs)
@@ -462,8 +462,8 @@ class TestConfigEnforcement:
         assert evaluator.max_length == 500
 
         # Should have Config descriptors
-        assert isinstance(AnswerLengthEvaluator.min_length, Config)
-        assert isinstance(AnswerLengthEvaluator.max_length, Config)
+        assert isinstance(AnswerLengthEvaluator.min_length, Param)
+        assert isinstance(AnswerLengthEvaluator.max_length, Param)
 
 
 # ============================================================================
@@ -478,7 +478,7 @@ class TestConfigNoneDefaults:
         """Test that default=None makes field not required."""
 
         class TestEvaluator(BaseEvaluator):
-            optional_field = Config(str, default=None, description="Optional with None default")
+            optional_field = Param(str, default=None, description="Optional with None default")
 
             def evaluate(self, observation, task=None):
                 return EvalResult.skip("")
@@ -491,7 +491,7 @@ class TestConfigNoneDefaults:
         """Test that no default makes field required."""
 
         class TestEvaluator(BaseEvaluator):
-            required_field = Config(str, description="Required field")
+            required_field = Param(str, description="Required field")
 
             def evaluate(self, observation, task=None):
                 return EvalResult.skip("")
@@ -502,7 +502,7 @@ class TestConfigNoneDefaults:
         """Test that default='' (empty string) makes field not required."""
 
         class TestEvaluator(BaseEvaluator):
-            optional_str = Config(str, default="", description="Optional with empty string")
+            optional_str = Param(str, default="", description="Optional with empty string")
 
             def evaluate(self, observation, task=None):
                 return EvalResult.skip("")
@@ -515,7 +515,7 @@ class TestConfigNoneDefaults:
         """Test that default=0 makes field not required."""
 
         class TestEvaluator(BaseEvaluator):
-            count = Config(int, default=0, description="Count with 0 default")
+            count = Param(int, default=0, description="Count with 0 default")
 
             def evaluate(self, observation, task=None):
                 return EvalResult.skip("")
@@ -528,7 +528,7 @@ class TestConfigNoneDefaults:
         """Test that default=False makes field not required."""
 
         class TestEvaluator(BaseEvaluator):
-            enabled = Config(bool, default=False, description="Enabled with False default")
+            enabled = Param(bool, default=False, description="Enabled with False default")
 
             def evaluate(self, observation, task=None):
                 return EvalResult.skip("")
@@ -541,7 +541,7 @@ class TestConfigNoneDefaults:
         """Test that schema generation includes default=None."""
 
         class TestEvaluator(BaseEvaluator):
-            optional_field = Config(str, default=None, description="Optional with None default")
+            optional_field = Param(str, default=None, description="Optional with None default")
 
             def evaluate(self, observation, task=None):
                 return EvalResult.skip("")
@@ -555,7 +555,7 @@ class TestConfigNoneDefaults:
         """Test that schema generation excludes default when not provided."""
 
         class TestEvaluator(BaseEvaluator):
-            required_field = Config(str, description="Required field")
+            required_field = Param(str, description="Required field")
 
             def evaluate(self, observation, task=None):
                 return EvalResult.skip("")
@@ -568,7 +568,7 @@ class TestConfigNoneDefaults:
         """Test that explicit required=True works even with a default."""
 
         class TestEvaluator(BaseEvaluator):
-            field = Config(str, default="value", required=True, description="Required despite default")
+            field = Param(str, default="value", required=True, description="Required despite default")
 
             def evaluate(self, observation, task=None):
                 return EvalResult.skip("")
