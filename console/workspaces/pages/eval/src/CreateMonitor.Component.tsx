@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -16,16 +16,20 @@
  * under the License.
  */
 
-import React from "react";
+import React, { useState } from "react";
 import { PageLayout } from "@agent-management-platform/views";
 import { generatePath, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
-import { CreateMonitorForm } from "./subComponents/CreateMonitorForm";
+import { CreateMonitorForm, SelectPresetMonitors } from "./subComponents/CreateMonitorForm";
+import { Button, Stack } from "@wso2/oxygen-ui";
+import { ArrowLeft, ArrowRight } from "@wso2/oxygen-ui-icons-react";
 
 export const CreateMonitorComponent: React.FC = () => {
     const { agentId, envId, orgId, projectId } = useParams<{
         agentId: string, envId: string, orgId: string, projectId: string
     }>();
+
+    const [page, setPage] = useState<1 | 2>(1);
 
     return (
         <PageLayout
@@ -40,7 +44,41 @@ export const CreateMonitorComponent: React.FC = () => {
                     { orgId, envId, projectId, agentId })
             }
         >
-            <CreateMonitorForm />
+            <Stack spacing={3}>
+                {
+                    page === 1 &&
+                    <CreateMonitorForm />
+                }
+
+                {
+                    page === 2 && (
+                        <SelectPresetMonitors />
+                    )
+                }
+                <Stack direction="row" gap={2} >
+                    {
+                        page === 1 && (
+                            <>
+                                <Button variant="contained" color="primary" endIcon={<ArrowRight size={20} />} onClick={() => setPage(2)}>
+                                    Next
+                                </Button>
+                            </>
+                        )
+                    }
+                    {
+                        page === 2 && (
+                            <>
+                                <Button variant="outlined" startIcon={<ArrowLeft size={20} />} color="primary" onClick={() => setPage(1)}>
+                                    Previous
+                                </Button>
+                                <Button variant="contained" color="primary">
+                                    Create Monitor
+                                </Button>
+                            </>
+                        )
+                    }
+                </Stack>
+            </Stack>
         </PageLayout>
     )
 };
