@@ -32,9 +32,7 @@ import (
 )
 
 const (
-	llmStatusPending  = "pending"
-	llmStatusDeployed = "deployed"
-	llmStatusFailed   = "failed"
+	llmStatusPending = "pending"
 )
 
 // DeploymentResult captures the outcome of deploying to a single gateway
@@ -628,7 +626,6 @@ func (s *LLMProviderService) CreateAndDeploy(orgID, createdBy string, provider *
 	if len(mappings) > 0 {
 		if err := s.mappingRepo.CreateBatch(mappings); err != nil {
 			slog.Error("LLMProviderService.CreateAndDeploy: failed to store gateway mappings", "orgID", orgID, "providerUUID", created.UUID, "error", err)
-			mappingsFailed = true
 			// Return error instead of silently continuing - this creates state inconsistency
 			return nil, fmt.Errorf("failed to store gateway mappings: %w", err)
 		}

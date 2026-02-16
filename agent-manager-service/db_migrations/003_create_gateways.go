@@ -45,7 +45,7 @@ var migration003 = migration{
 					REFERENCES organizations(uuid) ON DELETE CASCADE,
 				CONSTRAINT uq_gateway_org_name UNIQUE(organization_uuid, name),
 				CONSTRAINT chk_gateway_functionality_type
-					CHECK (gateway_functionality_type IN ('regular', 'ai', 'event'))
+					CHECK (gateway_functionality_type IN ('regular', 'ai'))
 			);
 
 			-- Gateway Tokens table
@@ -65,8 +65,6 @@ var migration003 = migration{
 					CHECK (status IN ('active', 'revoked')),
 				CONSTRAINT chk_gateway_token_revoked
 					CHECK (revoked_at IS NULL OR status = 'revoked')
-				CREATE UNIQUE INDEX IF NOT EXISTS idx_gateway_tokens_prefix_active
-					ON gateway_tokens(token_prefix) WHERE status = 'active';
 			);
 
 			-- Indexes for gateways
@@ -79,6 +77,8 @@ var migration003 = migration{
 			CREATE INDEX idx_gateway_tokens_gateway ON gateway_tokens(gateway_uuid);
 			CREATE INDEX idx_gateway_tokens_status ON gateway_tokens(gateway_uuid, status);
 			CREATE INDEX idx_gateway_tokens_active ON gateway_tokens(status) WHERE status = 'active';
+			CREATE UNIQUE INDEX IF NOT EXISTS idx_gateway_tokens_prefix_active
+				ON gateway_tokens(token_prefix) WHERE status = 'active';
 
 			-- Recreate gateway_environment_mappings table
 			CREATE TABLE gateway_environment_mappings (
