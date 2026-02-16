@@ -378,9 +378,9 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		if err := s.enableInstrumentation(ctx, orgName, projectName, req); err != nil {
 			s.logger.Error("Failed to enable instrumentation for agent", "agentName", req.Name, "error", err)
 			// Rollback - delete the created agent
-			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName,  req.Name); errDeletion != nil {
+			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
 				s.logger.Error("Failed to rollback agent creation after instrumentation enabling failure", "agentName", req.Name, "error", errDeletion)
-			}		
+			}
 			return err
 		}
 
