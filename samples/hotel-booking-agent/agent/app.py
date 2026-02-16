@@ -18,7 +18,7 @@ agent_graph = build_graph()
 
 class ChatRequest(BaseModel):
     message: str
-    session_id: str
+    session_id: str | None = None
     user_id: str
     user_name: str | None = None
 
@@ -60,14 +60,30 @@ def chat(request: ChatRequest) -> ChatResponse:
         user_id,
         user_name,
     )
-    thread_id = f"{user_id}:{session_id}"
-    result = agent_graph.invoke(
-        {"messages": [HumanMessage(content=wrapped_message)]},
-        config={
-            "recursion_limit": 50,
-            "configurable": {"thread_id": thread_id},
-        },
-    )
+    resolved_session_id = session_id or "default"
+    thread_id = f"{user_id}:{resolved_session_id}"
+    try:
+        result = agent_graph.invoke(
+            {"messages": [HumanMessage(content=wrapped_message)]},
+            config={
+                "recursion_limit": 50,
+                "configurable": {"thread_id": thread_id},
+            },
+        )
+    except Exception:
+        logging.exception(
+            "chat invoke failed: thread_id=%s session_id=%s",
+            thread_id,
+            session_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
 
-    last_message = result["messages"][-1]
+    messages = result.get("messages") if isinstance(result, dict) else None
+    if not messages:
+        return ChatResponse(message="")
+
+    last_message = messages[-1]
     return ChatResponse(message=last_message.content)

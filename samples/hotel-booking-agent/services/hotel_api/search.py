@@ -9,7 +9,8 @@ from math import ceil
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, status
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,10 @@ def _sort_hotels_by_rating(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _paginate(items: list[dict[str, Any]], page: int, page_size: int) -> list[dict[str, Any]]:
+    if page <= 0:
+        raise ValueError("page must be >= 1")
+    if page_size <= 0:
+        raise ValueError("page_size must be >= 1")
     start = (page - 1) * page_size
     end = start + page_size
     return items[start:end]
@@ -218,24 +223,17 @@ def get_hotel_details(
     check_out_date: str | None = None,
     guests: int = 2,
 ) -> dict[str, Any]:
+    data = _load_dataset()
+    match = next(
+        (item for item in data.get("hotels", []) if item.get("hotel_id") == hotel_id),
+        None,
+    )
+    if not match:
+        raise HotelNotFoundError("Hotel not found.")
+    hotel = dict(match)
+
     if check_in_date and check_out_date:
         rooms_out = _rooms_for_hotel(hotel_id)
-        hotel = None
-        data = _load_dataset()
-        match = next(
-            (item for item in data.get("hotels", []) if item.get("hotel_id") == hotel_id),
-            None,
-        )
-        if match:
-            hotel = dict(match)
-        if not hotel:
-            hotel = {
-                "hotel_id": hotel_id,
-                "hotel_name": "Unknown Hotel",
-                "description": "",
-                "city": "",
-                "country": "",
-            }
         return {
             "hotel": hotel,
             "rooms": rooms_out,
@@ -243,21 +241,12 @@ def get_hotel_details(
             "nearby_attractions": [],
         }
 
-    data = _load_dataset()
-    match = next(
-        (item for item in data.get("hotels", []) if item.get("hotel_id") == hotel_id),
-        None,
-    )
-    if match:
-        hotel = dict(match)
-        return {
-            "hotel": hotel,
-            "rooms": [],
-            "recent_reviews": [],
-            "nearby_attractions": [],
-        }
-
-    raise HotelNotFoundError("Hotel not found.")
+    return {
+        "hotel": hotel,
+        "rooms": [],
+        "recent_reviews": [],
+        "nearby_attractions": [],
+    }
 
 
 def _rooms_for_guests(
@@ -296,7 +285,9 @@ def check_availability(
         (item for item in data.get("hotels", []) if item.get("hotel_id") == hotel_id),
         None,
     )
-    hotel_name = str(match.get("hotel_name") or match.get("name") or "") if match else ""
+    if not match:
+        raise HotelNotFoundError("Hotel not found.")
+    hotel_name = str(match.get("hotel_name") or match.get("name") or "")
     rooms_out = _rooms_for_guests(_rooms_for_hotel(hotel_id), guests, room_count)
     return {
         "hotel_name": hotel_name,
@@ -324,11 +315,17 @@ def search_hotels_route(
     min_price: float | None = None,
     max_price: float | None = None,
     min_rating: float | None = None,
+    amenities: str | None = None,
     sort_by: str | None = None,
     page: int = 1,
     page_size: int = 10,
 ):
     try:
+        amenities_list = (
+            [item.strip() for item in amenities.split(",") if item.strip()]
+            if amenities
+            else None
+        )
         return search_hotels(
             destination=destination,
             check_in_date=check_in_date,
@@ -338,14 +335,17 @@ def search_hotels_route(
             min_price=min_price,
             max_price=max_price,
             min_rating=min_rating,
-            amenities=None,
+            amenities=amenities_list,
             sort_by=sort_by,
             page=page,
             page_size=page_size,
         )
     except HotelSearchError:
         logger.exception("search_hotels failed")
-        return _error_response("Hotel search failed", "HOTEL_SEARCH_FAILED")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content=_error_response("Hotel search failed", "HOTEL_SEARCH_FAILED"),
+        )
 
 
 @router.get("/hotels/resolve")
@@ -353,9 +353,18 @@ def resolve_hotel_id_route(name: str):
     try:
         hotel_id = resolve_hotel_id_by_name(name)
         return {"hotel_id": hotel_id}
-    except Exception:
+    except HotelNotFoundError:
         logger.exception("resolve_hotel_id failed")
-        return _error_response("Hotel resolve failed", "HOTEL_RESOLVE_FAILED")
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content=_error_response("Hotel resolve failed", "HOTEL_RESOLVE_FAILED"),
+        )
+    except HotelSearchError:
+        logger.exception("resolve_hotel_id failed")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content=_error_response("Hotel resolve failed", "HOTEL_RESOLVE_FAILED"),
+        )
 
 
 @router.get("/hotels/{hotel_id}")
@@ -372,9 +381,18 @@ def get_hotel_details_route(
             check_out_date=check_out_date,
             guests=guests,
         )
+    except HotelNotFoundError:
+        logger.exception("get_hotel_details failed")
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content=_error_response("Hotel not found", "HOTEL_NOT_FOUND"),
+        )
     except HotelSearchError:
         logger.exception("get_hotel_details failed")
-        return _error_response("Hotel details unavailable", "HOTEL_DETAILS_FAILED")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content=_error_response("Hotel details unavailable", "HOTEL_DETAILS_FAILED"),
+        )
 
 
 @router.get("/hotels/{hotel_id}/availability")
@@ -393,6 +411,15 @@ def get_hotel_availability_route(
             guests=guests,
             room_count=room_count,
         )
+    except HotelNotFoundError:
+        logger.exception("get_hotel_availability failed")
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content=_error_response("Hotel not found", "HOTEL_NOT_FOUND"),
+        )
     except HotelSearchError:
         logger.exception("get_hotel_availability failed")
-        return _error_response("Hotel availability unavailable", "HOTEL_AVAILABILITY_FAILED")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content=_error_response("Hotel availability unavailable", "HOTEL_AVAILABILITY_FAILED"),
+        )

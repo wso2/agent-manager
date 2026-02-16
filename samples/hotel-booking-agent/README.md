@@ -35,14 +35,14 @@ Fill in the agent creation form with these values:
 | --------------------- | ------------------------------------------------------- |
 | **Display Name**      | `Hotel Booking Agent`                                   |
 | **Description**       | `AI-powered hotel booking assistant`                    |
-| **GitHub Repository** | `https://github.com/wso2/ai-agent-management-platform`  |
+| **GitHub Repository** | `https://github.com/wso2/agent-manager`                 |
 | **Branch**            | `main`                                                  |
 | **App Path**          | `samples/hotel-booking-agent/agent`                     |
 | **Language**          | `Python`                                                |
 | **Language Version**  | `3.11`                                                  |
 | **Start Command**     | `python -m uvicorn app:app --host 0.0.0.0 --port 9090`   |
 | **Port**              | `9090`                                                  |
-| **OpenAPI Spec Path** | `/openapi.yaml`                                         |
+| **OpenAPI Spec Path** | `/openapi.json`                                         |
 
 ### Step 3: Select Agent Interface
 
@@ -133,3 +133,20 @@ HOTEL_API_BASE_URL=<deployed-hotel-api-base-url>
 - If Pinecone settings are missing, ingestion is skipped and the Hotel API still runs.
 - If the index exists and is empty, ingestion runs; if it already has vectors, ingestion is skipped.
 - Policy PDFs live in `samples/hotel-booking-agent/services/hotel_api/resources/policy_pdfs/`.
+
+#### How It Works
+- The Hotel API attempts ingestion on startup.
+- If `PINECONE_API_KEY`, `PINECONE_SERVICE_URL`, or `PINECONE_INDEX_NAME` is missing, ingestion is skipped and the service still starts.
+- If the Pinecone index exists and has no vectors, policies are embedded and upserted.
+- If the index already has vectors, ingestion is skipped to avoid duplicates.
+
+#### Quick Setup
+1. Create a Pinecone index.
+2. Add these to your Hotel API `.env`:
+```env
+PINECONE_API_KEY=...
+PINECONE_SERVICE_URL=...
+PINECONE_INDEX_NAME=...
+OPENAI_API_KEY=...
+```
+3. Start the service; ingestion will run automatically if the index is empty.
