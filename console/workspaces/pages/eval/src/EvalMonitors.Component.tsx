@@ -18,28 +18,12 @@
 
 import React from "react";
 import { PageLayout } from "@agent-management-platform/views";
-import { Button, Card, CardContent, LinearProgress, Stack, Typography } from "@wso2/oxygen-ui";
+import { Button } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
+import { MonitorTable } from "./subComponents/MonitorTable";
 
-const PLACEHOLDER_MONITORS = [
-  {
-    title: "Quality gates",
-    copy: "Track eval thresholds that must stay green before deployments proceed.",
-    progress: 70,
-  },
-  {
-    title: "Live drifts",
-    copy: "Surface conversational drift alerts that combine eval scores with runtime telemetry.",
-    progress: 35,
-  },
-  {
-    title: "Human review",
-    copy: "Reserve runs that require qualitative grading and approvals before rollout.",
-    progress: 55,
-  },
-];
 
 export const EvalMonitorsComponent: React.FC = () => {
   const { agentId, envId, orgId, projectId } = useParams<{
@@ -59,19 +43,7 @@ export const EvalMonitorsComponent: React.FC = () => {
         )
       } endIcon={<Plus />} color="primary" >Add monitor</Button>}
     >
-      <Stack spacing={2.5}>
-        {PLACEHOLDER_MONITORS.map((monitor) => (
-          <Card key={monitor.title} variant="outlined">
-            <CardContent>
-              <Typography variant="subtitle1">{monitor.title}</Typography>
-              <Typography variant="body2" color="text.secondary" mt={0.5}>
-                {monitor.copy}
-              </Typography>
-              <LinearProgress variant="determinate" value={monitor.progress} sx={{ mt: 2 }} />
-            </CardContent>
-          </Card>
-        ))}
-      </Stack>
+      <MonitorTable />
     </PageLayout>
   )
 };

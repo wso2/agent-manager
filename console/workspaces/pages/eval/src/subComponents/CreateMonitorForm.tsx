@@ -173,7 +173,7 @@ export function SelectPresetMonitors() {
             <Form.Section>
                 <Form.Header   >
                     <Stack direction="row" spacing={1} alignItems="start" justifyContent="space-between">
-                        Preset Monitors
+                        Available Evaluators and Metrics
                         <SearchBar />
                     </Stack>
                 </Form.Header>
