@@ -86,9 +86,7 @@ components:
           example: "Plan a 5-day trip to Tokyo"
           minLength: 1
         session_id:
-          anyOf:
-            - type: string
-            - type: null
+          type: string
           title: SessionId
           description: Session identifier for maintaining conversation context
           example: "session_abc123"

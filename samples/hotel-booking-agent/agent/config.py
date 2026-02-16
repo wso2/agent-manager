@@ -6,6 +6,14 @@ class Settings(BaseSettings):
     openai_api_key: str
     openai_model: str = "gpt-4o-mini"
     openai_embedding_model: str = "text-embedding-3-small"
+    openai_timeout: float = Field(
+        default=30.0,
+        description="Timeout in seconds for OpenAI API calls.",
+    )
+    openai_max_retries: int = Field(
+        default=3,
+        description="Maximum retry attempts for OpenAI API calls.",
+    )
     pinecone_api_key: str
     pinecone_service_url: str
     pinecone_index_name: str = "hotel-policies"

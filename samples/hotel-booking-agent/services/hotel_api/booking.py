@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +92,10 @@ def create_booking(payload: dict[str, Any]):
         _save_bookings(bookings)
     except Exception:
         logger.exception("create_booking: failed to persist booking")
-        return _error_response("Booking persistence failed", "BOOKING_PERSIST_FAILED")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Booking persistence failed",
+        )
 
     return {
         "booking_id": booking_id,
@@ -109,7 +112,10 @@ def get_bookings(user_id: str):
         return [booking for booking in bookings if booking.get("user_id") == user_id]
     except Exception:
         logger.exception("get_bookings: failed to fetch bookings")
-        return _error_response("Storage unavailable", "STORAGE_UNAVAILABLE")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=_error_response("Storage unavailable", "STORAGE_UNAVAILABLE"),
+        )
 
 
 @router.get("/bookings/{booking_id}")
@@ -125,11 +131,17 @@ def get_booking(booking_id: str, user_id: str):
             None,
         )
         if not booking:
-            return _error_response("Booking not found", "BOOKING_NOT_FOUND")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=_error_response("Booking not found", "BOOKING_NOT_FOUND"),
+            )
         return booking
     except Exception:
         logger.exception("get_booking: failed to fetch booking")
-        return _error_response("Storage unavailable", "STORAGE_UNAVAILABLE")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=_error_response("Storage unavailable", "STORAGE_UNAVAILABLE"),
+        )
 
 
 @router.put("/bookings/{booking_id}")
@@ -146,7 +158,10 @@ def update_booking(booking_id: str, payload: dict[str, Any]):
             None,
         )
         if not booking:
-            return _error_response("Booking not found", "BOOKING_NOT_FOUND")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=_error_response("Booking not found", "BOOKING_NOT_FOUND"),
+            )
 
         updated_fields = {
             "hotel_id": payload.get("hotel_id", booking.get("hotel_id")),
@@ -159,7 +174,7 @@ def update_booking(booking_id: str, payload: dict[str, Any]):
             "special_requests": payload.get("special_requests", booking.get("special_requests")),
             "updated_at": _get_current_timestamp(),
         }
-        updated_fields["pricing"] = []
+        updated_fields["pricing"] = payload["pricing"] if "pricing" in payload else booking.get("pricing")
 
         updated_booking = _update_booking_record(bookings, booking_id, updated_fields)
         _save_bookings(bookings)
@@ -169,7 +184,10 @@ def update_booking(booking_id: str, payload: dict[str, Any]):
         }
     except Exception:
         logger.exception("update_booking: failed to update booking")
-        return _error_response("Booking update failed", "BOOKING_UPDATE_FAILED")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=_error_response("Booking update failed", "BOOKING_UPDATE_FAILED"),
+        )
 
 
 @router.delete("/bookings/{booking_id}")
@@ -185,7 +203,10 @@ def cancel_booking(booking_id: str, user_id: str):
             None,
         )
         if not booking:
-            return _error_response("Booking not found", "BOOKING_NOT_FOUND")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=_error_response("Booking not found", "BOOKING_NOT_FOUND"),
+            )
 
         updated_booking = _update_booking_record(
             bookings,
@@ -202,4 +223,7 @@ def cancel_booking(booking_id: str, user_id: str):
         }
     except Exception:
         logger.exception("cancel_booking: failed to cancel booking")
-        return _error_response("Booking cancel failed", "BOOKING_CANCEL_FAILED")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=_error_response("Booking cancel failed", "BOOKING_CANCEL_FAILED"),
+        )

@@ -374,6 +374,8 @@ components:
     BookingCreateRequest:
       type: object
       properties:
+        user_id:
+          type: string
         hotel_id:
           type: string
         hotel_name:
@@ -391,18 +393,32 @@ components:
         primary_guest:
           type: object
         special_requests:
-          type: string
+          $ref: "#/components/schemas/BookingSpecialRequests"
       required:
         - hotel_id
-        - hotel_name
         - rooms
         - check_in_date
         - check_out_date
         - number_of_guests
         - primary_guest
+    BookingSpecialRequests:
+      type: object
+      properties:
+        dietary_requirements:
+          type: string
+        accessibility_needs:
+          type: string
+        bed_preference:
+          type: string
+        pet_friendly:
+          type: boolean
+        other_requests:
+          type: string
     BookingUpdateRequest:
       type: object
       properties:
+        user_id:
+          type: string
         hotel_id:
           type: string
         hotel_name:

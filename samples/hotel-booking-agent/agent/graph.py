@@ -38,6 +38,8 @@ def build_graph():
     llm = ChatOpenAI(
         model=settings.openai_model,
         api_key=settings.openai_api_key,
+        timeout=settings.openai_timeout,
+        max_retries=settings.openai_max_retries,
     ).bind_tools(tools)
 
     def agent_node(state: AgentState) -> AgentState:

@@ -4,6 +4,7 @@ import logging
 from typing import Any, Optional
 import requests
 from datetime import date, datetime, timedelta, timezone
+from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
 from langchain_core.tools import tool
 from langchain_openai import OpenAIEmbeddings
@@ -80,9 +81,15 @@ class BookingListRequest(BaseModel):
     )
 
 
-def _pinecone_index():
-    pc = Pinecone(api_key=settings.pinecone_api_key)
-    return pc.Index(settings.pinecone_index_name, host=settings.pinecone_service_url)
+def _policy_vectorstore() -> PineconeVectorStore:
+    pc = Pinecone(api_key=settings.pinecone_api_key, host=settings.pinecone_service_url)
+    # Use the data-plane host directly to avoid control-plane describe_index calls.
+    index = pc.Index(host=settings.pinecone_service_url)
+    return PineconeVectorStore(
+        index=index,
+        embedding=_embedder(),
+        text_key="text",
+    )
 
 
 def _embedder() -> OpenAIEmbeddings:
@@ -138,11 +145,13 @@ def _resolve_hotel_id(hotel_name: Optional[str]) -> Optional[str]:
 @tool
 def query_hotel_policy_tool(
     question: str,
-    hotel_id: Optional[str],
-    hotel_name: Optional[str],
+    hotel_id: Optional[str] = None,
+    hotel_name: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     Answer hotel policy questions for a specific hotel using policy documents.
+
+    The tool call must include the user's policy question plus a hotel name or hotel ID.
 
     Args:
         question (str): The policy question to answer.
@@ -164,24 +173,37 @@ def query_hotel_policy_tool(
     else:
         resolved_id = _resolve_hotel_id(hotel_name or hotel_id)
     if resolved_id:
-        index = _pinecone_index()
-        embedder = _embedder()
-        query_vector = embedder.embed_query(question)
-        response = index.query(
-            vector=query_vector,
-            top_k=5,
-            include_metadata=True,
-            filter={"hotel_id": {"$eq": resolved_id}},
-        )
-        matches = response.get("matches", [])
-        context_chunks = [m.get("metadata", {}).get("content", "") for m in matches]
+        try:
+            vectorstore = _policy_vectorstore()
+        except Exception:
+            logger.exception("policy vectorstore init failed for hotel_id=%s", resolved_id)
+            return {
+                "found": False,
+                "source": "pinecone",
+                "hotel_id": resolved_id,
+                "text": "",
+                "note": "Policy vector store initialization failed.",
+            }
+        try:
+            retriever = vectorstore.as_retriever(
+                search_kwargs={
+                    "k": 5,
+                    "filter": {"hotel_id": {"$eq": resolved_id}},
+                }
+            )
+            docs = retriever.get_relevant_documents(question)
+            logger.info("policy search returned %s documents", len(docs))
+        except Exception:
+            logger.exception("policy search failed for hotel_id=%s", resolved_id)
+            docs = []
+        context_chunks = [getattr(d, "page_content", "") for d in docs]
         context = "\n\n".join([c for c in context_chunks if c])
         if context:
             return {
                 "found": True,
                 "source": "pinecone",
                 "hotel_id": resolved_id,
-                "context": context,
+                "text": context,
             }
 
     if not hotel_name and not resolved_id:
@@ -189,7 +211,7 @@ def query_hotel_policy_tool(
             "found": False,
             "source": "pinecone",
             "hotel_id": resolved_id,
-            "context": "",
+            "text": "",
             "note": "Hotel name or ID required.",
         }
 
@@ -197,7 +219,7 @@ def query_hotel_policy_tool(
         "found": False,
         "source": "pinecone",
         "hotel_id": resolved_id,
-        "context": "",
+        "text": "",
     }
 
 
@@ -347,7 +369,6 @@ def check_hotel_availability_tool(
 
 @tool(args_schema=BookingRequest)
 def create_booking_tool(
-    user_id: str,
     hotel_id: str,
     rooms: list[RoomConfiguration],
     check_in_date: str,
@@ -357,12 +378,13 @@ def create_booking_tool(
     primary_guest: GuestDetails,
     special_requests: SpecialRequests | None = None,
     hotel_name: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     Create a booking with hotel, dates, rooms, and guest details.
 
     Args:
-        user_id (str): User identifier.
+        user_id (Optional[str]): User identifier.
         hotel_id (str): Hotel identifier.
         rooms (list[RoomConfiguration]): Room configurations to book.
         check_in_date (str): Check-in date (YYYY-MM-DD).
@@ -468,14 +490,14 @@ def edit_booking_tool(
     if special_requests is not None:
         payload["special_requests"] = special_requests.model_dump()
 
-    endpoint = f"{settings.hotel_api_base_url.rstrip('/')}/bookings/{booking_id}"
-    try:
-        response = requests.put(endpoint, json=payload, timeout=30)
-        response.raise_for_status()
-    except requests.RequestException:
-        logger.exception("edit_booking_tool failed calling booking API")
-        return {"error": "Booking API request failed."}
-    return response.json()
+    response = _call_hotel_api(
+        "PUT",
+        f"/bookings/{booking_id}",
+        json_body=payload,
+    )
+    if isinstance(response, dict) and response.get("error"):
+        return response
+    return response
 
 
 @tool(args_schema=BookingCancelRequest)
@@ -491,15 +513,15 @@ def cancel_booking_tool(booking_id: str, user_id: Optional[str] = None) -> dict[
         dict[str, Any]: Cancellation status/details.
     """
     logger.info("cancel_booking_tool called: booking_id=%s user_id=%s", booking_id, user_id)
-    endpoint = f"{settings.hotel_api_base_url.rstrip('/')}/bookings/{booking_id}"
-    try:
-        params = {"user_id": user_id} if user_id else None
-        response = requests.delete(endpoint, params=params, timeout=30)
-        response.raise_for_status()
-    except requests.RequestException:
-        logger.exception("cancel_booking_tool failed calling booking API")
-        return {"error": "Booking API request failed."}
-    return response.json()
+    params = {"user_id": user_id} if user_id else None
+    response = _call_hotel_api(
+        "DELETE",
+        f"/bookings/{booking_id}",
+        params=params,
+    )
+    if isinstance(response, dict) and response.get("error"):
+        return response
+    return response
 
 
 @tool(args_schema=BookingListRequest)
@@ -515,16 +537,16 @@ def list_bookings_tool(user_id: Optional[str] = None, status: Optional[str] = No
         dict[str, Any]: List of bookings.
     """
     logger.info("list_bookings_tool called: user_id=%s status=%s", user_id, status)
-    endpoint = f"{settings.hotel_api_base_url.rstrip('/')}/bookings"
-    try:
-        params = {"user_id": user_id} if user_id else None
-        response = requests.get(endpoint, params=params, timeout=30)
-        response.raise_for_status()
-    except requests.RequestException:
-        logger.exception("list_bookings_tool failed calling booking API")
-        return {"error": "Booking API request failed."}
-    bookings = response.json() or []
-    normalized_status = (status or "").strip().upper()
+    params = {"user_id": user_id} if user_id else None
+    response = _call_hotel_api(
+        "GET",
+        "/bookings",
+        params=params,
+    )
+    if isinstance(response, dict) and response.get("error"):
+        return response
+    bookings = response if isinstance(response, list) else []
+    normalized_status = (status or "ALL").strip().upper()
     if normalized_status in {"AVAILABLE", "ACTIVE"}:
         normalized_status = "CONFIRMED"
     if normalized_status and normalized_status != "ALL":
@@ -532,12 +554,6 @@ def list_bookings_tool(user_id: Optional[str] = None, status: Optional[str] = No
             booking
             for booking in bookings
             if str(booking.get("booking_status", "")).upper() == normalized_status
-        ]
-    elif not normalized_status:
-        bookings = [
-            booking
-            for booking in bookings
-            if str(booking.get("booking_status", "")).upper() == "CONFIRMED"
         ]
     return {"bookings": bookings}
 
@@ -628,12 +644,15 @@ def resolve_relative_dates_tool(text: str) -> dict[str, Any]:
 
     if "this weekend" in lowered:
         # Upcoming Saturday/Sunday based on current week.
-        saturday = _next_weekday(5, now) if now.weekday() > 5 else now + timedelta(days=(5 - now.weekday()))
+        if now.weekday() == 6:
+            saturday = now
+        else:
+            saturday = now + timedelta(days=(5 - now.weekday()))
         sunday = saturday + timedelta(days=1)
         _add("this_weekend_start", saturday)
         _add("this_weekend_end", sunday)
     if "next weekend" in lowered:
-        saturday = _next_weekday(5, now) + timedelta(days=7)
+        saturday = _next_weekday(5, now)
         sunday = saturday + timedelta(days=1)
         _add("next_weekend_start", saturday)
         _add("next_weekend_end", sunday)
