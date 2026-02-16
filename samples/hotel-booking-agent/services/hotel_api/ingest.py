@@ -107,7 +107,7 @@ def ensure_policy_index() -> None:
             )
             return
         stats = pc.Index(index_name).describe_index_stats()
-        total_vectors = stats.get("total_vector_count", 0)
+        total_vectors = getattr(stats, "total_vector_count", 0)
         if total_vectors > 0:
             logger.info(
                 "policy index '%s' already has %s vectors; skipping ingest",

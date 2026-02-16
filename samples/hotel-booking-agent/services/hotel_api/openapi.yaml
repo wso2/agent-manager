@@ -436,7 +436,7 @@ components:
         primary_guest:
           type: object
         special_requests:
-          type: string
+          $ref: "#/components/schemas/BookingSpecialRequests"
     BookingCreateResponse:
       type: object
       properties:

@@ -419,14 +419,11 @@ def create_booking_tool(
         "primary_guest": primary_guest.model_dump(),
         "special_requests": special_requests.model_dump() if special_requests else None,
     }
-    endpoint = f"{settings.hotel_api_base_url.rstrip('/')}/bookings"
-    try:
-        response = requests.post(endpoint, json=payload, timeout=30)
-        response.raise_for_status()
-    except requests.RequestException:
-        logger.exception("create_booking_tool failed calling booking API")
-        return {"error": "Booking API request failed."}
-    return response.json()
+    return _call_hotel_api(
+        "POST",
+        "/bookings",
+        json_body=payload,
+    )
 
 
 @tool(args_schema=BookingUpdateRequest)

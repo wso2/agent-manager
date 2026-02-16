@@ -136,6 +136,8 @@ def get_booking(booking_id: str, user_id: str):
                 detail=_error_response("Booking not found", "BOOKING_NOT_FOUND"),
             )
         return booking
+    except HTTPException:
+        raise
     except Exception:
         logger.exception("get_booking: failed to fetch booking")
         raise HTTPException(
@@ -182,6 +184,8 @@ def update_booking(booking_id: str, payload: dict[str, Any]):
             "message": "Booking updated successfully",
             "booking_details": updated_booking,
         }
+    except HTTPException:
+        raise
     except Exception:
         logger.exception("update_booking: failed to update booking")
         raise HTTPException(
@@ -221,6 +225,8 @@ def cancel_booking(booking_id: str, user_id: str):
             "message": "Booking cancelled successfully",
             "booking_details": updated_booking,
         }
+    except HTTPException:
+        raise
     except Exception:
         logger.exception("cancel_booking: failed to cancel booking")
         raise HTTPException(
