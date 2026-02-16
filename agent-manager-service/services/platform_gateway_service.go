@@ -184,7 +184,11 @@ func (s *PlatformGatewayService) RegisterGateway(
 		UpdatedAt:                time.Now(),
 	}
 
-	// 10. Return GatewayResponse
+	err = s.gatewayRepo.Create(gateway)
+	if err != nil {
+		return nil, fmt.Errorf("error while registering gateway: %w", err)
+	}
+
 	response := &GatewayResponse{
 		ID:                gateway.UUID.String(),
 		OrganizationID:    gateway.OrganizationUUID.String(),

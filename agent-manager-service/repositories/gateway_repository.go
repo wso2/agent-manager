@@ -290,7 +290,7 @@ func (r *GatewayRepo) GetActiveTokenByPrefix(tokenPrefix string) (*models.Gatewa
 		First(&token).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil // Return nil, nil for invalid token (not an error)
+			return nil, err
 		}
 		return nil, err
 	}

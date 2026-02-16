@@ -82,7 +82,7 @@ func NewGatewayController(
 }
 
 // resolveOrgUUID resolves organization handle to UUID
-func (c *gatewayController) resolveOrgUUID(ctx context.Context, orgName string) (string, error) {
+func (c *gatewayController) resolveOrgUUID(orgName string) (string, error) {
 	org, err := c.orgRepo.GetOrganizationByName(orgName)
 	if err != nil {
 		return "", utils.ErrOrganizationNotFound
@@ -140,7 +140,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
+	orgID, err := c.resolveOrgUUID(orgName)
 	if err != nil {
 		log.Error("RegisterGateway: organization not found", "error", err)
 		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
@@ -203,7 +203,7 @@ func (c *gatewayController) GetGateway(w http.ResponseWriter, r *http.Request) {
 	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
+	orgID, err := c.resolveOrgUUID(orgName)
 	if err != nil {
 		log.Error("GetGateway: organization not found", "error", err)
 		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
@@ -230,7 +230,7 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
+	orgID, err := c.resolveOrgUUID(orgName)
 	if err != nil {
 		log.Error("ListGateways: organization not found", "error", err)
 		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
@@ -306,7 +306,7 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 	specGateways := make([]spec.GatewayResponse, 0, len(gatewaysResp.List))
 	for _, gw := range gatewaysResp.List {
 		// Use pre-fetched mappings and environments (no additional DB/RPC calls)
-		environments := c.matchGatewayEnvironments(gw.ID, allMappings[gw.ID], ocEnvironments, orgName)
+		environments := c.matchGatewayEnvironments(allMappings[gw.ID], ocEnvironments, orgName)
 		specGateways = append(specGateways, convertGatewayToSpecResponse(&gw, orgName, environments))
 	}
 
@@ -326,7 +326,7 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
+	orgID, err := c.resolveOrgUUID(orgName)
 	if err != nil {
 		log.Error("UpdateGateway: organization not found", "error", err)
 		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
@@ -363,7 +363,7 @@ func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request
 	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
+	orgID, err := c.resolveOrgUUID(orgName)
 	if err != nil {
 		log.Error("DeleteGateway: organization not found", "error", err)
 		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
@@ -393,7 +393,7 @@ func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r 
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 	envID := strings.TrimSpace(r.PathValue("envID"))
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
+	orgID, err := c.resolveOrgUUID(orgName)
 	if err != nil {
 		log.Error("AssignGatewayToEnvironment: organization not found", "error", err)
 		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
@@ -468,7 +468,7 @@ func (c *gatewayController) CheckGatewayHealth(w http.ResponseWriter, r *http.Re
 	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
+	orgID, err := c.resolveOrgUUID(orgName)
 	if err != nil {
 		log.Error("CheckGatewayHealth: organization not found", "error", err)
 		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
@@ -504,7 +504,7 @@ func (c *gatewayController) RotateGatewayToken(w http.ResponseWriter, r *http.Re
 	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
+	orgID, err := c.resolveOrgUUID(orgName)
 	if err != nil {
 		log.Error("RotateGatewayToken: organization not found", "error", err)
 		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
@@ -547,7 +547,7 @@ func (c *gatewayController) GetGatewayStatus(w http.ResponseWriter, r *http.Requ
 	log := logger.GetLogger(ctx)
 	orgName := r.PathValue(utils.PathParamOrgName)
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
+	orgID, err := c.resolveOrgUUID(orgName)
 	if err != nil {
 		log.Error("GetGatewayStatus: organization not found", "error", err)
 		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
@@ -577,7 +577,7 @@ func (c *gatewayController) GetGatewayArtifacts(w http.ResponseWriter, r *http.R
 	orgName := r.PathValue(utils.PathParamOrgName)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
+	orgID, err := c.resolveOrgUUID(orgName)
 	if err != nil {
 		log.Error("GetGatewayArtifacts: organization not found", "error", err)
 		utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
@@ -625,7 +625,7 @@ func (c *gatewayController) getGatewayEnvironmentsFromDB(ctx context.Context, or
 		return []models.GatewayEnvironmentResponse{}
 	}
 
-	return c.matchGatewayEnvironments(gatewayID, mappings, ocEnvironments, orgName)
+	return c.matchGatewayEnvironments(mappings, ocEnvironments, orgName)
 }
 
 // getGatewayEnvironmentMappingsBulk retrieves environment mappings for multiple gateways in bulk
@@ -650,7 +650,6 @@ func (c *gatewayController) getGatewayEnvironmentMappingsBulk(ctx context.Contex
 // matchGatewayEnvironments matches gateway environment mappings with OpenChoreo environment details
 // This function is used by both single-gateway and bulk-gateway queries
 func (c *gatewayController) matchGatewayEnvironments(
-	gatewayID string,
 	mappings []models.GatewayEnvironmentMapping,
 	ocEnvironments []*models.EnvironmentResponse,
 	orgName string,
