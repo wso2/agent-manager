@@ -49,9 +49,10 @@ func (Gateway) TableName() string {
 type GatewayToken struct {
 	UUID        uuid.UUID  `gorm:"column:uuid;primaryKey" json:"id"`
 	GatewayUUID uuid.UUID  `gorm:"column:gateway_uuid" json:"gatewayId"`
-	TokenHash   string     `gorm:"column:token_hash" json:"-"`  // Never expose in JSON responses
-	Salt        string     `gorm:"column:salt" json:"-"`        // Never expose in JSON responses
-	Status      string     `gorm:"column:status" json:"status"` // "active" or "revoked"
+	TokenPrefix string     `gorm:"column:token_prefix" json:"-"` // First 8 chars of plaintext token for indexed lookup
+	TokenHash   string     `gorm:"column:token_hash" json:"-"`   // Never expose in JSON responses
+	Salt        string     `gorm:"column:salt" json:"-"`         // Never expose in JSON responses
+	Status      string     `gorm:"column:status" json:"status"`  // "active" or "revoked"
 	CreatedAt   time.Time  `gorm:"column:created_at" json:"createdAt"`
 	RevokedAt   *time.Time `gorm:"column:revoked_at" json:"revokedAt,omitempty"` // Pointer for NULL support
 }

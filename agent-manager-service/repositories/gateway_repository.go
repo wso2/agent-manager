@@ -32,6 +32,8 @@ type GatewayFilterOptions struct {
 	FunctionalityType *string // Filter by gateway_functionality_type (ai, regular, event)
 	Status            *bool   // Filter by is_active
 	EnvironmentID     *string // Filter by environment (via gateway_environment_mappings)
+	Limit             int     // Pagination limit (0 = no limit)
+	Offset            int     // Pagination offset
 }
 
 // GatewayRepository defines the interface for gateway data access
@@ -43,6 +45,7 @@ type GatewayRepository interface {
 	GetByNameAndOrgID(name, orgID string) (*models.Gateway, error)
 	List() ([]*models.Gateway, error)
 	ListWithFilters(filters GatewayFilterOptions) ([]*models.Gateway, error)
+	CountWithFilters(filters GatewayFilterOptions) (int64, error)
 	Delete(gatewayID, organizationID string) error
 	UpdateGateway(gateway *models.Gateway) error
 	UpdateActiveStatus(gatewayId string, isActive bool) error
@@ -56,8 +59,16 @@ type GatewayRepository interface {
 	CreateToken(token *models.GatewayToken) error
 	GetActiveTokensByGatewayUUID(gatewayId string) ([]*models.GatewayToken, error)
 	GetTokenByUUID(tokenId string) (*models.GatewayToken, error)
+	GetActiveTokenByPrefix(tokenPrefix string) (*models.GatewayToken, error)
 	RevokeToken(tokenId string) error
 	CountActiveTokens(gatewayId string) (int, error)
+
+	// Gateway-Environment mapping operations
+	CreateEnvironmentMapping(mapping *models.GatewayEnvironmentMapping) error
+	DeleteEnvironmentMapping(gatewayID, environmentID string) error
+	GetEnvironmentMappingsByGatewayID(gatewayID string) ([]models.GatewayEnvironmentMapping, error)
+	GetEnvironmentMappingsByGatewayIDs(gatewayIDs []string) (map[string][]models.GatewayEnvironmentMapping, error)
+	EnvironmentMappingExists(gatewayID, environmentID string) (bool, error)
 }
 
 // GatewayRepo implements GatewayRepository using GORM
@@ -120,8 +131,38 @@ func (r *GatewayRepo) List() ([]*models.Gateway, error) {
 	return gateways, err
 }
 
-// ListWithFilters retrieves gateways with optional filtering
+// ListWithFilters retrieves gateways with optional filtering and pagination
 func (r *GatewayRepo) ListWithFilters(filters GatewayFilterOptions) ([]*models.Gateway, error) {
+	query := r.buildFilterQuery(filters)
+
+	// Apply pagination at database level
+	if filters.Limit > 0 {
+		query = query.Limit(filters.Limit)
+	}
+	if filters.Offset > 0 {
+		query = query.Offset(filters.Offset)
+	}
+
+	var gateways []*models.Gateway
+	err := query.Order("gateways.created_at DESC").Find(&gateways).Error
+	return gateways, err
+}
+
+// CountWithFilters counts gateways matching the filter criteria (excluding pagination)
+func (r *GatewayRepo) CountWithFilters(filters GatewayFilterOptions) (int64, error) {
+	// Create query without pagination
+	filterCopy := filters
+	filterCopy.Limit = 0
+	filterCopy.Offset = 0
+	query := r.buildFilterQuery(filterCopy)
+
+	var count int64
+	err := query.Count(&count).Error
+	return count, err
+}
+
+// buildFilterQuery constructs the base query with all filters applied
+func (r *GatewayRepo) buildFilterQuery(filters GatewayFilterOptions) *gorm.DB {
 	query := r.db.Model(&models.Gateway{})
 
 	// Filter by organization
@@ -146,9 +187,7 @@ func (r *GatewayRepo) ListWithFilters(filters GatewayFilterOptions) ([]*models.G
 			Distinct()
 	}
 
-	var gateways []*models.Gateway
-	err := query.Order("gateways.created_at DESC").Find(&gateways).Error
-	return gateways, err
+	return query
 }
 
 // Delete removes a gateway with organization isolation and cleans up all associations
@@ -170,7 +209,7 @@ func (r *GatewayRepo) Delete(gatewayID, organizationID string) error {
 
 		// Check if gateway was actually deleted
 		if result.RowsAffected == 0 {
-			return errors.New("gateway not found")
+			return utils.ErrGatewayNotFound
 		}
 
 		return nil
@@ -237,6 +276,21 @@ func (r *GatewayRepo) GetTokenByUUID(tokenId string) (*models.GatewayToken, erro
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
+		}
+		return nil, err
+	}
+	return &token, nil
+}
+
+// GetActiveTokenByPrefix retrieves an active token by its unique prefix (UUID)
+// This enables O(1) indexed lookup instead of O(N) full table scan
+func (r *GatewayRepo) GetActiveTokenByPrefix(tokenPrefix string) (*models.GatewayToken, error) {
+	var token models.GatewayToken
+	err := r.db.Where("token_prefix = ? AND status = ?", tokenPrefix, "active").
+		First(&token).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil // Return nil, nil for invalid token (not an error)
 		}
 		return nil, err
 	}
@@ -311,4 +365,65 @@ func (r *GatewayRepo) HasGatewayAssociationsOrDeployments(gatewayID, organizatio
 
 	// Check associations
 	return r.HasGatewayAssociations(gatewayID, organizationID)
+}
+
+// CreateEnvironmentMapping creates a mapping between a gateway and an environment
+func (r *GatewayRepo) CreateEnvironmentMapping(mapping *models.GatewayEnvironmentMapping) error {
+	return r.db.Create(mapping).Error
+}
+
+// DeleteEnvironmentMapping deletes a mapping between a gateway and an environment
+func (r *GatewayRepo) DeleteEnvironmentMapping(gatewayID, environmentID string) error {
+	result := r.db.Where("gateway_uuid = ? AND environment_uuid = ?", gatewayID, environmentID).
+		Delete(&models.GatewayEnvironmentMapping{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// GetEnvironmentMappingsByGatewayID retrieves all environment mappings for a gateway
+func (r *GatewayRepo) GetEnvironmentMappingsByGatewayID(gatewayID string) ([]models.GatewayEnvironmentMapping, error) {
+	var mappings []models.GatewayEnvironmentMapping
+	err := r.db.Where("gateway_uuid = ?", gatewayID).Find(&mappings).Error
+	return mappings, err
+}
+
+// GetEnvironmentMappingsByGatewayIDs retrieves environment mappings for multiple gateways in bulk
+// Returns a map of gatewayID -> []GatewayEnvironmentMapping
+// This avoids N+1 queries when fetching environments for multiple gateways
+func (r *GatewayRepo) GetEnvironmentMappingsByGatewayIDs(gatewayIDs []string) (map[string][]models.GatewayEnvironmentMapping, error) {
+	if len(gatewayIDs) == 0 {
+		return make(map[string][]models.GatewayEnvironmentMapping), nil
+	}
+
+	var mappings []models.GatewayEnvironmentMapping
+	err := r.db.Where("gateway_uuid IN ?", gatewayIDs).Find(&mappings).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Group mappings by gateway UUID
+	result := make(map[string][]models.GatewayEnvironmentMapping)
+	for _, mapping := range mappings {
+		gwID := mapping.GatewayUUID.String()
+		result[gwID] = append(result[gwID], mapping)
+	}
+
+	return result, nil
+}
+
+// EnvironmentMappingExists checks if a mapping exists between a gateway and an environment
+func (r *GatewayRepo) EnvironmentMappingExists(gatewayID, environmentID string) (bool, error) {
+	var count int64
+	err := r.db.Model(&models.GatewayEnvironmentMapping{}).
+		Where("gateway_uuid = ? AND environment_uuid = ?", gatewayID, environmentID).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }

@@ -19,7 +19,9 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -60,7 +62,7 @@ func NewWebSocketController(
 	gatewayService *services.PlatformGatewayService,
 	rateLimitCount int,
 ) WebSocketController {
-	return &websocketController{
+	ctrl := &websocketController{
 		manager:        manager,
 		gatewayService: gatewayService,
 		upgrader: websocket.Upgrader{
@@ -73,6 +75,12 @@ func NewWebSocketController(
 		rateLimitMap:   make(map[string][]time.Time),
 		rateLimitCount: rateLimitCount,
 	}
+
+	// Start periodic cleanup goroutine to prevent memory leak
+	// Cleans up rate limit entries for IPs that haven't connected recently
+	go ctrl.cleanupRateLimitMap()
+
+	return ctrl
 }
 
 // Connect handles WebSocket upgrade requests
@@ -254,16 +262,68 @@ func (c *websocketController) checkRateLimit(clientIP string) bool {
 	return true // Connection allowed
 }
 
+// cleanupRateLimitMap periodically removes stale entries from the rate limit map
+// to prevent memory leaks from IPs that never reconnect.
+// Runs every 5 minutes and removes entries with no recent activity (>1 minute old).
+func (c *websocketController) cleanupRateLimitMap() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		c.rateLimitMu.Lock()
+
+		cutoff := time.Now().Add(-1 * time.Minute)
+		cleanedCount := 0
+
+		for ip, attempts := range c.rateLimitMap {
+			// Filter attempts to keep only recent ones
+			var recent []time.Time
+			for _, t := range attempts {
+				if t.After(cutoff) {
+					recent = append(recent, t)
+				}
+			}
+
+			// If no recent attempts, remove the entry entirely
+			if len(recent) == 0 {
+				delete(c.rateLimitMap, ip)
+				cleanedCount++
+			} else if len(recent) < len(attempts) {
+				// Update with only recent attempts if we filtered some out
+				c.rateLimitMap[ip] = recent
+			}
+		}
+
+		if cleanedCount > 0 {
+			slog.Info("cleaned up stale rate limit entries",
+				"removedCount", cleanedCount,
+				"remainingCount", len(c.rateLimitMap))
+		}
+
+		c.rateLimitMu.Unlock()
+	}
+}
+
 // getClientIP extracts the client IP address from the request
+// Properly parses X-Forwarded-For to extract only the first (leftmost) IP
+// to prevent rate limit bypass via header manipulation
 func getClientIP(r *http.Request) string {
-	// Check X-Forwarded-For header first
+	// Check X-Forwarded-For header first (parse only first IP)
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		return xff
+		// X-Forwarded-For format: "client, proxy1, proxy2"
+		// Only trust the leftmost IP (actual client)
+		if idx := strings.Index(xff, ","); idx != -1 {
+			return strings.TrimSpace(xff[:idx])
+		}
+		return strings.TrimSpace(xff)
 	}
 	// Check X-Real-IP header
 	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return xri
+		return strings.TrimSpace(xri)
 	}
-	// Fall back to RemoteAddr
+	// Fall back to RemoteAddr (strip port if present)
+	if idx := strings.LastIndex(r.RemoteAddr, ":"); idx != -1 {
+		return r.RemoteAddr[:idx]
+	}
 	return r.RemoteAddr
 }

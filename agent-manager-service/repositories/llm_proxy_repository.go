@@ -70,7 +70,7 @@ func (r *LLMProxyRepo) Create(p *models.LLMProxy, handle, name, version string, 
 			Handle:           handle,
 			Name:             name,
 			Version:          version,
-			Kind:             models.KindLLMAPI,
+			Kind:             models.KindLLMProxy,
 			OrganizationUUID: orgUUID,
 			CreatedAt:        now,
 			UpdatedAt:        now,
@@ -89,7 +89,7 @@ func (r *LLMProxyRepo) GetByID(proxyID, orgUUID string) (*models.LLMProxy, error
 	err := r.db.
 		Preload("Artifact").
 		Joins("JOIN artifacts a ON llm_proxies.uuid = a.uuid").
-		Where("a.handle = ? AND a.organization_uuid = ? AND a.kind = ?", proxyID, orgUUID, models.KindLLMAPI).
+		Where("a.handle = ? AND a.organization_uuid = ? AND a.kind = ?", proxyID, orgUUID, models.KindLLMProxy).
 		First(&proxy).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -106,7 +106,7 @@ func (r *LLMProxyRepo) List(orgUUID string, limit, offset int) ([]*models.LLMPro
 	err := r.db.
 		Preload("Artifact").
 		Joins("JOIN artifacts a ON llm_proxies.uuid = a.uuid").
-		Where("a.organization_uuid = ? AND a.kind = ?", orgUUID, models.KindLLMAPI).
+		Where("a.organization_uuid = ? AND a.kind = ?", orgUUID, models.KindLLMProxy).
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -120,7 +120,7 @@ func (r *LLMProxyRepo) ListByProject(orgUUID, projectUUID string, limit, offset 
 	err := r.db.
 		Preload("Artifact").
 		Joins("JOIN artifacts a ON llm_proxies.uuid = a.uuid").
-		Where("a.organization_uuid = ? AND llm_proxies.project_uuid = ? AND a.kind = ?", orgUUID, projectUUID, models.KindLLMAPI).
+		Where("a.organization_uuid = ? AND llm_proxies.project_uuid = ? AND a.kind = ?", orgUUID, projectUUID, models.KindLLMProxy).
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -134,7 +134,7 @@ func (r *LLMProxyRepo) ListByProvider(orgUUID, providerUUID string, limit, offse
 	err := r.db.
 		Preload("Artifact").
 		Joins("JOIN artifacts a ON llm_proxies.uuid = a.uuid").
-		Where("a.organization_uuid = ? AND llm_proxies.provider_uuid = ? AND a.kind = ?", orgUUID, providerUUID, models.KindLLMAPI).
+		Where("a.organization_uuid = ? AND llm_proxies.provider_uuid = ? AND a.kind = ?", orgUUID, providerUUID, models.KindLLMProxy).
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -144,7 +144,7 @@ func (r *LLMProxyRepo) ListByProvider(orgUUID, providerUUID string, limit, offse
 
 // Count counts LLM proxies for an organization
 func (r *LLMProxyRepo) Count(orgUUID string) (int, error) {
-	return r.artifactRepo.CountByKindAndOrg(models.KindLLMAPI, orgUUID)
+	return r.artifactRepo.CountByKindAndOrg(models.KindLLMProxy, orgUUID)
 }
 
 // CountByProject counts LLM proxies for a specific project
@@ -152,7 +152,7 @@ func (r *LLMProxyRepo) CountByProject(orgUUID, projectUUID string) (int, error) 
 	var count int64
 	err := r.db.Table("artifacts a").
 		Joins("JOIN llm_proxies p ON a.uuid = p.uuid").
-		Where("a.organization_uuid = ? AND p.project_uuid = ? AND a.kind = ?", orgUUID, projectUUID, models.KindLLMAPI).
+		Where("a.organization_uuid = ? AND p.project_uuid = ? AND a.kind = ?", orgUUID, projectUUID, models.KindLLMProxy).
 		Count(&count).Error
 	return int(count), err
 }
@@ -162,7 +162,7 @@ func (r *LLMProxyRepo) CountByProvider(orgUUID, providerUUID string) (int, error
 	var count int64
 	err := r.db.Table("artifacts a").
 		Joins("JOIN llm_proxies p ON a.uuid = p.uuid").
-		Where("a.organization_uuid = ? AND p.provider_uuid = ? AND a.kind = ?", orgUUID, providerUUID, models.KindLLMAPI).
+		Where("a.organization_uuid = ? AND p.provider_uuid = ? AND a.kind = ?", orgUUID, providerUUID, models.KindLLMProxy).
 		Count(&count).Error
 	return int(count), err
 }
@@ -176,7 +176,7 @@ func (r *LLMProxyRepo) Update(p *models.LLMProxy, handle string, orgUUID uuid.UU
 		var artifact struct{ UUID uuid.UUID }
 		result := tx.Table("artifacts").
 			Select("uuid").
-			Where("handle = ? AND organization_uuid = ? AND kind = ?", handle, orgUUID, models.KindLLMAPI).
+			Where("handle = ? AND organization_uuid = ? AND kind = ?", handle, orgUUID, models.KindLLMProxy).
 			Scan(&artifact)
 		if result.Error != nil {
 			return result.Error
@@ -223,7 +223,7 @@ func (r *LLMProxyRepo) Delete(proxyID, orgUUID string) error {
 		var artifact struct{ UUID uuid.UUID }
 		result := tx.Table("artifacts").
 			Select("uuid").
-			Where("handle = ? AND organization_uuid = ? AND kind = ?", proxyID, orgUUID, models.KindLLMAPI).
+			Where("handle = ? AND organization_uuid = ? AND kind = ?", proxyID, orgUUID, models.KindLLMProxy).
 			Scan(&artifact)
 		if result.Error != nil {
 			return result.Error
@@ -245,5 +245,5 @@ func (r *LLMProxyRepo) Delete(proxyID, orgUUID string) error {
 
 // Exists checks if an LLM proxy exists
 func (r *LLMProxyRepo) Exists(proxyID, orgUUID string) (bool, error) {
-	return r.artifactRepo.Exists(models.KindLLMAPI, proxyID, orgUUID)
+	return r.artifactRepo.Exists(models.KindLLMProxy, proxyID, orgUUID)
 }

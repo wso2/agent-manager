@@ -82,7 +82,7 @@ func (s *InternalServer) Start() error {
 	if cert.Certificate == nil {
 		slog.Info("Generating self-signed certificate for internal server")
 		// Ensure cert directory exists
-		if err := os.MkdirAll(s.cfg.CertDir, 0o755); err != nil {
+		if err := os.MkdirAll(s.cfg.CertDir, 0o700); err != nil {
 			return fmt.Errorf("failed to create cert directory: %w", err)
 		}
 		generatedCert, err := generateSelfSignedCert(certPath, keyPath)

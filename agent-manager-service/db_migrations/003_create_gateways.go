@@ -54,6 +54,7 @@ var migration003 = migration{
 				gateway_uuid UUID NOT NULL,
 				token_hash VARCHAR(255) NOT NULL,
 				salt VARCHAR(255) NOT NULL,
+				token_prefix VARCHAR(36) NOT NULL,
 				status VARCHAR(10) NOT NULL DEFAULT 'active',
 				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 				revoked_at TIMESTAMP,
@@ -64,6 +65,8 @@ var migration003 = migration{
 					CHECK (status IN ('active', 'revoked')),
 				CONSTRAINT chk_gateway_token_revoked
 					CHECK (revoked_at IS NULL OR status = 'revoked')
+				CREATE UNIQUE INDEX IF NOT EXISTS idx_gateway_tokens_prefix_active
+					ON gateway_tokens(token_prefix) WHERE status = 'active';
 			);
 
 			-- Indexes for gateways

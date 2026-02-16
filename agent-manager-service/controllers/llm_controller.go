@@ -400,30 +400,63 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 	// Check if gateways list is present and not empty
 	if len(req.Gateways) > 0 {
 		log.Info("CreateLLMProvider: creating and deploying provider to gateways", "orgName", orgName, "gatewayCount", len(req.Gateways))
-		created, err = c.providerService.CreateAndDeploy(orgID, "system", provider, req.Gateways, c.deploymentService)
+		resp, err := c.providerService.CreateAndDeploy(orgID, "system", provider, req.Gateways, c.deploymentService)
+		if err != nil {
+			switch {
+			case errors.Is(err, utils.ErrLLMProviderExists):
+				log.Warn("CreateLLMProvider: provider already exists", "orgName", orgName, "providerName", provider.Configuration.Name)
+				utils.WriteErrorResponse(w, http.StatusConflict, "LLM provider already exists")
+				return
+			case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
+				log.Error("CreateLLMProvider: template not found", "orgName", orgName, "templateUUID", req.TemplateUuid, "error", err)
+				utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
+				return
+			case errors.Is(err, utils.ErrInvalidInput):
+				log.Error("CreateLLMProvider: invalid input", "orgName", orgName, "error", err)
+				utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+				return
+			default:
+				log.Error("CreateLLMProvider: failed to create provider", "orgName", orgName, "error", err)
+				utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create LLM provider")
+				return
+			}
+		}
+		created = resp.Provider
+		// Log deployment results
+		successCount := 0
+		failedCount := 0
+		for _, result := range resp.Deployments {
+			if result.Success {
+				successCount++
+			} else {
+				failedCount++
+				log.Warn("CreateLLMProvider: deployment failed for gateway", "orgName", orgName, "gatewayID", result.GatewayID, "error", result.Error)
+			}
+		}
+		log.Info("CreateLLMProvider: deployment results", "orgName", orgName, "successCount", successCount, "failedCount", failedCount, "totalRequested", len(req.Gateways))
 	} else {
 		log.Info("CreateLLMProvider: creating provider without deployment", "orgName", orgName)
+		var err error
 		created, err = c.providerService.Create(orgID, "system", provider)
-	}
-
-	if err != nil {
-		switch {
-		case errors.Is(err, utils.ErrLLMProviderExists):
-			log.Warn("CreateLLMProvider: provider already exists", "orgName", orgName, "providerName", provider.Configuration.Name)
-			utils.WriteErrorResponse(w, http.StatusConflict, "LLM provider already exists")
-			return
-		case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
-			log.Error("CreateLLMProvider: template not found", "orgName", orgName, "templateUUID", req.TemplateUuid, "error", err)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
-			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			log.Error("CreateLLMProvider: invalid input", "orgName", orgName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
-			return
-		default:
-			log.Error("CreateLLMProvider: failed to create provider", "orgName", orgName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create LLM provider")
-			return
+		if err != nil {
+			switch {
+			case errors.Is(err, utils.ErrLLMProviderExists):
+				log.Warn("CreateLLMProvider: provider already exists", "orgName", orgName, "providerName", provider.Configuration.Name)
+				utils.WriteErrorResponse(w, http.StatusConflict, "LLM provider already exists")
+				return
+			case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
+				log.Error("CreateLLMProvider: template not found", "orgName", orgName, "templateUUID", req.TemplateUuid, "error", err)
+				utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
+				return
+			case errors.Is(err, utils.ErrInvalidInput):
+				log.Error("CreateLLMProvider: invalid input", "orgName", orgName, "error", err)
+				utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+				return
+			default:
+				log.Error("CreateLLMProvider: failed to create provider", "orgName", orgName, "error", err)
+				utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create LLM provider")
+				return
+			}
 		}
 	}
 
@@ -612,30 +645,78 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	// Check if gateways list is present (not nil), if so use UpdateAndSync
 	if req.Gateways != nil {
 		log.Info("UpdateLLMProvider: updating and syncing deployments to gateways", "orgName", orgName, "gatewayCount", len(req.Gateways))
-		updated, err = c.providerService.UpdateAndSync(providerID, orgID, provider, req.Gateways, c.deploymentService)
+		resp, err := c.providerService.UpdateAndSync(providerID, orgID, provider, req.Gateways, c.deploymentService)
+		if err != nil {
+			switch {
+			case errors.Is(err, utils.ErrLLMProviderNotFound):
+				log.Warn("UpdateLLMProvider: provider not found", "orgName", orgName, "providerID", providerID)
+				utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+				return
+			case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
+				log.Error("UpdateLLMProvider: template not found", "orgName", orgName, "providerID", providerID, "error", err)
+				utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
+				return
+			case errors.Is(err, utils.ErrInvalidInput):
+				log.Error("UpdateLLMProvider: invalid input", "orgName", orgName, "providerID", providerID, "error", err)
+				utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+				return
+			default:
+				log.Error("UpdateLLMProvider: failed to update provider", "orgName", orgName, "providerID", providerID, "error", err)
+				utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update LLM provider")
+				return
+			}
+		}
+		updated = resp.Provider
+		// Log deployment/undeployment results
+		successDeployCount := 0
+		failedDeployCount := 0
+		for _, result := range resp.Deployments {
+			if result.Success {
+				successDeployCount++
+			} else {
+				failedDeployCount++
+				log.Warn("UpdateLLMProvider: deployment failed for gateway", "orgName", orgName, "gatewayID", result.GatewayID, "error", result.Error)
+			}
+		}
+		successUndeployCount := 0
+		failedUndeployCount := 0
+		for _, result := range resp.Undeployments {
+			if result.Success {
+				successUndeployCount++
+			} else {
+				failedUndeployCount++
+				log.Warn("UpdateLLMProvider: undeployment failed for gateway", "orgName", orgName, "gatewayID", result.GatewayID, "error", result.Error)
+			}
+		}
+		log.Info("UpdateLLMProvider: sync results",
+			"orgName", orgName,
+			"successfulDeployments", successDeployCount,
+			"failedDeployments", failedDeployCount,
+			"successfulUndeployments", successUndeployCount,
+			"failedUndeployments", failedUndeployCount)
 	} else {
 		log.Info("UpdateLLMProvider: updating provider without deployment sync", "orgName", orgName)
+		var err error
 		updated, err = c.providerService.Update(providerID, orgID, provider)
-	}
-
-	if err != nil {
-		switch {
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
-			log.Warn("UpdateLLMProvider: provider not found", "orgName", orgName, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
-			return
-		case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
-			log.Error("UpdateLLMProvider: template not found", "orgName", orgName, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
-			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			log.Error("UpdateLLMProvider: invalid input", "orgName", orgName, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
-			return
-		default:
-			log.Error("UpdateLLMProvider: failed to update provider", "orgName", orgName, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update LLM provider")
-			return
+		if err != nil {
+			switch {
+			case errors.Is(err, utils.ErrLLMProviderNotFound):
+				log.Warn("UpdateLLMProvider: provider not found", "orgName", orgName, "providerID", providerID)
+				utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+				return
+			case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
+				log.Error("UpdateLLMProvider: template not found", "orgName", orgName, "providerID", providerID, "error", err)
+				utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
+				return
+			case errors.Is(err, utils.ErrInvalidInput):
+				log.Error("UpdateLLMProvider: invalid input", "orgName", orgName, "providerID", providerID, "error", err)
+				utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+				return
+			default:
+				log.Error("UpdateLLMProvider: failed to update provider", "orgName", orgName, "providerID", providerID, "error", err)
+				utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update LLM provider")
+				return
+			}
 		}
 	}
 

@@ -41,7 +41,8 @@ func (Artifact) TableName() string {
 
 // Artifact Kind constants
 const (
-	KindRestAPI   = "RestAPI"
-	KindWebSubAPI = "WebSubAPI"
-	KindLLMAPI    = "LLMAPI"
+	KindRestAPI     = "RestAPI"
+	KindWebSubAPI   = "WebSubAPI"
+	KindLLMProvider = "LlmProvider"
+	KindLLMProxy    = "LlmProxy"
 )

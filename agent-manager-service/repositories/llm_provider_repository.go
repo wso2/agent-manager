@@ -65,13 +65,13 @@ func (r *LLMProviderRepo) Create(tx *gorm.DB, p *models.LLMProvider, handle, nam
 	now := time.Now()
 
 	// Insert into artifacts table first
-	slog.Info("LLMProviderRepo.Create: creating artifact", "handle", handle, "uuid", p.UUID, "kind", models.KindLLMAPI)
+	slog.Info("LLMProviderRepo.Create: creating artifact", "handle", handle, "uuid", p.UUID, "kind", models.KindLLMProvider)
 	if err := r.artifactRepo.Create(tx, &models.Artifact{
 		UUID:             p.UUID,
 		Handle:           handle,
 		Name:             name,
 		Version:          version,
-		Kind:             models.KindLLMAPI,
+		Kind:             models.KindLLMProvider,
 		OrganizationUUID: orgUUID,
 		CreatedAt:        now,
 		UpdatedAt:        now,
@@ -99,7 +99,7 @@ func (r *LLMProviderRepo) GetByUUID(providerID, orgUUID string) (*models.LLMProv
 	err := r.db.
 		Preload("Artifact").
 		Joins("JOIN artifacts a ON llm_providers.uuid = a.uuid").
-		Where("a.uuid = ? AND a.organization_uuid = ? AND a.kind = ?", providerID, orgUUID, models.KindLLMAPI).
+		Where("a.uuid = ? AND a.organization_uuid = ? AND a.kind = ?", providerID, orgUUID, models.KindLLMProvider).
 		First(&provider).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -122,7 +122,7 @@ func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*models.LLM
 	err := r.db.
 		Preload("Artifact").
 		Joins("JOIN artifacts a ON llm_providers.uuid = a.uuid").
-		Where("a.organization_uuid = ? AND a.kind = ?", orgUUID, models.KindLLMAPI).
+		Where("a.organization_uuid = ? AND a.kind = ?", orgUUID, models.KindLLMProvider).
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -138,7 +138,7 @@ func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*models.LLM
 
 // Count counts LLM providers for an organization
 func (r *LLMProviderRepo) Count(orgUUID string) (int, error) {
-	return r.artifactRepo.CountByKindAndOrg(models.KindLLMAPI, orgUUID)
+	return r.artifactRepo.CountByKindAndOrg(models.KindLLMProvider, orgUUID)
 }
 
 // Update modifies an existing LLM provider
@@ -153,7 +153,7 @@ func (r *LLMProviderRepo) Update(p *models.LLMProvider, handle string, orgUUID u
 		var artifact struct{ UUID uuid.UUID }
 		result := tx.Table("artifacts").
 			Select("uuid").
-			Where("handle = ? AND organization_uuid = ? AND kind = ?", handle, orgUUID, models.KindLLMAPI).
+			Where("handle = ? AND organization_uuid = ? AND kind = ?", handle, orgUUID, models.KindLLMProvider).
 			Take(&artifact)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -215,7 +215,7 @@ func (r *LLMProviderRepo) Delete(providerID, orgUUID string) error {
 		var artifact struct{ UUID uuid.UUID }
 		result := tx.Table("artifacts").
 			Select("uuid").
-			Where("handle = ? AND organization_uuid = ? AND kind = ?", providerID, orgUUID, models.KindLLMAPI).
+			Where("handle = ? AND organization_uuid = ? AND kind = ?", providerID, orgUUID, models.KindLLMProvider).
 			Take(&artifact)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -252,7 +252,7 @@ func (r *LLMProviderRepo) Delete(providerID, orgUUID string) error {
 func (r *LLMProviderRepo) Exists(providerID, orgUUID string) (bool, error) {
 	slog.Info("LLMProviderRepo.Exists: checking", "providerID", providerID, "orgUUID", orgUUID)
 
-	exists, err := r.artifactRepo.Exists(models.KindLLMAPI, providerID, orgUUID)
+	exists, err := r.artifactRepo.Exists(models.KindLLMProvider, providerID, orgUUID)
 	if err != nil {
 		slog.Error("LLMProviderRepo.Exists: check failed", "providerID", providerID, "orgUUID", orgUUID, "error", err)
 		return false, err

@@ -37,6 +37,26 @@ const (
 	llmStatusFailed   = "failed"
 )
 
+// DeploymentResult captures the outcome of deploying to a single gateway
+type DeploymentResult struct {
+	GatewayID string `json:"gateway_id"`
+	Success   bool   `json:"success"`
+	Error     string `json:"error,omitempty"`
+}
+
+// CreateAndDeployResponse contains the created provider and deployment results
+type CreateAndDeployResponse struct {
+	Provider    *models.LLMProvider `json:"provider"`
+	Deployments []DeploymentResult  `json:"deployments"`
+}
+
+// UpdateAndSyncResponse contains the updated provider and sync results
+type UpdateAndSyncResponse struct {
+	Provider      *models.LLMProvider `json:"provider"`
+	Deployments   []DeploymentResult  `json:"deployments"`   // Results for new gateway deployments
+	Undeployments []DeploymentResult  `json:"undeployments"` // Results for removed gateway undeployments
+}
+
 // LLMProviderService handles LLM provider business logic
 type LLMProviderService struct {
 	db           *gorm.DB
@@ -343,7 +363,7 @@ func (s *LLMProviderService) Delete(providerID, orgID string) error {
 }
 
 // UpdateAndSync updates an LLM provider and syncs its gateway deployments
-func (s *LLMProviderService) UpdateAndSync(providerID, orgID string, updates *models.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*models.LLMProvider, error) {
+func (s *LLMProviderService) UpdateAndSync(providerID, orgID string, updates *models.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*UpdateAndSyncResponse, error) {
 	slog.Info("LLMProviderService.UpdateAndSync: starting", "providerID", providerID, "orgID", orgID, "gatewayCount", len(gatewayIDs))
 
 	// First, update the provider using the existing Update method
@@ -359,39 +379,51 @@ func (s *LLMProviderService) UpdateAndSync(providerID, orgID string, updates *mo
 	providerUUID, err := uuid.Parse(providerID)
 	if err != nil {
 		slog.Error("LLMProviderService.UpdateAndSync: invalid provider UUID", "providerID", providerID, "error", err)
-		return updated, fmt.Errorf("invalid provider UUID: %w", err)
+		return nil, fmt.Errorf("invalid provider UUID: %w", err)
 	}
 
-	// Convert gateway IDs to UUIDs
+	// Convert gateway IDs to UUIDs and track invalid ones
 	gatewayUUIDs := make([]uuid.UUID, 0, len(gatewayIDs))
+	invalidGatewayResults := []DeploymentResult{}
 	for _, gatewayID := range gatewayIDs {
 		gatewayUUID, err := uuid.Parse(gatewayID)
 		if err != nil {
 			slog.Error("LLMProviderService.UpdateAndSync: invalid gateway UUID", "orgID", orgID, "gatewayID", gatewayID, "error", err)
+			invalidGatewayResults = append(invalidGatewayResults, DeploymentResult{
+				GatewayID: gatewayID,
+				Success:   false,
+				Error:     fmt.Sprintf("invalid gateway UUID: %v", err),
+			})
 			continue
 		}
 		gatewayUUIDs = append(gatewayUUIDs, gatewayUUID)
 	}
 
-	// Get current gateway mappings
+	// Return error if ALL gateway IDs are invalid
+	if len(gatewayIDs) > 0 && len(gatewayUUIDs) == 0 {
+		slog.Error("LLMProviderService.UpdateAndSync: all gateway UUIDs are invalid", "providerID", providerID, "totalRequested", len(gatewayIDs))
+		return nil, fmt.Errorf("all %d gateway IDs are invalid", len(gatewayIDs))
+	}
+
+	// Get current gateway mappings (returns []string)
 	currentGateways, err := s.mappingRepo.GetByProvider(providerUUID)
 	if err != nil {
 		slog.Error("LLMProviderService.UpdateAndSync: failed to get current mappings", "providerID", providerID, "error", err)
-		return updated, err
+		return nil, err
 	}
 
 	// Replace mappings in database
 	if err := s.mappingRepo.ReplaceForProvider(providerUUID, gatewayUUIDs); err != nil {
 		slog.Error("LLMProviderService.UpdateAndSync: failed to replace gateway mappings", "providerID", providerID, "error", err)
-		return updated, err
+		return nil, err
 	}
 
 	slog.Info("LLMProviderService.UpdateAndSync: gateway mappings replaced", "providerID", providerID, "newCount", len(gatewayUUIDs), "oldCount", len(currentGateways))
 
 	// Determine which gateways to add and which to remove
 	currentGatewayMap := make(map[string]bool)
-	for _, gw := range currentGateways {
-		currentGatewayMap[gw] = true
+	for _, gwID := range currentGateways {
+		currentGatewayMap[gwID] = true
 	}
 
 	newGatewayMap := make(map[string]bool)
@@ -399,10 +431,16 @@ func (s *LLMProviderService) UpdateAndSync(providerID, orgID string, updates *mo
 		newGatewayMap[gw.String()] = true
 	}
 
-	// Deploy to newly added gateways
+	// Deploy to newly added gateways and track results
+	deploymentResults := make([]DeploymentResult, 0)
+	deploymentResults = append(deploymentResults, invalidGatewayResults...)
 	deploymentIndex := 1
+	successfulDeployments := 0
+	attemptedDeployments := 0
+
 	for _, gatewayUUID := range gatewayUUIDs {
 		if !currentGatewayMap[gatewayUUID.String()] {
+			attemptedDeployments++
 			gatewayID := gatewayUUID.String()
 			slog.Info("LLMProviderService.UpdateAndSync: deploying to new gateway", "providerID", providerID, "gatewayID", gatewayID)
 
@@ -419,43 +457,99 @@ func (s *LLMProviderService) UpdateAndSync(providerID, orgID string, updates *mo
 
 			if _, err := deploymentService.DeployLLMProvider(providerID, deployReq, orgID); err != nil {
 				slog.Error("LLMProviderService.UpdateAndSync: failed to deploy to new gateway", "providerID", providerID, "gatewayID", gatewayID, "error", err)
+				deploymentResults = append(deploymentResults, DeploymentResult{
+					GatewayID: gatewayID,
+					Success:   false,
+					Error:     err.Error(),
+				})
 			} else {
 				slog.Info("LLMProviderService.UpdateAndSync: deployed to new gateway successfully", "providerID", providerID, "gatewayID", gatewayID)
+				successfulDeployments++
+				deploymentResults = append(deploymentResults, DeploymentResult{
+					GatewayID: gatewayID,
+					Success:   true,
+				})
 			}
 			deploymentIndex++
 		}
 	}
 
-	// Undeploy from removed gateways
-	for _, gatewayUUID := range currentGateways {
-		if !newGatewayMap[gatewayUUID] {
-			gatewayID := gatewayUUID
+	// Fail if ALL new deployments failed
+	if attemptedDeployments > 0 && successfulDeployments == 0 {
+		slog.Error("LLMProviderService.UpdateAndSync: all new deployments failed", "providerID", providerID, "attempted", attemptedDeployments)
+		return nil, fmt.Errorf("all %d new gateway deployments failed", attemptedDeployments)
+	}
+
+	// Undeploy from removed gateways and track results
+	undeploymentResults := make([]DeploymentResult, 0)
+	attemptedUndeployments := 0
+	successfulUndeployments := 0
+
+	for _, gatewayID := range currentGateways {
+		if !newGatewayMap[gatewayID] {
+			attemptedUndeployments++
 			slog.Info("LLMProviderService.UpdateAndSync: undeploying from removed gateway", "providerID", providerID, "gatewayID", gatewayID)
 
 			// Get current deployment for this gateway
 			deployments, err := deploymentService.GetLLMProviderDeployments(providerID, orgID, &gatewayID, nil)
 			if err != nil {
 				slog.Error("LLMProviderService.UpdateAndSync: failed to get deployments for gateway", "providerID", providerID, "gatewayID", gatewayID, "error", err)
+				undeploymentResults = append(undeploymentResults, DeploymentResult{
+					GatewayID: gatewayID,
+					Success:   false,
+					Error:     fmt.Sprintf("failed to fetch deployments: %v", err),
+				})
 				continue
 			}
 
 			// Find the deployed deployment and undeploy it
+			found := false
 			for _, deployment := range deployments {
 				if deployment.Status != nil && *deployment.Status == models.DeploymentStatusDeployed {
+					found = true
 					if _, err := deploymentService.UndeployLLMProviderDeployment(providerID, deployment.DeploymentID.String(), gatewayID, orgID); err != nil {
 						slog.Error("LLMProviderService.UpdateAndSync: failed to undeploy from removed gateway", "providerID", providerID, "gatewayID", gatewayID, "deploymentID", deployment.DeploymentID, "error", err)
+						undeploymentResults = append(undeploymentResults, DeploymentResult{
+							GatewayID: gatewayID,
+							Success:   false,
+							Error:     err.Error(),
+						})
 					} else {
 						slog.Info("LLMProviderService.UpdateAndSync: undeployed from removed gateway successfully", "providerID", providerID, "gatewayID", gatewayID)
+						successfulUndeployments++
+						undeploymentResults = append(undeploymentResults, DeploymentResult{
+							GatewayID: gatewayID,
+							Success:   true,
+						})
 					}
 					break
 				}
 			}
+			if !found {
+				slog.Warn("LLMProviderService.UpdateAndSync: no deployed deployment found for gateway", "providerID", providerID, "gatewayID", gatewayID)
+				undeploymentResults = append(undeploymentResults, DeploymentResult{
+					GatewayID: gatewayID,
+					Success:   false,
+					Error:     "no deployed deployment found",
+				})
+			}
 		}
 	}
 
-	slog.Info("LLMProviderService.UpdateAndSync: completed", "providerID", providerID, "newGatewayCount", len(gatewayUUIDs), "previousGatewayCount", len(currentGateways))
+	slog.Info("LLMProviderService.UpdateAndSync: completed",
+		"providerID", providerID,
+		"newGatewayCount", len(gatewayUUIDs),
+		"previousGatewayCount", len(currentGateways),
+		"successfulDeployments", successfulDeployments,
+		"attemptedDeployments", attemptedDeployments,
+		"successfulUndeployments", successfulUndeployments,
+		"attemptedUndeployments", attemptedUndeployments)
 
-	return updated, nil
+	return &UpdateAndSyncResponse{
+		Provider:      updated,
+		Deployments:   deploymentResults,
+		Undeployments: undeploymentResults,
+	}, nil
 }
 
 // ListProxiesByProvider lists all LLM proxies for a provider
@@ -488,7 +582,7 @@ func (s *LLMProviderService) ListProxiesByProvider(providerID, orgID string, lim
 }
 
 // CreateAndDeploy creates an LLM provider and deploys it to the specified gateways
-func (s *LLMProviderService) CreateAndDeploy(orgID, createdBy string, provider *models.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*models.LLMProvider, error) {
+func (s *LLMProviderService) CreateAndDeploy(orgID, createdBy string, provider *models.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*CreateAndDeployResponse, error) {
 	slog.Info("LLMProviderService.CreateAndDeploy: starting", "orgID", orgID, "createdBy", createdBy, "gatewayCount", len(gatewayIDs))
 
 	// First, create the provider using the existing Create method
@@ -500,33 +594,51 @@ func (s *LLMProviderService) CreateAndDeploy(orgID, createdBy string, provider *
 
 	slog.Info("LLMProviderService.CreateAndDeploy: provider created successfully", "orgID", orgID, "providerUUID", created.UUID)
 
+	// Track invalid gateway UUIDs and create mappings for valid ones
 	mappings := make([]*models.LLMProviderGatewayMapping, 0, len(gatewayIDs))
+	deploymentResults := make([]DeploymentResult, 0, len(gatewayIDs))
+	validGatewayIDs := make([]string, 0, len(gatewayIDs))
 
 	for _, gatewayID := range gatewayIDs {
 		gatewayUUID, err := uuid.Parse(gatewayID)
 		if err != nil {
 			slog.Error("LLMProviderService.CreateAndDeploy: invalid gateway UUID", "orgID", orgID, "gatewayID", gatewayID, "error", err)
+			deploymentResults = append(deploymentResults, DeploymentResult{
+				GatewayID: gatewayID,
+				Success:   false,
+				Error:     fmt.Sprintf("invalid gateway UUID: %v", err),
+			})
 			continue
 		}
 		mappings = append(mappings, &models.LLMProviderGatewayMapping{
 			LLMProviderUUID: created.UUID.String(),
 			GatewayUUID:     gatewayUUID.String(),
 		})
+		validGatewayIDs = append(validGatewayIDs, gatewayID)
+	}
+
+	// Return error if ALL gateway IDs are invalid
+	if len(gatewayIDs) > 0 && len(validGatewayIDs) == 0 {
+		slog.Error("LLMProviderService.CreateAndDeploy: all gateway UUIDs are invalid", "orgID", orgID, "totalRequested", len(gatewayIDs))
+		return nil, fmt.Errorf("all %d gateway IDs are invalid", len(gatewayIDs))
 	}
 
 	// Store mappings in database
+	mappingsFailed := false
 	if len(mappings) > 0 {
 		if err := s.mappingRepo.CreateBatch(mappings); err != nil {
 			slog.Error("LLMProviderService.CreateAndDeploy: failed to store gateway mappings", "orgID", orgID, "providerUUID", created.UUID, "error", err)
-			// Continue with deployment even if mapping storage fails
-		} else {
-			slog.Info("LLMProviderService.CreateAndDeploy: gateway mappings stored", "orgID", orgID, "providerUUID", created.UUID, "mappingCount", len(mappings))
+			mappingsFailed = true
+			// Return error instead of silently continuing - this creates state inconsistency
+			return nil, fmt.Errorf("failed to store gateway mappings: %w", err)
 		}
+		slog.Info("LLMProviderService.CreateAndDeploy: gateway mappings stored", "orgID", orgID, "providerUUID", created.UUID, "mappingCount", len(mappings))
 	}
 
-	// Deploy to each gateway
-	for i, gatewayID := range gatewayIDs {
-		slog.Info("LLMProviderService.CreateAndDeploy: deploying to gateway", "orgID", orgID, "providerUUID", created.UUID, "gatewayID", gatewayID, "index", i+1, "total", len(gatewayIDs))
+	// Deploy to each valid gateway and track results
+	successfulDeployments := 0
+	for i, gatewayID := range validGatewayIDs {
+		slog.Info("LLMProviderService.CreateAndDeploy: deploying to gateway", "orgID", orgID, "providerUUID", created.UUID, "gatewayID", gatewayID, "index", i+1, "total", len(validGatewayIDs))
 
 		// Generate deployment name: provider-name-gateway-index
 		deploymentName := fmt.Sprintf("%s-deployment-%d", created.Configuration.Name, i+1)
@@ -546,16 +658,34 @@ func (s *LLMProviderService) CreateAndDeploy(orgID, createdBy string, provider *
 		deployment, err := deploymentService.DeployLLMProvider(created.UUID.String(), deployReq, orgID)
 		if err != nil {
 			slog.Error("LLMProviderService.CreateAndDeploy: failed to deploy to gateway", "orgID", orgID, "providerUUID", created.UUID, "gatewayID", gatewayID, "error", err)
-			// Log error but continue with other gateways
+			deploymentResults = append(deploymentResults, DeploymentResult{
+				GatewayID: gatewayID,
+				Success:   false,
+				Error:     err.Error(),
+			})
 			continue
 		}
 
 		slog.Info("LLMProviderService.CreateAndDeploy: deployed to gateway successfully", "orgID", orgID, "providerUUID", created.UUID, "gatewayID", gatewayID, "deploymentID", deployment.DeploymentID)
+		successfulDeployments++
+		deploymentResults = append(deploymentResults, DeploymentResult{
+			GatewayID: gatewayID,
+			Success:   true,
+		})
 	}
 
-	slog.Info("LLMProviderService.CreateAndDeploy: completed", "orgID", orgID, "providerUUID", created.UUID, "successfulDeployments", len(gatewayIDs))
+	// Fail if ALL deployments failed (but only if we had valid gateways to deploy to)
+	if !mappingsFailed && len(validGatewayIDs) > 0 && successfulDeployments == 0 {
+		slog.Error("LLMProviderService.CreateAndDeploy: all deployments failed", "orgID", orgID, "providerUUID", created.UUID, "attempted", len(validGatewayIDs))
+		return nil, fmt.Errorf("all %d gateway deployments failed", len(validGatewayIDs))
+	}
 
-	return created, nil
+	slog.Info("LLMProviderService.CreateAndDeploy: completed", "orgID", orgID, "providerUUID", created.UUID, "successfulDeployments", successfulDeployments, "totalAttempted", len(validGatewayIDs))
+
+	return &CreateAndDeployResponse{
+		Provider:    created,
+		Deployments: deploymentResults,
+	}, nil
 }
 
 func (s *LLMProviderService) GetProviderGatewayMapping(providerId uuid.UUID) ([]string, error) {

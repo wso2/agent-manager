@@ -29,7 +29,6 @@ import (
 	"gorm.io/gorm"
 
 	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
@@ -67,7 +66,6 @@ type gatewayController struct {
 	gatewayService *services.PlatformGatewayService
 	orgRepo        repositories.OrganizationRepository
 	ocClient       occlient.OpenChoreoClient
-	db             *gorm.DB
 }
 
 // NewGatewayController creates a new gateway controller
@@ -75,13 +73,11 @@ func NewGatewayController(
 	gatewayService *services.PlatformGatewayService,
 	orgRepo repositories.OrganizationRepository,
 	ocClient occlient.OpenChoreoClient,
-	db *gorm.DB,
 ) GatewayController {
 	return &gatewayController{
 		gatewayService: gatewayService,
 		orgRepo:        orgRepo,
 		ocClient:       ocClient,
-		db:             db,
 	}
 }
 
@@ -186,7 +182,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 	// Assign to environments if provided (using gateway_environment_mappings table)
 	if len(req.EnvironmentIds) > 0 {
 		for _, envID := range req.EnvironmentIds {
-			if err := c.assignGatewayToEnvironmentInDB(ctx, orgName, gateway.ID, envID); err != nil {
+			if err := c.gatewayService.AssignGatewayToEnvironment(gateway.ID, envID); err != nil {
 				log.Warn("RegisterGateway: failed to assign gateway to environment", "envID", envID, "error", err)
 				// Continue with other environments
 			}
@@ -241,9 +237,20 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Parse pagination parameters
+	// Parse and validate pagination parameters
 	limit := getIntQueryParam(r, "limit", defaultLimit)
 	offset := getIntQueryParam(r, "offset", defaultOffset)
+
+	// Validate pagination params to prevent panic
+	if limit < 0 {
+		limit = defaultLimit
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if limit > 1000 {
+		limit = 1000 // Cap maximum page size
+	}
 
 	// Parse filter parameters
 	filters := &services.GatewayListFilters{}
@@ -273,37 +280,39 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	// Get gateways from local service with filters
-	gatewaysResp, err := c.gatewayService.ListGateways(&orgID, filters)
+	// Get gateways from local service with filters and DB-level pagination
+	gatewaysResp, err := c.gatewayService.ListGateways(&orgID, filters, limit, offset)
 	if err != nil {
 		log.Error("ListGateways: failed to list gateways", "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list gateways")
 		return
 	}
 
-	// Convert to spec responses
-	specGateways := make([]spec.GatewayResponse, 0)
+	// Fetch OpenChoreo environments ONCE for the entire organization (not per-gateway)
+	ocEnvironments, err := c.ocClient.ListEnvironments(ctx, orgName)
+	if err != nil {
+		log.Warn("ListGateways: failed to list environments from OpenChoreo", "error", err)
+		ocEnvironments = nil // Continue with empty environments
+	}
+
+	// Bulk fetch environment mappings for all gateways to avoid N+1 query
+	gatewayIDs := make([]string, len(gatewaysResp.List))
+	for i, gw := range gatewaysResp.List {
+		gatewayIDs[i] = gw.ID
+	}
+	allMappings := c.getGatewayEnvironmentMappingsBulk(ctx, gatewayIDs)
+
+	// Convert to spec responses with pre-fetched environment data
+	specGateways := make([]spec.GatewayResponse, 0, len(gatewaysResp.List))
 	for _, gw := range gatewaysResp.List {
-		// Get environments from DB for each gateway
-		environments := c.getGatewayEnvironmentsFromDB(ctx, orgName, gw.ID)
+		// Use pre-fetched mappings and environments (no additional DB/RPC calls)
+		environments := c.matchGatewayEnvironments(gw.ID, allMappings[gw.ID], ocEnvironments, orgName)
 		specGateways = append(specGateways, convertGatewayToSpecResponse(&gw, orgName, environments))
 	}
 
-	// Apply pagination (client-side for now)
-	total := len(specGateways)
-	start := offset
-	end := offset + limit
-	if start > len(specGateways) {
-		start = len(specGateways)
-	}
-	if end > len(specGateways) {
-		end = len(specGateways)
-	}
-	paginatedGateways := specGateways[start:end]
-
 	response := spec.GatewayListResponse{
-		Gateways: paginatedGateways,
-		Total:    int32(total),
+		Gateways: specGateways,
+		Total:    int32(gatewaysResp.Pagination.Total),
 		Limit:    int32(limit),
 		Offset:   int32(offset),
 	}
@@ -361,19 +370,17 @@ func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Delete environment mappings first
+	if err := c.gatewayService.DeleteGatewayEnvironmentMappings(gatewayID); err != nil {
+		log.Warn("DeleteGateway: failed to delete gateway-environment mappings", "error", err)
+		// Continue with gateway deletion even if mapping deletion fails
+	}
+
 	// Delete using local service
 	if err := c.gatewayService.DeleteGateway(gatewayID, orgID); err != nil {
 		log.Error("DeleteGateway: failed to delete gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to delete gateway")
 		return
-	}
-
-	// Delete environment mappings from DB
-	gwUUID, err := uuid.Parse(gatewayID)
-	if err == nil {
-		if err := db.DB(ctx).Where("gateway_uuid = ?", gwUUID).Delete(&models.GatewayEnvironmentMapping{}).Error; err != nil {
-			log.Warn("DeleteGateway: failed to delete gateway-environment mappings", "error", err)
-		}
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
@@ -400,8 +407,8 @@ func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r 
 		return
 	}
 
-	// Assign in DB
-	if err := c.assignGatewayToEnvironmentInDB(ctx, orgName, gatewayID, envID); err != nil {
+	// Assign via service
+	if err := c.gatewayService.AssignGatewayToEnvironment(gatewayID, envID); err != nil {
 		log.Error("AssignGatewayToEnvironment: failed to assign", "error", err)
 		handleGatewayErrors(w, err, "Failed to assign gateway to environment")
 		return
@@ -416,32 +423,18 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 	envID := strings.TrimSpace(r.PathValue("envID"))
 
-	gwUUID, err := uuid.Parse(gatewayID)
-	if err != nil {
-		log.Error("RemoveGatewayFromEnvironment: invalid gateway ID", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid gateway ID")
-		return
-	}
-
-	envUUID, err := uuid.Parse(envID)
-	if err != nil {
-		log.Error("RemoveGatewayFromEnvironment: invalid environment ID", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid environment ID")
-		return
-	}
-
-	// Delete the mapping from DB
-	result := db.DB(ctx).Where("gateway_uuid = ? AND environment_uuid = ?", gwUUID, envUUID).
-		Delete(&models.GatewayEnvironmentMapping{})
-
-	if result.Error != nil {
-		log.Error("RemoveGatewayFromEnvironment: failed to delete mapping", "error", result.Error)
+	// Remove via service
+	if err := c.gatewayService.RemoveGatewayFromEnvironment(gatewayID, envID); err != nil {
+		log.Error("RemoveGatewayFromEnvironment: failed to remove mapping", "error", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) || strings.Contains(err.Error(), "mapping not found") {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway-environment mapping not found")
+			return
+		}
+		if strings.Contains(err.Error(), "invalid") {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove gateway from environment")
-		return
-	}
-
-	if result.RowsAffected == 0 {
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway-environment mapping not found")
 		return
 	}
 
@@ -609,63 +602,13 @@ func (c *gatewayController) GetGatewayArtifacts(w http.ResponseWriter, r *http.R
 
 // Internal helper methods
 
-// assignGatewayToEnvironmentInDB creates a mapping in the gateway_environment_mappings table
-func (c *gatewayController) assignGatewayToEnvironmentInDB(ctx context.Context, orgName, gatewayID, envID string) error {
-	log := logger.GetLogger(ctx)
-
-	gwUUID, err := uuid.Parse(gatewayID)
-	if err != nil {
-		return fmt.Errorf("invalid gateway UUID: %w", err)
-	}
-
-	envUUID, err := uuid.Parse(envID)
-	if err != nil {
-		return fmt.Errorf("invalid environment UUID: %w", err)
-	}
-
-	// Check if mapping already exists
-	var existing models.GatewayEnvironmentMapping
-	err = db.DB(ctx).Where("gateway_uuid = ? AND environment_uuid = ?", gwUUID, envUUID).
-		First(&existing).Error
-
-	if err == nil {
-		log.Warn("Gateway already assigned to environment", "gatewayID", gatewayID, "envID", envID)
-		return nil // Already assigned, treat as success
-	}
-
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return fmt.Errorf("failed to check existing mapping: %w", err)
-	}
-
-	// Create mapping
-	mapping := &models.GatewayEnvironmentMapping{
-		GatewayUUID:     gwUUID,
-		EnvironmentUUID: envUUID,
-	}
-
-	if err := db.DB(ctx).Create(mapping).Error; err != nil {
-		return fmt.Errorf("failed to create gateway-environment mapping: %w", err)
-	}
-
-	return nil
-}
-
 // getGatewayEnvironmentsFromDB retrieves environments associated with a gateway
-// Fetches environment UUIDs from DB mappings, then gets environment details from OpenChoreo
+// Fetches environment UUIDs from service layer, then gets environment details from OpenChoreo
 func (c *gatewayController) getGatewayEnvironmentsFromDB(ctx context.Context, orgName, gatewayID string) []models.GatewayEnvironmentResponse {
 	log := logger.GetLogger(ctx)
 
-	gwUUID, err := uuid.Parse(gatewayID)
-	if err != nil {
-		log.Warn("getGatewayEnvironmentsFromDB: invalid gateway UUID", "error", err)
-		return []models.GatewayEnvironmentResponse{}
-	}
-
-	// Get environment UUIDs from mapping table
-	var mappings []models.GatewayEnvironmentMapping
-	err = db.DB(ctx).
-		Where("gateway_uuid = ?", gwUUID).
-		Find(&mappings).Error
+	// Get environment mappings via service
+	mappings, err := c.gatewayService.GetGatewayEnvironmentMappings(gatewayID)
 	if err != nil {
 		log.Warn("getGatewayEnvironmentsFromDB: failed to get environment mappings", "error", err)
 		return []models.GatewayEnvironmentResponse{}
@@ -679,6 +622,44 @@ func (c *gatewayController) getGatewayEnvironmentsFromDB(ctx context.Context, or
 	ocEnvironments, err := c.ocClient.ListEnvironments(ctx, orgName)
 	if err != nil {
 		log.Warn("getGatewayEnvironmentsFromDB: failed to list environments from OpenChoreo", "error", err)
+		return []models.GatewayEnvironmentResponse{}
+	}
+
+	return c.matchGatewayEnvironments(gatewayID, mappings, ocEnvironments, orgName)
+}
+
+// getGatewayEnvironmentMappingsBulk retrieves environment mappings for multiple gateways in bulk
+// This avoids N+1 DB queries when listing gateways
+func (c *gatewayController) getGatewayEnvironmentMappingsBulk(ctx context.Context, gatewayIDs []string) map[string][]models.GatewayEnvironmentMapping {
+	if len(gatewayIDs) == 0 {
+		return make(map[string][]models.GatewayEnvironmentMapping)
+	}
+
+	log := logger.GetLogger(ctx)
+
+	// Bulk fetch all mappings in a single query
+	allMappings, err := c.gatewayService.GetGatewayEnvironmentMappingsBulk(gatewayIDs)
+	if err != nil {
+		log.Warn("getGatewayEnvironmentMappingsBulk: failed to get environment mappings", "error", err)
+		return make(map[string][]models.GatewayEnvironmentMapping)
+	}
+
+	return allMappings
+}
+
+// matchGatewayEnvironments matches gateway environment mappings with OpenChoreo environment details
+// This function is used by both single-gateway and bulk-gateway queries
+func (c *gatewayController) matchGatewayEnvironments(
+	gatewayID string,
+	mappings []models.GatewayEnvironmentMapping,
+	ocEnvironments []*models.EnvironmentResponse,
+	orgName string,
+) []models.GatewayEnvironmentResponse {
+	if len(mappings) == 0 {
+		return []models.GatewayEnvironmentResponse{}
+	}
+
+	if ocEnvironments == nil {
 		return []models.GatewayEnvironmentResponse{}
 	}
 
