@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -580,10 +582,17 @@ func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
 	// Convert model to spec response
 	response := utils.ConvertModelToSpecLLMProviderResponse(provider)
 
-	gatewayMappings, err := c.providerService.GetProviderGatewayMapping(provider.UUID)
+	orgUUID, err := uuid.Parse(orgID)
 	if err != nil {
-		log.Error("error while fetching gateway mappings for provider", providerID, err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Error fetching gateway mappings")
+		log.Error("GetLLMProvider: invalid organization UUID", "orgID", orgID, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	gatewayMappings, err := c.providerService.GetProviderGatewayMapping(provider.UUID, orgUUID, c.deploymentService)
+	if err != nil {
+		log.Error("error while fetching deployed gateways for provider", "providerID", providerID, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Error fetching deployed gateways")
 		return
 	}
 
