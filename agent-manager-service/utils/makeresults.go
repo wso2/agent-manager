@@ -522,7 +522,7 @@ func ConvertToDataPlaneListResponse(dataPlanes []*models.DataPlaneResponse) []sp
 }
 
 // ConvertToCreateMonitorRequest converts a spec.CreateMonitorRequest to models.CreateMonitorRequest
-func ConvertToCreateMonitorRequest(req *spec.CreateMonitorRequest) *models.CreateMonitorRequest {
+func ConvertToCreateMonitorRequest(req *spec.CreateMonitorRequest, projectName, agentName string) *models.CreateMonitorRequest {
 	if req == nil {
 		return nil
 	}
@@ -544,8 +544,8 @@ func ConvertToCreateMonitorRequest(req *spec.CreateMonitorRequest) *models.Creat
 	return &models.CreateMonitorRequest{
 		Name:            req.Name,
 		DisplayName:     req.DisplayName,
-		ProjectName:     req.ProjectName,
-		AgentName:       req.AgentName,
+		ProjectName:     projectName,
+		AgentName:       agentName,
 		EnvironmentName: req.EnvironmentName,
 		Evaluators:      convertSpecEvaluatorsToModels(req.Evaluators),
 		Type:            req.Type,

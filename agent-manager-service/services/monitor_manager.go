@@ -47,7 +47,7 @@ const (
 type MonitorManagerService interface {
 	CreateMonitor(ctx context.Context, orgName string, req *models.CreateMonitorRequest) (*models.MonitorResponse, error)
 	GetMonitor(ctx context.Context, orgName, monitorName string) (*models.MonitorResponse, error)
-	ListMonitors(ctx context.Context, orgName string) (*models.MonitorListResponse, error)
+	ListMonitors(ctx context.Context, orgName, projectName, agentName string) (*models.MonitorListResponse, error)
 	UpdateMonitor(ctx context.Context, orgName, monitorName string, req *models.UpdateMonitorRequest) (*models.MonitorResponse, error)
 	DeleteMonitor(ctx context.Context, orgName, monitorName string) error
 	StopMonitor(ctx context.Context, orgName, monitorName string) (*models.MonitorResponse, error)
@@ -206,11 +206,11 @@ func (s *monitorManagerService) GetMonitor(ctx context.Context, orgName, monitor
 }
 
 // ListMonitors lists all monitors for an organization with live status enrichment
-func (s *monitorManagerService) ListMonitors(ctx context.Context, orgName string) (*models.MonitorListResponse, error) {
-	s.logger.Debug("Listing monitors", "orgName", orgName)
+func (s *monitorManagerService) ListMonitors(ctx context.Context, orgName, projectName, agentName string) (*models.MonitorListResponse, error) {
+	s.logger.Debug("Listing monitors", "orgName", orgName, "projectName", projectName, "agentName", agentName)
 
 	var monitors []models.Monitor
-	if err := db.DB(ctx).Where("org_name = ?", orgName).Order("created_at DESC").Find(&monitors).Error; err != nil {
+	if err := db.DB(ctx).Where("org_name = ? AND project_name = ? AND agent_name = ?", orgName, projectName, agentName).Order("created_at DESC").Find(&monitors).Error; err != nil {
 		return nil, fmt.Errorf("failed to list monitors: %w", err)
 	}
 

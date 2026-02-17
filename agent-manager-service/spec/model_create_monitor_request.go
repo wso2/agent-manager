@@ -24,10 +24,6 @@ type CreateMonitorRequest struct {
 	Name string `json:"name"`
 	// Human-readable display name
 	DisplayName string `json:"displayName"`
-	// Name of the project containing the agent
-	ProjectName string `json:"projectName"`
-	// Name of the agent to monitor
-	AgentName string `json:"agentName"`
 	// Name of the environment to monitor
 	EnvironmentName string `json:"environmentName"`
 	// List of evaluators with optional configuration
@@ -48,12 +44,10 @@ type CreateMonitorRequest struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewCreateMonitorRequest(name string, displayName string, projectName string, agentName string, environmentName string, evaluators []MonitorEvaluator, type_ string) *CreateMonitorRequest {
+func NewCreateMonitorRequest(name string, displayName string, environmentName string, evaluators []MonitorEvaluator, type_ string) *CreateMonitorRequest {
 	this := CreateMonitorRequest{}
 	this.Name = name
 	this.DisplayName = displayName
-	this.ProjectName = projectName
-	this.AgentName = agentName
 	this.EnvironmentName = environmentName
 	this.Evaluators = evaluators
 	this.Type = type_
@@ -114,54 +108,6 @@ func (o *CreateMonitorRequest) GetDisplayNameOk() (*string, bool) {
 // SetDisplayName sets field value
 func (o *CreateMonitorRequest) SetDisplayName(v string) {
 	o.DisplayName = v
-}
-
-// GetProjectName returns the ProjectName field value
-func (o *CreateMonitorRequest) GetProjectName() string {
-	if o == nil {
-		var ret string
-		return ret
-	}
-
-	return o.ProjectName
-}
-
-// GetProjectNameOk returns a tuple with the ProjectName field value
-// and a boolean to check if the value has been set.
-func (o *CreateMonitorRequest) GetProjectNameOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.ProjectName, true
-}
-
-// SetProjectName sets field value
-func (o *CreateMonitorRequest) SetProjectName(v string) {
-	o.ProjectName = v
-}
-
-// GetAgentName returns the AgentName field value
-func (o *CreateMonitorRequest) GetAgentName() string {
-	if o == nil {
-		var ret string
-		return ret
-	}
-
-	return o.AgentName
-}
-
-// GetAgentNameOk returns a tuple with the AgentName field value
-// and a boolean to check if the value has been set.
-func (o *CreateMonitorRequest) GetAgentNameOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.AgentName, true
-}
-
-// SetAgentName sets field value
-func (o *CreateMonitorRequest) SetAgentName(v string) {
-	o.AgentName = v
 }
 
 // GetEnvironmentName returns the EnvironmentName field value
@@ -376,8 +322,6 @@ func (o CreateMonitorRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["name"] = o.Name
 	toSerialize["displayName"] = o.DisplayName
-	toSerialize["projectName"] = o.ProjectName
-	toSerialize["agentName"] = o.AgentName
 	toSerialize["environmentName"] = o.EnvironmentName
 	toSerialize["evaluators"] = o.Evaluators
 	toSerialize["type"] = o.Type
