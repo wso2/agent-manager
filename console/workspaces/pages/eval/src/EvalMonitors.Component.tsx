@@ -24,7 +24,6 @@ import { generatePath, Link, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { MonitorTable } from "./subComponents/MonitorTable";
 
-
 export const EvalMonitorsComponent: React.FC = () => {
   const { agentId, envId, orgId, projectId } = useParams<{
     agentId: string, envId: string, orgId: string, projectId: string
@@ -33,7 +32,6 @@ export const EvalMonitorsComponent: React.FC = () => {
   return (
     <PageLayout
       title="Eval Monitors"
-      description="Summaries for evaluation runs once the runtime APIs are wired up."
       disableIcon
       actions={<Button variant="contained" component={Link} to={
         generatePath(

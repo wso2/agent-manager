@@ -1,44 +1,21 @@
-import { useMemo, useState } from "react";
-import { ListingTable, Chip, Stack, Typography, IconButton, TablePagination, Tooltip } from "@wso2/oxygen-ui";
-import { Trash, Edit } from "@wso2/oxygen-ui-icons-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+    ListingTable,
+    Chip,
+    Stack,
+    Typography,
+    IconButton,
+    TablePagination,
+    Tooltip,
+    Skeleton,
+    Alert,
+} from "@wso2/oxygen-ui";
+import { Trash, Activity, AlertTriangle } from "@wso2/oxygen-ui-icons-react";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, type MonitorResponse } from "@agent-management-platform/types";
+import { useDeleteMonitor, useListEnvironments, useListMonitors } from "@agent-management-platform/api-client";
 
-const mock_monitors = [
-    {
-        name: "Latency Guard",
-        id: "1",
-        environment: "Production",
-        dataSource: "continuous",
-        evaluators: ["LatencyEval", "SLOCheck", "New", "custom-eval-1", "custom-eval-2"],
-        status: "Active",
-    },
-    {
-        name: "Error Spike",
-        id: "2",
-        environment: "Staging",
-        dataSource: "batch",
-        evaluators: ["ErrorRate", "CanaryEval"],
-        status: "Degraded",
-    },
-    {
-        name: "Token Watch",
-        id: "3",
-        environment: "Production",
-        dataSource: "continuous",
-        evaluators: ["CostGuard"],
-        status: "Active",
-    },
-    {
-        name: "Drift Detector",
-        id: "4",
-        environment: "Dev",
-        dataSource: "adhoc",
-        evaluators: ["EvalGPT", "Regression"],
-        status: "Paused",
-    },
-];
 
 export function MonitorTable() {
     const navigate = useNavigate();
@@ -53,12 +30,54 @@ export function MonitorTable() {
         envId: string;
     }>();
 
+    const { data: monitorsList, isLoading, error } = useListMonitors({
+        orgName: orgId ?? "",
+    });
+
+    const { mutate: deleteMonitor } = useDeleteMonitor();
+
+    const { data: environmentsList } = useListEnvironments({
+        orgName: orgId ?? "",
+    });
+
+    const environmentDisplayNameMap = useMemo(() => {
+        if (!environmentsList) {
+            return {} as Record<string, string>;
+        }
+        return environmentsList.reduce<Record<string, string>>((acc, environment) => {
+            const label = environment.displayName ?? environment.name;
+            acc[environment.name] = label;
+            if (environment.uuid) {
+                acc[environment.uuid] = label;
+            }
+            return acc;
+        }, {});
+    }, [environmentsList]);
+
+    const monitors = useMemo(() => {
+        return (monitorsList?.monitors ?? []).map((monitor: MonitorResponse) => ({
+            id: monitor.id,
+            displayName: monitor.displayName,
+            name: monitor.name,
+            environment:
+                environmentDisplayNameMap[monitor.environmentId ?? ""] ??
+                environmentDisplayNameMap[monitor.environmentName ?? ""] ??
+                monitor.environmentName ??
+                "-",
+            dataSource: monitor.type === "future" ? "Continuous" : "Historical",
+            evaluators:
+                monitor.evaluators?.map((evaluator) => evaluator.name).filter(
+                    (name): name is string => Boolean(name)) ?? [],
+            status: monitor.status ?? "Unknown",
+        }));
+    }, [environmentDisplayNameMap, monitorsList?.monitors]);
+
     const filteredMonitors = useMemo(() => {
         const term = searchValue.trim().toLowerCase();
         if (!term) {
-            return mock_monitors;
+            return monitors;
         }
-        return mock_monitors.filter((monitor) => {
+        return monitors.filter((monitor) => {
             const haystack = [
                 monitor.name,
                 monitor.environment,
@@ -70,16 +89,86 @@ export function MonitorTable() {
                 .toLowerCase();
             return haystack.includes(term);
         });
-    }, [searchValue]);
+    }, [monitors, searchValue]);
+
+    useEffect(() => {
+        if (page !== 0 && page * rowsPerPage >= filteredMonitors.length) {
+            setPage(0);
+        }
+    }, [filteredMonitors.length, page, rowsPerPage]);
+
+    const toolbar = (
+        <ListingTable.Toolbar
+            showSearch
+            searchValue={searchValue}
+            onSearchChange={setSearchValue}
+            searchPlaceholder="Search monitors..."
+        />
+    );
+
+    if (error) {
+        return (
+            <ListingTable.Container>
+                {toolbar}
+                <Alert
+                    severity="error"
+                    icon={<AlertTriangle size={18} />}
+                    sx={{ alignSelf: "stretch" }}
+                >
+                    {error instanceof Error ? error.message : "Failed to load monitors. Please try again."}
+                </Alert>
+            </ListingTable.Container>
+        );
+    }
+
+    if (isLoading) {
+        return (
+            <ListingTable.Container>
+                {toolbar}
+                <Stack spacing={1} m={2}>
+                    <Skeleton variant="rounded" height={60} />
+                    <Skeleton variant="rounded" height={60} />
+                    <Skeleton variant="rounded" height={60} />
+                    <Skeleton variant="rounded" height={60} />
+                </Stack>
+            </ListingTable.Container>
+        );
+    }
+
+    if (!monitors.length) {
+        return (
+            <ListingTable.Container>
+                {toolbar}
+                <ListingTable.EmptyState
+                    illustration={<Activity size={64} />}
+                    title="No monitors yet"
+                    description="Create a monitor to start tracking your evaluations."
+                />
+            </ListingTable.Container>
+        );
+    }
+
+    if (!filteredMonitors.length) {
+        return (
+            <ListingTable.Container>
+                {toolbar}
+                <ListingTable.EmptyState
+                    illustration={<Activity size={64} />}
+                    title="No monitors match your search"
+                    description="Try adjusting your search keywords."
+                />
+            </ListingTable.Container>
+        );
+    }
+
+    const paginatedMonitors = filteredMonitors.slice(
+        page * rowsPerPage,
+        page * rowsPerPage + rowsPerPage
+    );
 
     return (
         <ListingTable.Container>
-            <ListingTable.Toolbar
-                showSearch
-                searchValue={searchValue}
-                onSearchChange={setSearchValue}
-                searchPlaceholder="Search monitors..."
-            />
+            {toolbar}
             <ListingTable>
                 <ListingTable.Head>
                     <ListingTable.Row>
@@ -91,71 +180,74 @@ export function MonitorTable() {
                     </ListingTable.Row>
                 </ListingTable.Head>
                 <ListingTable.Body>
-                    {filteredMonitors
-                        .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                        .map((monitor) => (
-                            <ListingTable.Row
-                                key={monitor.id}
-                                hover
-                                sx={{ cursor: "pointer" }}
-                                onClick={() => navigate(
-                                    generatePath(
-                                        absoluteRouteMap.children
-                                            .org.children.projects.children.agents
-                                            .children.environment
-                                            .children.evaluation.children.monitor
-                                            .children.view.path,
-                                        {
-                                            agentId, orgId, projectId, envId, monitorId: monitor.id
-                                        }))}>
-                                <ListingTable.Cell>
-                                    <Stack spacing={0.5}>
-                                        <Typography variant="body1">{monitor.name}</Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                            ID: {monitor.id}
-                                        </Typography>
-                                    </Stack>
-                                </ListingTable.Cell>
-                                <ListingTable.Cell>{monitor.environment}</ListingTable.Cell>
-                                <ListingTable.Cell>{monitor.dataSource}</ListingTable.Cell>
-                                <ListingTable.Cell>
-                                    <Stack direction="row" spacing={1} flexWrap="wrap">
-                                        {monitor.evaluators.slice(0, 2).map((evaluator) => (
-                                            <Chip key={evaluator} size="small" label={evaluator} />
-                                        ))}
-                                        {monitor.evaluators.length > 2 && (
+                    {paginatedMonitors.map((monitor) => (
+                        <ListingTable.Row
+                            key={monitor.id}
+                            hover
+                            sx={{ cursor: "pointer" }}
+                            onClick={() => navigate(
+                                generatePath(
+                                    absoluteRouteMap.children
+                                        .org.children.projects.children.agents
+                                        .children.environment
+                                        .children.evaluation.children.monitor
+                                        .children.view.path,
+                                    {
+                                        agentId, orgId, projectId, envId, monitorId: monitor.id
+                                    }))}>
+                            <ListingTable.Cell>
+                                <Stack spacing={0.5}>
+                                    <Typography variant="body1">{monitor.displayName}</Typography>
+                                </Stack>
+                            </ListingTable.Cell>
+                            <ListingTable.Cell>{monitor.environment}</ListingTable.Cell>
+                            <ListingTable.Cell>{monitor.dataSource}</ListingTable.Cell>
+                            <ListingTable.Cell>
+                                <Stack direction="row" spacing={1} flexWrap="wrap">
+                                    {monitor.evaluators.slice(0, 2).map((evaluator) => (
+                                        <Chip key={evaluator} size="small" label={evaluator} />
+                                    ))}
+                                    {monitor.evaluators.length > 2 && (
+                                        <Tooltip title={monitor.evaluators.join(", ")}>
                                             <Typography variant="caption" color="text.secondary">
                                                 {`+${monitor.evaluators.length - 2} more..`}
                                             </Typography>
-                                        )}
-                                    </Stack>
-                                </ListingTable.Cell>
-                                <ListingTable.Cell onClick={(e) => e.stopPropagation()}>
-                                    <Stack direction="row" spacing={1} alignItems="center">
-                                        <Tooltip title="Edit Monitor">
-                                            <IconButton color="default">
-                                                <Edit size={16} />
-                                            </IconButton>
                                         </Tooltip>
-                                        <Tooltip title="Delete Monitor">
-                                            <IconButton color="error">
-                                                <Trash size={16} onClick={() => addConfirmation(
-                                                    {
-                                                        title: "Delete Monitor",
-                                                        description: "Are you sure you want to delete this monitor? This action cannot be undone.",
-                                                        confirmButtonText: "Delete",
-                                                        onConfirm: () => {
-                                                            //delete action
-                                                            console.log("Deleted monitor with id: ", monitor.id);
-                                                        }
+                                    )}
+                                </Stack>
+                            </ListingTable.Cell>
+                            <ListingTable.Cell onClick={(e) => e.stopPropagation()}>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                    {/* <Tooltip title="Edit Monitor">
+                                        <IconButton color="default">
+                                            <Edit size={16} />
+                                        </IconButton>
+                                    </Tooltip> */}
+                                    <Tooltip title="Delete Monitor">
+                                        <IconButton color="error">
+                                            <Trash size={16} onClick={() => addConfirmation(
+                                                {
+                                                    title: "Delete Monitor",
+                                                    description: "Are you sure you want to delete this monitor? This action cannot be undone.",
+                                                    confirmButtonText: "Delete",
+                                                    onConfirm: () => {
+                                                        //delete action
+                                                        deleteMonitor({
+                                                            monitorName: monitor.name,
+                                                            orgName: orgId ?? "",
+                                                        }, {
+
+                                                        });
+
                                                     }
-                                                )} />
-                                            </IconButton>
-                                        </Tooltip>
-                                    </Stack>
-                                </ListingTable.Cell>
-                            </ListingTable.Row>
-                        ))}
+                                                }
+                                            )} />
+                                        </IconButton>
+                                    </Tooltip>
+                                </Stack>
+                            </ListingTable.Cell>
+                        </ListingTable.Row>
+                    ))}
                 </ListingTable.Body>
             </ListingTable>
             <TablePagination

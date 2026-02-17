@@ -251,61 +251,57 @@ export const LogsView: React.FC<LogsViewProps> = ({
 
 
   return (
-    <Stack direction="column" gap={2} height="calc(100vh - 340px)">
-      {/* Empty State */}
-      {isNoLogs && (
-        <ListingTable.Container>
+    <Stack direction="column" gap={2} maxHeight="calc(100vh - 340px)">
+      {/* Logs Panel */}
+      <Paper
+        variant="outlined"
+        sx={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
+        <Stack direction="row" p={2} spacing={2} alignItems="center" flexWrap="wrap">
+          <Box
+            alignItems="center"
+            justifyContent="flex-start"
+            display="flex"
+            sx={{
+              flexGrow: 1,
+              minWidth: 250,
+            }}
+          >
+            <SearchBar
+              placeholder="Search logs..."
+              size="small"
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                onSearch?.(e.target.value)
+              }
+              value={search}
+            />
+          </Box>
+        </Stack>
+
+        {isLoading && (
+          <Stack direction="column" gap={1} p={2}>
+            <Skeleton variant="rounded" height={60} width="100%" />
+            <Skeleton variant="rounded" height={60} width="100%" />
+            <Skeleton variant="rounded" height={60} width="100%" />
+            <Skeleton variant="rounded" height={60} width="100%" />
+            <Skeleton variant="rounded" height={60} width="100%" />
+          </Stack>
+        )}
+
+        {!isLoading && isNoLogs && (
           <ListingTable.EmptyState
             illustration={<FileText size={64} />}
             title="No logs found"
             description="Try adjusting your search or time range"
           />
-        </ListingTable.Container>
-      )}
-
-      {/* Loading Skeleton */}
-      {isLoading && (
-        <Stack direction="column" gap={1}>
-          <Skeleton variant="rounded" height={60} width="100%" />
-          <Skeleton variant="rounded" height={60} width="100%" />
-          <Skeleton variant="rounded" height={60} width="100%" />
-          <Skeleton variant="rounded" height={60} width="100%" />
-          <Skeleton variant="rounded" height={60} width="100%" />
-        </Stack>
-      )}
-
-      {/* Logs Panel */}
-      {isShowPanel && (
-        <Paper
-          variant="outlined"
-          sx={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-          }}
-        >
-          <Stack direction="row" p={2} spacing={2} alignItems="center" flexWrap="wrap">
-            <Box
-              alignItems="center"
-              justifyContent="flex-end"
-              display="flex"
-              sx={{
-                flexGrow: 1,
-                minWidth: 250,
-              }}
-            >
-              <SearchBar
-                placeholder="Search logs..."
-                size="small"
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  onSearch?.(e.target.value)
-                }
-                value={search}
-              />
-            </Box>
-          </Stack>
-          {/* Scrollable Content Area */}
+        )}
+        {/* Scrollable Content Area */}
+        {isShowPanel && (
           <Box ref={scrollContainerRef} sx={{ flex: 1, overflow: "auto" }}>
             {/* Load Up Button */}
             <Box
@@ -362,8 +358,9 @@ export const LogsView: React.FC<LogsViewProps> = ({
               </Button>
             </Box>
           </Box>
-        </Paper>
-      )}
+        )}
+      </Paper>
+
     </Stack>
   );
 };
