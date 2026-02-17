@@ -654,10 +654,7 @@ class TestRealOTELTraces:
         correctly reconstructs the execution flow.
         """
         # Load CrewAI trace
-        crew_trace = next(
-            (t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"),
-            None
-        )
+        crew_trace = next((t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"), None)
         assert crew_trace is not None, "CrewAI multi-agent trace not found"
 
         # Parse to Trace
@@ -701,10 +698,7 @@ class TestRealOTELTraces:
         """
         Verify sequential agents (siblings) are NOT confused with nested agents (parent-child).
         """
-        crew_trace = next(
-            (t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"),
-            None
-        )
+        crew_trace = next((t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"), None)
         assert crew_trace is not None, "CrewAI multi-agent trace not found"
 
         trace = _parse_trace(crew_trace)
@@ -716,8 +710,7 @@ class TestRealOTELTraces:
         # VERIFY: No agent has another agent as parent (they're sequential, not nested)
         for agent in agents:
             parent = agent.parent_span_id
-            assert parent not in agent_ids, \
-                f"{agent.name} has agent parent - should be sequential not nested"
+            assert parent not in agent_ids, f"{agent.name} has agent parent - should be sequential not nested"
 
     def test_langgraph_parallel_tools_and_errors(self, sample_traces):
         """
@@ -804,10 +797,7 @@ class TestRealOTELTraces:
         """
         Verify Agent span ampAttributes.data fields are correctly extracted.
         """
-        crew_trace = next(
-            (t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"),
-            None
-        )
+        crew_trace = next((t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"), None)
         assert crew_trace is not None, "CrewAI multi-agent trace not found"
 
         trace = _parse_trace(crew_trace)
@@ -856,15 +846,11 @@ class TestRealOTELTraces:
 
         # VERIFY: No root span has tool as parent
         for span in root_spans:
-            parent = getattr(span, 'parent_span_id', None)
-            assert parent not in tool_span_ids, \
-                f"Root span {span.span_id} has tool parent"
+            parent = getattr(span, "parent_span_id", None)
+            assert parent not in tool_span_ids, f"Root span {span.span_id} has tool parent"
 
         # Test with CrewAI (has agents)
-        crew_trace = next(
-            (t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"),
-            None
-        )
+        crew_trace = next((t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"), None)
         assert crew_trace is not None, "CrewAI multi-agent trace not found"
 
         trace = _parse_trace(crew_trace)

@@ -527,7 +527,10 @@ class LatencyEvaluator(BaseEvaluator):
         if max_latency is None:
             return EvalResult.skip(
                 "No latency constraint specified",
-                details={"agent_name": agent_trace.agent_name, "actual_latency_ms": agent_trace.metrics.total_duration_ms},
+                details={
+                    "agent_name": agent_trace.agent_name,
+                    "actual_latency_ms": agent_trace.metrics.total_duration_ms,
+                },
             )
 
         actual_latency = agent_trace.metrics.total_duration_ms or 0

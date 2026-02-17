@@ -369,6 +369,7 @@ class BaseEvaluator(ABC):
         """
         if span_type is None:
             from ..trace.models import AgentSpan as _AgentSpan
+
             return [s for s in trace.steps if not isinstance(s, _AgentSpan)]
         elif span_type == "llm":
             return trace.get_llm_calls(deduplicate_messages=True)
