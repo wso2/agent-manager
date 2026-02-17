@@ -30,6 +30,7 @@ import {
   ProjectResponse,
 } from "@agent-management-platform/types";
 import {
+  Avatar,
   Box,
   Button,
   CircularProgress,
@@ -54,8 +55,8 @@ import { formatDistanceToNow } from "date-fns";
 const projectGridTemplate = {
   xs: "repeat(1, minmax(0, 1fr))",
   md: "repeat(2, minmax(0, 1fr))",
-  lg: "repeat(3, minmax(0, 1fr))",
-  xl: "repeat(4, minmax(0, 1fr))",
+  lg: "repeat(4, minmax(0, 1fr))",
+  xl: "repeat(5, minmax(0, 1fr))",
 };
 
 function ProjectCard(props: {
@@ -76,10 +77,6 @@ function ProjectCard(props: {
     ? project.description
     : "No description provided";
 
-  const pipelineLabel = project.deploymentPipeline?.trim()
-    ? project.deploymentPipeline
-    : "Unknown";
-
   const handleDeleteClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
@@ -96,62 +93,50 @@ function ProjectCard(props: {
   return (
     <Link to={projectPath} style={{ textDecoration: "none" }}>
       <Form.CardButton
-        // ={Link}
-        
-        // to={projectPath}
         sx={{ width: "100%", textAlign: "left", textDecoration: "none" }}
       >
-        <Form.CardHeader
-          title={
-            <Form.Stack direction="row" spacing={1.5} alignItems="center">
-              <Package size={40} />
-              <Form.Stack
-                direction="column"
-                spacing={0.5}
-                flex={1}
-                minWidth={0}
-              >
-                <Form.Stack direction="row" spacing={1} alignItems="center">
-                  <Typography
-                    variant="h5"
-                    noWrap
-                    textOverflow="ellipsis"
-                    sx={{ maxWidth: "90%" }}
-                  >
-                    {project.displayName}
-                  </Typography>
-                  <Form.DisappearingCardButtonContent>
-                    <Tooltip title="Delete project">
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={handleDeleteClick}
-                      >
-                        <Trash2 size={16} />
-                      </IconButton>
-                    </Tooltip>
-                  </Form.DisappearingCardButtonContent>
-                </Form.Stack>
-                <Typography variant="caption" color="textPrimary">
-                  Pipeline&nbsp;
-                  <Typography
-                    component="span"
-                    variant="caption"
-                    color="textSecondary"
-                  >
-                    {pipelineLabel}
-                  </Typography>
-                </Typography>
-              </Form.Stack>
-            </Form.Stack>
-          }
-        />
         <Form.CardContent>
-          <Typography variant="caption" color="textSecondary">
-            {projectDescription}
-          </Typography>
-        </Form.CardContent>
-        <Form.CardActions sx={{ justifyContent: "space-between", flexWrap: "wrap" }}>
+          <Form.CardHeader
+            title={
+              <Form.Stack direction="row" spacing={1.5} alignItems="center">
+                <Avatar sx={{ bgcolor: "primary.main", color: "primary.contrastText", height: 40, width: 40 }}>
+                  <Package size={20} />
+                </Avatar>
+                <Form.Stack
+                  direction="column"
+                  spacing={0.5}
+                  flex={1}
+                  minWidth={0}
+                >
+                  <Form.Stack direction="row" spacing={1} alignItems="center">
+                    <Typography
+                      variant="h5"
+                      noWrap
+                      textOverflow="ellipsis"
+                      sx={{ maxWidth: "90%" }}
+                    >
+                      {project.displayName}
+                    </Typography>
+                    <Form.DisappearingCardButtonContent>
+                      <Tooltip title="Delete project">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={handleDeleteClick}
+                        >
+                          <Trash2 size={16} />
+                        </IconButton>
+                      </Tooltip>
+                    </Form.DisappearingCardButtonContent>
+                  </Form.Stack>
+                  <Typography variant="caption" color="textPrimary">
+                    {projectDescription}
+                  </Typography>
+                </Form.Stack>
+              </Form.Stack>
+            }
+          />
+                <Form.CardActions sx={{flexWrap: "wrap" }}>
           <Typography
             variant="caption"
             color="textSecondary"
@@ -161,6 +146,8 @@ function ProjectCard(props: {
             {createdAtText}
           </Typography>
         </Form.CardActions>
+        </Form.CardContent>
+  
       </Form.CardButton>
     </Link>
   );

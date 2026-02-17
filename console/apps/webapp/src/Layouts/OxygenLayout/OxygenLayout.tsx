@@ -22,11 +22,13 @@ import {
   Header,
   Footer,
   ColorSchemeToggle,
+  UserMenu,
 } from "@wso2/oxygen-ui";
 import { generatePath, Outlet, useNavigate } from "react-router-dom";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { Logo } from "@agent-management-platform/views";
-import { UserMenu } from "./UserMenu";
+// import { UserMenu } from "./UserMenu";
+import { LogOutIcon } from "@wso2/oxygen-ui-icons-react";
 import { LeftNavigation, type NavigationItem, type NavigationSection } from "./LeftNavigation";
 import { useNavigationItems } from "./navigationItems";
 import { TopNavigation } from "./TopNavigation";
@@ -104,7 +106,12 @@ export function OxygenLayout() {
           <Header.Spacer />
           <Header.Actions>
             <ColorSchemeToggle />
-            <UserMenu user={user} onLogout={handleLogout} />
+            <UserMenu>
+              <UserMenu.Trigger name={user.name} />
+              <UserMenu.Header name={user.name} email={user.email} />
+              <UserMenu.Divider />
+              <UserMenu.Logout  onClick={handleLogout} />
+            </UserMenu>
           </Header.Actions>
         </Header>
       </AppShell.Navbar>

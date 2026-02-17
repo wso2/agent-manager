@@ -102,6 +102,7 @@ export function PageLayout({
             <PageTitle.Avatar
               sx={{
                 bgcolor: "primary.main",
+                color: "primary.contrastText",
               }}
             >
               {title?.substring(0, 1).toUpperCase()}

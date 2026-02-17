@@ -12,13 +12,15 @@ import {
   Menu,
   MenuItem,
   Stack,
+  useTheme
 } from "@wso2/oxygen-ui";
-import { Bot, ChevronRightCircle, Package, Plus, X } from "@wso2/oxygen-ui-icons-react";
+import { ChevronRightCircle, Package, Plus, X } from "@wso2/oxygen-ui-icons-react";
 import { useMemo, useState } from "react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 
 export function TopNavigation() {
   const navigate = useNavigate();
+  const theme = useTheme();
   const { orgId, projectId, agentId } = useParams<{
     orgId: string;
     projectId: string;
@@ -119,18 +121,21 @@ export function TopNavigation() {
                   ))}
                 </ComplexSelect>
                 <Box position="absolute" right={0} top={-2}>
-                <IconButton
-                  size="small"
-                  onClick={() => {
-                    navigate(
-                      generatePath(absoluteRouteMap.children.org.path, {
-                        orgId,
-                      }),
-                    );
-                  }}
-                >
-                  <X size={12} />
-                </IconButton>
+                  <IconButton
+                    size="small"
+                    sx={{
+                      color: theme.vars?.palette.text.disabled
+                    }}
+                    onClick={() => {
+                      navigate(
+                        generatePath(absoluteRouteMap.children.org.path, {
+                          orgId,
+                        }),
+                      );
+                    }}
+                  >
+                    <X size={12} />
+                  </IconButton>
                 </Box>
               </Box>
             ) : (
@@ -202,9 +207,6 @@ export function TopNavigation() {
                   sx={{ minWidth: 180 }}
                   renderValue={() => (
                     <>
-                      <ComplexSelect.MenuItem.Icon>
-                        <Bot size={20} />
-                      </ComplexSelect.MenuItem.Icon>
                       <ComplexSelect.MenuItem.Text
                         primary={selectedAgent?.displayName}
                       />
@@ -241,9 +243,6 @@ export function TopNavigation() {
                   </ComplexSelect.MenuItem>
                   {agents.agents.map((agent) => (
                     <ComplexSelect.MenuItem key={agent.name} value={agent.name}>
-                      <ComplexSelect.MenuItem.Icon>
-                        <Bot size={20} />
-                      </ComplexSelect.MenuItem.Icon>
                       <ComplexSelect.MenuItem.Text primary={
                         <Stack direction="row" gap={1} alignItems="center">
                           {agent.displayName}
@@ -264,6 +263,9 @@ export function TopNavigation() {
                 <Box position="absolute" right={0} top={-2}>
                   <IconButton
                     size="small"
+                    sx={{
+                      color: theme.vars?.palette.text.disabled
+                    }}
                     onClick={() => {
                       navigate(
                         generatePath(
@@ -323,7 +325,6 @@ export function TopNavigation() {
                         );
                       }}
                     >
-                      <Bot size={20} style={{ marginRight: 8 }} />
                       <Stack direction="row" gap={1} alignItems="center">
                         {agent.displayName}
                         {
