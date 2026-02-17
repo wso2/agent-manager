@@ -12,7 +12,7 @@ Public API:
     ...     Message, ToolCall, RetrievedDoc,     # Supporting types
     ...     parse_trace_for_evaluation,          # Parser
     ...     parse_traces_for_evaluation,
-    ...     TraceFetcher,                        # Fetch traces from platform API
+    ...     TraceFetcher, TraceLoader,           # Fetch traces from platform or files
     ... )
 """
 
@@ -46,7 +46,7 @@ from .parser import (
 )
 
 # Fetcher
-from .fetcher import TraceFetcher
+from .fetcher import TraceFetcher, TraceLoader
 
 
 __all__ = [
@@ -72,6 +72,7 @@ __all__ = [
     # Parser functions
     "parse_trace_for_evaluation",
     "parse_traces_for_evaluation",
-    # Fetcher
+    # Fetchers
     "TraceFetcher",
+    "TraceLoader",
 ]

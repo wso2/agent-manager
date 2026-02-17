@@ -74,7 +74,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 import logging
 
-from .trace import Trace, parse_trace_for_evaluation, TraceFetcher
+from .trace import Trace, parse_trace_for_evaluation, TraceFetcher, TraceLoader
 from .registry import get_registry, get_evaluator
 from .evaluators.base import BaseEvaluator
 from .models import EvaluatorSummary, EvaluatorScore
@@ -261,7 +261,7 @@ class BaseRunner(ABC):
         # Trace fetcher (lazy initialization)
         self._trace_fetcher = trace_fetcher
         self._trace_service_url = trace_service_url
-        self._fetcher_instance: Optional[TraceFetcher] = None
+        self._fetcher_instance: Optional[Any] = None  # Can be TraceFetcher or TraceLoader
 
         # Individual parameters override config
         self.include = set(include) if include else None
@@ -286,20 +286,24 @@ class BaseRunner(ABC):
         self._evaluators: List[BaseEvaluator] = []
         self._load_evaluators()
 
-    def _get_fetcher(self) -> TraceFetcher:
+    def _get_fetcher(self) -> Any:
         """
         Get or create the trace fetcher instance (lazy initialization).
+
+        Supports both TraceLoader (for local files) and TraceFetcher (for platform API).
 
         Priority (highest to lowest):
             1. Explicit trace_fetcher passed to __init__
             2. Explicit trace_service_url passed to __init__
-            3. Create from config (platform mode with api_url)
+            3. Create from config:
+               - File mode: TraceLoader (if trace_file_path is set)
+               - Platform mode: TraceFetcher (if api_url is set)
 
         Returns:
-            TraceFetcher instance
+            TraceFetcher or TraceLoader instance
 
         Raises:
-            ValueError: If no fetcher and config doesn't have required settings
+            ValueError: If no fetcher can be created from provided config
         """
         if self._fetcher_instance is not None:
             return self._fetcher_instance
@@ -314,20 +318,57 @@ class BaseRunner(ABC):
                 agent_uid=self.config.agent.agent_uid,
                 environment_uid=self.config.agent.environment_uid,
             )
-        elif self.config.trace_loader.mode == "platform" and self.config.platform.api_url:
-            # Create from config when in platform mode
-            self._fetcher_instance = TraceFetcher(
-                base_url=self.config.platform.api_url,
-                agent_uid=self.config.agent.agent_uid,
-                environment_uid=self.config.agent.environment_uid,
-            )
         else:
-            raise ValueError(
-                "No trace_fetcher or trace_service_url provided and config is missing platform API URL. "
-                "Either pass trace_fetcher/trace_service_url parameter or set AMP_API_URL environment variable."
-            )
+            # Use config-based fetcher selection
+            trace_config = self.config.trace_loader
+
+            # File mode: try to use TraceLoader
+            if trace_config.mode == "file" and trace_config.trace_file_path:
+                logger.info(f"Using TraceLoader with file: {trace_config.trace_file_path}")
+                self._fetcher_instance = TraceLoader(
+                    file_path=trace_config.trace_file_path,
+                    agent_uid=self.config.agent.agent_uid,
+                    environment_uid=self.config.agent.environment_uid,
+                )
+            # Platform mode: use TraceFetcher
+            elif self.config.platform.api_url:
+                logger.info(f"Using TraceFetcher with platform API: {self.config.platform.api_url}")
+                self._fetcher_instance = TraceFetcher(
+                    base_url=self.config.platform.api_url,
+                    agent_uid=self.config.agent.agent_uid,
+                    environment_uid=self.config.agent.environment_uid,
+                )
+            else:
+                raise ValueError(
+                    "Cannot create trace fetcher. Either:\n"
+                    "  1. Pass trace_fetcher or trace_service_url to runner __init__,\n"
+                    "  2. Set AMP_API_URL environment variable (for platform mode), or\n"
+                    "  3. Set AMP_TRACE_LOADER_MODE=file and AMP_TRACE_LOADER_TRACE_FILE_PATH=/path/to/traces.json"
+                )
 
         return self._fetcher_instance
+
+    def _fetch_traces(self, start_time: str, end_time: str, limit: int = 100, offset: int = 0) -> List[Trace]:
+        """
+        Unified interface to fetch traces from either TraceFetcher or TraceLoader.
+
+        Args:
+            start_time: Start time in ISO 8601 format
+            end_time: End time in ISO 8601 format
+            limit: Maximum number of traces to fetch
+            offset: Number of traces to skip (used by TraceFetcher)
+
+        Returns:
+            List of Trace objects
+        """
+        fetcher = self._get_fetcher()
+
+        # Handle TraceLoader (uses load_batch interface)
+        if isinstance(fetcher, TraceLoader):
+            return fetcher.load_batch(limit=limit, start_time=start_time, end_time=end_time)
+        # Handle TraceFetcher (uses fetch_traces interface)
+        else:
+            return fetcher.fetch_traces(start_time=start_time, end_time=end_time, limit=limit, offset=offset)
 
     def _load_evaluators(self):
         """Load evaluators from registry based on filters."""
@@ -886,8 +927,6 @@ class Experiment(BaseRunner):
         fetch_end = experiment_end + timedelta(seconds=5)
 
         try:
-            fetcher = self._get_fetcher()
-
             # Wait for traces to be exported
             if self.trace_fetch_wait_seconds > 0:
                 logger.info(f"Waiting {self.trace_fetch_wait_seconds}s for traces to be exported...")
@@ -896,7 +935,7 @@ class Experiment(BaseRunner):
             expected_count = len(dataset.tasks) * self.trials_per_task
             fetch_limit = max(expected_count * 2, 100)
 
-            fetched_traces = fetcher.fetch_traces(
+            fetched_traces = self._fetch_traces(
                 start_time=fetch_start.isoformat(),
                 end_time=fetch_end.isoformat(),
                 limit=fetch_limit,
@@ -1066,14 +1105,13 @@ class Monitor(BaseRunner):
             # Use provided traces directly
             eval_traces = traces
         else:
-            # Fetch from trace service
+            # Fetch from trace service or file
             try:
-                fetcher = self._get_fetcher()
-                fetched = fetcher.fetch_traces(start_time=start_time, end_time=end_time, limit=limit)
+                fetched = self._fetch_traces(start_time=start_time, end_time=end_time, limit=limit)
                 # Parse fetched traces to Trace
                 for trace in fetched:
                     try:
-                        # fetcher.fetch_traces() returns Trace objects, pass directly to parser
+                        # _fetch_traces() returns Trace objects, pass directly to parser
                         eval_traces.append(parse_trace_for_evaluation(trace))
                     except Exception as parse_error:
                         logger.error(f"Error parsing trace: {parse_error}")
