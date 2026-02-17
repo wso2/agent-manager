@@ -355,7 +355,7 @@ class TestEdgeCases:
             def __init__(self):
                 raise ValueError("Broken evaluator")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 pass
 
         # Create a mock module

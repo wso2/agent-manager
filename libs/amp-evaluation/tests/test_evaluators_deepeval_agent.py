@@ -40,10 +40,9 @@ from amp_evaluation.evaluators.builtin.deepeval import (
     DeepEvalTaskCompletionEvaluator,
     DeepEvalStepEfficiencyEvaluator,
 )
-from amp_evaluation.models import Observation
 from amp_evaluation.dataset import Task
 from amp_evaluation.trace import (
-    Trajectory,
+    Trace,
     TraceMetrics,
     TokenUsage,
     ToolSpan,
@@ -56,9 +55,9 @@ from amp_evaluation.trace import (
 
 
 @pytest.fixture
-def basic_observation():
+def basic_trajectory():
     """Create a basic observation for testing."""
-    trajectory = Trajectory(
+    trajectory = Trace(
         trace_id="test-trace-1",
         input="Book the cheapest flight from NYC to Paris",
         output="Flight booked successfully. Confirmation: CONF-789",
@@ -69,11 +68,11 @@ def basic_observation():
         ),
         steps=[],
     )
-    return Observation(trajectory=trajectory)
+    return trajectory
 
 
 @pytest.fixture
-def observation_with_tools():
+def trajectory_with_tools():
     """Create an observation with tool calls."""
     tool_span_1 = ToolSpan(
         span_id="tool-1",
@@ -88,7 +87,7 @@ def observation_with_tools():
         result={"confirmation": "CONF-789", "status": "confirmed"},
     )
 
-    trajectory = Trajectory(
+    trajectory = Trace(
         trace_id="test-trace-2",
         input="Book the cheapest flight from NYC to Paris for March 15th",
         output="Booked flight FL456 for $380. Confirmation: CONF-789",
@@ -100,7 +99,7 @@ def observation_with_tools():
         steps=[tool_span_1, tool_span_2],
     )
     trajectory._tool_spans = [tool_span_1, tool_span_2]
-    return Observation(trajectory=trajectory)
+    return trajectory
 
 
 @pytest.fixture
@@ -157,7 +156,7 @@ class TestDeepEvalPlanQualityEvaluator:
         assert evaluator.strict_mode is True
         assert evaluator.name == "deepeval/plan-quality"
 
-    def test_plan_quality_evaluation_success(self, basic_observation):
+    def test_plan_quality_evaluation_success(self, basic_trajectory):
         """Test successful plan quality evaluation with real DeepEval integration."""
         from deepeval.metrics import PlanQualityMetric
 
@@ -175,7 +174,7 @@ class TestDeepEvalPlanQualityEvaluator:
 
             # Evaluate
             evaluator = DeepEvalPlanQualityEvaluator(threshold=0.7)
-            result = evaluator.evaluate(basic_observation)
+            result = evaluator.evaluate(basic_trajectory)[0]
 
             # Verify results
             assert result.score == 0.85
@@ -192,10 +191,10 @@ class TestDeepEvalPlanQualityEvaluator:
             from deepeval.test_case import LLMTestCase
 
             assert isinstance(test_case_arg, LLMTestCase)
-            assert test_case_arg.input == basic_observation.input
-            assert test_case_arg.actual_output == basic_observation.output
+            assert test_case_arg.input == basic_trajectory.input
+            assert test_case_arg.actual_output == basic_trajectory.output
 
-    def test_plan_quality_evaluation_failure(self, basic_observation):
+    def test_plan_quality_evaluation_failure(self, basic_trajectory):
         """Test failed plan quality evaluation."""
         from deepeval.metrics import PlanQualityMetric
 
@@ -206,19 +205,19 @@ class TestDeepEvalPlanQualityEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalPlanQualityEvaluator(threshold=0.7)
-            result = evaluator.evaluate(basic_observation)
+            result = evaluator.evaluate(basic_trajectory)[0]
 
             assert result.score == 0.3
             assert result.passed is False
             assert "incomplete" in result.explanation
 
-    def test_deepeval_not_installed(self, basic_observation):
+    def test_deepeval_not_installed(self, basic_trajectory):
         """Test behavior when DeepEval metric import fails."""
         with patch("amp_evaluation.evaluators.builtin.deepeval._get_deepeval_metric_class") as mock_get:
             mock_get.side_effect = ImportError("DeepEval not found")
 
             evaluator = DeepEvalPlanQualityEvaluator()
-            result = evaluator.evaluate(basic_observation)
+            result = evaluator.evaluate(basic_trajectory)[0]
 
             assert result.is_error
             assert result.error is not None
@@ -235,7 +234,7 @@ class TestDeepEvalPlanAdherenceEvaluator:
         assert evaluator.threshold == 0.75
         assert evaluator.name == "deepeval/plan-adherence"
 
-    def test_plan_adherence_high_score(self, basic_observation):
+    def test_plan_adherence_high_score(self, basic_trajectory):
         """Test when agent follows its plan well."""
         from deepeval.metrics import PlanAdherenceMetric
 
@@ -246,12 +245,12 @@ class TestDeepEvalPlanAdherenceEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalPlanAdherenceEvaluator(threshold=0.7)
-            result = evaluator.evaluate(basic_observation)
+            result = evaluator.evaluate(basic_trajectory)[0]
 
             assert result.score == 0.9
             assert result.passed is True
 
-    def test_plan_adherence_low_score(self, basic_observation):
+    def test_plan_adherence_low_score(self, basic_trajectory):
         """Test when agent deviates from plan."""
         from deepeval.metrics import PlanAdherenceMetric
 
@@ -262,7 +261,7 @@ class TestDeepEvalPlanAdherenceEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalPlanAdherenceEvaluator(threshold=0.7)
-            result = evaluator.evaluate(basic_observation)
+            result = evaluator.evaluate(basic_trajectory)[0]
 
             assert result.score == 0.4
             assert result.passed is False
@@ -291,7 +290,7 @@ class TestDeepEvalToolCorrectnessEvaluator:
         assert evaluator.evaluate_order is True
         assert evaluator.name == "deepeval/tool-correctness"
 
-    def test_correct_tools_selected(self, observation_with_tools):
+    def test_correct_tools_selected(self, trajectory_with_tools):
         """Test when correct tools are selected."""
         from deepeval.metrics import ToolCorrectnessMetric
 
@@ -302,12 +301,12 @@ class TestDeepEvalToolCorrectnessEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalToolCorrectnessEvaluator(threshold=0.7)
-            result = evaluator.evaluate(observation_with_tools)
+            result = evaluator.evaluate(trajectory_with_tools)[0]
 
             assert result.score == 1.0
             assert result.passed is True
 
-    def test_incorrect_tools_selected(self, observation_with_tools):
+    def test_incorrect_tools_selected(self, trajectory_with_tools):
         """Test when incorrect tools are selected."""
         from deepeval.metrics import ToolCorrectnessMetric
 
@@ -318,12 +317,12 @@ class TestDeepEvalToolCorrectnessEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalToolCorrectnessEvaluator(threshold=0.7)
-            result = evaluator.evaluate(observation_with_tools)
+            result = evaluator.evaluate(trajectory_with_tools)[0]
 
             assert result.score == 0.5
             assert result.passed is False
 
-    def test_with_available_tools_list(self, observation_with_tools):
+    def test_with_available_tools_list(self, trajectory_with_tools):
         """Test evaluation with available tools list."""
         from deepeval.metrics import ToolCorrectnessMetric
 
@@ -336,7 +335,7 @@ class TestDeepEvalToolCorrectnessEvaluator:
             evaluator = DeepEvalToolCorrectnessEvaluator(
                 available_tools=["search_flights", "book_flight", "cancel_flight"]
             )
-            result = evaluator.evaluate(observation_with_tools)
+            result = evaluator.evaluate(trajectory_with_tools)[0]
 
             assert result.score == 0.9
             assert result.passed is True
@@ -354,7 +353,7 @@ class TestDeepEvalArgumentCorrectnessEvaluator:
         assert evaluator.model == "gpt-4o-mini"
         assert evaluator.name == "deepeval/argument-correctness"
 
-    def test_correct_arguments(self, observation_with_tools):
+    def test_correct_arguments(self, trajectory_with_tools):
         """Test when correct arguments are provided."""
         from deepeval.metrics import ArgumentCorrectnessMetric
 
@@ -365,12 +364,12 @@ class TestDeepEvalArgumentCorrectnessEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalArgumentCorrectnessEvaluator(threshold=0.7)
-            result = evaluator.evaluate(observation_with_tools)
+            result = evaluator.evaluate(trajectory_with_tools)[0]
 
             assert result.score == 1.0
             assert result.passed is True
 
-    def test_incorrect_arguments(self, observation_with_tools):
+    def test_incorrect_arguments(self, trajectory_with_tools):
         """Test when incorrect arguments are provided."""
         from deepeval.metrics import ArgumentCorrectnessMetric
 
@@ -381,7 +380,7 @@ class TestDeepEvalArgumentCorrectnessEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalArgumentCorrectnessEvaluator(threshold=0.7)
-            result = evaluator.evaluate(observation_with_tools)
+            result = evaluator.evaluate(trajectory_with_tools)[0]
 
             assert result.score == 0.4
             assert result.passed is False
@@ -403,7 +402,7 @@ class TestDeepEvalTaskCompletionEvaluator:
         assert evaluator.custom_task == "Complete the booking"
         assert evaluator.name == "deepeval/task-completion"
 
-    def test_task_completed(self, basic_observation):
+    def test_task_completed(self, basic_trajectory):
         """Test when task is completed successfully."""
         from deepeval.metrics import TaskCompletionMetric
 
@@ -414,12 +413,12 @@ class TestDeepEvalTaskCompletionEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalTaskCompletionEvaluator(threshold=0.7)
-            result = evaluator.evaluate(basic_observation)
+            result = evaluator.evaluate(basic_trajectory)[0]
 
             assert result.score == 1.0
             assert result.passed is True
 
-    def test_task_partially_completed(self, basic_observation):
+    def test_task_partially_completed(self, basic_trajectory):
         """Test when task is only partially completed."""
         from deepeval.metrics import TaskCompletionMetric
 
@@ -430,12 +429,12 @@ class TestDeepEvalTaskCompletionEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalTaskCompletionEvaluator(threshold=0.7)
-            result = evaluator.evaluate(basic_observation)
+            result = evaluator.evaluate(basic_trajectory)[0]
 
             assert result.score == 0.6
             assert result.passed is False
 
-    def test_task_failed(self, basic_observation):
+    def test_task_failed(self, basic_trajectory):
         """Test when task completely failed."""
         from deepeval.metrics import TaskCompletionMetric
 
@@ -446,7 +445,7 @@ class TestDeepEvalTaskCompletionEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalTaskCompletionEvaluator(threshold=0.7)
-            result = evaluator.evaluate(basic_observation)
+            result = evaluator.evaluate(basic_trajectory)[0]
 
             assert result.score == 0.0
             assert result.passed is False
@@ -462,7 +461,7 @@ class TestDeepEvalStepEfficiencyEvaluator:
         assert evaluator.threshold == 0.75
         assert evaluator.name == "deepeval/step-efficiency"
 
-    def test_efficient_execution(self, observation_with_tools):
+    def test_efficient_execution(self, trajectory_with_tools):
         """Test when execution is efficient (no redundant steps)."""
         from deepeval.metrics import StepEfficiencyMetric
 
@@ -473,12 +472,12 @@ class TestDeepEvalStepEfficiencyEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalStepEfficiencyEvaluator(threshold=0.7)
-            result = evaluator.evaluate(observation_with_tools)
+            result = evaluator.evaluate(trajectory_with_tools)[0]
 
             assert result.score == 0.95
             assert result.passed is True
 
-    def test_inefficient_execution(self, observation_with_tools):
+    def test_inefficient_execution(self, trajectory_with_tools):
         """Test when execution has redundant steps."""
         from deepeval.metrics import StepEfficiencyMetric
 
@@ -489,7 +488,7 @@ class TestDeepEvalStepEfficiencyEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalStepEfficiencyEvaluator(threshold=0.7)
-            result = evaluator.evaluate(observation_with_tools)
+            result = evaluator.evaluate(trajectory_with_tools)[0]
 
             assert result.score == 0.5
             assert result.passed is False
@@ -574,7 +573,7 @@ class TestDeepEvalEvaluatorsIntegration:
         assert "deepeval/plan-quality" in deepeval_evaluators
 
     @patch("amp_evaluation.evaluators.builtin.deepeval._get_deepeval_metric_class")
-    def test_evaluator_handles_none_score(self, mock_get_class, basic_observation):
+    def test_evaluator_handles_none_score(self, mock_get_class, basic_trajectory):
         """Test that evaluators handle malformed DeepEval responses gracefully."""
         # Create metric that returns None score
         metric_instance = MagicMock()
@@ -586,19 +585,19 @@ class TestDeepEvalEvaluatorsIntegration:
         mock_get_class.return_value = mock_metric_class
 
         evaluator = DeepEvalTaskCompletionEvaluator()
-        result = evaluator.evaluate(basic_observation)
+        result = evaluator.evaluate(basic_trajectory)[0]
 
         # Should handle None score gracefully (convert to 0.0)
         assert result.score == 0.0
         assert result.passed is False
 
     @patch("amp_evaluation.evaluators.builtin.deepeval._get_deepeval_metric_class")
-    def test_evaluator_handles_exceptions(self, mock_get_class, basic_observation):
+    def test_evaluator_handles_exceptions(self, mock_get_class, basic_trajectory):
         """Test that evaluators handle exceptions gracefully."""
         mock_get_class.side_effect = Exception("Unexpected error")
 
         evaluator = DeepEvalPlanQualityEvaluator()
-        result = evaluator.evaluate(basic_observation)
+        result = evaluator.evaluate(basic_trajectory)[0]
 
         assert result.is_error
         assert result.error is not None

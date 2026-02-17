@@ -29,8 +29,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from amp_evaluation.evaluators.config import Param
 from amp_evaluation.evaluators.base import BaseEvaluator
-from amp_evaluation.models import Observation, EvalResult
-from amp_evaluation.trace import Trajectory, TraceMetrics, TokenUsage
+from amp_evaluation.models import EvalResult
+from amp_evaluation.trace import Trace, TraceMetrics, TokenUsage
 
 
 # ============================================================================
@@ -47,7 +47,7 @@ class TestConfigDescriptor:
         class TestEvaluator(BaseEvaluator):
             threshold = Param(float, default=0.7, description="Test threshold")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=self.threshold)
 
         evaluator = TestEvaluator()
@@ -59,7 +59,7 @@ class TestConfigDescriptor:
         class TestEvaluator(BaseEvaluator):
             threshold = Param(float, default=0.7, description="Test threshold")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=self.threshold)
 
         evaluator = TestEvaluator(threshold=0.9)
@@ -71,7 +71,7 @@ class TestConfigDescriptor:
         class TestEvaluator(BaseEvaluator):
             threshold = Param(float, default=0.7, description="Test threshold")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=self.threshold)
 
         evaluator = TestEvaluator()
@@ -84,7 +84,7 @@ class TestConfigDescriptor:
         class TestEvaluator(BaseEvaluator):
             threshold = Param(float, default=0.7, description="Test threshold")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=self.threshold)
 
         # Class-level access returns the descriptor itself
@@ -106,7 +106,7 @@ class TestConfigValidation:
         class TestEvaluator(BaseEvaluator):
             count = Param(int, default=5, description="Count")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         evaluator = TestEvaluator(count=10)
@@ -118,7 +118,7 @@ class TestConfigValidation:
         class TestEvaluator(BaseEvaluator):
             count = Param(int, default=5, description="Count")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         with pytest.raises(TypeError, match="expects int"):
@@ -130,7 +130,7 @@ class TestConfigValidation:
         class TestEvaluator(BaseEvaluator):
             threshold = Param(float, default=0.7, description="Threshold")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         evaluator = TestEvaluator(threshold=1)  # int
@@ -142,7 +142,7 @@ class TestConfigValidation:
         class TestEvaluator(BaseEvaluator):
             threshold = Param(float, default=0.7, min=0.0, max=1.0, description="Threshold")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         # Valid value
@@ -159,7 +159,7 @@ class TestConfigValidation:
         class TestEvaluator(BaseEvaluator):
             threshold = Param(float, default=0.7, min=0.0, max=1.0, description="Threshold")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         # Valid value
@@ -178,7 +178,7 @@ class TestConfigValidation:
                 str, default="gpt-4o-mini", enum=["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"], description="Model name"
             )
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         # Valid value
@@ -205,7 +205,7 @@ class TestConfigSchema:
             threshold = Param(float, default=0.7, description="Test threshold")
             model = Param(str, default="gpt-4o-mini", description="Model name")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         evaluator = TestEvaluator()
@@ -214,8 +214,8 @@ class TestConfigSchema:
         assert "config_schema" in metadata
         config_schema = metadata["config_schema"]
 
-        # Should have 2 config fields
-        assert len(config_schema) == 2
+        # Should have 4 config fields (threshold, model + inherited level, span_type)
+        assert len(config_schema) == 4
 
         # Check threshold config
         threshold_config = next(c for c in config_schema if c["key"] == "threshold")
@@ -237,7 +237,7 @@ class TestConfigSchema:
             threshold = Param(float, default=0.7, min=0.0, max=1.0, description="Threshold with constraints")
             model = Param(str, default="gpt-4o-mini", enum=["gpt-4o", "gpt-4o-mini"], description="Model with enum")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         evaluator = TestEvaluator()
@@ -259,7 +259,7 @@ class TestConfigSchema:
         class TestEvaluator(BaseEvaluator):
             api_key = Param(str, required=True, description="Required API key")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         evaluator = TestEvaluator()
@@ -301,7 +301,7 @@ class TestBackwardCompatibility:
         evaluator = AnswerLengthEvaluator(min_length=10, max_length=50)
 
         # Create test observation
-        trajectory = Trajectory(
+        trajectory = Trace(
             trace_id="test-1",
             input="Test",
             output="This is a test output",  # 21 chars
@@ -312,9 +312,8 @@ class TestBackwardCompatibility:
             ),
             steps=[],
         )
-        observation = Observation(trajectory=trajectory)
 
-        result = evaluator.evaluate(observation)
+        result = evaluator.evaluate(trajectory)[0]
         assert result.passed
         assert result.score == 1.0
 
@@ -329,7 +328,7 @@ class TestBackwardCompatibility:
         assert "config_schema" in metadata
 
         config_schema = metadata["config_schema"]
-        assert len(config_schema) == 2
+        assert len(config_schema) == 4  # min_length, max_length + inherited level, span_type
 
         # Check min_length config
         min_config = next(c for c in config_schema if c["key"] == "min_length")
@@ -361,7 +360,7 @@ class TestMultipleConfigs:
             max_retries = Param(int, default=3, min=1, max=10, description="Max retries")
             strict_mode = Param(bool, default=False, description="Enable strict mode")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=self.threshold)
 
         # Test defaults
@@ -404,7 +403,7 @@ class TestConfigEnforcement:
                 # This should fail validation because threshold is not a Config descriptor
                 super().__init__()
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         # Manually set the module to simulate a built-in evaluator
@@ -424,7 +423,7 @@ class TestConfigEnforcement:
             def __init__(self, **kwargs):
                 super().__init__(**kwargs)
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         # Manually set the module to simulate a built-in evaluator
@@ -444,7 +443,7 @@ class TestConfigEnforcement:
                 super().__init__(**kwargs)
                 self.threshold = threshold
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=self.threshold)
 
         # User evaluators (not in builtin package) should not be validated
@@ -480,7 +479,7 @@ class TestConfigNoneDefaults:
         class TestEvaluator(BaseEvaluator):
             optional_field = Param(str, default=None, description="Optional with None default")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult.skip("")
 
         evaluator = TestEvaluator()
@@ -493,7 +492,7 @@ class TestConfigNoneDefaults:
         class TestEvaluator(BaseEvaluator):
             required_field = Param(str, description="Required field")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult.skip("")
 
         assert TestEvaluator.required_field.required
@@ -504,7 +503,7 @@ class TestConfigNoneDefaults:
         class TestEvaluator(BaseEvaluator):
             optional_str = Param(str, default="", description="Optional with empty string")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult.skip("")
 
         evaluator = TestEvaluator()
@@ -517,7 +516,7 @@ class TestConfigNoneDefaults:
         class TestEvaluator(BaseEvaluator):
             count = Param(int, default=0, description="Count with 0 default")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult.skip("")
 
         evaluator = TestEvaluator()
@@ -530,7 +529,7 @@ class TestConfigNoneDefaults:
         class TestEvaluator(BaseEvaluator):
             enabled = Param(bool, default=False, description="Enabled with False default")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult.skip("")
 
         evaluator = TestEvaluator()
@@ -543,7 +542,7 @@ class TestConfigNoneDefaults:
         class TestEvaluator(BaseEvaluator):
             optional_field = Param(str, default=None, description="Optional with None default")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult.skip("")
 
         schema = TestEvaluator.optional_field.to_schema()
@@ -557,7 +556,7 @@ class TestConfigNoneDefaults:
         class TestEvaluator(BaseEvaluator):
             required_field = Param(str, description="Required field")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult.skip("")
 
         schema = TestEvaluator.required_field.to_schema()
@@ -570,7 +569,7 @@ class TestConfigNoneDefaults:
         class TestEvaluator(BaseEvaluator):
             field = Param(str, default="value", required=True, description="Required despite default")
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult.skip("")
 
         assert TestEvaluator.field.required

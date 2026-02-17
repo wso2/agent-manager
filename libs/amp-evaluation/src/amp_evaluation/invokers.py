@@ -61,7 +61,7 @@ from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any, Callable
 import logging
 
-from .trace import Trajectory
+from .trace import Trace
 
 
 logger = logging.getLogger(__name__)
@@ -82,14 +82,14 @@ class InvokeResult:
         input: The input that was sent to the agent
         output: The agent's response (string, dict, or any serializable type)
         error: Error message if invocation failed (None if successful)
-        trajectory: Direct Trajectory object (optional, for in-process agents)
+        trajectory: Direct Trace object (optional, for in-process agents)
         metadata: Optional metadata about the invocation
     """
 
     input: Any = None
     output: Any = None
     error: Optional[str] = None
-    trajectory: Optional[Trajectory] = None
+    trajectory: Optional[Trace] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     @property

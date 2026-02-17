@@ -18,9 +18,9 @@
 Built-in evaluators for common evaluation patterns.
 
 All evaluators use the two-parameter interface:
-    evaluate(observation: Observation, task: Optional[Task] = None) -> EvalResult
+    evaluate(trace: Trace, task: Optional[Task] = None) -> EvalResult
 
-- observation: What the agent did (always available)
+- trace: The agent's execution trace (always available)
 - task: What it should have done (only for experiments with datasets)
 """
 
@@ -28,14 +28,13 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, Any
 
 from amp_evaluation.evaluators.base import BaseEvaluator
 from amp_evaluation.evaluators.config import Param
-from amp_evaluation.models import Observation, EvalResult
-
-if TYPE_CHECKING:
-    from amp_evaluation.dataset import Task
+from amp_evaluation.models import EvalResult
+from amp_evaluation.trace.models import Trace, LLMSpan
+from amp_evaluation.dataset.schema import Task
 
 
 logger = logging.getLogger(__name__)
@@ -60,8 +59,8 @@ class AnswerLengthEvaluator(BaseEvaluator):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
-        output_length = len(observation.output) if observation.output else 0
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+        output_length = len(trace.output) if trace.output else 0
 
         if output_length < self.min_length:
             return EvalResult(
@@ -99,9 +98,9 @@ class AnswerRelevancyEvaluator(BaseEvaluator):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
-        input_text = observation.input.lower() if observation.input else ""
-        output_text = observation.output.lower() if observation.output else ""
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+        input_text = trace.input.lower() if trace.input else ""
+        output_text = trace.output.lower() if trace.output else ""
 
         # Simple word overlap relevancy check
         input_words = set(input_text.split())
@@ -141,8 +140,8 @@ class RequiredContentEvaluator(BaseEvaluator):
         if self.required_patterns is None:
             self.required_patterns = []
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
-        output = observation.output if observation.output else ""
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+        output = trace.output if trace.output else ""
         compare_output = output if self.case_sensitive else output.lower()
 
         missing_strings = []
@@ -194,8 +193,8 @@ class ProhibitedContentEvaluator(BaseEvaluator):
         if self.prohibited_patterns is None:
             self.prohibited_patterns = []
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
-        output = observation.output if observation.output else ""
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+        output = trace.output if trace.output else ""
         compare_output = output if self.case_sensitive else output.lower()
 
         # Combine explicit and context prohibited content
@@ -239,17 +238,17 @@ class ExactMatchEvaluator(BaseEvaluator):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         # Get expected output from context (raises DataNotAvailableError if not available)
 
         if task is None or task.expected_output is None:
             return EvalResult.skip(
                 "Expected output not available for exact match evaluation",
-                details={"expected_available": False, "output_available": observation.output is not None},
+                details={"expected_available": False, "output_available": trace.output is not None},
             )
         expected = task.expected_output
 
-        output = observation.output if observation.output else None
+        output = trace.output if trace.output else None
         if not output:
             return EvalResult.skip(
                 "Actual output not available for exact match evaluation",
@@ -289,10 +288,10 @@ class ContainsMatchEvaluator(BaseEvaluator):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         expected = task.expected_output
 
-        output = observation.output if observation.output else ""
+        output = trace.output if trace.output else ""
 
         compare_output = output if self.case_sensitive else output.lower()
         compare_expected = expected if self.case_sensitive else expected.lower()
@@ -335,9 +334,7 @@ class ToolSequenceEvaluator(BaseEvaluator):
         if self.expected_sequence is None:
             self.expected_sequence = []
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
-        trajectory = observation.trajectory
-
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         # Get expected sequence
         expected = list(self.expected_sequence)
         if self.use_context_trajectory and task and task.expected_trajectory:
@@ -348,11 +345,11 @@ class ToolSequenceEvaluator(BaseEvaluator):
         if not expected:
             return EvalResult.skip(
                 "No expected tool sequence specified",
-                details={"actual_sequence": [step.name for step in trajectory.tool_spans if step.name]},
+                details={"actual_sequence": [step.name for step in trace.tool_spans if step.name]},
             )
 
         # Extract actual tool sequence
-        actual_sequence = [step.name for step in trajectory.tool_spans if step.name]
+        actual_sequence = [step.name for step in trace.tool_spans if step.name]
 
         if self.strict:
             # Exact match
@@ -393,9 +390,7 @@ class RequiredToolsEvaluator(BaseEvaluator):
         elif not isinstance(self.required_tools, set):
             self.required_tools = set(self.required_tools)
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
-        trajectory = observation.trajectory
-
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         required = set(self.required_tools)
 
         # Also check context for expected trajectory tools
@@ -408,11 +403,11 @@ class RequiredToolsEvaluator(BaseEvaluator):
         if not required:
             return EvalResult.skip(
                 "No required tools specified",
-                details={"used_tools": [step.name for step in trajectory.tool_spans if step.name]},
+                details={"used_tools": [step.name for step in trace.tool_spans if step.name]},
             )
 
         # Get actually used tools
-        used_tools = {step.name for step in trajectory.tool_spans if step.name}
+        used_tools = {step.name for step in trace.tool_spans if step.name}
 
         missing_tools = required - used_tools
         found_tools = required.intersection(used_tools)
@@ -444,14 +439,12 @@ class StepSuccessRateEvaluator(BaseEvaluator):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
-        trajectory = observation.trajectory
-
-        if not trajectory.steps:
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+        if not trace.steps:
             return EvalResult.skip("No steps to evaluate", details={"step_count": 0})
 
-        successful_steps = sum(1 for step in trajectory.steps if not step.error)
-        total_steps = len(trajectory.steps)
+        successful_steps = sum(1 for step in trace.steps if not step.error)
+        total_steps = len(trace.steps)
         success_rate = successful_steps / total_steps
 
         passed = success_rate >= self.min_success_rate
@@ -470,11 +463,18 @@ class StepSuccessRateEvaluator(BaseEvaluator):
 
 
 class LatencyEvaluator(BaseEvaluator):
-    """Evaluates if the trace completed within latency constraints."""
+    """
+    Evaluates if execution completed within latency constraints.
+
+    Supports multi-level evaluation:
+    - trace: Total execution time for entire trace
+    - agent: Execution time for each agent in multi-agent traces
+    - span: Execution time for individual spans (LLM calls, tool calls, etc.)
+    """
 
     name = "latency"
-    description = "Validates total execution time meets configured latency constraints"
-    tags = ["standard", "rule-based", "performance", "efficiency"]
+    description = "Validates execution time meets configured latency constraints at trace, agent, or span level"
+    tags = ["standard", "rule-based", "performance", "efficiency", "multi-level"]
 
     max_latency_ms = Param(float, default=None, min=0.0, description="Maximum allowed latency in milliseconds")
     use_task_constraint = Param(bool, default=True, description="Whether to use task.constraints.max_latency_ms")
@@ -482,34 +482,95 @@ class LatencyEvaluator(BaseEvaluator):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
-        # Determine max latency
+    def _get_max_latency(self, task: Optional[Task]) -> Optional[float]:
+        """Get max latency from config or task constraints."""
         max_latency = self.max_latency_ms
         if self.use_task_constraint and task and task.constraints:
             constraints = task.constraints
             if constraints and constraints.has_latency_constraint():
                 max_latency = constraints.max_latency_ms
+        return max_latency
 
-        if max_latency is None:
-            return EvalResult.skip(
-                "No latency constraint specified", details={"actual_latency_ms": observation.metrics.total_duration_ms}
-            )
-
-        actual_latency = observation.metrics.total_duration_ms or 0
+    def _calculate_score(self, actual_latency: float, max_latency: float) -> tuple[float, bool]:
+        """Calculate score and pass/fail status."""
         passed = actual_latency <= max_latency
-
-        # Score: 1.0 if within limit, decreasing as we exceed
         if actual_latency <= max_latency:
             score = 1.0
         else:
             # Linear decrease, 0 at 2x the limit
             score = max(0.0, 1.0 - (actual_latency - max_latency) / max_latency)
+        return score, passed
+
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+        """Evaluate trace-level latency."""
+        max_latency = self._get_max_latency(task)
+
+        if max_latency is None:
+            return EvalResult.skip(
+                "No latency constraint specified", details={"actual_latency_ms": trace.metrics.total_duration_ms}
+            )
+
+        actual_latency = trace.metrics.total_duration_ms or 0
+        score, passed = self._calculate_score(actual_latency, max_latency)
 
         return EvalResult(
             score=score,
             passed=passed,
             explanation=f"Latency: {actual_latency:.0f}ms (max: {max_latency:.0f}ms)",
             details={"actual_latency_ms": actual_latency, "max_latency_ms": max_latency},
+        )
+
+    def _agent_evaluation(self, agent_trace: Any, task: Optional[Task] = None) -> EvalResult:
+        """Evaluate agent-level latency."""
+        max_latency = self._get_max_latency(task)
+
+        if max_latency is None:
+            return EvalResult.skip(
+                "No latency constraint specified",
+                details={"agent_name": agent_trace.agent_name, "actual_latency_ms": agent_trace.metrics.total_duration_ms},
+            )
+
+        actual_latency = agent_trace.metrics.total_duration_ms or 0
+        score, passed = self._calculate_score(actual_latency, max_latency)
+
+        return EvalResult(
+            score=score,
+            passed=passed,
+            explanation=f"Agent '{agent_trace.agent_name}' latency: {actual_latency:.0f}ms (max: {max_latency:.0f}ms)",
+            details={
+                "agent_name": agent_trace.agent_name,
+                "agent_id": agent_trace.agent_id,
+                "actual_latency_ms": actual_latency,
+                "max_latency_ms": max_latency,
+            },
+        )
+
+    def _span_evaluation(self, span: Any, task: Optional[Task] = None) -> EvalResult:
+        """Evaluate span-level latency."""
+        max_latency = self._get_max_latency(task)
+
+        span_name = getattr(span, "name", "unknown_span")
+        if max_latency is None:
+            return EvalResult.skip(
+                "No latency constraint specified",
+                details={"span_name": span_name, "actual_latency_ms": getattr(span, "duration_ms", 0)},
+            )
+
+        actual_latency = getattr(span, "duration_ms", 0) or 0
+        score, passed = self._calculate_score(actual_latency, max_latency)
+
+        span_type = type(span).__name__
+
+        return EvalResult(
+            score=score,
+            passed=passed,
+            explanation=f"{span_type} '{span_name}' latency: {actual_latency:.0f}ms (max: {max_latency:.0f}ms)",
+            details={
+                "span_name": span_name,
+                "span_type": span_type,
+                "actual_latency_ms": actual_latency,
+                "max_latency_ms": max_latency,
+            },
         )
 
 
@@ -526,7 +587,7 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         # Determine max tokens
         max_tokens = self.max_tokens
         if self.use_context_constraint and task and task.constraints:
@@ -537,14 +598,10 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
         if max_tokens is None:
             return EvalResult.skip(
                 "No token constraint specified",
-                details={
-                    "actual_tokens": observation.metrics.token_usage.total_tokens
-                    if observation.metrics.token_usage
-                    else 0
-                },
+                details={"actual_tokens": trace.metrics.token_usage.total_tokens if trace.metrics.token_usage else 0},
             )
 
-        actual_tokens = observation.metrics.token_usage.total_tokens if observation.metrics.token_usage else 0
+        actual_tokens = trace.metrics.token_usage.total_tokens if trace.metrics.token_usage else 0
         passed = actual_tokens <= max_tokens
 
         # Score: 1.0 if within limit, decreasing as we exceed
@@ -574,9 +631,7 @@ class IterationCountEvaluator(BaseEvaluator):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
-        trajectory = observation.trajectory
-
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         # Determine max iterations
         max_iterations = self.max_iterations
         if self.use_context_constraint and task and task.constraints:
@@ -584,7 +639,7 @@ class IterationCountEvaluator(BaseEvaluator):
             if constraints and constraints.has_iteration_constraint():
                 max_iterations = constraints.max_iterations
 
-        actual_iterations = len(trajectory.steps)
+        actual_iterations = len(trace.steps)
 
         if max_iterations is None:
             return EvalResult.skip(
@@ -603,4 +658,122 @@ class IterationCountEvaluator(BaseEvaluator):
             passed=passed,
             explanation=f"Iterations: {actual_iterations} (max: {max_iterations})",
             details={"actual_iterations": actual_iterations, "max_iterations": max_iterations},
+        )
+
+
+# =============================================================================
+# Multi-Level Quality Evaluators
+# =============================================================================
+
+
+class HallucinationEvaluator(BaseEvaluator):
+    """
+    Detects potential hallucinations in AI outputs using keyword-based heuristics.
+
+    Supports multi-level evaluation:
+    - trace: Check final output for hallucination indicators
+    - agent: Check each agent's output in multi-agent traces
+    - span: Check individual LLM responses for hallucination patterns
+
+    This is a simple heuristic evaluator. For production use, consider
+    LLM-as-judge evaluators for more sophisticated hallucination detection.
+    """
+
+    name = "hallucination"
+    description = "Detects potential hallucinations using keyword patterns at trace, agent, or span level"
+    tags = ["standard", "rule-based", "quality", "safety", "multi-level"]
+
+    # Hallucination indicators
+    hallucination_keywords = Param(
+        list,
+        default=["I don't have access", "I cannot", "I'm not sure", "I don't know", "unclear", "uncertain"],
+        description="Keywords that may indicate uncertainty or hallucination",
+    )
+    case_sensitive = Param(bool, default=False, description="Whether keyword matching is case-sensitive")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def _check_for_hallucination(self, text: str) -> tuple[float, bool, str]:
+        """
+        Check text for hallucination indicators.
+
+        Returns:
+            (score, passed, explanation) tuple
+        """
+        if not text:
+            return 1.0, True, "No output to check"
+
+        # Check for hallucination keywords
+        search_text = text if self.case_sensitive else text.lower()
+        keywords = (
+            self.hallucination_keywords if self.case_sensitive else [k.lower() for k in self.hallucination_keywords]
+        )
+
+        found_keywords = []
+        for keyword in keywords:
+            if keyword in search_text:
+                found_keywords.append(keyword)
+
+        if found_keywords:
+            # Score decreases with number of hallucination indicators
+            score = max(0.0, 1.0 - (len(found_keywords) * 0.3))
+            return score, False, f"Found hallucination indicators: {', '.join(found_keywords)}"
+        else:
+            return 1.0, True, "No hallucination indicators detected"
+
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+        """Evaluate trace-level output for hallucinations."""
+        output = trace.output or ""
+        score, passed, explanation = self._check_for_hallucination(output)
+
+        return EvalResult(
+            score=score,
+            passed=passed,
+            explanation=f"Trace: {explanation}",
+            details={"output_length": len(output), "checked_keywords": self.hallucination_keywords},
+        )
+
+    def _agent_evaluation(self, agent_trace: Any, task: Optional[Task] = None) -> EvalResult:
+        """Evaluate agent output for hallucinations."""
+        output = agent_trace.output or ""
+        score, passed, explanation = self._check_for_hallucination(output)
+
+        return EvalResult(
+            score=score,
+            passed=passed,
+            explanation=f"Agent '{agent_trace.agent_name}': {explanation}",
+            details={
+                "agent_name": agent_trace.agent_name,
+                "agent_id": agent_trace.agent_id,
+                "output_length": len(output),
+                "checked_keywords": self.hallucination_keywords,
+            },
+        )
+
+    def _span_evaluation(self, span: Any, task: Optional[Task] = None) -> EvalResult:
+        """Evaluate span output (typically LLM response) for hallucinations."""
+        # For LLM spans, check the response
+        if isinstance(span, LLMSpan):
+            output = span.response or ""
+            span_name = getattr(span, "name", "llm_call")
+        else:
+            # For other span types, check output if available
+            output = getattr(span, "output", "") or getattr(span, "result", "") or ""
+            span_name = getattr(span, "name", "span")
+
+        score, passed, explanation = self._check_for_hallucination(output)
+
+        span_type = type(span).__name__
+
+        return EvalResult(
+            score=score,
+            passed=passed,
+            explanation=f"{span_type} '{span_name}': {explanation}",
+            details={
+                "span_name": span_name,
+                "span_type": span_type,
+                "output_length": len(output),
+                "checked_keywords": self.hallucination_keywords,
+            },
         )
