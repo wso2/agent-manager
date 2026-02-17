@@ -27,7 +27,6 @@ import (
 	"gorm.io/gorm"
 
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
-	ocauth "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
 	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
@@ -46,7 +45,6 @@ var configProviderSet = wire.NewSet(
 var clientProviderSet = wire.NewSet(
 	ProvideObservabilitySvcClient,
 	traceobserversvc.NewTraceObserverClient,
-	ProvideOCAuthProvider,
 	ProvideOCClient,
 )
 
@@ -101,15 +99,6 @@ var testClientProviderSet = wire.NewSet(
 // ProvideLogger provides the configured slog.Logger instance
 func ProvideLogger() *slog.Logger {
 	return slog.Default()
-}
-
-// ProvideOCAuthProvider creates the OpenChoreo auth provider using IDP config
-func ProvideOCAuthProvider(cfg config.Config) occlient.AuthProvider {
-	return ocauth.NewAuthProvider(ocauth.Config{
-		TokenURL:     cfg.IDP.TokenURL,
-		ClientID:     cfg.IDP.ClientID,
-		ClientSecret: cfg.IDP.ClientSecret,
-	})
 }
 
 // ProvideOCClient creates the OpenChoreo client
@@ -222,7 +211,7 @@ func ProvideLLMTemplateSeeder(templateRepo repositories.LLMProviderTemplateRepos
 }
 
 // InitializeAppParams wires up all application dependencies
-func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
+func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider occlient.AuthProvider) (*AppParams, error) {
 	wire.Build(
 		configProviderSet,
 		clientProviderSet,

@@ -32,6 +32,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/api"
+	ocauth "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/server"
@@ -102,7 +103,12 @@ func main() {
 	}
 	// Get the raw DB instance without context - repositories will add context per-operation
 	db := db.GetDB()
-	dependencies, err := wiring.InitializeAppParams(cfg, db)
+	ocAuthProvider := ocauth.NewAuthProvider(ocauth.Config{
+		TokenURL:     cfg.IDP.TokenURL,
+		ClientID:     cfg.IDP.ClientID,
+		ClientSecret: cfg.IDP.ClientSecret,
+	})
+	dependencies, err := wiring.InitializeAppParams(cfg, db, ocAuthProvider)
 	if err != nil {
 		slog.Error("failed to initialize app dependencies", "error", err)
 		os.Exit(1)
