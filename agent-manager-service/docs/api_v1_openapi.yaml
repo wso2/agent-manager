@@ -4025,10 +4025,10 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 
 
-  /orgs/{orgName}/monitors:
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors:
     get:
-      summary: List all evaluation monitors
-      description: Returns a list of all evaluation monitors for an organization
+      summary: List all evaluation monitors for an agent
+      description: Returns a list of all evaluation monitors for a specific agent
       operationId: listMonitors
       parameters:
         - name: orgName
@@ -4037,6 +4037,18 @@ paths:
           schema:
             type: string
           description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
       responses:
         "200":
           description: List of monitors
@@ -4069,6 +4081,18 @@ paths:
           schema:
             type: string
           description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
       requestBody:
         required: true
         content:
@@ -4101,7 +4125,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/monitors/{monitorName}:
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}:
     get:
       summary: Get monitor details
       description: Retrieves detailed information about a specific evaluation monitor
@@ -4113,6 +4137,18 @@ paths:
           schema:
             type: string
           description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
         - name: monitorName
           in: path
           required: true
@@ -4149,6 +4185,18 @@ paths:
           schema:
             type: string
           description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
         - name: monitorName
           in: path
           required: true
@@ -4197,6 +4245,18 @@ paths:
           schema:
             type: string
           description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
         - name: monitorName
           in: path
           required: true
@@ -4219,7 +4279,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/monitors/{monitorName}/stop:
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/stop:
     post:
       summary: Stop a monitor
       description: Stops a future monitor by unscheduling it. The monitor will no longer execute on schedule but can be started again later.
@@ -4231,6 +4291,18 @@ paths:
           schema:
             type: string
           description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
         - name: monitorName
           in: path
           required: true
@@ -4269,7 +4341,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/monitors/{monitorName}/start:
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/start:
     post:
       summary: Start a monitor
       description: Starts a stopped future monitor by scheduling it to run immediately. The scheduler will pick it up within 60 seconds.
@@ -4281,6 +4353,18 @@ paths:
           schema:
             type: string
           description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
         - name: monitorName
           in: path
           required: true
@@ -4319,7 +4403,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/monitors/{monitorName}/runs:
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs:
     get:
       summary: List monitor runs
       description: Returns a list of all execution runs for a specific monitor
@@ -4331,6 +4415,18 @@ paths:
           schema:
             type: string
           description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
         - name: monitorName
           in: path
           required: true
@@ -4357,7 +4453,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/monitors/{monitorName}/runs/{runId}/rerun:
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/rerun:
     post:
       summary: Rerun a monitor with same parameters
       description: Creates a new workflow execution with the same time parameters as an existing run
@@ -4369,6 +4465,18 @@ paths:
           schema:
             type: string
           description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
         - name: monitorName
           in: path
           required: true
@@ -4407,7 +4515,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/monitors/{monitorName}/runs/{runId}/logs:
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/logs:
     get:
       summary: Get monitor run logs
       description: Retrieves execution logs for a specific monitor run
@@ -4419,6 +4527,18 @@ paths:
           schema:
             type: string
           description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
         - name: monitorName
           in: path
           required: true
@@ -5560,8 +5680,6 @@ components:
       required:
         - name
         - displayName
-        - projectName
-        - agentName
         - environmentName
         - evaluators
         - type
@@ -5579,14 +5697,6 @@ components:
           minLength: 1
           maxLength: 128
           example: "Customer Support Quality Monitor"
-        projectName:
-          type: string
-          description: Name of the project containing the agent
-          example: "customer-support-project"
-        agentName:
-          type: string
-          description: Name of the agent to monitor
-          example: "support-agent"
         environmentName:
           type: string
           description: Name of the environment to monitor

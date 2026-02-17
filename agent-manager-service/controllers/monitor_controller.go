@@ -53,7 +53,7 @@ func NewMonitorController(monitorService services.MonitorManagerService) Monitor
 	}
 }
 
-// CreateMonitor handles POST /orgs/{orgName}/monitors
+// CreateMonitor handles POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors
 func (c *monitorController) CreateMonitor(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -61,6 +61,18 @@ func (c *monitorController) CreateMonitor(w http.ResponseWriter, r *http.Request
 	orgName := r.PathValue("orgName")
 	if orgName == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
+		return
+	}
+
+	projName := r.PathValue("projName")
+	if projName == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Project name is required")
+		return
+	}
+
+	agentName := r.PathValue("agentName")
+	if agentName == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Agent name is required")
 		return
 	}
 
@@ -74,14 +86,6 @@ func (c *monitorController) CreateMonitor(w http.ResponseWriter, r *http.Request
 	// Validate required fields
 	if req.Name == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
-	if req.ProjectName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Project name is required")
-		return
-	}
-	if req.AgentName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Agent name is required")
 		return
 	}
 	if req.EnvironmentName == "" {
@@ -106,8 +110,8 @@ func (c *monitorController) CreateMonitor(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Convert spec request to models request
-	modelReq := utils.ConvertToCreateMonitorRequest(&req)
+	// Convert spec request to models request with path parameters
+	modelReq := utils.ConvertToCreateMonitorRequest(&req, projName, agentName)
 
 	monitor, err := c.monitorService.CreateMonitor(ctx, orgName, modelReq)
 	if err != nil {
@@ -138,7 +142,7 @@ func (c *monitorController) CreateMonitor(w http.ResponseWriter, r *http.Request
 	}
 }
 
-// GetMonitor handles GET /orgs/{orgName}/monitors/{monitorName}
+// GetMonitor handles GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}
 func (c *monitorController) GetMonitor(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -175,7 +179,7 @@ func (c *monitorController) GetMonitor(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ListMonitors handles GET /orgs/{orgName}/monitors
+// ListMonitors handles GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors
 func (c *monitorController) ListMonitors(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -186,7 +190,19 @@ func (c *monitorController) ListMonitors(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	result, err := c.monitorService.ListMonitors(ctx, orgName)
+	projName := r.PathValue("projName")
+	if projName == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Project name is required")
+		return
+	}
+
+	agentName := r.PathValue("agentName")
+	if agentName == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Agent name is required")
+		return
+	}
+
+	result, err := c.monitorService.ListMonitors(ctx, orgName, projName, agentName)
 	if err != nil {
 		log.Error("Failed to list monitors", "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list monitors")
@@ -202,7 +218,7 @@ func (c *monitorController) ListMonitors(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// DeleteMonitor handles DELETE /orgs/{orgName}/monitors/{monitorName}
+// DeleteMonitor handles DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}
 func (c *monitorController) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -233,7 +249,7 @@ func (c *monitorController) DeleteMonitor(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// UpdateMonitor handles PATCH /orgs/{orgName}/monitors/{monitorName}
+// UpdateMonitor handles PATCH /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}
 func (c *monitorController) UpdateMonitor(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -284,7 +300,7 @@ func (c *monitorController) UpdateMonitor(w http.ResponseWriter, r *http.Request
 	}
 }
 
-// ListMonitorRuns handles GET /orgs/{orgName}/monitors/{monitorName}/runs
+// ListMonitorRuns handles GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs
 func (c *monitorController) ListMonitorRuns(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -321,7 +337,7 @@ func (c *monitorController) ListMonitorRuns(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-// RerunMonitor handles POST /orgs/{orgName}/monitors/{monitorName}/runs/{runId}/rerun
+// RerunMonitor handles POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/rerun
 func (c *monitorController) RerunMonitor(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -373,7 +389,7 @@ func (c *monitorController) RerunMonitor(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// GetMonitorRunLogs handles GET /orgs/{orgName}/monitors/{monitorName}/runs/{runId}/logs
+// GetMonitorRunLogs handles GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/logs
 func (c *monitorController) GetMonitorRunLogs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -415,7 +431,7 @@ func (c *monitorController) GetMonitorRunLogs(w http.ResponseWriter, r *http.Req
 	utils.WriteSuccessResponse(w, http.StatusOK, logsResponse)
 }
 
-// StopMonitor handles POST /orgs/{orgName}/monitors/{monitorName}/stop
+// StopMonitor handles POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/stop
 func (c *monitorController) StopMonitor(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -460,7 +476,7 @@ func (c *monitorController) StopMonitor(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// StartMonitor handles POST /orgs/{orgName}/monitors/{monitorName}/start
+// StartMonitor handles POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/start
 func (c *monitorController) StartMonitor(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
