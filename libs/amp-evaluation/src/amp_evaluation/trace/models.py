@@ -1138,9 +1138,7 @@ class Trace:
             retrieval_count=len(retriever_spans),
             agent_span_count=0,
             total_span_count=len(descendant_spans),
-            error_count=sum(
-                1 for s in descendant_spans if getattr(getattr(s, "metrics", None), "error", False)
-            ),
+            error_count=sum(1 for s in descendant_spans if getattr(getattr(s, "metrics", None), "error", False)),
         )
 
         return AgentTrace(

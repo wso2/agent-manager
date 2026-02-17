@@ -34,6 +34,7 @@ from amp_evaluation.trace.parser import (
 def sample_traces():
     """Load real sample traces from fixture file."""
     import os
+
     fixture_path = os.path.join(os.path.dirname(__file__), "fixtures", "sample_traces.json")
     with open(fixture_path, "r") as f:
         data = json.load(f)
@@ -61,13 +62,9 @@ class TestSpanFiltering:
         assert original_count == 19, f"Expected 19 spans, got {original_count}"
 
         infrastructure_count = sum(
-            1 for s in otel_trace.spans
-            if s.ampAttributes.get("kind", "unknown") in INFRASTRUCTURE_KINDS
+            1 for s in otel_trace.spans if s.ampAttributes.get("kind", "unknown") in INFRASTRUCTURE_KINDS
         )
-        semantic_count = sum(
-            1 for s in otel_trace.spans
-            if s.ampAttributes.get("kind", "unknown") in SEMANTIC_KINDS
-        )
+        semantic_count = sum(1 for s in otel_trace.spans if s.ampAttributes.get("kind", "unknown") in SEMANTIC_KINDS)
 
         # Verify fixture has infrastructure spans
         assert infrastructure_count > 0, "Test trace should have infrastructure spans"
@@ -77,23 +74,21 @@ class TestSpanFiltering:
         filtered_spans = filter_infrastructure_spans(otel_trace.spans)
 
         # VERIFY: Only semantic spans + synthetic root remain
-        assert len(filtered_spans) <= semantic_count + 1, \
+        assert len(filtered_spans) <= semantic_count + 1, (
             f"Expected <={semantic_count + 1} spans after filtering, got {len(filtered_spans)}"
+        )
 
         # VERIFY: No infrastructure spans in filtered output
         for span in filtered_spans:
             kind = span.ampAttributes.get("kind", "unknown")
             if not span.ampAttributes.get("synthetic", False):
-                assert kind in SEMANTIC_KINDS, \
-                    f"Infrastructure span {kind} found in filtered output"
+                assert kind in SEMANTIC_KINDS, f"Infrastructure span {kind} found in filtered output"
 
         # VERIFY: All semantic spans preserved
-        filtered_semantic = [
-            s for s in filtered_spans
-            if not s.ampAttributes.get("synthetic", False)
-        ]
-        assert len(filtered_semantic) == semantic_count, \
+        filtered_semantic = [s for s in filtered_spans if not s.ampAttributes.get("synthetic", False)]
+        assert len(filtered_semantic) == semantic_count, (
             f"Expected {semantic_count} semantic spans, got {len(filtered_semantic)}"
+        )
 
     def test_http_unknown_pattern_filtering(self, sample_traces):
         """
@@ -121,8 +116,7 @@ class TestSpanFiltering:
         filtered_spans = filter_infrastructure_spans(otel_trace.spans)
 
         # VERIFY: Significant reduction
-        assert len(filtered_spans) < original_count, \
-            "Filtering should reduce span count"
+        assert len(filtered_spans) < original_count, "Filtering should reduce span count"
 
         # VERIFY: Tree structure valid (single root)
         roots = [s for s in filtered_spans if s.parentSpanId is None]
@@ -134,37 +128,26 @@ class TestSpanFiltering:
 
         Trace with 3 agent spans should preserve all agents after filtering.
         """
-        crew_trace = next(
-            (t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"),
-            None
-        )
+        crew_trace = next((t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"), None)
         if not crew_trace:
             pytest.skip("CrewAI trace not found")
 
         otel_trace = _parse_trace(crew_trace)
 
         # Count original agents
-        original_agents = [
-            s for s in otel_trace.spans
-            if s.ampAttributes.get("kind") == "agent"
-        ]
+        original_agents = [s for s in otel_trace.spans if s.ampAttributes.get("kind") == "agent"]
         assert len(original_agents) == 3, "CrewAI trace should have 3 agents"
 
         # Filter
         filtered_spans = filter_infrastructure_spans(otel_trace.spans)
 
         # VERIFY: All 3 agents preserved
-        filtered_agents = [
-            s for s in filtered_spans
-            if s.ampAttributes.get("kind") == "agent"
-        ]
-        assert len(filtered_agents) == 3, \
-            f"Expected 3 agents after filtering, got {len(filtered_agents)}"
+        filtered_agents = [s for s in filtered_spans if s.ampAttributes.get("kind") == "agent"]
+        assert len(filtered_agents) == 3, f"Expected 3 agents after filtering, got {len(filtered_agents)}"
 
         # VERIFY: Agent hierarchy preserved (all agents have same parent or root)
         agent_parents = {a.parentSpanId for a in filtered_agents}
-        assert len(agent_parents) <= 2, \
-            "Agents should share common parent (or None for synthetic root)"
+        assert len(agent_parents) <= 2, "Agents should share common parent (or None for synthetic root)"
 
     def test_standalone_llm_pattern(self, sample_traces):
         """
@@ -192,11 +175,9 @@ class TestSpanFiltering:
         filtered_spans = filter_infrastructure_spans(otel_trace.spans)
 
         # VERIFY: Unchanged (no filtering needed)
-        assert len(filtered_spans) == 1, \
-            "Standalone semantic span should not be filtered"
+        assert len(filtered_spans) == 1, "Standalone semantic span should not be filtered"
 
-        assert filtered_spans[0].spanId == otel_trace.spans[0].spanId, \
-            "Span ID should be unchanged"
+        assert filtered_spans[0].spanId == otel_trace.spans[0].spanId, "Span ID should be unchanged"
 
     def test_filter_all_14_traces(self, sample_traces):
         """
@@ -212,13 +193,11 @@ class TestSpanFiltering:
                 pytest.fail(f"Filtering crashed on trace {i}: {e}")
 
             # VERIFY: Some spans remain (not all filtered out)
-            assert len(filtered_spans) > 0, \
-                f"Trace {i} has no spans after filtering (likely a bug)"
+            assert len(filtered_spans) > 0, f"Trace {i} has no spans after filtering (likely a bug)"
 
             # VERIFY: Valid tree structure
             roots = [s for s in filtered_spans if s.parentSpanId is None]
-            assert len(roots) >= 1, \
-                f"Trace {i} has no root span after filtering"
+            assert len(roots) >= 1, f"Trace {i} has no root span after filtering"
 
     def test_span_count_reduction(self, sample_traces):
         """
@@ -238,8 +217,7 @@ class TestSpanFiltering:
         reduction_pct = ((total_before - total_after) / total_before) * 100
 
         # VERIFY: Significant reduction (at least 50%)
-        assert reduction_pct > 50, \
-            f"Expected >50% reduction, got {reduction_pct:.1f}%"
+        assert reduction_pct > 50, f"Expected >50% reduction, got {reduction_pct:.1f}%"
 
         print(f"\nSpan reduction: {total_before} -> {total_after} ({reduction_pct:.1f}%)")
 
@@ -257,8 +235,7 @@ class TestSpanFiltering:
         for span in filtered_spans:
             parent_id = span.parentSpanId
             if parent_id is not None:
-                assert parent_id in span_ids, \
-                    f"Span {span.spanId} has invalid parent {parent_id} after remapping"
+                assert parent_id in span_ids, f"Span {span.spanId} has invalid parent {parent_id} after remapping"
 
     def test_synthetic_root_creation(self, sample_traces):
         """
@@ -268,24 +245,17 @@ class TestSpanFiltering:
         filtered_spans = filter_infrastructure_spans(lg_trace.spans, create_synthetic_root=True)
 
         # Check for synthetic root
-        synthetic_roots = [
-            s for s in filtered_spans
-            if s.ampAttributes.get("synthetic", False)
-        ]
+        synthetic_roots = [s for s in filtered_spans if s.ampAttributes.get("synthetic", False)]
 
         # If we have multiple semantic spans at root level, should have synthetic root
-        semantic_spans = [
-            s for s in filtered_spans
-            if not s.ampAttributes.get("synthetic", False)
-        ]
+        semantic_spans = [s for s in filtered_spans if not s.ampAttributes.get("synthetic", False)]
 
         if len(semantic_spans) > 1:
             # Check if multiple spans would be orphaned without synthetic root
             parent_ids = {s.parentSpanId for s in semantic_spans}
             if None in parent_ids:
                 # Multiple spans with no parent -> synthetic root should exist
-                assert len(synthetic_roots) == 1, \
-                    "Expected synthetic root for orphaned spans"
+                assert len(synthetic_roots) == 1, "Expected synthetic root for orphaned spans"
 
     def test_no_synthetic_root_when_disabled(self, sample_traces):
         """
@@ -295,12 +265,8 @@ class TestSpanFiltering:
         filtered_spans = filter_infrastructure_spans(lg_trace.spans, create_synthetic_root=False)
 
         # VERIFY: No synthetic roots
-        synthetic_roots = [
-            s for s in filtered_spans
-            if s.ampAttributes.get("synthetic", False)
-        ]
-        assert len(synthetic_roots) == 0, \
-            "Should not create synthetic root when disabled"
+        synthetic_roots = [s for s in filtered_spans if s.ampAttributes.get("synthetic", False)]
+        assert len(synthetic_roots) == 0, "Should not create synthetic root when disabled"
 
     def test_integration_with_parse_trace_for_evaluation(self, sample_traces):
         """
@@ -316,16 +282,18 @@ class TestSpanFiltering:
 
         # VERIFY: Both produce same semantic results
         # (steps only contains semantic spans, so count should be same)
-        assert len(trajectory_filtered.steps) == len(trajectory_unfiltered.steps), \
+        assert len(trajectory_filtered.steps) == len(trajectory_unfiltered.steps), (
             "Filtered and unfiltered should have same semantic step count"
+        )
 
         # VERIFY: Same semantic spans count (LLM, Tool, etc.)
         assert trajectory_filtered.metrics.llm_call_count == trajectory_unfiltered.metrics.llm_call_count
         assert trajectory_filtered.metrics.tool_call_count == trajectory_unfiltered.metrics.tool_call_count
 
         # VERIFY: Filtering actually happened by checking the original trace span count
-        assert len(lg_trace.spans) > len(trajectory_filtered.steps), \
+        assert len(lg_trace.spans) > len(trajectory_filtered.steps), (
             "Original trace should have more spans than filtered semantic steps"
+        )
 
 
 if __name__ == "__main__":
