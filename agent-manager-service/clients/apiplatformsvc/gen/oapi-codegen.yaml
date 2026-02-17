@@ -1,7 +1,0 @@
-# oapi-codegen configuration for API Platform types generation
-package: gen
-output: clients/apiplatformsvc/gen/types.gen.go
-generate:
-  models: true
-  client: false
-  embedded-spec: false

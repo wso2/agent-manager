@@ -35,7 +35,7 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	// Register JWKS endpoint at root level (no authentication required)
 	registerJWKSRoute(mux, params.AgentTokenController)
 
-	// Create a sub-mux for API v1 routes
+	// Create a sub-mux for API v1 routes (JWT-authenticated)
 	apiMux := http.NewServeMux()
 	registerAgentRoutes(apiMux, params.AgentController)
 	registerAgentTokenRoutes(apiMux, params.AgentTokenController)
@@ -46,16 +46,52 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	RegisterGatewayRoutes(apiMux, params.GatewayController)
 	registerMonitorRoutes(apiMux, params.MonitorController)
 	registerEvaluatorRoutes(apiMux, params.EvaluatorController)
+	RegisterLLMRoutes(apiMux, params.LLMController)
+	RegisterLLMDeploymentRoutes(apiMux, params.LLMDeploymentController)
+	RegisterLLMProviderAPIKeyRoutes(apiMux, params.LLMProviderAPIKeyController)
+	RegisterLLMProxyAPIKeyRoutes(apiMux, params.LLMProxyAPIKeyController)
+	RegisterLLMProxyDeploymentRoutes(apiMux, params.LLMProxyDeploymentController)
 
 	// Apply middleware in reverse order (last middleware is applied first)
 	apiHandler := http.Handler(apiMux)
 	apiHandler = params.AuthMiddleware(apiHandler)
-	apiHandler = middleware.AddCorrelationID()(apiHandler)
 	apiHandler = logger.RequestLogger()(apiHandler)
+	apiHandler = middleware.AddCorrelationID()(apiHandler)
 	apiHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(apiHandler)
 	apiHandler = middleware.RecovererOnPanic()(apiHandler)
 
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", apiHandler))
+
+	return mux
+}
+
+// MakeInternalHTTPHandler creates the internal HTTPS server handler
+// This server hosts WebSocket connections and gateway internal APIs without JWT middleware
+func MakeInternalHTTPHandler(params *wiring.AppParams) http.Handler {
+	mux := http.NewServeMux()
+
+	// Health check endpoint
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
+			logger.GetLogger(r.Context()).Error("Failed to write health check response", "error", err)
+		}
+	})
+
+	// Create internal mux for gateway internal and WebSocket routes (NO JWT middleware)
+	// These routes use api-key header authentication instead
+	internalMux := http.NewServeMux()
+	RegisterGatewayInternalRoutes(internalMux, params.GatewayInternalController)
+	RegisterWebSocketRoutes(internalMux, params.WebSocketController)
+
+	// Apply basic middleware (no JWT auth)
+	internalHandler := http.Handler(internalMux)
+	internalHandler = logger.RequestLogger()(internalHandler)
+	internalHandler = middleware.AddCorrelationID()(internalHandler)
+	internalHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(internalHandler)
+	internalHandler = middleware.RecovererOnPanic()(internalHandler)
+
+	mux.Handle("/api/internal/v1/", http.StripPrefix("/api/internal/v1", internalHandler))
 
 	return mux
 }

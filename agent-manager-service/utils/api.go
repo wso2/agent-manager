@@ -54,3 +54,67 @@ func CreateAPIYamlZip(apiYamlMap map[string]string) ([]byte, error) {
 
 	return buf.Bytes(), nil
 }
+
+// CreateLLMProviderYamlZip creates a ZIP file containing LLM provider YAML files
+func CreateLLMProviderYamlZip(providerYamlMap map[string]string) ([]byte, error) {
+	var buf bytes.Buffer
+	zipWriter := zip.NewWriter(&buf)
+
+	for providerID, yamlContent := range providerYamlMap {
+		fileName := fmt.Sprintf("llm-provider-%s.yaml", providerID)
+		fileWriter, err := zipWriter.Create(fileName)
+		if err != nil {
+			if closeErr := zipWriter.Close(); closeErr != nil {
+				return nil, fmt.Errorf("failed to create file in zip: %w (close error: %w)", err, closeErr)
+			}
+			return nil, fmt.Errorf("failed to create file in zip: %w", err)
+		}
+
+		_, err = fileWriter.Write([]byte(yamlContent))
+		if err != nil {
+			if closeErr := zipWriter.Close(); closeErr != nil {
+				return nil, fmt.Errorf("failed to write file content: %w (close error: %w)", err, closeErr)
+			}
+			return nil, fmt.Errorf("failed to write file content: %w", err)
+		}
+	}
+
+	err := zipWriter.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed to close zip writer: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+// CreateLLMProxyYamlZip creates a ZIP file containing LLM proxy YAML files
+func CreateLLMProxyYamlZip(proxyYamlMap map[string]string) ([]byte, error) {
+	var buf bytes.Buffer
+	zipWriter := zip.NewWriter(&buf)
+
+	for proxyID, yamlContent := range proxyYamlMap {
+		fileName := fmt.Sprintf("llm-proxy-%s.yaml", proxyID)
+		fileWriter, err := zipWriter.Create(fileName)
+		if err != nil {
+			if closeErr := zipWriter.Close(); closeErr != nil {
+				return nil, fmt.Errorf("failed to create file in zip: %w (close error: %w)", err, closeErr)
+			}
+			return nil, fmt.Errorf("failed to create file in zip: %w", err)
+		}
+
+		_, err = fileWriter.Write([]byte(yamlContent))
+		if err != nil {
+			if closeErr := zipWriter.Close(); closeErr != nil {
+				return nil, fmt.Errorf("failed to write file content: %w (close error: %w)", err, closeErr)
+			}
+			return nil, fmt.Errorf("failed to write file content: %w", err)
+		}
+	}
+
+	err := zipWriter.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed to close zip writer: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}
