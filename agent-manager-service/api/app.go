@@ -55,8 +55,8 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	// Apply middleware in reverse order (last middleware is applied first)
 	apiHandler := http.Handler(apiMux)
 	apiHandler = params.AuthMiddleware(apiHandler)
-	apiHandler = middleware.AddCorrelationID()(apiHandler)
 	apiHandler = logger.RequestLogger()(apiHandler)
+	apiHandler = middleware.AddCorrelationID()(apiHandler)
 	apiHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(apiHandler)
 	apiHandler = middleware.RecovererOnPanic()(apiHandler)
 
@@ -86,8 +86,8 @@ func MakeInternalHTTPHandler(params *wiring.AppParams) http.Handler {
 
 	// Apply basic middleware (no JWT auth)
 	internalHandler := http.Handler(internalMux)
-	internalHandler = middleware.AddCorrelationID()(internalHandler)
 	internalHandler = logger.RequestLogger()(internalHandler)
+	internalHandler = middleware.AddCorrelationID()(internalHandler)
 	internalHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(internalHandler)
 	internalHandler = middleware.RecovererOnPanic()(internalHandler)
 
