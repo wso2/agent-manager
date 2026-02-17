@@ -105,7 +105,7 @@ agentManagerService:
     # OpenTelemetry configuration
     otel:
       traceContent: "true"
-      exporterEndpoint: "http://opentelemetry-collector.openchoreo-observability-plane.svc.cluster.local:4318"
+      exporterEndpoint: "http://obs-gateway-gateway-router.data-plane.svc.cluster.local:22893/otel"
 
     # Key Manager configuration
     keyManager:
