@@ -21,12 +21,11 @@ package wiring
 
 import (
 	"log/slog"
+	"time"
 
 	"github.com/google/wire"
 	"gorm.io/gorm"
 
-	apiplatformauth "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/auth"
-	apiplatformclient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/client"
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	ocauth "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
 	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
@@ -34,7 +33,9 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
 )
 
 // Provider sets
@@ -47,9 +48,6 @@ var clientProviderSet = wire.NewSet(
 	traceobserversvc.NewTraceObserverClient,
 	ProvideOCAuthProvider,
 	ProvideOCClient,
-	ProvideAPIPlatformAuthProvider,
-	ProvideAPIPlatformConfig,
-	ProvideAPIPlatformClient,
 )
 
 var serviceProviderSet = wire.NewSet(
@@ -63,6 +61,16 @@ var serviceProviderSet = wire.NewSet(
 	services.NewMonitorSchedulerService,
 	services.NewEvaluatorManagerService,
 	services.NewEnvironmentService,
+	services.NewPlatformGatewayService,
+	services.NewLLMProviderTemplateService,
+	services.NewLLMProviderService,
+	services.NewLLMProxyService,
+	services.NewLLMProviderDeploymentService,
+	services.NewLLMProviderAPIKeyService,
+	services.NewLLMProxyAPIKeyService,
+	services.NewLLMProxyDeploymentService,
+	services.NewGatewayInternalAPIService,
+	ProvideLLMTemplateSeeder,
 )
 
 var controllerProviderSet = wire.NewSet(
@@ -73,6 +81,13 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewRepositoryController,
 	controllers.NewEnvironmentController,
 	controllers.NewGatewayController,
+	controllers.NewLLMController,
+	controllers.NewLLMDeploymentController,
+	controllers.NewLLMProviderAPIKeyController,
+	controllers.NewLLMProxyAPIKeyController,
+	controllers.NewLLMProxyDeploymentController,
+	ProvideWebSocketController,
+	controllers.NewGatewayInternalController,
 	controllers.NewMonitorController,
 	controllers.NewEvaluatorController,
 )
@@ -81,7 +96,6 @@ var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
 	ProvideTestTraceObserverClient,
-	ProvideTestAPIPlatformClient,
 )
 
 // ProvideLogger provides the configured slog.Logger instance
@@ -118,46 +132,22 @@ var loggerProviderSet = wire.NewSet(
 	ProvideLogger,
 )
 
-// ProvideAPIPlatformAuthProvider creates an auth provider for API Platform
-func ProvideAPIPlatformAuthProvider(cfg config.Config) apiplatformclient.AuthProvider {
-	// Only create auth provider if OAuth2 credentials are configured
-	if cfg.IDP.TokenURL != "" && cfg.IDP.ClientID != "" && cfg.IDP.ClientSecret != "" {
-		return apiplatformauth.NewAuthProvider(apiplatformauth.Config{
-			TokenURL:     cfg.IDP.TokenURL,
-			ClientID:     cfg.IDP.ClientID,
-			ClientSecret: cfg.IDP.ClientSecret,
-		})
-	}
-	return nil
-}
+var repositoryProviderSet = wire.NewSet(
+	ProvideOrganizationRepository,
+	ProvideGatewayRepository,
+	ProvideAPIRepository,
+	ProvideLLMProviderTemplateRepository,
+	ProvideLLMProviderRepository,
+	ProvideLLMProxyRepository,
+	ProvideLLMProviderGatewayMappingRepository,
+	ProvideDeploymentRepository,
+	ProvideArtifactRepository,
+)
 
-// ProvideAPIPlatformConfig extracts API Platform configuration from config
-func ProvideAPIPlatformConfig(cfg config.Config, authProvider apiplatformclient.AuthProvider) *apiplatformclient.Config {
-	baseUrl := ""
-	if cfg.APIPlatform.Enable {
-		baseUrl = cfg.APIPlatform.BaseURL
-	}
-	return &apiplatformclient.Config{
-		BaseURL:      baseUrl,
-		AuthProvider: authProvider,
-	}
-}
-
-// ProvideAPIPlatformClient creates a new API Platform client
-// Returns nil if the client cannot be created (will be checked at runtime)
-func ProvideAPIPlatformClient(cfg *apiplatformclient.Config) apiplatformclient.APIPlatformClient {
-	if cfg.BaseURL == "" || cfg.AuthProvider == nil {
-		// Return nil if not configured - services should handle nil client gracefully
-		return nil
-	}
-
-	apiPlatformClient, err := apiplatformclient.NewAPIPlatformClient(cfg)
-	if err != nil {
-		slog.Error("Failed to create API Platform client", "error", err)
-		return nil
-	}
-	return apiPlatformClient
-}
+var websocketProviderSet = wire.NewSet(
+	ProvideWebSocketManager,
+	services.NewGatewayEventsService,
+)
 
 // Test client providers
 func ProvideTestOpenChoreoClient(testClients TestClients) occlient.OpenChoreoClient {
@@ -172,8 +162,68 @@ func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.Tr
 	return testClients.TraceObserverClient
 }
 
-func ProvideTestAPIPlatformClient(testClients TestClients) apiplatformclient.APIPlatformClient {
-	return testClients.APIPlatformClient
+// ProvideWebSocketManager creates a new WebSocket manager with config
+func ProvideWebSocketManager(cfg config.Config) *websocket.Manager {
+	wsConfig := websocket.ManagerConfig{
+		MaxConnections:    cfg.WebSocket.MaxConnections,
+		HeartbeatInterval: 20 * time.Second,
+		HeartbeatTimeout:  time.Duration(cfg.WebSocket.ConnectionTimeout) * time.Second,
+	}
+	return websocket.NewManager(wsConfig)
+}
+
+// ProvideWebSocketController creates a new WebSocket controller with rate limiting
+func ProvideWebSocketController(
+	manager *websocket.Manager,
+	gatewayService *services.PlatformGatewayService,
+	cfg config.Config,
+) controllers.WebSocketController {
+	rateLimitCount := cfg.WebSocket.RateLimitPerMin
+	return controllers.NewWebSocketController(manager, gatewayService, rateLimitCount)
+}
+
+// Repository providers (injecting *gorm.DB)
+func ProvideOrganizationRepository(db *gorm.DB) repositories.OrganizationRepository {
+	return repositories.NewOrganizationRepo(db)
+}
+
+func ProvideGatewayRepository(db *gorm.DB) repositories.GatewayRepository {
+	return repositories.NewGatewayRepo(db)
+}
+
+func ProvideAPIRepository(db *gorm.DB) repositories.APIRepository {
+	return repositories.NewAPIRepo(db)
+}
+
+func ProvideLLMProviderTemplateRepository(db *gorm.DB) repositories.LLMProviderTemplateRepository {
+	return repositories.NewLLMProviderTemplateRepo(db)
+}
+
+func ProvideLLMProviderRepository(db *gorm.DB) repositories.LLMProviderRepository {
+	return repositories.NewLLMProviderRepo(db)
+}
+
+func ProvideLLMProxyRepository(db *gorm.DB) repositories.LLMProxyRepository {
+	return repositories.NewLLMProxyRepo(db)
+}
+
+func ProvideLLMProviderGatewayMappingRepository(db *gorm.DB) repositories.LLMProviderGatewayMappingRepository {
+	return repositories.NewLLMProviderGatewayMappingRepository(db)
+}
+
+func ProvideDeploymentRepository(db *gorm.DB) repositories.DeploymentRepository {
+	return repositories.NewDeploymentRepo(db)
+}
+
+func ProvideArtifactRepository(db *gorm.DB) repositories.ArtifactRepository {
+	return repositories.NewArtifactRepo(db)
+}
+
+// ProvideLLMTemplateSeeder creates a new LLM template seeder with empty templates
+// Templates will be loaded at startup in main.go
+func ProvideLLMTemplateSeeder(templateRepo repositories.LLMProviderTemplateRepository) *services.LLMTemplateSeeder {
+	// Create seeder with empty templates - actual templates loaded in main.go
+	return services.NewLLMTemplateSeeder(templateRepo, nil)
 }
 
 // InitializeAppParams wires up all application dependencies
@@ -182,6 +232,8 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
 		configProviderSet,
 		clientProviderSet,
 		loggerProviderSet,
+		repositoryProviderSet,
+		websocketProviderSet,
 		serviceProviderSet,
 		controllerProviderSet,
 		ProvideAuthMiddleware,
@@ -201,6 +253,8 @@ func InitializeTestAppParamsWithClientMocks(
 	wire.Build(
 		testClientProviderSet,
 		loggerProviderSet,
+		repositoryProviderSet,
+		websocketProviderSet,
 		serviceProviderSet,
 		controllerProviderSet,
 		configProviderSet,

@@ -21,14 +21,15 @@ import (
 
 	"gorm.io/gorm"
 
-	apiplatformclient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/apiplatformsvc/client"
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
 )
 
 // AppParams contains all wired application dependencies
@@ -38,19 +39,32 @@ type AppParams struct {
 	Logger         *slog.Logger
 
 	// Controllers
-	AgentController         controllers.AgentController
-	InfraResourceController controllers.InfraResourceController
-	ObservabilityController controllers.ObservabilityController
-	AgentTokenController    controllers.AgentTokenController
-	RepositoryController    controllers.RepositoryController
-	MonitorController       controllers.MonitorController
-	EvaluatorController     controllers.EvaluatorController
-	MonitorScheduler        services.MonitorSchedulerService
-	EnvironmentController   controllers.EnvironmentController
-	GatewayController       controllers.GatewayController
+	AgentController              controllers.AgentController
+	InfraResourceController      controllers.InfraResourceController
+	ObservabilityController      controllers.ObservabilityController
+	AgentTokenController         controllers.AgentTokenController
+	RepositoryController         controllers.RepositoryController
+	EnvironmentController        controllers.EnvironmentController
+	GatewayController            controllers.GatewayController
+	LLMController                controllers.LLMController
+	LLMDeploymentController      controllers.LLMDeploymentController
+	LLMProviderAPIKeyController  controllers.LLMProviderAPIKeyController
+	LLMProxyAPIKeyController     controllers.LLMProxyAPIKeyController
+	LLMProxyDeploymentController controllers.LLMProxyDeploymentController
+	WebSocketController          controllers.WebSocketController
+	GatewayInternalController    controllers.GatewayInternalController
+	MonitorController            controllers.MonitorController
+	EvaluatorController          controllers.EvaluatorController
+	MonitorScheduler             services.MonitorSchedulerService
 
-	// Clients
-	APIPlatformClient apiplatformclient.APIPlatformClient
+	// Services
+	LLMTemplateSeeder *services.LLMTemplateSeeder
+
+	// Repositories
+	OrganizationRepository repositories.OrganizationRepository
+
+	// WebSocket
+	WebSocketManager *websocket.Manager
 
 	// Database
 	DB *gorm.DB
@@ -61,7 +75,6 @@ type TestClients struct {
 	OpenChoreoClient       occlient.OpenChoreoClient
 	ObservabilitySvcClient observabilitysvc.ObservabilitySvcClient
 	TraceObserverClient    traceobserversvc.TraceObserverClient
-	APIPlatformClient      apiplatformclient.APIPlatformClient
 }
 
 func ProvideConfigFromPtr(config *config.Config) config.Config {

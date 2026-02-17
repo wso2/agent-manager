@@ -69,28 +69,6 @@ type Environment struct {
 	DeletedAt        gorm.DeletedAt `gorm:"column:deleted_at"`
 }
 
-// TableName returns the table name for GORM
-func (Environment) TableName() string {
-	return "environments"
-}
-
-// ToResponse converts the database model to API response
-func (e *Environment) ToResponse() *GatewayEnvironmentResponse {
-	resp := &GatewayEnvironmentResponse{
-		UUID:             e.UUID.String(),
-		OrganizationName: e.OrganizationName,
-		Name:             e.Name,
-		DisplayName:      e.DisplayName,
-		Description:      e.Description,
-		DataplaneRef:     e.DataplaneRef,
-		DNSPrefix:        e.DNSPrefix,
-		IsProduction:     e.IsProduction,
-		CreatedAt:        e.CreatedAt,
-		UpdatedAt:        e.UpdatedAt,
-	}
-	return resp
-}
-
 // EnvironmentListResponse is the paginated list response
 type EnvironmentListResponse struct {
 	Environments []GatewayEnvironmentResponse `json:"environments"`

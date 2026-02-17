@@ -16,9 +16,6 @@ docker run --rm -v "${PWD}:/local" -e GO_POST_PROCESS_FILE="/usr/local/bin/gofmt
     -g go \
     -o /local/spec \
     --package-name spec \
-    --language-specific-primitives=UUID \
-    --import-mappings db_types.UUID=github.com/wso2-enterprise/agent-manager-service/db_types \
-    --type-mappings UUID=db_types.UUID \
     --schema-mappings MetricDateTime=string
 
 rm spec/.openapi-generator-ignore
