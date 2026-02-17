@@ -17,7 +17,7 @@
 """
 Unit tests for trace parsing utilities.
 
-Tests parsing raw OTEL/AMP traces into Trajectory format.
+Tests parsing raw OTEL/AMP traces into Trace format.
 """
 
 import pytest
@@ -43,6 +43,13 @@ from amp_evaluation.trace.fetcher import (
     Trace as OTELTrace,
     Span as OTELSpan,
     TraceStatus as OTELTraceStatus,
+)
+
+# Import span types and models for testing
+from amp_evaluation.trace.models import (
+    AgentStep,
+    ToolSpan,
+    AgentSpan,
 )
 
 # Also import the internal parse function from fetcher to convert real OTEL JSON
@@ -340,7 +347,7 @@ class TestTraceParser:
         assert eval_trace.metrics.total_duration_ms == 230.0
 
     def test_convenience_properties(self):
-        """Test Trajectory convenience properties."""
+        """Test Trace convenience properties."""
         raw_trace_dict = {
             "trace_id": "trace_props",
             "input": "input",
@@ -463,7 +470,7 @@ class TestTraceParser:
 
 
 class TestTrajectoryStructure:
-    """Test the Trajectory data structure itself."""
+    """Test the Trace data structure itself."""
 
     def test_token_usage_addition(self):
         """Test that TokenUsage objects can be added."""
@@ -620,7 +627,7 @@ class TestRealOTELTraces:
 
         # Chain spans should not be in any parsed trace
         for eval_trace in eval_traces:
-            # Trajectory only has llm_spans, tool_spans, retriever_spans, agent_span
+            # Trace only has llm_spans, tool_spans, retriever_spans, agent_span
             # No chain spans should appear
             pass  # Structure verification - chains are simply not included
 
@@ -633,6 +640,271 @@ class TestRealOTELTraces:
                 for et in eval_traces
             )
             assert total_parsed < total_raw
+
+    def test_crewai_sequential_agents_reconstruction(self, sample_traces):
+        """
+        Test sequential agent execution with real CrewAI trace.
+
+        This trace (66ea0b364e7397376b7c9edcc82e1f85) has 3 agents executing sequentially:
+        - Activity Planner (first)
+        - Restaurant Scout (second)
+        - Itinerary Compiler (third)
+
+        Each has multiple internal LLM calls. Tests that get_agent_steps()
+        correctly reconstructs the execution flow.
+        """
+        # Load CrewAI trace
+        crew_trace = next(
+            (t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"),
+            None
+        )
+        assert crew_trace is not None, "CrewAI multi-agent trace not found"
+
+        # Parse to Trace
+        trace = _parse_trace(crew_trace)
+        trajectory = parse_trace_for_evaluation(trace)
+
+        # VERIFY: 3 agents extracted from ampAttributes
+        agents = trajectory.get_agents()
+        assert len(agents) == 3, f"Expected 3 agents, got {len(agents)}"
+
+        # VERIFY: Agent names from ampAttributes.data.name
+        agent_names = [a.name for a in agents]
+        assert "Activity Planner" in agent_names
+        assert "Restaurant Scout" in agent_names
+        assert "Itinerary Compiler" in agent_names
+
+        # VERIFY: Framework from ampAttributes.data.framework
+        for agent in agents:
+            assert agent.framework == "crewai"
+            assert agent.system_prompt, f"{agent.name} missing system prompt"
+            assert agent.available_tools, f"{agent.name} has no tools"
+
+        # VERIFY: get_agent_steps() returns steps for all agents
+        all_steps = trajectory.get_agent_steps()
+        assert len(all_steps) > 0, "No steps reconstructed"
+
+        # VERIFY: System prompts extracted (one per agent)
+        system_steps = [s for s in all_steps if s.step_type == "system"]
+        assert len(system_steps) >= 3, "Should have system prompts for 3 agents"
+
+        # VERIFY: get_agent_steps(agent_span_id) for each agent
+        for agent in agents:
+            agent_steps = trajectory.get_agent_steps(agent_span_id=agent.span_id)
+            assert len(agent_steps) > 0, f"No steps for {agent.name}"
+
+            # Should have assistant steps (from LLM calls)
+            assistant_steps = [s for s in agent_steps if s.step_type == "assistant"]
+            assert len(assistant_steps) > 0, f"No assistant steps for {agent.name}"
+
+    def test_sequential_agents_are_not_nested(self, sample_traces):
+        """
+        Verify sequential agents (siblings) are NOT confused with nested agents (parent-child).
+        """
+        crew_trace = next(
+            (t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"),
+            None
+        )
+        assert crew_trace is not None, "CrewAI multi-agent trace not found"
+
+        trace = _parse_trace(crew_trace)
+        trajectory = parse_trace_for_evaluation(trace)
+
+        agents = trajectory.get_agents()
+        agent_ids = {a.span_id for a in agents}
+
+        # VERIFY: No agent has another agent as parent (they're sequential, not nested)
+        for agent in agents:
+            parent = agent.parent_span_id
+            assert parent not in agent_ids, \
+                f"{agent.name} has agent parent - should be sequential not nested"
+
+    def test_langgraph_parallel_tools_and_errors(self, sample_traces):
+        """
+        Test LangGraph trace with parallel tools and errors.
+
+        Trace 789a4cc3a165ed330d3244aca8b61dbb has:
+        - Multiple LLM calls with messages from ampAttributes.input
+        - 5 parallel search_hotels tool calls
+        - Tool errors in results
+        """
+        lg_trace = sample_traces[0]
+        assert lg_trace["traceId"] == "789a4cc3a165ed330d3244aca8b61dbb"
+
+        trace = _parse_trace(lg_trace)
+        trajectory = parse_trace_for_evaluation(trace)
+
+        # VERIFY: LLM calls extracted from ampAttributes
+        llm_calls = trajectory.get_llm_calls()
+        assert len(llm_calls) > 0, "No LLM calls extracted"
+
+        for llm in llm_calls:
+            # VERIFY: Messages from ampAttributes.input
+            assert llm.messages, f"LLM {llm.span_id} has no messages"
+            for msg in llm.messages:
+                assert msg.role in ["system", "user", "assistant", "tool"]
+
+            # VERIFY: Model from ampAttributes.data.model
+            if llm.model:
+                assert "gpt" in llm.model.lower() or "claude" in llm.model.lower()
+
+        # VERIFY: Tool calls extracted
+        tool_calls = trajectory.get_tool_calls()
+        assert len(tool_calls) >= 5, f"Expected >=5 tools, got {len(tool_calls)}"
+
+        # VERIFY: 5 parallel search_hotels calls
+        hotel_tools = [t for t in tool_calls if "search_hotels" in t.name]
+        assert len(hotel_tools) == 5, f"Expected 5 hotel searches, got {len(hotel_tools)}"
+
+        # VERIFY: Errors captured
+        assert trajectory.metrics.error_count > 0, "Expected errors in this trace"
+
+        # VERIFY: get_agent_steps() reconstruction
+        steps = trajectory.get_agent_steps()
+
+        # Should have assistant steps
+        assistant_steps = [s for s in steps if s.step_type == "assistant"]
+        assert len(assistant_steps) > 0, "Should have assistant steps"
+
+        # Should have tool_result steps (tools were executed even if not in LLM tool_calls)
+        tool_result_steps = [s for s in steps if s.step_type == "tool_result"]
+        assert len(tool_result_steps) >= 5, "Should have tool results"
+
+        # VERIFY: Tool errors in steps
+        error_tools = [s for s in tool_result_steps if s.error]
+        assert len(error_tools) > 0, "Tool errors not in reconstructed steps"
+
+    def test_ampattributes_extraction_llm(self, sample_traces):
+        """
+        Verify LLM span ampAttributes are correctly extracted into LLMSpan fields.
+        """
+        lg_trace = sample_traces[0]
+        trace = _parse_trace(lg_trace)
+        trajectory = parse_trace_for_evaluation(trace)
+
+        llm_calls = trajectory.get_llm_calls()
+        assert len(llm_calls) > 0
+
+        for llm in llm_calls:
+            # VERIFY: model from ampAttributes.data.model
+            assert llm.model is not None
+
+            # VERIFY: token usage from ampAttributes.data.tokenUsage
+            if llm.token_usage.total_tokens > 0:
+                assert llm.token_usage.input_tokens >= 0
+                assert llm.token_usage.output_tokens >= 0
+
+            # VERIFY: messages from ampAttributes.input
+            assert isinstance(llm.messages, list)
+
+            # VERIFY: tool_calls from ampAttributes.output
+            # (may be empty, that's ok)
+
+    def test_ampattributes_extraction_agent(self, sample_traces):
+        """
+        Verify Agent span ampAttributes.data fields are correctly extracted.
+        """
+        crew_trace = next(
+            (t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"),
+            None
+        )
+        assert crew_trace is not None, "CrewAI multi-agent trace not found"
+
+        trace = _parse_trace(crew_trace)
+        trajectory = parse_trace_for_evaluation(trace)
+
+        agents = trajectory.get_agents()
+        for agent in agents:
+            # VERIFY: All from ampAttributes.data
+            assert agent.framework == "crewai"
+            assert agent.name in ["Activity Planner", "Restaurant Scout", "Itinerary Compiler"]
+            assert agent.system_prompt  # From data.systemPrompt
+            assert isinstance(agent.available_tools, list)
+            assert len(agent.available_tools) > 0
+
+    def test_ampattributes_extraction_tool(self, sample_traces):
+        """
+        Verify Tool span ampAttributes are correctly extracted.
+        """
+        lg_trace = sample_traces[0]
+        trace = _parse_trace(lg_trace)
+        trajectory = parse_trace_for_evaluation(trace)
+
+        tool_calls = trajectory.get_tool_calls()
+        for tool in tool_calls:
+            # VERIFY: arguments from ampAttributes.input
+            assert tool.arguments is not None  # Can be empty dict
+
+            # VERIFY: result from ampAttributes.output
+            assert tool.result is not None
+
+            # VERIFY: error status from ampAttributes.status.error
+            if "Error:" in str(tool.result):
+                assert tool.error, f"Tool {tool.name} has error in result but flag not set"
+
+    def test_root_level_spans_real_traces(self, sample_traces):
+        """
+        Test _get_root_level_spans() with real trace hierarchies.
+        """
+        # Test with LangGraph (has tool nesting)
+        lg_trace = sample_traces[0]
+        trace = _parse_trace(lg_trace)
+        trajectory = parse_trace_for_evaluation(trace)
+
+        root_spans = trajectory._get_root_level_spans()
+        tool_span_ids = {s.span_id for s in trajectory.steps if isinstance(s, ToolSpan)}
+
+        # VERIFY: No root span has tool as parent
+        for span in root_spans:
+            parent = getattr(span, 'parent_span_id', None)
+            assert parent not in tool_span_ids, \
+                f"Root span {span.span_id} has tool parent"
+
+        # Test with CrewAI (has agents)
+        crew_trace = next(
+            (t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"),
+            None
+        )
+        assert crew_trace is not None, "CrewAI multi-agent trace not found"
+
+        trace = _parse_trace(crew_trace)
+        trajectory = parse_trace_for_evaluation(trace)
+
+        root_spans = trajectory._get_root_level_spans()
+        agents = trajectory.get_agents()
+
+        # VERIFY: All agents are in root level
+        agent_ids_in_root = {s.span_id for s in root_spans if isinstance(s, AgentSpan)}
+        assert len(agent_ids_in_root) == len(agents), "Not all agents in root level"
+
+    def test_all_traces_agent_steps_reconstruction(self, sample_traces):
+        """
+        Run get_agent_steps() on ALL 14 real traces and verify correctness.
+        """
+        for i, trace_dict in enumerate(sample_traces):
+            trace = _parse_trace(trace_dict)
+            trajectory = parse_trace_for_evaluation(trace)
+
+            # Should not crash
+            steps = trajectory.get_agent_steps()
+
+            # VERIFY: All steps are valid AgentSteps
+            assert isinstance(steps, list)
+            for step in steps:
+                assert isinstance(step, AgentStep)
+                assert step.step_type in ["system", "user", "assistant", "tool_result", "retrieval"]
+
+                # VERIFY: Nested steps are also valid
+                if step.nested_steps:
+                    for nested in step.nested_steps:
+                        assert isinstance(nested, AgentStep)
+                        assert nested.step_type in ["system", "user", "assistant", "tool_result", "retrieval"]
+
+            # VERIFY: If multi-agent, test agent-specific extraction
+            agents = trajectory.get_agents()
+            for agent in agents:
+                agent_steps = trajectory.get_agent_steps(agent_span_id=agent.span_id)
+                assert isinstance(agent_steps, list)
 
 
 if __name__ == "__main__":

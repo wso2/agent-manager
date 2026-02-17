@@ -24,7 +24,8 @@ import inspect
 import logging
 
 from .evaluators.base import BaseEvaluator, FunctionEvaluator
-from .models import EvalResult, Observation
+from .models import EvalResult
+from .trace.models import Trace
 from .dataset.schema import Task
 
 
@@ -146,6 +147,8 @@ class EvaluatorRegistry:
         tags: Optional[List[str]] = None,
         version: Optional[str] = None,
         aggregations: Optional[List] = None,
+        level: Optional[str] = None,
+        span_type: Optional[str] = None,
     ):
         """
         Decorator to register an evaluator instance to the registry.
@@ -171,8 +174,8 @@ class EvaluatorRegistry:
                     Aggregation(AggregationType.PASS_RATE, threshold=0.7)
                 ]
             )
-            def check_length(observation, task=None) -> EvalResult:
-                return EvalResult(score=1.0 if len(observation.output) > 50 else 0.5)
+            def check_length(trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0 if len(trace.output) > 50 else 0.5)
 
             # Class-based evaluator
             @evaluator(
@@ -181,7 +184,7 @@ class EvaluatorRegistry:
                 aggregations=[AggregationType.MEAN, AggregationType.P95]
             )
             class HallucinationDetector(BaseEvaluator):
-                def evaluate(self, observation, task=None) -> EvalResult:
+                def evaluate(self, trace, task=None) -> EvalResult:
                     # ... logic ...
                     return EvalResult(...)
         """
@@ -199,7 +202,7 @@ class EvaluatorRegistry:
                         f"      description = '...'\n"
                         f"      tags = ['...']\n"
                         f"      \n"
-                        f"      def evaluate(self, observation, task=None) -> EvalResult:\n"
+                        f"      def evaluate(self, trace, task=None) -> EvalResult:\n"
                         f"          ..."
                     )
 
@@ -226,15 +229,22 @@ class EvaluatorRegistry:
             nparams = len(list(sig.parameters.values()))
 
             @wraps(evaluator_or_func)
-            def wrapper(observation: "Observation", task: Optional["Task"] = None) -> EvalResult:
+            def wrapper(trace: "Trace", task: Optional["Task"] = None) -> EvalResult:
                 if nparams == 1:
-                    result = evaluator_or_func(observation)
+                    result = evaluator_or_func(trace)
                 else:
-                    result = evaluator_or_func(observation, task)
+                    result = evaluator_or_func(trace, task)
                 return _normalize_result(result)
 
+            # Build level/span_type kwargs for FunctionEvaluator
+            func_kwargs = {}
+            if level is not None:
+                func_kwargs["level"] = level
+            if span_type is not None:
+                func_kwargs["span_type"] = span_type
+
             # Wrap in FunctionEvaluator and set metadata as instance attributes
-            func_eval = FunctionEvaluator(wrapper, name=name)
+            func_eval = FunctionEvaluator(wrapper, name=name, **func_kwargs)
             func_eval.description = description or ""
             func_eval.tags = tags or []
             func_eval.version = version or "1.0"
@@ -256,7 +266,7 @@ def _validate_evaluator_function(func: Callable, name: str) -> None:
     Validate that a function has the correct signature.
 
     Expected: (target) -> EvalResult | dict | float
-    Where target can be Trace, Trajectory, Outcome, Trial, or Task
+    Where target can be Trace, Trace, Outcome, Trial, or Task
     """
     sig = inspect.signature(func)
     params = list(sig.parameters.values())
@@ -330,6 +340,8 @@ def evaluator(
     tags: Optional[List[str]] = None,
     version: Optional[str] = None,
     aggregations: Optional[List] = None,
+    level: Optional[str] = None,
+    span_type: Optional[str] = None,
 ):
     """
     Decorator to register an evaluator to the global registry.
@@ -342,8 +354,10 @@ def evaluator(
         tags: Tags for categorization
         version: Evaluator version
         aggregations: List of aggregations (AggregationType, Aggregation, or callable)
+        level: Evaluation level ("trace", "agent", "span"). Defaults to "trace".
+        span_type: Span type filter for span-level evaluators ("llm", "tool", "retrieval"). None = all spans.
     """
-    return _global_registry.register(name, description, tags, version, aggregations)
+    return _global_registry.register(name, description, tags, version, aggregations, level, span_type)
 
 
 def register_evaluator(evaluator: BaseEvaluator) -> None:
