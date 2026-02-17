@@ -18,12 +18,11 @@
 Evaluators for a customer support agent that uses tools to look up
 bookings, search flights, check policies, etc.
 
-These evaluators monitor whether the agent:
-  - Calls the right tools for the user's request
-  - Grounds its answers in actual tool results (no hallucinations)
-  - Handles tool failures gracefully
-  - Produces complete, useful responses
-  - Doesn't fabricate specific facts (LLM-verified)
+Demonstrates all evaluator types:
+  - Function-based evaluators at trace level (tool-call-relevance, response-grounding, etc.)
+  - Function-based evaluators at span level (tool-success-rate, llm-response-quality)
+  - Class-based evaluator at agent level (agent-tool-efficiency)
+  - Built-in evaluators registered in run_monitor.py (latency, hallucination, answer_relevancy)
 
 Usage:
     from amp_evaluation import Monitor
@@ -37,7 +36,9 @@ import os
 import re
 from typing import Optional, Set
 
-from amp_evaluation import Observation, EvalResult, Task, evaluator
+from amp_evaluation import EvalResult, Task, evaluator, register_evaluator, EvaluationLevel
+from amp_evaluation.evaluators import BaseEvaluator, Param
+from amp_evaluation.trace import Trace, AgentTrace, LLMSpan, ToolSpan
 from amp_evaluation.aggregators import AggregationType
 
 from dotenv import load_dotenv
@@ -162,6 +163,9 @@ GROUNDING_THRESHOLD = 0.5
 HALLUCINATION_THRESHOLD = 0.7
 COMPLETENESS_MIN_LENGTH = 20
 
+# Agent efficiency: tokens-per-tool-call above this is considered inefficient
+TOKENS_PER_TOOL_THRESHOLD = 2000
+
 
 # =============================================================================
 # Helper Functions
@@ -201,10 +205,10 @@ def extract_query_intents(query: str) -> Set[str]:
     return words
 
 
-def collect_tool_outputs(observation: Observation) -> str:
+def collect_tool_outputs(trace: Trace) -> str:
     """Collect all tool outputs as a single lowercase string for matching."""
     parts = []
-    for span in observation.tool_spans:
+    for span in trace.get_tool_calls():
         result = span.result
         if result is None:
             continue
@@ -250,8 +254,11 @@ def extract_factual_claims(text: str) -> list:
 
 
 # =============================================================================
-# Evaluator: Tool Call Relevance
+# TRACE-LEVEL EVALUATORS (function-based)
 # =============================================================================
+
+
+# --- Evaluator 1: Tool Call Relevance (trace-level, function-based) ---
 
 
 @evaluator(
@@ -260,7 +267,7 @@ def extract_factual_claims(text: str) -> list:
     tags=["tool-use", "quality"],
     aggregations=[AggregationType.MEAN, AggregationType.PASS_RATE],
 )
-def tool_call_relevance(observation: Observation, task: Optional[Task] = None) -> EvalResult:
+def tool_call_relevance(trace: Trace, task: Optional[Task] = None) -> EvalResult:
     """
     Checks whether the tools the agent called belong to the right domain
     for the user's query.
@@ -273,8 +280,8 @@ def tool_call_relevance(observation: Observation, task: Optional[Task] = None) -
       - 1.0 = all tools are from relevant domains
       - 0.0 = all tools are from wrong domains
     """
-    query = observation.input or ""
-    called_tools = [span.name for span in observation.tool_spans]
+    query = trace.input or ""
+    called_tools = [span.name for span in trace.get_tool_calls()]
 
     if not called_tools:
         if NO_TOOL_PATTERNS.search(query):
@@ -333,9 +340,7 @@ def tool_call_relevance(observation: Observation, task: Optional[Task] = None) -
     )
 
 
-# =============================================================================
-# Evaluator: Response Grounding
-# =============================================================================
+# --- Evaluator 2: Response Grounding (trace-level, function-based) ---
 
 
 @evaluator(
@@ -344,7 +349,7 @@ def tool_call_relevance(observation: Observation, task: Optional[Task] = None) -
     tags=["hallucination", "grounding", "quality"],
     aggregations=[AggregationType.MEAN, AggregationType.MIN, AggregationType.PASS_RATE],
 )
-def response_grounding(observation: Observation, task: Optional[Task] = None) -> EvalResult:
+def response_grounding(trace: Trace, task: Optional[Task] = None) -> EvalResult:
     """
     Extracts specific claims from the response (prices, dates, flight numbers, etc.)
     and checks whether each claim appears in the tool outputs.
@@ -357,15 +362,15 @@ def response_grounding(observation: Observation, task: Optional[Task] = None) ->
       - 1.0 = all specific claims found in tool outputs
       - 0.0 = no claims found in tool outputs (likely hallucinated)
     """
-    response = observation.output or ""
+    response = trace.output or ""
 
-    if not observation.tool_spans:
+    if not trace.get_tool_calls():
         return EvalResult.skip(
             "No tools called — skipping grounding check",
             details={"response": response[:200]},
         )
 
-    tool_outputs = collect_tool_outputs(observation)
+    tool_outputs = collect_tool_outputs(trace)
     claims = extract_factual_claims(response)
 
     if not claims:
@@ -395,65 +400,12 @@ def response_grounding(observation: Observation, task: Optional[Task] = None) ->
         details={
             "grounded": [c["value"] for c in grounded[:10]],
             "ungrounded": [{"value": c["value"], "type": c["type"]} for c in ungrounded[:10]],
-            "tools_used": [span.name for span in observation.tool_spans],
+            "tools_used": [span.name for span in trace.get_tool_calls()],
         },
     )
 
 
-# =============================================================================
-# Evaluator: Tool Success Rate
-# =============================================================================
-
-
-@evaluator(
-    name="tool-success-rate",
-    description="Did the tools execute without errors?",
-    tags=["tool-use", "reliability"],
-    aggregations=[AggregationType.MEAN, AggregationType.MIN],
-)
-def tool_success_rate(observation: Observation, task: Optional[Task] = None) -> EvalResult:
-    """
-    Checks whether tools executed successfully. A failing tool often means
-    the agent will hallucinate a response or give a generic error message.
-
-    Monitors this to catch:
-      - API outages in downstream services
-      - Authentication/permission issues
-      - Bad input being passed to tools
-
-    Scoring:
-      - 1.0 = all tools succeeded
-      - 0.0 = all tools failed
-    """
-    if not observation.tool_spans:
-        return EvalResult.skip(
-            "No tools called — skipping success rate check",
-            details={"response": (observation.output or "")[:200]},
-        )
-
-    failed = []
-    succeeded = []
-
-    for span in observation.tool_spans:
-        if span.metrics and span.metrics.error:
-            failed.append(span.name)
-        else:
-            succeeded.append(span.name)
-
-    total = len(failed) + len(succeeded)
-    score = len(succeeded) / total
-
-    return EvalResult(
-        score=score,
-        passed=len(failed) == 0,
-        explanation=f"{len(succeeded)}/{total} tools succeeded" + (f" — failed: {', '.join(failed)}" if failed else ""),
-        details={"failed_tools": failed, "succeeded_tools": succeeded},
-    )
-
-
-# =============================================================================
-# Evaluator: Response Completeness
-# =============================================================================
+# --- Evaluator 3: Response Completeness (trace-level, function-based) ---
 
 
 @evaluator(
@@ -462,7 +414,7 @@ def tool_success_rate(observation: Observation, task: Optional[Task] = None) -> 
     tags=["quality", "output"],
     aggregations=[AggregationType.PASS_RATE],
 )
-def response_completeness(observation: Observation, task: Optional[Task] = None) -> EvalResult:
+def response_completeness(trace: Trace, task: Optional[Task] = None) -> EvalResult:
     """
     Checks structural quality of the response. Catches truncated responses,
     empty outputs, and system error messages leaking to the user.
@@ -473,7 +425,7 @@ def response_completeness(observation: Observation, task: Optional[Task] = None)
       - 1.0 = response looks structurally complete
       - 0.0 = empty or severely broken response
     """
-    response = (observation.output or "").strip()
+    response = (trace.output or "").strip()
     issues = []
 
     # Empty response — this is always bad
@@ -530,8 +482,223 @@ def response_completeness(observation: Observation, task: Optional[Task] = None)
 
 
 # =============================================================================
-# Evaluator: LLM Hallucination Judge
+# SPAN-LEVEL EVALUATORS (function-based)
 # =============================================================================
+
+
+# --- Evaluator 4: Tool Success Rate (span-level, function-based) ---
+
+
+@evaluator(
+    name="tool-success-rate",
+    description="Did each tool execute without errors?",
+    tags=["tool-use", "reliability"],
+    level="span",
+    span_type="tool",
+    aggregations=[AggregationType.MEAN, AggregationType.MIN],
+)
+def tool_success_rate(span: ToolSpan, task: Optional[Task] = None) -> EvalResult:
+    """
+    Evaluates each tool span individually for success/failure.
+
+    A failing tool often means the agent will hallucinate a response or
+    give a generic error message. Monitors this to catch API outages,
+    authentication issues, or bad input being passed to tools.
+
+    Scoring:
+      - 1.0 = tool succeeded
+      - 0.0 = tool failed
+    """
+    if span.metrics.error:
+        return EvalResult(
+            score=0.0,
+            passed=False,
+            explanation=f"Tool '{span.name}' failed: {span.metrics.error_message or 'unknown error'}",
+            details={
+                "tool": span.name,
+                "error": span.metrics.error_message,
+                "error_type": span.metrics.error_type,
+            },
+        )
+
+    return EvalResult(
+        score=1.0,
+        passed=True,
+        explanation=f"Tool '{span.name}' succeeded",
+        details={
+            "tool": span.name,
+            "duration_ms": span.duration_ms,
+            "has_result": span.result is not None,
+        },
+    )
+
+
+# --- Evaluator 5: LLM Response Quality (span-level, function-based) ---
+
+
+@evaluator(
+    name="llm-response-quality",
+    description="Is each LLM call producing a valid, non-empty response?",
+    tags=["quality", "llm"],
+    level="span",
+    span_type="llm",
+    aggregations=[AggregationType.MEAN, AggregationType.MIN],
+)
+def llm_response_quality(span: LLMSpan, task: Optional[Task] = None) -> EvalResult:
+    """
+    Evaluates each LLM span individually for basic response quality.
+
+    Checks:
+      - LLM did not error
+      - Response is not empty
+      - Response has reasonable length (not just a single token)
+
+    Scoring:
+      - 1.0 = good response
+      - 0.5 = response present but very short
+      - 0.0 = error or empty response
+    """
+    if span.metrics.error:
+        return EvalResult(
+            score=0.0,
+            passed=False,
+            explanation=f"LLM error: {span.metrics.error_message or 'unknown error'}",
+            details={
+                "model": span.model,
+                "error": span.metrics.error_message,
+            },
+        )
+
+    if not span.response and not span.tool_calls:
+        return EvalResult(
+            score=0.0,
+            passed=False,
+            explanation="Empty LLM response (no text and no tool calls)",
+            details={"model": span.model},
+        )
+
+    # Tool calls without text response is fine (agent deciding to use a tool)
+    if span.tool_calls and not span.response:
+        return EvalResult(
+            score=1.0,
+            passed=True,
+            explanation=f"LLM invoked {len(span.tool_calls)} tool(s)",
+            details={
+                "model": span.model,
+                "tool_calls": [tc.name for tc in span.tool_calls],
+            },
+        )
+
+    # Very short text response
+    if len(span.response) < 10:
+        return EvalResult(
+            score=0.5,
+            passed=True,
+            explanation=f"Very short LLM response ({len(span.response)} chars)",
+            details={
+                "model": span.model,
+                "response_length": len(span.response),
+            },
+        )
+
+    return EvalResult(
+        score=1.0,
+        passed=True,
+        explanation=f"LLM response OK ({len(span.response)} chars)",
+        details={
+            "model": span.model,
+            "response_length": len(span.response),
+            "has_tool_calls": bool(span.tool_calls),
+        },
+    )
+
+
+# =============================================================================
+# AGENT-LEVEL EVALUATOR (class-based)
+# =============================================================================
+
+
+# --- Evaluator 6: Agent Tool Efficiency (agent-level, class-based) ---
+
+
+class AgentToolEfficiency(BaseEvaluator):
+    """
+    Checks if the agent uses tools efficiently relative to its token budget.
+
+    An agent that burns 5000 tokens per tool call might be over-explaining,
+    retrying unnecessarily, or getting stuck in loops. This evaluator flags
+    agents that are token-heavy relative to their tool usage.
+
+    Scoring:
+      - 1.0 = efficient (reasonable tokens per tool call)
+      - 0.0 = very inefficient (excessive tokens per tool)
+    """
+
+    name = "agent-tool-efficiency"
+    description = "Does the agent use tools efficiently relative to its token budget?"
+    tags = ["agent", "efficiency", "tool-use"]
+
+    level = Param(EvaluationLevel, default=EvaluationLevel.AGENT, description="Evaluation level")
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+        tool_count = len(trace.get_tool_calls())
+        total_tokens = trace.metrics.token_usage.total_tokens
+        return self._score(tool_count, total_tokens, "trace")
+
+    def _agent_evaluation(self, agent_trace: AgentTrace, task: Optional[Task] = None) -> EvalResult:
+        tool_count = agent_trace.metrics.tool_call_count
+        total_tokens = agent_trace.metrics.token_usage.total_tokens
+        label = agent_trace.agent_name or agent_trace.agent_id
+        return self._score(tool_count, total_tokens, label)
+
+    def _score(self, tool_count: int, total_tokens: int, label: str) -> EvalResult:
+        if tool_count == 0:
+            return EvalResult(
+                score=1.0,
+                passed=True,
+                explanation=f"{label}: No tools called — nothing to measure",
+                details={"label": label, "tool_count": 0, "total_tokens": total_tokens},
+            )
+
+        if total_tokens == 0:
+            return EvalResult(
+                score=1.0,
+                passed=True,
+                explanation=f"{label}: No token data available",
+                details={"label": label, "tool_count": tool_count, "total_tokens": 0},
+            )
+
+        tokens_per_tool = total_tokens / tool_count
+        # Score: 1.0 if under threshold, decays linearly above it
+        score = min(1.0, TOKENS_PER_TOOL_THRESHOLD / max(tokens_per_tool, 1))
+
+        return EvalResult(
+            score=round(score, 3),
+            passed=score >= 0.5,
+            explanation=f"{label}: {tokens_per_tool:.0f} tokens/tool ({tool_count} tools, {total_tokens} tokens)",
+            details={
+                "label": label,
+                "tool_count": tool_count,
+                "total_tokens": total_tokens,
+                "tokens_per_tool": round(tokens_per_tool, 1),
+                "threshold": TOKENS_PER_TOOL_THRESHOLD,
+            },
+        )
+
+
+# Register the class-based evaluator to the global registry
+register_evaluator(AgentToolEfficiency())
+
+
+# =============================================================================
+# TRACE-LEVEL LLM JUDGE (function-based)
+# =============================================================================
+
+
+# --- Evaluator 7: LLM Hallucination Judge (trace-level, function-based) ---
 
 
 @evaluator(
@@ -540,7 +707,7 @@ def response_completeness(observation: Observation, task: Optional[Task] = None)
     tags=["hallucination", "llm-judge", "quality"],
     aggregations=[AggregationType.MEAN, AggregationType.MIN, AggregationType.PASS_RATE],
 )
-def llm_hallucination_judge(observation: Observation, task: Optional[Task] = None) -> EvalResult:
+def llm_hallucination_judge(trace: Trace, task: Optional[Task] = None) -> EvalResult:
     """
     Sends the agent's response and tool outputs to an LLM to check for
     hallucinated information.
@@ -556,7 +723,8 @@ def llm_hallucination_judge(observation: Observation, task: Optional[Task] = Non
       - 1.0 = fully grounded in tool results
       - 0.0 = heavily hallucinated
     """
-    if not observation.tool_spans:
+
+    if not trace.get_tool_calls():
         return EvalResult(
             score=1.0,
             passed=True,
@@ -575,7 +743,7 @@ def llm_hallucination_judge(observation: Observation, task: Optional[Task] = Non
     total_chars = 0
     max_chars = 3000
 
-    for span in observation.tool_spans:
+    for span in trace.get_tool_calls():
         result = span.result
         if result is None:
             result_str = "(no result returned)"
@@ -608,13 +776,13 @@ Do NOT penalize:
 - Standard disclaimers or "please contact support" suggestions
 
 USER QUERY:
-{observation.input}
+{trace.input}
 
 TOOL RESULTS:
 {chr(10).join(tool_sections)}
 
 AGENT RESPONSE:
-{observation.output}
+{trace.output}
 
 Respond with JSON:
 {{

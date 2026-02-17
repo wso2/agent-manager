@@ -17,12 +17,23 @@
 """
 Monitor runner for a Swiss Airlines customer support agent.
 
-Evaluates recent traces against a set of quality evaluators:
-  - tool-call-relevance: Are the right tools being called?
-  - response-grounding: Are responses based on actual tool results?
-  - tool-success-rate: Are tools executing without errors?
-  - response-completeness: Are responses complete and not broken?
-  - llm-hallucination-judge: LLM-verified hallucination detection
+Evaluates recent traces against a comprehensive set of evaluators at multiple levels:
+
+  Trace-level (whole trace):
+    - tool-call-relevance: Are the right tools being called?
+    - response-grounding: Are responses based on actual tool results?
+    - response-completeness: Are responses complete and not broken?
+    - llm-hallucination-judge: LLM-verified hallucination detection
+    - answer_relevancy (built-in): Is the response relevant to the input?
+
+  Agent-level (per agent):
+    - agent-tool-efficiency: Is the agent using tools efficiently?
+    - latency (built-in): Is agent latency within bounds?
+    - hallucination (built-in): Keyword-based hallucination detection per agent
+
+  Span-level (per span):
+    - tool-success-rate: Did each tool execute without errors?
+    - llm-response-quality: Is each LLM call producing valid output?
 
 Usage:
     # Run against last 7 days of traces
@@ -48,10 +59,39 @@ import argparse
 import sys
 from datetime import datetime, timedelta, timezone
 
-# Import evaluators — the @evaluator decorators register them automatically
-import evaluators  # noqa: F401
+from dotenv import load_dotenv
 
-from amp_evaluation import Monitor, list_evaluators
+load_dotenv()
+
+# Import evaluators — the @evaluator decorators and register_evaluator() calls
+# register them to the global registry automatically on import
+import evaluators  # noqa: F401, E402
+
+from amp_evaluation import (  # noqa: E402
+    Monitor,
+    list_evaluators,
+    get_evaluator_metadata,
+    register_builtin,
+)
+
+
+# =============================================================================
+# Register built-in evaluators alongside the custom ones
+# =============================================================================
+
+# Latency: registered at agent level — checks per-agent duration
+register_builtin("latency", max_latency_ms=5000, level="agent")
+
+# Hallucination: registered at span level — checks each span for hallucination keywords
+register_builtin("hallucination", level="span")
+
+# Answer relevancy: trace-level (only supports trace) — checks word overlap between input and output
+register_builtin("answer_relevancy")
+
+
+# =============================================================================
+# CLI
+# =============================================================================
 
 
 def parse_args():
@@ -115,6 +155,40 @@ def print_header(args):
     print()
 
 
+def print_evaluator_list(evaluator_names):
+    """Print loaded evaluators grouped by level."""
+    print(f"  Loaded {len(evaluator_names)} evaluators:")
+    print()
+
+    # Group by level
+    by_level = {"trace": [], "agent": [], "span": []}
+    for name in evaluator_names:
+        meta = get_evaluator_metadata(name)
+        levels = meta.get("supported_levels", ["trace"])
+        # Show at the highest level it supports
+        if "span" in levels:
+            by_level["span"].append((name, levels))
+        elif "agent" in levels:
+            by_level["agent"].append((name, levels))
+        else:
+            by_level["trace"].append((name, levels))
+
+    level_labels = {
+        "trace": "Trace-level (whole trace)",
+        "agent": "Agent-level (per agent)",
+        "span": "Span-level (per span)",
+    }
+
+    for level_key in ["trace", "agent", "span"]:
+        evals = by_level[level_key]
+        if evals:
+            print(f"  {level_labels[level_key]}:")
+            for name, levels in evals:
+                levels_str = ", ".join(levels)
+                print(f"    - {name}  [{levels_str}]")
+            print()
+
+
 def print_results(result):
     """Print a formatted summary of evaluation results."""
 
@@ -126,7 +200,7 @@ def print_results(result):
 
     # --- Run metadata ---
     print(f"  Run ID:              {result.run_id}")
-    print(f"  Status:              {'✅ SUCCESS' if result.success else '❌ FAILED'}")
+    print(f"  Status:              {'SUCCESS' if result.success else 'FAILED'}")
     print(f"  Duration:            {result.duration_seconds:.1f}s")
     print(f"  Traces evaluated:    {result.traces_evaluated}")
     print(f"  Evaluators run:      {result.evaluators_run}")
@@ -140,9 +214,9 @@ def print_results(result):
         return
 
     # --- Scores table ---
-    print("  ┌─────────────────────────────┬──────────┬──────────┬───────┐")
-    print("  │ Evaluator                   │ Avg      │ Pass Rate│ Count │")
-    print("  ├─────────────────────────────┼──────────┼──────────┼───────┤")
+    print("  +-----------------------------+----------+----------+-------+")
+    print("  | Evaluator                   | Avg      | Pass Rate| Count |")
+    print("  +-----------------------------+----------+----------+-------+")
 
     for name, summary in result.scores.items():
         avg = summary.aggregated_scores.get("mean", 0.0)
@@ -163,9 +237,9 @@ def print_results(result):
         # Format pass rate
         pass_str = f"{pass_rate:.0%}" if pass_rate is not None else "  —"
 
-        print(f"  │ {indicator} {display_name:<25} │ {avg:>7.3f}  │ {pass_str:>7}  │ {count:>5} │")
+        print(f"  | {indicator} {display_name:<25}| {avg:>7.3f}  | {pass_str:>7}  | {count:>5} |")
 
-    print("  └─────────────────────────────┴──────────┴──────────┴───────┘")
+    print("  +-----------------------------+----------+----------+-------+")
     print()
 
     # --- Detailed breakdown per evaluator ---
@@ -174,7 +248,7 @@ def print_results(result):
 
     for name, summary in result.scores.items():
         print()
-        print(f"  📊 {name}")
+        print(f"  >> {name}")
 
         for agg_name, value in summary.aggregated_scores.items():
             label = agg_name.replace("_", " ").title()
@@ -208,25 +282,25 @@ def print_health_assessment(result):
         pass_rate = summary.aggregated_scores.get("pass_rate")
 
         if avg < 0.5:
-            alerts.append(f"🔴 {name}: avg score {avg:.3f} is critically low")
+            alerts.append(f"  [CRITICAL] {name}: avg score {avg:.3f} is critically low")
         elif avg < 0.7:
-            alerts.append(f"🟡 {name}: avg score {avg:.3f} needs attention")
+            alerts.append(f"  [WARNING]  {name}: avg score {avg:.3f} needs attention")
         else:
             healthy.append(name)
 
         if pass_rate is not None and pass_rate < 0.5:
-            alerts.append(f"🔴 {name}: pass rate {pass_rate:.0%} — majority of traces failing")
+            alerts.append(f"  [CRITICAL] {name}: pass rate {pass_rate:.0%} — majority of traces failing")
         elif pass_rate is not None and pass_rate < 0.8:
-            alerts.append(f"🟡 {name}: pass rate {pass_rate:.0%} — significant failure rate")
+            alerts.append(f"  [WARNING]  {name}: pass rate {pass_rate:.0%} — significant failure rate")
 
     if not alerts:
-        print("  🟢 All evaluators healthy")
+        print("  [OK] All evaluators healthy")
     else:
         for alert in alerts:
-            print(f"  {alert}")
+            print(alert)
 
     if healthy:
-        print(f"  ✅ Healthy: {', '.join(healthy)}")
+        print(f"  [OK] Healthy: {', '.join(healthy)}")
 
     print()
 
@@ -250,15 +324,13 @@ def main():
     print_header(args)
 
     # Create the monitor — it auto-discovers evaluators registered
-    # via @evaluator decorator in the imported evaluators module
+    # via @evaluator decorator and register_evaluator() / register_builtin()
     monitor = Monitor()
 
-    # Show which evaluators were loaded
+    # Show which evaluators were loaded (grouped by level)
     evaluator_names = list_evaluators()
-    print(f"  Loaded {len(evaluator_names)} evaluators:")
-    for name in evaluator_names:
-        print(f"    • {name}")
-    print()
+    print_evaluator_list(evaluator_names)
+
     print("  Running evaluations...")
     print()
 
@@ -271,13 +343,6 @@ def main():
 
     # Print results
     print_results(result)
-
-    # Print the SDK's built-in summary as well
-    print("  " + "=" * 66)
-    print("  RAW SUMMARY")
-    print("  " + "=" * 66)
-    print()
-    print(result.summary())
 
     # Exit with non-zero if there were errors
     if not result.success:
