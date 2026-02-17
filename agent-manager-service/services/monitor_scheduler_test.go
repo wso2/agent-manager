@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
@@ -73,6 +74,11 @@ func (m *mockExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.UUI
 
 func newTestScheduler(executor MonitorExecutor) *monitorSchedulerService {
 	return &monitorSchedulerService{
+		ocClient: &clientmocks.OpenChoreoClientMock{
+			GetResourceFunc: func(ctx context.Context, namespaceName string, kind string, name string) (map[string]interface{}, error) {
+				return nil, fmt.Errorf("mock: resource not found")
+			},
+		},
 		logger:   slog.Default(),
 		executor: executor,
 		stopCh:   make(chan struct{}),
@@ -551,10 +557,13 @@ func TestSchedulerStopsOnContextCancel(t *testing.T) {
 }
 
 func TestSchedulerStopsOnStopChannel(t *testing.T) {
+	ctx := context.Background()
+
+	// Clean stale monitors so the initial cycle doesn't do unnecessary DB work
+	db.DB(ctx).Where("type = ?", models.MonitorTypeFuture).Delete(&models.Monitor{})
+
 	executor := &mockExecutor{}
 	s := newTestScheduler(executor)
-
-	ctx := context.Background()
 
 	done := make(chan struct{})
 	go func() {
@@ -562,12 +571,13 @@ func TestSchedulerStopsOnStopChannel(t *testing.T) {
 		close(done)
 	}()
 
-	// Close stop channel
+	// Close stop channel — the loop will exit after the initial cycle completes
 	close(s.stopCh)
 
 	select {
 	case <-done:
 		// Loop exited as expected
+		assert.True(t, true, "scheduler loop stopped on stop channel")
 	case <-time.After(5 * time.Second):
 		t.Fatal("scheduler loop did not stop after stop channel closed")
 	}
@@ -647,6 +657,9 @@ func TestSchedulerCycle_AdvisoryLockReleasedAfterCycle(t *testing.T) {
 // concurrently, exactly one proceeds and the other skips.
 func TestSchedulerCycle_TwoConcurrentCycles(t *testing.T) {
 	ctx := context.Background()
+
+	// Clean up stale monitors from other test runs so we only test our monitor
+	db.DB(ctx).Where("type = ?", models.MonitorTypeFuture).Delete(&models.Monitor{})
 
 	var executeCalled atomic.Int32
 	// Make execution take some time so both goroutines overlap
