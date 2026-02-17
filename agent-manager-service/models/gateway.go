@@ -23,153 +23,79 @@ import (
 	"gorm.io/gorm"
 )
 
-// GatewayType enum
-type GatewayType string
-
-const (
-	GatewayTypeIngress GatewayType = "INGRESS"
-	GatewayTypeEgress  GatewayType = "EGRESS"
-)
-
-// GatewayStatus enum
-type GatewayStatus string
-
-const (
-	GatewayStatusActive       GatewayStatus = "ACTIVE"
-	GatewayStatusInactive     GatewayStatus = "INACTIVE"
-	GatewayStatusProvisioning GatewayStatus = "PROVISIONING"
-	GatewayStatusError        GatewayStatus = "ERROR"
-)
-
-// GatewayCredentials holds authentication credentials for gateway access
-type GatewayCredentials struct {
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
-	APIKey   string `json:"apiKey,omitempty"`
-	Token    string `json:"token,omitempty"`
-}
-
-// GatewayResponse is the API response DTO
-type GatewayResponse struct {
-	UUID             string                       `json:"uuid"`
-	OrganizationName string                       `json:"organizationName"`
-	Name             string                       `json:"name"`
-	DisplayName      string                       `json:"displayName"`
-	GatewayType      string                       `json:"gatewayType"`
-	ControlPlaneURL  string                       `json:"controlPlaneUrl,omitempty"`
-	VHost            string                       `json:"vhost"`
-	Region           string                       `json:"region,omitempty"`
-	IsCritical       bool                         `json:"isCritical"`
-	Status           string                       `json:"status"`
-	AdapterConfig    map[string]interface{}       `json:"adapterConfig,omitempty"`
-	CreatedAt        time.Time                    `json:"createdAt"`
-	UpdatedAt        time.Time                    `json:"updatedAt"`
-	Environments     []GatewayEnvironmentResponse `json:"environments,omitempty"`
-	APIKey           string                       `json:"apiKey,omitempty"` // Only returned during registration
-}
-
-// CreateGatewayRequest is the API request for registering a gateway
-type CreateGatewayRequest struct {
-	OrganizationName string                 `json:"organizationName" validate:"required,max=100"`
-	Name             string                 `json:"name" validate:"required,max=64"`
-	DisplayName      string                 `json:"displayName" validate:"required,max=128"`
-	GatewayType      string                 `json:"gatewayType" validate:"required,oneof=INGRESS EGRESS"`
-	VHost            string                 `json:"vhost" validate:"required,max=253"`
-	Region           string                 `json:"region,omitempty"`
-	IsCritical       bool                   `json:"isCritical"`
-	AdapterConfig    map[string]interface{} `json:"adapterConfig,omitempty"`
-	Credentials      *GatewayCredentials    `json:"credentials,omitempty"`
-	EnvironmentIDs   []string               `json:"environmentIds,omitempty"`
-}
-
-// UpdateGatewayRequest is the API request for updating a gateway
-type UpdateGatewayRequest struct {
-	DisplayName   *string                `json:"displayName,omitempty"`
-	IsCritical    *bool                  `json:"isCritical,omitempty"`
-	Status        *string                `json:"status,omitempty"`
-	AdapterConfig map[string]interface{} `json:"adapterConfig,omitempty"`
-	Credentials   *GatewayCredentials    `json:"credentials,omitempty"`
-}
-
-// Gateway is the database model
+// Gateway represents an API Platform gateway instance within an organization
 type Gateway struct {
-	UUID             uuid.UUID              `gorm:"column:uuid;primaryKey"`
-	OrganizationName string                 `gorm:"column:organization_name"`
-	Name             string                 `gorm:"column:name"`
-	DisplayName      string                 `gorm:"column:display_name"`
-	GatewayType      string                 `gorm:"column:gateway_type"`
-	ControlPlaneURL  string                 `gorm:"column:control_plane_url"`
-	VHost            string                 `gorm:"column:vhost"`
-	Region           string                 `gorm:"column:region"`
-	IsCritical       bool                   `gorm:"column:is_critical"`
-	Status           string                 `gorm:"column:status"`
-	AdapterConfig    map[string]interface{} `gorm:"column:adapter_config;type:jsonb;serializer:json"`
-	APIKeyHash       []byte                 `gorm:"column:api_key_hash"` // Hashed API key for WebSocket authentication
-	CreatedAt        time.Time              `gorm:"column:created_at"`
-	UpdatedAt        time.Time              `gorm:"column:updated_at"`
-	DeletedAt        gorm.DeletedAt         `gorm:"column:deleted_at"`
-	Environments     []Environment          `gorm:"many2many:gateway_environment_mappings;foreignKey:UUID;joinForeignKey:gateway_uuid;References:UUID;joinReferences:environment_uuid"`
+	UUID                     uuid.UUID              `gorm:"column:uuid;primaryKey" json:"id"`
+	OrganizationUUID         uuid.UUID              `gorm:"column:organization_uuid" json:"organizationId"`
+	Name                     string                 `gorm:"column:name" json:"name"`
+	DisplayName              string                 `gorm:"column:display_name" json:"displayName"`
+	Description              string                 `gorm:"column:description" json:"description"`
+	Properties               map[string]interface{} `gorm:"column:properties;type:jsonb;serializer:json" json:"properties,omitempty"`
+	Vhost                    string                 `gorm:"column:vhost" json:"vhost"`
+	IsCritical               bool                   `gorm:"column:is_critical" json:"isCritical"`
+	GatewayFunctionalityType string                 `gorm:"column:gateway_functionality_type" json:"functionalityType"`
+	IsActive                 bool                   `gorm:"column:is_active" json:"isActive"`
+	CreatedAt                time.Time              `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt                time.Time              `gorm:"column:updated_at" json:"updatedAt"`
+	DeletedAt                gorm.DeletedAt         `gorm:"column:deleted_at;index" json:"-"`
 }
 
-// TableName returns the table name for GORM
+// TableName returns the table name for the Gateway model
 func (Gateway) TableName() string {
 	return "gateways"
 }
 
-// ToResponse converts the database model to API response
-func (g *Gateway) ToResponse() *GatewayResponse {
-	resp := &GatewayResponse{
-		UUID:             g.UUID.String(),
-		OrganizationName: g.OrganizationName,
-		Name:             g.Name,
-		DisplayName:      g.DisplayName,
-		GatewayType:      g.GatewayType,
-		ControlPlaneURL:  g.ControlPlaneURL,
-		VHost:            g.VHost,
-		Region:           g.Region,
-		IsCritical:       g.IsCritical,
-		Status:           g.Status,
-		AdapterConfig:    g.AdapterConfig,
-		CreatedAt:        g.CreatedAt,
-		UpdatedAt:        g.UpdatedAt,
-	}
-
-	if len(g.Environments) > 0 {
-		resp.Environments = make([]GatewayEnvironmentResponse, len(g.Environments))
-		for i, env := range g.Environments {
-			resp.Environments[i] = *env.ToResponse()
-		}
-	}
-
-	return resp
+// GatewayToken represents an authentication token for an API Platform gateway
+type GatewayToken struct {
+	UUID        uuid.UUID  `gorm:"column:uuid;primaryKey" json:"id"`
+	GatewayUUID uuid.UUID  `gorm:"column:gateway_uuid" json:"gatewayId"`
+	TokenPrefix string     `gorm:"column:token_prefix" json:"-"` // First 8 chars of plaintext token for indexed lookup
+	TokenHash   string     `gorm:"column:token_hash" json:"-"`   // Never expose in JSON responses
+	Salt        string     `gorm:"column:salt" json:"-"`         // Never expose in JSON responses
+	Status      string     `gorm:"column:status" json:"status"`  // "active" or "revoked"
+	CreatedAt   time.Time  `gorm:"column:created_at" json:"createdAt"`
+	RevokedAt   *time.Time `gorm:"column:revoked_at" json:"revokedAt,omitempty"` // Pointer for NULL support
 }
 
-// GatewayEnvironmentMapping is the junction table model
-type GatewayEnvironmentMapping struct {
-	ID              int       `gorm:"column:id;primaryKey"`
-	GatewayUUID     uuid.UUID `gorm:"column:gateway_uuid"`
-	EnvironmentUUID uuid.UUID `gorm:"column:environment_uuid"`
-	CreatedAt       time.Time `gorm:"column:created_at"`
+// TableName returns the table name for the GatewayToken model
+func (GatewayToken) TableName() string {
+	return "gateway_tokens"
 }
 
-// TableName returns the table name for GORM
-func (GatewayEnvironmentMapping) TableName() string {
-	return "gateway_environment_mappings"
+// IsActive returns true if token status is active
+func (t *GatewayToken) IsActive() bool {
+	return t.Status == "active"
 }
 
-// GatewayListResponse is the paginated list response
-type GatewayListResponse struct {
-	Gateways []GatewayResponse `json:"gateways"`
-	Total    int32             `json:"total"`
-	Limit    int32             `json:"limit"`
-	Offset   int32             `json:"offset"`
+// Revoke marks the token as revoked with current timestamp
+func (t *GatewayToken) Revoke() {
+	now := time.Now()
+	t.Status = "revoked"
+	t.RevokedAt = &now
 }
 
-// HealthStatusResponse is the gateway health check response
-type HealthStatusResponse struct {
-	GatewayID    string `json:"gatewayId"`
-	Status       string `json:"status"`
-	ResponseTime string `json:"responseTime,omitempty"`
-	ErrorMessage string `json:"errorMessage,omitempty"`
-	CheckedAt    string `json:"checkedAt"`
+// APIGatewayWithDetails represents a gateway with its association and deployment details for an API
+type APIGatewayWithDetails struct {
+	// Gateway information
+	UUID                     uuid.UUID              `json:"id" db:"id"`
+	OrganizationUUID         uuid.UUID              `json:"organizationId" db:"organization_id"`
+	Name                     string                 `json:"name" db:"name"`
+	DisplayName              string                 `json:"displayName" db:"display_name"`
+	Description              string                 `json:"description" db:"description"`
+	Properties               map[string]interface{} `json:"properties,omitempty" db:"properties"`
+	Vhost                    string                 `json:"vhost" db:"vhost"`
+	IsCritical               bool                   `json:"isCritical" db:"is_critical"`
+	GatewayFunctionalityType string                 `json:"functionalityType" db:"functionality_type"`
+	IsActive                 bool                   `json:"isActive" db:"is_active"`
+	CreatedAt                time.Time              `json:"createdAt" db:"created_at"`
+	UpdatedAt                time.Time              `json:"updatedAt" db:"updated_at"`
+
+	// Association information
+	AssociatedAt         time.Time `json:"associatedAt" db:"associated_at"`
+	AssociationUpdatedAt time.Time `json:"associationUpdatedAt" db:"association_updated_at"`
+
+	IsDeployed bool `json:"isDeployed" db:"is_deployed"`
+	// Deployment information (nullable if not deployed)
+	DeploymentID *string    `json:"deploymentId,omitempty" db:"deployment_id"`
+	DeployedAt   *time.Time `json:"deployedAt,omitempty" db:"deployed_at"`
 }

@@ -18,16 +18,24 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/api"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/server"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 
 	"go.uber.org/automaxprocs/maxprocs"
 
@@ -92,7 +100,8 @@ func main() {
 	if !*serverFlag {
 		return
 	}
-	db := db.DB(context.Background())
+	// Get the raw DB instance without context - repositories will add context per-operation
+	db := db.GetDB()
 	dependencies, err := wiring.InitializeAppParams(cfg, db)
 	if err != nil {
 		slog.Error("failed to initialize app dependencies", "error", err)
@@ -106,8 +115,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Load and seed LLM provider templates for all organizations
+	if err := loadAndSeedLLMTemplates(cfg, dependencies); err != nil {
+		slog.Warn("Failed to load and seed LLM provider templates", "error", err)
+		// Don't exit on error - templates can be created manually
+	}
+
+	// Create main API server handler
 	handler := api.MakeHTTPHandler(dependencies)
-	server := &http.Server{
+	mainServer := &http.Server{
 		Addr:           fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
 		Handler:        handler,
 		ReadTimeout:    time.Duration(cfg.ReadTimeoutSeconds) * time.Second,
@@ -116,30 +132,134 @@ func main() {
 		MaxHeaderBytes: cfg.MaxHeaderBytes,
 	}
 
+	// Create internal HTTPS server for WebSocket and gateway internal APIs
+	internalHandler := api.MakeInternalHTTPHandler(dependencies)
+	internalServer := server.NewInternalServer(&cfg.InternalServer, internalHandler)
+
 	stopCh := signals.SetupSignalHandler()
+
+	// Setup graceful shutdown
+	var wg sync.WaitGroup
+	wg.Add(1)
 
 	go func() {
 		<-stopCh
 		slog.Info("Shutdown signal received, stopping services...")
-
 		// Stop scheduler first
 		schedulerCancel()
 		if err := dependencies.MonitorScheduler.Stop(); err != nil {
 			slog.Error("error stopping monitor scheduler", "error", err)
 		}
 
-		// Then shutdown HTTP server
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
+		// Shutdown WebSocket manager
+		if dependencies.WebSocketManager != nil {
+			slog.Info("Shutting down WebSocket manager")
+			dependencies.WebSocketManager.Shutdown()
+		}
 
-		if err := server.Shutdown(ctx); err != nil {
-			slog.Error("forced shutdown after timeout", "error", err)
+		// Shutdown main server
+		mainCtx, mainCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer mainCancel()
+		if err := mainServer.Shutdown(mainCtx); err != nil {
+			slog.Error("Main server forced shutdown after timeout", "error", err)
+		}
+
+		// Shutdown internal server
+		internalCtx, internalCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer internalCancel()
+		if err := internalServer.Shutdown(internalCtx); err != nil {
+			slog.Error("Internal server forced shutdown after timeout", "error", err)
+		}
+		wg.Done()
+	}()
+
+	// Start internal server in a goroutine
+	go func() {
+		slog.Info("Internal HTTPS server is running",
+			"address", fmt.Sprintf("https://localhost:%d", cfg.InternalServer.Port),
+			"maxWebSocketConnections", cfg.WebSocket.MaxConnections,
+			"heartbeatTimeout", fmt.Sprintf("%ds", cfg.WebSocket.ConnectionTimeout),
+			"rateLimitPerMin", cfg.WebSocket.RateLimitPerMin)
+		if err := internalServer.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("Failed to start internal server", "error", err)
+			os.Exit(1)
 		}
 	}()
 
-	slog.Info("agent-manager-service is running", "address", server.Addr)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		slog.Error("failed to start server", "error", err)
+	// Start main server (blocking)
+	slog.Info("Main API server is running", "address", mainServer.Addr)
+	if err := mainServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		slog.Error("Failed to start main server", "error", err)
 		os.Exit(1)
 	}
+
+	// Wait for graceful shutdown to complete
+	wg.Wait()
+	slog.Info("All servers shut down successfully")
+}
+
+// loadAndSeedLLMTemplates loads template files and seeds them for all organizations
+func loadAndSeedLLMTemplates(cfg *config.Config, dependencies *wiring.AppParams) error {
+	// Load default templates from directory
+	templatePath := strings.TrimSpace(cfg.LLMTemplateDefinitionsPath)
+	defaultTemplates, err := utils.LoadLLMProviderTemplatesFromDirectory(templatePath)
+	if err != nil {
+		cleanPath := filepath.Clean(templatePath)
+		fallbackPath := ""
+		if cleanPath != "" && cleanPath != "." && cleanPath != "src" && !filepath.IsAbs(cleanPath) && !strings.HasPrefix(cleanPath, "src"+string(os.PathSeparator)) {
+			fallbackPath = filepath.Join("src", cleanPath)
+		}
+		if fallbackPath != "" {
+			if templates, fallbackErr := utils.LoadLLMProviderTemplatesFromDirectory(fallbackPath); fallbackErr == nil {
+				defaultTemplates = templates
+				templatePath = fallbackPath
+				err = nil
+			} else {
+				slog.Warn("Failed to load default LLM provider templates from fallback path", "path", fallbackPath, "error", fallbackErr)
+			}
+		}
+		if err != nil {
+			return fmt.Errorf("failed to load LLM provider templates from %s: %w", templatePath, err)
+		}
+	}
+
+	if len(defaultTemplates) == 0 {
+		slog.Info("No LLM provider templates found to seed")
+		return nil
+	}
+
+	slog.Info("Loaded LLM provider templates", "count", len(defaultTemplates), "path", templatePath)
+
+	// Set templates in the seeder
+	dependencies.LLMTemplateSeeder.SetTemplates(defaultTemplates)
+
+	// Seed templates for all organizations
+	const pageSize = 200
+	offset := 0
+	seededCount := 0
+
+	for {
+		orgs, err := dependencies.OrganizationRepository.ListOrganizations(pageSize, offset)
+		if err != nil {
+			return fmt.Errorf("failed to list organizations for LLM template seeding: %w", err)
+		}
+		if len(orgs) == 0 {
+			break
+		}
+
+		for _, org := range orgs {
+			if org == nil || org.UUID == uuid.Nil {
+				continue
+			}
+			if err := dependencies.LLMTemplateSeeder.SeedForOrg(org.UUID); err != nil {
+				slog.Warn("Failed to seed LLM templates for organization", "orgUUID", org.UUID, "error", err)
+			} else {
+				seededCount++
+			}
+		}
+		offset += pageSize
+	}
+
+	slog.Info("Seeded LLM provider templates", "templateCount", len(defaultTemplates), "organizationCount", seededCount)
+	return nil
 }

@@ -70,6 +70,15 @@ type Config struct {
 
 	// API Platform configuration
 	APIPlatform APIPlatformConfig
+
+	// Internal Server configuration (for WebSocket and gateway internal APIs)
+	InternalServer InternalServerConfig
+
+	// WebSocket configuration
+	WebSocket WebSocketConfig
+
+	// LLM Provider Template configuration
+	LLMTemplateDefinitionsPath string
 }
 
 // OpenChoreoConfig holds OpenChoreo API configuration
@@ -191,4 +200,24 @@ type PublicKeysConfig struct {
 type APIPlatformConfig struct {
 	BaseURL string // Base URL for API Platform
 	Enable  bool
+}
+
+// InternalServerConfig holds configuration for the internal HTTPS server
+// This server hosts WebSocket connections and gateway internal APIs
+type InternalServerConfig struct {
+	Host    string // Server host (default: "")
+	Port    int    // Server port (default: 9243)
+	CertDir string // Directory for TLS certificates (default: "./data/certs")
+	// HTTP Server timeout configurations
+	ReadTimeoutSeconds  int
+	WriteTimeoutSeconds int
+	IdleTimeoutSeconds  int
+	MaxHeaderBytes      int
+}
+
+// WebSocketConfig holds WebSocket-specific configuration
+type WebSocketConfig struct {
+	MaxConnections    int // Maximum number of concurrent WebSocket connections (default: 1000)
+	ConnectionTimeout int // Connection timeout in seconds (default: 30)
+	RateLimitPerMin   int // Rate limit per IP address per minute (default: 10)
 }
