@@ -14,7 +14,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
@@ -28,11 +27,10 @@ import (
 // Injectors from wire.go:
 
 // InitializeAppParams wires up all application dependencies
-func InitializeAppParams(cfg *config.Config, db *gorm.DB) (*AppParams, error) {
+func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.AuthProvider) (*AppParams, error) {
 	configConfig := ProvideConfigFromPtr(cfg)
 	middleware := ProvideAuthMiddleware(configConfig)
 	logger := ProvideLogger()
-	authProvider := ProvideOCAuthProvider(configConfig)
 	openChoreoClient, err := ProvideOCClient(configConfig, authProvider)
 	if err != nil {
 		return nil, err
@@ -211,8 +209,7 @@ var configProviderSet = wire.NewSet(
 )
 
 var clientProviderSet = wire.NewSet(
-	ProvideObservabilitySvcClient, traceobserversvc.NewTraceObserverClient, ProvideOCAuthProvider,
-	ProvideOCClient,
+	ProvideObservabilitySvcClient, traceobserversvc.NewTraceObserverClient, ProvideOCClient,
 )
 
 var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, services.NewMonitorSchedulerService, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewLLMProxyDeploymentService, services.NewGatewayInternalAPIService, ProvideLLMTemplateSeeder)
@@ -228,15 +225,6 @@ var testClientProviderSet = wire.NewSet(
 // ProvideLogger provides the configured slog.Logger instance
 func ProvideLogger() *slog.Logger {
 	return slog.Default()
-}
-
-// ProvideOCAuthProvider creates the OpenChoreo auth provider using IDP config
-func ProvideOCAuthProvider(cfg config.Config) client.AuthProvider {
-	return auth.NewAuthProvider(auth.Config{
-		TokenURL:     cfg.IDP.TokenURL,
-		ClientID:     cfg.IDP.ClientID,
-		ClientSecret: cfg.IDP.ClientSecret,
-	})
 }
 
 // ProvideOCClient creates the OpenChoreo client
