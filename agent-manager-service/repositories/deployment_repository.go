@@ -42,6 +42,11 @@ type DeploymentRepository interface {
 	SetCurrent(artifactUUID, orgUUID, gatewayID, deploymentID string, status models.DeploymentStatus) (updatedAt time.Time, err error)
 	GetStatus(artifactUUID, orgUUID, gatewayID string) (deploymentID string, status models.DeploymentStatus, updatedAt *time.Time, err error)
 	DeleteStatus(artifactUUID, orgUUID, gatewayID string) error
+
+	// Gateway mapping methods (derived from deployment status)
+	GetDeployedGatewaysByProvider(artifactUUID uuid.UUID, orgUUID uuid.UUID) ([]string, error)
+	GetDeployedProvidersByGateway(gatewayUUID uuid.UUID, orgUUID uuid.UUID) ([]string, error)
+	IsProviderDeployedToGateway(artifactUUID uuid.UUID, gatewayUUID uuid.UUID, orgUUID uuid.UUID) (bool, error)
 }
 
 // DeploymentRepo implements DeploymentRepository using GORM
@@ -363,4 +368,43 @@ func (r *DeploymentRepo) GetDeploymentsWithState(artifactUUID, orgUUID string, g
 	}
 
 	return deployments, err
+}
+
+// GetDeployedGatewaysByProvider returns all gateway UUIDs where this provider is currently deployed
+func (r *DeploymentRepo) GetDeployedGatewaysByProvider(artifactUUID uuid.UUID, orgUUID uuid.UUID) ([]string, error) {
+	var gatewayUUIDs []string
+	err := r.db.Table("deployment_status").
+		Where("artifact_uuid = ? AND organization_uuid = ? AND status = ?",
+			artifactUUID, orgUUID, models.DeploymentStatusDeployed).
+		Pluck("gateway_uuid", &gatewayUUIDs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return gatewayUUIDs, nil
+}
+
+// GetDeployedProvidersByGateway returns all provider UUIDs currently deployed to this gateway
+func (r *DeploymentRepo) GetDeployedProvidersByGateway(gatewayUUID uuid.UUID, orgUUID uuid.UUID) ([]string, error) {
+	var providerUUIDs []string
+	err := r.db.Table("deployment_status").
+		Where("gateway_uuid = ? AND organization_uuid = ? AND status = ?",
+			gatewayUUID, orgUUID, models.DeploymentStatusDeployed).
+		Pluck("artifact_uuid", &providerUUIDs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return providerUUIDs, nil
+}
+
+// IsProviderDeployedToGateway checks if a provider is currently deployed to a gateway
+func (r *DeploymentRepo) IsProviderDeployedToGateway(artifactUUID uuid.UUID, gatewayUUID uuid.UUID, orgUUID uuid.UUID) (bool, error) {
+	var count int64
+	err := r.db.Table("deployment_status").
+		Where("artifact_uuid = ? AND gateway_uuid = ? AND organization_uuid = ? AND status = ?",
+			artifactUUID, gatewayUUID, orgUUID, models.DeploymentStatusDeployed).
+		Count(&count).Error
+
+	return count > 0, err
 }
