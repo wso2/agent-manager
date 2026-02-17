@@ -61,7 +61,6 @@ type LLMProviderService struct {
 	providerRepo repositories.LLMProviderRepository
 	templateRepo repositories.LLMProviderTemplateRepository
 	proxyRepo    repositories.LLMProxyRepository
-	mappingRepo  repositories.LLMProviderGatewayMappingRepository
 }
 
 // NewLLMProviderService creates a new LLM provider service
@@ -70,14 +69,12 @@ func NewLLMProviderService(
 	providerRepo repositories.LLMProviderRepository,
 	templateRepo repositories.LLMProviderTemplateRepository,
 	proxyRepo repositories.LLMProxyRepository,
-	mappingRepo repositories.LLMProviderGatewayMappingRepository,
 ) *LLMProviderService {
 	return &LLMProviderService{
 		db:           db,
 		providerRepo: providerRepo,
 		templateRepo: templateRepo,
 		proxyRepo:    proxyRepo,
-		mappingRepo:  mappingRepo,
 	}
 }
 
@@ -365,20 +362,26 @@ func (s *LLMProviderService) Delete(providerID, orgID string, deploymentService 
 		return utils.ErrLLMProviderNotFound
 	}
 
-	// Get all gateway mappings for this provider
+	// Get all deployed gateways for this provider
 	providerUUID, err := uuid.Parse(providerID)
 	if err != nil {
 		slog.Error("LLMProviderService.Delete: invalid provider UUID", "providerID", providerID, "error", err)
 		return fmt.Errorf("invalid provider UUID: %w", err)
 	}
 
-	gatewayIDs, err := s.mappingRepo.GetByProvider(providerUUID)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		slog.Error("LLMProviderService.Delete: failed to get gateway mappings", "orgID", orgID, "providerID", providerID, "error", err)
-		return fmt.Errorf("failed to get gateway mappings: %w", err)
+	orgUUID, err := uuid.Parse(orgID)
+	if err != nil {
+		slog.Error("LLMProviderService.Delete: invalid organization UUID", "orgID", orgID, "error", err)
+		return fmt.Errorf("invalid organization UUID: %w", err)
 	}
 
-	slog.Info("LLMProviderService.Delete: found gateway mappings", "orgID", orgID, "providerID", providerID, "gatewayCount", len(gatewayIDs))
+	gatewayIDs, err := deploymentService.deploymentRepo.GetDeployedGatewaysByProvider(providerUUID, orgUUID)
+	if err != nil {
+		slog.Error("LLMProviderService.Delete: failed to get deployed gateways", "orgID", orgID, "providerID", providerID, "error", err)
+		return fmt.Errorf("failed to get deployed gateways: %w", err)
+	}
+
+	slog.Info("LLMProviderService.Delete: found deployed gateways", "orgID", orgID, "providerID", providerID, "gatewayCount", len(gatewayIDs))
 
 	// Undeploy from all gateways before deleting
 	if len(gatewayIDs) > 0 {
@@ -488,20 +491,20 @@ func (s *LLMProviderService) UpdateAndSync(providerID, orgID string, updates *mo
 		return nil, fmt.Errorf("all %d gateway IDs are invalid", len(gatewayIDs))
 	}
 
-	// Get current gateway mappings (returns []string)
-	currentGateways, err := s.mappingRepo.GetByProvider(providerUUID)
+	// Get current deployed gateways (from deployment_status)
+	orgUUID, err := uuid.Parse(orgID)
 	if err != nil {
-		slog.Error("LLMProviderService.UpdateAndSync: failed to get current mappings", "providerID", providerID, "error", err)
+		slog.Error("LLMProviderService.UpdateAndSync: invalid organization UUID", "providerID", providerID, "orgID", orgID, "error", err)
+		return nil, fmt.Errorf("invalid organization UUID: %w", err)
+	}
+
+	currentGateways, err := deploymentService.deploymentRepo.GetDeployedGatewaysByProvider(providerUUID, orgUUID)
+	if err != nil {
+		slog.Error("LLMProviderService.UpdateAndSync: failed to get deployed gateways", "providerID", providerID, "error", err)
 		return nil, err
 	}
 
-	// Replace mappings in database
-	if err := s.mappingRepo.ReplaceForProvider(providerUUID, gatewayUUIDs); err != nil {
-		slog.Error("LLMProviderService.UpdateAndSync: failed to replace gateway mappings", "providerID", providerID, "error", err)
-		return nil, err
-	}
-
-	slog.Info("LLMProviderService.UpdateAndSync: gateway mappings replaced", "providerID", providerID, "newCount", len(gatewayUUIDs), "oldCount", len(currentGateways))
+	slog.Info("LLMProviderService.UpdateAndSync: current deployed gateways retrieved", "providerID", providerID, "newCount", len(gatewayUUIDs), "oldCount", len(currentGateways))
 
 	// Determine which gateways to add and which to remove
 	currentGatewayMap := make(map[string]bool)
@@ -715,13 +718,12 @@ func (s *LLMProviderService) CreateAndDeploy(orgID, createdBy string, provider *
 
 	slog.Info("LLMProviderService.CreateAndDeploy: provider created successfully", "orgID", orgID, "providerUUID", created.UUID)
 
-	// Track invalid gateway UUIDs and create mappings for valid ones
-	mappings := make([]*models.LLMProviderGatewayMapping, 0, len(gatewayIDs))
+	// Validate gateway UUIDs
 	deploymentResults := make([]DeploymentResult, 0, len(gatewayIDs))
 	validGatewayIDs := make([]string, 0, len(gatewayIDs))
 
 	for _, gatewayID := range gatewayIDs {
-		gatewayUUID, err := uuid.Parse(gatewayID)
+		_, err := uuid.Parse(gatewayID)
 		if err != nil {
 			slog.Error("LLMProviderService.CreateAndDeploy: invalid gateway UUID", "orgID", orgID, "gatewayID", gatewayID, "error", err)
 			deploymentResults = append(deploymentResults, DeploymentResult{
@@ -731,10 +733,6 @@ func (s *LLMProviderService) CreateAndDeploy(orgID, createdBy string, provider *
 			})
 			continue
 		}
-		mappings = append(mappings, &models.LLMProviderGatewayMapping{
-			LLMProviderUUID: created.UUID.String(),
-			GatewayUUID:     gatewayUUID.String(),
-		})
 		validGatewayIDs = append(validGatewayIDs, gatewayID)
 	}
 
@@ -742,17 +740,6 @@ func (s *LLMProviderService) CreateAndDeploy(orgID, createdBy string, provider *
 	if len(gatewayIDs) > 0 && len(validGatewayIDs) == 0 {
 		slog.Error("LLMProviderService.CreateAndDeploy: all gateway UUIDs are invalid", "orgID", orgID, "totalRequested", len(gatewayIDs))
 		return nil, fmt.Errorf("all %d gateway IDs are invalid", len(gatewayIDs))
-	}
-
-	// Store mappings in database
-	mappingsFailed := false
-	if len(mappings) > 0 {
-		if err := s.mappingRepo.CreateBatch(mappings); err != nil {
-			slog.Error("LLMProviderService.CreateAndDeploy: failed to store gateway mappings", "orgID", orgID, "providerUUID", created.UUID, "error", err)
-			// Return error instead of silently continuing - this creates state inconsistency
-			return nil, fmt.Errorf("failed to store gateway mappings: %w", err)
-		}
-		slog.Info("LLMProviderService.CreateAndDeploy: gateway mappings stored", "orgID", orgID, "providerUUID", created.UUID, "mappingCount", len(mappings))
 	}
 
 	// Deploy to each valid gateway and track results
@@ -795,7 +782,7 @@ func (s *LLMProviderService) CreateAndDeploy(orgID, createdBy string, provider *
 	}
 
 	// Fail if ALL deployments failed (but only if we had valid gateways to deploy to)
-	if !mappingsFailed && len(validGatewayIDs) > 0 && successfulDeployments == 0 {
+	if len(validGatewayIDs) > 0 && successfulDeployments == 0 {
 		slog.Error("LLMProviderService.CreateAndDeploy: all deployments failed", "orgID", orgID, "providerUUID", created.UUID, "attempted", len(validGatewayIDs))
 		return nil, fmt.Errorf("all %d gateway deployments failed", len(validGatewayIDs))
 	}
@@ -808,14 +795,10 @@ func (s *LLMProviderService) CreateAndDeploy(orgID, createdBy string, provider *
 	}, nil
 }
 
-func (s *LLMProviderService) GetProviderGatewayMapping(providerId uuid.UUID) ([]string, error) {
-	gws, err := s.mappingRepo.GetByProvider(providerId)
+func (s *LLMProviderService) GetProviderGatewayMapping(providerId uuid.UUID, orgId uuid.UUID, deploymentService *LLMProviderDeploymentService) ([]string, error) {
+	gws, err := deploymentService.deploymentRepo.GetDeployedGatewaysByProvider(providerId, orgId)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			slog.Warn("no gateway mapping found for provider")
-			return make([]string, 0), nil
-		}
-		slog.Error("error while fetching gateway mapping for provider", providerId.String(), err)
+		slog.Error("error while fetching deployed gateways for provider", "providerID", providerId.String(), "error", err)
 		return nil, err
 	}
 	return gws, nil

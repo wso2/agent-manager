@@ -139,7 +139,6 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideLLMProviderTemplateRepository,
 	ProvideLLMProviderRepository,
 	ProvideLLMProxyRepository,
-	ProvideLLMProviderGatewayMappingRepository,
 	ProvideDeploymentRepository,
 	ProvideArtifactRepository,
 )
@@ -205,10 +204,6 @@ func ProvideLLMProviderRepository(db *gorm.DB) repositories.LLMProviderRepositor
 
 func ProvideLLMProxyRepository(db *gorm.DB) repositories.LLMProxyRepository {
 	return repositories.NewLLMProxyRepo(db)
-}
-
-func ProvideLLMProviderGatewayMappingRepository(db *gorm.DB) repositories.LLMProviderGatewayMappingRepository {
-	return repositories.NewLLMProviderGatewayMappingRepository(db)
 }
 
 func ProvideDeploymentRepository(db *gorm.DB) repositories.DeploymentRepository {
