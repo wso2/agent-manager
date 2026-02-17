@@ -327,6 +327,8 @@ type ApiCreateMonitorRequest struct {
 	ctx                  context.Context
 	ApiService           *DefaultAPIService
 	orgName              string
+	projName             string
+	agentName            string
 	createMonitorRequest *CreateMonitorRequest
 }
 
@@ -347,13 +349,17 @@ Supports two types: 'future' for continuous monitoring and 'past' for one-time h
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
 	@return ApiCreateMonitorRequest
 */
-func (a *DefaultAPIService) CreateMonitor(ctx context.Context, orgName string) ApiCreateMonitorRequest {
+func (a *DefaultAPIService) CreateMonitor(ctx context.Context, orgName string, projName string, agentName string) ApiCreateMonitorRequest {
 	return ApiCreateMonitorRequest{
 		ApiService: a,
 		ctx:        ctx,
 		orgName:    orgName,
+		projName:   projName,
+		agentName:  agentName,
 	}
 }
 
@@ -373,8 +379,10 @@ func (a *DefaultAPIService) CreateMonitorExecute(r ApiCreateMonitorRequest) (*Mo
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/monitors"
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -880,6 +888,8 @@ type ApiDeleteMonitorRequest struct {
 	ctx         context.Context
 	ApiService  *DefaultAPIService
 	orgName     string
+	projName    string
+	agentName   string
 	monitorName string
 }
 
@@ -894,14 +904,18 @@ Deletes an evaluation monitor and all associated runs
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
 	@param monitorName Monitor name
 	@return ApiDeleteMonitorRequest
 */
-func (a *DefaultAPIService) DeleteMonitor(ctx context.Context, orgName string, monitorName string) ApiDeleteMonitorRequest {
+func (a *DefaultAPIService) DeleteMonitor(ctx context.Context, orgName string, projName string, agentName string, monitorName string) ApiDeleteMonitorRequest {
 	return ApiDeleteMonitorRequest{
 		ApiService:  a,
 		ctx:         ctx,
 		orgName:     orgName,
+		projName:    projName,
+		agentName:   agentName,
 		monitorName: monitorName,
 	}
 }
@@ -919,8 +933,10 @@ func (a *DefaultAPIService) DeleteMonitorExecute(r ApiDeleteMonitorRequest) (*ht
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/monitors/{monitorName}"
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"monitorName"+"}", url.PathEscape(parameterValueToString(r.monitorName, "monitorName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -3308,6 +3324,8 @@ type ApiGetMonitorRequest struct {
 	ctx         context.Context
 	ApiService  *DefaultAPIService
 	orgName     string
+	projName    string
+	agentName   string
 	monitorName string
 }
 
@@ -3322,14 +3340,18 @@ Retrieves detailed information about a specific evaluation monitor
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
 	@param monitorName Monitor name
 	@return ApiGetMonitorRequest
 */
-func (a *DefaultAPIService) GetMonitor(ctx context.Context, orgName string, monitorName string) ApiGetMonitorRequest {
+func (a *DefaultAPIService) GetMonitor(ctx context.Context, orgName string, projName string, agentName string, monitorName string) ApiGetMonitorRequest {
 	return ApiGetMonitorRequest{
 		ApiService:  a,
 		ctx:         ctx,
 		orgName:     orgName,
+		projName:    projName,
+		agentName:   agentName,
 		monitorName: monitorName,
 	}
 }
@@ -3350,8 +3372,10 @@ func (a *DefaultAPIService) GetMonitorExecute(r ApiGetMonitorRequest) (*MonitorR
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/monitors/{monitorName}"
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"monitorName"+"}", url.PathEscape(parameterValueToString(r.monitorName, "monitorName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -3437,6 +3461,8 @@ type ApiGetMonitorRunLogsRequest struct {
 	ctx         context.Context
 	ApiService  *DefaultAPIService
 	orgName     string
+	projName    string
+	agentName   string
 	monitorName string
 	runId       string
 }
@@ -3452,15 +3478,19 @@ Retrieves execution logs for a specific monitor run
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
 	@param monitorName Monitor name
 	@param runId Run ID
 	@return ApiGetMonitorRunLogsRequest
 */
-func (a *DefaultAPIService) GetMonitorRunLogs(ctx context.Context, orgName string, monitorName string, runId string) ApiGetMonitorRunLogsRequest {
+func (a *DefaultAPIService) GetMonitorRunLogs(ctx context.Context, orgName string, projName string, agentName string, monitorName string, runId string) ApiGetMonitorRunLogsRequest {
 	return ApiGetMonitorRunLogsRequest{
 		ApiService:  a,
 		ctx:         ctx,
 		orgName:     orgName,
+		projName:    projName,
+		agentName:   agentName,
 		monitorName: monitorName,
 		runId:       runId,
 	}
@@ -3482,8 +3512,10 @@ func (a *DefaultAPIService) GetMonitorRunLogsExecute(r ApiGetMonitorRunLogsReque
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/monitors/{monitorName}/runs/{runId}/logs"
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/logs"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"monitorName"+"}", url.PathEscape(parameterValueToString(r.monitorName, "monitorName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"runId"+"}", url.PathEscape(parameterValueToString(r.runId, "runId")), -1)
 
@@ -4788,6 +4820,8 @@ type ApiListMonitorRunsRequest struct {
 	ctx         context.Context
 	ApiService  *DefaultAPIService
 	orgName     string
+	projName    string
+	agentName   string
 	monitorName string
 }
 
@@ -4802,14 +4836,18 @@ Returns a list of all execution runs for a specific monitor
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
 	@param monitorName Monitor name
 	@return ApiListMonitorRunsRequest
 */
-func (a *DefaultAPIService) ListMonitorRuns(ctx context.Context, orgName string, monitorName string) ApiListMonitorRunsRequest {
+func (a *DefaultAPIService) ListMonitorRuns(ctx context.Context, orgName string, projName string, agentName string, monitorName string) ApiListMonitorRunsRequest {
 	return ApiListMonitorRunsRequest{
 		ApiService:  a,
 		ctx:         ctx,
 		orgName:     orgName,
+		projName:    projName,
+		agentName:   agentName,
 		monitorName: monitorName,
 	}
 }
@@ -4830,8 +4868,10 @@ func (a *DefaultAPIService) ListMonitorRunsExecute(r ApiListMonitorRunsRequest) 
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/monitors/{monitorName}/runs"
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"monitorName"+"}", url.PathEscape(parameterValueToString(r.monitorName, "monitorName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -4917,6 +4957,8 @@ type ApiListMonitorsRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
 	orgName    string
+	projName   string
+	agentName  string
 }
 
 func (r ApiListMonitorsRequest) Execute() (*MonitorListResponse, *http.Response, error) {
@@ -4924,19 +4966,23 @@ func (r ApiListMonitorsRequest) Execute() (*MonitorListResponse, *http.Response,
 }
 
 /*
-ListMonitors List all evaluation monitors
+ListMonitors List all evaluation monitors for an agent
 
-Returns a list of all evaluation monitors for an organization
+Returns a list of all evaluation monitors for a specific agent
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
 	@return ApiListMonitorsRequest
 */
-func (a *DefaultAPIService) ListMonitors(ctx context.Context, orgName string) ApiListMonitorsRequest {
+func (a *DefaultAPIService) ListMonitors(ctx context.Context, orgName string, projName string, agentName string) ApiListMonitorsRequest {
 	return ApiListMonitorsRequest{
 		ApiService: a,
 		ctx:        ctx,
 		orgName:    orgName,
+		projName:   projName,
+		agentName:  agentName,
 	}
 }
 
@@ -4956,8 +5002,10 @@ func (a *DefaultAPIService) ListMonitorsExecute(r ApiListMonitorsRequest) (*Moni
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/monitors"
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -5892,6 +5940,8 @@ type ApiRerunMonitorRequest struct {
 	ctx         context.Context
 	ApiService  *DefaultAPIService
 	orgName     string
+	projName    string
+	agentName   string
 	monitorName string
 	runId       string
 }
@@ -5907,15 +5957,19 @@ Creates a new workflow execution with the same time parameters as an existing ru
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
 	@param monitorName Monitor name
 	@param runId Run ID to rerun
 	@return ApiRerunMonitorRequest
 */
-func (a *DefaultAPIService) RerunMonitor(ctx context.Context, orgName string, monitorName string, runId string) ApiRerunMonitorRequest {
+func (a *DefaultAPIService) RerunMonitor(ctx context.Context, orgName string, projName string, agentName string, monitorName string, runId string) ApiRerunMonitorRequest {
 	return ApiRerunMonitorRequest{
 		ApiService:  a,
 		ctx:         ctx,
 		orgName:     orgName,
+		projName:    projName,
+		agentName:   agentName,
 		monitorName: monitorName,
 		runId:       runId,
 	}
@@ -5937,8 +5991,10 @@ func (a *DefaultAPIService) RerunMonitorExecute(r ApiRerunMonitorRequest) (*Moni
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/monitors/{monitorName}/runs/{runId}/rerun"
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/rerun"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"monitorName"+"}", url.PathEscape(parameterValueToString(r.monitorName, "monitorName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"runId"+"}", url.PathEscape(parameterValueToString(r.runId, "runId")), -1)
 
@@ -6036,6 +6092,8 @@ type ApiStartMonitorRequest struct {
 	ctx         context.Context
 	ApiService  *DefaultAPIService
 	orgName     string
+	projName    string
+	agentName   string
 	monitorName string
 }
 
@@ -6050,14 +6108,18 @@ Starts a stopped future monitor by scheduling it to run immediately. The schedul
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
 	@param monitorName Monitor name
 	@return ApiStartMonitorRequest
 */
-func (a *DefaultAPIService) StartMonitor(ctx context.Context, orgName string, monitorName string) ApiStartMonitorRequest {
+func (a *DefaultAPIService) StartMonitor(ctx context.Context, orgName string, projName string, agentName string, monitorName string) ApiStartMonitorRequest {
 	return ApiStartMonitorRequest{
 		ApiService:  a,
 		ctx:         ctx,
 		orgName:     orgName,
+		projName:    projName,
+		agentName:   agentName,
 		monitorName: monitorName,
 	}
 }
@@ -6078,8 +6140,10 @@ func (a *DefaultAPIService) StartMonitorExecute(r ApiStartMonitorRequest) (*Moni
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/monitors/{monitorName}/start"
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/start"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"monitorName"+"}", url.PathEscape(parameterValueToString(r.monitorName, "monitorName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -6187,6 +6251,8 @@ type ApiStopMonitorRequest struct {
 	ctx         context.Context
 	ApiService  *DefaultAPIService
 	orgName     string
+	projName    string
+	agentName   string
 	monitorName string
 }
 
@@ -6201,14 +6267,18 @@ Stops a future monitor by unscheduling it. The monitor will no longer execute on
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
 	@param monitorName Monitor name
 	@return ApiStopMonitorRequest
 */
-func (a *DefaultAPIService) StopMonitor(ctx context.Context, orgName string, monitorName string) ApiStopMonitorRequest {
+func (a *DefaultAPIService) StopMonitor(ctx context.Context, orgName string, projName string, agentName string, monitorName string) ApiStopMonitorRequest {
 	return ApiStopMonitorRequest{
 		ApiService:  a,
 		ctx:         ctx,
 		orgName:     orgName,
+		projName:    projName,
+		agentName:   agentName,
 		monitorName: monitorName,
 	}
 }
@@ -6229,8 +6299,10 @@ func (a *DefaultAPIService) StopMonitorExecute(r ApiStopMonitorRequest) (*Monito
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/monitors/{monitorName}/stop"
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/stop"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"monitorName"+"}", url.PathEscape(parameterValueToString(r.monitorName, "monitorName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -6807,6 +6879,8 @@ type ApiUpdateMonitorRequest struct {
 	ctx                  context.Context
 	ApiService           *DefaultAPIService
 	orgName              string
+	projName             string
+	agentName            string
 	monitorName          string
 	updateMonitorRequest *UpdateMonitorRequest
 }
@@ -6827,14 +6901,18 @@ Updates the configuration of an existing evaluation monitor
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name
+	@param projName Project name
+	@param agentName Agent name
 	@param monitorName Monitor name
 	@return ApiUpdateMonitorRequest
 */
-func (a *DefaultAPIService) UpdateMonitor(ctx context.Context, orgName string, monitorName string) ApiUpdateMonitorRequest {
+func (a *DefaultAPIService) UpdateMonitor(ctx context.Context, orgName string, projName string, agentName string, monitorName string) ApiUpdateMonitorRequest {
 	return ApiUpdateMonitorRequest{
 		ApiService:  a,
 		ctx:         ctx,
 		orgName:     orgName,
+		projName:    projName,
+		agentName:   agentName,
 		monitorName: monitorName,
 	}
 }
@@ -6855,8 +6933,10 @@ func (a *DefaultAPIService) UpdateMonitorExecute(r ApiUpdateMonitorRequest) (*Mo
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/monitors/{monitorName}"
+	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"monitorName"+"}", url.PathEscape(parameterValueToString(r.monitorName, "monitorName")), -1)
 
 	localVarHeaderParams := make(map[string]string)

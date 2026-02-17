@@ -122,8 +122,6 @@ func TestCreateFutureMonitor(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Future Monitor 1",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -132,7 +130,7 @@ func TestCreateFutureMonitor(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -193,8 +191,6 @@ func TestCreatePastMonitor(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Past Monitor 1",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
@@ -204,7 +200,7 @@ func TestCreatePastMonitor(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -240,8 +236,6 @@ func TestCreatePastMonitor_MissingTraceTime(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            uniqueMonitorName("past-missing-start"),
 		DisplayName:     "Missing Start",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "past",
 		TraceEnd:        timePtr(time.Now()),
@@ -249,7 +243,7 @@ func TestCreatePastMonitor_MissingTraceTime(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -264,7 +258,7 @@ func TestCreatePastMonitor_MissingTraceTime(t *testing.T) {
 	reqBody.TraceEnd = nil
 
 	body, _ = json.Marshal(reqBody)
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w = httptest.NewRecorder()
@@ -284,8 +278,6 @@ func TestCreatePastMonitor_InvalidTimeRange(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            uniqueMonitorName("past-invalid-range"),
 		DisplayName:     "Invalid Range",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "past",
 		TraceStart:      timePtr(time.Now()),
@@ -294,7 +286,7 @@ func TestCreatePastMonitor_InvalidTimeRange(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -315,8 +307,6 @@ func TestCreateMonitor_DuplicateName(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Duplicate Test",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -325,7 +315,7 @@ func TestCreateMonitor_DuplicateName(t *testing.T) {
 
 	// Create first monitor
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -339,7 +329,7 @@ func TestCreateMonitor_DuplicateName(t *testing.T) {
 
 	// Try to create duplicate
 	body, _ = json.Marshal(reqBody)
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w = httptest.NewRecorder()
@@ -362,8 +352,6 @@ func TestCreateMonitor_AgentNotFound(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            uniqueMonitorName("agent-not-found"),
 		DisplayName:     "Agent Not Found",
-		ProjectName:     "test-project",
-		AgentName:       "nonexistent-agent",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -371,7 +359,7 @@ func TestCreateMonitor_AgentNotFound(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/nonexistent-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -409,8 +397,6 @@ func TestCreateMonitor_InvalidDNSName(t *testing.T) {
 			reqBody := spec.CreateMonitorRequest{
 				Name:            tc.monitorName,
 				DisplayName:     "Invalid Name Test",
-				ProjectName:     "test-project",
-				AgentName:       "test-agent",
 				EnvironmentName: "dev",
 				Type:            "future",
 				IntervalMinutes: int32Ptr(60),
@@ -418,7 +404,7 @@ func TestCreateMonitor_InvalidDNSName(t *testing.T) {
 			}
 
 			body, _ := json.Marshal(reqBody)
-			req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()
@@ -445,8 +431,6 @@ func TestCreateMonitor_MissingRequiredFields(t *testing.T) {
 			name: "missing name",
 			reqBody: spec.CreateMonitorRequest{
 				DisplayName:     "Test",
-				ProjectName:     "test-project",
-				AgentName:       "test-agent",
 				EnvironmentName: "dev",
 				Type:            "future",
 				IntervalMinutes: int32Ptr(60),
@@ -455,37 +439,10 @@ func TestCreateMonitor_MissingRequiredFields(t *testing.T) {
 			missingField: "name",
 		},
 		{
-			name: "missing projectName",
-			reqBody: spec.CreateMonitorRequest{
-				Name:            uniqueMonitorName("test"),
-				DisplayName:     "Test",
-				AgentName:       "test-agent",
-				EnvironmentName: "dev",
-				Type:            "future",
-				IntervalMinutes: int32Ptr(60),
-				Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
-			},
-			missingField: "projectName",
-		},
-		{
-			name: "missing agentName",
-			reqBody: spec.CreateMonitorRequest{
-				Name:            uniqueMonitorName("test"),
-				DisplayName:     "Test",
-				ProjectName:     "test-project",
-				Type:            "future",
-				IntervalMinutes: int32Ptr(60),
-				Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
-			},
-			missingField: "agentName",
-		},
-		{
 			name: "missing type",
 			reqBody: spec.CreateMonitorRequest{
 				Name:            uniqueMonitorName("test"),
 				DisplayName:     "Test",
-				ProjectName:     "test-project",
-				AgentName:       "test-agent",
 				EnvironmentName: "dev",
 				IntervalMinutes: int32Ptr(60),
 				Evaluators:      []spec.MonitorEvaluator{{Name: "eval-1"}},
@@ -497,8 +454,6 @@ func TestCreateMonitor_MissingRequiredFields(t *testing.T) {
 			reqBody: spec.CreateMonitorRequest{
 				Name:            uniqueMonitorName("test"),
 				DisplayName:     "Test",
-				ProjectName:     "test-project",
-				AgentName:       "test-agent",
 				EnvironmentName: "dev",
 				Type:            "future",
 				IntervalMinutes: int32Ptr(60),
@@ -510,7 +465,7 @@ func TestCreateMonitor_MissingRequiredFields(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			body, _ := json.Marshal(tc.reqBody)
-			req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()
@@ -531,8 +486,6 @@ func TestCreateMonitor_InvalidType(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            uniqueMonitorName("invalid-type"),
 		DisplayName:     "Invalid Type",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "invalid",
 		IntervalMinutes: int32Ptr(60),
@@ -540,7 +493,7 @@ func TestCreateMonitor_InvalidType(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -562,8 +515,6 @@ func TestGetMonitor_Success(t *testing.T) {
 	createReq := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Get Test Monitor",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -571,7 +522,7 @@ func TestGetMonitor_Success(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(createReq)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -584,7 +535,7 @@ func TestGetMonitor_Success(t *testing.T) {
 	require.Equal(t, http.StatusCreated, w.Code)
 
 	// Get the monitor
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/monitors/"+monitorName, nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, nil)
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 
@@ -608,7 +559,7 @@ func TestGetMonitor_NotFound(t *testing.T) {
 	testClients := wiring.TestClients{OpenChoreoClient: mockChoreoClient}
 	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/monitors/nonexistent-monitor", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/nonexistent-monitor", nil)
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 
@@ -627,8 +578,6 @@ func TestGetMonitor_StatusEnrichment_FutureActive(t *testing.T) {
 	createReq := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Active Future Monitor",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -636,7 +585,7 @@ func TestGetMonitor_StatusEnrichment_FutureActive(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(createReq)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -649,7 +598,7 @@ func TestGetMonitor_StatusEnrichment_FutureActive(t *testing.T) {
 	require.Equal(t, http.StatusCreated, w.Code)
 
 	// Get monitor and verify status
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/monitors/"+monitorName, nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, nil)
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 
@@ -679,8 +628,6 @@ func TestGetMonitor_StatusEnrichment_PastMonitor(t *testing.T) {
 	createReq := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Past Monitor Status Test",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
@@ -689,7 +636,7 @@ func TestGetMonitor_StatusEnrichment_PastMonitor(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(createReq)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -702,7 +649,7 @@ func TestGetMonitor_StatusEnrichment_PastMonitor(t *testing.T) {
 	require.Equal(t, http.StatusCreated, w.Code)
 
 	// Get monitor and verify it has latestRun info
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/monitors/"+monitorName, nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, nil)
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 
@@ -729,7 +676,7 @@ func TestListMonitors(t *testing.T) {
 	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 	// List monitors
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/monitors", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", nil)
 
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -753,7 +700,7 @@ func TestListMonitors_Empty(t *testing.T) {
 	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 	// Use unique org to ensure no monitors exist
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/empty-org-"+uniqueMonitorName("test")+"/monitors", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/empty-org-${TEST}/projects/test-project/agents/test-agent/monitors", nil)
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 
@@ -781,8 +728,6 @@ func TestListMonitors_PaginationOrder(t *testing.T) {
 		reqBody := spec.CreateMonitorRequest{
 			Name:            monitorNames[i],
 			DisplayName:     fmt.Sprintf("Order Test %d", i),
-			ProjectName:     "test-project",
-			AgentName:       "test-agent",
 			EnvironmentName: "dev",
 			Type:            "future",
 			IntervalMinutes: int32Ptr(60),
@@ -790,7 +735,7 @@ func TestListMonitors_PaginationOrder(t *testing.T) {
 		}
 
 		body, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -807,7 +752,7 @@ func TestListMonitors_PaginationOrder(t *testing.T) {
 	}
 
 	// List monitors
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/monitors", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", nil)
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 
@@ -852,8 +797,6 @@ func TestUpdateMonitor(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Original Name",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -861,7 +804,7 @@ func TestUpdateMonitor(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -884,7 +827,7 @@ func TestUpdateMonitor(t *testing.T) {
 	}
 
 	body, _ = json.Marshal(updateBody)
-	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/monitors/"+created.Name, bytes.NewReader(body))
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w = httptest.NewRecorder()
@@ -911,8 +854,6 @@ func TestUpdateMonitor_Evaluators(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Eval Test",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -920,7 +861,7 @@ func TestUpdateMonitor_Evaluators(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -937,7 +878,7 @@ func TestUpdateMonitor_Evaluators(t *testing.T) {
 	}
 
 	body, _ = json.Marshal(updateBody)
-	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/monitors/"+monitorName, bytes.NewReader(body))
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -963,8 +904,6 @@ func TestUpdateMonitor_IntervalMinutes(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Interval Test",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -972,7 +911,7 @@ func TestUpdateMonitor_IntervalMinutes(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -989,7 +928,7 @@ func TestUpdateMonitor_IntervalMinutes(t *testing.T) {
 	}
 
 	body, _ = json.Marshal(updateBody)
-	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/monitors/"+monitorName, bytes.NewReader(body))
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1015,8 +954,6 @@ func TestUpdateMonitor_SamplingRate(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Sampling Test",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -1025,7 +962,7 @@ func TestUpdateMonitor_SamplingRate(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1042,7 +979,7 @@ func TestUpdateMonitor_SamplingRate(t *testing.T) {
 	}
 
 	body, _ = json.Marshal(updateBody)
-	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/monitors/"+monitorName, bytes.NewReader(body))
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1067,7 +1004,7 @@ func TestUpdateMonitor_NotFound(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(updateBody)
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/monitors/nonexistent", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/nonexistent", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1087,8 +1024,6 @@ func TestUpdateMonitor_PartialUpdate(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Original Name",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -1096,7 +1031,7 @@ func TestUpdateMonitor_PartialUpdate(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1113,7 +1048,7 @@ func TestUpdateMonitor_PartialUpdate(t *testing.T) {
 	}
 
 	body, _ = json.Marshal(updateBody)
-	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/monitors/"+monitorName, bytes.NewReader(body))
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1147,8 +1082,6 @@ func TestDeleteMonitor(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Delete Test",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -1156,7 +1089,7 @@ func TestDeleteMonitor(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -1174,7 +1107,7 @@ func TestDeleteMonitor(t *testing.T) {
 	require.NoError(t, err)
 
 	// Delete monitor
-	req = httptest.NewRequest(http.MethodDelete, "/api/v1/orgs/test-org/monitors/"+created.Name, nil)
+	req = httptest.NewRequest(http.MethodDelete, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name, nil)
 
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1182,7 +1115,7 @@ func TestDeleteMonitor(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, w.Code)
 
 	// Verify deletion
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/monitors/"+created.Name, nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name, nil)
 
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1197,7 +1130,7 @@ func TestDeleteMonitor_NotFound(t *testing.T) {
 	testClients := wiring.TestClients{OpenChoreoClient: mockChoreoClient}
 	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/orgs/test-org/monitors/nonexistent-monitor", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/nonexistent-monitor", nil)
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 
@@ -1223,8 +1156,6 @@ func TestDeleteMonitor_CRDeletionFailure(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "CR Delete Fail Test",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -1232,7 +1163,7 @@ func TestDeleteMonitor_CRDeletionFailure(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1244,7 +1175,7 @@ func TestDeleteMonitor_CRDeletionFailure(t *testing.T) {
 	require.Equal(t, http.StatusCreated, w.Code)
 
 	// Delete monitor (should succeed despite CR deletion failure)
-	req = httptest.NewRequest(http.MethodDelete, "/api/v1/orgs/test-org/monitors/"+monitorName, nil)
+	req = httptest.NewRequest(http.MethodDelete, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, nil)
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 
@@ -1252,7 +1183,7 @@ func TestDeleteMonitor_CRDeletionFailure(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, w.Code)
 
 	// Verify monitor is deleted from DB
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/monitors/"+monitorName, nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, nil)
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusNotFound, w.Code)
@@ -1289,8 +1220,6 @@ func TestRerunMonitor(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Rerun Test",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
@@ -1300,7 +1229,7 @@ func TestRerunMonitor(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -1320,7 +1249,7 @@ func TestRerunMonitor(t *testing.T) {
 	initialCallCount := crCallCount
 
 	// List monitor runs
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/monitors/"+created.Name+"/runs", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name+"/runs", nil)
 
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1337,7 +1266,7 @@ func TestRerunMonitor(t *testing.T) {
 	}
 
 	// Rerun the first run
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors/"+created.Name+"/runs/"+runsResponse.Runs[0].Id+"/rerun", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name+"/runs/"+runsResponse.Runs[0].Id+"/rerun", nil)
 
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1388,8 +1317,6 @@ func TestGetMonitorRunLogs(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Logs Test",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "past",
 		TraceStart:      timePtr(startTime),
@@ -1399,7 +1326,7 @@ func TestGetMonitorRunLogs(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -1417,7 +1344,7 @@ func TestGetMonitorRunLogs(t *testing.T) {
 	require.NoError(t, err)
 
 	// List runs
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/monitors/"+created.Name+"/runs", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name+"/runs", nil)
 
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1434,7 +1361,7 @@ func TestGetMonitorRunLogs(t *testing.T) {
 	}
 
 	// Get logs
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/monitors/"+created.Name+"/runs/"+runsResponse.Runs[0].Id+"/logs", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name+"/runs/"+runsResponse.Runs[0].Id+"/logs", nil)
 
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1460,8 +1387,6 @@ func TestStopMonitor(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Stop Test",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -1469,7 +1394,7 @@ func TestStopMonitor(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -1488,7 +1413,7 @@ func TestStopMonitor(t *testing.T) {
 	require.NotNil(t, created.NextRunTime)
 
 	// Stop monitor
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors/"+created.Name+"/stop", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name+"/stop", nil)
 
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1514,7 +1439,7 @@ func TestStopMonitor_NotFound(t *testing.T) {
 
 	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors/nonexistent/stop", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/nonexistent/stop", nil)
 
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1541,8 +1466,6 @@ func TestStopMonitor_PastMonitor(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Stop Past Test",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "past",
 		TraceStart:      &traceStart,
@@ -1552,7 +1475,7 @@ func TestStopMonitor_PastMonitor(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -1570,7 +1493,7 @@ func TestStopMonitor_PastMonitor(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to stop past monitor
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors/"+created.Name+"/stop", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name+"/stop", nil)
 
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1595,8 +1518,6 @@ func TestStopMonitor_AlreadyStopped(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Stop Idempotent Test",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -1604,7 +1525,7 @@ func TestStopMonitor_AlreadyStopped(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -1622,13 +1543,13 @@ func TestStopMonitor_AlreadyStopped(t *testing.T) {
 	require.NoError(t, err)
 
 	// Stop monitor
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors/"+created.Name+"/stop", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name+"/stop", nil)
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 
 	// Try to stop again
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors/"+created.Name+"/stop", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name+"/stop", nil)
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 
@@ -1652,8 +1573,6 @@ func TestStartMonitor(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Start Test",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -1661,7 +1580,7 @@ func TestStartMonitor(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -1679,7 +1598,7 @@ func TestStartMonitor(t *testing.T) {
 	require.NoError(t, err)
 
 	// Stop monitor
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors/"+created.Name+"/stop", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name+"/stop", nil)
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
@@ -1690,7 +1609,7 @@ func TestStartMonitor(t *testing.T) {
 	require.Nil(t, stopped.NextRunTime)
 
 	// Start monitor
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors/"+created.Name+"/start", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name+"/start", nil)
 
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1716,7 +1635,7 @@ func TestStartMonitor_NotFound(t *testing.T) {
 
 	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors/nonexistent/start", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/nonexistent/start", nil)
 
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1743,8 +1662,6 @@ func TestStartMonitor_PastMonitor(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Start Past Test",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "past",
 		TraceStart:      &traceStart,
@@ -1754,7 +1671,7 @@ func TestStartMonitor_PastMonitor(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -1772,7 +1689,7 @@ func TestStartMonitor_PastMonitor(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to start past monitor
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors/"+created.Name+"/start", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name+"/start", nil)
 
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -1797,8 +1714,6 @@ func TestStartMonitor_AlreadyActive(t *testing.T) {
 	reqBody := spec.CreateMonitorRequest{
 		Name:            monitorName,
 		DisplayName:     "Start Idempotent Test",
-		ProjectName:     "test-project",
-		AgentName:       "test-agent",
 		EnvironmentName: "dev",
 		Type:            "future",
 		IntervalMinutes: int32Ptr(60),
@@ -1806,7 +1721,7 @@ func TestStartMonitor_AlreadyActive(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
@@ -1824,7 +1739,7 @@ func TestStartMonitor_AlreadyActive(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to start already active monitor
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/monitors/"+created.Name+"/start", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+created.Name+"/start", nil)
 	w = httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 
