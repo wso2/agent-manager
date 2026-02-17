@@ -27,8 +27,6 @@ import {
 import { generatePath, Outlet, useNavigate } from "react-router-dom";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { Logo } from "@agent-management-platform/views";
-// import { UserMenu } from "./UserMenu";
-import { LogOutIcon } from "@wso2/oxygen-ui-icons-react";
 import { LeftNavigation, type NavigationItem, type NavigationSection } from "./LeftNavigation";
 import { useNavigationItems } from "./navigationItems";
 import { TopNavigation } from "./TopNavigation";
