@@ -266,7 +266,7 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 	}
 
 	// Fetch project UID
-	project, err := s.ocClient.GetProject(ctx, req.ProjectName, req.OrgName)
+	project, err := s.ocClient.GetProject(ctx, req.OrgName, req.ProjectName)
 	if err != nil {
 		s.logger.Error("Failed to get project", "projectName", req.ProjectName, "error", err)
 		return nil, fmt.Errorf("failed to get project: %w", err)
