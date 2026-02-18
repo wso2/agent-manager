@@ -21,10 +21,12 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Typography,
   Collapse,
   Alert,
   Divider,
+  FormControlLabel,
   useTheme,
   Form,
 } from "@wso2/oxygen-ui";
@@ -62,6 +64,7 @@ interface ConfigureBuildFormValues {
   language: string;
   languageVersion?: string;
   dockerfilePath?: string;
+  enableAutoInstrumentation: boolean;
   interfaceType: InputInterfaceType;
   port?: number;
   basePath?: string;
@@ -99,6 +102,7 @@ const configureBuildSchema = z.object({
   language: z.string().trim().min(1, "Language is required"),
   languageVersion: z.string().trim().optional(),
   dockerfilePath: z.string().trim().optional(),
+  enableAutoInstrumentation: z.boolean().default(true),
   interfaceType: z.enum(["DEFAULT", "CUSTOM"]),
   port: z
     .union([z.number(), z.string(), z.undefined()])
@@ -234,6 +238,7 @@ export function ConfigureBuildDrawer({
             : "python",
       languageVersion: buildpackConfig?.languageVersion ?? "3.11",
       dockerfilePath: dockerConfig?.dockerfilePath ?? "/Dockerfile",
+      enableAutoInstrumentation: agent.configurations?.enableAutoInstrumentation ?? true,
       interfaceType: resolvedInterfaceType,
       port: inputInterface?.port,
       basePath: inputInterface?.basePath ?? "",
@@ -247,6 +252,7 @@ export function ConfigureBuildDrawer({
       buildpackConfig?.language,
       buildpackConfig?.languageVersion,
       dockerConfig?.dockerfilePath,
+      agent.configurations?.enableAutoInstrumentation,
       agent.build?.type,
       inputInterface?.port,
       inputInterface?.basePath,
@@ -272,7 +278,7 @@ export function ConfigureBuildDrawer({
   const handleFieldChange = useCallback(
     (
       field: keyof ConfigureBuildFormValues,
-      value: string | number | InputInterfaceType | undefined
+      value: string | number | boolean | InputInterfaceType | undefined
     ) => {
     const newData: ConfigureBuildFormValues = { ...formData, [field]: value };
     setFormData(newData);
@@ -363,6 +369,9 @@ export function ConfigureBuildDrawer({
               runCommand: formData.runCommand || "",
             },
           },
+      configurations: {
+        enableAutoInstrumentation: formData.enableAutoInstrumentation,
+      },
       inputInterface: {
         type: "HTTP",
         ...(formData.interfaceType === "CUSTOM"
@@ -502,6 +511,19 @@ export function ConfigureBuildDrawer({
                         }
                         disabled={isPending}
                       />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={formData.enableAutoInstrumentation}
+                            onChange={(e) => handleFieldChange('enableAutoInstrumentation', e.target.checked)}
+                            disabled={isPending}
+                          />
+                        }
+                        label="Enable auto instrumentation"
+                      />
+                      <Typography variant="body2" color="text.secondary">
+                        Automatically adds OTEL tracing instrumentation to your agent for observability.
+                      </Typography>
                     </Box>
                   </Collapse>
                   <Collapse in={formData.language === "docker"}>
