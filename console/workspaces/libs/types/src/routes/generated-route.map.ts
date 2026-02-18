@@ -67,6 +67,11 @@ export const generatedRouteMap =  {
                           "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor/view/:monitorId",
                           "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor/view/:monitorId/*",
                           "children": {}
+                        },
+                        "edit": {
+                          "path": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor/edit/:monitorId",
+                          "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/evaluation/monitor/edit/:monitorId/*",
+                          "children": {}
                         }
                       }
                     }

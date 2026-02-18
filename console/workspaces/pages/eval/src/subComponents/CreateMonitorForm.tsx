@@ -20,6 +20,7 @@ import { AdapterDateFns, Collapse, DatePickers, Form, Slider, Stack, TextField, 
 import { History, Timer } from "@wso2/oxygen-ui-icons-react";
 import type { MonitorType } from "@agent-management-platform/types";
 import type { CreateMonitorFormValues } from "../form/schema";
+import { getMonitorTypeFieldPatch } from "../utils/monitorFormUtils";
 
 interface CreateMonitorFormProps {
     formData: CreateMonitorFormValues;
@@ -33,16 +34,10 @@ export function CreateMonitorForm({ formData, errors, onFieldChange }: CreateMon
             return;
         }
         onFieldChange("type", nextType);
-        if (nextType === "future") {
-            onFieldChange("traceStart", null);
-            onFieldChange("traceEnd", null);
-            onFieldChange("intervalMinutes", 10);
-        }
-        if (nextType === "past") {
-            onFieldChange("intervalMinutes", undefined);
-            onFieldChange("traceStart", new Date(Date.now() - 24 * 60 * 60 * 1000));
-            onFieldChange("traceEnd", new Date());
-        }
+        const patch = getMonitorTypeFieldPatch(nextType);
+        Object.entries(patch).forEach(([key, value]) => {
+            onFieldChange(key as keyof CreateMonitorFormValues, value as unknown);
+        });
     };
 
 

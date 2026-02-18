@@ -19,32 +19,40 @@
 import { EvalMonitorsComponent } from "./EvalMonitors.Component";
 import { CreateMonitorComponent } from "./CreateMonitor.Component";
 import { ViewMonitorComponent } from "./ViewMonitor.Component";
-import { Package } from "@wso2/oxygen-ui-icons-react";
+import { EditMonitorComponent } from "./EditMonitor.Component";
+
+import { MonitorCheck } from "@wso2/oxygen-ui-icons-react";
 
 export const metaData = {
   pages: {
     component: {
       evalMonitors: {
         component: EvalMonitorsComponent,
-        icon: Package,
+        icon: MonitorCheck,
         title: "Monitors",
         description: "Monitor runtime eval signals once data sources are connected.",
         path: "/eval/monitors",
       },
       createMonitor: {
         component: CreateMonitorComponent,
-        icon: Package,
+        icon: MonitorCheck,
         title: "Create Monitor",
         description: "Wizard for registering a new eval monitor.",
         path: "/eval/monitors/create",
       },
       viewMonitor: {
         component: ViewMonitorComponent,
-        icon: Package,
+        icon: MonitorCheck,
         title: "View Monitor",
         description: "Detail page for an eval monitor.",
         path: "/eval/monitors/view",
       },
+      editMonitor:{
+        component: EditMonitorComponent,
+        icon: MonitorCheck,
+        title: "Edit Monitor",
+        description: "Wizard for editing an existing eval monitor.",
+      }
     },
   },
 };

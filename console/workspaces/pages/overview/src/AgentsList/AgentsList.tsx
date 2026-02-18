@@ -373,7 +373,7 @@ export const AgentsList: React.FC = () => {
                         >
                           <ListingTable.Cell>
                             <Stack direction="row" alignItems="center" spacing={2}>
-                              <Avatar sx={{bgcolor: "primary.main", color: "primary.contrastText"}}>
+                              <Avatar sx={{bgcolor: "primary.main", height: 32, width: 32, color: "primary.contrastText"}}>
                                 {agent.displayName.charAt(0).toUpperCase()}
                               </Avatar>
                               <Stack direction="row" alignItems="flex-start" spacing={1}>

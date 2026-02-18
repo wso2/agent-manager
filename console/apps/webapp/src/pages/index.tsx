@@ -47,6 +47,8 @@ export const LazyEvalMonitorsComponent =
   evalMetadata.pages.component.evalMonitors.component as FC;
 export const LazyCreateMonitorComponent =
   evalMetadata.pages.component.createMonitor.component as FC;
+  export const LazyEditMonitorComponent =
+  evalMetadata.pages.component.editMonitor.component as FC;
 export const LazyViewMonitorComponent =
   evalMetadata.pages.component.viewMonitor.component as FC;
 

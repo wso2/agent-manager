@@ -10,7 +10,7 @@ import {
     Skeleton,
     Alert,
 } from "@wso2/oxygen-ui";
-import { Trash, Activity, AlertTriangle } from "@wso2/oxygen-ui-icons-react";
+import { Trash, Activity, AlertTriangle, Edit } from "@wso2/oxygen-ui-icons-react";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap, MonitorStatus, type MonitorResponse } from "@agent-management-platform/types";
@@ -243,6 +243,18 @@ export function MonitorTable() {
                                         monitorStatus={monitor.status}
                                         orgId={orgId}
                                     />
+                                    <IconButton onClick={() => navigate(
+                                        generatePath(
+                                            absoluteRouteMap.children
+                                                .org.children.projects.children.agents
+                                                .children.evaluation.children.monitor
+                                                .children.edit.path,
+                                            {
+                                                agentId, orgId, projectId,
+                                                envId, monitorId: monitor.name
+                                            }))}>
+                                        <Edit size={16} />
+                                    </IconButton>
                                     <Tooltip title="Delete Monitor">
                                         <IconButton color="error">
                                             <Trash size={16} onClick={() => addConfirmation(
