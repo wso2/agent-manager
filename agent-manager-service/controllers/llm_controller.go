@@ -821,13 +821,7 @@ func (c *llmController) CreateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert spec request to model with resolved project UUID
-	proxy := utils.ConvertSpecToModelLLMProxy(&req, orgID)
-	proxy.ProjectUUID, err = utils.ParseUUID(projectUUID)
-	if err != nil {
-		log.Error("CreateLLMProxy: invalid project UUID", "projectUUID", projectUUID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Invalid project UUID")
-		return
-	}
+	proxy := utils.ConvertSpecToModelLLMProxy(&req, projectUUID)
 
 	created, err := c.proxyService.Create(orgID, "system", proxy)
 	if err != nil {
