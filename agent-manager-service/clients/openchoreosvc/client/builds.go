@@ -188,6 +188,16 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 		}
 	}
 
+	// Update configurations (enableAutoInstrumentation) in workflow parameters
+	if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil {
+		workflowParams, ok := workflow["parameters"].(map[string]interface{})
+		if !ok {
+			workflowParams = make(map[string]interface{})
+			workflow["parameters"] = workflowParams
+		}
+		workflowParams["enableAutoInstrumentation"] = *req.Configurations.EnableAutoInstrumentation
+	}
+
 	// Apply the updated component CR
 	applyResp, err := c.ocClient.ApplyResourceWithResponse(ctx, componentCR)
 	if err != nil {

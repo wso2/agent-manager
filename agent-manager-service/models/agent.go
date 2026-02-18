@@ -36,6 +36,12 @@ type AgentResponse struct {
 	Type           AgentType       `json:"type,omitempty"`
 	Build          *Build          `json:"build,omitempty"`
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
+	Configurations *Configurations `json:"configurations,omitempty"`
+}
+
+// Configurations contains runtime configurations for an agent
+type Configurations struct {
+	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
 }
 
 type AgentType struct {
