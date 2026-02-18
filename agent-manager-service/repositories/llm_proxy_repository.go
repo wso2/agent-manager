@@ -145,6 +145,11 @@ func (r *LLMProxyRepo) GetByID(proxyID, orgUUID string) (*models.LLMProxy, error
 		return nil, err
 	}
 
+	// Scan does not return ErrRecordNotFound when no rows match, so check for zero UUID
+	if result.UUID == uuid.Nil {
+		return nil, gorm.ErrRecordNotFound
+	}
+
 	proxy := result.LLMProxy
 	populateProxyArtifactFields(&proxy, result)
 	return &proxy, nil

@@ -26,10 +26,10 @@ var migration008 = migration{
 	Migrate: func(db *gorm.DB) error {
 		addCatalogSupportSQL := `
 			-- Add in_catalog column to artifacts table
-			ALTER TABLE artifacts ADD COLUMN in_catalog BOOLEAN DEFAULT FALSE;
+			ALTER TABLE artifacts ADD COLUMN IF NOT EXISTS in_catalog BOOLEAN DEFAULT FALSE;
 
 			-- Create index for catalog queries
-			CREATE INDEX idx_artifacts_in_catalog ON artifacts(in_catalog, organization_uuid);
+			CREATE INDEX IF NOT EXISTS idx_artifacts_in_catalog ON artifacts(in_catalog, organization_uuid);
 		`
 		return db.Transaction(func(tx *gorm.DB) error {
 			return runSQL(tx, addCatalogSupportSQL)

@@ -2765,6 +2765,13 @@ paths:
               - llmProvider
               - agent
               - mcp
+        - name: environmentName
+          in: query
+          description: Filter by environment/gateway name (only applicable for llmProvider kind)
+          required: false
+          schema:
+            type: string
+            example: "production"
         - name: limit
           in: query
           description: Maximum number of results to return
@@ -7770,6 +7777,10 @@ components:
           items:
             type: string
             format: uuid
+        inCatalog:
+          type: boolean
+          description: Whether the provider is available in the catalog
+          example: true
 
     LLMProviderListResponse:
       type: object
@@ -8419,3 +8430,181 @@ components:
           type: integer
           description: Number of results skipped
           example: 0
+
+    CatalogLLMProviderEntry:
+      type: object
+      required:
+        - uuid
+        - handle
+        - name
+        - version
+        - kind
+        - inCatalog
+        - status
+        - template
+        - createdAt
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Unique identifier for the LLM provider
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        handle:
+          type: string
+          description: Unique handle/identifier for the provider
+          example: "openai-gpt4"
+        name:
+          type: string
+          description: Human-readable name of the provider
+          example: "OpenAI GPT-4"
+        version:
+          type: string
+          description: Version of the provider
+          example: "1.0.0"
+        kind:
+          type: string
+          description: Resource type (always "llmProvider" for this schema)
+          enum:
+            - llmProvider
+          example: "llmProvider"
+        inCatalog:
+          type: boolean
+          description: Whether the provider is available in the catalog
+          example: true
+        description:
+          type: string
+          description: Provider description
+          example: "OpenAI GPT-4 LLM provider for advanced AI capabilities"
+        createdBy:
+          type: string
+          description: User who created the provider
+          example: "admin@example.com"
+        status:
+          type: string
+          description: Provider status
+          example: "active"
+        template:
+          type: string
+          description: Template identifier used by this provider
+          example: "openai-template"
+        context:
+          type: string
+          description: API context path
+          example: "/openai"
+        vhost:
+          type: string
+          description: Virtual host
+          example: "api.example.com"
+        modelProviders:
+          type: array
+          description: List of model providers and their models
+          items:
+            $ref: '#/components/schemas/LLMModelProvider'
+        security:
+          $ref: '#/components/schemas/SecuritySummary'
+        rateLimiting:
+          $ref: '#/components/schemas/RateLimitingSummary'
+        deployments:
+          type: array
+          description: List of deployments for this provider
+          items:
+            $ref: '#/components/schemas/DeploymentSummary'
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the provider was created
+          example: "2024-01-15T10:30:00Z"
+
+    SecuritySummary:
+      type: object
+      description: Security configuration summary
+      properties:
+        enabled:
+          type: boolean
+          description: Whether security is enabled
+          example: true
+        apiKeyEnabled:
+          type: boolean
+          description: Whether API key security is enabled
+          example: true
+        apiKeyIn:
+          type: string
+          description: Where the API key is located (header/query/cookie)
+          example: "header"
+
+    RateLimitingSummary:
+      type: object
+      description: Rate limiting configuration summary
+      properties:
+        providerLevel:
+          $ref: '#/components/schemas/RateLimitingScope'
+        consumerLevel:
+          $ref: '#/components/schemas/RateLimitingScope'
+
+    RateLimitingScope:
+      type: object
+      description: Scope-level rate limiting summary
+      properties:
+        globalEnabled:
+          type: boolean
+          description: Whether global rate limiting is enabled
+          example: true
+        resourceWiseEnabled:
+          type: boolean
+          description: Whether resource-wise rate limiting is enabled
+          example: false
+        requestLimitCount:
+          type: integer
+          description: Request count limit (if enabled)
+          example: 1000
+        tokenLimitCount:
+          type: integer
+          description: Token count limit (if enabled)
+          example: 50000
+        costLimitAmount:
+          type: number
+          format: double
+          description: Cost amount limit (if enabled)
+          example: 100.50
+
+    DeploymentSummary:
+      type: object
+      required:
+        - gatewayId
+        - gatewayName
+        - status
+      properties:
+        gatewayId:
+          type: string
+          format: uuid
+          description: Gateway UUID
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        gatewayName:
+          type: string
+          description: Gateway name/identifier
+          example: "production-gateway"
+        gatewayDisplayName:
+          type: string
+          description: Gateway display name
+          example: "Production Gateway"
+        environmentName:
+          type: string
+          description: Environment name (from gateway name or properties)
+          example: "production"
+        status:
+          type: string
+          description: Deployment status
+          enum:
+            - DEPLOYED
+            - UNDEPLOYED
+            - ARCHIVED
+          example: "DEPLOYED"
+        deployedAt:
+          type: string
+          format: date-time
+          description: Timestamp when deployed
+          example: "2024-01-15T10:35:00Z"
+        vhost:
+          type: string
+          description: Gateway virtual host
+          example: "api.prod.example.com"

@@ -7,7 +7,12 @@
 package wiring
 
 import (
+	"log/slog"
+	"time"
+
 	"github.com/google/wire"
+	"gorm.io/gorm"
+
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
@@ -17,9 +22,6 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
-	"gorm.io/gorm"
-	"log/slog"
-	"time"
 )
 
 // Injectors from wire.go:
@@ -63,13 +65,13 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	llmProviderTemplateService := services.NewLLMProviderTemplateService(llmProviderTemplateRepository)
 	llmProviderRepository := ProvideLLMProviderRepository(db)
 	llmProxyRepository := ProvideLLMProxyRepository(db)
-	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmProxyRepository)
+	artifactRepository := ProvideArtifactRepository(db)
+	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmProxyRepository, artifactRepository)
 	llmProxyService := services.NewLLMProxyService(llmProxyRepository, llmProviderRepository)
 	deploymentRepository := ProvideDeploymentRepository(db)
 	manager := ProvideWebSocketManager(configConfig)
 	gatewayEventsService := services.NewGatewayEventsService(manager)
 	llmProviderDeploymentService := services.NewLLMProviderDeploymentService(deploymentRepository, llmProviderRepository, llmProviderTemplateRepository, gatewayRepository, gatewayEventsService)
-	artifactRepository := ProvideArtifactRepository(db)
 	llmController := controllers.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, llmProviderDeploymentService, organizationRepository, artifactRepository, openChoreoClient)
 	llmDeploymentController := controllers.NewLLMDeploymentController(llmProviderDeploymentService, organizationRepository)
 	llmProviderAPIKeyService := services.NewLLMProviderAPIKeyService(llmProviderRepository, gatewayRepository, gatewayEventsService)
@@ -87,7 +89,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger)
 	evaluatorController := controllers.NewEvaluatorController(evaluatorManagerService)
 	catalogRepository := ProvideCatalogRepository(db)
-	catalogService := services.NewCatalogService(logger, catalogRepository)
+	catalogService := services.NewCatalogService(logger, catalogRepository, deploymentRepository, gatewayRepository, db, openChoreoClient)
 	catalogController := controllers.NewCatalogController(catalogService, organizationRepository)
 	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, logger, monitorExecutor)
 	llmTemplateSeeder := ProvideLLMTemplateSeeder(llmProviderTemplateRepository)
@@ -152,13 +154,13 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	llmProviderTemplateService := services.NewLLMProviderTemplateService(llmProviderTemplateRepository)
 	llmProviderRepository := ProvideLLMProviderRepository(db)
 	llmProxyRepository := ProvideLLMProxyRepository(db)
-	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmProxyRepository)
+	artifactRepository := ProvideArtifactRepository(db)
+	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmProxyRepository, artifactRepository)
 	llmProxyService := services.NewLLMProxyService(llmProxyRepository, llmProviderRepository)
 	deploymentRepository := ProvideDeploymentRepository(db)
 	manager := ProvideWebSocketManager(configConfig)
 	gatewayEventsService := services.NewGatewayEventsService(manager)
 	llmProviderDeploymentService := services.NewLLMProviderDeploymentService(deploymentRepository, llmProviderRepository, llmProviderTemplateRepository, gatewayRepository, gatewayEventsService)
-	artifactRepository := ProvideArtifactRepository(db)
 	llmController := controllers.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, llmProviderDeploymentService, organizationRepository, artifactRepository, openChoreoClient)
 	llmDeploymentController := controllers.NewLLMDeploymentController(llmProviderDeploymentService, organizationRepository)
 	llmProviderAPIKeyService := services.NewLLMProviderAPIKeyService(llmProviderRepository, gatewayRepository, gatewayEventsService)
@@ -176,7 +178,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger)
 	evaluatorController := controllers.NewEvaluatorController(evaluatorManagerService)
 	catalogRepository := ProvideCatalogRepository(db)
-	catalogService := services.NewCatalogService(logger, catalogRepository)
+	catalogService := services.NewCatalogService(logger, catalogRepository, deploymentRepository, gatewayRepository, db, openChoreoClient)
 	catalogController := controllers.NewCatalogController(catalogService, organizationRepository)
 	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, logger, monitorExecutor)
 	llmTemplateSeeder := ProvideLLMTemplateSeeder(llmProviderTemplateRepository)

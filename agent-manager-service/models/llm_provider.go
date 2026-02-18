@@ -34,6 +34,7 @@ type LLMProvider struct {
 	// Relations - populated via joins
 	Artifact       *Artifact          `gorm:"foreignKey:UUID;references:UUID" json:"artifact,omitempty"`
 	ModelProviders []LLMModelProvider `gorm:"-" json:"modelProviders,omitempty"` // Parsed from ModelList
+	InCatalog      bool               `gorm:"-" json:"inCatalog"`                // Populated from Artifact.InCatalog via join
 }
 
 // TableName returns the table name for the LLMProvider model

@@ -825,7 +825,12 @@ func (c *llmController) CreateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert spec request to model with resolved project UUID
-	proxy := utils.ConvertSpecToModelLLMProxy(&req, projectUUID)
+	proxy, err := utils.ConvertSpecToModelLLMProxy(&req, projectUUID)
+	if err != nil {
+		log.Error("CreateLLMProxy: failed to convert spec to model", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid UUID in request")
+		return
+	}
 
 	created, err := c.proxyService.Create(orgID, "system", proxy)
 	if err != nil {
@@ -1089,7 +1094,12 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 		Openapi:       req.Openapi,
 		Configuration: utils.GetOrDefaultProxyConfig(req.Configuration),
 	}
-	proxy := utils.ConvertSpecToModelLLMProxy(proxyReq, projectUUID)
+	proxy, err := utils.ConvertSpecToModelLLMProxy(proxyReq, projectUUID)
+	if err != nil {
+		log.Error("UpdateLLMProxy: failed to convert spec to model", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid UUID in request")
+		return
+	}
 
 	updated, err := c.proxyService.Update(orgID, proxyID, proxy)
 	if err != nil {
@@ -1190,7 +1200,7 @@ func (c *llmController) UpdateLLMProviderCatalogStatus(w http.ResponseWriter, r 
 	}
 
 	// Update catalog status via service
-	provider, err := c.providerService.UpdateCatalogStatus(providerID, orgUUID, req.InCatalog, c.artifactRepo)
+	provider, err := c.providerService.UpdateCatalogStatus(providerID, orgUUID, req.InCatalog)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):

@@ -46,3 +46,70 @@ const (
 	CatalogKindAgent       = "agent"
 	CatalogKindMCP         = "mcp"
 )
+
+// CatalogLLMProviderEntry represents a comprehensive LLM provider in the catalog
+type CatalogLLMProviderEntry struct {
+	// Basic Artifact Information
+	UUID      uuid.UUID `json:"uuid"`
+	Handle    string    `json:"handle"`
+	Name      string    `json:"name"`
+	Version   string    `json:"version"`
+	Kind      string    `json:"kind"`
+	InCatalog bool      `json:"inCatalog"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// LLM Provider Details
+	Description string `json:"description,omitempty"`
+	CreatedBy   string `json:"createdBy,omitempty"`
+	Status      string `json:"status"`
+
+	// Configuration Summary
+	Template string  `json:"template"`
+	Context  *string `json:"context,omitempty"`
+	VHost    *string `json:"vhost,omitempty"`
+
+	// Model Providers
+	ModelProviders []LLMModelProvider `json:"modelProviders,omitempty"`
+
+	// Security Configuration
+	Security *SecuritySummary `json:"security,omitempty"`
+
+	// Rate Limiting Configuration Summary
+	RateLimiting *RateLimitingSummary `json:"rateLimiting,omitempty"`
+
+	// Deployment Information
+	Deployments []DeploymentSummary `json:"deployments,omitempty"`
+}
+
+// SecuritySummary provides security configuration overview
+type SecuritySummary struct {
+	Enabled       bool   `json:"enabled"`
+	APIKeyEnabled bool   `json:"apiKeyEnabled"`
+	APIKeyIn      string `json:"apiKeyIn,omitempty"`
+}
+
+// RateLimitingSummary provides rate limiting overview
+type RateLimitingSummary struct {
+	ProviderLevel *RateLimitingScope `json:"providerLevel,omitempty"`
+	ConsumerLevel *RateLimitingScope `json:"consumerLevel,omitempty"`
+}
+
+// RateLimitingScope summarizes scope-level limits
+type RateLimitingScope struct {
+	GlobalEnabled       bool     `json:"globalEnabled"`
+	ResourceWiseEnabled bool     `json:"resourceWiseEnabled"`
+	RequestLimitCount   *int     `json:"requestLimitCount,omitempty"`
+	TokenLimitCount     *int     `json:"tokenLimitCount,omitempty"`
+	CostLimitAmount     *float64 `json:"costLimitAmount,omitempty"`
+}
+
+// DeploymentSummary provides deployment status per environment
+type DeploymentSummary struct {
+	GatewayID          uuid.UUID        `json:"gatewayId"`
+	GatewayName        string           `json:"gatewayName"`
+	GatewayDisplayName string           `json:"gatewayDisplayName"`
+	EnvironmentName    string           `json:"environmentName"`
+	Status             DeploymentStatus `json:"status"`
+	DeployedAt         *time.Time       `json:"deployedAt,omitempty"`
+	VHost              string           `json:"vhost,omitempty"`
+}

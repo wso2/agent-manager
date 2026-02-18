@@ -23,17 +23,24 @@ import (
 type CatalogAPIService service
 
 type ApiListCatalogResourcesRequest struct {
-	ctx        context.Context
-	ApiService *CatalogAPIService
-	orgName    string
-	kind       *string
-	limit      *int32
-	offset     *int32
+	ctx             context.Context
+	ApiService      *CatalogAPIService
+	orgName         string
+	kind            *string
+	environmentName *string
+	limit           *int32
+	offset          *int32
 }
 
 // Filter by resource type
 func (r ApiListCatalogResourcesRequest) Kind(kind string) ApiListCatalogResourcesRequest {
 	r.kind = &kind
+	return r
+}
+
+// Filter by environment/gateway name (only applicable for llmProvider kind)
+func (r ApiListCatalogResourcesRequest) EnvironmentName(environmentName string) ApiListCatalogResourcesRequest {
+	r.environmentName = &environmentName
 	return r
 }
 
@@ -108,6 +115,9 @@ func (a *CatalogAPIService) ListCatalogResourcesExecute(r ApiListCatalogResource
 
 	if r.kind != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "kind", r.kind, "")
+	}
+	if r.environmentName != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "environmentName", r.environmentName, "")
 	}
 	if r.limit != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")

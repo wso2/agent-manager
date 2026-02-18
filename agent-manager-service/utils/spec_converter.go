@@ -17,6 +17,8 @@
 package utils
 
 import (
+	"fmt"
+
 	"github.com/google/uuid"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -321,18 +323,28 @@ func ConvertModelToSpecLLMProviderConfig(config models.LLMProviderConfig) spec.L
 // ---- LLM Proxy Conversions ----
 
 // ConvertSpecToModelLLMProxy converts spec.CreateLLMProxyRequest to models.LLMProxy
-func ConvertSpecToModelLLMProxy(req *spec.CreateLLMProxyRequest, projectID string) *models.LLMProxy {
+func ConvertSpecToModelLLMProxy(req *spec.CreateLLMProxyRequest, projectID string) (*models.LLMProxy, error) {
+	projectUUID, err := uuid.Parse(projectID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid project UUID: %w", err)
+	}
+
+	providerUUID, err := uuid.Parse(req.ProviderUuid)
+	if err != nil {
+		return nil, fmt.Errorf("invalid provider UUID: %w", err)
+	}
+
 	proxy := &models.LLMProxy{
 		UUID:          uuid.New(),
-		ProjectUUID:   uuid.MustParse(projectID),
-		ProviderUUID:  uuid.MustParse(req.ProviderUuid),
+		ProjectUUID:   projectUUID,
+		ProviderUUID:  providerUUID,
 		Description:   ptrToString(req.Description),
 		OpenAPISpec:   ptrToString(req.Openapi),
 		Status:        "ACTIVE",
 		Configuration: ConvertSpecToModelLLMProxyConfig(req.Configuration),
 	}
 
-	return proxy
+	return proxy, nil
 }
 
 // ConvertModelToSpecLLMProxyResponse converts models.LLMProxy to spec.LLMProxyResponse
@@ -371,6 +383,9 @@ func ConvertSpecToModelLLMProxyConfig(config spec.LLMProxyConfig) models.LLMProx
 		Provider: ptrToString(config.Provider),
 	}
 
+	// Note: UpstreamAuth is not part of the OpenAPI spec and is handled separately
+	// in the preserveUpstreamAuthCredential function during updates
+
 	if len(config.Policies) > 0 {
 		modelConfig.Policies = make([]models.LLMPolicy, len(config.Policies))
 		for i, p := range config.Policies {
@@ -394,6 +409,9 @@ func ConvertModelToSpecLLMProxyConfig(config models.LLMProxyConfig) spec.LLMProx
 		Vhost:    config.Vhost,
 		Provider: stringToPtr(config.Provider),
 	}
+
+	// Note: UpstreamAuth is intentionally not included in the spec response for security.
+	// Credentials should not be exposed via API responses.
 
 	if len(config.Policies) > 0 {
 		specConfig.Policies = make([]spec.LLMPolicy, len(config.Policies))
@@ -477,9 +495,11 @@ func ConvertModelToSpecUpstreamConfig(config models.UpstreamConfig) spec.Upstrea
 			Ref: stringToPtr(config.Main.Ref),
 		}
 		if config.Main.Auth != nil {
+			// Mask credential value in API responses for security
+			maskedValue := "***REDACTED***"
 			main.Auth = &spec.UpstreamAuth{
 				Type:  config.Main.Auth.Type,
-				Value: &config.Main.Auth.Value,
+				Value: &maskedValue,
 			}
 		}
 		specConfig.Main = &main
@@ -491,9 +511,11 @@ func ConvertModelToSpecUpstreamConfig(config models.UpstreamConfig) spec.Upstrea
 			Ref: stringToPtr(config.Sandbox.Ref),
 		}
 		if config.Sandbox.Auth != nil {
+			// Mask credential value in API responses for security
+			maskedValue := "***REDACTED***"
 			sandbox.Auth = &spec.UpstreamAuth{
 				Type:  config.Sandbox.Auth.Type,
-				Value: &config.Sandbox.Auth.Value,
+				Value: &maskedValue,
 			}
 		}
 		specConfig.Sandbox = &sandbox

@@ -36,6 +36,8 @@ type LLMProviderResponse struct {
 	Configuration LLMProviderConfig `json:"configuration"`
 	Artifact      *Artifact         `json:"artifact,omitempty"`
 	Gateways      []string          `json:"gateways,omitempty"`
+	// Whether the provider is available in the catalog
+	InCatalog *bool `json:"inCatalog,omitempty"`
 }
 
 // NewLLMProviderResponse instantiates a new LLMProviderResponse object
@@ -347,6 +349,38 @@ func (o *LLMProviderResponse) SetGateways(v []string) {
 	o.Gateways = v
 }
 
+// GetInCatalog returns the InCatalog field value if set, zero value otherwise.
+func (o *LLMProviderResponse) GetInCatalog() bool {
+	if o == nil || IsNil(o.InCatalog) {
+		var ret bool
+		return ret
+	}
+	return *o.InCatalog
+}
+
+// GetInCatalogOk returns a tuple with the InCatalog field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *LLMProviderResponse) GetInCatalogOk() (*bool, bool) {
+	if o == nil || IsNil(o.InCatalog) {
+		return nil, false
+	}
+	return o.InCatalog, true
+}
+
+// HasInCatalog returns a boolean if a field has been set.
+func (o *LLMProviderResponse) HasInCatalog() bool {
+	if o != nil && !IsNil(o.InCatalog) {
+		return true
+	}
+
+	return false
+}
+
+// SetInCatalog gets a reference to the given bool and assigns it to the InCatalog field.
+func (o *LLMProviderResponse) SetInCatalog(v bool) {
+	o.InCatalog = &v
+}
+
 func (o LLMProviderResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -378,6 +412,9 @@ func (o LLMProviderResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Gateways) {
 		toSerialize["gateways"] = o.Gateways
+	}
+	if !IsNil(o.InCatalog) {
+		toSerialize["inCatalog"] = o.InCatalog
 	}
 	return toSerialize, nil
 }

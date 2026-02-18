@@ -61,6 +61,7 @@ type LLMProviderService struct {
 	providerRepo repositories.LLMProviderRepository
 	templateRepo repositories.LLMProviderTemplateRepository
 	proxyRepo    repositories.LLMProxyRepository
+	artifactRepo repositories.ArtifactRepository
 }
 
 // NewLLMProviderService creates a new LLM provider service
@@ -69,12 +70,14 @@ func NewLLMProviderService(
 	providerRepo repositories.LLMProviderRepository,
 	templateRepo repositories.LLMProviderTemplateRepository,
 	proxyRepo repositories.LLMProxyRepository,
+	artifactRepo repositories.ArtifactRepository,
 ) *LLMProviderService {
 	return &LLMProviderService{
 		db:           db,
 		providerRepo: providerRepo,
 		templateRepo: templateRepo,
 		proxyRepo:    proxyRepo,
+		artifactRepo: artifactRepo,
 	}
 }
 
@@ -805,7 +808,7 @@ func (s *LLMProviderService) GetProviderGatewayMapping(providerId uuid.UUID, org
 }
 
 // UpdateCatalogStatus updates the catalog visibility status of an LLM provider
-func (s *LLMProviderService) UpdateCatalogStatus(providerID, orgID string, inCatalog bool, artifactRepo repositories.ArtifactRepository) (*models.LLMProvider, error) {
+func (s *LLMProviderService) UpdateCatalogStatus(providerID, orgID string, inCatalog bool) (*models.LLMProvider, error) {
 	slog.Info("LLMProviderService.UpdateCatalogStatus: starting", "providerID", providerID, "orgID", orgID, "inCatalog", inCatalog)
 
 	// Validate UUIDs
@@ -834,7 +837,9 @@ func (s *LLMProviderService) UpdateCatalogStatus(providerID, orgID string, inCat
 		}
 	}()
 
-	// Verify provider exists and belongs to org
+	// Verify provider exists and belongs to org (within transaction)
+	// Note: We use the non-transactional repo here since GetByUUID doesn't support tx parameter
+	// This is acceptable as the critical update happens within the transaction
 	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
 		tx.Rollback()
@@ -846,8 +851,8 @@ func (s *LLMProviderService) UpdateCatalogStatus(providerID, orgID string, inCat
 		return nil, err
 	}
 
-	// Update artifact catalog status
-	err = artifactRepo.UpdateCatalogStatus(tx, providerID, inCatalog)
+	// Update artifact catalog status within transaction
+	err = s.artifactRepo.UpdateCatalogStatus(tx, providerID, inCatalog)
 	if err != nil {
 		tx.Rollback()
 		slog.Error("LLMProviderService.UpdateCatalogStatus: failed to update artifact catalog status", "providerID", providerID, "error", err)

@@ -98,6 +98,7 @@ func (r *LLMProviderRepo) GetByUUID(providerID, orgUUID string) (*models.LLMProv
 	var provider models.LLMProvider
 	err := r.db.
 		Preload("Artifact").
+		Select("llm_providers.*, a.in_catalog as in_catalog").
 		Joins("JOIN artifacts a ON llm_providers.uuid = a.uuid").
 		Where("a.uuid = ? AND a.organization_uuid = ? AND a.kind = ?", providerID, orgUUID, models.KindLLMProvider).
 		First(&provider).Error
@@ -121,6 +122,7 @@ func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*models.LLM
 	var providers []*models.LLMProvider
 	err := r.db.
 		Preload("Artifact").
+		Select("llm_providers.*, a.in_catalog as in_catalog").
 		Joins("JOIN artifacts a ON llm_providers.uuid = a.uuid").
 		Where("a.organization_uuid = ? AND a.kind = ?", orgUUID, models.KindLLMProvider).
 		Order("a.created_at DESC").
