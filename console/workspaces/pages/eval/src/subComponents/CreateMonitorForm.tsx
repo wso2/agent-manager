@@ -16,27 +16,15 @@
  * under the License.
  */
 
-import { AdapterDateFns, Alert, Avatar, Box, CardContent, CardHeader, Chip, Collapse, DatePickers, Form, ListingTable, SearchBar, Skeleton, Slider, Stack, TextField, Tooltip, Typography } from "@wso2/oxygen-ui";
-import { Check, CircleIcon, History, Timer, Search as SearchIcon } from "@wso2/oxygen-ui-icons-react";
+import { AdapterDateFns, Collapse, DatePickers, Form, Slider, Stack, TextField, Typography } from "@wso2/oxygen-ui";
+import { History, Timer } from "@wso2/oxygen-ui-icons-react";
 import type { MonitorType } from "@agent-management-platform/types";
 import type { CreateMonitorFormValues } from "../form/schema";
-import { useListEvaluators } from "@agent-management-platform/api-client";
-import { useParams } from "react-router-dom";
-import { useMemo, useState } from "react";
-
-
-const toSlug = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
 
 interface CreateMonitorFormProps {
     formData: CreateMonitorFormValues;
     errors: Partial<Record<keyof CreateMonitorFormValues, string | undefined>>;
     onFieldChange: (field: keyof CreateMonitorFormValues, value: unknown) => void;
-}
-
-interface SelectPresetMonitorsProps {
-    selectedEvaluators: string[];
-    onToggleEvaluator: (value: string) => void;
-    error?: string;
 }
 
 export function CreateMonitorForm({ formData, errors, onFieldChange }: CreateMonitorFormProps) {
@@ -48,6 +36,12 @@ export function CreateMonitorForm({ formData, errors, onFieldChange }: CreateMon
         if (nextType === "future") {
             onFieldChange("traceStart", null);
             onFieldChange("traceEnd", null);
+            onFieldChange("intervalMinutes", 10);
+        }
+        if (nextType === "past") {
+            onFieldChange("intervalMinutes", undefined);
+            onFieldChange("traceStart", new Date(Date.now() - 24 * 60 * 60 * 1000));
+            onFieldChange("traceEnd", new Date());
         }
     };
 
@@ -57,7 +51,7 @@ export function CreateMonitorForm({ formData, errors, onFieldChange }: CreateMon
                 <Form.Header>
                     Basic Details
                 </Form.Header>
-                <Form.ElementWrapper name="displayName" label="Monitor Title" >
+                <Form.ElementWrapper name="displayName" label="Monitor Title">
                     <TextField
                         id="displayName"
                         placeholder="Enter monitor name"
@@ -69,7 +63,7 @@ export function CreateMonitorForm({ formData, errors, onFieldChange }: CreateMon
                         helperText={errors.displayName ?? "Visible label shown in the monitors list"}
                     />
                 </Form.ElementWrapper>
-                <Form.ElementWrapper name="description" label="Description" >
+                <Form.ElementWrapper name="description" label="Description">
                     <TextField
                         id="description"
                         placeholder="Enter monitor description"
@@ -89,21 +83,29 @@ export function CreateMonitorForm({ formData, errors, onFieldChange }: CreateMon
                 </Form.Header>
                 <Form.Stack direction="row">
                     <Form.CardButton onClick={() => handleTypeChange("past")} selected={formData.type === "past"}>
-                        <Form.CardHeader title={<Form.Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
-                            <History size={24} />
-                            <Form.Body>Past Traces</Form.Body>
-                        </Form.Stack>} />
+                        <Form.CardHeader
+                            title={(
+                                <Form.Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
+                                    <History size={24} />
+                                    <Form.Body>Past Traces</Form.Body>
+                                </Form.Stack>
+                            )}
+                        />
                     </Form.CardButton>
                     <Form.CardButton onClick={() => handleTypeChange("future")} selected={formData.type === "future"}>
-                        <Form.CardHeader title={<Form.Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
-                            <Timer size={24} />
-                            <Form.Body>Future Traces</Form.Body>
-                        </Form.Stack>} />
+                        <Form.CardHeader
+                            title={(
+                                <Form.Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
+                                    <Timer size={24} />
+                                    <Form.Body>Future Traces</Form.Body>
+                                </Form.Stack>
+                            )}
+                        />
                     </Form.CardButton>
                 </Form.Stack>
                 <Collapse in={formData.type === "past"}>
-                    <Form.Stack direction="row" maxWidth={600} justifyContent="space-around" alignItems="flex-start" >
-                        <Form.ElementWrapper name="traceStart" label="Start Time" >
+                    <Form.Stack direction="row" maxWidth={600} justifyContent="space-around" alignItems="flex-start">
+                        <Form.ElementWrapper name="traceStart" label="Start Time">
                             <DatePickers.LocalizationProvider dateAdapter={AdapterDateFns}>
                                 <DatePickers.DateTimePicker
                                     value={formData.traceStart ?? null}
@@ -118,7 +120,7 @@ export function CreateMonitorForm({ formData, errors, onFieldChange }: CreateMon
                                 />
                             </DatePickers.LocalizationProvider>
                         </Form.ElementWrapper>
-                        <Form.ElementWrapper name="traceEnd" label="End Time" >
+                        <Form.ElementWrapper name="traceEnd" label="End Time">
                             <DatePickers.LocalizationProvider dateAdapter={AdapterDateFns}>
                                 <DatePickers.DateTimePicker
                                     value={formData.traceEnd ?? null}
@@ -136,18 +138,20 @@ export function CreateMonitorForm({ formData, errors, onFieldChange }: CreateMon
                     </Form.Stack>
                 </Collapse>
                 <Form.Stack direction="column" spacing={2} maxWidth={600}>
-                    <Form.ElementWrapper name="intervalMinutes" label="Run Every (minutes)">
-                        <TextField
-                            id="intervalMinutes"
-                            type="number"
-                            placeholder="60"
-                            value={formData.intervalMinutes ?? ""}
-                            onChange={(event) => onFieldChange("intervalMinutes", event.target.value)}
-                            error={!!errors.intervalMinutes}
-                            helperText={errors.intervalMinutes ?? "How often the monitor should execute"}
-                            fullWidth
-                        />
-                    </Form.ElementWrapper>
+                    <Collapse in={formData.type === "future"}>
+                        <Form.ElementWrapper name="intervalMinutes" label="Run Every (minutes)">
+                            <TextField
+                                id="intervalMinutes"
+                                type="number"
+                                placeholder="60"
+                                value={formData.intervalMinutes ?? ""}
+                                onChange={(event) => onFieldChange("intervalMinutes", event.target.value)}
+                                error={!!errors.intervalMinutes}
+                                helperText={errors.intervalMinutes ?? "How often the monitor should execute"}
+                                fullWidth
+                            />
+                        </Form.ElementWrapper>
+                    </Collapse>
                     <Form.ElementWrapper name="samplingRate" label={`Sampling (${formData.samplingRate ?? 0}%)`}>
                         <Stack spacing={1} sx={{ px: 1 }}>
                             <Slider
@@ -168,187 +172,6 @@ export function CreateMonitorForm({ formData, errors, onFieldChange }: CreateMon
                         </Stack>
                     </Form.ElementWrapper>
                 </Form.Stack>
-            </Form.Section>
-        </Form.Stack>
-
-    );
-}
-
-export function SelectPresetMonitors(
-    { selectedEvaluators, onToggleEvaluator, error }: SelectPresetMonitorsProps) {
-    const { orgId } = useParams<{ orgId: string }>();
-    const { data, isPending, error: evaluatorsError } = useListEvaluators({
-        orgName: orgId,
-    });
-    const evaluators = useMemo(() => data?.evaluators ?? [], [data]);
-    const [search, setSearch] = useState("");
-
-    const filteredEvaluators = useMemo(() => {
-        const term = search.trim().toLowerCase();
-        if (!term) {
-            return evaluators;
-        }
-        return evaluators.filter((evaluator) => {
-            const haystack = [
-                evaluator.displayName,
-                evaluator.identifier,
-                evaluator.description,
-                ...(evaluator.tags ?? []),
-            ]
-                .filter(Boolean)
-                .map((value) => value?.toLowerCase() ?? "");
-            return haystack.some((value) => value.includes(term));
-        });
-    }, [evaluators, search]);
-
-    const selectedFullEval = evaluators.filter(evaluator =>
-        selectedEvaluators.includes(evaluator.identifier ?? toSlug(evaluator.displayName)));
-    return (
-        <Form.Stack>
-            <Form.Section>
-                <Form.Header   >
-                    <Stack direction="row" spacing={1} alignItems="start" justifyContent="space-between">
-                        Available Evaluators and Metrics
-                        <SearchBar
-                            placeholder="Search evaluators"
-                            size="small"
-                            value={search}
-                            onChange={(event) => setSearch(event.target.value)}
-                            disabled={!evaluators.length}
-                        />
-                    </Stack>
-                </Form.Header>
-                <Form.Section>
-                    <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
-                        {
-                            selectedFullEval.map((evaluator) => {
-                                const identifier = evaluator.identifier ??
-                                    toSlug(evaluator.displayName);
-                                return (
-                                    <Box py={0.25} key={evaluator.id}>
-                                        <Chip
-                                            key={evaluator.id}
-                                            label={evaluator.displayName}
-                                            onDelete={() => onToggleEvaluator(identifier)}
-                                            color="primary"
-                                        />
-                                    </Box>
-                                );
-                            })
-                        }
-                        {
-                            selectedFullEval.length === 0 && (
-                                <Typography variant="body2" color="text.secondary">
-                                    No evaluators selected yet. Click on the cards below to select.
-                                </Typography>
-                            )
-                        }
-                    </Stack>
-                </Form.Section>
-                {!orgId && (
-                    <Alert severity="warning" sx={{ mt: 2 }}>
-                        Unable to determine organization.
-                        Navigate from the project context to load evaluators.
-                    </Alert>
-                )}
-                {evaluatorsError && (
-                    <Alert severity="error" sx={{ mt: 2 }}>
-                        {evaluatorsError instanceof Error ? evaluatorsError.message : "Failed to load evaluators"}
-                    </Alert>
-                )}
-                {isPending && (
-                    <Stack direction="row" gap={1} p={2}>
-                        <Skeleton variant="rounded" height={160} width="100%" />
-                        <Skeleton variant="rounded" height={160} width="100%" />
-                        <Skeleton variant="rounded" height={160} width="100%" />
-                        <Skeleton variant="rounded" height={160} width="100%" />
-                    </Stack>
-                )}
-                {!isPending && orgId && !evaluatorsError && evaluators.length === 0 && (
-                    <ListingTable.Container sx={{ my: 3 }}>
-                        <ListingTable.EmptyState
-                            illustration={<CircleIcon size={64} />}
-                            title="No evaluators yet"
-                            description="Connect evaluator providers or import custom evaluators to see them here."
-                        />
-                    </ListingTable.Container>
-                )}
-                {evaluators.length > 0 && filteredEvaluators.length === 0 && (
-                    <ListingTable.Container sx={{ my: 3 }}>
-                        <ListingTable.EmptyState
-                            illustration={<SearchIcon size={64} />}
-                            title="No evaluators match your search"
-                            description="Try a different keyword or clear the search filter."
-                        />
-                    </ListingTable.Container>
-                )}
-                {filteredEvaluators.length > 0 && (
-                    <Box
-                        sx={{
-                            display: "grid",
-                            gridTemplateColumns: {
-                                xs: "repeat(auto-fill, minmax(260px, 1fr))",
-                                md: "repeat(auto-fill, minmax(300px, 1fr))",
-                            },
-                            gap: 2,
-                        }}
-                    >
-                        {filteredEvaluators.map((monitor) => {
-                            const identifier = monitor.identifier ?? toSlug(monitor.displayName);
-                            const isSelected = selectedEvaluators.includes(identifier);
-                            return (
-                                <Form.CardButton
-                                    key={monitor.id}
-                                    sx={{ width: "100%" }}
-                                    selected={isSelected}
-                                    onClick={() => onToggleEvaluator(identifier)}
-                                >
-                                    <CardHeader title={<Stack direction="row" spacing={1} alignItems="center">
-
-                                        <Stack direction="column" spacing={2}>
-                                            <Stack direction="row" spacing={2} alignItems="center">
-                                                <Avatar sx={{ bgcolor: isSelected ? "primary.main" : "default", width: 40, height: 40 }}>
-                                                    {
-                                                        isSelected ? <Check size={20} /> :
-                                                            <CircleIcon size={20} />
-                                                    }
-                                                </Avatar>
-                                                <Typography variant="h5" textOverflow="ellipsis" overflow="hidden" whiteSpace="nowrap" maxWidth="90%">
-                                                    {monitor.displayName}
-                                                </Typography>
-                                            </Stack>
-                                            <Stack direction="row" spacing={1} alignItems="center">
-                                                {(monitor.tags.slice(0, 2) ?? []).map(tag => (
-                                                    <Chip key={tag} size="small" label={tag} variant="outlined" />
-                                                ))}
-                                                {monitor.tags.length > 2 && (
-                                                    <Tooltip title={monitor.tags.join(", ")} placement="top">
-                                                        <Typography variant="caption" color="text.secondary">
-                                                            {`+${monitor.tags.length - 2} more`}
-                                                        </Typography>
-                                                    </Tooltip>
-                                                )}
-                                            </Stack>
-                                        </Stack>
-                                    </Stack>} />
-                                    <CardContent>
-                                        <Stack spacing={1}>
-                                            <Typography variant="caption">
-                                                {monitor.description}
-                                            </Typography>
-                                        </Stack>
-                                    </CardContent>
-
-                                </Form.CardButton>
-                            );
-                        })}
-                    </Box>
-                )}
-                {error && (
-                    <Typography variant="caption" color="error" sx={{ mt: 1 }}>
-                        {error}
-                    </Typography>
-                )}
             </Form.Section>
         </Form.Stack>
     );

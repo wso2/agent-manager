@@ -20,7 +20,8 @@ import React, { useCallback, useMemo, useState } from "react";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { absoluteRouteMap, type CreateMonitorRequest } from "@agent-management-platform/types";
-import { CreateMonitorForm, SelectPresetMonitors } from "./subComponents/CreateMonitorForm";
+import { CreateMonitorForm } from "./subComponents/CreateMonitorForm";
+import { SelectPresetMonitors } from "./subComponents/SelectPresetMonitors";
 import { Alert, Button, Stack } from "@wso2/oxygen-ui";
 import { ArrowLeft, ArrowRight } from "@wso2/oxygen-ui-icons-react";
 import { useCreateMonitor } from "@agent-management-platform/api-client";
@@ -35,14 +36,20 @@ export const CreateMonitorComponent: React.FC = () => {
         orgName: orgId,
     });
 
+    const defaultTimeRange = useMemo(() => {
+        const end = new Date();
+        const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+        return { start, end };
+    }, []);
+
     const [page, setPage] = useState<1 | 2>(1);
     const [formData, setFormData] = useState<CreateMonitorFormValues>({
         displayName: "",
         name: "",
         description: "",
         type: "past",
-        traceStart: null,
-        traceEnd: null,
+        traceStart: defaultTimeRange.start,
+        traceEnd: defaultTimeRange.end,
         intervalMinutes: 60,
         samplingRate: 25,
         evaluators: [],
@@ -95,11 +102,6 @@ export const CreateMonitorComponent: React.FC = () => {
             });
         }, [setFieldError, slugify, validateField]);
 
-    const selectedEvaluators = useMemo(
-        () => formData.evaluators.map((evaluator) => evaluator.name),
-        [formData.evaluators]
-    );
-
     const handleToggleEvaluator = useCallback((evaluatorName: string) => {
         setFormData((prev) => {
             const exists = prev.evaluators.some((evaluator) => evaluator.name === evaluatorName);
@@ -107,6 +109,21 @@ export const CreateMonitorComponent: React.FC = () => {
                 ? prev.evaluators.filter((evaluator) => evaluator.name !== evaluatorName)
                 : [...prev.evaluators, { name: evaluatorName }];
 
+            const next = { ...prev, evaluators: nextEvaluators } as CreateMonitorFormValues;
+            const evalError = validateField("evaluators", nextEvaluators, next);
+            setFieldError("evaluators", evalError);
+            return next;
+        });
+    }, [setFieldError, validateField]);
+
+    const handleSaveEvaluatorConfig = useCallback((evaluatorName: string,
+        config: Record<string, unknown>) => {
+        setFormData((prev) => {
+            const exists = prev.evaluators.some((evaluator) => evaluator.name === evaluatorName);
+            const nextEvaluators = exists
+                ? prev.evaluators.map((evaluator) =>
+                    evaluator.name === evaluatorName ? { ...evaluator, config } : evaluator)
+                : [...prev.evaluators, { name: evaluatorName, config }];
             const next = { ...prev, evaluators: nextEvaluators } as CreateMonitorFormValues;
             const evalError = validateField("evaluators", nextEvaluators, next);
             setFieldError("evaluators", evalError);
@@ -194,8 +211,9 @@ export const CreateMonitorComponent: React.FC = () => {
                 {
                     page === 2 && (
                         <SelectPresetMonitors
-                            selectedEvaluators={selectedEvaluators}
+                            selectedEvaluators={formData.evaluators}
                             onToggleEvaluator={handleToggleEvaluator}
+                            onSaveEvaluatorConfig={handleSaveEvaluatorConfig}
                             error={errors.evaluators}
                         />
                     )

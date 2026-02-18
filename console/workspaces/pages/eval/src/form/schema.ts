@@ -58,8 +58,8 @@ export const createMonitorSchema = z
                 }
                 return typeof val === "string" ? Number(val) : val;
             })
-            .refine((value) => value === undefined || (Number.isInteger(value) && value > 0), {
-                message: "Interval must be a positive integer",
+            .refine((value) => value === undefined || (Number.isInteger(value) && value >= 5), {
+                message: "Interval must be greater than 5 minutes",
             })
             .optional(),
         samplingRate: z
@@ -84,6 +84,7 @@ export const createMonitorSchema = z
             return;
         }
 
+        const now = new Date();
         if (!value.traceStart) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
@@ -100,7 +101,20 @@ export const createMonitorSchema = z
             });
         }
 
-        if (value.traceStart && value.traceEnd && value.traceEnd < value.traceStart) {
+        if (value.traceEnd && value.traceEnd > now) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["traceEnd"],
+                message: "End time cannot be in the future",
+            });
+        }
+
+        if (value.traceStart && value.traceEnd && value.traceStart >= value.traceEnd) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["traceStart"],
+                message: "Start time must be earlier than the end time",
+            });
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ["traceEnd"],
