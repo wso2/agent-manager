@@ -830,10 +830,17 @@ func (s *LLMProviderService) UpdateCatalogStatus(providerID, orgID string, inCat
 		slog.Error("LLMProviderService.UpdateCatalogStatus: failed to begin transaction", "error", tx.Error)
 		return nil, tx.Error
 	}
+
+	// Ensure transaction is rolled back on panic or error
+	committed := false
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
 			slog.Error("LLMProviderService.UpdateCatalogStatus: panic recovered, rolling back", "panic", r)
+			panic(r) // Re-panic after rollback
+		}
+		if !committed {
+			tx.Rollback()
 		}
 	}()
 
@@ -842,7 +849,6 @@ func (s *LLMProviderService) UpdateCatalogStatus(providerID, orgID string, inCat
 	// This is acceptable as the critical update happens within the transaction
 	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
-		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			slog.Error("LLMProviderService.UpdateCatalogStatus: provider not found", "providerID", providerID, "orgID", orgID)
 			return nil, utils.ErrLLMProviderNotFound
@@ -851,7 +857,6 @@ func (s *LLMProviderService) UpdateCatalogStatus(providerID, orgID string, inCat
 		return nil, err
 	}
 	if provider == nil {
-		tx.Rollback()
 		slog.Warn("LLMProviderService.UpdateCatalogStatus: provider not found", "providerID", providerID, "orgID", orgID)
 		return nil, utils.ErrLLMProviderNotFound
 	}
@@ -859,7 +864,6 @@ func (s *LLMProviderService) UpdateCatalogStatus(providerID, orgID string, inCat
 	// Update artifact catalog status within transaction
 	err = s.artifactRepo.UpdateCatalogStatus(tx, providerID, orgID, inCatalog)
 	if err != nil {
-		tx.Rollback()
 		slog.Error("LLMProviderService.UpdateCatalogStatus: failed to update artifact catalog status", "providerID", providerID, "error", err)
 		return nil, err
 	}
@@ -869,6 +873,7 @@ func (s *LLMProviderService) UpdateCatalogStatus(providerID, orgID string, inCat
 		slog.Error("LLMProviderService.UpdateCatalogStatus: failed to commit transaction", "error", err)
 		return nil, err
 	}
+	committed = true
 
 	// Update InCatalog field to reflect the committed change
 	provider.InCatalog = inCatalog

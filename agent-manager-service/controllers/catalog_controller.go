@@ -17,7 +17,13 @@
 package controllers
 
 import (
+	"fmt"
+	"log/slog"
+	"math"
 	"net/http"
+	"strings"
+
+	"github.com/google/uuid"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -67,34 +73,66 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 
 	// Parse query parameters
 	kind := r.URL.Query().Get("kind")
-	environmentName := r.URL.Query().Get("environmentName")
+	name := r.URL.Query().Get("name")
+	environmentUUID := r.URL.Query().Get("environmentId") // Changed from environmentName to environmentId
 	limit := getIntQueryParam(r, "limit", utils.DefaultLimit)
 	offset := getIntQueryParam(r, "offset", utils.DefaultOffset)
 
 	// Validate parameters
 	if limit < utils.MinLimit || limit > utils.MaxLimit {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter")
+		utils.WriteErrorResponse(w, http.StatusBadRequest,
+			fmt.Sprintf("Invalid limit parameter. Must be between %d and %d", utils.MinLimit, utils.MaxLimit))
 		return
 	}
 	if offset < 0 {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter. Must be non-negative")
 		return
 	}
 
 	// Validate kind parameter if provided
 	if kind != "" && !isValidCatalogKind(kind) {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid kind parameter. Must be one of: llmProvider, agent, mcp")
+		validKinds := []string{models.CatalogKindLLMProvider, models.CatalogKindAgent, models.CatalogKindMCP}
+		log.Error("ListCatalog: invalid kind parameter", "kind", kind)
+		utils.WriteErrorResponse(w, http.StatusBadRequest,
+			fmt.Sprintf("Invalid kind parameter. Must be one of: %s", strings.Join(validKinds, ", ")))
 		return
 	}
 
-	// For llmProvider kind, use the enhanced service method
+	// Validate name parameter length if provided
+	if name != "" && len(name) > 255 {
+		log.Error("ListCatalog: name parameter too long", "length", len(name))
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Name parameter exceeds maximum length of 255 characters")
+		return
+	}
+
+	// Validate environmentUUID parameter if provided
+	if environmentUUID != "" {
+		// Prevent DoS by checking length before parsing
+		if len(environmentUUID) > 100 {
+			log.Error("ListCatalog: environment UUID parameter too long", "length", len(environmentUUID))
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid environment UUID format")
+			return
+		}
+		if _, err := uuid.Parse(environmentUUID); err != nil {
+			log.Error("ListCatalog: invalid environment UUID format", "error", err)
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid environment UUID format")
+			return
+		}
+	}
+
+	// For llmProvider kind, use the enhanced service method with filters
 	if kind == models.CatalogKindLLMProvider {
-		var envFilter *string
-		if environmentName != "" {
-			envFilter = &environmentName
+		// Build filter struct
+		filters := &models.CatalogListFilters{
+			OrganizationUUID: org.UUID.String(),
+			Kind:             kind,
+			Name:             name,
+			EnvironmentUUID:  environmentUUID,
+			Limit:            limit,
+			Offset:           offset,
 		}
 
-		llmEntries, total, err := c.catalogService.ListLLMProviders(ctx, org.UUID.String(), envFilter, limit, offset)
+		llmEntries, total, err := c.catalogService.ListLLMProviders(ctx, filters)
 		if err != nil {
 			log.Error("ListCatalog: failed to list LLM providers", "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list catalog entries")
@@ -118,17 +156,6 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	// Convert to spec response
 	response := convertToCatalogListResponse(entries, int32(total), int32(limit), int32(offset))
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
-}
-
-// Helper functions
-
-func isValidCatalogKind(kind string) bool {
-	validKinds := map[string]bool{
-		models.CatalogKindLLMProvider: true,
-		models.CatalogKindAgent:       true,
-		models.CatalogKindMCP:         true,
-	}
-	return validKinds[kind]
 }
 
 func convertToCatalogListResponse(entries []models.CatalogEntry, total, limit, offset int32) *spec.CatalogListResponse {
@@ -268,30 +295,28 @@ func convertRateLimitingScope(scope *models.RateLimitingScope) *spec.RateLimitin
 	}
 
 	if scope.RequestLimitCount != nil {
-		// Bounds check before converting int to int32
-		if *scope.RequestLimitCount > 2147483647 {
-			count := int32(2147483647)
-			result.RequestLimitCount = &count
-		} else if *scope.RequestLimitCount < -2147483648 {
-			count := int32(-2147483648)
+		if count, valid := safeIntToInt32(*scope.RequestLimitCount); valid {
 			result.RequestLimitCount = &count
 		} else {
-			count := int32(*scope.RequestLimitCount)
-			result.RequestLimitCount = &count
+			// Log data integrity issue but don't fail the request
+			// This indicates database corruption or invalid configuration
+			logger := slog.Default()
+			logger.Warn("Invalid rate limit value detected, skipping field",
+				"field", "requestLimitCount",
+				"value", *scope.RequestLimitCount,
+				"reason", "negative or overflow")
 		}
 	}
 
 	if scope.TokenLimitCount != nil {
-		// Bounds check before converting int to int32
-		if *scope.TokenLimitCount > 2147483647 {
-			count := int32(2147483647)
-			result.TokenLimitCount = &count
-		} else if *scope.TokenLimitCount < -2147483648 {
-			count := int32(-2147483648)
+		if count, valid := safeIntToInt32(*scope.TokenLimitCount); valid {
 			result.TokenLimitCount = &count
 		} else {
-			count := int32(*scope.TokenLimitCount)
-			result.TokenLimitCount = &count
+			logger := slog.Default()
+			logger.Warn("Invalid rate limit value detected, skipping field",
+				"field", "tokenLimitCount",
+				"value", *scope.TokenLimitCount,
+				"reason", "negative or overflow")
 		}
 	}
 
@@ -302,22 +327,48 @@ func convertRateLimitingScope(scope *models.RateLimitingScope) *spec.RateLimitin
 	return result
 }
 
+// isValidCatalogKind validates if the provided kind is a valid catalog kind
+func isValidCatalogKind(kind string) bool {
+	validKinds := []string{
+		models.CatalogKindLLMProvider,
+		models.CatalogKindAgent,
+		models.CatalogKindMCP,
+	}
+	for _, validKind := range validKinds {
+		if kind == validKind {
+			return true
+		}
+	}
+	return false
+}
+
+// safeIntToInt32 safely converts int to int32 with validation
+// Returns (converted value, true) if valid, (0, false) if invalid
+// Rejects negative values (rate limits cannot be negative) and values exceeding int32 max
+func safeIntToInt32(val int) (int32, bool) {
+	// Rate limits must be non-negative
+	if val < 0 {
+		return 0, false
+	}
+	// Check if value exceeds int32 max
+	if val > math.MaxInt32 {
+		return 0, false
+	}
+	return int32(val), true
+}
+
 func convertDeploymentSummaries(deployments []models.DeploymentSummary) []spec.DeploymentSummary {
 	result := make([]spec.DeploymentSummary, len(deployments))
 	for i, d := range deployments {
-		gatewayDisplayName := d.GatewayDisplayName
 		environmentName := d.EnvironmentName
 
 		result[i] = spec.DeploymentSummary{
-			GatewayId:          d.GatewayID.String(),
-			GatewayName:        d.GatewayName,
-			GatewayDisplayName: &gatewayDisplayName,
-			EnvironmentName:    &environmentName,
-			Status:             string(d.Status),
+			GatewayId:       d.GatewayID.String(),
+			GatewayName:     d.GatewayName,
+			EnvironmentName: &environmentName,
+			Status:          string(d.Status),
 		}
-		if d.DeployedAt != nil {
-			result[i].DeployedAt = d.DeployedAt
-		}
+		// Note: DeployedAt field is not in spec, skipping
 		if d.VHost != "" {
 			result[i].Vhost = &d.VHost
 		}

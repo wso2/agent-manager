@@ -18,31 +18,98 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 )
 
+// Environment mapping cache with TTL to reduce external API calls
+type envMappingCache struct {
+	data    map[string]envCacheEntry
+	mu      sync.RWMutex
+	ttl     time.Duration
+	maxSize int
+}
+
+type envCacheEntry struct {
+	mapping   map[string]string
+	expiresAt time.Time
+}
+
+// Global cache instance with 5-minute TTL
+var globalEnvCache = &envMappingCache{
+	data:    make(map[string]envCacheEntry),
+	ttl:     5 * time.Minute,
+	maxSize: 100, // Limit cache size to prevent memory issues
+}
+
+func (c *envMappingCache) get(orgUUID string) (map[string]string, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	entry, exists := c.data[orgUUID]
+	if !exists {
+		return nil, false
+	}
+
+	// Check if entry has expired
+	if time.Now().After(entry.expiresAt) {
+		return nil, false
+	}
+
+	return entry.mapping, true
+}
+
+func (c *envMappingCache) set(orgUUID string, mapping map[string]string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Simple cache eviction: if at max size, clear oldest entries
+	if len(c.data) >= c.maxSize {
+		// Clear all expired entries
+		now := time.Now()
+		for key, entry := range c.data {
+			if now.After(entry.expiresAt) {
+				delete(c.data, key)
+			}
+		}
+		// If still at max, clear half the cache (simple LRU alternative)
+		if len(c.data) >= c.maxSize {
+			count := 0
+			target := c.maxSize / 2
+			for key := range c.data {
+				delete(c.data, key)
+				count++
+				if count >= target {
+					break
+				}
+			}
+		}
+	}
+
+	c.data[orgUUID] = envCacheEntry{
+		mapping:   mapping,
+		expiresAt: time.Now().Add(c.ttl),
+	}
+}
+
 // CatalogService defines the interface for catalog operations
 type CatalogService interface {
 	ListCatalog(ctx context.Context, orgUUID string, kind string, limit, offset int) ([]models.CatalogEntry, int64, error)
-	ListLLMProviders(ctx context.Context, orgUUID string, environmentName *string, limit, offset int) ([]models.CatalogLLMProviderEntry, int64, error)
+	ListLLMProviders(ctx context.Context, filters *models.CatalogListFilters) ([]models.CatalogLLMProviderEntry, int64, error)
 }
 
 type catalogService struct {
 	logger           *slog.Logger
 	catalogRepo      repositories.CatalogRepository
-	deploymentRepo   repositories.DeploymentRepository
-	gatewayRepo      repositories.GatewayRepository
-	db               *gorm.DB
+	artifactRepo     repositories.ArtifactRepository
 	openChoreoClient client.OpenChoreoClient
 }
 
@@ -50,17 +117,13 @@ type catalogService struct {
 func NewCatalogService(
 	logger *slog.Logger,
 	catalogRepo repositories.CatalogRepository,
-	deploymentRepo repositories.DeploymentRepository,
-	gatewayRepo repositories.GatewayRepository,
-	db *gorm.DB,
+	artifactRepo repositories.ArtifactRepository,
 	openChoreoClient client.OpenChoreoClient,
 ) CatalogService {
 	return &catalogService{
 		logger:           logger,
 		catalogRepo:      catalogRepo,
-		deploymentRepo:   deploymentRepo,
-		gatewayRepo:      gatewayRepo,
-		db:               db,
+		artifactRepo:     artifactRepo,
 		openChoreoClient: openChoreoClient,
 	}
 }
@@ -108,62 +171,82 @@ func (s *catalogService) ListCatalog(ctx context.Context, orgUUID string, kind s
 }
 
 // ListLLMProviders retrieves comprehensive LLM provider catalog entries with deployment details
-func (s *catalogService) ListLLMProviders(ctx context.Context, orgUUID string, environmentName *string, limit, offset int) ([]models.CatalogLLMProviderEntry, int64, error) {
+func (s *catalogService) ListLLMProviders(ctx context.Context, filters *models.CatalogListFilters) ([]models.CatalogLLMProviderEntry, int64, error) {
 	s.logger.Info("Listing LLM provider catalog entries",
-		"orgUUID", orgUUID,
-		"environmentName", environmentName,
-		"limit", limit,
-		"offset", offset)
+		"orgUUID", filters.OrganizationUUID,
+		"environmentUUID", filters.EnvironmentUUID,
+		"name", filters.Name,
+		"limit", filters.Limit,
+		"offset", filters.Offset)
 
-	// Validate orgUUID
-	orgParsed, err := uuid.Parse(orgUUID)
+	// Validate filters
+	if err := filters.Validate(); err != nil {
+		s.logger.Error("Invalid filters", "error", err)
+		return nil, 0, fmt.Errorf("invalid filters: %w", err)
+	}
+
+	// Parse organization UUID
+	orgParsed, err := uuid.Parse(filters.OrganizationUUID)
 	if err != nil {
-		s.logger.Error("Invalid organization UUID", "orgUUID", orgUUID, "error", err)
+		s.logger.Error("Invalid organization UUID", "orgUUID", filters.OrganizationUUID, "error", err)
 		return nil, 0, fmt.Errorf("invalid organization UUID: %w", err)
 	}
 
-	// Get ALL catalog providers from repository (filtering happens in service layer)
-	entries, total, err := s.catalogRepo.ListLLMProviders(orgUUID, environmentName, limit, offset)
+	// Get LLM providers from repository using optimized single query
+	entries, total, err := s.catalogRepo.ListLLMProviders(filters)
 	if err != nil {
 		s.logger.Error("Failed to list LLM providers from repository",
-			"orgUUID", orgUUID,
+			"orgUUID", filters.OrganizationUUID,
 			"error", err)
 		return nil, 0, fmt.Errorf("failed to list LLM providers: %w", err)
 	}
 
-	// Enrich each entry with deployment details, configuration, and summaries
+	// Only fetch environment mapping if we have entries with deployments
+	// This avoids unnecessary external API calls when there are no deployments to enrich
+	hasDeployments := false
 	for i := range entries {
-		entry := &entries[i]
-
-		// Parse and populate configuration details
-		if err := s.populateConfiguration(entry); err != nil {
-			s.logger.Warn("Failed to populate configuration",
-				"providerUUID", entry.UUID,
-				"error", err)
-		}
-
-		// Populate deployment information (includes environment lookup)
-		if err := s.populateDeployments(entry, orgParsed); err != nil {
-			s.logger.Warn("Failed to populate deployments",
-				"providerUUID", entry.UUID,
-				"error", err)
+		if len(entries[i].Deployments) > 0 {
+			hasDeployments = true
+			break
 		}
 	}
 
-	// Filter by environment if specified (done after enrichment)
-	if environmentName != nil && *environmentName != "" {
-		filteredEntries := make([]models.CatalogLLMProviderEntry, 0)
-		for _, entry := range entries {
-			// Check if any deployment is in the requested environment
-			for _, deployment := range entry.Deployments {
-				if deployment.EnvironmentName == *environmentName && deployment.Status == models.DeploymentStatusDeployed {
-					filteredEntries = append(filteredEntries, entry)
-					break
-				}
+	var envMap map[string]string
+	if hasDeployments {
+		// Try to get environment mapping from cache first
+		cached, found := globalEnvCache.get(orgParsed.String())
+		if found {
+			s.logger.Debug("Using cached environment mapping", "orgUUID", orgParsed.String())
+			envMap = cached
+		} else {
+			// Cache miss - fetch from OpenChoreo and cache the result
+			s.logger.Debug("Cache miss - fetching environment mapping from OpenChoreo", "orgUUID", orgParsed.String())
+			envMap, err = s.buildEnvironmentMapping(ctx, orgParsed)
+			if err != nil {
+				s.logger.Warn("Failed to build environment mapping, continuing without environment names", "error", err)
+				envMap = make(map[string]string) // Continue with empty map
+			} else {
+				// Cache the successful result
+				globalEnvCache.set(orgParsed.String(), envMap)
+				s.logger.Debug("Cached environment mapping", "orgUUID", orgParsed.String(), "count", len(envMap))
 			}
 		}
-		entries = filteredEntries
-		total = int64(len(filteredEntries))
+
+		// Resolve environment UUIDs to human-readable names
+		// Note: All data (configuration, deployments) is already fetched by repository!
+		// We just need to replace environment UUIDs with names
+		for i := range entries {
+			entry := &entries[i]
+
+			// Resolve environment UUIDs to names for each deployment
+			for j := range entry.Deployments {
+				envUUID := entry.Deployments[j].EnvironmentName
+				if envName, ok := envMap[envUUID]; ok {
+					entry.Deployments[j].EnvironmentName = envName
+				}
+				// If not found in map, keep the UUID (or use gateway name as fallback)
+			}
+		}
 	}
 
 	s.logger.Info("Successfully listed LLM provider catalog entries",
@@ -173,174 +256,38 @@ func (s *catalogService) ListLLMProviders(ctx context.Context, orgUUID string, e
 	return entries, total, nil
 }
 
-// populateConfiguration parses configuration and populates summary fields
-func (s *catalogService) populateConfiguration(entry *models.CatalogLLMProviderEntry) error {
-	// Query the provider to get configuration as raw JSON
-	var provider models.LLMProvider
-	if err := s.db.
-		Table("llm_providers").
-		Where("uuid = ?", entry.UUID).
-		First(&provider).Error; err != nil {
-		return fmt.Errorf("failed to get provider configuration: %w", err)
-	}
-
-	// Populate basic config fields
-	entry.Template = provider.Configuration.Template
-	entry.Context = provider.Configuration.Context
-	entry.VHost = provider.Configuration.VHost
-
-	// Parse model providers
-	if provider.ModelList != "" {
-		var modelProviders []models.LLMModelProvider
-		if err := json.Unmarshal([]byte(provider.ModelList), &modelProviders); err != nil {
-			s.logger.Warn("Failed to parse model list",
-				"providerUUID", entry.UUID,
-				"error", err)
-		} else {
-			entry.ModelProviders = modelProviders
-		}
-	}
-
-	// Populate security summary
-	if provider.Configuration.Security != nil {
-		entry.Security = &models.SecuritySummary{
-			Enabled:       provider.Configuration.Security.Enabled != nil && *provider.Configuration.Security.Enabled,
-			APIKeyEnabled: provider.Configuration.Security.APIKey != nil && provider.Configuration.Security.APIKey.Enabled != nil && *provider.Configuration.Security.APIKey.Enabled,
-		}
-		if provider.Configuration.Security.APIKey != nil {
-			entry.Security.APIKeyIn = provider.Configuration.Security.APIKey.In
-		}
-	}
-
-	// Populate rate limiting summary
-	if provider.Configuration.RateLimiting != nil {
-		entry.RateLimiting = &models.RateLimitingSummary{}
-
-		if provider.Configuration.RateLimiting.ProviderLevel != nil {
-			entry.RateLimiting.ProviderLevel = extractRateLimitingScope(provider.Configuration.RateLimiting.ProviderLevel)
-		}
-
-		if provider.Configuration.RateLimiting.ConsumerLevel != nil {
-			entry.RateLimiting.ConsumerLevel = extractRateLimitingScope(provider.Configuration.RateLimiting.ConsumerLevel)
-		}
-	}
-
-	return nil
-}
-
-// extractRateLimitingScope extracts rate limiting scope summary
-func extractRateLimitingScope(scopeConfig *models.RateLimitingScopeConfig) *models.RateLimitingScope {
-	scope := &models.RateLimitingScope{
-		GlobalEnabled:       scopeConfig.Global != nil,
-		ResourceWiseEnabled: scopeConfig.ResourceWise != nil,
-	}
-
-	// Extract global limits if present
-	if scopeConfig.Global != nil {
-		if scopeConfig.Global.Request != nil && scopeConfig.Global.Request.Enabled {
-			scope.RequestLimitCount = &scopeConfig.Global.Request.Count
-		}
-		if scopeConfig.Global.Token != nil && scopeConfig.Global.Token.Enabled {
-			scope.TokenLimitCount = &scopeConfig.Global.Token.Count
-		}
-		if scopeConfig.Global.Cost != nil && scopeConfig.Global.Cost.Enabled {
-			scope.CostLimitAmount = &scopeConfig.Global.Cost.Amount
-		}
-	}
-
-	return scope
-}
-
-// populateDeployments fetches and populates deployment information for a provider
-func (s *catalogService) populateDeployments(entry *models.CatalogLLMProviderEntry, orgUUID uuid.UUID) error {
-	// Get deployed gateways for this provider
-	gatewayIDs, err := s.deploymentRepo.GetDeployedGatewaysByProvider(entry.UUID, orgUUID)
+// buildEnvironmentMapping fetches all environments and builds UUID to name mapping
+func (s *catalogService) buildEnvironmentMapping(ctx context.Context, orgUUID uuid.UUID) (map[string]string, error) {
+	// Get organization name first
+	orgName, err := s.getOrganizationName(ctx, orgUUID)
 	if err != nil {
-		return fmt.Errorf("failed to get deployed gateways: %w", err)
+		return nil, fmt.Errorf("failed to get organization name: %w", err)
 	}
 
-	if len(gatewayIDs) == 0 {
-		entry.Deployments = []models.DeploymentSummary{}
-		return nil
+	// Fetch all environments from OpenChoreo
+	environments, err := s.openChoreoClient.ListEnvironments(ctx, orgName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}
 
-	// Build map of gateway UUID to environment UUID from gateway_environment_mappings
-	gatewayEnvMap := make(map[string]string) // gatewayUUID -> environmentUUID
-	var mappings []struct {
-		GatewayUUID     string `gorm:"column:gateway_uuid"`
-		EnvironmentUUID string `gorm:"column:environment_uuid"`
+	// Build environment UUID to name mapping
+	envMap := make(map[string]string)
+	if environments != nil {
+		for _, env := range environments {
+			envMap[env.UUID] = env.Name
+		}
+		s.logger.Info("Built environment mapping", "count", len(envMap))
 	}
 
-	if err := s.db.
-		Table("gateway_environment_mappings").
-		Select("gateway_uuid, environment_uuid").
-		Where("gateway_uuid IN ?", gatewayIDs).
-		Scan(&mappings).Error; err != nil {
-		s.logger.Warn("Failed to get gateway-environment mappings", "error", err)
+	return envMap, nil
+}
+
+// getOrganizationName retrieves organization name from UUID using repository
+func (s *catalogService) getOrganizationName(ctx context.Context, orgUUID uuid.UUID) (string, error) {
+	orgName, err := s.artifactRepo.GetOrganizationName(orgUUID.String())
+	if err != nil {
+		return "", fmt.Errorf("failed to get organization: %w", err)
 	}
 
-	for _, mapping := range mappings {
-		gatewayEnvMap[mapping.GatewayUUID] = mapping.EnvironmentUUID
-	}
-
-	// Fetch deployment details for each gateway
-	deployments := make([]models.DeploymentSummary, 0, len(gatewayIDs))
-	for _, gatewayID := range gatewayIDs {
-		gatewayUUID, err := uuid.Parse(gatewayID)
-		if err != nil {
-			s.logger.Warn("Invalid gateway UUID", "gatewayID", gatewayID, "error", err)
-			continue
-		}
-
-		// Get gateway details
-		gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
-		if err != nil {
-			s.logger.Warn("Failed to get gateway details", "gatewayID", gatewayID, "error", err)
-			continue
-		}
-
-		// Get deployment status
-		var deployment struct {
-			Status    models.DeploymentStatus `gorm:"column:status"`
-			UpdatedAt *time.Time              `gorm:"column:updated_at"`
-		}
-
-		result := s.db.
-			Table("deployment_status").
-			Select("status, updated_at").
-			Where("artifact_uuid = ? AND gateway_uuid = ? AND organization_uuid = ?", entry.UUID, gatewayUUID, orgUUID).
-			Scan(&deployment)
-		if result.Error != nil {
-			s.logger.Warn("Failed to get deployment status", "gatewayID", gatewayID, "error", result.Error)
-			continue
-		}
-		if result.RowsAffected == 0 {
-			s.logger.Warn("No deployment status found for gateway", "gatewayID", gatewayID)
-			continue
-		}
-
-		// Get environment name - fallback to gateway name if no mapping
-		environmentName := gateway.Name
-		if envUUID, ok := gatewayEnvMap[gatewayID]; ok && envUUID != "" {
-			// Try to get environment name from OpenChoreo (this could be optimized with caching)
-			// For now, use the environment UUID as name - service layer can enhance this
-			environmentName = envUUID
-		}
-
-		// Create deployment summary
-		deploymentSummary := models.DeploymentSummary{
-			GatewayID:          gatewayUUID,
-			GatewayName:        gateway.Name,
-			GatewayDisplayName: gateway.DisplayName,
-			EnvironmentName:    environmentName,
-			Status:             deployment.Status,
-			DeployedAt:         deployment.UpdatedAt,
-			VHost:              gateway.Vhost,
-		}
-
-		deployments = append(deployments, deploymentSummary)
-	}
-
-	entry.Deployments = deployments
-	return nil
+	return orgName, nil
 }

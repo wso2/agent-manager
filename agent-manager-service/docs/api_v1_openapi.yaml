@@ -2762,7 +2762,7 @@ paths:
           schema:
             type: string
             enum:
-              - llmProvider
+              - LlmProvider
               - agent
               - mcp
         - name: environmentName
@@ -8391,10 +8391,10 @@ components:
           type: string
           description: Type of resource
           enum:
-            - llmProvider
+            - LlmProvider
             - agent
             - mcp
-          example: "llmProvider"
+          example: "LlmProvider"
         inCatalog:
           type: boolean
           description: Whether the resource is available in the catalog
@@ -8583,10 +8583,6 @@ components:
           type: string
           description: Gateway name/identifier
           example: "production-gateway"
-        gatewayDisplayName:
-          type: string
-          description: Gateway display name
-          example: "Production Gateway"
         environmentName:
           type: string
           description: Environment name (from gateway name or properties)
@@ -8599,11 +8595,6 @@ components:
             - UNDEPLOYED
             - ARCHIVED
           example: "DEPLOYED"
-        deployedAt:
-          type: string
-          format: date-time
-          description: Timestamp when deployed
-          example: "2024-01-15T10:35:00Z"
         vhost:
           type: string
           description: Gateway virtual host

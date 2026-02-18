@@ -28,8 +28,16 @@ var migration008 = migration{
 			-- Add in_catalog column to artifacts table
 			ALTER TABLE artifacts ADD COLUMN IF NOT EXISTS in_catalog BOOLEAN DEFAULT FALSE;
 
-			-- Create index for catalog queries
-			CREATE INDEX IF NOT EXISTS idx_artifacts_in_catalog ON artifacts(in_catalog, organization_uuid);
+			-- Index for basic catalog lookups (kind filtering)
+			CREATE INDEX IF NOT EXISTS idx_artifacts_catalog_lookup
+				ON artifacts(organization_uuid, kind, in_catalog)
+				WHERE in_catalog = true;
+
+			-- Index for name-based filtering (supports case-insensitive LIKE queries)
+			-- This significantly improves performance when filtering catalog by name
+			CREATE INDEX IF NOT EXISTS idx_artifacts_catalog_name_lookup
+				ON artifacts(organization_uuid, kind, in_catalog, LOWER(name))
+				WHERE in_catalog = true;
 		`
 		return db.Transaction(func(tx *gorm.DB) error {
 			return runSQL(tx, addCatalogSupportSQL)

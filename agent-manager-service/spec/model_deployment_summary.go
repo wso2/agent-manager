@@ -12,7 +12,6 @@ package spec
 
 import (
 	"encoding/json"
-	"time"
 )
 
 // checks if the DeploymentSummary type satisfies the MappedNullable interface at compile time
@@ -24,14 +23,10 @@ type DeploymentSummary struct {
 	GatewayId string `json:"gatewayId"`
 	// Gateway name/identifier
 	GatewayName string `json:"gatewayName"`
-	// Gateway display name
-	GatewayDisplayName *string `json:"gatewayDisplayName,omitempty"`
 	// Environment name (from gateway name or properties)
 	EnvironmentName *string `json:"environmentName,omitempty"`
 	// Deployment status
 	Status string `json:"status"`
-	// Timestamp when deployed
-	DeployedAt *time.Time `json:"deployedAt,omitempty"`
 	// Gateway virtual host
 	Vhost *string `json:"vhost,omitempty"`
 }
@@ -104,38 +99,6 @@ func (o *DeploymentSummary) SetGatewayName(v string) {
 	o.GatewayName = v
 }
 
-// GetGatewayDisplayName returns the GatewayDisplayName field value if set, zero value otherwise.
-func (o *DeploymentSummary) GetGatewayDisplayName() string {
-	if o == nil || IsNil(o.GatewayDisplayName) {
-		var ret string
-		return ret
-	}
-	return *o.GatewayDisplayName
-}
-
-// GetGatewayDisplayNameOk returns a tuple with the GatewayDisplayName field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *DeploymentSummary) GetGatewayDisplayNameOk() (*string, bool) {
-	if o == nil || IsNil(o.GatewayDisplayName) {
-		return nil, false
-	}
-	return o.GatewayDisplayName, true
-}
-
-// HasGatewayDisplayName returns a boolean if a field has been set.
-func (o *DeploymentSummary) HasGatewayDisplayName() bool {
-	if o != nil && !IsNil(o.GatewayDisplayName) {
-		return true
-	}
-
-	return false
-}
-
-// SetGatewayDisplayName gets a reference to the given string and assigns it to the GatewayDisplayName field.
-func (o *DeploymentSummary) SetGatewayDisplayName(v string) {
-	o.GatewayDisplayName = &v
-}
-
 // GetEnvironmentName returns the EnvironmentName field value if set, zero value otherwise.
 func (o *DeploymentSummary) GetEnvironmentName() string {
 	if o == nil || IsNil(o.EnvironmentName) {
@@ -192,38 +155,6 @@ func (o *DeploymentSummary) SetStatus(v string) {
 	o.Status = v
 }
 
-// GetDeployedAt returns the DeployedAt field value if set, zero value otherwise.
-func (o *DeploymentSummary) GetDeployedAt() time.Time {
-	if o == nil || IsNil(o.DeployedAt) {
-		var ret time.Time
-		return ret
-	}
-	return *o.DeployedAt
-}
-
-// GetDeployedAtOk returns a tuple with the DeployedAt field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *DeploymentSummary) GetDeployedAtOk() (*time.Time, bool) {
-	if o == nil || IsNil(o.DeployedAt) {
-		return nil, false
-	}
-	return o.DeployedAt, true
-}
-
-// HasDeployedAt returns a boolean if a field has been set.
-func (o *DeploymentSummary) HasDeployedAt() bool {
-	if o != nil && !IsNil(o.DeployedAt) {
-		return true
-	}
-
-	return false
-}
-
-// SetDeployedAt gets a reference to the given time.Time and assigns it to the DeployedAt field.
-func (o *DeploymentSummary) SetDeployedAt(v time.Time) {
-	o.DeployedAt = &v
-}
-
 // GetVhost returns the Vhost field value if set, zero value otherwise.
 func (o *DeploymentSummary) GetVhost() string {
 	if o == nil || IsNil(o.Vhost) {
@@ -268,16 +199,10 @@ func (o DeploymentSummary) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["gatewayId"] = o.GatewayId
 	toSerialize["gatewayName"] = o.GatewayName
-	if !IsNil(o.GatewayDisplayName) {
-		toSerialize["gatewayDisplayName"] = o.GatewayDisplayName
-	}
 	if !IsNil(o.EnvironmentName) {
 		toSerialize["environmentName"] = o.EnvironmentName
 	}
 	toSerialize["status"] = o.Status
-	if !IsNil(o.DeployedAt) {
-		toSerialize["deployedAt"] = o.DeployedAt
-	}
 	if !IsNil(o.Vhost) {
 		toSerialize["vhost"] = o.Vhost
 	}

@@ -42,7 +42,7 @@ func (CatalogEntry) TableName() string {
 
 // Catalog resource kind constants
 const (
-	CatalogKindLLMProvider = "llmProvider"
+	CatalogKindLLMProvider = "LlmProvider"
 	CatalogKindAgent       = "agent"
 	CatalogKindMCP         = "mcp"
 )
@@ -105,11 +105,10 @@ type RateLimitingScope struct {
 
 // DeploymentSummary provides deployment status per environment
 type DeploymentSummary struct {
-	GatewayID          uuid.UUID        `json:"gatewayId"`
-	GatewayName        string           `json:"gatewayName"`
-	GatewayDisplayName string           `json:"gatewayDisplayName"`
-	EnvironmentName    string           `json:"environmentName"`
-	Status             DeploymentStatus `json:"status"`
-	DeployedAt         *time.Time       `json:"deployedAt,omitempty"`
-	VHost              string           `json:"vhost,omitempty"`
+	GatewayID       uuid.UUID        `json:"gatewayId"`
+	GatewayName     string           `json:"gatewayName"`
+	EnvironmentName string           `json:"environmentName"`
+	Status          DeploymentStatus `json:"status"`
+	DeployedAt      *time.Time       `json:"deployedAt,omitempty"`
+	VHost           string           `json:"vhost,omitempty"`
 }
