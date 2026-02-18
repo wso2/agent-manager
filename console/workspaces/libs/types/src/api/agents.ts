@@ -39,6 +39,7 @@ interface UpdateAgentBuildParametersRequest {
   provisioning: Provisioning;
   agentType?: AgentType;
   build?: Build;
+  configurations?: Configurations;
   inputInterface?: InputInterface;
 }
 
