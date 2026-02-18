@@ -117,16 +117,26 @@ func mapBuildConfig(specBuild *spec.Build) *client.BuildConfig {
 
 // mapConfigurations converts spec.Configurations to client.Configurations
 func mapConfigurations(specConfigs *spec.Configurations) *client.Configurations {
-	if specConfigs == nil || len(specConfigs.Env) == 0 {
+	if specConfigs == nil {
+		return nil
+	}
+
+	// Check if there's anything to map
+	if len(specConfigs.Env) == 0 && specConfigs.EnableAutoInstrumentation == nil {
 		return nil
 	}
 
 	configs := &client.Configurations{
-		Env: make([]client.EnvVar, len(specConfigs.Env)),
+		EnableAutoInstrumentation: specConfigs.EnableAutoInstrumentation,
 	}
-	for i, env := range specConfigs.Env {
-		configs.Env[i] = client.EnvVar{Key: env.Key, Value: env.Value}
+
+	if len(specConfigs.Env) > 0 {
+		configs.Env = make([]client.EnvVar, len(specConfigs.Env))
+		for i, env := range specConfigs.Env {
+			configs.Env[i] = client.EnvVar{Key: env.Key, Value: env.Value}
+		}
 	}
+
 	return configs
 }
 
@@ -741,6 +751,7 @@ func buildUpdateBuildParametersRequest(req *spec.UpdateAgentBuildParametersReque
 		Repository:     mapRepository(req.Provisioning.Repository),
 		Build:          mapBuildConfig(&req.Build),
 		InputInterface: mapInputInterface(&req.InputInterface),
+		Configurations: mapConfigurations(req.Configurations),
 	}
 }
 

@@ -251,6 +251,11 @@ func buildWorkflowParameters(req CreateComponentRequest) (map[string]any, error)
 	}
 	params["endpoints"] = endpoints
 
+	// Add enableAutoInstrumentation if provided
+	if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil {
+		params["enableAutoInstrumentation"] = *req.Configurations.EnableAutoInstrumentation
+	}
+
 	return params, nil
 }
 
@@ -1366,6 +1371,14 @@ func extractWorkflowDetailsFromCR(agent *models.AgentResponse, workflow map[stri
 				}
 			}
 		}
+
+		// Extract enableAutoInstrumentation
+		if enableAutoInstrumentation, ok := params["enableAutoInstrumentation"].(bool); ok {
+			if agent.Configurations == nil {
+				agent.Configurations = &models.Configurations{}
+			}
+			agent.Configurations.EnableAutoInstrumentation = &enableAutoInstrumentation
+		}
 	}
 }
 
@@ -1421,6 +1434,14 @@ func extractComponentWorkflowDetails(agent *models.AgentResponse, workflow *gen.
 				agent.InputInterface.Schema.Path = schemaPath
 			}
 		}
+	}
+
+	// Extract enableAutoInstrumentation
+	if enableAutoInstrumentation, ok := params["enableAutoInstrumentation"].(bool); ok {
+		if agent.Configurations == nil {
+			agent.Configurations = &models.Configurations{}
+		}
+		agent.Configurations.EnableAutoInstrumentation = &enableAutoInstrumentation
 	}
 
 	// Extract git repository info from systemParameters

@@ -19,10 +19,11 @@ var _ MappedNullable = &UpdateAgentBuildParametersRequest{}
 
 // UpdateAgentBuildParametersRequest struct for UpdateAgentBuildParametersRequest
 type UpdateAgentBuildParametersRequest struct {
-	Provisioning   Provisioning   `json:"provisioning"`
-	AgentType      AgentType      `json:"agentType"`
-	Build          Build          `json:"build"`
-	InputInterface InputInterface `json:"inputInterface"`
+	Provisioning   Provisioning    `json:"provisioning"`
+	AgentType      AgentType       `json:"agentType"`
+	Build          Build           `json:"build"`
+	InputInterface InputInterface  `json:"inputInterface"`
+	Configurations *Configurations `json:"configurations,omitempty"`
 }
 
 // NewUpdateAgentBuildParametersRequest instantiates a new UpdateAgentBuildParametersRequest object
@@ -156,6 +157,9 @@ func (o UpdateAgentBuildParametersRequest) ToMap() (map[string]interface{}, erro
 	toSerialize["agentType"] = o.AgentType
 	toSerialize["build"] = o.Build
 	toSerialize["inputInterface"] = o.InputInterface
+	if !IsNil(o.Configurations) {
+		toSerialize["configurations"] = o.Configurations
+	}
 	return toSerialize, nil
 }
 

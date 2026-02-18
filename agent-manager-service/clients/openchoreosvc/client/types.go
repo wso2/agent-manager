@@ -92,9 +92,10 @@ type DockerConfig struct {
 	DockerfilePath string
 }
 
-// Configurations contains environment variables for runtime
+// Configurations contains environment variables and other runtime configurations
 type Configurations struct {
-	Env []EnvVar
+	Env                       []EnvVar
+	EnableAutoInstrumentation *bool
 }
 
 // InputInterfaceConfig contains the endpoint configuration for custom-api agents
@@ -116,6 +117,7 @@ type UpdateComponentBuildParametersRequest struct {
 	Repository     *RepositoryConfig     // nil if no change
 	Build          *BuildConfig          // nil if no change
 	InputInterface *InputInterfaceConfig // nil if no change
+	Configurations *Configurations       // nil if no change
 }
 
 // UpdateComponentResourceConfigsRequest contains data for updating resource configurations of a component
