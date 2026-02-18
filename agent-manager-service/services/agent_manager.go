@@ -169,6 +169,12 @@ func mapInputInterface(specInterface *spec.InputInterface) *client.InputInterfac
 // For buildpack builds (Python): attaches OTEL instrumentation trait
 // For docker builds: injects tracing environment variables
 func (s *agentManagerService) enableInstrumentation(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
+	// Check if auto instrumentation is explicitly disabled
+	if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil && !*req.Configurations.EnableAutoInstrumentation {
+		s.logger.Info("Auto instrumentation disabled by user", "agentName", req.Name)
+		return nil
+	}
+
 	if req.AgentType.Type != string(utils.AgentTypeAPI) {
 		s.logger.Debug("Skipping instrumentation for non-API agent", "agentName", req.Name, "agentType", req.AgentType.Type)
 		return nil

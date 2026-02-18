@@ -21,6 +21,8 @@ var _ MappedNullable = &Configurations{}
 type Configurations struct {
 	// Environment variables
 	Env []EnvironmentVariable `json:"env,omitempty"`
+	// Enable automatic OTEL instrumentation for the agent
+	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
 }
 
 // NewConfigurations instantiates a new Configurations object
@@ -72,6 +74,38 @@ func (o *Configurations) SetEnv(v []EnvironmentVariable) {
 	o.Env = v
 }
 
+// GetEnableAutoInstrumentation returns the EnableAutoInstrumentation field value if set, zero value otherwise.
+func (o *Configurations) GetEnableAutoInstrumentation() bool {
+	if o == nil || IsNil(o.EnableAutoInstrumentation) {
+		var ret bool
+		return ret
+	}
+	return *o.EnableAutoInstrumentation
+}
+
+// GetEnableAutoInstrumentationOk returns a tuple with the EnableAutoInstrumentation field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *Configurations) GetEnableAutoInstrumentationOk() (*bool, bool) {
+	if o == nil || IsNil(o.EnableAutoInstrumentation) {
+		return nil, false
+	}
+	return o.EnableAutoInstrumentation, true
+}
+
+// HasEnableAutoInstrumentation returns a boolean if a field has been set.
+func (o *Configurations) HasEnableAutoInstrumentation() bool {
+	if o != nil && !IsNil(o.EnableAutoInstrumentation) {
+		return true
+	}
+
+	return false
+}
+
+// SetEnableAutoInstrumentation gets a reference to the given bool and assigns it to the EnableAutoInstrumentation field.
+func (o *Configurations) SetEnableAutoInstrumentation(v bool) {
+	o.EnableAutoInstrumentation = &v
+}
+
 func (o Configurations) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -84,6 +118,9 @@ func (o Configurations) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	if !IsNil(o.Env) {
 		toSerialize["env"] = o.Env
+	}
+	if !IsNil(o.EnableAutoInstrumentation) {
+		toSerialize["enableAutoInstrumentation"] = o.EnableAutoInstrumentation
 	}
 	return toSerialize, nil
 }
