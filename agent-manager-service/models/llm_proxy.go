@@ -50,12 +50,12 @@ func (LLMProxy) TableName() string {
 
 // LLMProxyConfig represents the LLM proxy configuration
 type LLMProxyConfig struct {
-	Name         string          `json:"name,omitempty" db:"-"`
-	Version      string          `json:"version,omitempty" db:"-"`
-	Context      *string         `json:"context,omitempty" db:"-"`
-	Vhost        *string         `json:"vhost,omitempty" db:"-"`
-	Provider     string          `json:"provider,omitempty" db:"-"`
-	UpstreamAuth *UpstreamAuth   `json:"upstreamAuth,omitempty" db:"-"`
-	Policies     []LLMPolicy     `json:"policies,omitempty" db:"-"`
-	Security     *SecurityConfig `json:"security,omitempty" db:"-"`
+	Name         string          `json:"name,omitempty"`
+	Version      string          `json:"version,omitempty"`
+	Context      *string         `json:"context,omitempty"`
+	Vhost        *string         `json:"vhost,omitempty"`
+	Provider     string          `json:"provider,omitempty"`
+	UpstreamAuth *UpstreamAuth   `json:"upstreamAuth,omitempty"`
+	Policies     []LLMPolicy     `json:"policies,omitempty"`
+	Security     *SecurityConfig `json:"security,omitempty"`
 }

@@ -192,7 +192,11 @@ func (s *catalogService) populateConfiguration(entry *models.CatalogLLMProviderE
 	// Parse model providers
 	if provider.ModelList != "" {
 		var modelProviders []models.LLMModelProvider
-		if err := json.Unmarshal([]byte(provider.ModelList), &modelProviders); err == nil {
+		if err := json.Unmarshal([]byte(provider.ModelList), &modelProviders); err != nil {
+			s.logger.Warn("Failed to parse model list",
+				"providerUUID", entry.UUID,
+				"error", err)
+		} else {
 			entry.ModelProviders = modelProviders
 		}
 	}
@@ -301,12 +305,17 @@ func (s *catalogService) populateDeployments(entry *models.CatalogLLMProviderEnt
 			UpdatedAt *time.Time              `gorm:"column:updated_at"`
 		}
 
-		if err := s.db.
+		result := s.db.
 			Table("deployment_status").
 			Select("status, updated_at").
 			Where("artifact_uuid = ? AND gateway_uuid = ? AND organization_uuid = ?", entry.UUID, gatewayUUID, orgUUID).
-			Scan(&deployment).Error; err != nil {
-			s.logger.Warn("Failed to get deployment status", "gatewayID", gatewayID, "error", err)
+			Scan(&deployment)
+		if result.Error != nil {
+			s.logger.Warn("Failed to get deployment status", "gatewayID", gatewayID, "error", result.Error)
+			continue
+		}
+		if result.RowsAffected == 0 {
+			s.logger.Warn("No deployment status found for gateway", "gatewayID", gatewayID)
 			continue
 		}
 

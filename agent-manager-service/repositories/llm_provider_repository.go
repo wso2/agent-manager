@@ -98,7 +98,6 @@ func (r *LLMProviderRepo) GetByUUID(providerID, orgUUID string) (*models.LLMProv
 	var provider models.LLMProvider
 	err := r.db.
 		Preload("Artifact").
-		Select("llm_providers.*, a.in_catalog as in_catalog").
 		Joins("JOIN artifacts a ON llm_providers.uuid = a.uuid").
 		Where("a.uuid = ? AND a.organization_uuid = ? AND a.kind = ?", providerID, orgUUID, models.KindLLMProvider).
 		First(&provider).Error
@@ -109,6 +108,11 @@ func (r *LLMProviderRepo) GetByUUID(providerID, orgUUID string) (*models.LLMProv
 		}
 		slog.Error("LLMProviderRepo.GetByID: query failed", "providerID", providerID, "orgUUID", orgUUID, "error", err)
 		return nil, err
+	}
+
+	// Populate InCatalog from preloaded Artifact
+	if provider.Artifact != nil {
+		provider.InCatalog = provider.Artifact.InCatalog
 	}
 
 	slog.Info("LLMProviderRepo.GetByID: completed successfully", "providerID", providerID, "orgUUID", orgUUID, "uuid", provider.UUID)
@@ -122,7 +126,6 @@ func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*models.LLM
 	var providers []*models.LLMProvider
 	err := r.db.
 		Preload("Artifact").
-		Select("llm_providers.*, a.in_catalog as in_catalog").
 		Joins("JOIN artifacts a ON llm_providers.uuid = a.uuid").
 		Where("a.organization_uuid = ? AND a.kind = ?", orgUUID, models.KindLLMProvider).
 		Order("a.created_at DESC").
@@ -132,6 +135,13 @@ func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*models.LLM
 	if err != nil {
 		slog.Error("LLMProviderRepo.List: query failed", "orgUUID", orgUUID, "error", err)
 		return providers, err
+	}
+
+	// Populate InCatalog from preloaded Artifact for each provider
+	for _, provider := range providers {
+		if provider.Artifact != nil {
+			provider.InCatalog = provider.Artifact.InCatalog
+		}
 	}
 
 	slog.Info("LLMProviderRepo.List: completed successfully", "orgUUID", orgUUID, "count", len(providers))

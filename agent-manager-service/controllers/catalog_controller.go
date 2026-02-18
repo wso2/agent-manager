@@ -56,6 +56,11 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	org, err := c.orgRepo.GetOrganizationByName(orgName)
 	if err != nil {
 		log.Error("ListCatalog: failed to get organization", "orgName", orgName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to resolve organization")
+		return
+	}
+	if org == nil {
+		log.Error("ListCatalog: organization not found", "orgName", orgName)
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
 		return
 	}
@@ -263,13 +268,31 @@ func convertRateLimitingScope(scope *models.RateLimitingScope) *spec.RateLimitin
 	}
 
 	if scope.RequestLimitCount != nil {
-		count := int32(*scope.RequestLimitCount)
-		result.RequestLimitCount = &count
+		// Bounds check before converting int to int32
+		if *scope.RequestLimitCount > 2147483647 {
+			count := int32(2147483647)
+			result.RequestLimitCount = &count
+		} else if *scope.RequestLimitCount < -2147483648 {
+			count := int32(-2147483648)
+			result.RequestLimitCount = &count
+		} else {
+			count := int32(*scope.RequestLimitCount)
+			result.RequestLimitCount = &count
+		}
 	}
 
 	if scope.TokenLimitCount != nil {
-		count := int32(*scope.TokenLimitCount)
-		result.TokenLimitCount = &count
+		// Bounds check before converting int to int32
+		if *scope.TokenLimitCount > 2147483647 {
+			count := int32(2147483647)
+			result.TokenLimitCount = &count
+		} else if *scope.TokenLimitCount < -2147483648 {
+			count := int32(-2147483648)
+			result.TokenLimitCount = &count
+		} else {
+			count := int32(*scope.TokenLimitCount)
+			result.TokenLimitCount = &count
+		}
 	}
 
 	if scope.CostLimitAmount != nil {

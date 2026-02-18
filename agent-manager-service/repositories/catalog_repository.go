@@ -17,6 +17,7 @@
 package repositories
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -172,7 +173,10 @@ func (r *CatalogRepo) ListLLMProviders(orgUUID string, environmentName *string, 
 	// Convert to entries (deployments will be populated by service layer)
 	entries := make([]models.CatalogLLMProviderEntry, 0, len(rows))
 	for _, row := range rows {
-		providerUUID, _ := uuid.Parse(row.UUID)
+		providerUUID, err := uuid.Parse(row.UUID)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to parse provider UUID %q: %w", row.UUID, err)
+		}
 		entry := models.CatalogLLMProviderEntry{
 			UUID:        providerUUID,
 			Handle:      row.Handle,
