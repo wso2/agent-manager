@@ -12,6 +12,7 @@ package spec
 
 import (
 	"encoding/json"
+	"time"
 )
 
 // checks if the DeploymentSummary type satisfies the MappedNullable interface at compile time
@@ -27,6 +28,8 @@ type DeploymentSummary struct {
 	EnvironmentName *string `json:"environmentName,omitempty"`
 	// Deployment status
 	Status string `json:"status"`
+	// Timestamp when the resource was deployed
+	DeployedAt *time.Time `json:"deployedAt,omitempty"`
 	// Gateway virtual host
 	Vhost *string `json:"vhost,omitempty"`
 }
@@ -155,6 +158,38 @@ func (o *DeploymentSummary) SetStatus(v string) {
 	o.Status = v
 }
 
+// GetDeployedAt returns the DeployedAt field value if set, zero value otherwise.
+func (o *DeploymentSummary) GetDeployedAt() time.Time {
+	if o == nil || IsNil(o.DeployedAt) {
+		var ret time.Time
+		return ret
+	}
+	return *o.DeployedAt
+}
+
+// GetDeployedAtOk returns a tuple with the DeployedAt field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *DeploymentSummary) GetDeployedAtOk() (*time.Time, bool) {
+	if o == nil || IsNil(o.DeployedAt) {
+		return nil, false
+	}
+	return o.DeployedAt, true
+}
+
+// HasDeployedAt returns a boolean if a field has been set.
+func (o *DeploymentSummary) HasDeployedAt() bool {
+	if o != nil && !IsNil(o.DeployedAt) {
+		return true
+	}
+
+	return false
+}
+
+// SetDeployedAt gets a reference to the given time.Time and assigns it to the DeployedAt field.
+func (o *DeploymentSummary) SetDeployedAt(v time.Time) {
+	o.DeployedAt = &v
+}
+
 // GetVhost returns the Vhost field value if set, zero value otherwise.
 func (o *DeploymentSummary) GetVhost() string {
 	if o == nil || IsNil(o.Vhost) {
@@ -203,6 +238,9 @@ func (o DeploymentSummary) ToMap() (map[string]interface{}, error) {
 		toSerialize["environmentName"] = o.EnvironmentName
 	}
 	toSerialize["status"] = o.Status
+	if !IsNil(o.DeployedAt) {
+		toSerialize["deployedAt"] = o.DeployedAt
+	}
 	if !IsNil(o.Vhost) {
 		toSerialize["vhost"] = o.Vhost
 	}

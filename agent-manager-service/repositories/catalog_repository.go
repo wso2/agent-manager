@@ -183,7 +183,8 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 			Joins("JOIN deployment_status ds ON llm_providers.uuid = ds.artifact_uuid AND ds.organization_uuid = a.organization_uuid").
 			Joins("JOIN gateway_environment_mappings gem ON ds.gateway_uuid = gem.gateway_uuid").
 			Where("gem.environment_uuid = ? AND ds.status = ?",
-				filters.EnvironmentUUID, models.DeploymentStatusDeployed)
+					filters.EnvironmentUUID, models.DeploymentStatusDeployed).
+			Distinct() // Ensure unique providers (one provider can have multiple deployments)
 	}
 
 	if filters.HasNameFilter() {
@@ -257,12 +258,15 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 
 				// Security summary
 				if config.Security != nil {
+					enabled := config.Security.Enabled != nil && *config.Security.Enabled
+					apiKeyEnabled := config.Security.APIKey != nil && config.Security.APIKey.Enabled != nil && *config.Security.APIKey.Enabled
 					entry.Security = &models.SecuritySummary{
-						Enabled:       config.Security.Enabled != nil && *config.Security.Enabled,
-						APIKeyEnabled: config.Security.APIKey != nil && config.Security.APIKey.Enabled != nil && *config.Security.APIKey.Enabled,
+						Enabled:       &enabled,
+						APIKeyEnabled: &apiKeyEnabled,
 					}
-					if config.Security.APIKey != nil {
-						entry.Security.APIKeyIn = config.Security.APIKey.In
+					if config.Security.APIKey != nil && config.Security.APIKey.In != "" {
+						apiKeyIn := config.Security.APIKey.In
+						entry.Security.APIKeyIn = &apiKeyIn
 					}
 				}
 
@@ -399,11 +403,16 @@ func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProv
 			}
 
 			deployment := models.DeploymentSummary{
-				GatewayID:       gatewayUUID,
-				GatewayName:     row.GatewayName,
-				EnvironmentName: row.EnvironmentUUID,
-				Status:          status,
-				VHost:           row.GatewayVHost,
+				GatewayID:   gatewayUUID,
+				GatewayName: row.GatewayName,
+				Status:      status,
+				DeployedAt:  row.DeploymentUpdatedAt,
+				VHost:       row.GatewayVHost,
+			}
+			// Store environment UUID temporarily; service layer will resolve to name
+			if row.EnvironmentUUID != "" {
+				envUUID := row.EnvironmentUUID
+				deployment.EnvironmentName = &envUUID
 			}
 			deployments = append(deployments, deployment)
 		}
@@ -431,10 +440,12 @@ func extractRateLimitingScopeFromConfig(scopeConfig *models.RateLimitingScopeCon
 	// Extract global limits if present
 	if scopeConfig.Global != nil {
 		if scopeConfig.Global.Request != nil && scopeConfig.Global.Request.Enabled {
-			scope.RequestLimitCount = &scopeConfig.Global.Request.Count
+			count32 := int32(scopeConfig.Global.Request.Count)
+			scope.RequestLimitCount = &count32
 		}
 		if scopeConfig.Global.Token != nil && scopeConfig.Global.Token.Enabled {
-			scope.TokenLimitCount = &scopeConfig.Global.Token.Count
+			count32 := int32(scopeConfig.Global.Token.Count)
+			scope.TokenLimitCount = &count32
 		}
 		if scopeConfig.Global.Cost != nil && scopeConfig.Global.Cost.Enabled {
 			scope.CostLimitAmount = &scopeConfig.Global.Cost.Amount

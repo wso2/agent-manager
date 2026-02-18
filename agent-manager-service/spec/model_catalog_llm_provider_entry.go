@@ -28,7 +28,7 @@ type CatalogLLMProviderEntry struct {
 	Name string `json:"name"`
 	// Version of the provider
 	Version string `json:"version"`
-	// Resource type (always \"llmProvider\" for this schema)
+	// Resource type (always \"LlmProvider\" for this schema)
 	Kind string `json:"kind"`
 	// Whether the provider is available in the catalog
 	InCatalog bool `json:"inCatalog"`

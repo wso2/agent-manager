@@ -240,11 +240,14 @@ func (s *catalogService) ListLLMProviders(ctx context.Context, filters *models.C
 
 			// Resolve environment UUIDs to names for each deployment
 			for j := range entry.Deployments {
-				envUUID := entry.Deployments[j].EnvironmentName
-				if envName, ok := envMap[envUUID]; ok {
-					entry.Deployments[j].EnvironmentName = envName
+				if entry.Deployments[j].EnvironmentName != nil {
+					envUUID := *entry.Deployments[j].EnvironmentName
+					if envName, ok := envMap[envUUID]; ok {
+						envNameCopy := envName
+						entry.Deployments[j].EnvironmentName = &envNameCopy
+					}
+					// If not found in map, keep the UUID
 				}
-				// If not found in map, keep the UUID (or use gateway name as fallback)
 			}
 		}
 	}

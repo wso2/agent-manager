@@ -18,7 +18,6 @@ package controllers
 
 import (
 	"fmt"
-	"log/slog"
 	"math"
 	"net/http"
 	"strings"
@@ -159,9 +158,9 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 }
 
 func convertToCatalogListResponse(entries []models.CatalogEntry, total, limit, offset int32) *spec.CatalogListResponse {
-	specEntries := make([]spec.CatalogEntry, len(entries))
+	specEntries := make([]spec.CatalogListResponseEntriesInner, len(entries))
 	for i, entry := range entries {
-		specEntries[i] = spec.CatalogEntry{
+		catalogEntry := spec.CatalogEntry{
 			Uuid:      entry.UUID.String(),
 			Handle:    entry.Handle,
 			Name:      entry.Name,
@@ -170,6 +169,7 @@ func convertToCatalogListResponse(entries []models.CatalogEntry, total, limit, o
 			InCatalog: entry.InCatalog,
 			CreatedAt: entry.CreatedAt,
 		}
+		specEntries[i] = spec.CatalogEntryAsCatalogListResponseEntriesInner(&catalogEntry)
 	}
 
 	return &spec.CatalogListResponse{
@@ -268,9 +268,9 @@ func convertModelProviders(providers []models.LLMModelProvider) []spec.LLMModelP
 
 func convertSecuritySummary(security *models.SecuritySummary) *spec.SecuritySummary {
 	return &spec.SecuritySummary{
-		Enabled:       &security.Enabled,
-		ApiKeyEnabled: &security.APIKeyEnabled,
-		ApiKeyIn:      &security.APIKeyIn,
+		Enabled:       security.Enabled,
+		ApiKeyEnabled: security.APIKeyEnabled,
+		ApiKeyIn:      security.APIKeyIn,
 	}
 }
 
@@ -294,31 +294,9 @@ func convertRateLimitingScope(scope *models.RateLimitingScope) *spec.RateLimitin
 		ResourceWiseEnabled: &scope.ResourceWiseEnabled,
 	}
 
-	if scope.RequestLimitCount != nil {
-		if count, valid := safeIntToInt32(*scope.RequestLimitCount); valid {
-			result.RequestLimitCount = &count
-		} else {
-			// Log data integrity issue but don't fail the request
-			// This indicates database corruption or invalid configuration
-			logger := slog.Default()
-			logger.Warn("Invalid rate limit value detected, skipping field",
-				"field", "requestLimitCount",
-				"value", *scope.RequestLimitCount,
-				"reason", "negative or overflow")
-		}
-	}
-
-	if scope.TokenLimitCount != nil {
-		if count, valid := safeIntToInt32(*scope.TokenLimitCount); valid {
-			result.TokenLimitCount = &count
-		} else {
-			logger := slog.Default()
-			logger.Warn("Invalid rate limit value detected, skipping field",
-				"field", "tokenLimitCount",
-				"value", *scope.TokenLimitCount,
-				"reason", "negative or overflow")
-		}
-	}
+	// Model already has int32, no conversion needed
+	result.RequestLimitCount = scope.RequestLimitCount
+	result.TokenLimitCount = scope.TokenLimitCount
 
 	if scope.CostLimitAmount != nil {
 		result.CostLimitAmount = scope.CostLimitAmount
@@ -360,15 +338,13 @@ func safeIntToInt32(val int) (int32, bool) {
 func convertDeploymentSummaries(deployments []models.DeploymentSummary) []spec.DeploymentSummary {
 	result := make([]spec.DeploymentSummary, len(deployments))
 	for i, d := range deployments {
-		environmentName := d.EnvironmentName
-
 		result[i] = spec.DeploymentSummary{
 			GatewayId:       d.GatewayID.String(),
 			GatewayName:     d.GatewayName,
-			EnvironmentName: &environmentName,
+			EnvironmentName: d.EnvironmentName,
 			Status:          string(d.Status),
+			DeployedAt:      d.DeployedAt,
 		}
-		// Note: DeployedAt field is not in spec, skipping
 		if d.VHost != "" {
 			result[i].Vhost = &d.VHost
 		}

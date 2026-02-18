@@ -20,7 +20,7 @@ var _ MappedNullable = &CatalogListResponse{}
 // CatalogListResponse struct for CatalogListResponse
 type CatalogListResponse struct {
 	// List of catalog entries
-	Entries []CatalogEntry `json:"entries"`
+	Entries []CatalogListResponseEntriesInner `json:"entries"`
 	// Total number of entries matching the filter
 	Total int32 `json:"total"`
 	// Maximum number of results returned
@@ -33,7 +33,7 @@ type CatalogListResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewCatalogListResponse(entries []CatalogEntry, total int32, limit int32, offset int32) *CatalogListResponse {
+func NewCatalogListResponse(entries []CatalogListResponseEntriesInner, total int32, limit int32, offset int32) *CatalogListResponse {
 	this := CatalogListResponse{}
 	this.Entries = entries
 	this.Total = total
@@ -51,9 +51,9 @@ func NewCatalogListResponseWithDefaults() *CatalogListResponse {
 }
 
 // GetEntries returns the Entries field value
-func (o *CatalogListResponse) GetEntries() []CatalogEntry {
+func (o *CatalogListResponse) GetEntries() []CatalogListResponseEntriesInner {
 	if o == nil {
-		var ret []CatalogEntry
+		var ret []CatalogListResponseEntriesInner
 		return ret
 	}
 
@@ -62,7 +62,7 @@ func (o *CatalogListResponse) GetEntries() []CatalogEntry {
 
 // GetEntriesOk returns a tuple with the Entries field value
 // and a boolean to check if the value has been set.
-func (o *CatalogListResponse) GetEntriesOk() ([]CatalogEntry, bool) {
+func (o *CatalogListResponse) GetEntriesOk() ([]CatalogListResponseEntriesInner, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -70,7 +70,7 @@ func (o *CatalogListResponse) GetEntriesOk() ([]CatalogEntry, bool) {
 }
 
 // SetEntries sets field value
-func (o *CatalogListResponse) SetEntries(v []CatalogEntry) {
+func (o *CatalogListResponse) SetEntries(v []CatalogListResponseEntriesInner) {
 	o.Entries = v
 }
 

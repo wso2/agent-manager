@@ -2748,7 +2748,7 @@ paths:
         Retrieve a paginated list of resources available in the organization's catalog.
 
         **Resource Types:**
-        - llmProvider: LLM providers marked as available in catalog (in_catalog = TRUE)
+        - LlmProvider: LLM providers marked as available in catalog (in_catalog = TRUE)
         - agent: Agents from OpenChoreo (all agents are in catalog)
         - mcp: MCP resources from OpenChoreo (all MCPs are in catalog)
 
@@ -2765,13 +2765,14 @@ paths:
               - LlmProvider
               - agent
               - mcp
-        - name: environmentName
+        - name: environmentId
           in: query
-          description: Filter by environment/gateway name (only applicable for llmProvider kind)
+          description: Filter by environment UUID (only applicable for LlmProvider kind)
           required: false
           schema:
             type: string
-            example: "production"
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
         - name: limit
           in: query
           description: Maximum number of results to return
@@ -8417,7 +8418,13 @@ components:
           type: array
           description: List of catalog entries
           items:
-            $ref: '#/components/schemas/CatalogEntry'
+            oneOf:
+              - $ref: '#/components/schemas/CatalogEntry'
+              - $ref: '#/components/schemas/CatalogLLMProviderEntry'
+            discriminator:
+              propertyName: kind
+              mapping:
+                LlmProvider: '#/components/schemas/CatalogLLMProviderEntry'
         total:
           type: integer
           description: Total number of entries matching the filter
@@ -8463,10 +8470,10 @@ components:
           example: "1.0.0"
         kind:
           type: string
-          description: Resource type (always "llmProvider" for this schema)
+          description: Resource type (always "LlmProvider" for this schema)
           enum:
-            - llmProvider
-          example: "llmProvider"
+            - LlmProvider
+          example: "LlmProvider"
         inCatalog:
           type: boolean
           description: Whether the provider is available in the catalog
@@ -8595,6 +8602,11 @@ components:
             - UNDEPLOYED
             - ARCHIVED
           example: "DEPLOYED"
+        deployedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the resource was deployed
+          example: "2026-01-15T10:30:00Z"
         vhost:
           type: string
           description: Gateway virtual host

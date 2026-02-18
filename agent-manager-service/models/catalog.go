@@ -83,9 +83,9 @@ type CatalogLLMProviderEntry struct {
 
 // SecuritySummary provides security configuration overview
 type SecuritySummary struct {
-	Enabled       bool   `json:"enabled"`
-	APIKeyEnabled bool   `json:"apiKeyEnabled"`
-	APIKeyIn      string `json:"apiKeyIn,omitempty"`
+	Enabled       *bool   `json:"enabled,omitempty"`
+	APIKeyEnabled *bool   `json:"apiKeyEnabled,omitempty"`
+	APIKeyIn      *string `json:"apiKeyIn,omitempty"`
 }
 
 // RateLimitingSummary provides rate limiting overview
@@ -98,8 +98,8 @@ type RateLimitingSummary struct {
 type RateLimitingScope struct {
 	GlobalEnabled       bool     `json:"globalEnabled"`
 	ResourceWiseEnabled bool     `json:"resourceWiseEnabled"`
-	RequestLimitCount   *int     `json:"requestLimitCount,omitempty"`
-	TokenLimitCount     *int     `json:"tokenLimitCount,omitempty"`
+	RequestLimitCount   *int32   `json:"requestLimitCount,omitempty"`
+	TokenLimitCount     *int32   `json:"tokenLimitCount,omitempty"`
 	CostLimitAmount     *float64 `json:"costLimitAmount,omitempty"`
 }
 
@@ -107,7 +107,7 @@ type RateLimitingScope struct {
 type DeploymentSummary struct {
 	GatewayID       uuid.UUID        `json:"gatewayId"`
 	GatewayName     string           `json:"gatewayName"`
-	EnvironmentName string           `json:"environmentName"`
+	EnvironmentName *string          `json:"environmentName,omitempty"`
 	Status          DeploymentStatus `json:"status"`
 	DeployedAt      *time.Time       `json:"deployedAt,omitempty"`
 	VHost           string           `json:"vhost,omitempty"`

@@ -23,13 +23,13 @@ import (
 type CatalogAPIService service
 
 type ApiListCatalogResourcesRequest struct {
-	ctx             context.Context
-	ApiService      *CatalogAPIService
-	orgName         string
-	kind            *string
-	environmentName *string
-	limit           *int32
-	offset          *int32
+	ctx           context.Context
+	ApiService    *CatalogAPIService
+	orgName       string
+	kind          *string
+	environmentId *string
+	limit         *int32
+	offset        *int32
 }
 
 // Filter by resource type
@@ -38,9 +38,9 @@ func (r ApiListCatalogResourcesRequest) Kind(kind string) ApiListCatalogResource
 	return r
 }
 
-// Filter by environment/gateway name (only applicable for llmProvider kind)
-func (r ApiListCatalogResourcesRequest) EnvironmentName(environmentName string) ApiListCatalogResourcesRequest {
-	r.environmentName = &environmentName
+// Filter by environment UUID (only applicable for LlmProvider kind)
+func (r ApiListCatalogResourcesRequest) EnvironmentId(environmentId string) ApiListCatalogResourcesRequest {
+	r.environmentId = &environmentId
 	return r
 }
 
@@ -66,7 +66,7 @@ ListCatalogResources List catalog resources
 Retrieve a paginated list of resources available in the organization's catalog.
 
 **Resource Types:**
-- llmProvider: LLM providers marked as available in catalog (in_catalog = TRUE)
+- LlmProvider: LLM providers marked as available in catalog (in_catalog = TRUE)
 - agent: Agents from OpenChoreo (all agents are in catalog)
 - mcp: MCP resources from OpenChoreo (all MCPs are in catalog)
 
@@ -116,8 +116,8 @@ func (a *CatalogAPIService) ListCatalogResourcesExecute(r ApiListCatalogResource
 	if r.kind != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "kind", r.kind, "")
 	}
-	if r.environmentName != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "environmentName", r.environmentName, "")
+	if r.environmentId != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "environmentId", r.environmentId, "")
 	}
 	if r.limit != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")

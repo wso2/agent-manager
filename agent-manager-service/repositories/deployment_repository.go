@@ -26,6 +26,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // DeploymentRepository defines the interface for deployment data operations
@@ -425,7 +426,7 @@ func (r *DeploymentRepo) GetByArtifactAndGateway(artifactUUID, gatewayUUID, orgU
 		Scan(&deploymentID, &status, &updatedAt)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
+			return nil, utils.ErrArtifactNotFound
 		}
 		return nil, fmt.Errorf("failed to query deployment status: %w", err)
 	}
