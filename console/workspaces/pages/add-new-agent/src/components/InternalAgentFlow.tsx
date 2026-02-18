@@ -36,6 +36,7 @@ export const InternalAgentFlow: React.FC = () => {
 
   const [formData, setFormData] = useState<CreateAgentFormValues>({
     deploymentType: "new" as const,
+    enableAutoInstrumentation: true,
     name: "",
     displayName: "",
     description: "",

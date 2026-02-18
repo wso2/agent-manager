@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Alert, Collapse, Form, Stack, TextField, Typography } from "@wso2/oxygen-ui";
+import { Alert, Checkbox, Collapse, Form, FormControlLabel, Stack, TextField, Typography } from "@wso2/oxygen-ui";
 import { useEffect, useMemo, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
@@ -262,8 +262,20 @@ export const InternalAgentForm = ({
                   />
                 </Form.ElementWrapper>
               </Form.Stack>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.enableAutoInstrumentation ?? true}
+                    onChange={(e) => handleFieldChange('enableAutoInstrumentation', e.target.checked)}
+                  />
+                }
+                label="Enable auto instrumentation"
+              />
+              <Typography variant="body2" color="text.secondary">
+                Automatically adds OTEL tracing instrumentation to your agent for observability.
+              </Typography>
             </Collapse>
-          
+
 
           <Collapse in={formData.language === "docker"}>
           <Stack  spacing={2}>
