@@ -1186,8 +1186,13 @@ func (c *llmController) UpdateLLMProviderCatalogStatus(w http.ResponseWriter, r 
 	// Resolve organization UUID
 	orgUUID, err := c.resolveOrgUUID(ctx, orgName)
 	if err != nil {
-		log.Error("UpdateLLMProviderCatalogStatus: failed to resolve org UUID", "orgName", orgName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+		if errors.Is(err, utils.ErrOrganizationNotFound) {
+			log.Error("UpdateLLMProviderCatalogStatus: organization not found", "orgName", orgName, "error", err)
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
+			return
+		}
+		log.Error("UpdateLLMProviderCatalogStatus: failed to resolve organization", "orgName", orgName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
