@@ -237,13 +237,13 @@ export function useNavigationItems(): Array<
             icon: <evalMetadata.pages.component.evalMonitors.icon size={20} />,
             isActive: !!matchPath(
               absoluteRouteMap.children.org.children.projects.children.agents
-                .children.environment.children.evaluation.children.monitor
+                .children.evaluation.children.monitor
                 .wildPath,
               pathname
             ),
             href: generatePath(
               absoluteRouteMap.children.org.children.projects.children.agents
-                .children.environment.children.evaluation.children.monitor
+                .children.evaluation.children.monitor
                 .path,
               { orgId, projectId, agentId, envId: defaultEnv }
             ),

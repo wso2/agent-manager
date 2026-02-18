@@ -13,9 +13,20 @@ import {
 import { Trash, Activity, AlertTriangle } from "@wso2/oxygen-ui-icons-react";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { absoluteRouteMap, type MonitorResponse } from "@agent-management-platform/types";
+import { absoluteRouteMap, MonitorStatus, type MonitorResponse } from "@agent-management-platform/types";
 import { useDeleteMonitor, useListEnvironments, useListMonitors } from "@agent-management-platform/api-client";
+import { MonitorStartStopButton } from "./MonitorStartStopButton";
 
+const getStatusColor = (status: MonitorStatus) => {
+    switch (status) {
+        case "Active":
+            return "success";
+        case "Suspended":
+            return "default";
+        default:
+            return "error";
+    }
+};
 
 export function MonitorTable() {
     const navigate = useNavigate();
@@ -29,7 +40,6 @@ export function MonitorTable() {
         agentId: string;
         envId: string;
     }>();
-
     const { data: monitorsList, isLoading, error } = useListMonitors({
         orgName: orgId ?? "",
     });
@@ -68,10 +78,10 @@ export function MonitorTable() {
             evaluators:
                 monitor.evaluators?.map((evaluator) => evaluator.name).filter(
                     (name): name is string => Boolean(name)) ?? [],
+            type: monitor.type,
             status: monitor.status ?? "Unknown",
         }));
     }, [environmentDisplayNameMap, monitorsList?.monitors]);
-
     const filteredMonitors = useMemo(() => {
         const term = searchValue.trim().toLowerCase();
         if (!term) {
@@ -173,7 +183,7 @@ export function MonitorTable() {
                 <ListingTable.Head>
                     <ListingTable.Row>
                         <ListingTable.Cell>Name</ListingTable.Cell>
-                        <ListingTable.Cell>Environment</ListingTable.Cell>
+                        <ListingTable.Cell align="center">Status</ListingTable.Cell>
                         <ListingTable.Cell>Data Source</ListingTable.Cell>
                         <ListingTable.Cell>Evaluators</ListingTable.Cell>
                         <ListingTable.Cell>Actions</ListingTable.Cell>
@@ -189,18 +199,27 @@ export function MonitorTable() {
                                 generatePath(
                                     absoluteRouteMap.children
                                         .org.children.projects.children.agents
-                                        .children.environment
                                         .children.evaluation.children.monitor
                                         .children.view.path,
                                     {
-                                        agentId, orgId, projectId, envId, monitorId: monitor.id
+                                        agentId, orgId, projectId, envId, monitorId: monitor.name
                                     }))}>
                             <ListingTable.Cell>
                                 <Stack spacing={0.5}>
-                                    <Typography variant="body1">{monitor.displayName}</Typography>
+                                    <Typography variant="body1">{monitor.displayName}
+
+                                    </Typography>
                                 </Stack>
                             </ListingTable.Cell>
-                            <ListingTable.Cell>{monitor.environment}</ListingTable.Cell>
+                            <ListingTable.Cell align="center">
+                                <Chip
+                                    size="small"
+                                    label={monitor.status}
+                                    variant="outlined"
+                                    color={getStatusColor(monitor.status)}
+                                    sx={{ ml: 1 }}
+                                />
+                            </ListingTable.Cell>
                             <ListingTable.Cell>{monitor.dataSource}</ListingTable.Cell>
                             <ListingTable.Cell>
                                 <Stack direction="row" spacing={1} flexWrap="wrap">
@@ -218,11 +237,12 @@ export function MonitorTable() {
                             </ListingTable.Cell>
                             <ListingTable.Cell onClick={(e) => e.stopPropagation()}>
                                 <Stack direction="row" spacing={1} alignItems="center">
-                                    {/* <Tooltip title="Edit Monitor">
-                                        <IconButton color="default">
-                                            <Edit size={16} />
-                                        </IconButton>
-                                    </Tooltip> */}
+                                    <MonitorStartStopButton
+                                        monitorName={monitor.name}
+                                        monitorType={monitor.type}
+                                        monitorStatus={monitor.status}
+                                        orgId={orgId}
+                                    />
                                     <Tooltip title="Delete Monitor">
                                         <IconButton color="error">
                                             <Trash size={16} onClick={() => addConfirmation(

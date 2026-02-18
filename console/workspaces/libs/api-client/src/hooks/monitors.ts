@@ -106,10 +106,13 @@ export function useStopMonitor() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
   return useMutation<MonitorResponse, unknown, StopMonitorPathParams>({
-    mutationFn: (mutationParams) => stopMonitor(mutationParams, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["monitors"] });
-      queryClient.invalidateQueries({ queryKey: ["monitor"] });
+    mutationFn: async (mutationParams) => {
+      const response = await stopMonitor(mutationParams, getToken);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["monitors"] }),
+        queryClient.invalidateQueries({ queryKey: ["monitor"] }),
+      ]);
+      return response;
     },
   });
 }
@@ -118,10 +121,13 @@ export function useStartMonitor() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
   return useMutation<MonitorResponse, unknown, StartMonitorPathParams>({
-    mutationFn: (mutationParams) => startMonitor(mutationParams, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["monitors"] });
-      queryClient.invalidateQueries({ queryKey: ["monitor"] });
+    mutationFn: async (mutationParams) => {
+      const response = await startMonitor(mutationParams, getToken);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["monitors"] }),
+        queryClient.invalidateQueries({ queryKey: ["monitor"] }),
+      ]);
+      return response;
     },
   });
 }

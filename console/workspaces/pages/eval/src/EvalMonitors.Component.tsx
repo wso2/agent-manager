@@ -36,7 +36,7 @@ export const EvalMonitorsComponent: React.FC = () => {
       actions={<Button variant="contained" component={Link} to={
         generatePath(
           absoluteRouteMap.children.org.children.projects.children.agents
-            .children.environment.children.evaluation.children.monitor.children.create.path,
+            .children.evaluation.children.monitor.children.create.path,
           { orgId: orgId, projectId: projectId, agentId: agentId, envId: envId }
         )
       } endIcon={<Plus />} color="primary" >Add monitor</Button>}

@@ -24,14 +24,20 @@ import { CreateMonitorForm } from "./subComponents/CreateMonitorForm";
 import { SelectPresetMonitors } from "./subComponents/SelectPresetMonitors";
 import { Alert, Button, Stack } from "@wso2/oxygen-ui";
 import { ArrowLeft, ArrowRight } from "@wso2/oxygen-ui-icons-react";
-import { useCreateMonitor } from "@agent-management-platform/api-client";
+import { useCreateMonitor, useListEnvironments } from "@agent-management-platform/api-client";
 import { createMonitorSchema, type CreateMonitorFormValues } from "./form/schema";
 
 export const CreateMonitorComponent: React.FC = () => {
-    const { agentId, envId, orgId, projectId } = useParams<{
-        agentId: string, envId: string, orgId: string, projectId: string
+    const { agentId, orgId, projectId } = useParams<{
+        agentId: string, orgId: string, projectId: string
     }>();
     const navigate = useNavigate();
+    const { data, isLoading: isEnvironmentsLoading } = useListEnvironments({
+        orgName: orgId,
+    })
+
+    const envId = data && data.length > 0 ? data[0].name : undefined;
+
     const { mutate: createMonitor, isPending, error } = useCreateMonitor({
         orgName: orgId,
     });
@@ -69,9 +75,9 @@ export const CreateMonitorComponent: React.FC = () => {
         if (!orgId) return "Organization is required to create a monitor.";
         if (!projectId) return "Project context is required.";
         if (!agentId) return "Select an agent before creating a monitor.";
-        if (!envId) return "Select an environment before creating a monitor.";
+        if (!envId && !isEnvironmentsLoading) return "Select an environment before creating a monitor.";
         return null;
-    }, [agentId, envId, orgId, projectId]);
+    }, [agentId, orgId, projectId, envId, isEnvironmentsLoading]);
 
     const handleFieldChange = useCallback(
         (field: keyof CreateMonitorFormValues, rawValue: unknown) => {
@@ -160,7 +166,7 @@ export const CreateMonitorComponent: React.FC = () => {
                 navigate(
                     generatePath(
                         absoluteRouteMap.children.org.children.projects.children.agents
-                            .children.environment.children.evaluation.children.monitor.path,
+                            .children.evaluation.children.monitor.path,
                         { orgId, envId, projectId, agentId }
                     )
                 );
@@ -184,7 +190,7 @@ export const CreateMonitorComponent: React.FC = () => {
             backHref={
                 generatePath(
                     absoluteRouteMap.children.org.children.projects.children.agents
-                        .children.environment.children.evaluation.children.monitor.path,
+                        .children.evaluation.children.monitor.path,
                     { orgId, envId, projectId, agentId })
             }
         >

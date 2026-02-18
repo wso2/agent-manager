@@ -29,6 +29,7 @@ import PerformanceByEvaluatorCard, {
     AggregateStats,
     EvaluatorTrendPoint,
 } from "./subComponents/PerformanceByEvaluatorCard";
+import { useGetMonitor } from "@agent-management-platform/api-client";
 
 const radarMetrics = [
     "Tone",
@@ -111,8 +112,9 @@ const evaluationSummaryAverage = {
 };
 
 export const ViewMonitorComponent: React.FC = () => {
-    const { orgId, projectId, agentId, envId } = useParams();
-
+    const { orgId, projectId, agentId, envId, monitorId } = useParams();
+    const {data} = useGetMonitor({monitorName: monitorId!,  orgName: orgId!});
+console.log(useParams(), data)
     const aggregateStats = useMemo<AggregateStats>(() => {
         const scores = evaluatorTrend.map((point) => point.score);
         const avg = scores.reduce((acc, val) => acc + val, 0) / scores.length;
@@ -133,8 +135,7 @@ export const ViewMonitorComponent: React.FC = () => {
             backHref={
                 generatePath(
                     absoluteRouteMap.children.org.children.projects
-                        .children.agents.children.environment.children
-                        .evaluation.children.monitor.path,
+                        .children.agents.children.evaluation.children.monitor.path,
                     { orgId: orgId, projectId: projectId, agentId: agentId, envId: envId }
                 )
             }
