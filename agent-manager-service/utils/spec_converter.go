@@ -348,8 +348,14 @@ func ConvertModelToSpecLLMProxyResponse(model *models.LLMProxy) spec.LLMProxyRes
 		Configuration: ConvertModelToSpecLLMProxyConfig(model.Configuration),
 	}
 
-	if model.Artifact != nil {
-		resp.Artifact = ConvertModelToSpecArtifact(model.Artifact)
+	// Create artifact from derived fields if available
+	if model.ID != "" {
+		uuidStr := model.UUID.String()
+		resp.Artifact = &spec.Artifact{
+			Uuid:        &uuidStr,
+			Name:        &model.ID,
+			DisplayName: &model.Name,
+		}
 	}
 
 	return *resp
