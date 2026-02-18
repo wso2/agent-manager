@@ -48,6 +48,7 @@ type LLMController interface {
 	ListLLMProviders(w http.ResponseWriter, r *http.Request)
 	GetLLMProvider(w http.ResponseWriter, r *http.Request)
 	UpdateLLMProvider(w http.ResponseWriter, r *http.Request)
+	UpdateLLMProviderCatalogStatus(w http.ResponseWriter, r *http.Request)
 	DeleteLLMProvider(w http.ResponseWriter, r *http.Request)
 
 	// Proxy handlers
@@ -65,6 +66,7 @@ type llmController struct {
 	proxyService      *services.LLMProxyService
 	deploymentService *services.LLMProviderDeploymentService
 	orgRepo           repositories.OrganizationRepository
+	artifactRepo      repositories.ArtifactRepository
 	ocClient          client.OpenChoreoClient
 }
 
@@ -75,6 +77,7 @@ func NewLLMController(
 	proxyService *services.LLMProxyService,
 	deploymentService *services.LLMProviderDeploymentService,
 	orgRepo repositories.OrganizationRepository,
+	artifactRepo repositories.ArtifactRepository,
 	ocClient client.OpenChoreoClient,
 ) LLMController {
 	return &llmController{
@@ -83,6 +86,7 @@ func NewLLMController(
 		proxyService:      proxyService,
 		deploymentService: deploymentService,
 		orgRepo:           orgRepo,
+		artifactRepo:      artifactRepo,
 		ocClient:          ocClient,
 	}
 }
@@ -1159,4 +1163,50 @@ func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
+}
+
+// UpdateLLMProviderCatalogStatus handles PUT /orgs/{orgName}/llm-providers/{id}/catalog
+func (c *llmController) UpdateLLMProviderCatalogStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	orgName := r.PathValue(utils.PathParamOrgName)
+	providerID := r.PathValue("id")
+
+	// Resolve organization UUID
+	orgUUID, err := c.resolveOrgUUID(ctx, orgName)
+	if err != nil {
+		log.Error("UpdateLLMProviderCatalogStatus: failed to resolve org UUID", "orgName", orgName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+		return
+	}
+
+	// Decode request body
+	var req spec.UpdateLLMProviderCatalogRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Error("UpdateLLMProviderCatalogStatus: failed to decode request", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Update catalog status via service
+	provider, err := c.providerService.UpdateCatalogStatus(providerID, orgUUID, req.InCatalog, c.artifactRepo)
+	if err != nil {
+		switch {
+		case errors.Is(err, utils.ErrLLMProviderNotFound):
+			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			return
+		case errors.Is(err, utils.ErrInvalidInput):
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid provider ID")
+			return
+		default:
+			log.Error("UpdateLLMProviderCatalogStatus: failed to update catalog status", "error", err)
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update catalog status")
+			return
+		}
+	}
+
+	// Convert to response
+	response := utils.ConvertModelToSpecLLMProviderResponse(provider)
+	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }

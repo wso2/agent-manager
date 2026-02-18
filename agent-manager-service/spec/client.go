@@ -48,6 +48,8 @@ type APIClient struct {
 
 	// API Services
 
+	CatalogAPI *CatalogAPIService
+
 	DefaultAPI *DefaultAPIService
 
 	EnvironmentsAPI *EnvironmentsAPIService
@@ -85,6 +87,7 @@ func NewAPIClient(cfg *Configuration) *APIClient {
 	c.common.client = c
 
 	// API Services
+	c.CatalogAPI = (*CatalogAPIService)(&c.common)
 	c.DefaultAPI = (*DefaultAPIService)(&c.common)
 	c.EnvironmentsAPI = (*EnvironmentsAPIService)(&c.common)
 	c.GatewayEnvironmentMappingsAPI = (*GatewayEnvironmentMappingsAPIService)(&c.common)

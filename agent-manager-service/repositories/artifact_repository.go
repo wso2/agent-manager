@@ -31,6 +31,7 @@ type ArtifactRepository interface {
 	Create(tx *gorm.DB, artifact *models.Artifact) error
 	Delete(tx *gorm.DB, uuid string) error
 	Update(tx *gorm.DB, artifact *models.Artifact) error
+	UpdateCatalogStatus(tx *gorm.DB, uuid string, inCatalog bool) error
 	Exists(kind, handle, orgUUID string) (bool, error)
 	GetByHandle(handle, orgUUID string) (*models.Artifact, error)
 	CountByKindAndOrg(kind, orgUUID string) (int, error)
@@ -119,4 +120,22 @@ func (r *ArtifactRepo) CountByKindAndOrg(kind, orgUUID string) (int, error) {
 		Where("kind = ? AND organization_uuid = ?", kind, orgUUID).
 		Count(&count).Error
 	return int(count), err
+}
+
+// UpdateCatalogStatus updates the in_catalog field for an artifact
+func (r *ArtifactRepo) UpdateCatalogStatus(tx *gorm.DB, uuid string, inCatalog bool) error {
+	result := tx.Model(&models.Artifact{}).
+		Where("uuid = ?", uuid).
+		Updates(map[string]interface{}{
+			"in_catalog": inCatalog,
+			"updated_at": time.Now(),
+		})
+
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }

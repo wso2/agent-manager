@@ -38,6 +38,7 @@ func RegisterLLMRoutes(mux *http.ServeMux, ctrl controllers.LLMController) {
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/llm-providers/{id}", ctrl.GetLLMProvider)
 	middleware.HandleFuncWithValidation(mux, "GET /orgs/{orgName}/llm-providers/{id}/llm-proxies", ctrl.ListLLMProxiesByProvider)
 	middleware.HandleFuncWithValidation(mux, "PUT /orgs/{orgName}/llm-providers/{id}", ctrl.UpdateLLMProvider)
+	middleware.HandleFuncWithValidation(mux, "PUT /orgs/{orgName}/llm-providers/{id}/catalog", ctrl.UpdateLLMProviderCatalogStatus)
 	middleware.HandleFuncWithValidation(mux, "DELETE /orgs/{orgName}/llm-providers/{id}", ctrl.DeleteLLMProvider)
 
 	// LLM Proxies

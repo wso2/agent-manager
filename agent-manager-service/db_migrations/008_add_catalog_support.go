@@ -1,4 +1,4 @@
-// Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file except
@@ -16,17 +16,23 @@
 
 package dbmigrations
 
-const latestVersion = 8
+import (
+	"gorm.io/gorm"
+)
 
-// migration list sorted by version.  Add new migrations to the end of the list.
-// Previous migrations should not be modified.
-var migrations = []migration{
-	migration001,
-	migration002,
-	migration003,
-	migration004,
-	migration005,
-	migration006,
-	migration007,
-	migration008,
+// Add catalog support and agent configuration tables
+var migration008 = migration{
+	ID: 8,
+	Migrate: func(db *gorm.DB) error {
+		addCatalogSupportSQL := `
+			-- Add in_catalog column to artifacts table
+			ALTER TABLE artifacts ADD COLUMN in_catalog BOOLEAN DEFAULT FALSE;
+
+			-- Create index for catalog queries
+			CREATE INDEX idx_artifacts_in_catalog ON artifacts(in_catalog, organization_uuid);
+		`
+		return db.Transaction(func(tx *gorm.DB) error {
+			return runSQL(tx, addCatalogSupportSQL)
+		})
+	},
 }

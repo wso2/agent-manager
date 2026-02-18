@@ -803,3 +803,63 @@ func (s *LLMProviderService) GetProviderGatewayMapping(providerId uuid.UUID, org
 	}
 	return gws, nil
 }
+
+// UpdateCatalogStatus updates the catalog visibility status of an LLM provider
+func (s *LLMProviderService) UpdateCatalogStatus(providerID, orgID string, inCatalog bool, artifactRepo repositories.ArtifactRepository) (*models.LLMProvider, error) {
+	slog.Info("LLMProviderService.UpdateCatalogStatus: starting", "providerID", providerID, "orgID", orgID, "inCatalog", inCatalog)
+
+	// Validate UUIDs
+	_, err := uuid.Parse(providerID)
+	if err != nil {
+		slog.Error("LLMProviderService.UpdateCatalogStatus: invalid provider UUID", "providerID", providerID, "error", err)
+		return nil, utils.ErrInvalidInput
+	}
+
+	_, err = uuid.Parse(orgID)
+	if err != nil {
+		slog.Error("LLMProviderService.UpdateCatalogStatus: invalid org UUID", "orgID", orgID, "error", err)
+		return nil, utils.ErrInvalidInput
+	}
+
+	// Start transaction
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		slog.Error("LLMProviderService.UpdateCatalogStatus: failed to begin transaction", "error", tx.Error)
+		return nil, tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			slog.Error("LLMProviderService.UpdateCatalogStatus: panic recovered, rolling back", "panic", r)
+		}
+	}()
+
+	// Verify provider exists and belongs to org
+	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
+	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Error("LLMProviderService.UpdateCatalogStatus: provider not found", "providerID", providerID, "orgID", orgID)
+			return nil, utils.ErrLLMProviderNotFound
+		}
+		slog.Error("LLMProviderService.UpdateCatalogStatus: failed to get provider", "providerID", providerID, "error", err)
+		return nil, err
+	}
+
+	// Update artifact catalog status
+	err = artifactRepo.UpdateCatalogStatus(tx, providerID, inCatalog)
+	if err != nil {
+		tx.Rollback()
+		slog.Error("LLMProviderService.UpdateCatalogStatus: failed to update artifact catalog status", "providerID", providerID, "error", err)
+		return nil, err
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		slog.Error("LLMProviderService.UpdateCatalogStatus: failed to commit transaction", "error", err)
+		return nil, err
+	}
+
+	slog.Info("LLMProviderService.UpdateCatalogStatus: completed successfully", "providerID", providerID, "inCatalog", inCatalog)
+	return provider, nil
+}
