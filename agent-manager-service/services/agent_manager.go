@@ -285,10 +285,20 @@ func (s *agentManagerService) handleInstrumentationUpdate(ctx context.Context, o
 		if err := s.attachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); err != nil {
 			return fmt.Errorf("failed to attach instrumentation trait: %w", err)
 		}
-	} else if !enableInstrumentation && hasTrait {
-		s.logger.Info("Disabling instrumentation (detaching trait)", "agentName", agentName)
-		if err := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); err != nil {
-			return fmt.Errorf("failed to detach instrumentation trait: %w", err)
+	} else if !enableInstrumentation {
+		// Instrumentation is being disabled (or was already disabled).
+		// IMPORTANT: inject env vars into the Component CR *before* detaching the trait so
+		// that when OpenChoreo reconciles the trait removal and regenerates the ConfigMap it
+		// reads the already-updated CR and preserves AMP_OTEL_ENDPOINT / AMP_AGENT_API_KEY.
+		s.logger.Info("Injecting tracing env vars for Python agent with disabled instrumentation", "agentName", agentName)
+		if err := s.injectTracingEnvVarsByName(ctx, orgName, projectName, agentName); err != nil {
+			return fmt.Errorf("failed to inject tracing env vars: %w", err)
+		}
+		if hasTrait {
+			s.logger.Info("Disabling instrumentation (detaching trait)", "agentName", agentName)
+			if err := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); err != nil {
+				return fmt.Errorf("failed to detach instrumentation trait: %w", err)
+			}
 		}
 	} else {
 		s.logger.Debug("Instrumentation state unchanged", "agentName", agentName, "enabled", enableInstrumentation, "hasTrait", hasTrait)
@@ -326,12 +336,14 @@ func (s *agentManagerService) generateAgentAPIKey(ctx context.Context, orgName, 
 	return tokenResp.Token, nil
 }
 
-// injectTracingEnvVarsForDockerAgents injects tracing-related environment variables for docker-based agents
-func (s *agentManagerService) injectTracingEnvVarsForDockerAgents(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
-	s.logger.Debug("Injecting tracing environment variables for docker-based agent", "agentName", req.Name)
+// injectTracingEnvVarsByName injects tracing-related environment variables (OTEL endpoint and
+// agent API key) for the named agent. This is the common implementation used by both docker
+// and Python buildpack agents (the latter when auto-instrumentation is disabled).
+func (s *agentManagerService) injectTracingEnvVarsByName(ctx context.Context, orgName, projectName, agentName string) error {
+	s.logger.Debug("Injecting tracing environment variables", "agentName", agentName)
 
 	// Generate agent API key
-	apiKey, err := s.generateAgentAPIKey(ctx, orgName, projectName, req.Name)
+	apiKey, err := s.generateAgentAPIKey(ctx, orgName, projectName, agentName)
 	if err != nil {
 		return err
 	}
@@ -353,17 +365,23 @@ func (s *agentManagerService) injectTracingEnvVarsForDockerAgents(ctx context.Co
 	}
 
 	// Update component configurations with tracing environment variables
-	if err := s.updateComponentEnvVars(ctx, orgName, projectName, req.Name, tracingEnvVars); err != nil {
-		s.logger.Error("Failed to update component with tracing env vars", "agentName", req.Name, "error", err)
+	if err := s.updateComponentEnvVars(ctx, orgName, projectName, agentName, tracingEnvVars); err != nil {
+		s.logger.Error("Failed to update component with tracing env vars", "agentName", agentName, "error", err)
 		return fmt.Errorf("failed to update component env vars: %w", err)
 	}
 
-	s.logger.Info("Injected tracing environment variables for docker agent",
-		"agentName", req.Name,
+	s.logger.Info("Injected tracing environment variables",
+		"agentName", agentName,
 		"envVarCount", len(tracingEnvVars),
 	)
 
 	return nil
+}
+
+// injectTracingEnvVarsForDockerAgents injects tracing-related environment variables for docker-based agents
+func (s *agentManagerService) injectTracingEnvVarsForDockerAgents(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
+	s.logger.Debug("Injecting tracing environment variables for docker-based agent", "agentName", req.Name)
+	return s.injectTracingEnvVarsByName(ctx, orgName, projectName, req.Name)
 }
 
 // updateComponentEnvVars updates the component's workflow parameters with new environment variables
@@ -468,6 +486,20 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 			}
 		} else {
 			s.logger.Info("Auto instrumentation disabled by user", "agentName", req.Name)
+			// For Python buildpack agents, inject tracing env vars even when auto-instrumentation
+			// is disabled so the agent can reach the observability backend via the SDK manually,
+			// matching the behaviour of Docker-based agents.
+			if req.Build != nil && req.Build.BuildpackBuild != nil &&
+				req.Build.BuildpackBuild.Buildpack.Language == string(utils.LanguagePython) {
+				if err := s.injectTracingEnvVarsByName(ctx, orgName, projectName, req.Name); err != nil {
+					s.logger.Error("Failed to inject tracing env vars for disabled Python instrumentation", "agentName", req.Name, "error", err)
+					// Rollback - delete the created agent
+					if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+						s.logger.Error("Failed to rollback agent creation after env var injection failure", "agentName", req.Name, "error", errDeletion)
+					}
+					return err
+				}
+			}
 		}
 
 		// Trigger initial build
