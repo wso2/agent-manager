@@ -96,6 +96,7 @@ type DockerConfig struct {
 type Configurations struct {
 	Env                       []EnvVar
 	EnableAutoInstrumentation *bool
+	TraceContent              *bool
 }
 
 // InputInterfaceConfig contains the endpoint configuration for custom-api agents
