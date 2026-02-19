@@ -34,6 +34,8 @@ type DeployAgentRequest struct {
 func NewDeployAgentRequest(imageId string) *DeployAgentRequest {
 	this := DeployAgentRequest{}
 	this.ImageId = imageId
+	var enableAutoInstrumentation bool = true
+	this.EnableAutoInstrumentation = &enableAutoInstrumentation
 	return &this
 }
 
@@ -42,6 +44,8 @@ func NewDeployAgentRequest(imageId string) *DeployAgentRequest {
 // but it doesn't guarantee that properties required by API are set
 func NewDeployAgentRequestWithDefaults() *DeployAgentRequest {
 	this := DeployAgentRequest{}
+	var enableAutoInstrumentation bool = true
+	this.EnableAutoInstrumentation = &enableAutoInstrumentation
 	return &this
 }
 
@@ -99,6 +103,38 @@ func (o *DeployAgentRequest) HasEnv() bool {
 // SetEnv gets a reference to the given []EnvironmentVariable and assigns it to the Env field.
 func (o *DeployAgentRequest) SetEnv(v []EnvironmentVariable) {
 	o.Env = v
+}
+
+// GetEnableAutoInstrumentation returns the EnableAutoInstrumentation field value if set, zero value otherwise.
+func (o *DeployAgentRequest) GetEnableAutoInstrumentation() bool {
+	if o == nil || IsNil(o.EnableAutoInstrumentation) {
+		var ret bool
+		return ret
+	}
+	return *o.EnableAutoInstrumentation
+}
+
+// GetEnableAutoInstrumentationOk returns a tuple with the EnableAutoInstrumentation field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *DeployAgentRequest) GetEnableAutoInstrumentationOk() (*bool, bool) {
+	if o == nil || IsNil(o.EnableAutoInstrumentation) {
+		return nil, false
+	}
+	return o.EnableAutoInstrumentation, true
+}
+
+// HasEnableAutoInstrumentation returns a boolean if a field has been set.
+func (o *DeployAgentRequest) HasEnableAutoInstrumentation() bool {
+	if o != nil && !IsNil(o.EnableAutoInstrumentation) {
+		return true
+	}
+
+	return false
+}
+
+// SetEnableAutoInstrumentation gets a reference to the given bool and assigns it to the EnableAutoInstrumentation field.
+func (o *DeployAgentRequest) SetEnableAutoInstrumentation(v bool) {
+	o.EnableAutoInstrumentation = &v
 }
 
 func (o DeployAgentRequest) MarshalJSON() ([]byte, error) {

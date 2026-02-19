@@ -1053,6 +1053,10 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 				s.logger.Warn("Failed to detach instrumentation trait during deploy", "agentName", agentName, "error", detachErr)
 			}
 		}
+		// Persist the setting to the component CR so subsequent reads reflect the current state
+		if configErr := s.ocClient.UpdateComponentInstrumentationConfig(ctx, orgName, projectName, agentName, enableInstrumentation); configErr != nil {
+			s.logger.Warn("Failed to persist instrumentation config during deploy", "agentName", agentName, "error", configErr)
+		}
 	}
 
 	// Get deployment pipeline from project
