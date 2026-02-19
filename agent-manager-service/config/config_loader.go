@@ -166,12 +166,6 @@ func loadEnvs() {
 		BaseURL: r.readRequiredString("OPEN_CHOREO_BASE_URL"),
 	}
 
-	// API Platform configuration
-	config.APIPlatform = APIPlatformConfig{
-		BaseURL: r.readOptionalString("API_PLATFORM_BASE_URL", ""),
-		Enable:  r.readOptionalBool("API_PLATFORM_ENABLED", false),
-	}
-
 	// Internal Server configuration (for WebSocket and gateway internal APIs)
 	config.InternalServer = InternalServerConfig{
 		Host:                r.readOptionalString("INTERNAL_SERVER_HOST", ""),
