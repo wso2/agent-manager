@@ -11,8 +11,9 @@ import {
     TablePagination,
     useTheme,
     CircularProgress,
+    IconButton,
 } from "@wso2/oxygen-ui";
-import { Activity, AlertTriangle, CheckCircle, CircleAlert } from "@wso2/oxygen-ui-icons-react";
+import { Activity, AlertTriangle, CheckCircle, CircleAlert, RefreshCcw } from "@wso2/oxygen-ui-icons-react";
 import { useListMonitorRuns } from "@agent-management-platform/api-client";
 import { type MonitorRunResponse } from "@agent-management-platform/types";
 import { DrawerWrapper } from "@agent-management-platform/views";
@@ -95,7 +96,7 @@ export default function MonitorRunList({ monitorDisplayName }: MonitorRunListPro
         []
     );
 
-    const { data, isLoading, error } = useListMonitorRuns({
+    const { data, isLoading, error, refetch, isRefetching } = useListMonitorRuns({
         monitorName: monitorId ?? "",
         orgName: orgId ?? "",
     });
@@ -162,6 +163,11 @@ export default function MonitorRunList({ monitorDisplayName }: MonitorRunListPro
             searchValue={searchValue}
             onSearchChange={setSearchValue}
             searchPlaceholder="Search runs..."
+            actions={
+                <IconButton  color="primary" onClick={() => refetch()} disabled={isLoading}>
+                    {isRefetching ? <CircularProgress size={20} /> : <RefreshCcw size={20} />}
+                </IconButton>
+            }
         />
     );
 
@@ -231,62 +237,64 @@ export default function MonitorRunList({ monitorDisplayName }: MonitorRunListPro
             <ListingTable.Container>
                 {toolbar}
                 <ListingTable>
-                <ListingTable.Head>
-                    <ListingTable.Row>
-                        <ListingTable.Cell align="center">Status</ListingTable.Cell>
-                        <ListingTable.Cell>Trace Window</ListingTable.Cell>
-                        <ListingTable.Cell>Evaluators</ListingTable.Cell>
-                        <ListingTable.Cell>Started</ListingTable.Cell>
-                        <ListingTable.Cell align="right">Duration</ListingTable.Cell>
-                    </ListingTable.Row>
-                </ListingTable.Head>
-                <ListingTable.Body>
-                    {paginatedRuns.map((run: MonitorRunResponse) => {
-                        const { visible, extraLabels } = partitionEvaluators(run.evaluators);
-                        return (
-                            <ListingTable.Row
-                                key={run.id}
-                                hover
-                                clickable
-                                onClick={() => handleRowClick(run)}
-                            >
-                                <ListingTable.Cell align="center">
-                                    {statusIcons[run.status as keyof typeof statusIcons] ?? null}
-                                </ListingTable.Cell>
-                                <ListingTable.Cell>
-                                    {formatTraceWindow(dateFormatter, run.traceStart, run.traceEnd)}
-                                </ListingTable.Cell>
-                                <ListingTable.Cell>
-                                    <Stack direction="row" spacing={1} flexWrap="wrap">
-                                        {visible.map((evaluator, index) => {
-                                            const label = evaluator.name ?? `Evaluator ${index + 1}`;
-                                            return (
-                                                <Chip
-                                                    key={`${run.id}-${label}-${index}`}
-                                                    size="small"
-                                                    label={label}
-                                                />
-                                            );
-                                        })}
-                                        {extraLabels.length > 0 && (
-                                            <Tooltip title={extraLabels.join(", ")}>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    {`+${extraLabels.length} more`}
-                                                </Typography>
-                                            </Tooltip>
-                                        )}
-                                    </Stack>
-                                </ListingTable.Cell>
-                                <ListingTable.Cell>
-                                    {formatDateTime(run.startedAt)}</ListingTable.Cell>
-                                <ListingTable.Cell align="right">
-                                    {formatDuration(run.startedAt, run.completedAt)}
-                                </ListingTable.Cell>
-                            </ListingTable.Row>
-                        );
-                    })}
-                </ListingTable.Body>
-            </ListingTable>
+                    <ListingTable.Head>
+                        <ListingTable.Row>
+                            <ListingTable.Cell align="center">Status</ListingTable.Cell>
+                            <ListingTable.Cell>Trace Window</ListingTable.Cell>
+                            <ListingTable.Cell>Evaluators</ListingTable.Cell>
+                            <ListingTable.Cell>Started</ListingTable.Cell>
+                            <ListingTable.Cell align="right">Duration</ListingTable.Cell>
+                        </ListingTable.Row>
+                    </ListingTable.Head>
+                    <ListingTable.Body>
+                        {paginatedRuns.map((run: MonitorRunResponse) => {
+                            const { visible, extraLabels } = partitionEvaluators(run.evaluators);
+                            return (
+                                <ListingTable.Row
+                                    key={run.id}
+                                    hover
+                                    clickable
+                                    onClick={() => handleRowClick(run)}
+                                >
+                                    <ListingTable.Cell align="center">
+                                        {statusIcons[run.status as keyof typeof statusIcons]
+                                            ?? null}
+                                    </ListingTable.Cell>
+                                    <ListingTable.Cell>
+                                        {formatTraceWindow(dateFormatter, run.traceStart,
+                                            run.traceEnd)}
+                                    </ListingTable.Cell>
+                                    <ListingTable.Cell>
+                                        <Stack direction="row" spacing={1} flexWrap="wrap">
+                                            {visible.map((evaluator, index) => {
+                                                const label = evaluator.name ?? `Evaluator ${index + 1}`;
+                                                return (
+                                                    <Chip
+                                                        key={`${run.id}-${label}-${index}`}
+                                                        size="small"
+                                                        label={label}
+                                                    />
+                                                );
+                                            })}
+                                            {extraLabels.length > 0 && (
+                                                <Tooltip title={extraLabels.join(", ")}>
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {`+${extraLabels.length} more`}
+                                                    </Typography>
+                                                </Tooltip>
+                                            )}
+                                        </Stack>
+                                    </ListingTable.Cell>
+                                    <ListingTable.Cell>
+                                        {formatDateTime(run.startedAt)}</ListingTable.Cell>
+                                    <ListingTable.Cell align="right">
+                                        {formatDuration(run.startedAt, run.completedAt)}
+                                    </ListingTable.Cell>
+                                </ListingTable.Row>
+                            );
+                        })}
+                    </ListingTable.Body>
+                </ListingTable>
                 <TablePagination
                     component="div"
                     count={filteredRuns.length}
@@ -309,8 +317,11 @@ export default function MonitorRunList({ monitorDisplayName }: MonitorRunListPro
                         monitorName={monitorId ?? ""}
                         monitorDisplayName={monitorDisplayName}
                         formatDateTime={formatDateTime}
-                        traceWindowLabel={formatTraceWindow(dateFormatter, selectedRun.traceStart, selectedRun.traceEnd)}
-                        durationLabel={formatDuration(selectedRun.startedAt, selectedRun.completedAt)}
+                        traceWindowLabel={
+                            formatTraceWindow(dateFormatter,
+                                selectedRun.traceStart, selectedRun.traceEnd)}
+                        durationLabel={
+                            formatDuration(selectedRun.startedAt, selectedRun.completedAt)}
                     />
                 )}
             </DrawerWrapper>
