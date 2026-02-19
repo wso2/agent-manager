@@ -23,7 +23,6 @@ spec:
       - name: monitor-id
       - name: run-id
       - name: publisher-endpoint
-      - name: publisher-api-key
   templates:
     - name: run-monitor
       container:
@@ -42,7 +41,12 @@ spec:
           - '--monitor-id={{ "{{" }}workflow.parameters.monitor-id{{ "}}" }}'
           - '--run-id={{ "{{" }}workflow.parameters.run-id{{ "}}" }}'
           - '--publisher-endpoint={{ "{{" }}workflow.parameters.publisher-endpoint{{ "}}" }}'
-          - '--publisher-api-key={{ "{{" }}workflow.parameters.publisher-api-key{{ "}}" }}'
+        env:
+          - name: PUBLISHER_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "amp-evaluation-extension.publisherSecretName" . }}
+                key: {{ .Values.ampEvaluation.publisher.existingSecretKey | default "publisher-api-key" }}
         resources:
           requests:
             cpu: "100m"

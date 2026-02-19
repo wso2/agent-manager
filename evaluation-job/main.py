@@ -40,11 +40,11 @@ import logging
 import os
 import sys
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 import requests
 from amp_evaluation import Monitor, register_builtin
-from amp_evaluation.models import EvaluatorScore, EvaluatorSummary
+from amp_evaluation.models import EvaluatorSummary
 from amp_evaluation.trace import TraceFetcher
 
 logger = logging.getLogger(__name__)
@@ -148,12 +148,6 @@ def parse_args():
         "--publisher-endpoint",
         required=True,
         help="Publisher API endpoint for score publishing (e.g., http://agent-manager-internal:8081)",
-    )
-
-    parser.add_argument(
-        "--publisher-api-key",
-        required=True,
-        help="API key for publisher authentication",
     )
 
     return parser.parse_args()
@@ -275,6 +269,12 @@ def main():
     """Main entry point for monitor job."""
     args = parse_args()
     configure_logging()
+
+    # Read API key from environment variable (injected via Kubernetes Secret)
+    publisher_api_key = os.environ.get("PUBLISHER_API_KEY")
+    if not publisher_api_key:
+        logger.error("PUBLISHER_API_KEY environment variable is not set")
+        sys.exit(1)
 
     logger.info(
         "Starting monitor evaluation monitor=%s agent=%s env=%s "
@@ -427,7 +427,7 @@ def main():
             scores=result.scores,
             display_name_to_identifier=display_name_to_identifier,
             api_endpoint=args.publisher_endpoint,
-            api_key=args.publisher_api_key,
+            api_key=publisher_api_key,
         )
 
         if not publish_success:

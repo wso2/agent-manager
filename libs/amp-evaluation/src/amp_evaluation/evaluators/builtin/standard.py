@@ -289,6 +289,11 @@ class ContainsMatchEvaluator(BaseEvaluator):
         super().__init__(**kwargs)
 
     def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+        if task is None or task.expected_output is None:
+            return EvalResult.skip(
+                "Expected output not available for contains match evaluation",
+                details={"expected_available": False, "output_available": trace.output is not None},
+            )
         expected = task.expected_output
 
         output = trace.output if trace.output else ""
@@ -493,6 +498,9 @@ class LatencyEvaluator(BaseEvaluator):
 
     def _calculate_score(self, actual_latency: float, max_latency: float) -> tuple[float, bool]:
         """Calculate score and pass/fail status."""
+        if max_latency <= 0:
+            passed = actual_latency <= 0
+            return (1.0 if passed else 0.0), passed
         passed = actual_latency <= max_latency
         if actual_latency <= max_latency:
             score = 1.0

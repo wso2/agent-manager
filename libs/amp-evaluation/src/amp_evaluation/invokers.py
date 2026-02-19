@@ -52,7 +52,7 @@ Example (In-Process Agent):
     class InProcessInvoker(AgentInvoker):
         def invoke(self, input: Any) -> InvokeResult:
             response = my_agent.run(input)
-            trajectory = get_current_trajectory()  # From instrumentation
+            trajectory = Trace(trace_id="...")  # From instrumentation
             return InvokeResult(input=input, output=response, trajectory=trajectory)
 """
 
