@@ -37,6 +37,9 @@ import (
 type stubScoreRepo struct{}
 
 func (s *stubScoreRepo) WithTx(_ *gorm.DB) repositories.ScoreRepository { return s }
+func (s *stubScoreRepo) RunInTransaction(fn func(txRepo repositories.ScoreRepository) error) error {
+	return fn(s)
+}
 func (s *stubScoreRepo) UpsertMonitorRunEvaluators(_ []models.MonitorRunEvaluator) error {
 	return nil
 }
@@ -231,6 +234,11 @@ func TestGetScoresTimeSeries_Validation(t *testing.T) {
 		{
 			name:       "invalid endTime format",
 			query:      "?startTime=" + validStart + "&endTime=bad&evaluator=latency",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "endTime before startTime",
+			query:      "?startTime=" + validEnd + "&endTime=" + validStart + "&evaluator=latency",
 			wantStatus: http.StatusBadRequest,
 		},
 		{

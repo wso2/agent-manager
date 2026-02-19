@@ -30,6 +30,7 @@ import (
 type ScoreRepository interface {
 	// Transaction support
 	WithTx(tx *gorm.DB) ScoreRepository
+	RunInTransaction(fn func(txRepo ScoreRepository) error) error
 
 	// MonitorRunEvaluator operations
 	UpsertMonitorRunEvaluators(evaluators []models.MonitorRunEvaluator) error
@@ -129,6 +130,13 @@ func NewScoreRepo(db *gorm.DB) ScoreRepository {
 // WithTx returns a new ScoreRepository backed by the given transaction
 func (r *ScoreRepo) WithTx(tx *gorm.DB) ScoreRepository {
 	return &ScoreRepo{db: tx}
+}
+
+// RunInTransaction executes fn within a database transaction, providing a transaction-bound repository
+func (r *ScoreRepo) RunInTransaction(fn func(txRepo ScoreRepository) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		return fn(r.WithTx(tx))
+	})
 }
 
 // UpsertMonitorRunEvaluators creates or updates evaluator records for a run

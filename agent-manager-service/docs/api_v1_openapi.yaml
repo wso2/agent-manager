@@ -1296,7 +1296,7 @@ paths:
         description: Organization name/handle
         schema:
           type: string
-          pattern: '^[a-z0-9-]+$'
+          pattern: "^[a-z0-9-]+$"
           minLength: 1
           maxLength: 64
 
@@ -1325,30 +1325,30 @@ paths:
             minimum: 0
             default: 0
       responses:
-        '200':
+        "200":
           description: Successfully retrieved environment list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EnvironmentListResponse'
-        '400':
+                $ref: "#/components/schemas/EnvironmentListResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     post:
       tags:
@@ -1365,38 +1365,38 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateEnvironmentRequest'
+              $ref: "#/components/schemas/CreateEnvironmentRequest"
       responses:
-        '201':
+        "201":
           description: Environment created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GatewayEnvironmentResponse'
-        '400':
+                $ref: "#/components/schemas/GatewayEnvironmentResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
           description: Conflict - resource already exists
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/environments/{envID}:
     parameters:
@@ -1406,7 +1406,7 @@ paths:
         description: Organization name/handle
         schema:
           type: string
-          pattern: '^[a-z0-9-]+$'
+          pattern: "^[a-z0-9-]+$"
           minLength: 1
           maxLength: 64
       - name: envID
@@ -1423,36 +1423,36 @@ paths:
       description: Retrieve detailed information about a specific environment
       operationId: getEnvironment
       responses:
-        '200':
+        "200":
           description: Successfully retrieved environment
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GatewayEnvironmentResponse'
-        '400':
+                $ref: "#/components/schemas/GatewayEnvironmentResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     put:
       tags:
@@ -1468,38 +1468,38 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateEnvironmentRequest'
+              $ref: "#/components/schemas/UpdateEnvironmentRequest"
       responses:
-        '200':
+        "200":
           description: Environment updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GatewayEnvironmentResponse'
-        '400':
+                $ref: "#/components/schemas/GatewayEnvironmentResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     delete:
       tags:
@@ -1512,32 +1512,32 @@ paths:
         The environment can be restored if needed by contacting support.
       operationId: deleteEnvironment
       responses:
-        '204':
+        "204":
           description: Environment deleted successfully
-        '400':
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/environments/{envID}/gateways:
     parameters:
@@ -1547,7 +1547,7 @@ paths:
         description: Organization name/handle
         schema:
           type: string
-          pattern: '^[a-z0-9-]+$'
+          pattern: "^[a-z0-9-]+$"
           minLength: 1
           maxLength: 64
       - name: envID
@@ -1568,7 +1568,7 @@ paths:
         useful for understanding which gateways can be used by agents in this environment.
       operationId: getEnvironmentGateways
       responses:
-        '200':
+        "200":
           description: Successfully retrieved gateway list
           content:
             application/json:
@@ -1578,31 +1578,31 @@ paths:
                   gateways:
                     type: array
                     items:
-                      $ref: '#/components/schemas/GatewayResponse'
-        '400':
+                      $ref: "#/components/schemas/GatewayResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   # ============================================
   # AI GATEWAY ENDPOINTS
@@ -1616,7 +1616,7 @@ paths:
         description: Organization name/handle
         schema:
           type: string
-          pattern: '^[a-z0-9-]+$'
+          pattern: "^[a-z0-9-]+$"
           minLength: 1
           maxLength: 64
 
@@ -1671,30 +1671,30 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Successfully retrieved gateway list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GatewayListResponse'
-        '400':
+                $ref: "#/components/schemas/GatewayListResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     post:
       tags:
@@ -1717,38 +1717,38 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateGatewayRequest'
+              $ref: "#/components/schemas/CreateGatewayRequest"
       responses:
-        '201':
+        "201":
           description: Gateway registered successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GatewayResponse'
-        '400':
+                $ref: "#/components/schemas/GatewayResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
           description: Conflict - resource already exists
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/gateways/{gatewayID}:
     parameters:
@@ -1758,7 +1758,7 @@ paths:
         description: Organization name/handle
         schema:
           type: string
-          pattern: '^[a-z0-9-]+$'
+          pattern: "^[a-z0-9-]+$"
           minLength: 1
           maxLength: 64
       - name: gatewayID
@@ -1778,36 +1778,36 @@ paths:
         **Security Note:** Credentials are never returned in the response.
       operationId: getGateway
       responses:
-        '200':
+        "200":
           description: Successfully retrieved gateway
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GatewayResponse'
-        '400':
+                $ref: "#/components/schemas/GatewayResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     put:
       tags:
@@ -1834,38 +1834,38 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateGatewayRequest'
+              $ref: "#/components/schemas/UpdateGatewayRequest"
       responses:
-        '200':
+        "200":
           description: Gateway updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GatewayResponse'
-        '400':
+                $ref: "#/components/schemas/GatewayResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     delete:
       tags:
@@ -1882,32 +1882,32 @@ paths:
         **Warning:** This operation will affect all environments using this gateway.
       operationId: deleteGateway
       responses:
-        '204':
+        "204":
           description: Gateway deregistered successfully
-        '400':
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/gateways/{gatewayID}/environments:
     parameters:
@@ -1917,7 +1917,7 @@ paths:
         description: Organization name/handle
         schema:
           type: string
-          pattern: '^[a-z0-9-]+$'
+          pattern: "^[a-z0-9-]+$"
           minLength: 1
           maxLength: 64
       - name: gatewayID
@@ -1937,7 +1937,7 @@ paths:
         This shows which environments can use this gateway for routing traffic.
       operationId: getGatewayEnvironments
       responses:
-        '200':
+        "200":
           description: Successfully retrieved environment list
           content:
             application/json:
@@ -1947,31 +1947,31 @@ paths:
                   environments:
                     type: array
                     items:
-                      $ref: '#/components/schemas/GatewayEnvironmentResponse'
-        '400':
+                      $ref: "#/components/schemas/GatewayEnvironmentResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}:
     parameters:
@@ -1981,7 +1981,7 @@ paths:
         description: Organization name/handle
         schema:
           type: string
-          pattern: '^[a-z0-9-]+$'
+          pattern: "^[a-z0-9-]+$"
           minLength: 1
           maxLength: 64
       - name: gatewayID
@@ -2009,42 +2009,42 @@ paths:
         multiple gateways.
       operationId: assignGatewayToEnvironment
       responses:
-        '201':
+        "201":
           description: Mapping created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GatewayResponse'
-        '400':
+                $ref: "#/components/schemas/GatewayResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
           description: Mapping already exists
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     delete:
       tags:
@@ -2059,32 +2059,32 @@ paths:
         experience routing failures after this operation.
       operationId: removeGatewayFromEnvironment
       responses:
-        '204':
+        "204":
           description: Mapping removed successfully
-        '400':
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Gateway, environment, or mapping not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/gateways/{gatewayID}/health:
     parameters:
@@ -2094,7 +2094,7 @@ paths:
         description: Organization name/handle
         schema:
           type: string
-          pattern: '^[a-z0-9-]+$'
+          pattern: "^[a-z0-9-]+$"
           minLength: 1
           maxLength: 64
       - name: gatewayID
@@ -2118,36 +2118,36 @@ paths:
         - Return detailed health information
       operationId: checkGatewayHealth
       responses:
-        '200':
+        "200":
           description: Health check completed (status in response body)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthStatusResponse'
-        '400':
+                $ref: "#/components/schemas/HealthStatusResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/gateways/{gatewayID}/tokens:
     parameters:
@@ -2157,7 +2157,7 @@ paths:
         description: Organization name/handle
         schema:
           type: string
-          pattern: '^[a-z0-9-]+$'
+          pattern: "^[a-z0-9-]+$"
           minLength: 1
           maxLength: 64
       - name: gatewayID
@@ -2186,36 +2186,36 @@ paths:
         - Periodic security maintenance
       operationId: rotateGatewayToken
       responses:
-        '200':
+        "200":
           description: Token rotated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GatewayTokenResponse'
-        '400':
+                $ref: "#/components/schemas/GatewayTokenResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Gateway not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}:
     parameters:
@@ -2225,7 +2225,7 @@ paths:
         description: Organization name/handle
         schema:
           type: string
-          pattern: '^[a-z0-9-]+$'
+          pattern: "^[a-z0-9-]+$"
           minLength: 1
           maxLength: 64
       - name: gatewayID
@@ -2259,32 +2259,32 @@ paths:
         - Security incident response
       operationId: revokeGatewayToken
       responses:
-        '204':
+        "204":
           description: Token revoked successfully
-        '400':
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Gateway or token not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/data-planes:
     get:
@@ -2736,7 +2736,7 @@ paths:
         description: Organization name/handle
         schema:
           type: string
-          pattern: '^[a-z0-9-]+$'
+          pattern: "^[a-z0-9-]+$"
           minLength: 1
           maxLength: 64
 
@@ -2793,36 +2793,36 @@ paths:
             minimum: 0
             default: 0
       responses:
-        '200':
+        "200":
           description: Successfully retrieved catalog list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CatalogListResponse'
-        '400':
+                $ref: "#/components/schemas/CatalogListResponse"
+        "400":
           description: Bad request - invalid parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Organization not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /repositories/branches:
     post:
@@ -2974,38 +2974,38 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateLLMProviderTemplateRequest'
+              $ref: "#/components/schemas/CreateLLMProviderTemplateRequest"
       responses:
-        '201':
+        "201":
           description: Template created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LLMProviderTemplateResponse'
-        '400':
+                $ref: "#/components/schemas/LLMProviderTemplateResponse"
+        "400":
           description: Invalid request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
           description: Template already exists
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     get:
       tags:
@@ -3032,30 +3032,30 @@ paths:
             minimum: 0
             default: 0
       responses:
-        '200':
+        "200":
           description: Successfully retrieved template list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LLMProviderTemplateListResponse'
-        '400':
+                $ref: "#/components/schemas/LLMProviderTemplateListResponse"
+        "400":
           description: Invalid request parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/llm-provider-templates/{id}:
     parameters:
@@ -3079,36 +3079,36 @@ paths:
       description: Retrieve detailed information about a specific template
       operationId: getLLMProviderTemplate
       responses:
-        '200':
+        "200":
           description: Successfully retrieved template
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LLMProviderTemplateResponse'
-        '400':
+                $ref: "#/components/schemas/LLMProviderTemplateResponse"
+        "400":
           description: Invalid template ID
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Template not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     put:
       tags:
@@ -3121,38 +3121,38 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateLLMProviderTemplateRequest'
+              $ref: "#/components/schemas/UpdateLLMProviderTemplateRequest"
       responses:
-        '200':
+        "200":
           description: Template updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LLMProviderTemplateResponse'
-        '400':
+                $ref: "#/components/schemas/LLMProviderTemplateResponse"
+        "400":
           description: Invalid request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Template not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     delete:
       tags:
@@ -3161,32 +3161,32 @@ paths:
       description: Delete an LLM provider template
       operationId: deleteLLMProviderTemplate
       responses:
-        '204':
+        "204":
           description: Template deleted successfully
-        '400':
+        "400":
           description: Invalid template ID
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Template not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   # ============================================
   # LLM PROVIDER ENDPOINTS
@@ -3212,38 +3212,38 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateLLMProviderRequest'
+              $ref: "#/components/schemas/CreateLLMProviderRequest"
       responses:
-        '201':
+        "201":
           description: Provider created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LLMProviderResponse'
-        '400':
+                $ref: "#/components/schemas/LLMProviderResponse"
+        "400":
           description: Invalid request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
           description: Provider already exists
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     get:
       tags:
@@ -3270,30 +3270,30 @@ paths:
             minimum: 0
             default: 0
       responses:
-        '200':
+        "200":
           description: Successfully retrieved provider list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LLMProviderListResponse'
-        '400':
+                $ref: "#/components/schemas/LLMProviderListResponse"
+        "400":
           description: Invalid request parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/llm-providers/{id}:
     parameters:
@@ -3317,36 +3317,36 @@ paths:
       description: Retrieve detailed information about a specific provider
       operationId: getLLMProvider
       responses:
-        '200':
+        "200":
           description: Successfully retrieved provider
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LLMProviderResponse'
-        '400':
+                $ref: "#/components/schemas/LLMProviderResponse"
+        "400":
           description: Invalid provider ID
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Provider not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     put:
       tags:
@@ -3359,38 +3359,38 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateLLMProviderRequest'
+              $ref: "#/components/schemas/UpdateLLMProviderRequest"
       responses:
-        '200':
+        "200":
           description: Provider updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LLMProviderResponse'
-        '400':
+                $ref: "#/components/schemas/LLMProviderResponse"
+        "400":
           description: Invalid request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Provider not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     delete:
       tags:
@@ -3399,32 +3399,32 @@ paths:
       description: Delete an LLM provider
       operationId: deleteLLMProvider
       responses:
-        '204':
+        "204":
           description: Provider deleted successfully
-        '400':
+        "400":
           description: Invalid provider ID
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Provider not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/llm-providers/{id}/catalog:
     parameters:
@@ -3459,38 +3459,38 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateLLMProviderCatalogRequest'
+              $ref: "#/components/schemas/UpdateLLMProviderCatalogRequest"
       responses:
-        '200':
+        "200":
           description: Catalog status updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LLMProviderResponse'
-        '400':
+                $ref: "#/components/schemas/LLMProviderResponse"
+        "400":
           description: Invalid request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Provider not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/llm-providers/{id}/llm-proxies:
     parameters:
@@ -3532,36 +3532,36 @@ paths:
             minimum: 0
             default: 0
       responses:
-        '200':
+        "200":
           description: Successfully retrieved proxy list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LLMProxyListResponse'
-        '400':
+                $ref: "#/components/schemas/LLMProxyListResponse"
+        "400":
           description: Invalid request parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Provider not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   # ============================================
   # LLM PROXY ENDPOINTS
@@ -3593,44 +3593,44 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateLLMProxyRequest'
+              $ref: "#/components/schemas/CreateLLMProxyRequest"
       responses:
-        '201':
+        "201":
           description: Proxy created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LLMProxyResponse'
-        '400':
+                $ref: "#/components/schemas/LLMProxyResponse"
+        "400":
           description: Invalid request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Project not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
           description: Proxy already exists
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     get:
       tags:
@@ -3657,36 +3657,36 @@ paths:
             minimum: 0
             default: 0
       responses:
-        '200':
+        "200":
           description: Successfully retrieved proxy list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LLMProxyListResponse'
-        '400':
+                $ref: "#/components/schemas/LLMProxyListResponse"
+        "400":
           description: Invalid request parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Project not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/projects/{projName}/llm-proxies/{id}:
     parameters:
@@ -3716,36 +3716,36 @@ paths:
       description: Retrieve detailed information about a specific proxy
       operationId: getLLMProxy
       responses:
-        '200':
+        "200":
           description: Successfully retrieved proxy
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LLMProxyResponse'
-        '400':
+                $ref: "#/components/schemas/LLMProxyResponse"
+        "400":
           description: Invalid proxy ID
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Proxy not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     put:
       tags:
@@ -3758,38 +3758,38 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateLLMProxyRequest'
+              $ref: "#/components/schemas/UpdateLLMProxyRequest"
       responses:
-        '200':
+        "200":
           description: Proxy updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LLMProxyResponse'
-        '400':
+                $ref: "#/components/schemas/LLMProxyResponse"
+        "400":
           description: Invalid request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Proxy not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     delete:
       tags:
@@ -3798,32 +3798,32 @@ paths:
       description: Delete an LLM proxy
       operationId: deleteLLMProxy
       responses:
-        '204':
+        "204":
           description: Proxy deleted successfully
-        '400':
+        "400":
           description: Invalid proxy ID
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Proxy not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   # ============================================
   # LLM DEPLOYMENT ENDPOINTS
@@ -3855,38 +3855,38 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeployAgentRequest'
+              $ref: "#/components/schemas/DeployAgentRequest"
       responses:
-        '201':
+        "201":
           description: Provider deployed successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeploymentResponse'
-        '400':
+                $ref: "#/components/schemas/DeploymentResponse"
+        "400":
           description: Invalid request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Provider or gateway not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     get:
       tags:
@@ -3910,38 +3910,38 @@ paths:
               - UNDEPLOYED
               - FAILED
       responses:
-        '200':
+        "200":
           description: Successfully retrieved deployments
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/DeploymentResponse'
-        '400':
+                  $ref: "#/components/schemas/DeploymentResponse"
+        "400":
           description: Invalid request parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Provider not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/llm-providers/{id}/deployments/undeploy:
     parameters:
@@ -3978,7 +3978,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Provider undeployed successfully
           content:
             application/json:
@@ -3988,36 +3988,36 @@ paths:
                   message:
                     type: string
                     example: LLM provider undeployed successfully
-        '400':
+        "400":
           description: Invalid request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Provider, deployment, or gateway not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
           description: No active deployment found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/llm-providers/{id}/deployments/restore:
     parameters:
@@ -4054,42 +4054,42 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Deployment restored successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeploymentResponse'
-        '400':
+                $ref: "#/components/schemas/DeploymentResponse"
+        "400":
           description: Invalid request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Provider, deployment, or gateway not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
           description: Deployment already active
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/llm-providers/{id}/deployments/{deploymentId}:
     parameters:
@@ -4119,36 +4119,36 @@ paths:
       description: Retrieve detailed information about a specific deployment
       operationId: getLLMProviderDeployment
       responses:
-        '200':
+        "200":
           description: Successfully retrieved deployment
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeploymentResponse'
-        '400':
+                $ref: "#/components/schemas/DeploymentResponse"
+        "400":
           description: Invalid deployment ID
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Deployment not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
     delete:
       tags:
@@ -4157,39 +4157,38 @@ paths:
       description: Delete a deployment (must be undeployed first)
       operationId: deleteLLMProviderDeployment
       responses:
-        '204':
+        "204":
           description: Deployment deleted successfully
-        '400':
+        "400":
           description: Invalid deployment ID
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
           description: Deployment not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
           description: Cannot delete an active deployment
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors:
     get:
@@ -4782,7 +4781,7 @@ paths:
           required: false
           schema:
             type: string
-          description: Filter by evaluator name
+          description: Filter by evaluator displayName (unique within this monitor). This is the user-visible name defined on the monitor, not the catalog identifier.
         - name: level
           in: query
           required: false
@@ -4855,7 +4854,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Evaluator name (required)
+          description: Filter by evaluator displayName (unique within this monitor). This is the user-visible name defined on the monitor, not the catalog identifier.
         - name: granularity
           in: query
           required: false
@@ -6046,7 +6045,7 @@ components:
         name:
           type: string
           description: Unique DNS-compatible name for the monitor (lowercase, alphanumeric, hyphens only)
-          pattern: '^[a-z0-9-]+$'
+          pattern: "^[a-z0-9-]+$"
           minLength: 1
           maxLength: 63
           example: "customer-support-quality"
@@ -6069,10 +6068,12 @@ components:
           example:
             - identifier: "latency"
               displayName: "Latency Check"
+              level: "span"
               config:
                 max_latency_ms: 3000
             - identifier: "answer_relevancy"
               displayName: "Answer Relevancy"
+              level: "trace"
               config:
                 min_overlap_ratio: 0.2
         type:
@@ -6185,10 +6186,12 @@ components:
           example:
             - identifier: "latency"
               displayName: "Latency Check"
+              level: "span"
               config:
                 max_latency_ms: 3000
             - identifier: "answer_relevancy"
               displayName: "Answer Relevancy"
+              level: "trace"
         intervalMinutes:
           type: integer
           description: Interval in minutes (only for 'future' type)
@@ -6269,10 +6272,12 @@ components:
           example:
             - identifier: "latency"
               displayName: "Latency Check"
+              level: "span"
               config:
                 max_latency_ms: 3000
             - identifier: "answer_relevancy"
               displayName: "Answer Relevancy"
+              level: "trace"
         traceStart:
           type: string
           format: date-time
@@ -7375,7 +7380,7 @@ components:
         name:
           type: string
           description: Unique environment name (lowercase, alphanumeric with hyphens)
-          pattern: '^[a-z0-9-]+$'
+          pattern: "^[a-z0-9-]+$"
           maxLength: 64
           example: production
         displayName:
@@ -7405,12 +7410,12 @@ components:
           type: string
           format: date-time
           description: Timestamp when the environment was created
-          example: '2026-01-15T10:30:00Z'
+          example: "2026-01-15T10:30:00Z"
         updatedAt:
           type: string
           format: date-time
           description: Timestamp when the environment was last updated
-          example: '2026-01-20T14:45:00Z'
+          example: "2026-01-20T14:45:00Z"
 
     CreateEnvironmentRequest:
       type: object
@@ -7423,7 +7428,7 @@ components:
         name:
           type: string
           description: Unique environment name (lowercase, alphanumeric with hyphens)
-          pattern: '^[a-z0-9-]+$'
+          pattern: "^[a-z0-9-]+$"
           minLength: 1
           maxLength: 64
           example: production
@@ -7525,7 +7530,7 @@ components:
         name:
           type: string
           description: Unique gateway name (lowercase, alphanumeric with hyphens)
-          pattern: '^[a-z0-9-]+$'
+          pattern: "^[a-z0-9-]+$"
           maxLength: 64
           example: ai-gateway-prod
         displayName:
@@ -7534,7 +7539,7 @@ components:
           maxLength: 128
           example: Production AI Gateway
         gatewayType:
-          $ref: '#/components/schemas/GatewayType'
+          $ref: "#/components/schemas/GatewayType"
         vhost:
           type: string
           description: Virtual host for the gateway
@@ -7549,22 +7554,22 @@ components:
           description: Flag indicating if this is a critical production gateway
           example: true
         status:
-          $ref: '#/components/schemas/GatewayStatus'
+          $ref: "#/components/schemas/GatewayStatus"
         createdAt:
           type: string
           format: date-time
           description: Timestamp when the gateway was registered
-          example: '2026-01-15T10:30:00Z'
+          example: "2026-01-15T10:30:00Z"
         updatedAt:
           type: string
           format: date-time
           description: Timestamp when the gateway was last updated
-          example: '2026-02-01T08:00:00Z'
+          example: "2026-02-01T08:00:00Z"
         environments:
           type: array
           description: List of environments mapped to this gateway
           items:
-            $ref: '#/components/schemas/GatewayEnvironmentResponse'
+            $ref: "#/components/schemas/GatewayEnvironmentResponse"
 
     GatewayTokenResponse:
       type: object
@@ -7590,12 +7595,12 @@ components:
           type: string
           format: date-time
           description: Timestamp when the token was created
-          example: '2026-02-12T10:30:00Z'
+          example: "2026-02-12T10:30:00Z"
         expiresAt:
           type: string
           format: date-time
           description: Token expiration time (if applicable)
-          example: '2027-02-12T10:30:00Z'
+          example: "2027-02-12T10:30:00Z"
 
     CreateGatewayRequest:
       type: object
@@ -7608,7 +7613,7 @@ components:
         name:
           type: string
           description: Unique gateway name (lowercase, alphanumeric with hyphens)
-          pattern: '^[a-z0-9-]+$'
+          pattern: "^[a-z0-9-]+$"
           minLength: 1
           maxLength: 64
           example: ai-gateway-prod
@@ -7619,7 +7624,7 @@ components:
           maxLength: 128
           example: Production AI Gateway
         gatewayType:
-          $ref: '#/components/schemas/GatewayType'
+          $ref: "#/components/schemas/GatewayType"
         vhost:
           type: string
           description: Virtual host for the gateway (FQDN or IP)
@@ -7660,7 +7665,7 @@ components:
           description: Updated critical flag
           example: false
         status:
-          $ref: '#/components/schemas/GatewayStatus'
+          $ref: "#/components/schemas/GatewayStatus"
 
     GatewayListResponse:
       type: object
@@ -7673,7 +7678,7 @@ components:
         gateways:
           type: array
           items:
-            $ref: '#/components/schemas/GatewayResponse'
+            $ref: "#/components/schemas/GatewayResponse"
         total:
           type: integer
           format: int32
@@ -7721,7 +7726,7 @@ components:
           type: string
           format: date-time
           description: Timestamp when the health check was performed
-          example: '2026-02-08T15:30:00Z'
+          example: "2026-02-08T15:30:00Z"
 
     # ============================================
     # LLM PROVIDER TEMPLATE SCHEMAS
@@ -7751,19 +7756,19 @@ components:
           maxLength: 1023
           example: Default OpenAI template
         metadata:
-          $ref: '#/components/schemas/LLMProviderTemplateMetadata'
+          $ref: "#/components/schemas/LLMProviderTemplateMetadata"
         promptTokens:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
         completionTokens:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
         totalTokens:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
         remainingTokens:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
         requestModel:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
         responseModel:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
 
     UpdateLLMProviderTemplateRequest:
       type: object
@@ -7779,19 +7784,19 @@ components:
           description: Updated description
           maxLength: 1023
         metadata:
-          $ref: '#/components/schemas/LLMProviderTemplateMetadata'
+          $ref: "#/components/schemas/LLMProviderTemplateMetadata"
         promptTokens:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
         completionTokens:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
         totalTokens:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
         remainingTokens:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
         requestModel:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
         responseModel:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
 
     LLMProviderTemplateResponse:
       type: object
@@ -7824,19 +7829,19 @@ components:
           readOnly: true
           example: jane.doe
         metadata:
-          $ref: '#/components/schemas/LLMProviderTemplateMetadata'
+          $ref: "#/components/schemas/LLMProviderTemplateMetadata"
         promptTokens:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
         completionTokens:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
         totalTokens:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
         remainingTokens:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
         requestModel:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
         responseModel:
-          $ref: '#/components/schemas/ExtractionIdentifier'
+          $ref: "#/components/schemas/ExtractionIdentifier"
         createdAt:
           type: string
           format: date-time
@@ -7861,7 +7866,7 @@ components:
         templates:
           type: array
           items:
-            $ref: '#/components/schemas/LLMProviderTemplateResponse'
+            $ref: "#/components/schemas/LLMProviderTemplateResponse"
         total:
           type: integer
           format: int32
@@ -7901,9 +7906,9 @@ components:
           type: array
           description: Custom model list (overrides template)
           items:
-            $ref: '#/components/schemas/LLMModelProvider'
+            $ref: "#/components/schemas/LLMModelProvider"
         configuration:
-          $ref: '#/components/schemas/LLMProviderConfig'
+          $ref: "#/components/schemas/LLMProviderConfig"
         gateways:
           type: array
           items:
@@ -7928,9 +7933,9 @@ components:
           type: array
           description: Updated model list
           items:
-            $ref: '#/components/schemas/LLMModelProvider'
+            $ref: "#/components/schemas/LLMModelProvider"
         configuration:
-          $ref: '#/components/schemas/LLMProviderConfig'
+          $ref: "#/components/schemas/LLMProviderConfig"
         gateways:
           type: array
           items:
@@ -7979,14 +7984,14 @@ components:
           type: array
           description: List of model providers
           items:
-            $ref: '#/components/schemas/LLMModelProvider'
+            $ref: "#/components/schemas/LLMModelProvider"
         status:
           type: string
           description: Provider status
         configuration:
-          $ref: '#/components/schemas/LLMProviderConfig'
+          $ref: "#/components/schemas/LLMProviderConfig"
         artifact:
-          $ref: '#/components/schemas/Artifact'
+          $ref: "#/components/schemas/Artifact"
         gateways:
           type: array
           items:
@@ -8008,7 +8013,7 @@ components:
         providers:
           type: array
           items:
-            $ref: '#/components/schemas/LLMProviderResponse'
+            $ref: "#/components/schemas/LLMProviderResponse"
         total:
           type: integer
           format: int32
@@ -8042,17 +8047,17 @@ components:
           type: string
           description: Template name
         upstream:
-          $ref: '#/components/schemas/UpstreamConfig'
+          $ref: "#/components/schemas/UpstreamConfig"
         accessControl:
-          $ref: '#/components/schemas/LLMAccessControl'
+          $ref: "#/components/schemas/LLMAccessControl"
         rateLimiting:
-          $ref: '#/components/schemas/LLMRateLimitingConfig'
+          $ref: "#/components/schemas/LLMRateLimitingConfig"
         policies:
           type: array
           items:
-            $ref: '#/components/schemas/LLMPolicy'
+            $ref: "#/components/schemas/LLMPolicy"
         security:
-          $ref: '#/components/schemas/SecurityConfig'
+          $ref: "#/components/schemas/SecurityConfig"
 
     # ============================================
     # LLM PROXY SCHEMAS
@@ -8075,7 +8080,7 @@ components:
           type: string
           description: Custom OpenAPI specification
         configuration:
-          $ref: '#/components/schemas/LLMProxyConfig'
+          $ref: "#/components/schemas/LLMProxyConfig"
 
     UpdateLLMProxyRequest:
       type: object
@@ -8092,7 +8097,7 @@ components:
           type: string
           description: Updated OpenAPI specification
         configuration:
-          $ref: '#/components/schemas/LLMProxyConfig'
+          $ref: "#/components/schemas/LLMProxyConfig"
 
     LLMProxyResponse:
       type: object
@@ -8128,9 +8133,9 @@ components:
           type: string
           description: Proxy status
         configuration:
-          $ref: '#/components/schemas/LLMProxyConfig'
+          $ref: "#/components/schemas/LLMProxyConfig"
         artifact:
-          $ref: '#/components/schemas/Artifact'
+          $ref: "#/components/schemas/Artifact"
 
     LLMProxyListResponse:
       type: object
@@ -8143,7 +8148,7 @@ components:
         proxies:
           type: array
           items:
-            $ref: '#/components/schemas/LLMProxyResponse'
+            $ref: "#/components/schemas/LLMProxyResponse"
         total:
           type: integer
           format: int32
@@ -8175,9 +8180,9 @@ components:
         policies:
           type: array
           items:
-            $ref: '#/components/schemas/LLMPolicy'
+            $ref: "#/components/schemas/LLMPolicy"
         security:
-          $ref: '#/components/schemas/SecurityConfig'
+          $ref: "#/components/schemas/SecurityConfig"
 
     # ============================================
     # NESTED LLM CONFIGURATION SCHEMAS
@@ -8199,7 +8204,7 @@ components:
         models:
           type: array
           items:
-            $ref: '#/components/schemas/LLMModel'
+            $ref: "#/components/schemas/LLMModel"
 
     LLMModel:
       type: object
@@ -8248,7 +8253,7 @@ components:
           description: Default endpoint URL for the template
           example: https://api.openai.com
         auth:
-          $ref: '#/components/schemas/LLMProviderTemplateAuth'
+          $ref: "#/components/schemas/LLMProviderTemplateAuth"
         logoUrl:
           type: string
           format: uri
@@ -8280,9 +8285,9 @@ components:
       type: object
       properties:
         main:
-          $ref: '#/components/schemas/UpstreamEndpoint'
+          $ref: "#/components/schemas/UpstreamEndpoint"
         sandbox:
-          $ref: '#/components/schemas/UpstreamEndpoint'
+          $ref: "#/components/schemas/UpstreamEndpoint"
 
     UpstreamEndpoint:
       type: object
@@ -8295,7 +8300,7 @@ components:
           type: string
           description: Reference to endpoint configuration
         auth:
-          $ref: '#/components/schemas/UpstreamAuth'
+          $ref: "#/components/schemas/UpstreamAuth"
 
     UpstreamAuth:
       type: object
@@ -8335,7 +8340,7 @@ components:
         exceptions:
           type: array
           items:
-            $ref: '#/components/schemas/RouteException'
+            $ref: "#/components/schemas/RouteException"
 
     RouteException:
       type: object
@@ -8374,7 +8379,7 @@ components:
         paths:
           type: array
           items:
-            $ref: '#/components/schemas/LLMPolicyPath'
+            $ref: "#/components/schemas/LLMPolicyPath"
 
     LLMPolicyPath:
       type: object
@@ -8401,17 +8406,17 @@ components:
       type: object
       properties:
         providerLevel:
-          $ref: '#/components/schemas/RateLimitingScopeConfig'
+          $ref: "#/components/schemas/RateLimitingScopeConfig"
         consumerLevel:
-          $ref: '#/components/schemas/RateLimitingScopeConfig'
+          $ref: "#/components/schemas/RateLimitingScopeConfig"
 
     RateLimitingScopeConfig:
       type: object
       properties:
         global:
-          $ref: '#/components/schemas/RateLimitingLimitConfig'
+          $ref: "#/components/schemas/RateLimitingLimitConfig"
         resourceWise:
-          $ref: '#/components/schemas/ResourceWiseRateLimitingConfig'
+          $ref: "#/components/schemas/ResourceWiseRateLimitingConfig"
 
     ResourceWiseRateLimitingConfig:
       type: object
@@ -8420,11 +8425,11 @@ components:
         - resources
       properties:
         default:
-          $ref: '#/components/schemas/RateLimitingLimitConfig'
+          $ref: "#/components/schemas/RateLimitingLimitConfig"
         resources:
           type: array
           items:
-            $ref: '#/components/schemas/RateLimitingResourceLimit'
+            $ref: "#/components/schemas/RateLimitingResourceLimit"
 
     RateLimitingResourceLimit:
       type: object
@@ -8437,17 +8442,17 @@ components:
           description: Resource identifier
           example: /v1/chat/completions
         limit:
-          $ref: '#/components/schemas/RateLimitingLimitConfig'
+          $ref: "#/components/schemas/RateLimitingLimitConfig"
 
     RateLimitingLimitConfig:
       type: object
       properties:
         request:
-          $ref: '#/components/schemas/RequestRateLimit'
+          $ref: "#/components/schemas/RequestRateLimit"
         token:
-          $ref: '#/components/schemas/TokenRateLimit'
+          $ref: "#/components/schemas/TokenRateLimit"
         cost:
-          $ref: '#/components/schemas/CostRateLimit'
+          $ref: "#/components/schemas/CostRateLimit"
 
     RequestRateLimit:
       type: object
@@ -8464,7 +8469,7 @@ components:
           description: Maximum number of requests
           example: 100
         reset:
-          $ref: '#/components/schemas/RateLimitResetWindow'
+          $ref: "#/components/schemas/RateLimitResetWindow"
 
     TokenRateLimit:
       type: object
@@ -8481,7 +8486,7 @@ components:
           description: Maximum number of tokens
           example: 100000
         reset:
-          $ref: '#/components/schemas/RateLimitResetWindow'
+          $ref: "#/components/schemas/RateLimitResetWindow"
 
     CostRateLimit:
       type: object
@@ -8499,7 +8504,7 @@ components:
           description: Maximum cost amount
           example: 100.0
         reset:
-          $ref: '#/components/schemas/RateLimitResetWindow'
+          $ref: "#/components/schemas/RateLimitResetWindow"
 
     RateLimitResetWindow:
       type: object
@@ -8529,7 +8534,7 @@ components:
           description: Whether security is enabled
           example: true
         apiKey:
-          $ref: '#/components/schemas/APIKeySecurity'
+          $ref: "#/components/schemas/APIKeySecurity"
 
     APIKeySecurity:
       type: object
@@ -9005,14 +9010,14 @@ components:
           description: List of catalog entries
           items:
             oneOf:
-              - $ref: '#/components/schemas/CatalogEntry'
-              - $ref: '#/components/schemas/CatalogLLMProviderEntry'
+              - $ref: "#/components/schemas/CatalogEntry"
+              - $ref: "#/components/schemas/CatalogLLMProviderEntry"
             discriminator:
               propertyName: kind
               mapping:
-                LlmProvider: '#/components/schemas/CatalogLLMProviderEntry'
-                agent: '#/components/schemas/CatalogEntry'
-                mcp: '#/components/schemas/CatalogEntry'
+                LlmProvider: "#/components/schemas/CatalogLLMProviderEntry"
+                agent: "#/components/schemas/CatalogEntry"
+                mcp: "#/components/schemas/CatalogEntry"
         total:
           type: integer
           description: Total number of entries matching the filter
@@ -9094,16 +9099,16 @@ components:
           type: array
           description: List of model providers and their models
           items:
-            $ref: '#/components/schemas/LLMModelProvider'
+            $ref: "#/components/schemas/LLMModelProvider"
         security:
-          $ref: '#/components/schemas/SecuritySummary'
+          $ref: "#/components/schemas/SecuritySummary"
         rateLimiting:
-          $ref: '#/components/schemas/RateLimitingSummary'
+          $ref: "#/components/schemas/RateLimitingSummary"
         deployments:
           type: array
           description: List of deployments for this provider
           items:
-            $ref: '#/components/schemas/DeploymentSummary'
+            $ref: "#/components/schemas/DeploymentSummary"
         createdAt:
           type: string
           format: date-time
@@ -9132,9 +9137,9 @@ components:
       description: Rate limiting configuration summary
       properties:
         providerLevel:
-          $ref: '#/components/schemas/RateLimitingScope'
+          $ref: "#/components/schemas/RateLimitingScope"
         consumerLevel:
-          $ref: '#/components/schemas/RateLimitingScope'
+          $ref: "#/components/schemas/RateLimitingScope"
 
     RateLimitingScope:
       type: object

@@ -25,7 +25,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
@@ -83,13 +82,11 @@ func (s *MonitorScoresService) PublishScores(
 			return fmt.Errorf("evaluator %s not found in evaluators list", item.DisplayName)
 		}
 
-		// Ensure TraceTimestamp is provided (required field)
-		var traceTimestamp time.Time
-		if item.TraceTimestamp != nil {
-			traceTimestamp = *item.TraceTimestamp
-		} else {
-			traceTimestamp = time.Now() // Default to current time if not provided
+		// TraceTimestamp is required
+		if item.TraceTimestamp == nil {
+			return fmt.Errorf("TraceTimestamp is required for score with traceID %s", item.TraceID)
 		}
+		traceTimestamp := *item.TraceTimestamp
 
 		scores[i] = models.Score{
 			ID:             uuid.New(),
@@ -106,9 +103,7 @@ func (s *MonitorScoresService) PublishScores(
 	}
 
 	// Step 4: Upsert evaluators and scores atomically
-	if err := db.GetDB().Transaction(func(tx *gorm.DB) error {
-		txRepo := s.repo.WithTx(tx)
-
+	if err := s.repo.RunInTransaction(func(txRepo repositories.ScoreRepository) error {
 		if err := txRepo.UpsertMonitorRunEvaluators(runEvaluators); err != nil {
 			return fmt.Errorf("failed to upsert run evaluators: %w", err)
 		}

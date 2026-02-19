@@ -46,6 +46,38 @@ func NewMonitorScoresController(scoresService *services.MonitorScoresService) Mo
 	}
 }
 
+// parseAndValidateTimeRange extracts startTime and endTime query parameters, parses them as
+// RFC3339, and validates that endTime is after startTime. On failure it writes the appropriate
+// error response and returns false.
+func parseAndValidateTimeRange(w http.ResponseWriter, r *http.Request) (startTime, endTime time.Time, ok bool) {
+	startTimeStr := r.URL.Query().Get("startTime")
+	endTimeStr := r.URL.Query().Get("endTime")
+
+	if startTimeStr == "" || endTimeStr == "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Query parameters 'startTime' and 'endTime' are required")
+		return time.Time{}, time.Time{}, false
+	}
+
+	startTime, err := time.Parse(time.RFC3339, startTimeStr)
+	if err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid 'startTime' format, expected RFC3339")
+		return time.Time{}, time.Time{}, false
+	}
+
+	endTime, err = time.Parse(time.RFC3339, endTimeStr)
+	if err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid 'endTime' format, expected RFC3339")
+		return time.Time{}, time.Time{}, false
+	}
+
+	if endTime.Before(startTime) {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "endTime must be after startTime")
+		return time.Time{}, time.Time{}, false
+	}
+
+	return startTime, endTime, true
+}
+
 // GetMonitorScores handles GET .../monitors/{monitorName}/scores
 // Returns scores and aggregations for a monitor within a time range
 func (c *monitorScoresController) GetMonitorScores(w http.ResponseWriter, r *http.Request) {
@@ -57,29 +89,8 @@ func (c *monitorScoresController) GetMonitorScores(w http.ResponseWriter, r *htt
 	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 
-	// Parse required time range parameters
-	startTimeStr := r.URL.Query().Get("startTime")
-	endTimeStr := r.URL.Query().Get("endTime")
-
-	if startTimeStr == "" || endTimeStr == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Query parameters 'startTime' and 'endTime' are required")
-		return
-	}
-
-	startTime, err := time.Parse(time.RFC3339, startTimeStr)
-	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid 'startTime' format, expected RFC3339")
-		return
-	}
-
-	endTime, err := time.Parse(time.RFC3339, endTimeStr)
-	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid 'endTime' format, expected RFC3339")
-		return
-	}
-
-	if endTime.Before(startTime) {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "endTime must be after startTime")
+	startTime, endTime, ok := parseAndValidateTimeRange(w, r)
+	if !ok {
 		return
 	}
 
@@ -133,29 +144,15 @@ func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *
 	monitorName := r.PathValue("monitorName")
 
 	// Parse required parameters
-	startTimeStr := r.URL.Query().Get("startTime")
-	endTimeStr := r.URL.Query().Get("endTime")
 	evaluatorName := r.URL.Query().Get("evaluator")
 
-	if startTimeStr == "" || endTimeStr == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Query parameters 'startTime' and 'endTime' are required")
+	startTime, endTime, ok := parseAndValidateTimeRange(w, r)
+	if !ok {
 		return
 	}
 
 	if evaluatorName == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Query parameter 'evaluator' is required")
-		return
-	}
-
-	startTime, err := time.Parse(time.RFC3339, startTimeStr)
-	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid 'startTime' format, expected RFC3339")
-		return
-	}
-
-	endTime, err := time.Parse(time.RFC3339, endTimeStr)
-	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid 'endTime' format, expected RFC3339")
 		return
 	}
 
