@@ -394,7 +394,7 @@ def publish_scores_to_platform(result, monitor_id: str):
     }
 
     # POST to internal endpoint
-    endpoint = f"{api_url}/api/internal/v1/monitors/{monitor_id}/runs/{result.run_id}/scores"
+    endpoint = f"{api_url}/api/publisher/v1/monitors/{monitor_id}/runs/{result.run_id}/scores"
     headers = {
         "x-api-key": api_key,
         "Content-Type": "application/json",
