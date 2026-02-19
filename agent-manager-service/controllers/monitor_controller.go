@@ -19,6 +19,7 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
@@ -95,6 +96,24 @@ func (c *monitorController) CreateMonitor(w http.ResponseWriter, r *http.Request
 	if len(req.Evaluators) == 0 {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "At least one evaluator is required")
 		return
+	}
+	for i, eval := range req.Evaluators {
+		if eval.Identifier == "" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].identifier is required", i))
+			return
+		}
+		if eval.DisplayName == "" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].displayName is required", i))
+			return
+		}
+		if eval.Level == "" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].level is required", i))
+			return
+		}
+		if eval.Level != "trace" && eval.Level != "agent" && eval.Level != "span" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].level must be one of: trace, agent, span", i))
+			return
+		}
 	}
 	if req.Type == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor type is required (future or past)")
@@ -271,6 +290,26 @@ func (c *monitorController) UpdateMonitor(w http.ResponseWriter, r *http.Request
 		log.Warn("Failed to parse request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
+	}
+
+	// Validate evaluator fields if provided
+	for i, eval := range req.Evaluators {
+		if eval.Identifier == "" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].identifier is required", i))
+			return
+		}
+		if eval.DisplayName == "" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].displayName is required", i))
+			return
+		}
+		if eval.Level == "" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].level is required", i))
+			return
+		}
+		if eval.Level != "trace" && eval.Level != "agent" && eval.Level != "span" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].level must be one of: trace, agent, span", i))
+			return
+		}
 	}
 
 	// Convert spec request to models request

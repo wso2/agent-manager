@@ -494,7 +494,6 @@ def response_completeness(trace: Trace, task: Optional[Task] = None) -> EvalResu
     description="Did each tool execute without errors?",
     tags=["tool-use", "reliability"],
     level="span",
-    span_type="tool",
     aggregations=[AggregationType.MEAN, AggregationType.MIN],
 )
 def tool_success_rate(span: ToolSpan, task: Optional[Task] = None) -> EvalResult:
@@ -541,7 +540,6 @@ def tool_success_rate(span: ToolSpan, task: Optional[Task] = None) -> EvalResult
     description="Is each LLM call producing a valid, non-empty response?",
     tags=["quality", "llm"],
     level="span",
-    span_type="llm",
     aggregations=[AggregationType.MEAN, AggregationType.MIN],
 )
 def llm_response_quality(span: LLMSpan, task: Optional[Task] = None) -> EvalResult:

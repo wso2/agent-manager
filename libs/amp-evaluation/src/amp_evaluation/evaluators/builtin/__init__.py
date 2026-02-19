@@ -177,7 +177,6 @@ def list_builtin_evaluators() -> List[Dict[str, Any]]:
                             "description": metadata.get("description", ""),
                             "tags": tags,
                             "version": metadata.get("version", "1.0"),
-                            "supported_levels": metadata.get("supported_levels", ["trace"]),
                             "config_schema": metadata.get("config_schema", []),
                             "metadata": {
                                 "class_name": class_name,

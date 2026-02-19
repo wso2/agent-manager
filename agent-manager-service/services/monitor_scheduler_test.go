@@ -355,7 +355,7 @@ func TestTriggerMonitor_Success(t *testing.T) {
 		OrgName:         "test-org",
 		IntervalMinutes: intPtr(interval),
 		NextRunTime:     timePtr(now),
-		Evaluators:      []models.MonitorEvaluator{{Name: "eval-1"}},
+		Evaluators:      []models.MonitorEvaluator{{Identifier: "eval-1", DisplayName: "eval-1", Level: "trace"}},
 		SamplingRate:    1.0,
 	}
 
@@ -367,7 +367,7 @@ func TestTriggerMonitor_Success(t *testing.T) {
 	call := executor.executeCalls[0]
 	assert.Equal(t, "test-org", call.OrgName)
 	assert.Equal(t, monitor, call.Monitor)
-	assert.Equal(t, []models.MonitorEvaluator{{Name: "eval-1"}}, call.Evaluators)
+	assert.Equal(t, []models.MonitorEvaluator{{Identifier: "eval-1", DisplayName: "eval-1", Level: "trace"}}, call.Evaluators)
 
 	// Verify time window calculation
 	expectedStart := now.Add(-time.Duration(interval) * time.Minute)
@@ -455,7 +455,7 @@ func TestTriggerMonitor_UpdateNextRunTimeError(t *testing.T) {
 		OrgName:         "test-org",
 		IntervalMinutes: intPtr(60),
 		NextRunTime:     timePtr(time.Now()),
-		Evaluators:      []models.MonitorEvaluator{{Name: "eval-1"}},
+		Evaluators:      []models.MonitorEvaluator{{Identifier: "eval-1", DisplayName: "eval-1", Level: "trace"}},
 	}
 
 	// Should NOT return error — update failure is non-fatal
@@ -480,7 +480,7 @@ func TestTriggerMonitor_TimeWindowCalculation(t *testing.T) {
 		OrgName:         "test-org",
 		IntervalMinutes: intPtr(interval),
 		NextRunTime:     timePtr(nextRunTime),
-		Evaluators:      []models.MonitorEvaluator{{Name: "eval-1"}},
+		Evaluators:      []models.MonitorEvaluator{{Identifier: "eval-1", DisplayName: "eval-1", Level: "trace"}},
 	}
 
 	err := s.triggerMonitor(context.Background(), monitor)
@@ -687,7 +687,7 @@ func TestSchedulerCycle_TwoConcurrentCycles(t *testing.T) {
 		AgentID:         "test-agent-id",
 		EnvironmentName: "dev",
 		EnvironmentID:   "test-env-id",
-		Evaluators:      []models.MonitorEvaluator{{Name: "eval-1"}},
+		Evaluators:      []models.MonitorEvaluator{{Identifier: "eval-1", DisplayName: "eval-1", Level: "trace"}},
 		IntervalMinutes: intPtr(60),
 		NextRunTime:     timePtr(time.Now().Add(-1 * time.Minute)), // Due for trigger
 		SamplingRate:    1.0,

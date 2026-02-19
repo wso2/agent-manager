@@ -1,4 +1,4 @@
-// Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file except
@@ -14,19 +14,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package dbmigrations
+package api
 
-const latestVersion = 8
+import (
+	"net/http"
 
-// migration list sorted by version.  Add new migrations to the end of the list.
-// Previous migrations should not be modified.
-var migrations = []migration{
-	migration001,
-	migration002,
-	migration003,
-	migration004,
-	migration005,
-	migration006,
-	migration007,
-	migration008,
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
+)
+
+// RegisterMonitorInternalRoutes registers internal monitor score publishing routes
+// These routes use API key authentication instead of JWT
+func RegisterMonitorInternalRoutes(mux *http.ServeMux, ctrl controllers.MonitorScoresInternalController) {
+	// POST /monitors/{monitorId}/runs/{runId}/scores - Publish evaluation scores
+	mux.HandleFunc("POST /monitors/{monitorId}/runs/{runId}/scores", ctrl.PublishScores)
 }

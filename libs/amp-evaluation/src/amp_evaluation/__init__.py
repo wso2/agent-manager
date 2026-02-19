@@ -103,9 +103,9 @@ from .config import (
 from .invokers import AgentInvoker, InvokeResult, HttpAgentInvoker
 
 # ============================================================================
-# EVALUATION LEVELS AND SPAN TYPES
+# EVALUATION LEVELS
 # ============================================================================
-from .evaluators.config import EvaluationLevel, SpanType
+from .evaluators.config import EvaluationLevel
 
 # ============================================================================
 # CONVENIENCE DECORATORS (allowed in main module for ergonomics)
@@ -184,8 +184,7 @@ __all__ = [
     # -------------------------------------------------------------------------
     "Config",
     # -------------------------------------------------------------------------
-    # Evaluation levels and span types
+    # Evaluation levels
     # -------------------------------------------------------------------------
     "EvaluationLevel",
-    "SpanType",
 ]

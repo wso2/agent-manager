@@ -18,7 +18,7 @@
 Parameter descriptor and evaluation level enums for evaluators.
 
 Provides declarative parameter definition with type validation, defaults, and constraints,
-plus typed enums for evaluation levels and span types.
+plus typed enums for evaluation levels.
 """
 
 import enum as _enum
@@ -45,24 +45,6 @@ class EvaluationLevel(str, _enum.Enum):
     TRACE = "trace"
     AGENT = "agent"
     SPAN = "span"
-
-
-class SpanType(str, _enum.Enum):
-    """
-    Supported span types for span-level evaluation.
-
-    Inherits from str so enum values are string-compatible:
-        SpanType.LLM == "llm"  # True
-
-    Usage:
-        evaluator = HallucinationEvaluator(level="span", span_type=SpanType.LLM)
-        evaluator = HallucinationEvaluator(level="span", span_type="llm")  # Also works
-    """
-
-    LLM = "llm"
-    TOOL = "tool"
-    RETRIEVAL = "retrieval"
-    EMBEDDING = "embedding"
 
 
 # ============================================================================

@@ -4571,6 +4571,199 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/scores:
+    get:
+      summary: Get evaluation scores for a monitor within a time range
+      description: Returns aggregated and individual evaluation scores for a monitor within a specified time window
+      operationId: getMonitorScores
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: monitorName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: start_time
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Start time for the query window (RFC3339 format)
+        - name: end_time
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: End time for the query window (RFC3339 format)
+        - name: evaluator
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by evaluator name
+        - name: level
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [trace, agent, span]
+          description: Filter by evaluation level
+      responses:
+        "200":
+          description: Evaluation scores
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonitorScoresResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/scores/timeseries:
+    get:
+      summary: Get time-series evaluation scores
+      description: Returns time-bucketed evaluation scores for a specific evaluator
+      operationId: getMonitorScoresTimeSeries
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: monitorName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: start_time
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Start time for the query window (RFC3339 format)
+        - name: end_time
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: End time for the query window (RFC3339 format)
+        - name: evaluator
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Evaluator name (required)
+        - name: granularity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [hour, day, week]
+            default: hour
+          description: Time bucket granularity
+      responses:
+        "200":
+          description: Time-series data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeSeriesResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/traces/{traceId}/scores:
+    get:
+      summary: Get evaluation scores for a trace across all monitors
+      description: Returns all evaluation scores for a specific trace across all monitors in the agent
+      operationId: getTraceScores
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: traceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Trace evaluation scores grouped by monitor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TraceScoresResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trace not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/evaluators:
     get:
       summary: List all evaluators
@@ -5708,10 +5901,12 @@ components:
             $ref: "#/components/schemas/MonitorEvaluator"
           minItems: 1
           example:
-            - name: "latency"
+            - identifier: "latency"
+              displayName: "Latency Check"
               config:
                 max_latency_ms: 3000
-            - name: "answer_relevancy"
+            - identifier: "answer_relevancy"
+              displayName: "Answer Relevancy"
               config:
                 min_overlap_ratio: 0.2
         type:
@@ -5822,10 +6017,12 @@ components:
           items:
             $ref: "#/components/schemas/MonitorEvaluator"
           example:
-            - name: "latency"
+            - identifier: "latency"
+              displayName: "Latency Check"
               config:
                 max_latency_ms: 3000
-            - name: "answer_relevancy"
+            - identifier: "answer_relevancy"
+              displayName: "Answer Relevancy"
         intervalMinutes:
           type: integer
           description: Interval in minutes (only for 'future' type)
@@ -5904,10 +6101,12 @@ components:
           items:
             $ref: "#/components/schemas/MonitorEvaluator"
           example:
-            - name: "latency"
+            - identifier: "latency"
+              displayName: "Latency Check"
               config:
                 max_latency_ms: 3000
-            - name: "answer_relevancy"
+            - identifier: "answer_relevancy"
+              displayName: "Answer Relevancy"
         traceStart:
           type: string
           format: date-time
@@ -5957,12 +6156,19 @@ components:
     MonitorEvaluator:
       type: object
       required:
-        - name
+        - identifier
+        - displayName
+        - level
       properties:
-        name:
+        identifier:
           type: string
-          description: Evaluator identifier (e.g., "latency", "answer_relevancy", "deepeval/plan-quality")
+          description: Evaluator type/definition key for catalog lookup (e.g., "latency", "answer_relevancy", "deepeval/plan-quality")
           example: "latency"
+          minLength: 1
+        displayName:
+          type: string
+          description: User-facing name, unique per monitor (e.g., "Latency Check", "Customer Query Latency")
+          example: "Latency Check"
           minLength: 1
         config:
           type: object
@@ -5971,6 +6177,14 @@ components:
           example:
             max_latency_ms: 3000
             use_task_constraint: false
+        level:
+          type: string
+          description: Evaluation level
+          enum:
+            - trace
+            - agent
+            - span
+          example: "trace"
 
     EvaluatorResponse:
       type: object
@@ -8172,3 +8386,375 @@ components:
         status:
           type: string
           description: Artifact status
+
+    # ============================================================================
+    # Evaluation Score Schemas
+    # ============================================================================
+
+    EvaluationScoreResponse:
+      type: object
+      required:
+        - id
+        - evaluatorName
+        - level
+        - traceId
+        - score
+      properties:
+        id:
+          type: string
+        evaluatorName:
+          type: string
+        level:
+          type: string
+          enum: [trace, agent, span]
+        traceId:
+          type: string
+        spanId:
+          type: string
+        score:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        explanation:
+          type: string
+        traceTimestamp:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+        error:
+          type: string
+
+    EvaluationAggregateResponse:
+      type: object
+      required:
+        - evaluatorName
+        - level
+        - count
+      properties:
+        evaluatorName:
+          type: string
+        level:
+          type: string
+          enum: [trace, agent, span]
+        count:
+          type: integer
+        mean:
+          type: number
+          format: double
+        passRate:
+          type: number
+          format: double
+
+    RunScoresResponse:
+      type: object
+      required:
+        - aggregates
+        - scores
+        - total
+      properties:
+        aggregates:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluationAggregateResponse"
+        scores:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluationScoreResponse"
+        total:
+          type: integer
+          description: Total number of individual scores (for pagination)
+
+    TimeSeriesPoint:
+      type: object
+      required:
+        - timestamp
+        - count
+        - errorCount
+        - aggregations
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the bucket
+        count:
+          type: integer
+          description: Total number of scores in this bucket
+        errorCount:
+          type: integer
+          description: Number of scores with errors in this bucket
+        aggregations:
+          type: object
+          description: Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
+          additionalProperties: true
+
+    TimeSeriesResponse:
+      type: object
+      required:
+        - monitorName
+        - evaluatorName
+        - granularity
+        - points
+      properties:
+        monitorName:
+          type: string
+          description: Name of the monitor
+        evaluatorName:
+          type: string
+          description: Display name of the evaluator
+        granularity:
+          type: string
+          enum: [hour, day, week]
+          description: Time bucket granularity
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeSeriesPoint"
+
+    TraceScoreGroup:
+      type: object
+      required:
+        - evaluatorName
+        - level
+        - scores
+      properties:
+        evaluatorName:
+          type: string
+        level:
+          type: string
+          enum: [trace, agent, span]
+        scores:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluationScoreResponse"
+
+    TraceEvaluationResponse:
+      type: object
+      required:
+        - traceId
+        - evaluators
+      properties:
+        traceId:
+          type: string
+        evaluators:
+          type: array
+          items:
+            $ref: "#/components/schemas/TraceScoreGroup"
+
+    MonitorScoresResponse:
+      type: object
+      required:
+        - monitorName
+        - timeRange
+        - evaluators
+      properties:
+        monitorName:
+          type: string
+          description: Name of the monitor
+        timeRange:
+          $ref: "#/components/schemas/TimeRange"
+        evaluators:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluatorScoreSummary"
+
+    TimeRange:
+      type: object
+      required:
+        - start
+        - end
+      properties:
+        start:
+          type: string
+          format: date-time
+          description: Start time of the range
+        end:
+          type: string
+          format: date-time
+          description: End time of the range
+
+    EvaluatorScoreSummary:
+      type: object
+      required:
+        - evaluatorName
+        - level
+        - count
+        - errorCount
+        - aggregations
+      properties:
+        evaluatorName:
+          type: string
+          description: Display name of the evaluator
+        level:
+          type: string
+          enum: [trace, agent, span]
+          description: Evaluation level
+        count:
+          type: integer
+          description: Total number of scores
+        errorCount:
+          type: integer
+          description: Number of scores with errors
+        aggregations:
+          type: object
+          description: Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
+          additionalProperties: true
+
+    TraceScoresResponse:
+      type: object
+      required:
+        - traceId
+        - monitors
+      properties:
+        traceId:
+          type: string
+          description: Trace ID
+        monitors:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonitorTraceGroup"
+
+    MonitorTraceGroup:
+      type: object
+      required:
+        - monitorName
+        - monitorId
+        - runId
+        - evaluators
+      properties:
+        monitorName:
+          type: string
+          description: Name of the monitor
+        monitorId:
+          type: string
+          format: uuid
+          description: ID of the monitor
+        runId:
+          type: string
+          format: uuid
+          description: ID of the run
+        evaluators:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluatorTraceGroup"
+
+    EvaluatorTraceGroup:
+      type: object
+      required:
+        - evaluatorName
+        - level
+        - scores
+      properties:
+        evaluatorName:
+          type: string
+          description: Display name of the evaluator
+        level:
+          type: string
+          enum: [trace, agent, span]
+          description: Evaluation level
+        scores:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScoreItem"
+
+    ScoreItem:
+      type: object
+      properties:
+        spanId:
+          type: string
+          nullable: true
+          description: Span ID (if applicable)
+        score:
+          type: number
+          format: float
+          nullable: true
+          minimum: 0
+          maximum: 1
+          description: Numeric score
+        explanation:
+          type: string
+          nullable: true
+          description: Explanation of the score
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+        error:
+          type: string
+          nullable: true
+          description: Error message if evaluation failed
+
+    PublishScoreItem:
+      type: object
+      required:
+        - displayName
+        - level
+        - traceId
+      properties:
+        displayName:
+          type: string
+        level:
+          type: string
+          enum: [trace, agent, span]
+        traceId:
+          type: string
+        spanId:
+          type: string
+        score:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        explanation:
+          type: string
+        traceTimestamp:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+        error:
+          type: string
+
+    PublishAggregateItem:
+      type: object
+      required:
+        - identifier
+        - displayName
+        - level
+        - count
+      properties:
+        identifier:
+          type: string
+          description: Evaluator type/definition key
+        displayName:
+          type: string
+          description: User-facing evaluator name
+        level:
+          type: string
+          enum: [trace, agent, span]
+        count:
+          type: integer
+        mean:
+          type: number
+          format: double
+        passRate:
+          type: number
+          format: double
+
+    PublishScoresRequest:
+      type: object
+      required:
+        - scores
+        - aggregates
+      properties:
+        scores:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublishScoreItem"
+        aggregates:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublishAggregateItem"

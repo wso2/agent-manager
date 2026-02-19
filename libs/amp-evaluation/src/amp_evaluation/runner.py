@@ -449,16 +449,21 @@ class BaseRunner(ABC):
                 # Convert EvalResult list to EvaluatorScore list
                 evaluator_scores = []
                 for eval_result in eval_results:
+                    # Extract span_id from details if present
+                    details = eval_result.details or {}
+                    span_id = details.get("span_id")
+
                     if eval_result.is_error:
                         score = EvaluatorScore(
                             trace_id=trace.trace_id,
                             score=0.0,
                             passed=False,
+                            span_id=span_id,
                             timestamp=trace.timestamp,
                             explanation=eval_result.explanation,
                             task_id=task.task_id if task else None,
                             trial_id=trial_id,
-                            metadata=eval_result.details or {},
+                            metadata=details,
                             error=eval_result.error,
                         )
                     else:
@@ -466,11 +471,12 @@ class BaseRunner(ABC):
                             trace_id=trace.trace_id,
                             score=eval_result.score,
                             passed=eval_result.passed,
+                            span_id=span_id,
                             timestamp=trace.timestamp,
                             explanation=eval_result.explanation,
                             task_id=task.task_id if task else None,
                             trial_id=trial_id,
-                            metadata=eval_result.details or {},
+                            metadata=details,
                             error=None,
                         )
                     evaluator_scores.append(score)

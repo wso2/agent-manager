@@ -27,6 +27,14 @@ TEST_DB_USER="${DB_USER}"
 TEST_DB_PASSWORD="${DB_PASSWORD}"
 TEST_DB_NAME="${DB_NAME}"
 
+# Set up log file early so ALL output (including migration failures) is captured
+mkdir -p localdata
+LOG_FILE="$PROJECT_ROOT/localdata/test_output_isolated.log"
+> "$LOG_FILE"
+
+# Tee all subsequent stdout/stderr to the log file while still showing on terminal
+exec > >(tee -a "$LOG_FILE") 2>&1
+
 echo "========================================"
 echo "Running tests with isolated test database"
 echo "========================================"
@@ -72,9 +80,14 @@ echo ""
 # Step 3: Run migrations
 echo "Step 3: Running migrations on test database"
 export ENV_FILE_PATH="$ENV_TEST_FILE"
-if ! go run . -migrate -server=false 2>&1 | grep -q "migration completed"; then
-    echo "✗ FAILED - Database migrations failed"
-    exit 1
+set +e
+go run . -migrate -server=false 2>&1
+migrationExitCode=$?
+set -e
+if [ $migrationExitCode -ne 0 ]; then
+    echo "✗ FAILED - Database migrations failed (exit code $migrationExitCode)"
+    echo "Full log: $LOG_FILE"
+    exit $migrationExitCode
 fi
 echo "✓ Migrations completed"
 echo ""
@@ -84,26 +97,14 @@ echo "Step 4: Running tests"
 echo "========================================"
 echo ""
 
-# Create localdata directory if it doesn't exist
-mkdir -p localdata
-
 # Record start time
 start_time=$SECONDS
 
-# Save original stdout and stderr
-exec 6>&1 7>&2
-
-# Redirect both stdout and stderr to log file
-exec > localdata/test_output_isolated.log 2>&1
-
-# Run tests with test database (disable -e to capture exit code)
+# Run tests (output already tee'd to log file via exec above)
 set +e
 go test -v --race ./...
 testExitCode=$?
 set -e
-
-# Restore original stdout and stderr
-exec 1>&6 2>&7 6>&- 7>&-
 
 elapsed=$(( SECONDS - start_time ))
 echo ""
@@ -113,19 +114,15 @@ echo "========================================"
 echo ""
 
 if [ $testExitCode -ne 0 ]; then
-    echo "✗ FAILED - Showing last 50 lines of test output:"
-    echo "========================================"
-    tail -50 "$PROJECT_ROOT/localdata/test_output_isolated.log"
-    echo "========================================"
-    echo ""
-    echo "Full log: localdata/test_output_isolated.log"
+    echo "✗ FAILED"
+    echo "Full log: $LOG_FILE"
     exit ${testExitCode}
 fi
 
-echo "✓ PASSED - Showing summary:"
+echo "✓ PASSED - Summary:"
 echo "========================================"
-grep -E "(PASS|FAIL|ok|FAIL)" "$PROJECT_ROOT/localdata/test_output_isolated.log" | tail -20
+grep -E "(^ok|^FAIL|^---)" "$LOG_FILE" | tail -20
 echo "========================================"
 echo ""
-echo "Full log: localdata/test_output_isolated.log"
+echo "Full log: $LOG_FILE"
 echo ""
