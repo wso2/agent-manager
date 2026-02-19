@@ -262,8 +262,8 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, moni
 		monitor.Evaluators = *req.Evaluators
 	}
 	if req.IntervalMinutes != nil {
-		if *req.IntervalMinutes < 5 {
-			return nil, fmt.Errorf("intervalMinutes must be at least 5: %w", utils.ErrInvalidInput)
+		if *req.IntervalMinutes < models.MinIntervalMinutes {
+			return nil, fmt.Errorf("intervalMinutes must be at least %d: %w", models.MinIntervalMinutes, utils.ErrInvalidInput)
 		}
 		monitor.IntervalMinutes = req.IntervalMinutes
 	}
@@ -592,8 +592,8 @@ func (s *monitorManagerService) validateCreateRequest(req *models.CreateMonitorR
 		}
 	}
 	if req.IntervalMinutes != nil {
-		if *req.IntervalMinutes < 5 {
-			return fmt.Errorf("intervalMinutes must be at least 5: %w", utils.ErrInvalidInput)
+		if *req.IntervalMinutes < models.MinIntervalMinutes {
+			return fmt.Errorf("intervalMinutes must be at least %d: %w", models.MinIntervalMinutes, utils.ErrInvalidInput)
 		}
 	}
 	if req.SamplingRate != nil {

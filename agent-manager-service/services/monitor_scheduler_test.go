@@ -282,7 +282,7 @@ func TestExtractErrorMessage_NoConditions(t *testing.T) {
 	assert.Empty(t, msg)
 }
 
-func TestExtractErrorMessage_WithMessage(t *testing.T) {
+func TestExtractErrorMessage_WithReasonAndMessage(t *testing.T) {
 	s := newTestScheduler(nil)
 	cr := map[string]interface{}{
 		"status": map[string]interface{}{
@@ -298,10 +298,10 @@ func TestExtractErrorMessage_WithMessage(t *testing.T) {
 	}
 
 	msg := s.extractErrorMessage(cr)
-	assert.Equal(t, "out of memory", msg)
+	assert.Equal(t, "WorkflowFailed: out of memory", msg)
 }
 
-func TestExtractErrorMessage_EmptyMessage(t *testing.T) {
+func TestExtractErrorMessage_ReasonOnly(t *testing.T) {
 	s := newTestScheduler(nil)
 	cr := map[string]interface{}{
 		"status": map[string]interface{}{
@@ -310,6 +310,41 @@ func TestExtractErrorMessage_EmptyMessage(t *testing.T) {
 					"type":   "WorkflowCompleted",
 					"status": "True",
 					"reason": "WorkflowFailed",
+				},
+			},
+		},
+	}
+
+	msg := s.extractErrorMessage(cr)
+	assert.Equal(t, "WorkflowFailed", msg)
+}
+
+func TestExtractErrorMessage_MessageOnly(t *testing.T) {
+	s := newTestScheduler(nil)
+	cr := map[string]interface{}{
+		"status": map[string]interface{}{
+			"conditions": []interface{}{
+				map[string]interface{}{
+					"type":    "WorkflowCompleted",
+					"status":  "True",
+					"message": "something went wrong",
+				},
+			},
+		},
+	}
+
+	msg := s.extractErrorMessage(cr)
+	assert.Equal(t, "something went wrong", msg)
+}
+
+func TestExtractErrorMessage_NoReasonNoMessage(t *testing.T) {
+	s := newTestScheduler(nil)
+	cr := map[string]interface{}{
+		"status": map[string]interface{}{
+			"conditions": []interface{}{
+				map[string]interface{}{
+					"type":   "WorkflowCompleted",
+					"status": "True",
 				},
 			},
 		},

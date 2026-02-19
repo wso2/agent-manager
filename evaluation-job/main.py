@@ -145,15 +145,15 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--agent-manager-api-endpoint",
+        "--publisher-endpoint",
         required=True,
-        help="Agent Manager internal API endpoint (e.g., http://agent-manager-internal:8081)",
+        help="Publisher API endpoint for score publishing (e.g., http://agent-manager-internal:8081)",
     )
 
     parser.add_argument(
-        "--api-key",
+        "--publisher-api-key",
         required=True,
-        help="API key for internal API authentication",
+        help="API key for publisher authentication",
     )
 
     return parser.parse_args()
@@ -241,8 +241,8 @@ def publish_scores(
         "aggregatedScores": aggregated_scores,
     }
 
-    # Publish to internal API
-    url = f"{api_endpoint}/monitors/{monitor_id}/runs/{run_id}/scores"
+    # Publish scores to agent-manager API
+    url = f"{api_endpoint}/api/v1/publisher/monitors/{monitor_id}/runs/{run_id}/scores"
     headers = {
         "x-api-key": api_key,
         "Content-Type": "application/json",
@@ -426,8 +426,8 @@ def main():
             run_id=args.run_id,
             scores=result.scores,
             display_name_to_identifier=display_name_to_identifier,
-            api_endpoint=args.agent_manager_api_endpoint,
-            api_key=args.api_key,
+            api_endpoint=args.publisher_endpoint,
+            api_key=args.publisher_api_key,
         )
 
         if not publish_success:
