@@ -135,9 +135,6 @@ func createComponentCRForInternalAgents(orgName, projectName string, req CreateC
 		if req.Configurations.EnableAutoInstrumentation != nil {
 			parameters["enableAutoInstrumentation"] = *req.Configurations.EnableAutoInstrumentation
 		}
-		if req.Configurations.TraceContent != nil {
-			parameters["traceContent"] = *req.Configurations.TraceContent
-		}
 	}
 	componentWorkflowParameters, err := buildWorkflowParameters(req)
 	if err != nil {
@@ -993,18 +990,12 @@ func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespa
 		return nil, fmt.Errorf("failed to build instrumentation image: %w", err)
 	}
 
-	// Use per-agent traceContent setting from component params, default to true
-	traceContentEnabled := true
-	if component.Configurations != nil && component.Configurations.TraceContent != nil {
-		traceContentEnabled = *component.Configurations.TraceContent
-	}
-
 	return map[string]interface{}{
 		"instrumentationImage":  instrumentationImage,
 		"sdkVolumeName":         cfg.OTEL.SDKVolumeName,
 		"sdkMountPath":          cfg.OTEL.SDKMountPath,
 		"otelEndpoint":          cfg.OTEL.ExporterEndpoint,
-		"isTraceContentEnabled": utils.BoolAsString(traceContentEnabled),
+		"isTraceContentEnabled": utils.BoolAsString(cfg.OTEL.IsTraceContentEnabled),
 		"agentApiKey":           agentApiKey,
 	}, nil
 }
@@ -1297,14 +1288,6 @@ func convertComponentCR(componentCR map[string]interface{}) (*models.AgentRespon
 					agent.Configurations = &models.Configurations{}
 				}
 				agent.Configurations.EnableAutoInstrumentation = &enableAutoInstrumentation
-			}
-
-			// Extract traceContent
-			if traceContent, ok := parameters["traceContent"].(bool); ok {
-				if agent.Configurations == nil {
-					agent.Configurations = &models.Configurations{}
-				}
-				agent.Configurations.TraceContent = &traceContent
 			}
 		}
 

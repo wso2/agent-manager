@@ -193,9 +193,6 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 		if req.Configurations.EnableAutoInstrumentation != nil {
 			parameters["enableAutoInstrumentation"] = *req.Configurations.EnableAutoInstrumentation
 		}
-		if req.Configurations.TraceContent != nil {
-			parameters["traceContent"] = *req.Configurations.TraceContent
-		}
 	}
 
 	// Apply the updated component CR
