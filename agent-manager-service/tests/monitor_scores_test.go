@@ -40,6 +40,7 @@ func (s *stubScoreRepo) WithTx(_ *gorm.DB) repositories.ScoreRepository { return
 func (s *stubScoreRepo) RunInTransaction(fn func(txRepo repositories.ScoreRepository) error) error {
 	return fn(s)
 }
+
 func (s *stubScoreRepo) UpsertMonitorRunEvaluators(_ []models.MonitorRunEvaluator) error {
 	return nil
 }

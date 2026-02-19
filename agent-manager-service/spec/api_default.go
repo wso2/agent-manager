@@ -3623,7 +3623,7 @@ func (r ApiGetMonitorScoresRequest) EndTime(endTime time.Time) ApiGetMonitorScor
 	return r
 }
 
-// Filter by evaluator name
+// Filter by evaluator displayName (unique within this monitor). This is the user-visible name defined on the monitor, not the catalog identifier.
 func (r ApiGetMonitorScoresRequest) Evaluator(evaluator string) ApiGetMonitorScoresRequest {
 	r.evaluator = &evaluator
 	return r
@@ -3802,7 +3802,7 @@ func (r ApiGetMonitorScoresTimeSeriesRequest) EndTime(endTime time.Time) ApiGetM
 	return r
 }
 
-// Evaluator name (required)
+// Filter by evaluator displayName (unique within this monitor). This is the user-visible name defined on the monitor, not the catalog identifier.
 func (r ApiGetMonitorScoresTimeSeriesRequest) Evaluator(evaluator string) ApiGetMonitorScoresTimeSeriesRequest {
 	r.evaluator = &evaluator
 	return r
