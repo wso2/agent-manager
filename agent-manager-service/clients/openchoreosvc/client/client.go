@@ -64,6 +64,7 @@ type OpenChoreoClient interface {
 	DetachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) error
 	HasTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) (bool, error)
 	UpdateComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error
+	UpdateComponentInstrumentationConfig(ctx context.Context, namespaceName, projectName, componentName string, enableAutoInstrumentation bool) error
 	GetComponentEndpoints(ctx context.Context, namespaceName, projectName, componentName, environment string) (map[string]models.EndpointsResponse, error)
 	GetComponentConfigurations(ctx context.Context, namespaceName, projectName, componentName, environment string) ([]models.EnvVars, error)
 

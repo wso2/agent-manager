@@ -248,15 +248,29 @@ func (s *agentManagerService) handleInstrumentationUpdate(ctx context.Context, o
 
 	// Check if this is a buildpack Python build
 	if req.Build.BuildpackBuild == nil || req.Build.BuildpackBuild.Buildpack.Language != string(utils.LanguagePython) {
+		// The build has switched away from a Python buildpack; detach any previously-applied
+		// Python OTEL trait so it doesn't linger on the agent.
+		hasTrait, err := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation)
+		if err != nil {
+			s.logger.Error("Failed to check trait status", "agentName", agentName, "error", err)
+			return fmt.Errorf("failed to check trait status: %w", err)
+		}
+		if hasTrait {
+			if err := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); err != nil {
+				return fmt.Errorf("failed to detach instrumentation trait on non-Python build: %w", err)
+			}
+		}
 		s.logger.Debug("Skipping instrumentation update for non-Python buildpack", "agentName", agentName)
 		return nil
 	}
 
-	// Determine desired instrumentation state (default to enabled if not specified)
-	enableInstrumentation := true
-	if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil {
-		enableInstrumentation = *req.Configurations.EnableAutoInstrumentation
+	// If the caller did not explicitly provide EnableAutoInstrumentation, preserve the
+	// current trait state and return without making any changes.
+	if req.Configurations == nil || req.Configurations.EnableAutoInstrumentation == nil {
+		s.logger.Debug("EnableAutoInstrumentation not specified, preserving current instrumentation state", "agentName", agentName)
+		return nil
 	}
+	enableInstrumentation := *req.Configurations.EnableAutoInstrumentation
 
 	// Check current trait state
 	hasTrait, err := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation)
@@ -1052,6 +1066,10 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 			if detachErr := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); detachErr != nil {
 				s.logger.Warn("Failed to detach instrumentation trait during deploy", "agentName", agentName, "error", detachErr)
 			}
+		}
+		// Persist the setting to the component CR so subsequent reads reflect the current state
+		if configErr := s.ocClient.UpdateComponentInstrumentationConfig(ctx, orgName, projectName, agentName, enableInstrumentation); configErr != nil {
+			s.logger.Warn("Failed to persist instrumentation config during deploy", "agentName", agentName, "error", configErr)
 		}
 	}
 

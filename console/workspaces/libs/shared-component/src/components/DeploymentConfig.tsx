@@ -161,7 +161,8 @@ export function DeploymentConfig({
                             label="Enable auto instrumentation"
                         />
                         <Typography variant="body2" color="text.secondary">
-                            Automatically adds OTEL tracing instrumentation to your agent for observability.
+                            Automatically adds OTEL tracing instrumentation to
+                            your agent for observability.
                         </Typography>
                     </Box>
                 </Collapse>

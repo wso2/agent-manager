@@ -746,6 +746,40 @@ func extractResourceConfig(resources map[string]interface{}) *ResourceConfig {
 	return nil
 }
 
+// UpdateComponentInstrumentationConfig updates the enableAutoInstrumentation parameter stored in the component CR
+func (c *openChoreoClient) UpdateComponentInstrumentationConfig(ctx context.Context, namespaceName, projectName, componentName string, enableAutoInstrumentation bool) error {
+	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
+	if err != nil {
+		return fmt.Errorf("failed to get component resource: %w", err)
+	}
+
+	spec, ok := componentCR["spec"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("invalid spec in component CR")
+	}
+
+	parameters, ok := spec["parameters"].(map[string]interface{})
+	if !ok {
+		parameters = make(map[string]interface{})
+		spec["parameters"] = parameters
+	}
+
+	parameters["enableAutoInstrumentation"] = enableAutoInstrumentation
+
+	applyResp, err := c.ocClient.ApplyResourceWithResponse(ctx, componentCR)
+	if err != nil {
+		return fmt.Errorf("failed to update component instrumentation config: %w", err)
+	}
+
+	if applyResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(applyResp.StatusCode(), applyResp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	return nil
+}
+
 func (c *openChoreoClient) DeleteComponent(ctx context.Context, namespaceName, projectName, componentName string) error {
 	resp, err := c.ocClient.DeleteComponentWithResponse(ctx, namespaceName, projectName, componentName)
 	if err != nil {
