@@ -227,6 +227,62 @@ func (s *agentManagerService) attachOTELInstrumentationTrait(ctx context.Context
 	return nil
 }
 
+// detachOTELInstrumentationTrait removes the OTEL instrumentation trait from the agent
+func (s *agentManagerService) detachOTELInstrumentationTrait(ctx context.Context, orgName, projectName, agentName string) error {
+	if err := s.ocClient.DetachTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation); err != nil {
+		return fmt.Errorf("error detaching OTEL instrumentation trait: %w", err)
+	}
+
+	s.logger.Info("Disabled instrumentation for buildpack agent", "agentName", agentName)
+	return nil
+}
+
+// handleInstrumentationUpdate handles enabling/disabling instrumentation when build parameters are updated
+// It attaches or detaches the OTEL instrumentation trait based on the enableAutoInstrumentation setting
+func (s *agentManagerService) handleInstrumentationUpdate(ctx context.Context, orgName, projectName, agentName string, existingAgent *models.AgentResponse, req *spec.UpdateAgentBuildParametersRequest) error {
+	// Only handle instrumentation for API agents with buildpack builds (Python)
+	if existingAgent.Type.Type != string(utils.AgentTypeAPI) {
+		s.logger.Debug("Skipping instrumentation update for non-API agent", "agentName", agentName)
+		return nil
+	}
+
+	// Check if this is a buildpack Python build
+	if req.Build.BuildpackBuild == nil || req.Build.BuildpackBuild.Buildpack.Language != string(utils.LanguagePython) {
+		s.logger.Debug("Skipping instrumentation update for non-Python buildpack", "agentName", agentName)
+		return nil
+	}
+
+	// Determine desired instrumentation state (default to enabled if not specified)
+	enableInstrumentation := true
+	if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil {
+		enableInstrumentation = *req.Configurations.EnableAutoInstrumentation
+	}
+
+	// Check current trait state
+	hasTrait, err := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation)
+	if err != nil {
+		s.logger.Error("Failed to check trait status", "agentName", agentName, "error", err)
+		return fmt.Errorf("failed to check trait status: %w", err)
+	}
+
+	// Attach or detach trait based on desired state
+	if enableInstrumentation && !hasTrait {
+		s.logger.Info("Enabling instrumentation (attaching trait)", "agentName", agentName)
+		if err := s.attachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); err != nil {
+			return fmt.Errorf("failed to attach instrumentation trait: %w", err)
+		}
+	} else if !enableInstrumentation && hasTrait {
+		s.logger.Info("Disabling instrumentation (detaching trait)", "agentName", agentName)
+		if err := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); err != nil {
+			return fmt.Errorf("failed to detach instrumentation trait: %w", err)
+		}
+	} else {
+		s.logger.Debug("Instrumentation state unchanged", "agentName", agentName, "enabled", enableInstrumentation, "hasTrait", hasTrait)
+	}
+
+	return nil
+}
+
 // generateAgentAPIKey generates an agent API key (JWT token) for the agent
 // This is a common utility used by both buildpack and docker agent instrumentation
 func (s *agentManagerService) generateAgentAPIKey(ctx context.Context, orgName, projectName, agentName string) (string, error) {
@@ -545,6 +601,12 @@ func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, or
 	if err := s.ocClient.UpdateComponentBuildParameters(ctx, orgName, projectName, agentName, updateReq); err != nil {
 		s.logger.Error("Failed to update agent build parameters in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
 		return nil, fmt.Errorf("failed to update agent build parameters: %w", err)
+	}
+
+	// Handle instrumentation trait attachment/detachment based on enableAutoInstrumentation change
+	if err := s.handleInstrumentationUpdate(ctx, orgName, projectName, agentName, existingAgent, req); err != nil {
+		s.logger.Error("Failed to update instrumentation", "agentName", agentName, "error", err)
+		return nil, fmt.Errorf("failed to update instrumentation: %w", err)
 	}
 
 	// Fetch agent to return current state
@@ -972,6 +1034,25 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 	if err := s.ocClient.Deploy(ctx, orgName, projectName, agentName, deployReq); err != nil {
 		s.logger.Error("Failed to deploy agent component in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
 		return "", err
+	}
+
+	// Update instrumentation trait if enableAutoInstrumentation is specified and agent is a Python buildpack build
+	if req.EnableAutoInstrumentation != nil && agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguagePython) {
+		enableInstrumentation := *req.EnableAutoInstrumentation
+		hasTrait, traitErr := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation)
+		if traitErr != nil {
+			s.logger.Warn("Failed to check instrumentation trait status during deploy", "agentName", agentName, "error", traitErr)
+		} else if enableInstrumentation && !hasTrait {
+			s.logger.Info("Enabling instrumentation (attaching trait) during deploy", "agentName", agentName)
+			if attachErr := s.attachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); attachErr != nil {
+				s.logger.Warn("Failed to attach instrumentation trait during deploy", "agentName", agentName, "error", attachErr)
+			}
+		} else if !enableInstrumentation && hasTrait {
+			s.logger.Info("Disabling instrumentation (detaching trait) during deploy", "agentName", agentName)
+			if detachErr := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); detachErr != nil {
+				s.logger.Warn("Failed to detach instrumentation trait during deploy", "agentName", agentName, "error", detachErr)
+			}
+		}
 	}
 
 	// Get deployment pipeline from project

@@ -867,6 +867,96 @@ func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, proje
 	return nil
 }
 
+// DetachTrait removes a trait from a component
+func (c *openChoreoClient) DetachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) error {
+	// Get the current traits for the component
+	listResp, err := c.ocClient.ListComponentTraitsWithResponse(ctx, namespaceName, projectName, componentName)
+	if err != nil {
+		return fmt.Errorf("failed to list component traits: %w", err)
+	}
+
+	if listResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(listResp.StatusCode(), listResp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	// Build the new traits list excluding the trait to detach
+	var traits []gen.ComponentTraitRequest
+	traitFound := false
+
+	// Parse existing traits from the generic response
+	if listResp.JSON200 != nil && listResp.JSON200.Data != nil && listResp.JSON200.Data.Items != nil {
+		for _, item := range *listResp.JSON200.Data.Items {
+			name, _ := item["name"].(string)
+			instanceName, _ := item["instanceName"].(string)
+			if name == string(traitType) {
+				// Skip this trait (it will be removed)
+				traitFound = true
+				continue
+			}
+			trait := gen.ComponentTraitRequest{
+				Name:         name,
+				InstanceName: instanceName,
+			}
+			if params, ok := item["parameters"].(map[string]interface{}); ok {
+				trait.Parameters = &params
+			}
+			traits = append(traits, trait)
+		}
+	}
+
+	if !traitFound {
+		// Trait doesn't exist, nothing to do
+		return nil
+	}
+
+	// Update traits (with the trait removed)
+	updateReq := gen.UpdateComponentTraitsJSONRequestBody{
+		Traits: traits,
+	}
+
+	updateResp, err := c.ocClient.UpdateComponentTraitsWithResponse(ctx, namespaceName, projectName, componentName, updateReq)
+	if err != nil {
+		return fmt.Errorf("failed to update component traits: %w", err)
+	}
+
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), updateResp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	return nil
+}
+
+// HasTrait checks if a component has a specific trait attached
+func (c *openChoreoClient) HasTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) (bool, error) {
+	// Get the current traits for the component
+	listResp, err := c.ocClient.ListComponentTraitsWithResponse(ctx, namespaceName, projectName, componentName)
+	if err != nil {
+		return false, fmt.Errorf("failed to list component traits: %w", err)
+	}
+
+	if listResp.StatusCode() != http.StatusOK {
+		return false, handleErrorResponse(listResp.StatusCode(), listResp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	// Check if the trait exists
+	if listResp.JSON200 != nil && listResp.JSON200.Data != nil && listResp.JSON200.Data.Items != nil {
+		for _, item := range *listResp.JSON200.Data.Items {
+			name, _ := item["name"].(string)
+			if name == string(traitType) {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
+}
+
 // UpdateComponentEnvironmentVariables updates the environment variables for a component
 func (c *openChoreoClient) UpdateComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
 	// Fetch the full component CR with server-managed fields removed
