@@ -88,38 +88,38 @@ func TestGetMonitorScores_Validation(t *testing.T) {
 		wantStatus int
 	}{
 		{
-			name:       "missing start_time and end_time",
+			name:       "missing startTime and endTime",
 			query:      "",
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "missing end_time",
-			query:      "?start_time=" + validStart,
+			name:       "missing endTime",
+			query:      "?startTime=" + validStart,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "missing start_time",
-			query:      "?end_time=" + validEnd,
+			name:       "missing startTime",
+			query:      "?endTime=" + validEnd,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "invalid start_time format",
-			query:      "?start_time=not-a-date&end_time=" + validEnd,
+			name:       "invalid startTime format",
+			query:      "?startTime=not-a-date&endTime=" + validEnd,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "invalid end_time format",
-			query:      "?start_time=" + validStart + "&end_time=not-a-date",
+			name:       "invalid endTime format",
+			query:      "?startTime=" + validStart + "&endTime=not-a-date",
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "end_time before start_time",
-			query:      "?start_time=" + validEnd + "&end_time=" + validStart,
+			name:       "endTime before startTime",
+			query:      "?startTime=" + validEnd + "&endTime=" + validStart,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "invalid level value",
-			query:      "?start_time=" + validStart + "&end_time=" + validEnd + "&level=invalid",
+			query:      "?startTime=" + validStart + "&endTime=" + validEnd + "&level=invalid",
 			wantStatus: http.StatusBadRequest,
 		},
 	}
@@ -145,7 +145,7 @@ func TestGetMonitorScores_ValidLevel(t *testing.T) {
 	for _, level := range []string{"trace", "agent", "span"} {
 		t.Run("level="+level, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet,
-				base+"?start_time="+validStart+"&end_time="+validEnd+"&level="+level, nil)
+				base+"?startTime="+validStart+"&endTime="+validEnd+"&level="+level, nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 			assert.NotEqual(t, http.StatusBadRequest, w.Code)
@@ -171,23 +171,23 @@ func TestGetScoresTimeSeries_Validation(t *testing.T) {
 		wantStatus int
 	}{
 		{
-			name:       "missing start_time and end_time",
+			name:       "missing startTime and endTime",
 			query:      "?evaluator=latency",
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "missing evaluator",
-			query:      "?start_time=" + validStart + "&end_time=" + validEnd,
+			query:      "?startTime=" + validStart + "&endTime=" + validEnd,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "invalid start_time format",
-			query:      "?start_time=bad&end_time=" + validEnd + "&evaluator=latency",
+			name:       "invalid startTime format",
+			query:      "?startTime=bad&endTime=" + validEnd + "&evaluator=latency",
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "invalid end_time format",
-			query:      "?start_time=" + validStart + "&end_time=bad&evaluator=latency",
+			name:       "invalid endTime format",
+			query:      "?startTime=" + validStart + "&endTime=bad&evaluator=latency",
 			wantStatus: http.StatusBadRequest,
 		},
 		{
@@ -195,7 +195,7 @@ func TestGetScoresTimeSeries_Validation(t *testing.T) {
 			query: func() string {
 				s := now.Add(-12 * time.Hour).Format(time.RFC3339)
 				e := now.Format(time.RFC3339)
-				return "?start_time=" + s + "&end_time=" + e + "&evaluator=latency"
+				return "?startTime=" + s + "&endTime=" + e + "&evaluator=latency"
 			}(),
 			wantStatus: http.StatusBadRequest,
 		},
@@ -204,7 +204,7 @@ func TestGetScoresTimeSeries_Validation(t *testing.T) {
 			query: func() string {
 				s := now.Add(-101 * 24 * time.Hour).Format(time.RFC3339)
 				e := now.Format(time.RFC3339)
-				return "?start_time=" + s + "&end_time=" + e + "&evaluator=latency"
+				return "?startTime=" + s + "&endTime=" + e + "&evaluator=latency"
 			}(),
 			wantStatus: http.StatusBadRequest,
 		},
@@ -243,7 +243,7 @@ func TestGetScoresTimeSeries_GranularityBoundaries(t *testing.T) {
 			start := now.Add(-tc.duration).Format(time.RFC3339)
 			end := now.Format(time.RFC3339)
 			req := httptest.NewRequest(http.MethodGet,
-				base+"?start_time="+start+"&end_time="+end+"&evaluator=latency", nil)
+				base+"?startTime="+start+"&endTime="+end+"&evaluator=latency", nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 			// Validation should pass — response will be 404 (no monitor in DB), not 400
