@@ -4597,14 +4597,14 @@ paths:
           required: true
           schema:
             type: string
-        - name: start_time
+        - name: startTime
           in: query
           required: true
           schema:
             type: string
             format: date-time
           description: Start time for the query window (RFC3339 format)
-        - name: end_time
+        - name: endTime
           in: query
           required: true
           schema:
@@ -4670,14 +4670,14 @@ paths:
           required: true
           schema:
             type: string
-        - name: start_time
+        - name: startTime
           in: query
           required: true
           schema:
             type: string
             format: date-time
           description: Start time for the query window (RFC3339 format)
-        - name: end_time
+        - name: endTime
           in: query
           required: true
           schema:

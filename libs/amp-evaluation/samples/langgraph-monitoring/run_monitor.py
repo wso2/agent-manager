@@ -408,10 +408,9 @@ def publish_scores_to_platform(result, monitor_id: str):
         return True
     except requests.exceptions.RequestException as e:
         print(f"  [ERROR] Failed to publish scores: {e}")
-        if hasattr(e, 'response') and e.response is not None:
+        if hasattr(e, "response") and e.response is not None:
             print(f"  Response: {e.response.text}")
         return False
-
 
 
 def main():

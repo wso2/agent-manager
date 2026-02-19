@@ -46,7 +46,7 @@ type AppParams struct {
 	RepositoryController             controllers.RepositoryController
 	EnvironmentController            controllers.EnvironmentController
 	GatewayController                controllers.GatewayController
-	LLMContAKroller                  controllers.LLMController
+	LLMController                    controllers.LLMController
 	LLMDeploymentController          controllers.LLMDeploymentController
 	LLMProviderAPIKeyController      controllers.LLMProviderAPIKeyController
 	LLMProxyAPIKeyController         controllers.LLMProxyAPIKeyController

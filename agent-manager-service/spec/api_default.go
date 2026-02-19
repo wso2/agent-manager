@@ -3694,8 +3694,8 @@ func (a *DefaultAPIService) GetMonitorScoresExecute(r ApiGetMonitorScoresRequest
 		return localVarReturnValue, nil, reportError("endTime is required and must be specified")
 	}
 
-	parameterAddToHeaderOrQuery(localVarQueryParams, "start_time", r.startTime, "")
-	parameterAddToHeaderOrQuery(localVarQueryParams, "end_time", r.endTime, "")
+	parameterAddToHeaderOrQuery(localVarQueryParams, "startTime", r.startTime, "")
+	parameterAddToHeaderOrQuery(localVarQueryParams, "endTime", r.endTime, "")
 	if r.evaluator != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "evaluator", r.evaluator, "")
 	}
@@ -3876,8 +3876,8 @@ func (a *DefaultAPIService) GetMonitorScoresTimeSeriesExecute(r ApiGetMonitorSco
 		return localVarReturnValue, nil, reportError("evaluator is required and must be specified")
 	}
 
-	parameterAddToHeaderOrQuery(localVarQueryParams, "start_time", r.startTime, "")
-	parameterAddToHeaderOrQuery(localVarQueryParams, "end_time", r.endTime, "")
+	parameterAddToHeaderOrQuery(localVarQueryParams, "startTime", r.startTime, "")
+	parameterAddToHeaderOrQuery(localVarQueryParams, "endTime", r.endTime, "")
 	parameterAddToHeaderOrQuery(localVarQueryParams, "evaluator", r.evaluator, "")
 	if r.granularity != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "granularity", r.granularity, "")

@@ -154,7 +154,7 @@ func (s *MonitorScoresService) GetMonitorScores(
 		evaluators[i] = models.EvaluatorScoreSummary{
 			EvaluatorName: agg.EvaluatorName,
 			Level:         agg.Level,
-			Count:         agg.SuccessCount,
+			Count:         agg.SuccessCount + agg.ErrorCount,
 			ErrorCount:    agg.ErrorCount,
 			Aggregations:  aggregationMap,
 		}
@@ -193,7 +193,7 @@ func (s *MonitorScoresService) GetEvaluatorTimeSeries(
 
 		points[i] = models.TimeSeriesPoint{
 			Timestamp:    agg.TimeBucket,
-			Count:        agg.SuccessCount,
+			Count:        agg.SuccessCount + agg.ErrorCount,
 			ErrorCount:   agg.ErrorCount,
 			Aggregations: aggregationMap,
 		}

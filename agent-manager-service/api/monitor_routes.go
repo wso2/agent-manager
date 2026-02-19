@@ -27,11 +27,11 @@ func registerMonitorScoreRoutes(mux *http.ServeMux, controller controllers.Monit
 	monitorBase := agentBase + "/monitors/{monitorName}"
 
 	// GET .../monitors/{monitorName}/scores - Get scores for a monitor (time-range based)
-	// Query params: start_time, end_time, evaluator (optional), level (optional), span_type (optional)
+	// Query params: startTime, endTime, evaluator (optional), level (optional), span_type (optional)
 	mux.HandleFunc("GET "+monitorBase+"/scores", controller.GetMonitorScores)
 
 	// GET .../monitors/{monitorName}/scores/timeseries - Get time-series data for an evaluator
-	// Query params: start_time, end_time, evaluator (required), granularity (optional: hour/day/week)
+	// Query params: startTime, endTime, evaluator (required), granularity (optional: hour/day/week)
 	mux.HandleFunc("GET "+monitorBase+"/scores/timeseries", controller.GetScoresTimeSeries)
 
 	// GET .../agents/{agentName}/traces/{traceId}/scores - Get all evaluation scores for a trace across all monitors

@@ -491,7 +491,7 @@ func (s *monitorManagerService) RerunMonitor(ctx context.Context, orgName, monit
 		Monitor:    &monitor,
 		StartTime:  originalRun.TraceStart,
 		EndTime:    originalRun.TraceEnd,
-		Evaluators: monitor.Evaluators, // Use evaluators from monitor configuration
+		Evaluators: originalRun.Evaluators, // Use the same evaluators from original run
 	})
 	if err != nil {
 		return nil, err
