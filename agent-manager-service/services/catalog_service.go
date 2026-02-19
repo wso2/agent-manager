@@ -109,7 +109,6 @@ type CatalogService interface {
 type catalogService struct {
 	logger           *slog.Logger
 	catalogRepo      repositories.CatalogRepository
-	organizationRepo repositories.OrganizationRepository
 	openChoreoClient client.OpenChoreoClient
 }
 
@@ -117,13 +116,11 @@ type catalogService struct {
 func NewCatalogService(
 	logger *slog.Logger,
 	catalogRepo repositories.CatalogRepository,
-	organizationRepo repositories.OrganizationRepository,
 	openChoreoClient client.OpenChoreoClient,
 ) CatalogService {
 	return &catalogService{
 		logger:           logger,
 		catalogRepo:      catalogRepo,
-		organizationRepo: organizationRepo,
 		openChoreoClient: openChoreoClient,
 	}
 }
@@ -179,7 +176,7 @@ func (s *catalogService) ListLLMProviders(ctx context.Context, filters *models.C
 	}
 
 	s.logger.Info("Listing LLM provider catalog entries",
-		"orgUUID", filters.OrganizationUUID,
+		"orgUUID", filters.OrganizationName,
 		"environmentUUID", filters.EnvironmentUUID,
 		"name", filters.Name,
 		"limit", filters.Limit,
@@ -191,18 +188,13 @@ func (s *catalogService) ListLLMProviders(ctx context.Context, filters *models.C
 		return nil, 0, fmt.Errorf("invalid filters: %w", err)
 	}
 
-	// Parse organization UUID
-	orgParsed, err := uuid.Parse(filters.OrganizationUUID)
-	if err != nil {
-		s.logger.Error("Invalid organization UUID", "orgUUID", filters.OrganizationUUID, "error", err)
-		return nil, 0, fmt.Errorf("invalid organization UUID: %w", err)
-	}
+	orgName := filters.OrganizationName
 
 	// Get LLM providers from repository using optimized single query
 	entries, total, err := s.catalogRepo.ListLLMProviders(filters)
 	if err != nil {
 		s.logger.Error("Failed to list LLM providers from repository",
-			"orgUUID", filters.OrganizationUUID,
+			"orgUUID", filters.OrganizationName,
 			"error", err)
 		return nil, 0, fmt.Errorf("failed to list LLM providers: %w", err)
 	}
@@ -220,21 +212,21 @@ func (s *catalogService) ListLLMProviders(ctx context.Context, filters *models.C
 	var envMap map[string]string
 	if hasDeployments {
 		// Try to get environment mapping from cache first
-		cached, found := globalEnvCache.get(orgParsed.String())
+		cached, found := globalEnvCache.get(orgName)
 		if found {
-			s.logger.Debug("Using cached environment mapping", "orgUUID", orgParsed.String())
+			s.logger.Debug("Using cached environment mapping", "orgUUID", orgName)
 			envMap = cached
 		} else {
 			// Cache miss - fetch from OpenChoreo and cache the result
-			s.logger.Debug("Cache miss - fetching environment mapping from OpenChoreo", "orgUUID", orgParsed.String())
-			envMap, err = s.buildEnvironmentMapping(ctx, orgParsed)
+			s.logger.Debug("Cache miss - fetching environment mapping from OpenChoreo", "orgUUID", orgName)
+			envMap, err = s.buildEnvironmentMapping(ctx, orgName)
 			if err != nil {
 				s.logger.Warn("Failed to build environment mapping, continuing without environment names", "error", err)
 				envMap = make(map[string]string) // Continue with empty map
 			} else {
 				// Cache the successful result
-				globalEnvCache.set(orgParsed.String(), envMap)
-				s.logger.Debug("Cached environment mapping", "orgUUID", orgParsed.String(), "count", len(envMap))
+				globalEnvCache.set(orgName, envMap)
+				s.logger.Debug("Cached environment mapping", "orgUUID", orgName, "count", len(envMap))
 			}
 		}
 
@@ -266,13 +258,7 @@ func (s *catalogService) ListLLMProviders(ctx context.Context, filters *models.C
 }
 
 // buildEnvironmentMapping fetches all environments and builds UUID to name mapping
-func (s *catalogService) buildEnvironmentMapping(ctx context.Context, orgUUID uuid.UUID) (map[string]string, error) {
-	// Get organization name first
-	orgName, err := s.getOrganizationName(orgUUID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get organization name: %w", err)
-	}
-
+func (s *catalogService) buildEnvironmentMapping(ctx context.Context, orgName string) (map[string]string, error) {
 	// Fetch all environments from OpenChoreo
 	environments, err := s.openChoreoClient.ListEnvironments(ctx, orgName)
 	if err != nil {
@@ -289,14 +275,4 @@ func (s *catalogService) buildEnvironmentMapping(ctx context.Context, orgUUID uu
 	}
 
 	return envMap, nil
-}
-
-// getOrganizationName retrieves organization name from UUID using repository
-func (s *catalogService) getOrganizationName(orgUUID uuid.UUID) (string, error) {
-	orgName, err := s.organizationRepo.GetOrganizationByUUID(orgUUID.String())
-	if err != nil {
-		return "", fmt.Errorf("failed to get organization: %w", err)
-	}
-
-	return orgName.Name, nil
 }

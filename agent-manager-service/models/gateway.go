@@ -26,7 +26,7 @@ import (
 // Gateway represents an API Platform gateway instance within an organization
 type Gateway struct {
 	UUID                     uuid.UUID              `gorm:"column:uuid;primaryKey" json:"id"`
-	OrganizationUUID         uuid.UUID              `gorm:"column:organization_uuid" json:"organizationId"`
+	OrganizationName         string                 `gorm:"column:organization_name" json:"organizationId"`
 	Name                     string                 `gorm:"column:name" json:"name"`
 	DisplayName              string                 `gorm:"column:display_name" json:"displayName"`
 	Description              string                 `gorm:"column:description" json:"description"`
@@ -78,7 +78,7 @@ func (t *GatewayToken) Revoke() {
 type APIGatewayWithDetails struct {
 	// Gateway information
 	UUID                     uuid.UUID              `json:"id" db:"id"`
-	OrganizationUUID         uuid.UUID              `json:"organizationId" db:"organization_id"`
+	OrganizationName         string                 `json:"organizationId" db:"organization_id"`
 	Name                     string                 `json:"name" db:"name"`
 	DisplayName              string                 `json:"displayName" db:"display_name"`
 	Description              string                 `json:"description" db:"description"`

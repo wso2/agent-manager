@@ -29,8 +29,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/api"
 	ocauth "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
@@ -204,7 +202,7 @@ func main() {
 	slog.Info("All servers shut down successfully")
 }
 
-// loadAndSeedLLMTemplates loads template files and seeds them for all organizations
+// loadAndSeedLLMTemplates loads template files and seeds them for all organizations from OpenChoreo
 func loadAndSeedLLMTemplates(cfg *config.Config, dependencies *wiring.AppParams) error {
 	// Load default templates from directory
 	templatePath := strings.TrimSpace(cfg.LLMTemplateDefinitionsPath)
@@ -239,31 +237,23 @@ func loadAndSeedLLMTemplates(cfg *config.Config, dependencies *wiring.AppParams)
 	// Set templates in the seeder
 	dependencies.LLMTemplateSeeder.SetTemplates(defaultTemplates)
 
-	// Seed templates for all organizations
-	const pageSize = 200
-	offset := 0
+	// Fetch organizations from OpenChoreo and seed templates
+	ctx := context.Background()
+	orgs, err := dependencies.OpenChoreoClient.ListOrganizations(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list organizations from OpenChoreo for LLM template seeding: %w", err)
+	}
+
 	seededCount := 0
-
-	for {
-		orgs, err := dependencies.OrganizationRepository.ListOrganizations(pageSize, offset)
-		if err != nil {
-			return fmt.Errorf("failed to list organizations for LLM template seeding: %w", err)
+	for _, org := range orgs {
+		if org == nil || org.Name == "" {
+			continue
 		}
-		if len(orgs) == 0 {
-			break
+		if err := dependencies.LLMTemplateSeeder.SeedForOrg(org.Name); err != nil {
+			slog.Warn("Failed to seed LLM templates for organization", "orgName", org.Name, "error", err)
+		} else {
+			seededCount++
 		}
-
-		for _, org := range orgs {
-			if org == nil || org.UUID == uuid.Nil {
-				continue
-			}
-			if err := dependencies.LLMTemplateSeeder.SeedForOrg(org.UUID); err != nil {
-				slog.Warn("Failed to seed LLM templates for organization", "orgUUID", org.UUID, "error", err)
-			} else {
-				seededCount++
-			}
-		}
-		offset += pageSize
 	}
 
 	slog.Info("Seeded LLM provider templates", "templateCount", len(defaultTemplates), "organizationCount", seededCount)

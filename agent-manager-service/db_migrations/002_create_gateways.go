@@ -21,14 +21,14 @@ import (
 )
 
 // Create gateways and gateway_tokens tables for API Platform integration
-var migration003 = migration{
-	ID: 3,
+var migration002 = migration{
+	ID: 2,
 	Migrate: func(db *gorm.DB) error {
 		createGatewaysSQL := `
 			-- Gateways table
 			CREATE TABLE gateways (
 				uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-				organization_uuid UUID NOT NULL,
+				organization_name VARCHAR(255) NOT NULL,
 				name VARCHAR(255) NOT NULL,
 				display_name VARCHAR(255) NOT NULL,
 				description TEXT,
@@ -41,9 +41,7 @@ var migration003 = migration{
 				updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 				deleted_at TIMESTAMP,
 
-				CONSTRAINT fk_gateway_organization FOREIGN KEY (organization_uuid)
-					REFERENCES organizations(uuid) ON DELETE CASCADE,
-				CONSTRAINT uq_gateway_org_name UNIQUE(organization_uuid, name),
+				CONSTRAINT uq_gateway_org_name UNIQUE(organization_name, name),
 				CONSTRAINT chk_gateway_functionality_type
 					CHECK (gateway_functionality_type IN ('regular', 'ai'))
 			);
@@ -68,7 +66,7 @@ var migration003 = migration{
 			);
 
 			-- Indexes for gateways
-			CREATE INDEX idx_gateways_org ON gateways(organization_uuid);
+			CREATE INDEX idx_gateways_org ON gateways(organization_name);
 			CREATE INDEX idx_gateways_active ON gateways(is_active);
 			CREATE INDEX idx_gateways_deleted ON gateways(deleted_at) WHERE deleted_at IS NOT NULL;
 			CREATE INDEX idx_gateways_functionality_type ON gateways(gateway_functionality_type);

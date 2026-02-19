@@ -40,7 +40,6 @@ import (
 // PlatformGatewayService handles gateway business logic for API Platform integration
 type PlatformGatewayService struct {
 	gatewayRepo repositories.GatewayRepository
-	orgRepo     repositories.OrganizationRepository
 	apiRepo     repositories.APIRepository
 	tokenCache  *TokenCache
 }
@@ -48,7 +47,6 @@ type PlatformGatewayService struct {
 // NewPlatformGatewayService creates a new platform gateway service
 func NewPlatformGatewayService(
 	gatewayRepo repositories.GatewayRepository,
-	orgRepo repositories.OrganizationRepository,
 	apiRepo repositories.APIRepository,
 ) *PlatformGatewayService {
 	// Initialize token cache with 5 minute TTL
@@ -56,7 +54,6 @@ func NewPlatformGatewayService(
 
 	return &PlatformGatewayService{
 		gatewayRepo: gatewayRepo,
-		orgRepo:     orgRepo,
 		apiRepo:     apiRepo,
 		tokenCache:  tokenCache,
 	}
@@ -134,17 +131,17 @@ type Pagination struct {
 
 // RegisterGateway registers a new gateway with organization validation
 func (s *PlatformGatewayService) RegisterGateway(
-	orgID, name, displayName, description, vhost string,
+	orgName, name, displayName, description, vhost string,
 	isCritical bool, functionalityType string,
 	properties map[string]interface{},
 ) (*GatewayResponse, error) {
 	// 1. Validate inputs
-	if err := s.validateGatewayInput(orgID, name, displayName, vhost, functionalityType); err != nil {
+	if err := s.validateGatewayInput(orgName, name, displayName, vhost, functionalityType); err != nil {
 		return nil, err
 	}
 
 	// 3. Check gateway name uniqueness within organization
-	existing, err := s.gatewayRepo.GetByNameAndOrgID(name, orgID)
+	existing, err := s.gatewayRepo.GetByNameAndOrgID(name, orgName)
 	if err != nil && !errors.Is(err, utils.ErrGatewayNotFound) {
 		return nil, fmt.Errorf("failed to check gateway name uniqueness: %w", err)
 	}
@@ -160,10 +157,6 @@ func (s *PlatformGatewayService) RegisterGateway(
 	if err != nil {
 		return nil, fmt.Errorf("invalid gateway UUID: %w", err)
 	}
-	orgUUID, err := uuid.Parse(orgID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid organization UUID: %w", err)
-	}
 
 	// Initialize properties as empty map if nil (database column is NOT NULL)
 	if properties == nil {
@@ -172,7 +165,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 
 	gateway := &models.Gateway{
 		UUID:                     gatewayUUID,
-		OrganizationUUID:         orgUUID,
+		OrganizationName:         orgName,
 		Name:                     name,
 		DisplayName:              displayName,
 		Description:              description,
@@ -191,7 +184,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 
 	response := &GatewayResponse{
 		ID:                gateway.UUID.String(),
-		OrganizationID:    gateway.OrganizationUUID.String(),
+		OrganizationID:    gateway.OrganizationName,
 		Name:              gateway.Name,
 		DisplayName:       gateway.DisplayName,
 		Description:       gateway.Description,
@@ -215,15 +208,15 @@ type GatewayListFilters struct {
 }
 
 // ListGateways retrieves gateways with constitution-compliant envelope structure and DB-level pagination
-func (s *PlatformGatewayService) ListGateways(orgID *string, filters *GatewayListFilters, limit, offset int) (*GatewayListResponse, error) {
+func (s *PlatformGatewayService) ListGateways(orgName *string, filters *GatewayListFilters, limit, offset int) (*GatewayListResponse, error) {
 	// Build filter options
 	filterOpts := repositories.GatewayFilterOptions{
 		Limit:  limit,
 		Offset: offset,
 	}
 
-	if orgID != nil && *orgID != "" {
-		filterOpts.OrganizationID = *orgID
+	if orgName != nil && *orgName != "" {
+		filterOpts.OrganizationID = *orgName
 	}
 
 	if filters != nil {
@@ -249,7 +242,7 @@ func (s *PlatformGatewayService) ListGateways(orgID *string, filters *GatewayLis
 	for _, gw := range gateways {
 		responses = append(responses, GatewayResponse{
 			ID:                gw.UUID.String(),
-			OrganizationID:    gw.OrganizationUUID.String(),
+			OrganizationID:    gw.OrganizationName,
 			Name:              gw.Name,
 			DisplayName:       gw.DisplayName,
 			Description:       gw.Description,
@@ -278,7 +271,7 @@ func (s *PlatformGatewayService) ListGateways(orgID *string, filters *GatewayLis
 }
 
 // GetGateway retrieves a gateway by ID
-func (s *PlatformGatewayService) GetGateway(gatewayID, orgID string) (*GatewayResponse, error) {
+func (s *PlatformGatewayService) GetGateway(gatewayID, orgName string) (*GatewayResponse, error) {
 	// Validate UUID format
 	if _, err := uuid.Parse(gatewayID); err != nil {
 		return nil, errors.New("invalid UUID format")
@@ -293,13 +286,13 @@ func (s *PlatformGatewayService) GetGateway(gatewayID, orgID string) (*GatewayRe
 		return nil, utils.ErrGatewayNotFound
 	}
 
-	if gateway.OrganizationUUID.String() != orgID {
+	if gateway.OrganizationName != orgName {
 		return nil, utils.ErrGatewayNotFound
 	}
 
 	response := &GatewayResponse{
 		ID:                gateway.UUID.String(),
-		OrganizationID:    gateway.OrganizationUUID.String(),
+		OrganizationID:    gateway.OrganizationName,
 		Name:              gateway.Name,
 		DisplayName:       gateway.DisplayName,
 		Description:       gateway.Description,
@@ -317,7 +310,7 @@ func (s *PlatformGatewayService) GetGateway(gatewayID, orgID string) (*GatewayRe
 
 // UpdateGateway updates gateway details
 func (s *PlatformGatewayService) UpdateGateway(
-	gatewayID, orgID string,
+	gatewayID, orgName string,
 	description, displayName *string,
 	isCritical *bool,
 	properties *map[string]interface{},
@@ -330,7 +323,7 @@ func (s *PlatformGatewayService) UpdateGateway(
 	if gateway == nil {
 		return nil, utils.ErrGatewayNotFound
 	}
-	if gateway.OrganizationUUID.String() != orgID {
+	if gateway.OrganizationName != orgName {
 		return nil, utils.ErrGatewayNotFound
 	}
 
@@ -355,7 +348,7 @@ func (s *PlatformGatewayService) UpdateGateway(
 
 	updatedGateway := &GatewayResponse{
 		ID:                gateway.UUID.String(),
-		OrganizationID:    gateway.OrganizationUUID.String(),
+		OrganizationID:    gateway.OrganizationName,
 		Name:              gateway.Name,
 		DisplayName:       gateway.DisplayName,
 		Description:       gateway.Description,
@@ -371,7 +364,7 @@ func (s *PlatformGatewayService) UpdateGateway(
 }
 
 // DeleteGateway deletes a gateway and all associated tokens (CASCADE)
-func (s *PlatformGatewayService) DeleteGateway(gatewayID, orgID string) error {
+func (s *PlatformGatewayService) DeleteGateway(gatewayID, orgName string) error {
 	// Validate UUID format
 	if _, err := uuid.Parse(gatewayID); err != nil {
 		return errors.New("invalid UUID format")
@@ -385,12 +378,12 @@ func (s *PlatformGatewayService) DeleteGateway(gatewayID, orgID string) error {
 	if gateway == nil {
 		return utils.ErrGatewayNotFound
 	}
-	if gateway.OrganizationUUID.String() != orgID {
+	if gateway.OrganizationName != orgName {
 		return utils.ErrGatewayNotFound
 	}
 
 	// Delete gateway (FK CASCADE will automatically remove tokens and deployments)
-	err = s.gatewayRepo.Delete(gatewayID, orgID)
+	err = s.gatewayRepo.Delete(gatewayID, orgName)
 	if err != nil {
 		return err
 	}
@@ -488,7 +481,7 @@ func (s *PlatformGatewayService) VerifyToken(plainToken string) (*models.Platfor
 }
 
 // RotateToken generates a new token for a gateway (max 2 active tokens)
-func (s *PlatformGatewayService) RotateToken(gatewayID, orgID string) (*TokenRotationResponse, error) {
+func (s *PlatformGatewayService) RotateToken(gatewayID, orgName string) (*TokenRotationResponse, error) {
 	// 1. Validate gateway exists
 	gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
 	if err != nil {
@@ -497,7 +490,7 @@ func (s *PlatformGatewayService) RotateToken(gatewayID, orgID string) (*TokenRot
 	if gateway == nil {
 		return nil, utils.ErrGatewayNotFound
 	}
-	if gateway.OrganizationUUID.String() != orgID {
+	if gateway.OrganizationName != orgName {
 		return nil, utils.ErrGatewayNotFound
 	}
 
@@ -557,7 +550,7 @@ func (s *PlatformGatewayService) RotateToken(gatewayID, orgID string) (*TokenRot
 }
 
 // RevokeTokenByID revokes a token and invalidates it from cache
-func (s *PlatformGatewayService) RevokeTokenByID(tokenID, gatewayID, orgID string) error {
+func (s *PlatformGatewayService) RevokeTokenByID(tokenID, gatewayID, orgName string) error {
 	// 1. Validate gateway exists and belongs to organization
 	gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
 	if err != nil {
@@ -566,7 +559,7 @@ func (s *PlatformGatewayService) RevokeTokenByID(tokenID, gatewayID, orgID strin
 	if gateway == nil {
 		return utils.ErrGatewayNotFound
 	}
-	if gateway.OrganizationUUID.String() != orgID {
+	if gateway.OrganizationName != orgName {
 		return utils.ErrGatewayNotFound
 	}
 
@@ -606,9 +599,9 @@ func (s *PlatformGatewayService) InvalidateGatewayTokensCache(gatewayUUID uuid.U
 }
 
 // GetGatewayStatus retrieves gateway status information for polling
-func (s *PlatformGatewayService) GetGatewayStatus(orgID string, gatewayID *string) (*GatewayStatusListResponse, error) {
+func (s *PlatformGatewayService) GetGatewayStatus(orgName string, gatewayID *string) (*GatewayStatusListResponse, error) {
 	// Validate organizationId is provided and valid
-	if strings.TrimSpace(orgID) == "" {
+	if strings.TrimSpace(orgName) == "" {
 		return nil, errors.New("organization ID is required")
 	}
 
@@ -625,13 +618,13 @@ func (s *PlatformGatewayService) GetGatewayStatus(orgID string, gatewayID *strin
 			return nil, utils.ErrGatewayNotFound
 		}
 		// Check organization access
-		if gateway.OrganizationUUID.String() != orgID {
+		if gateway.OrganizationName != orgName {
 			return nil, utils.ErrGatewayNotFound
 		}
 		gateways = []*models.Gateway{gateway}
 	} else {
 		// Get all gateways for organization
-		gateways, err = s.gatewayRepo.GetByOrganizationID(orgID)
+		gateways, err = s.gatewayRepo.GetByOrganizationID(orgName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list gateways: %w", err)
 		}
@@ -785,7 +778,7 @@ func (s *PlatformGatewayService) DeleteGatewayEnvironmentMappings(gatewayID stri
 }
 
 // GetGatewayArtifacts retrieves all artifacts (APIs) deployed to a specific gateway
-func (s *PlatformGatewayService) GetGatewayArtifacts(gatewayID, orgID, artifactType string) (*GatewayArtifactListResponse, error) {
+func (s *PlatformGatewayService) GetGatewayArtifacts(gatewayID, orgName, artifactType string) (*GatewayArtifactListResponse, error) {
 	// First validate that the gateway exists and belongs to the organization
 	gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
 	if err != nil {
@@ -794,12 +787,12 @@ func (s *PlatformGatewayService) GetGatewayArtifacts(gatewayID, orgID, artifactT
 	if gateway == nil {
 		return nil, utils.ErrGatewayNotFound
 	}
-	if gateway.OrganizationUUID.String() != orgID {
+	if gateway.OrganizationName != orgName {
 		return nil, utils.ErrGatewayNotFound
 	}
 
 	// Get all APIs deployed to this gateway
-	apis, err := s.apiRepo.GetDeployedAPIsByGatewayUUID(gatewayID, orgID)
+	apis, err := s.apiRepo.GetDeployedAPIsByGatewayUUID(gatewayID, orgName)
 	if err != nil {
 		return nil, err
 	}
@@ -847,13 +840,10 @@ func (s *PlatformGatewayService) GetGatewayArtifacts(gatewayID, orgID, artifactT
 }
 
 // validateGatewayInput validates gateway registration inputs
-func (s *PlatformGatewayService) validateGatewayInput(orgID, name, displayName, vhost, functionalityType string) error {
+func (s *PlatformGatewayService) validateGatewayInput(orgName, name, displayName, vhost, functionalityType string) error {
 	// Organization ID validation
-	if strings.TrimSpace(orgID) == "" {
+	if strings.TrimSpace(orgName) == "" {
 		return errors.New("organization ID is required")
-	}
-	if _, err := uuid.Parse(orgID); err != nil {
-		return errors.New("invalid organization ID format")
 	}
 
 	// Gateway name validation

@@ -17,14 +17,12 @@
 package controllers
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
@@ -36,30 +34,15 @@ type LLMProviderAPIKeyController interface {
 
 type llmProviderAPIKeyController struct {
 	apiKeyService *services.LLMProviderAPIKeyService
-	orgRepo       repositories.OrganizationRepository
 }
 
 // NewLLMProviderAPIKeyController creates a new LLM provider API key controller
 func NewLLMProviderAPIKeyController(
 	apiKeyService *services.LLMProviderAPIKeyService,
-	orgRepo repositories.OrganizationRepository,
 ) LLMProviderAPIKeyController {
 	return &llmProviderAPIKeyController{
 		apiKeyService: apiKeyService,
-		orgRepo:       orgRepo,
 	}
-}
-
-// resolveOrgUUID resolves organization handle to UUID
-func (c *llmProviderAPIKeyController) resolveOrgUUID(ctx context.Context, orgName string) (string, error) {
-	org, err := c.orgRepo.GetOrganizationByName(orgName)
-	if err != nil {
-		return "", err
-	}
-	if org == nil {
-		return "", utils.ErrOrganizationNotFound
-	}
-	return org.UUID.String(), nil
 }
 
 // CreateAPIKey handles POST /api/v1/orgs/{orgName}/llm-providers/{id}/api-keys
@@ -71,19 +54,6 @@ func (c *llmProviderAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *htt
 	providerID := r.PathValue("id")
 
 	log.Info("CreateLLMProviderAPIKey: starting", "orgName", orgName, "providerID", providerID)
-
-	// Resolve organization UUID
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
-	if err != nil {
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			log.Error("CreateLLMProviderAPIKey: organization not found", "orgName", orgName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Organization not found")
-			return
-		}
-		log.Error("CreateLLMProviderAPIKey: failed to resolve organization", "orgName", orgName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
-		return
-	}
 
 	// Parse request body
 	var req models.CreateAPIKeyRequest
@@ -103,10 +73,10 @@ func (c *llmProviderAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *htt
 	// Get user ID from context or header (optional for logging)
 	userID := r.Header.Get("x-user-id")
 
-	log.Info("CreateLLMProviderAPIKey: calling service", "orgName", orgName, "orgID", orgID, "providerID", providerID)
+	log.Info("CreateLLMProviderAPIKey: calling service", "orgName", orgName, "orgName", orgName, "providerID", providerID)
 
 	// Call service to create API key
-	response, err := c.apiKeyService.CreateAPIKey(ctx, orgID, providerID, userID, &req)
+	response, err := c.apiKeyService.CreateAPIKey(ctx, orgName, providerID, userID, &req)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
@@ -114,7 +84,7 @@ func (c *llmProviderAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *htt
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
-			log.Error("CreateLLMProviderAPIKey: no gateways found", "orgName", orgName, "orgID", orgID)
+			log.Error("CreateLLMProviderAPIKey: no gateways found", "orgName", orgName, "orgName", orgName)
 			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
 		default:

@@ -27,7 +27,7 @@ type API struct {
 	Name           string    `db:"name" json:"name"`
 	Version        string    `db:"version" json:"version"`
 	Kind           string    `db:"kind" json:"kind"`
-	OrganizationID string    `db:"organization_uuid" json:"organizationId"`
+	OrganizationID string    `db:"organization_name" json:"organizationId"`
 	CreatedAt      time.Time `db:"created_at" json:"createdAt"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updatedAt"`
 

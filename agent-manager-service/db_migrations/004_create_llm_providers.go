@@ -21,14 +21,14 @@ import (
 )
 
 // Create LLM provider tables for AI gateway functionality
-var migration007 = migration{
-	ID: 7,
+var migration004 = migration{
+	ID: 4,
 	Migrate: func(db *gorm.DB) error {
 		createLLMProvidersSQL := `
 			-- LLM Provider Templates table
 			CREATE TABLE llm_provider_templates (
 				uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-				organization_uuid UUID NOT NULL,
+				organization_name  VARCHAR(255) NOT NULL,
 				handle VARCHAR(255) NOT NULL,
 				name VARCHAR(253) NOT NULL,
 				description TEXT,
@@ -37,9 +37,7 @@ var migration007 = migration{
 				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 				updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-				CONSTRAINT fk_llm_template_organization FOREIGN KEY (organization_uuid)
-					REFERENCES organizations(uuid) ON DELETE CASCADE,
-				CONSTRAINT uq_llm_template_handle_org UNIQUE(organization_uuid, handle)
+				CONSTRAINT uq_llm_template_handle_org UNIQUE(organization_name, handle)
 			);
 
 			-- LLM Providers table
@@ -77,7 +75,7 @@ var migration007 = migration{
 			);
 
 			-- Indexes for performance
-			CREATE INDEX idx_llm_provider_templates_org ON llm_provider_templates(organization_uuid);
+			CREATE INDEX idx_llm_provider_templates_org ON llm_provider_templates(organization_name);
 			CREATE INDEX idx_llm_providers_template ON llm_providers(template_uuid);
 			CREATE INDEX idx_llm_proxies_project ON llm_proxies(project_uuid);
 			CREATE INDEX idx_llm_proxies_provider ON llm_proxies(provider_uuid);

@@ -26,7 +26,7 @@ import (
 // This structure matches api_platform/platform-api/src/internal/model/llm.go:129
 type LLMProviderTemplate struct {
 	UUID             uuid.UUID `gorm:"column:uuid;primaryKey" json:"uuid"`
-	OrganizationUUID uuid.UUID `gorm:"column:organization_uuid" json:"organizationId"`
+	OrganizationName string    `gorm:"column:organization_name" json:"organizationId"`
 	Handle           string    `gorm:"column:handle" json:"id"`
 	Name             string    `gorm:"column:name" json:"name"`
 	Description      string    `gorm:"column:description" json:"description,omitempty"`

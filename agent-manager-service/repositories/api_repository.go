@@ -81,11 +81,6 @@ func (r *APIRepo) CreateAPI(api *models.API) error {
 			kind = models.KindWebSubAPI
 		}
 
-		// Parse organization and project UUIDs
-		orgUUID, err := uuid.Parse(api.OrganizationID)
-		if err != nil {
-			return fmt.Errorf("invalid organization UUID: %w", err)
-		}
 		projectUUID, err := uuid.Parse(api.ProjectID)
 		if err != nil {
 			return fmt.Errorf("invalid project UUID: %w", err)
@@ -98,7 +93,7 @@ func (r *APIRepo) CreateAPI(api *models.API) error {
 			Name:             api.Name,
 			Version:          api.Version,
 			Kind:             kind,
-			OrganizationUUID: orgUUID,
+			OrganizationName: api.OrganizationID,
 			CreatedAt:        api.CreatedAt,
 			UpdatedAt:        api.UpdatedAt,
 		}); err != nil {
@@ -123,10 +118,10 @@ func (r *APIRepo) GetAPIByUUID(apiUUID, orgUUID string) (*models.API, error) {
 	var api models.API
 	err := r.db.Table("rest_apis a").
 		Select("art.uuid, art.handle, art.name, art.kind, a.description, art.version, a.created_by, "+
-			"a.project_uuid, art.organization_uuid, a.lifecycle_status, "+
+			"a.project_uuid, art.organization_name, a.lifecycle_status, "+
 			"a.transport, a.configuration, art.created_at, art.updated_at").
 		Joins("INNER JOIN artifacts art ON a.uuid = art.uuid").
-		Where("a.uuid = ? AND art.organization_uuid = ?", apiUUID, orgUUID).
+		Where("a.uuid = ? AND art.organization_name = ?", apiUUID, orgUUID).
 		Scan(&api).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -141,8 +136,8 @@ func (r *APIRepo) GetAPIByUUID(apiUUID, orgUUID string) (*models.API, error) {
 func (r *APIRepo) GetAPIMetadataByHandle(handle, orgUUID string) (*models.APIMetadata, error) {
 	var metadata models.APIMetadata
 	err := r.db.Table("artifacts").
-		Select("uuid, handle, name, version, kind, organization_uuid").
-		Where("handle = ? AND organization_uuid = ?", handle, orgUUID).
+		Select("uuid, handle, name, version, kind, organization_name").
+		Where("handle = ? AND organization_name = ?", handle, orgUUID).
 		Scan(&metadata).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -158,10 +153,10 @@ func (r *APIRepo) GetAPIsByProjectUUID(projectUUID, orgUUID string) ([]*models.A
 	var apis []*models.API
 	err := r.db.Table("rest_apis a").
 		Select("art.uuid, art.handle, art.name, art.kind, a.description, art.version, a.created_by, "+
-			"a.project_uuid, art.organization_uuid, a.lifecycle_status, "+
+			"a.project_uuid, art.organization_name, a.lifecycle_status, "+
 			"a.transport, a.configuration, art.created_at, art.updated_at").
 		Joins("INNER JOIN artifacts art ON a.uuid = art.uuid").
-		Where("a.project_uuid = ? AND art.organization_uuid = ?", projectUUID, orgUUID).
+		Where("a.project_uuid = ? AND art.organization_name = ?", projectUUID, orgUUID).
 		Order("art.created_at DESC").
 		Scan(&apis).Error
 	return apis, err
@@ -172,10 +167,10 @@ func (r *APIRepo) GetAPIsByOrganizationUUID(orgUUID string, projectUUID *string)
 	var apis []*models.API
 	query := r.db.Table("rest_apis a").
 		Select("art.uuid, art.handle, art.name, art.kind, a.description, art.version, a.created_by, "+
-			"a.project_uuid, art.organization_uuid, a.lifecycle_status, "+
+			"a.project_uuid, art.organization_name, a.lifecycle_status, "+
 			"a.transport, a.configuration, art.created_at, art.updated_at").
 		Joins("INNER JOIN artifacts art ON a.uuid = art.uuid").
-		Where("art.organization_uuid = ?", orgUUID)
+		Where("art.organization_name = ?", orgUUID)
 
 	if projectUUID != nil && *projectUUID != "" {
 		query = query.Where("a.project_uuid = ?", *projectUUID)
@@ -190,10 +185,10 @@ func (r *APIRepo) GetDeployedAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*
 	var apis []*models.API
 	err := r.db.Table("rest_apis a").
 		Select("a.uuid, art.handle, art.name, a.description, art.version, a.created_by, "+
-			"a.project_uuid, art.organization_uuid, art.kind, art.created_at, art.updated_at").
+			"a.project_uuid, art.organization_name, art.kind, art.created_at, art.updated_at").
 		Joins("INNER JOIN artifacts art ON a.uuid = art.uuid").
 		Joins("INNER JOIN deployment_status ad ON art.uuid = ad.artifact_uuid").
-		Where("ad.gateway_uuid = ? AND art.organization_uuid = ? AND ad.status = ?",
+		Where("ad.gateway_uuid = ? AND art.organization_name = ? AND ad.status = ?",
 			gatewayUUID, orgUUID, string(models.DeploymentStatusDeployed)).
 		Order("art.created_at DESC").
 		Scan(&apis).Error
@@ -205,10 +200,10 @@ func (r *APIRepo) GetAPIsByGatewayUUID(gatewayUUID, orgUUID string) ([]*models.A
 	var apis []*models.API
 	err := r.db.Table("rest_apis a").
 		Select("a.uuid, art.handle, art.name, a.description, art.version, a.created_by, "+
-			"a.project_uuid, art.organization_uuid, art.kind, art.created_at, art.updated_at").
+			"a.project_uuid, art.organization_name, art.kind, art.created_at, art.updated_at").
 		Joins("INNER JOIN artifacts art ON a.uuid = art.uuid").
 		Joins("INNER JOIN association_mappings aa ON a.uuid = aa.artifact_uuid").
-		Where("aa.resource_uuid = ? AND aa.association_type = ? AND art.organization_uuid = ?",
+		Where("aa.resource_uuid = ? AND aa.association_type = ? AND art.organization_name = ?",
 			gatewayUUID, "gateway", orgUUID).
 		Order("art.created_at DESC").
 		Scan(&apis).Error
@@ -225,17 +220,13 @@ func (r *APIRepo) UpdateAPI(api *models.API) error {
 		if err != nil {
 			return fmt.Errorf("invalid API UUID: %w", err)
 		}
-		orgUUID, err := uuid.Parse(api.OrganizationID)
-		if err != nil {
-			return fmt.Errorf("invalid organization UUID: %w", err)
-		}
 
 		// Update artifact record
 		if err := r.artifactRepo.Update(tx, &models.Artifact{
 			UUID:             apiUUID,
 			Name:             api.Name,
 			Version:          api.Version,
-			OrganizationUUID: orgUUID,
+			OrganizationName: api.OrganizationID,
 			UpdatedAt:        api.UpdatedAt,
 		}); err != nil {
 			return err
@@ -260,13 +251,13 @@ func (r *APIRepo) DeleteAPI(apiUUID, orgUUID string) error {
 		// Delete in order of dependencies (children first, parent last)
 
 		// Delete API associations first
-		if err := tx.Where("artifact_uuid = ? AND organization_uuid = ?", apiUUID, orgUUID).
+		if err := tx.Where("artifact_uuid = ? AND organization_name = ?", apiUUID, orgUUID).
 			Delete(&models.APIAssociation{}).Error; err != nil {
 			return err
 		}
 
 		// Delete API deployments
-		if err := tx.Where("artifact_uuid = ? AND organization_uuid = ?", apiUUID, orgUUID).
+		if err := tx.Where("artifact_uuid = ? AND organization_name = ?", apiUUID, orgUUID).
 			Delete(&models.Deployment{}).Error; err != nil {
 			return err
 		}
@@ -285,7 +276,7 @@ func (r *APIRepo) DeleteAPI(apiUUID, orgUUID string) error {
 func (r *APIRepo) CheckAPIExistsByHandleInOrganization(handle, orgUUID string) (bool, error) {
 	var count int64
 	err := r.db.Model(&models.Artifact{}).
-		Where("handle = ? AND organization_uuid = ? AND kind = ?", handle, orgUUID, models.KindRestAPI).
+		Where("handle = ? AND organization_name = ? AND kind = ?", handle, orgUUID, models.KindRestAPI).
 		Count(&count).Error
 	if err != nil {
 		return false, err
@@ -297,7 +288,7 @@ func (r *APIRepo) CheckAPIExistsByHandleInOrganization(handle, orgUUID string) (
 func (r *APIRepo) CheckAPIExistsByNameAndVersionInOrganization(name, version, orgUUID, excludeHandle string) (bool, error) {
 	var count int64
 	query := r.db.Model(&models.Artifact{}).
-		Where("name = ? AND version = ? AND organization_uuid = ? AND kind = ?", name, version, orgUUID, models.KindRestAPI)
+		Where("name = ? AND version = ? AND organization_name = ? AND kind = ?", name, version, orgUUID, models.KindRestAPI)
 
 	if excludeHandle != "" {
 		query = query.Where("handle != ?", excludeHandle)
@@ -320,7 +311,7 @@ func (r *APIRepo) CreateAPIAssociation(association *models.APIAssociation) error
 // UpdateAPIAssociation updates the updated_at timestamp for an existing API resource association
 func (r *APIRepo) UpdateAPIAssociation(apiUUID, resourceId, associationType, orgUUID string) error {
 	return r.db.Model(&models.APIAssociation{}).
-		Where("artifact_uuid = ? AND resource_uuid = ? AND association_type = ? AND organization_uuid = ?",
+		Where("artifact_uuid = ? AND resource_uuid = ? AND association_type = ? AND organization_name = ?",
 			apiUUID, resourceId, associationType, orgUUID).
 		Update("updated_at", time.Now()).Error
 }
@@ -328,7 +319,7 @@ func (r *APIRepo) UpdateAPIAssociation(apiUUID, resourceId, associationType, org
 // GetAPIAssociations retrieves all resource associations for an API of a specific type
 func (r *APIRepo) GetAPIAssociations(apiUUID, associationType, orgUUID string) ([]*models.APIAssociation, error) {
 	var associations []*models.APIAssociation
-	err := r.db.Where("artifact_uuid = ? AND association_type = ? AND organization_uuid = ?",
+	err := r.db.Where("artifact_uuid = ? AND association_type = ? AND organization_name = ?",
 		apiUUID, associationType, orgUUID).
 		Find(&associations).Error
 	return associations, err
@@ -338,7 +329,7 @@ func (r *APIRepo) GetAPIAssociations(apiUUID, associationType, orgUUID string) (
 func (r *APIRepo) GetAPIGatewaysWithDetails(apiUUID, orgUUID string) ([]*models.APIGatewayWithDetails, error) {
 	var gateways []*models.APIGatewayWithDetails
 	err := r.db.Table("gateways g").
-		Select("g.uuid as id, g.organization_uuid, g.name, g.display_name, g.description, g.properties, "+
+		Select("g.uuid as id, g.organization_name, g.name, g.display_name, g.description, g.properties, "+
 			"g.vhost, g.is_critical, g.gateway_functionality_type as functionality_type, g.is_active, "+
 			"g.created_at, g.updated_at, aa.created_at as associated_at, aa.updated_at as association_updated_at, "+
 			"CASE WHEN ad.deployment_id IS NOT NULL THEN 1 ELSE 0 END as is_deployed, "+
@@ -346,7 +337,7 @@ func (r *APIRepo) GetAPIGatewaysWithDetails(apiUUID, orgUUID string) ([]*models.
 		Joins("INNER JOIN association_mappings aa ON g.uuid = aa.resource_uuid AND aa.association_type = ?", "gateway").
 		Joins("LEFT JOIN deployment_status ad ON g.uuid = ad.gateway_uuid AND ad.artifact_uuid = ? AND ad.status = ?",
 			apiUUID, string(models.DeploymentStatusDeployed)).
-		Where("aa.artifact_uuid = ? AND g.organization_uuid = ?", apiUUID, orgUUID).
+		Where("aa.artifact_uuid = ? AND g.organization_name = ?", apiUUID, orgUUID).
 		Order("aa.created_at DESC").
 		Scan(&gateways).Error
 	return gateways, err

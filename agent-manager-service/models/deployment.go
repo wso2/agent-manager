@@ -29,7 +29,7 @@ type Deployment struct {
 	DeploymentID     uuid.UUID              `gorm:"column:deployment_id;primaryKey" json:"deploymentId"`
 	Name             string                 `gorm:"column:name" json:"name"`
 	ArtifactUUID     uuid.UUID              `gorm:"column:artifact_uuid" json:"artifactId"`
-	OrganizationUUID uuid.UUID              `gorm:"column:organization_uuid" json:"organizationId"`
+	OrganizationName string                 `gorm:"column:organization_name" json:"organizationId"`
 	GatewayUUID      uuid.UUID              `gorm:"column:gateway_uuid" json:"gatewayId"`
 	BaseDeploymentID *uuid.UUID             `gorm:"column:base_deployment_id" json:"baseDeploymentId,omitempty"`
 	Content          []byte                 `gorm:"column:content" json:"-"`
@@ -61,7 +61,7 @@ const (
 // DeploymentStatusRecord represents the current deployment status record
 type DeploymentStatusRecord struct {
 	ArtifactUUID     uuid.UUID        `gorm:"column:artifact_uuid;primaryKey" json:"artifactId"`
-	OrganizationUUID uuid.UUID        `gorm:"column:organization_uuid;primaryKey" json:"organizationId"`
+	OrganizationName string           `gorm:"column:organization_name;primaryKey" json:"organizationId"`
 	GatewayUUID      uuid.UUID        `gorm:"column:gateway_uuid;primaryKey" json:"gatewayId"`
 	DeploymentID     uuid.UUID        `gorm:"column:deployment_id" json:"deploymentId"`
 	Status           DeploymentStatus `gorm:"column:status" json:"status"`

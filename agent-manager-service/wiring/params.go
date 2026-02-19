@@ -27,7 +27,6 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
 )
@@ -63,8 +62,8 @@ type AppParams struct {
 	// Services
 	LLMTemplateSeeder *services.LLMTemplateSeeder
 
-	// Repositories
-	OrganizationRepository repositories.OrganizationRepository
+	// Clients
+	OpenChoreoClient occlient.OpenChoreoClient
 
 	// WebSocket
 	WebSocketManager *websocket.Manager

@@ -45,9 +45,9 @@ type DeploymentRepository interface {
 	DeleteStatus(artifactUUID, orgUUID, gatewayID string) error
 
 	// Gateway mapping methods (derived from deployment status)
-	GetDeployedGatewaysByProvider(artifactUUID uuid.UUID, orgUUID uuid.UUID) ([]string, error)
-	GetDeployedProvidersByGateway(gatewayUUID uuid.UUID, orgUUID uuid.UUID) ([]string, error)
-	IsProviderDeployedToGateway(artifactUUID uuid.UUID, gatewayUUID uuid.UUID, orgUUID uuid.UUID) (bool, error)
+	GetDeployedGatewaysByProvider(artifactUUID uuid.UUID, orgUUID string) ([]string, error)
+	GetDeployedProvidersByGateway(gatewayUUID uuid.UUID, orgUUID string) ([]string, error)
+	IsProviderDeployedToGateway(artifactUUID uuid.UUID, gatewayUUID uuid.UUID, orgUUID string) (bool, error)
 	GetByArtifactAndGateway(artifactUUID, gatewayUUID, orgUUID string) (*models.Deployment, error)
 }
 
@@ -84,8 +84,8 @@ func (r *DeploymentRepo) CreateWithLimitEnforcement(deployment *models.Deploymen
 		// Count total deployments for this artifact+Gateway
 		var count int64
 		if err := tx.Model(&models.Deployment{}).
-			Where("artifact_uuid = ? AND gateway_uuid = ? AND organization_uuid = ?",
-				deployment.ArtifactUUID, deployment.GatewayUUID, deployment.OrganizationUUID).
+			Where("artifact_uuid = ? AND gateway_uuid = ? AND organization_name = ?",
+				deployment.ArtifactUUID, deployment.GatewayUUID, deployment.OrganizationName).
 			Count(&count).Error; err != nil {
 			return err
 		}
@@ -98,10 +98,10 @@ func (r *DeploymentRepo) CreateWithLimitEnforcement(deployment *models.Deploymen
 				Select("d.deployment_id").
 				Joins("LEFT JOIN deployment_status s ON d.deployment_id = s.deployment_id "+
 					"AND d.artifact_uuid = s.artifact_uuid "+
-					"AND d.organization_uuid = s.organization_uuid "+
+					"AND d.organization_name = s.organization_name "+
 					"AND d.gateway_uuid = s.gateway_uuid").
-				Where("d.artifact_uuid = ? AND d.gateway_uuid = ? AND d.organization_uuid = ? AND s.deployment_id IS NULL",
-					deployment.ArtifactUUID, deployment.GatewayUUID, deployment.OrganizationUUID).
+				Where("d.artifact_uuid = ? AND d.gateway_uuid = ? AND d.organization_name = ? AND s.deployment_id IS NULL",
+					deployment.ArtifactUUID, deployment.GatewayUUID, deployment.OrganizationName).
 				Order("d.created_at ASC").
 				Limit(5).
 				Pluck("d.deployment_id", &idsToDelete).Error; err != nil {
@@ -124,7 +124,7 @@ func (r *DeploymentRepo) CreateWithLimitEnforcement(deployment *models.Deploymen
 		// Insert or update deployment status (UPSERT)
 		deploymentStatus := &models.DeploymentStatusRecord{
 			ArtifactUUID:     deployment.ArtifactUUID,
-			OrganizationUUID: deployment.OrganizationUUID,
+			OrganizationName: deployment.OrganizationName,
 			GatewayUUID:      deployment.GatewayUUID,
 			DeploymentID:     deployment.DeploymentID,
 			Status:           *deployment.Status,
@@ -132,7 +132,7 @@ func (r *DeploymentRepo) CreateWithLimitEnforcement(deployment *models.Deploymen
 		}
 
 		return tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "artifact_uuid"}, {Name: "organization_uuid"}, {Name: "gateway_uuid"}},
+			Columns:   []clause.Column{{Name: "artifact_uuid"}, {Name: "organization_name"}, {Name: "gateway_uuid"}},
 			DoUpdates: clause.AssignmentColumns([]string{"deployment_id", "status", "updated_at"}),
 		}).Create(deploymentStatus).Error
 	})
@@ -141,7 +141,7 @@ func (r *DeploymentRepo) CreateWithLimitEnforcement(deployment *models.Deploymen
 // GetWithContent retrieves a deployment including its content
 func (r *DeploymentRepo) GetWithContent(deploymentID, artifactUUID, orgUUID string) (*models.Deployment, error) {
 	var deployment models.Deployment
-	err := r.db.Where("deployment_id = ? AND artifact_uuid = ? AND organization_uuid = ?",
+	err := r.db.Where("deployment_id = ? AND artifact_uuid = ? AND organization_name = ?",
 		deploymentID, artifactUUID, orgUUID).
 		First(&deployment).Error
 	if err != nil {
@@ -155,7 +155,7 @@ func (r *DeploymentRepo) GetWithContent(deploymentID, artifactUUID, orgUUID stri
 
 // Delete deletes a deployment record
 func (r *DeploymentRepo) Delete(deploymentID, artifactUUID, orgUUID string) error {
-	result := r.db.Where("deployment_id = ? AND artifact_uuid = ? AND organization_uuid = ?",
+	result := r.db.Where("deployment_id = ? AND artifact_uuid = ? AND organization_name = ?",
 		deploymentID, artifactUUID, orgUUID).
 		Delete(&models.Deployment{})
 
@@ -174,14 +174,14 @@ func (r *DeploymentRepo) Delete(deploymentID, artifactUUID, orgUUID string) erro
 func (r *DeploymentRepo) GetCurrentByGateway(artifactUUID, gatewayID, orgUUID string) (*models.Deployment, error) {
 	var deployment models.Deployment
 	err := r.db.Table("deployments d").
-		Select("d.deployment_id, d.name, d.artifact_uuid, d.organization_uuid, d.gateway_uuid, "+
+		Select("d.deployment_id, d.name, d.artifact_uuid, d.organization_name, d.gateway_uuid, "+
 			"d.base_deployment_id, d.content, d.metadata, d.created_at, "+
 			"s.status, s.updated_at AS status_updated_at").
 		Joins("INNER JOIN deployment_status s ON d.deployment_id = s.deployment_id "+
 			"AND d.artifact_uuid = s.artifact_uuid "+
-			"AND d.organization_uuid = s.organization_uuid "+
+			"AND d.organization_name = s.organization_name "+
 			"AND d.gateway_uuid = s.gateway_uuid").
-		Where("d.artifact_uuid = ? AND d.gateway_uuid = ? AND d.organization_uuid = ? AND s.status = ?",
+		Where("d.artifact_uuid = ? AND d.gateway_uuid = ? AND d.organization_name = ? AND s.status = ?",
 			artifactUUID, gatewayID, orgUUID, string(models.DeploymentStatusDeployed)).
 		Order("d.created_at DESC").
 		Limit(1).
@@ -203,10 +203,6 @@ func (r *DeploymentRepo) SetCurrent(artifactUUID, orgUUID, gatewayID, deployment
 	if err != nil {
 		return time.Time{}, err
 	}
-	orgUUID_uuid, err := uuid.Parse(orgUUID)
-	if err != nil {
-		return time.Time{}, err
-	}
 	gatewayUUID_uuid, err := uuid.Parse(gatewayID)
 	if err != nil {
 		return time.Time{}, err
@@ -218,7 +214,7 @@ func (r *DeploymentRepo) SetCurrent(artifactUUID, orgUUID, gatewayID, deployment
 
 	deploymentStatus := &models.DeploymentStatusRecord{
 		ArtifactUUID:     artifactUUID_uuid,
-		OrganizationUUID: orgUUID_uuid,
+		OrganizationName: orgUUID,
 		GatewayUUID:      gatewayUUID_uuid,
 		DeploymentID:     deploymentUUID_uuid,
 		Status:           status,
@@ -226,7 +222,7 @@ func (r *DeploymentRepo) SetCurrent(artifactUUID, orgUUID, gatewayID, deployment
 	}
 
 	err = r.db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "artifact_uuid"}, {Name: "organization_uuid"}, {Name: "gateway_uuid"}},
+		Columns:   []clause.Column{{Name: "artifact_uuid"}, {Name: "organization_name"}, {Name: "gateway_uuid"}},
 		DoUpdates: clause.AssignmentColumns([]string{"deployment_id", "status", "updated_at"}),
 	}).Create(deploymentStatus).Error
 
@@ -243,7 +239,7 @@ func (r *DeploymentRepo) GetStatus(artifactUUID, orgUUID, gatewayID string) (str
 
 	err := r.db.Table("deployment_status").
 		Select("deployment_id, status, updated_at").
-		Where("artifact_uuid = ? AND organization_uuid = ? AND gateway_uuid = ?",
+		Where("artifact_uuid = ? AND organization_name = ? AND gateway_uuid = ?",
 			artifactUUID, orgUUID, gatewayID).
 		Scan(&result).Error
 	if err != nil {
@@ -258,7 +254,7 @@ func (r *DeploymentRepo) GetStatus(artifactUUID, orgUUID, gatewayID string) (str
 
 // DeleteStatus deletes the status entry for an artifact on a gateway
 func (r *DeploymentRepo) DeleteStatus(artifactUUID, orgUUID, gatewayID string) error {
-	return r.db.Where("artifact_uuid = ? AND organization_uuid = ? AND gateway_uuid = ?",
+	return r.db.Where("artifact_uuid = ? AND organization_name = ? AND gateway_uuid = ?",
 		artifactUUID, orgUUID, gatewayID).
 		Delete(&models.DeploymentStatusRecord{}).Error
 }
@@ -267,14 +263,14 @@ func (r *DeploymentRepo) DeleteStatus(artifactUUID, orgUUID, gatewayID string) e
 func (r *DeploymentRepo) GetWithState(deploymentID, artifactUUID, orgUUID string) (*models.Deployment, error) {
 	var deployment models.Deployment
 	err := r.db.Table("deployments d").
-		Select("d.deployment_id, d.name, d.artifact_uuid, d.organization_uuid, d.gateway_uuid, "+
+		Select("d.deployment_id, d.name, d.artifact_uuid, d.organization_name, d.gateway_uuid, "+
 			"d.base_deployment_id, d.metadata, d.created_at, "+
 			"s.status, s.updated_at AS status_updated_at").
 		Joins("LEFT JOIN deployment_status s ON d.deployment_id = s.deployment_id "+
 			"AND d.artifact_uuid = s.artifact_uuid "+
-			"AND d.organization_uuid = s.organization_uuid "+
+			"AND d.organization_name = s.organization_name "+
 			"AND d.gateway_uuid = s.gateway_uuid").
-		Where("d.deployment_id = ? AND d.artifact_uuid = ? AND d.organization_uuid = ?",
+		Where("d.deployment_id = ? AND d.artifact_uuid = ? AND d.organization_name = ?",
 			deploymentID, artifactUUID, orgUUID).
 		Scan(&deployment).Error
 	if err != nil {
@@ -311,7 +307,7 @@ func (r *DeploymentRepo) GetDeploymentsWithState(artifactUUID, orgUUID string, g
 	query := `
         WITH AnnotatedDeployments AS (
             SELECT
-				d.deployment_id, d.name, d.artifact_uuid, d.organization_uuid, d.gateway_uuid,
+				d.deployment_id, d.name, d.artifact_uuid, d.organization_name, d.gateway_uuid,
                 d.base_deployment_id, d.metadata, d.created_at,
                 s.status as current_status,
                 s.updated_at as status_updated_at,
@@ -326,8 +322,8 @@ func (r *DeploymentRepo) GetDeploymentsWithState(artifactUUID, orgUUID string, g
                 ON d.deployment_id = s.deployment_id
                 AND d.gateway_uuid = s.gateway_uuid
 				AND d.artifact_uuid = s.artifact_uuid
-				AND d.organization_uuid = s.organization_uuid
-			WHERE d.artifact_uuid = ? AND d.organization_uuid = ?`
+				AND d.organization_name = s.organization_name
+			WHERE d.artifact_uuid = ? AND d.organization_name = ?`
 
 	args := []interface{}{artifactUUID, orgUUID}
 
@@ -339,7 +335,7 @@ func (r *DeploymentRepo) GetDeploymentsWithState(artifactUUID, orgUUID string, g
 	query += `
         )
         SELECT
-			deployment_id, name, artifact_uuid, organization_uuid, gateway_uuid,
+			deployment_id, name, artifact_uuid, organization_name, gateway_uuid,
             base_deployment_id, metadata, created_at,
             current_status as status, status_updated_at
         FROM AnnotatedDeployments
@@ -373,10 +369,10 @@ func (r *DeploymentRepo) GetDeploymentsWithState(artifactUUID, orgUUID string, g
 }
 
 // GetDeployedGatewaysByProvider returns all gateway UUIDs where this provider is currently deployed
-func (r *DeploymentRepo) GetDeployedGatewaysByProvider(artifactUUID uuid.UUID, orgUUID uuid.UUID) ([]string, error) {
+func (r *DeploymentRepo) GetDeployedGatewaysByProvider(artifactUUID uuid.UUID, orgUUID string) ([]string, error) {
 	var gatewayUUIDs []string
 	err := r.db.Table("deployment_status").
-		Where("artifact_uuid = ? AND organization_uuid = ? AND status = ?",
+		Where("artifact_uuid = ? AND organization_name = ? AND status = ?",
 			artifactUUID, orgUUID, models.DeploymentStatusDeployed).
 		Pluck("gateway_uuid", &gatewayUUIDs).Error
 	if err != nil {
@@ -387,10 +383,10 @@ func (r *DeploymentRepo) GetDeployedGatewaysByProvider(artifactUUID uuid.UUID, o
 }
 
 // GetDeployedProvidersByGateway returns all provider UUIDs currently deployed to this gateway
-func (r *DeploymentRepo) GetDeployedProvidersByGateway(gatewayUUID uuid.UUID, orgUUID uuid.UUID) ([]string, error) {
+func (r *DeploymentRepo) GetDeployedProvidersByGateway(gatewayUUID uuid.UUID, orgUUID string) ([]string, error) {
 	var providerUUIDs []string
 	err := r.db.Table("deployment_status").
-		Where("gateway_uuid = ? AND organization_uuid = ? AND status = ?",
+		Where("gateway_uuid = ? AND organization_name = ? AND status = ?",
 			gatewayUUID, orgUUID, models.DeploymentStatusDeployed).
 		Pluck("artifact_uuid", &providerUUIDs).Error
 	if err != nil {
@@ -401,10 +397,10 @@ func (r *DeploymentRepo) GetDeployedProvidersByGateway(gatewayUUID uuid.UUID, or
 }
 
 // IsProviderDeployedToGateway checks if a provider is currently deployed to a gateway
-func (r *DeploymentRepo) IsProviderDeployedToGateway(artifactUUID uuid.UUID, gatewayUUID uuid.UUID, orgUUID uuid.UUID) (bool, error) {
+func (r *DeploymentRepo) IsProviderDeployedToGateway(artifactUUID uuid.UUID, gatewayUUID uuid.UUID, orgUUID string) (bool, error) {
 	var count int64
 	err := r.db.Table("deployment_status").
-		Where("artifact_uuid = ? AND gateway_uuid = ? AND organization_uuid = ? AND status = ?",
+		Where("artifact_uuid = ? AND gateway_uuid = ? AND organization_name = ? AND status = ?",
 			artifactUUID, gatewayUUID, orgUUID, models.DeploymentStatusDeployed).
 		Count(&count).Error
 
@@ -420,7 +416,7 @@ func (r *DeploymentRepo) GetByArtifactAndGateway(artifactUUID, gatewayUUID, orgU
 	// First get the deployment ID and status from deployment_status table
 	err := r.db.Table("deployment_status").
 		Select("deployment_id, status, updated_at").
-		Where("artifact_uuid = ? AND gateway_uuid = ? AND organization_uuid = ?",
+		Where("artifact_uuid = ? AND gateway_uuid = ? AND organization_name = ?",
 			artifactUUID, gatewayUUID, orgUUID).
 		Row().
 		Scan(&deploymentID, &status, &updatedAt)

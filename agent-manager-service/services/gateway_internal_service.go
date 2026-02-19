@@ -36,7 +36,6 @@ type GatewayInternalAPIService struct {
 	proxyRepo        repositories.LLMProxyRepository
 	deploymentRepo   repositories.DeploymentRepository
 	gatewayRepo      repositories.GatewayRepository
-	orgRepo          repositories.OrganizationRepository
 	infraResourceMgr InfraResourceManager
 }
 
@@ -88,7 +87,6 @@ func NewGatewayInternalAPIService(
 	proxyRepo repositories.LLMProxyRepository,
 	deploymentRepo repositories.DeploymentRepository,
 	gatewayRepo repositories.GatewayRepository,
-	orgRepo repositories.OrganizationRepository,
 	infraResourceMgr InfraResourceManager,
 ) *GatewayInternalAPIService {
 	return &GatewayInternalAPIService{
@@ -97,15 +95,14 @@ func NewGatewayInternalAPIService(
 		proxyRepo:        proxyRepo,
 		deploymentRepo:   deploymentRepo,
 		gatewayRepo:      gatewayRepo,
-		orgRepo:          orgRepo,
 		infraResourceMgr: infraResourceMgr,
 	}
 }
 
 // GetAPIsByOrganization retrieves all APIs for a specific organization (used by gateways)
-func (s *GatewayInternalAPIService) GetAPIsByOrganization(orgID string) (map[string]string, error) {
+func (s *GatewayInternalAPIService) GetAPIsByOrganization(orgName string) (map[string]string, error) {
 	// Get all APIs for the organization
-	apis, err := s.apiRepo.GetAPIsByOrganizationUUID(orgID, nil)
+	apis, err := s.apiRepo.GetAPIsByOrganizationUUID(orgName, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve APIs: %w", err)
 	}
@@ -123,15 +120,15 @@ func (s *GatewayInternalAPIService) GetAPIsByOrganization(orgID string) (map[str
 }
 
 // GetAPIByUUID retrieves an API by its ID
-func (s *GatewayInternalAPIService) GetAPIByUUID(apiID, orgID string) (map[string]string, error) {
-	apiModel, err := s.apiRepo.GetAPIByUUID(apiID, orgID)
+func (s *GatewayInternalAPIService) GetAPIByUUID(apiID, orgName string) (map[string]string, error) {
+	apiModel, err := s.apiRepo.GetAPIByUUID(apiID, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get api: %w", err)
 	}
 	if apiModel == nil {
 		return nil, fmt.Errorf("API not found")
 	}
-	if apiModel.OrganizationID != orgID {
+	if apiModel.OrganizationID != orgName {
 		return nil, fmt.Errorf("API not found")
 	}
 
@@ -146,9 +143,9 @@ func (s *GatewayInternalAPIService) GetAPIByUUID(apiID, orgID string) (map[strin
 }
 
 // GetActiveDeploymentByGateway retrieves the currently deployed API artifact for a specific gateway
-func (s *GatewayInternalAPIService) GetActiveDeploymentByGateway(apiID, orgID, gatewayID string) (map[string]string, error) {
+func (s *GatewayInternalAPIService) GetActiveDeploymentByGateway(apiID, orgName, gatewayID string) (map[string]string, error) {
 	// Get the active deployment for this API on this gateway
-	deployment, err := s.deploymentRepo.GetCurrentByGateway(apiID, gatewayID, orgID)
+	deployment, err := s.deploymentRepo.GetCurrentByGateway(apiID, gatewayID, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get deployment: %w", err)
 	}
@@ -166,8 +163,8 @@ func (s *GatewayInternalAPIService) GetActiveDeploymentByGateway(apiID, orgID, g
 }
 
 // GetActiveLLMProviderDeploymentByGateway retrieves the currently deployed LLM provider artifact
-func (s *GatewayInternalAPIService) GetActiveLLMProviderDeploymentByGateway(providerID, orgID, gatewayID string) (map[string]string, error) {
-	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
+func (s *GatewayInternalAPIService) GetActiveLLMProviderDeploymentByGateway(providerID, orgName, gatewayID string) (map[string]string, error) {
+	provider, err := s.providerRepo.GetByUUID(providerID, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM provider: %w", err)
 	}
@@ -175,7 +172,7 @@ func (s *GatewayInternalAPIService) GetActiveLLMProviderDeploymentByGateway(prov
 		return nil, fmt.Errorf("LLM provider not found")
 	}
 
-	deployment, err := s.deploymentRepo.GetCurrentByGateway(provider.UUID.String(), gatewayID, orgID)
+	deployment, err := s.deploymentRepo.GetCurrentByGateway(provider.UUID.String(), gatewayID, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get deployment: %w", err)
 	}
@@ -191,8 +188,8 @@ func (s *GatewayInternalAPIService) GetActiveLLMProviderDeploymentByGateway(prov
 }
 
 // GetActiveLLMProxyDeploymentByGateway retrieves the currently deployed LLM proxy artifact
-func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(proxyID, orgID, gatewayID string) (map[string]string, error) {
-	proxy, err := s.proxyRepo.GetByID(proxyID, orgID)
+func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(proxyID, orgName, gatewayID string) (map[string]string, error) {
+	proxy, err := s.proxyRepo.GetByID(proxyID, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM proxy: %w", err)
 	}
@@ -200,7 +197,7 @@ func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(proxyID
 		return nil, utils.ErrLLMProxyNotFound
 	}
 
-	deployment, err := s.deploymentRepo.GetCurrentByGateway(proxy.UUID.String(), gatewayID, orgID)
+	deployment, err := s.deploymentRepo.GetCurrentByGateway(proxy.UUID.String(), gatewayID, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get deployment: %w", err)
 	}
@@ -217,12 +214,12 @@ func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(proxyID
 
 // CreateGatewayDeployment handles the registration of an API deployment from a gateway
 func (s *GatewayInternalAPIService) CreateGatewayDeployment(
-	apiHandle, orgID, gatewayID string,
+	apiHandle, orgName, gatewayID string,
 	notification DeploymentNotification,
 	deploymentID *string,
 ) (*GatewayDeploymentResponse, error) {
 	// Validate input
-	if apiHandle == "" || orgID == "" || gatewayID == "" {
+	if apiHandle == "" || orgName == "" || gatewayID == "" {
 		return nil, fmt.Errorf("invalid input")
 	}
 
@@ -234,22 +231,13 @@ func (s *GatewayInternalAPIService) CreateGatewayDeployment(
 	if gatewayModel == nil {
 		return nil, fmt.Errorf("gateway not found")
 	}
-	if gatewayModel.OrganizationUUID.String() != orgID {
+	if gatewayModel.OrganizationName != orgName {
 		return nil, fmt.Errorf("gateway not found")
-	}
-
-	// Get organization name for GetProject call
-	org, err := s.orgRepo.GetOrganizationByUUID(orgID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get organization: %w", err)
-	}
-	if org == nil {
-		return nil, fmt.Errorf("organization not found")
 	}
 
 	// Get the project using InfraResourceManager
 	projectName := notification.ProjectIdentifier
-	project, err := s.infraResourceMgr.GetProject(context.Background(), org.Name, projectName)
+	project, err := s.infraResourceMgr.GetProject(context.Background(), orgName, projectName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get project by name: %w", err)
 	}
@@ -259,7 +247,7 @@ func (s *GatewayInternalAPIService) CreateGatewayDeployment(
 	projectID := project.UUID
 
 	// Check if API exists
-	existingAPI, err := s.apiRepo.GetAPIMetadataByHandle(apiHandle, orgID)
+	existingAPI, err := s.apiRepo.GetAPIMetadataByHandle(apiHandle, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing API: %w", err)
 	}
@@ -275,7 +263,7 @@ func (s *GatewayInternalAPIService) CreateGatewayDeployment(
 			Name:            notification.Configuration.Spec.Name,
 			Version:         notification.Configuration.Spec.Version,
 			ProjectID:       projectID,
-			OrganizationID:  orgID,
+			OrganizationID:  orgName,
 			CreatedBy:       "admin",
 			LifeCycleStatus: "CREATED",
 			Kind:            notification.Configuration.Kind,
@@ -291,14 +279,14 @@ func (s *GatewayInternalAPIService) CreateGatewayDeployment(
 		apiUUID = newAPI.ID
 		apiCreated = true
 	} else {
-		if existingAPI.OrganizationUUID.String() != orgID {
+		if existingAPI.OrganizationName != orgName {
 			return nil, fmt.Errorf("API not found")
 		}
 		apiUUID = existingAPI.UUID.String()
 	}
 
 	// Check if deployment exists
-	existingDeploymentID, status, _, err := s.deploymentRepo.GetStatus(apiUUID, orgID, gatewayID)
+	existingDeploymentID, status, _, err := s.deploymentRepo.GetStatus(apiUUID, orgName, gatewayID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check deployment status: %w", err)
 	}
@@ -326,16 +314,12 @@ func (s *GatewayInternalAPIService) CreateGatewayDeployment(
 	if err != nil {
 		return nil, fmt.Errorf("invalid gateway UUID: %w", err)
 	}
-	orgUUID, err := uuid.Parse(orgID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid organization UUID: %w", err)
-	}
 
 	deployment := &models.Deployment{
 		Name:             deploymentName,
 		ArtifactUUID:     artifactUUID,
 		GatewayUUID:      gwUUID,
-		OrganizationUUID: orgUUID,
+		OrganizationName: orgName,
 		Content:          deploymentContent,
 		Status:           &deployed,
 		CreatedAt:        now,

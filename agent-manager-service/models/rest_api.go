@@ -93,5 +93,5 @@ type APIMetadata struct {
 	Name             string    `json:"name" db:"name"`
 	Version          string    `json:"version" db:"version"`
 	Kind             string    `json:"kind" db:"kind"`
-	OrganizationUUID uuid.UUID `json:"organizationId" db:"organization_uuid"`
+	OrganizationName string    `json:"organizationId" db:"organization_name"`
 }

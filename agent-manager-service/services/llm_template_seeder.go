@@ -19,8 +19,6 @@ package services
 import (
 	"fmt"
 
-	"github.com/google/uuid"
-
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 )
@@ -48,27 +46,23 @@ func (s *LLMTemplateSeeder) SetTemplates(templates []*models.LLMProviderTemplate
 }
 
 // SeedForOrg seeds default LLM provider templates for a specific organization
-func (s *LLMTemplateSeeder) SeedForOrg(orgUUID uuid.UUID) error {
+func (s *LLMTemplateSeeder) SeedForOrg(orgName string) error {
 	if s == nil || s.templateRepo == nil {
 		return nil
 	}
-	if orgUUID == uuid.Nil {
-		return fmt.Errorf("orgUUID is empty")
-	}
+
 	if len(s.templates) == 0 {
 		return nil
 	}
 
-	orgUUIDStr := orgUUID.String()
-
 	// Get count of existing templates
-	totalCount, err := s.templateRepo.Count(orgUUIDStr)
+	totalCount, err := s.templateRepo.Count(orgName)
 	if err != nil {
 		return fmt.Errorf("failed to count existing templates: %w", err)
 	}
 
 	// Get all existing templates for this organization
-	existing, err := s.templateRepo.List(orgUUIDStr, totalCount, 0)
+	existing, err := s.templateRepo.List(orgName, totalCount, 0)
 	if err != nil {
 		return fmt.Errorf("failed to list existing templates: %w", err)
 	}
@@ -114,7 +108,7 @@ func (s *LLMTemplateSeeder) SeedForOrg(orgUUID uuid.UUID) error {
 
 		// Create new template
 		toCreate := &models.LLMProviderTemplate{
-			OrganizationUUID: orgUUID,
+			OrganizationName: orgName,
 			Handle:           tpl.Handle,
 			Name:             tpl.Name,
 			Description:      tpl.Description,
@@ -131,7 +125,7 @@ func (s *LLMTemplateSeeder) SeedForOrg(orgUUID uuid.UUID) error {
 
 		if err := s.templateRepo.Create(toCreate); err != nil {
 			// Be tolerant to concurrent startup / repeated seeding
-			exists, existsErr := s.templateRepo.Exists(tpl.Handle, orgUUIDStr)
+			exists, existsErr := s.templateRepo.Exists(tpl.Handle, orgName)
 			if existsErr == nil && exists {
 				continue
 			}

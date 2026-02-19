@@ -22,8 +22,8 @@ import (
 
 // CatalogListFilters contains filter criteria for catalog queries
 type CatalogListFilters struct {
-	// OrganizationUUID is the organization identifier (required)
-	OrganizationUUID string
+	// OrganizationName is the organization identifier (required)
+	OrganizationName string
 
 	// Kind filters by catalog resource type (optional)
 	// Valid values: "LlmProvider", "agent", "mcp"
@@ -44,8 +44,8 @@ type CatalogListFilters struct {
 
 // Validate validates the filter parameters
 func (f *CatalogListFilters) Validate() error {
-	if f.OrganizationUUID == "" {
-		return fmt.Errorf("organization UUID is required")
+	if f.OrganizationName == "" {
+		return fmt.Errorf("organization name is required")
 	}
 
 	if f.Limit < 0 {

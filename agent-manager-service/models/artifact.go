@@ -29,7 +29,7 @@ type Artifact struct {
 	Name             string    `gorm:"column:name" json:"name"`
 	Version          string    `gorm:"column:version" json:"version"`
 	Kind             string    `gorm:"column:kind" json:"kind"`
-	OrganizationUUID uuid.UUID `gorm:"column:organization_uuid" json:"organization_uuid"`
+	OrganizationName string    `gorm:"column:organization_name" json:"organization_name"`
 	InCatalog        bool      `gorm:"column:in_catalog;default:false" json:"inCatalog"`
 	CreatedAt        time.Time `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt        time.Time `gorm:"column:updated_at" json:"updated_at"`
