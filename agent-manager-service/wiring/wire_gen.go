@@ -89,36 +89,36 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	scoreRepository := ProvideScoreRepository(db)
 	monitorScoresService := services.NewMonitorScoresService(scoreRepository, logger)
 	monitorScoresController := controllers.NewMonitorScoresController(monitorScoresService)
-	monitorScoresInternalController := controllers.NewMonitorScoresInternalController(monitorScoresService, configConfig)
+	monitorScoresPublisherController := controllers.NewMonitorScoresPublisherController(monitorScoresService, configConfig)
 	evaluatorController := controllers.NewEvaluatorController(evaluatorManagerService)
 	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, logger, monitorExecutor)
 	llmTemplateSeeder := ProvideLLMTemplateSeeder(llmProviderTemplateRepository)
 	appParams := &AppParams{
-		AuthMiddleware:                  middleware,
-		Logger:                          logger,
-		AgentController:                 agentController,
-		InfraResourceController:         infraResourceController,
-		ObservabilityController:         observabilityController,
-		AgentTokenController:            agentTokenController,
-		RepositoryController:            repositoryController,
-		EnvironmentController:           environmentController,
-		GatewayController:               gatewayController,
-		LLMController:                   llmController,
-		LLMDeploymentController:         llmDeploymentController,
-		LLMProviderAPIKeyController:     llmProviderAPIKeyController,
-		LLMProxyAPIKeyController:        llmProxyAPIKeyController,
-		LLMProxyDeploymentController:    llmProxyDeploymentController,
-		WebSocketController:             webSocketController,
-		GatewayInternalController:       gatewayInternalController,
-		MonitorController:               monitorController,
-		MonitorScoresController:         monitorScoresController,
-		MonitorScoresInternalController: monitorScoresInternalController,
-		EvaluatorController:             evaluatorController,
-		MonitorScheduler:                monitorSchedulerService,
-		LLMTemplateSeeder:               llmTemplateSeeder,
-		OrganizationRepository:          organizationRepository,
-		WebSocketManager:                manager,
-		DB:                              db,
+		AuthMiddleware:                   middleware,
+		Logger:                           logger,
+		AgentController:                  agentController,
+		InfraResourceController:          infraResourceController,
+		ObservabilityController:          observabilityController,
+		AgentTokenController:             agentTokenController,
+		RepositoryController:             repositoryController,
+		EnvironmentController:            environmentController,
+		GatewayController:                gatewayController,
+		LLMContAKroller:                  llmController,
+		LLMDeploymentController:          llmDeploymentController,
+		LLMProviderAPIKeyController:      llmProviderAPIKeyController,
+		LLMProxyAPIKeyController:         llmProxyAPIKeyController,
+		LLMProxyDeploymentController:     llmProxyDeploymentController,
+		WebSocketController:              webSocketController,
+		GatewayInternalController:        gatewayInternalController,
+		MonitorController:                monitorController,
+		MonitorScoresController:          monitorScoresController,
+		MonitorScoresPublisherController: monitorScoresPublisherController,
+		EvaluatorController:              evaluatorController,
+		MonitorScheduler:                 monitorSchedulerService,
+		LLMTemplateSeeder:                llmTemplateSeeder,
+		OrganizationRepository:           organizationRepository,
+		WebSocketManager:                 manager,
+		DB:                               db,
 	}
 	return appParams, nil
 }
@@ -179,36 +179,36 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	scoreRepository := ProvideScoreRepository(db)
 	monitorScoresService := services.NewMonitorScoresService(scoreRepository, logger)
 	monitorScoresController := controllers.NewMonitorScoresController(monitorScoresService)
-	monitorScoresInternalController := controllers.NewMonitorScoresInternalController(monitorScoresService, configConfig)
+	monitorScoresPublisherController := controllers.NewMonitorScoresPublisherController(monitorScoresService, configConfig)
 	evaluatorController := controllers.NewEvaluatorController(evaluatorManagerService)
 	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, logger, monitorExecutor)
 	llmTemplateSeeder := ProvideLLMTemplateSeeder(llmProviderTemplateRepository)
 	appParams := &AppParams{
-		AuthMiddleware:                  authMiddleware,
-		Logger:                          logger,
-		AgentController:                 agentController,
-		InfraResourceController:         infraResourceController,
-		ObservabilityController:         observabilityController,
-		AgentTokenController:            agentTokenController,
-		RepositoryController:            repositoryController,
-		EnvironmentController:           environmentController,
-		GatewayController:               gatewayController,
-		LLMController:                   llmController,
-		LLMDeploymentController:         llmDeploymentController,
-		LLMProviderAPIKeyController:     llmProviderAPIKeyController,
-		LLMProxyAPIKeyController:        llmProxyAPIKeyController,
-		LLMProxyDeploymentController:    llmProxyDeploymentController,
-		WebSocketController:             webSocketController,
-		GatewayInternalController:       gatewayInternalController,
-		MonitorController:               monitorController,
-		MonitorScoresController:         monitorScoresController,
-		MonitorScoresInternalController: monitorScoresInternalController,
-		EvaluatorController:             evaluatorController,
-		MonitorScheduler:                monitorSchedulerService,
-		LLMTemplateSeeder:               llmTemplateSeeder,
-		OrganizationRepository:          organizationRepository,
-		WebSocketManager:                manager,
-		DB:                              db,
+		AuthMiddleware:                   authMiddleware,
+		Logger:                           logger,
+		AgentController:                  agentController,
+		InfraResourceController:          infraResourceController,
+		ObservabilityController:          observabilityController,
+		AgentTokenController:             agentTokenController,
+		RepositoryController:             repositoryController,
+		EnvironmentController:            environmentController,
+		GatewayController:                gatewayController,
+		LLMContAKroller:                  llmController,
+		LLMDeploymentController:          llmDeploymentController,
+		LLMProviderAPIKeyController:      llmProviderAPIKeyController,
+		LLMProxyAPIKeyController:         llmProxyAPIKeyController,
+		LLMProxyDeploymentController:     llmProxyDeploymentController,
+		WebSocketController:              webSocketController,
+		GatewayInternalController:        gatewayInternalController,
+		MonitorController:                monitorController,
+		MonitorScoresController:          monitorScoresController,
+		MonitorScoresPublisherController: monitorScoresPublisherController,
+		EvaluatorController:              evaluatorController,
+		MonitorScheduler:                 monitorSchedulerService,
+		LLMTemplateSeeder:                llmTemplateSeeder,
+		OrganizationRepository:           organizationRepository,
+		WebSocketManager:                 manager,
+		DB:                               db,
 	}
 	return appParams, nil
 }
@@ -226,7 +226,7 @@ var clientProviderSet = wire.NewSet(
 
 var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, services.NewMonitorSchedulerService, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewLLMProxyDeploymentService, services.NewGatewayInternalAPIService, services.NewMonitorScoresService, ProvideLLMTemplateSeeder)
 
-var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewLLMController, controllers.NewLLMDeploymentController, controllers.NewLLMProviderAPIKeyController, controllers.NewLLMProxyAPIKeyController, controllers.NewLLMProxyDeploymentController, ProvideWebSocketController, controllers.NewGatewayInternalController, controllers.NewMonitorController, controllers.NewMonitorScoresController, controllers.NewMonitorScoresInternalController, controllers.NewEvaluatorController)
+var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewLLMController, controllers.NewLLMDeploymentController, controllers.NewLLMProviderAPIKeyController, controllers.NewLLMProxyAPIKeyController, controllers.NewLLMProxyDeploymentController, ProvideWebSocketController, controllers.NewGatewayInternalController, controllers.NewMonitorController, controllers.NewMonitorScoresController, controllers.NewMonitorScoresPublisherController, controllers.NewEvaluatorController)
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,

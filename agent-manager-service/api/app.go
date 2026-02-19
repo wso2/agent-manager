@@ -65,7 +65,7 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 
 	// Register publisher routes outside JWT middleware (uses API-key auth instead)
 	publisherMux := http.NewServeMux()
-	RegisterMonitorInternalRoutes(publisherMux, params.MonitorScoresInternalController)
+	RegisterMonitorPublisherRoutes(publisherMux, params.MonitorScoresPublisherController)
 
 	publisherHandler := http.Handler(publisherMux)
 	publisherHandler = logger.RequestLogger()(publisherHandler)

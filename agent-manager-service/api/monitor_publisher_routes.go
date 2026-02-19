@@ -22,9 +22,9 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 )
 
-// RegisterMonitorInternalRoutes registers internal monitor score publishing routes
+// RegisterMonitorPublisherRoutes registers monitor score publishing routes
 // These routes use API key authentication instead of JWT
-func RegisterMonitorInternalRoutes(mux *http.ServeMux, ctrl controllers.MonitorScoresInternalController) {
+func RegisterMonitorPublisherRoutes(mux *http.ServeMux, ctrl controllers.MonitorScoresPublisherController) {
 	// POST /monitors/{monitorId}/runs/{runId}/scores - Publish evaluation scores
 	mux.HandleFunc("POST /monitors/{monitorId}/runs/{runId}/scores", ctrl.PublishScores)
 }
