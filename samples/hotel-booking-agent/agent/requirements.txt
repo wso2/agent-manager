@@ -1,0 +1,10 @@
+fastapi==0.115.0
+uvicorn==0.30.6
+langgraph==0.2.76
+langchain-openai==0.3.35
+langchain-pinecone==0.2.13
+pydantic==2.12.5
+pydantic-settings==2.6.1
+requests==2.32.3
+pinecone==6.0.2
+aiohttp==3.13.3
