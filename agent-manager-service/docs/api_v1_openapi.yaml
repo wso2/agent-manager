@@ -8425,6 +8425,8 @@ components:
               propertyName: kind
               mapping:
                 LlmProvider: '#/components/schemas/CatalogLLMProviderEntry'
+                agent: '#/components/schemas/CatalogEntry'
+                mcp: '#/components/schemas/CatalogEntry'
         total:
           type: integer
           description: Total number of entries matching the filter

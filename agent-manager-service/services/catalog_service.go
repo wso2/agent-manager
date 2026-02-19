@@ -172,6 +172,12 @@ func (s *catalogService) ListCatalog(ctx context.Context, orgUUID string, kind s
 
 // ListLLMProviders retrieves comprehensive LLM provider catalog entries with deployment details
 func (s *catalogService) ListLLMProviders(ctx context.Context, filters *models.CatalogListFilters) ([]models.CatalogLLMProviderEntry, int64, error) {
+	// Handle nil filters
+	if filters == nil {
+		s.logger.Error("Filters cannot be nil")
+		return nil, 0, fmt.Errorf("filters cannot be nil")
+	}
+
 	s.logger.Info("Listing LLM provider catalog entries",
 		"orgUUID", filters.OrganizationUUID,
 		"environmentUUID", filters.EnvironmentUUID,

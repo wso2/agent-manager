@@ -461,8 +461,8 @@ func ConvertSpecToModelUpstreamConfig(config spec.UpstreamConfig) models.Upstrea
 		}
 		if config.Main.Auth != nil {
 			main.Auth = &models.UpstreamAuth{
-				Type:  config.Main.Auth.Type,
-				Value: *config.Main.Auth.Value,
+				Type:  &config.Main.Auth.Type,
+				Value: config.Main.Auth.Value,
 			}
 		}
 		modelConfig.Main = &main
@@ -475,8 +475,8 @@ func ConvertSpecToModelUpstreamConfig(config spec.UpstreamConfig) models.Upstrea
 		}
 		if config.Sandbox.Auth != nil {
 			sandbox.Auth = &models.UpstreamAuth{
-				Type:  config.Sandbox.Auth.Type,
-				Value: *config.Sandbox.Auth.Value,
+				Type:  &config.Sandbox.Auth.Type,
+				Value: config.Sandbox.Auth.Value,
 			}
 		}
 		modelConfig.Sandbox = &sandbox
@@ -498,7 +498,7 @@ func ConvertModelToSpecUpstreamConfig(config models.UpstreamConfig) spec.Upstrea
 			// Mask credential value in API responses for security
 			maskedValue := "***REDACTED***"
 			main.Auth = &spec.UpstreamAuth{
-				Type:  config.Main.Auth.Type,
+				Type:  *config.Main.Auth.Type,
 				Value: &maskedValue,
 			}
 		}
@@ -514,7 +514,7 @@ func ConvertModelToSpecUpstreamConfig(config models.UpstreamConfig) spec.Upstrea
 			// Mask credential value in API responses for security
 			maskedValue := "***REDACTED***"
 			sandbox.Auth = &spec.UpstreamAuth{
-				Type:  config.Sandbox.Auth.Type,
+				Type:  *config.Sandbox.Auth.Type,
 				Value: &maskedValue,
 			}
 		}

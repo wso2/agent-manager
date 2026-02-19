@@ -31,7 +31,7 @@ type UpstreamEndpoint struct {
 
 // UpstreamAuth represents upstream authentication configuration
 type UpstreamAuth struct {
-	Type   string `json:"type"`
-	Header string `json:"header,omitempty"`
-	Value  string `json:"value,omitempty"`
+	Type   *string `json:"type"`
+	Header *string `json:"header,omitempty"`
+	Value  *string `json:"value,omitempty"`
 }
