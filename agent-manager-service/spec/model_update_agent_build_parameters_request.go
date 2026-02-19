@@ -143,6 +143,38 @@ func (o *UpdateAgentBuildParametersRequest) SetInputInterface(v InputInterface) 
 	o.InputInterface = v
 }
 
+// GetConfigurations returns the Configurations field value if set, zero value otherwise.
+func (o *UpdateAgentBuildParametersRequest) GetConfigurations() Configurations {
+	if o == nil || IsNil(o.Configurations) {
+		var ret Configurations
+		return ret
+	}
+	return *o.Configurations
+}
+
+// GetConfigurationsOk returns a tuple with the Configurations field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *UpdateAgentBuildParametersRequest) GetConfigurationsOk() (*Configurations, bool) {
+	if o == nil || IsNil(o.Configurations) {
+		return nil, false
+	}
+	return o.Configurations, true
+}
+
+// HasConfigurations returns a boolean if a field has been set.
+func (o *UpdateAgentBuildParametersRequest) HasConfigurations() bool {
+	if o != nil && !IsNil(o.Configurations) {
+		return true
+	}
+
+	return false
+}
+
+// SetConfigurations gets a reference to the given Configurations and assigns it to the Configurations field.
+func (o *UpdateAgentBuildParametersRequest) SetConfigurations(v Configurations) {
+	o.Configurations = &v
+}
+
 func (o UpdateAgentBuildParametersRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
