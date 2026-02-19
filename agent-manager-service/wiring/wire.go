@@ -89,7 +89,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewGatewayInternalController,
 	controllers.NewMonitorController,
 	controllers.NewMonitorScoresController,
-	controllers.NewMonitorScoresInternalController,
+	controllers.NewMonitorScoresPublisherController,
 	controllers.NewEvaluatorController,
 )
 

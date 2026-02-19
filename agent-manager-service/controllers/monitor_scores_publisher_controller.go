@@ -30,22 +30,22 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
-// MonitorScoresInternalController defines the interface for internal monitor scores HTTP handlers
-type MonitorScoresInternalController interface {
+// MonitorScoresPublisherController defines the interface for monitor scores publishing HTTP handlers
+type MonitorScoresPublisherController interface {
 	PublishScores(w http.ResponseWriter, r *http.Request)
 }
 
-type monitorScoresInternalController struct {
+type monitorScoresPublisherController struct {
 	scoresService *services.MonitorScoresService
 	apiKey        string
 }
 
-// NewMonitorScoresInternalController creates a new internal monitor scores controller
-func NewMonitorScoresInternalController(
+// NewMonitorScoresPublisherController creates a new monitor scores publisher controller
+func NewMonitorScoresPublisherController(
 	scoresService *services.MonitorScoresService,
 	cfg config.Config,
-) MonitorScoresInternalController {
-	return &monitorScoresInternalController{
+) MonitorScoresPublisherController {
+	return &monitorScoresPublisherController{
 		scoresService: scoresService,
 		apiKey:        cfg.InternalServer.APIKey,
 	}
@@ -53,7 +53,7 @@ func NewMonitorScoresInternalController(
 
 // PublishScores handles POST /monitors/{monitorId}/runs/{runId}/scores
 // Accepts evaluation scores from the Python runner and stores them in the database
-func (c *monitorScoresInternalController) PublishScores(w http.ResponseWriter, r *http.Request) {
+func (c *monitorScoresPublisherController) PublishScores(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 
 	// Validate API key (using x-api-key header to match Python client)
