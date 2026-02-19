@@ -223,7 +223,6 @@ class LLMSpan:
     metrics: LLMMetrics = field(default_factory=LLMMetrics)
 
 
-
 @dataclass
 class ToolSpan:
     """
@@ -967,9 +966,7 @@ class Trace:
             llm.metrics.token_usage.total_tokens for llm in llm_calls if llm.metrics and llm.metrics.token_usage
         )
 
-        total_duration = sum(
-            s.metrics.duration_ms for s in agent_steps if hasattr(s, "metrics")
-        )
+        total_duration = sum(s.metrics.duration_ms for s in agent_steps if hasattr(s, "metrics"))
 
         return {
             "agent_id": agent_span_id,
@@ -1238,7 +1235,9 @@ class Trace:
             llm.metrics.error_message for llm in self.get_llm_calls() if llm.metrics.error and llm.metrics.error_message
         ]
         tool_errors = [
-            tool.metrics.error_message for tool in self.get_tool_calls() if tool.metrics.error and tool.metrics.error_message
+            tool.metrics.error_message
+            for tool in self.get_tool_calls()
+            if tool.metrics.error and tool.metrics.error_message
         ]
         return {
             "llm_errors": llm_errors,
