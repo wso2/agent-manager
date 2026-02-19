@@ -24,12 +24,6 @@ import (
 var migration008 = migration{
 	ID: 8,
 	Migrate: func(db *gorm.DB) error {
-		// Drop old tables if they exist (clean break)
-		dropOldTables := []string{
-			`DROP TABLE IF EXISTS evaluation_aggregates`,
-			`DROP TABLE IF EXISTS evaluation_scores`,
-		}
-
 		createMonitorRunEvaluatorsTable := `
 		CREATE TABLE IF NOT EXISTS monitor_run_evaluators (
 			id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -86,19 +80,13 @@ var migration008 = migration{
 			`CREATE INDEX IF NOT EXISTS idx_score_trace_span ON scores (trace_id, span_id) WHERE span_id IS NOT NULL`,
 			`CREATE INDEX IF NOT EXISTS idx_score_run_eval ON scores (run_evaluator_id)`,
 
-			// Unique constraints as partial indexes (PG 12+ compatible)
-			`CREATE UNIQUE INDEX IF NOT EXISTS uq_score_per_item_with_span ON scores (run_evaluator_id, trace_id, span_id) WHERE span_id IS NOT NULL`,
-			`CREATE UNIQUE INDEX IF NOT EXISTS uq_score_per_item_without_span ON scores (run_evaluator_id, trace_id) WHERE span_id IS NULL`,
+			// Unique constraint: treat NULL span_id values as equal so that re-evaluating the
+			// same (run_evaluator_id, trace_id) row upserts instead of inserting a duplicate.
+			// NULLS NOT DISTINCT requires PostgreSQL 15+. This project targets PostgreSQL 16.
+			`CREATE UNIQUE INDEX IF NOT EXISTS uq_score_per_item ON scores (run_evaluator_id, trace_id, span_id) NULLS NOT DISTINCT`,
 		}
 
 		return db.Transaction(func(tx *gorm.DB) error {
-			// Drop old tables first
-			for _, drop := range dropOldTables {
-				if err := runSQL(tx, drop); err != nil {
-					return err
-				}
-			}
-
 			// Create new tables
 			if err := runSQL(tx, createMonitorRunEvaluatorsTable); err != nil {
 				return err

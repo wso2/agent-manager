@@ -79,10 +79,9 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 	// Pre-generate run ID so it can be included in the WorkflowRun CR for score publishing
 	runID := uuid.New()
 
-	// Use provided evaluators or fall back to monitor's current evaluators
 	evaluators := params.Evaluators
 	if len(evaluators) == 0 {
-		evaluators = params.Monitor.Evaluators
+		return nil, fmt.Errorf("evaluators must not be empty for monitor %s", params.Monitor.Name)
 	}
 
 	e.logger.Debug("Executing monitor run",
@@ -220,15 +219,32 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 	}, nil
 }
 
-// serializeEvaluators converts evaluators to JSON string for workflow parameter.
-// Returns an error identifying the problematic evaluator if serialization fails.
+// serializeEvaluators converts evaluators to a JSON string for the evaluation job workflow parameter.
+// It merges the top-level Level field into each evaluator's Config map because the amp-evaluation
+// SDK expects "level" as a regular config kwarg (it's a Param on BaseEvaluator).
 func serializeEvaluators(evaluators []models.MonitorEvaluator) (string, error) {
+	type evalJobEvaluator struct {
+		Identifier  string                 `json:"identifier"`
+		DisplayName string                 `json:"displayName"`
+		Config      map[string]interface{} `json:"config"`
+	}
+
+	jobEvaluators := make([]evalJobEvaluator, len(evaluators))
 	for i, eval := range evaluators {
-		if _, err := json.Marshal(eval); err != nil {
-			return "", fmt.Errorf("failed to serialize evaluator %d (%s): %w", i, eval.DisplayName, err)
+		config := make(map[string]interface{}, len(eval.Config)+1)
+		for k, v := range eval.Config {
+			config[k] = v
+		}
+		config["level"] = eval.Level
+
+		jobEvaluators[i] = evalJobEvaluator{
+			Identifier:  eval.Identifier,
+			DisplayName: eval.DisplayName,
+			Config:      config,
 		}
 	}
-	evaluatorsJSON, err := json.Marshal(evaluators)
+
+	evaluatorsJSON, err := json.Marshal(jobEvaluators)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize evaluators: %w", err)
 	}

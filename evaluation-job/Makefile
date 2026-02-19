@@ -1,4 +1,4 @@
-.PHONY: help docker-build docker-build-dev docker-push docker-load-k3d docker-clean
+.PHONY: help test docker-build docker-build-dev docker-push docker-load-k3d docker-clean
 
 # Variables
 TAG ?= 0.0.0-dev
@@ -18,8 +18,13 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-25s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+test: ## Run unit tests
+	@echo "Running tests..."
+	@python -m pytest test_main.py -v
+	@echo "Tests passed."
+
 # Docker commands
-docker-build: ## Build production Docker image (installs amp-evaluation from PyPI)
+docker-build: test ## Build production Docker image (installs amp-evaluation from PyPI)
 	@echo "Building production Docker image $(DOCKER_IMAGE)..."
 	@echo "  Using AMP_EVALUATION_VERSION=$(AMP_EVALUATION_VERSION)"
 	@docker build -t $(DOCKER_IMAGE) \
