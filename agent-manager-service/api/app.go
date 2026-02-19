@@ -46,6 +46,7 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	RegisterGatewayRoutes(apiMux, params.GatewayController)
 	registerMonitorRoutes(apiMux, params.MonitorController)
 	registerEvaluatorRoutes(apiMux, params.EvaluatorController)
+	registerCatalogRoutes(apiMux, params.CatalogController)
 	RegisterLLMRoutes(apiMux, params.LLMController)
 	RegisterLLMDeploymentRoutes(apiMux, params.LLMDeploymentController)
 	RegisterLLMProviderAPIKeyRoutes(apiMux, params.LLMProviderAPIKeyController)

@@ -61,6 +61,7 @@ type LLMProviderService struct {
 	providerRepo repositories.LLMProviderRepository
 	templateRepo repositories.LLMProviderTemplateRepository
 	proxyRepo    repositories.LLMProxyRepository
+	artifactRepo repositories.ArtifactRepository
 }
 
 // NewLLMProviderService creates a new LLM provider service
@@ -69,12 +70,14 @@ func NewLLMProviderService(
 	providerRepo repositories.LLMProviderRepository,
 	templateRepo repositories.LLMProviderTemplateRepository,
 	proxyRepo repositories.LLMProxyRepository,
+	artifactRepo repositories.ArtifactRepository,
 ) *LLMProviderService {
 	return &LLMProviderService{
 		db:           db,
 		providerRepo: providerRepo,
 		templateRepo: templateRepo,
 		proxyRepo:    proxyRepo,
+		artifactRepo: artifactRepo,
 	}
 }
 
@@ -802,4 +805,79 @@ func (s *LLMProviderService) GetProviderGatewayMapping(providerId uuid.UUID, org
 		return nil, err
 	}
 	return gws, nil
+}
+
+// UpdateCatalogStatus updates the catalog visibility status of an LLM provider
+func (s *LLMProviderService) UpdateCatalogStatus(providerID, orgID string, inCatalog bool) (*models.LLMProvider, error) {
+	slog.Info("LLMProviderService.UpdateCatalogStatus: starting", "providerID", providerID, "orgID", orgID, "inCatalog", inCatalog)
+
+	// Validate UUIDs
+	_, err := uuid.Parse(providerID)
+	if err != nil {
+		slog.Error("LLMProviderService.UpdateCatalogStatus: invalid provider UUID", "providerID", providerID, "error", err)
+		return nil, utils.ErrInvalidInput
+	}
+
+	_, err = uuid.Parse(orgID)
+	if err != nil {
+		slog.Error("LLMProviderService.UpdateCatalogStatus: invalid org UUID", "orgID", orgID, "error", err)
+		return nil, utils.ErrInvalidInput
+	}
+
+	// Start transaction
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		slog.Error("LLMProviderService.UpdateCatalogStatus: failed to begin transaction", "error", tx.Error)
+		return nil, tx.Error
+	}
+
+	// Ensure transaction is rolled back on panic or error
+	committed := false
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			slog.Error("LLMProviderService.UpdateCatalogStatus: panic recovered, rolling back", "panic", r)
+			panic(r) // Re-panic after rollback
+		}
+		if !committed {
+			tx.Rollback()
+		}
+	}()
+
+	// Verify provider exists and belongs to org (within transaction)
+	// Note: We use the non-transactional repo here since GetByUUID doesn't support tx parameter
+	// This is acceptable as the critical update happens within the transaction
+	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Error("LLMProviderService.UpdateCatalogStatus: provider not found", "providerID", providerID, "orgID", orgID)
+			return nil, utils.ErrLLMProviderNotFound
+		}
+		slog.Error("LLMProviderService.UpdateCatalogStatus: failed to get provider", "providerID", providerID, "error", err)
+		return nil, err
+	}
+	if provider == nil {
+		slog.Warn("LLMProviderService.UpdateCatalogStatus: provider not found", "providerID", providerID, "orgID", orgID)
+		return nil, utils.ErrLLMProviderNotFound
+	}
+
+	// Update artifact catalog status within transaction
+	err = s.artifactRepo.UpdateCatalogStatus(tx, providerID, orgID, inCatalog)
+	if err != nil {
+		slog.Error("LLMProviderService.UpdateCatalogStatus: failed to update artifact catalog status", "providerID", providerID, "error", err)
+		return nil, err
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		slog.Error("LLMProviderService.UpdateCatalogStatus: failed to commit transaction", "error", err)
+		return nil, err
+	}
+	committed = true
+
+	// Update InCatalog field to reflect the committed change
+	provider.InCatalog = inCatalog
+
+	slog.Info("LLMProviderService.UpdateCatalogStatus: completed successfully", "providerID", providerID, "inCatalog", inCatalog)
+	return provider, nil
 }

@@ -17,6 +17,8 @@
 package models
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 )
 
@@ -31,8 +33,14 @@ type LLMProxy struct {
 	Status        string         `gorm:"column:status" json:"status"`
 	Configuration LLMProxyConfig `gorm:"column:configuration;type:jsonb;serializer:json" json:"configuration"`
 
-	// Relations - populated via joins
-	Artifact *Artifact `gorm:"foreignKey:UUID;references:UUID" json:"artifact,omitempty"`
+	// Computed/derived fields from Artifact table (populated via joins, not stored in llm_proxies table)
+	OrganizationUUID string    `gorm:"-" json:"organizationId,omitempty"`
+	ID               string    `gorm:"-" json:"id,omitempty"`
+	Name             string    `gorm:"-" json:"name,omitempty"`
+	Handle           string    `gorm:"-" json:"handle,omitempty"`
+	Version          string    `gorm:"-" json:"version,omitempty"`
+	CreatedAt        time.Time `gorm:"-" json:"createdAt,omitempty"`
+	UpdatedAt        time.Time `gorm:"-" json:"updatedAt,omitempty"`
 }
 
 // TableName returns the table name for the LLMProxy model
@@ -42,11 +50,12 @@ func (LLMProxy) TableName() string {
 
 // LLMProxyConfig represents the LLM proxy configuration
 type LLMProxyConfig struct {
-	Name     string          `json:"name,omitempty"`
-	Version  string          `json:"version,omitempty"`
-	Context  *string         `json:"context,omitempty"`
-	Vhost    *string         `json:"vhost,omitempty"`
-	Provider string          `json:"provider,omitempty"`
-	Policies []LLMPolicy     `json:"policies,omitempty"`
-	Security *SecurityConfig `json:"security,omitempty"`
+	Name         string          `json:"name,omitempty"`
+	Version      string          `json:"version,omitempty"`
+	Context      *string         `json:"context,omitempty"`
+	Vhost        *string         `json:"vhost,omitempty"`
+	Provider     string          `json:"provider,omitempty"`
+	UpstreamAuth *UpstreamAuth   `json:"upstreamAuth,omitempty"`
+	Policies     []LLMPolicy     `json:"policies,omitempty"`
+	Security     *SecurityConfig `json:"security,omitempty"`
 }

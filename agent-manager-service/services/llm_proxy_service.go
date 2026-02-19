@@ -174,6 +174,18 @@ func (s *LLMProxyService) Update(proxyID, orgID string, updates *models.LLMProxy
 		return nil, utils.ErrInvalidInput
 	}
 
+	// Fetch existing proxy to preserve sensitive fields
+	existing, err := s.proxyRepo.GetByID(proxyID, orgID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.ErrLLMProxyNotFound
+		}
+		return nil, fmt.Errorf("failed to get existing proxy: %w", err)
+	}
+	if existing == nil {
+		return nil, utils.ErrLLMProxyNotFound
+	}
+
 	// Validate provider if specified
 	provider := updates.Configuration.Provider
 	if provider != "" {
@@ -196,6 +208,12 @@ func (s *LLMProxyService) Update(proxyID, orgID string, updates *models.LLMProxy
 		return nil, fmt.Errorf("invalid organization UUID: %w", err)
 	}
 
+	// Preserve stored upstream auth credential when not supplied in update payload
+	updates.Configuration.UpstreamAuth = preserveUpstreamAuthCredential(
+		existing.Configuration.UpstreamAuth,
+		updates.Configuration.UpstreamAuth,
+	)
+
 	// Update proxy
 	if err := s.proxyRepo.Update(updates, proxyID, orgUUID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -214,6 +232,26 @@ func (s *LLMProxyService) Update(proxyID, orgID string, updates *models.LLMProxy
 	}
 
 	return updated, nil
+}
+
+// preserveUpstreamAuthCredential preserves existing upstream auth credentials when not provided in update
+func preserveUpstreamAuthCredential(existing, updated *models.UpstreamAuth) *models.UpstreamAuth {
+	if updated == nil {
+		return existing
+	}
+	if existing == nil {
+		return updated
+	}
+	if updated.Type == nil {
+		updated.Type = existing.Type
+	}
+	if updated.Header == nil {
+		updated.Header = existing.Header
+	}
+	if updated.Value == nil {
+		updated.Value = existing.Value
+	}
+	return updated
 }
 
 // Delete deletes an LLM proxy

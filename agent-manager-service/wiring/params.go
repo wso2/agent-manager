@@ -55,6 +55,7 @@ type AppParams struct {
 	GatewayInternalController    controllers.GatewayInternalController
 	MonitorController            controllers.MonitorController
 	EvaluatorController          controllers.EvaluatorController
+	CatalogController            controllers.CatalogController
 	MonitorScheduler             services.MonitorSchedulerService
 
 	// Services

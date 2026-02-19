@@ -26,6 +26,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // DeploymentRepository defines the interface for deployment data operations
@@ -47,6 +48,7 @@ type DeploymentRepository interface {
 	GetDeployedGatewaysByProvider(artifactUUID uuid.UUID, orgUUID uuid.UUID) ([]string, error)
 	GetDeployedProvidersByGateway(gatewayUUID uuid.UUID, orgUUID uuid.UUID) ([]string, error)
 	IsProviderDeployedToGateway(artifactUUID uuid.UUID, gatewayUUID uuid.UUID, orgUUID uuid.UUID) (bool, error)
+	GetByArtifactAndGateway(artifactUUID, gatewayUUID, orgUUID string) (*models.Deployment, error)
 }
 
 // DeploymentRepo implements DeploymentRepository using GORM
@@ -407,4 +409,33 @@ func (r *DeploymentRepo) IsProviderDeployedToGateway(artifactUUID uuid.UUID, gat
 		Count(&count).Error
 
 	return count > 0, err
+}
+
+// GetByArtifactAndGateway retrieves deployment by artifact and gateway
+func (r *DeploymentRepo) GetByArtifactAndGateway(artifactUUID, gatewayUUID, orgUUID string) (*models.Deployment, error) {
+	var deploymentID string
+	var status models.DeploymentStatus
+	var updatedAt *time.Time
+
+	// First get the deployment ID and status from deployment_status table
+	err := r.db.Table("deployment_status").
+		Select("deployment_id, status, updated_at").
+		Where("artifact_uuid = ? AND gateway_uuid = ? AND organization_uuid = ?",
+			artifactUUID, gatewayUUID, orgUUID).
+		Row().
+		Scan(&deploymentID, &status, &updatedAt)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.ErrArtifactNotFound
+		}
+		return nil, fmt.Errorf("failed to query deployment status: %w", err)
+	}
+
+	// Return a minimal deployment object with status information
+	deployment := &models.Deployment{
+		Status:    &status,
+		UpdatedAt: updatedAt,
+	}
+
+	return deployment, nil
 }

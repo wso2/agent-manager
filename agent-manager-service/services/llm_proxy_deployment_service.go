@@ -507,7 +507,7 @@ func (s *LLMProxyDeploymentService) generateLLMProxyDeploymentYAML(proxy *models
 		ApiVersion: apiVersionLLMProxy,
 		Kind:       kindLLMProxy,
 		Metadata: DeploymentMetadata{
-			Name: proxy.Artifact.Handle,
+			Name: proxy.Handle, // Use handle (artifact identifier) for metadata.name
 		},
 		Spec: LLMProxyDeploymentSpec{
 			DisplayName: proxy.Configuration.Name,
