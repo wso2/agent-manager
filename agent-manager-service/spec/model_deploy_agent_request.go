@@ -23,6 +23,8 @@ type DeployAgentRequest struct {
 	ImageId string `json:"imageId"`
 	// Environment variables
 	Env []EnvironmentVariable `json:"env,omitempty"`
+	// Enable auto instrumentation for observability
+	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
 }
 
 // NewDeployAgentRequest instantiates a new DeployAgentRequest object
@@ -112,6 +114,9 @@ func (o DeployAgentRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize["imageId"] = o.ImageId
 	if !IsNil(o.Env) {
 		toSerialize["env"] = o.Env
+	}
+	if !IsNil(o.EnableAutoInstrumentation) {
+		toSerialize["enableAutoInstrumentation"] = o.EnableAutoInstrumentation
 	}
 	return toSerialize, nil
 }
