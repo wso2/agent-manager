@@ -248,6 +248,18 @@ func (s *agentManagerService) handleInstrumentationUpdate(ctx context.Context, o
 
 	// Check if this is a buildpack Python build
 	if req.Build.BuildpackBuild == nil || req.Build.BuildpackBuild.Buildpack.Language != string(utils.LanguagePython) {
+		// The build has switched away from a Python buildpack; detach any previously-applied
+		// Python OTEL trait so it doesn't linger on the agent.
+		hasTrait, err := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation)
+		if err != nil {
+			s.logger.Error("Failed to check trait status", "agentName", agentName, "error", err)
+			return fmt.Errorf("failed to check trait status: %w", err)
+		}
+		if hasTrait {
+			if err := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); err != nil {
+				return fmt.Errorf("failed to detach instrumentation trait on non-Python build: %w", err)
+			}
+		}
 		s.logger.Debug("Skipping instrumentation update for non-Python buildpack", "agentName", agentName)
 		return nil
 	}
