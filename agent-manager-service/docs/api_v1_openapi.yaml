@@ -5540,6 +5540,10 @@ components:
           description: Environment variables
           items:
             $ref: "#/components/schemas/EnvironmentVariable"
+        enableAutoInstrumentation:
+          type: boolean
+          description: Enable auto instrumentation for observability
+          default: true
       required:
         - imageId
     Configurations:
