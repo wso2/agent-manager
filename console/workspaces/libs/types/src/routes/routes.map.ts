@@ -85,9 +85,15 @@ export const rootRouteMap: AppRoute = {
                                                 view: {
                                                     path: 'view/:monitorId',
                                                     index: true,
-                                                    children: {},
+                                                    children: {
+                                                        runs: {
+                                                            path: 'runs',
+                                                            index: true,
+                                                            children: {},
+                                                        },
+                                                    },
                                                 },
-                                                edit:{
+                                                edit: {
                                                     path: 'edit/:monitorId',
                                                     index: true,
                                                     children: {},

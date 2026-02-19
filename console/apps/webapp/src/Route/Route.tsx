@@ -155,7 +155,8 @@ export function RootRouter() {
                     "/" +
                     relativeRouteMap.children.org.children.projects.children
                       .agents.children.evaluation
-                      .children.monitor.children.view.path
+                      .children.monitor.children.view.path +
+                    "/*"
                   }
                   element={<LazyViewMonitorComponent />}
                 />

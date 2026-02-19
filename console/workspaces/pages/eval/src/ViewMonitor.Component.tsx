@@ -20,8 +20,8 @@ import React, { useMemo } from "react";
 import { PageLayout } from "@agent-management-platform/views";
 import { Button, Grid, Stack } from "@wso2/oxygen-ui";
 import { Download, RefreshCcw } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useParams } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { generatePath, Route, Routes, useParams } from "react-router-dom";
+import { absoluteRouteMap, relativeRouteMap } from "@agent-management-platform/types";
 import AgentPerformanceCard, { RadarDefinition, ScoreBadge } from "./subComponents/AgentPerformanceCard";
 import EvaluationSummaryCard, { EvaluationSummaryItem } from "./subComponents/EvaluationSummaryCard";
 import TopDegradingMetricsCard, { DegradingMetric } from "./subComponents/TopDegradingMetricsCard";
@@ -30,6 +30,7 @@ import PerformanceByEvaluatorCard, {
     EvaluatorTrendPoint,
 } from "./subComponents/PerformanceByEvaluatorCard";
 import { useGetMonitor } from "@agent-management-platform/api-client";
+import MonitorRunList from "./subComponents/MonitorRunList";
 
 const radarMetrics = [
     "Tone",
@@ -113,8 +114,8 @@ const evaluationSummaryAverage = {
 
 export const ViewMonitorComponent: React.FC = () => {
     const { orgId, projectId, agentId, envId, monitorId } = useParams();
-    const {data} = useGetMonitor({monitorName: monitorId!,  orgName: orgId!});
-console.log(useParams(), data)
+    const { data } = useGetMonitor({ monitorName: monitorId!, orgName: orgId! });
+
     const aggregateStats = useMemo<AggregateStats>(() => {
         const scores = evaluatorTrend.map((point) => point.score);
         const avg = scores.reduce((acc, val) => acc + val, 0) / scores.length;
@@ -127,57 +128,95 @@ console.log(useParams(), data)
     }, []);
 
     return (
-        <PageLayout
-            title="Quality Check"
-            description="Monitor active agent performance, compare builds, and export evaluator summaries."
-            disableIcon
-            backLabel="Back to Monitors"
-            backHref={
-                generatePath(
-                    absoluteRouteMap.children.org.children.projects
-                        .children.agents.children.evaluation.children.monitor.path,
-                    { orgId: orgId, projectId: projectId, agentId: agentId, envId: envId }
-                )
-            }
-            actions={
-                <Stack direction="row" spacing={1}>
-                    <Button variant="outlined" startIcon={<RefreshCcw size={16} />}>
-                        Refresh
-                    </Button>
-                    <Button variant="contained" color="primary" startIcon={<Download size={16} />}>
-                        Export Summary
-                    </Button>
-                </Stack>
-            }
-        >
-            <Stack spacing={3}>
-                <Grid container spacing={3}>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                        <AgentPerformanceCard
-                            radarChartData={radarChartData}
-                            radars={radars}
-                            scoreBadges={scoreBadges}
-                        />
-                    </Grid>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                        <Stack spacing={2}>
-                            <EvaluationSummaryCard
-                                items={evaluatorSummary}
-                                averageScoreValue={evaluationSummaryAverage.value}
-                                averageScoreHelper={evaluationSummaryAverage.helper}
-                                averageScoreProgress={evaluationSummaryAverage.progress}
-                            />
-                            <TopDegradingMetricsCard metrics={topDegrading} />
-                        </Stack>
-                    </Grid>
-                </Grid>
 
-                <PerformanceByEvaluatorCard
-                    evaluatorTrend={evaluatorTrend}
-                    aggregateStats={aggregateStats}
-                />
-            </Stack>
-        </PageLayout>
+        <Routes>
+            <Route
+                path={relativeRouteMap.children.org.children
+                    .projects.children.agents.children.evaluation
+                    .children.monitor.children.view.children.runs.path}
+                element={
+                    <PageLayout
+                        title={`Run History ${data?.displayName ? `(${data.displayName})` : ""}`}
+                        description="View detailed results of each evaluation run, including trace-level insights and evaluator feedback."
+                        disableIcon
+                        backLabel={`Back to ${data?.displayName ? `${data.displayName}` : ""}`}
+                        backHref={
+                            generatePath(
+                                absoluteRouteMap.children.org.children.projects
+                                    .children.agents.children.evaluation.children.monitor
+                                    .children.view.path,
+                                {
+                                    orgId: orgId, projectId: projectId,
+                                    monitorId: monitorId,
+                                    agentId: agentId, envId: envId
+                                }
+                            )
+                        }
+                    >
+                        <MonitorRunList
+                            monitorDisplayName={data?.displayName ?? data?.name ?? monitorId ?? ""}
+                        />
+                    </PageLayout>
+                }
+            />
+            <Route index element={
+                <PageLayout
+                    title="Quality Check"
+                    description="Monitor active agent performance, compare builds, and export evaluator summaries."
+                    disableIcon
+                    backLabel="Back to Monitors"
+                    backHref={
+                        generatePath(
+                            absoluteRouteMap.children.org.children.projects
+                                .children.agents.children.evaluation.children.monitor.path,
+                            { orgId: orgId, projectId: projectId, agentId: agentId, envId: envId }
+                        )
+                    }
+                    actions={
+                        <Stack direction="row" spacing={1}>
+                            <Button variant="outlined" startIcon={<RefreshCcw size={16} />}>
+                                Refresh
+                            </Button>
+                            <Button variant="contained" color="primary" startIcon={<Download size={16} />}>
+                                Export Summary
+                            </Button>
+                        </Stack>
+                    }
+                >
+                    <Stack spacing={3}>
+                        <Grid container spacing={3}>
+                            <Grid size={{ xs: 12, md: 6 }}>
+                                <AgentPerformanceCard
+                                    radarChartData={radarChartData}
+                                    radars={radars}
+                                    scoreBadges={scoreBadges}
+                                />
+                            </Grid>
+                            <Grid size={{ xs: 12, md: 6 }}>
+                                <Stack spacing={2}>
+                                    <EvaluationSummaryCard
+                                        items={evaluatorSummary}
+                                        averageScoreValue={evaluationSummaryAverage.value}
+                                        averageScoreHelper={evaluationSummaryAverage.helper}
+                                        averageScoreProgress={evaluationSummaryAverage.progress}
+                                    />
+                                    <TopDegradingMetricsCard metrics={topDegrading} />
+                                </Stack>
+                            </Grid>
+                        </Grid>
+
+                        <PerformanceByEvaluatorCard
+                            evaluatorTrend={evaluatorTrend}
+                            aggregateStats={aggregateStats}
+                        />
+                    </Stack>
+                </PageLayout>
+            }
+            />
+
+
+        </Routes>
+
     );
 };
 

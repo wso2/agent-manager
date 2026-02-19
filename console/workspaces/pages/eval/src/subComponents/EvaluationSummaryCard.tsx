@@ -1,6 +1,8 @@
 import React from "react";
-import { Card, CardContent, Chip, Divider, Grid, LinearProgress, Stack, Typography } from "@wso2/oxygen-ui";
-import { ArrowUpRight } from "@wso2/oxygen-ui-icons-react";
+import { Card, CardContent, Chip, Divider, Grid, LinearProgress, Stack, Typography, Button } from "@wso2/oxygen-ui";
+import { ArrowUpRight, History } from "@wso2/oxygen-ui-icons-react";
+import { generatePath, useParams, Link as RouterLink } from "react-router-dom";
+import { absoluteRouteMap } from "@agent-management-platform/types";
 
 export interface EvaluationSummaryItem {
     label: string;
@@ -21,51 +23,73 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
     averageScoreValue,
     averageScoreHelper,
     averageScoreProgress,
-}) => (
-    <Card variant="outlined">
-        <CardContent>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="subtitle1">Evaluation Summary (Last 7 days)</Typography>
-                <Chip size="small" label="Auto sampling" />
-            </Stack>
-            <Grid container spacing={2} mt={1}>
-                {items.map((item) => (
-                    <Grid key={item.label} size={{ xs: 12, sm: 4 }}>
-                        <Stack spacing={0.5}>
-                            <Typography variant="caption" color="text.secondary">
-                                {item.label}
-                            </Typography>
-                            <Stack direction="row" alignItems="center" spacing={0.75}>
-                                <Typography variant="h5">{item.value}</Typography>
-                                <Chip
-                                    size="small"
-                                    color={item.trend >= 0 ? "success" : "error"}
-                                    icon={<ArrowUpRight size={12} />}
-                                    label={`${item.trend >= 0 ? "↑" : "↓"}${Math.abs(item.trend)}%`}
-                                />
-                            </Stack>
-                            <Typography variant="caption" color="text.secondary">
-                                {item.helper}
-                            </Typography>
-                        </Stack>
-                    </Grid>
-                ))}
-            </Grid>
-            <Divider sx={{ my: 2 }} />
-            <Stack spacing={1}>
-                <Typography variant="caption" color="text.secondary">
-                    Average Score
-                </Typography>
-                <Stack direction="row" alignItems="center" spacing={1}>
-                    <Typography variant="h3">{averageScoreValue}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                        {averageScoreHelper}
-                    </Typography>
+}) => {
+    const { orgId, projectId, agentId, monitorId } = useParams<{
+        orgId: string;
+        projectId: string;
+        agentId: string;
+        monitorId: string;
+    }>();
+
+    return (
+        <Card variant="outlined">
+            <CardContent>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Typography variant="subtitle1">Evaluation Summary (Last 7 days)</Typography>
+                    <Button
+                        variant="text"
+                        component={RouterLink}
+                        startIcon={<History size={16} />}
+                        to={
+                            generatePath(
+                                absoluteRouteMap.children.org.children
+                                    .projects.children.agents.children
+                                    .evaluation.children.monitor.children.view.children.runs.path,
+                                { orgId, projectId, agentId, monitorId })
+                        }
+                    >
+                        Run History
+                    </Button>
                 </Stack>
-                <LinearProgress variant="determinate" value={averageScoreProgress} />
-            </Stack>
-        </CardContent>
-    </Card>
-);
+                <Grid container spacing={2} mt={1}>
+                    {items.map((item) => (
+                        <Grid key={item.label} size={{ xs: 12, sm: 4 }}>
+                            <Stack spacing={0.5}>
+                                <Typography variant="caption" color="text.secondary">
+                                    {item.label}
+                                </Typography>
+                                <Stack direction="row" alignItems="center" spacing={0.75}>
+                                    <Typography variant="h5">{item.value}</Typography>
+                                    <Chip
+                                        size="small"
+                                        color={item.trend >= 0 ? "success" : "error"}
+                                        icon={<ArrowUpRight size={12} />}
+                                        label={`${item.trend >= 0 ? "↑" : "↓"}${Math.abs(item.trend)}%`}
+                                    />
+                                </Stack>
+                                <Typography variant="caption" color="text.secondary">
+                                    {item.helper}
+                                </Typography>
+                            </Stack>
+                        </Grid>
+                    ))}
+                </Grid>
+                <Divider sx={{ my: 2 }} />
+                <Stack spacing={1}>
+                    <Typography variant="caption" color="text.secondary">
+                        Average Score
+                    </Typography>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                        <Typography variant="h3">{averageScoreValue}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                            {averageScoreHelper}
+                        </Typography>
+                    </Stack>
+                    <LinearProgress variant="determinate" value={averageScoreProgress} />
+                </Stack>
+            </CardContent>
+        </Card>
+    )
+};
 
 export default EvaluationSummaryCard;
