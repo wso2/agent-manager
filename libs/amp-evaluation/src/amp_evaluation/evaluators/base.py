@@ -488,7 +488,7 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
 
             def build_prompt(self, trace, task):
                 # Extract and flatten data for template variables
-                tools_used = [s.name for s in trace.tool_spans]
+                tools_used = [s.name for s in trace.get_tool_calls()]
                 return {
                     "query": trace.input,
                     "response": trace.output,

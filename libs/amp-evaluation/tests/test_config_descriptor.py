@@ -214,8 +214,8 @@ class TestConfigSchema:
         assert "config_schema" in metadata
         config_schema = metadata["config_schema"]
 
-        # Should have 4 config fields (threshold, model + inherited level, span_type)
-        assert len(config_schema) == 4
+        # Should have 3 config fields (threshold, model + inherited level)
+        assert len(config_schema) == 3
 
         # Check threshold config
         threshold_config = next(c for c in config_schema if c["key"] == "threshold")
@@ -271,12 +271,12 @@ class TestConfigSchema:
 
 
 # ============================================================================
-# TEST BACKWARD COMPATIBILITY
+# TEST BUILT-IN EVALUATOR CONFIG
 # ============================================================================
 
 
-class TestBackwardCompatibility:
-    """Test backward compatibility with existing evaluators."""
+class TestBuiltinEvaluatorConfig:
+    """Test built-in evaluators work correctly with Param descriptors."""
 
     def test_answer_length_evaluator_default(self):
         """Test AnswerLengthEvaluator works with defaults."""
@@ -328,7 +328,7 @@ class TestBackwardCompatibility:
         assert "config_schema" in metadata
 
         config_schema = metadata["config_schema"]
-        assert len(config_schema) == 4  # min_length, max_length + inherited level, span_type
+        assert len(config_schema) == 3  # min_length, max_length + inherited level
 
         # Check min_length config
         min_config = next(c for c in config_schema if c["key"] == "min_length")
