@@ -1,0 +1,123 @@
+name: AMP Evaluation Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to release from"
+        required: true
+        default: "main"
+        type: string
+      target_version:
+        description: "Target version for the release"
+        required: true
+        type: string
+
+jobs:
+  test:
+    name: Test
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    defaults:
+      run:
+        working-directory: libs/amp-evaluation
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest pytest-cov
+
+      - name: Run tests
+        run: |
+          pytest --cov=src --cov-report=html --cov-report=term
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: amp-evaluation-coverage
+          path: htmlcov
+
+  release:
+    name: Release
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    needs: test
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: libs/amp-evaluation
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Set release tag and version
+        run: |
+          echo "RELEASE_TAG=amp-evaluation/v${{ inputs.target_version }}" >> $GITHUB_ENV
+          echo "VERSION=${{ inputs.target_version }}" >> $GITHUB_ENV
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Commit package version update
+        run: |
+          # Update version in pyproject.toml
+          sed -i 's/^version = ".*"/version = "${{ inputs.target_version }}"/' pyproject.toml
+          echo "Updated version to ${{ inputs.target_version }} in pyproject.toml"
+
+          # Verify the update was successful
+          grep "version = \"${{ inputs.target_version }}\"" pyproject.toml || (echo "Failed to update version in pyproject.toml" && exit 1)
+          echo "Version ${{ inputs.target_version }} successfully set in pyproject.toml"
+
+          # Commit the version update
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml
+          git commit -m "Bump version to ${{ inputs.target_version }}"
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package
+        run: python -m build
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: python -m twine upload dist/*
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git rev-parse ${{ env.RELEASE_TAG }} >/dev/null 2>&1; then
+            echo "Error: Tag ${{ env.RELEASE_TAG }} already exists. Please use a different version."
+            exit 1
+          fi
+          git tag -a ${{ env.RELEASE_TAG }} -m "Release ${{ env.VERSION }}"
+          git push origin ${{ env.RELEASE_TAG }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          tag_name: ${{ env.RELEASE_TAG }}
