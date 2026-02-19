@@ -37,18 +37,6 @@ Returns external endpoint if global.baseDomain is set, otherwise uses configured
 {{- end -}}
 
 {{/*
-Get the publisher Secret name.
-Uses existingSecret if set, otherwise creates one from the chart.
-*/}}
-{{- define "amp-evaluation-extension.publisherSecretName" -}}
-{{- if .Values.ampEvaluation.publisher.existingSecret -}}
-  {{- .Values.ampEvaluation.publisher.existingSecret -}}
-{{- else -}}
-  {{- printf "%s-publisher" (include "amp-evaluation-extension.name" .) -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
 Get the full amp-evaluation image reference
 Returns the complete image path with registry endpoint if useLocalRegistry is true
 Otherwise returns the repository:tag as-is for external registries

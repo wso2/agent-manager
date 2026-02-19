@@ -71,6 +71,8 @@ spec:
             value: ${parameters.publishing.runId}
           - name: publisher-endpoint
             value: {{ .Values.ampEvaluation.publisher.endpoint | quote }}
+          - name: publisher-api-key
+            value: {{ .Values.ampEvaluation.publisher.apiKey | quote }}
       workflowTemplateRef:
         clusterScope: true
         name: amp-monitor-evaluation

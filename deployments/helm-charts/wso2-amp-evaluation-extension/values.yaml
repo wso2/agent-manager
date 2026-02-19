@@ -45,13 +45,5 @@ ampEvaluation:
     endpoint: "http://amp-agent-manager.openchoreo-control-plane.svc.cluster.local:8080"
 
     # -- API key for publisher authentication
-    # Provide via --set or values override. If existingSecret is set, the chart
-    # will not create a new Secret and will reference the existing one instead.
+    # In production, provide via --set or values override
     apiKey: ""
-
-    # -- Name of an existing Secret containing the publisher API key
-    # If empty, the chart creates a Secret from apiKey value
-    existingSecret: ""
-
-    # -- Key within the existing Secret that holds the API key
-    existingSecretKey: "publisher-api-key"
