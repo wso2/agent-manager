@@ -22,8 +22,8 @@ spec:
       - name: traces-api-endpoint
       - name: monitor-id
       - name: run-id
-      - name: agent-manager-api-endpoint
-      - name: api-key
+      - name: publisher-endpoint
+      - name: publisher-api-key
   templates:
     - name: run-monitor
       container:

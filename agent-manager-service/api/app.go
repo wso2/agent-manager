@@ -63,6 +63,18 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", apiHandler))
 
+	// Register publisher routes outside JWT middleware (uses API-key auth instead)
+	publisherMux := http.NewServeMux()
+	RegisterMonitorInternalRoutes(publisherMux, params.MonitorScoresInternalController)
+
+	publisherHandler := http.Handler(publisherMux)
+	publisherHandler = logger.RequestLogger()(publisherHandler)
+	publisherHandler = middleware.AddCorrelationID()(publisherHandler)
+	publisherHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(publisherHandler)
+	publisherHandler = middleware.RecovererOnPanic()(publisherHandler)
+
+	mux.Handle("/api/v1/publisher/", http.StripPrefix("/api/v1/publisher", publisherHandler))
+
 	return mux
 }
 
@@ -83,7 +95,6 @@ func MakeInternalHTTPHandler(params *wiring.AppParams) http.Handler {
 	// These routes use api-key header authentication instead
 	internalMux := http.NewServeMux()
 	RegisterGatewayInternalRoutes(internalMux, params.GatewayInternalController)
-	RegisterMonitorInternalRoutes(internalMux, params.MonitorScoresInternalController)
 	RegisterWebSocketRoutes(internalMux, params.WebSocketController)
 
 	// Apply basic middleware (no JWT auth)

@@ -211,7 +211,8 @@ echo ""
 # ============================================================================
 # Install Evaluation Workflows Extension
 echo "7️⃣ Installing/Upgrading Evaluation Workflows Extension..."
-helm upgrade --install amp-evaluation-workflows-extension "${SCRIPT_DIR}/../helm-charts/wso2-amp-evaluation-extension" --namespace openchoreo-build-plane
+helm upgrade --install amp-evaluation-workflows-extension "${SCRIPT_DIR}/../helm-charts/wso2-amp-evaluation-extension" --namespace openchoreo-build-plane \
+  --set ampEvaluation.publisher.endpoint="http://agent-manager-service:8080"
 echo "✅ Evaluation Workflows Extension installed/upgraded successfully"
 echo ""
 

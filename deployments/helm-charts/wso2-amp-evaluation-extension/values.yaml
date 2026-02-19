@@ -39,11 +39,11 @@ ampEvaluation:
   # -- In-cluster URL for the traces observer API
   tracesApiEndpoint: "http://amp-traces-observer.openchoreo-observability-plane.svc.cluster.local:9098"
 
-  # -- Internal API Configuration (Publisher settings)
+  # -- Publisher settings (for publishing evaluation scores to agent-manager)
   publisher:
-    # -- In-cluster URL for the agent-manager internal API (for publishing scores)
-    endpoint: "http://amp-agent-manager-internal.openchoreo-control-plane.svc.cluster.local:8081"
+    # -- In-cluster URL for the agent-manager API
+    endpoint: "http://amp-agent-manager.openchoreo-control-plane.svc.cluster.local:8080"
 
-    # -- API key for internal API authentication
+    # -- API key for publisher authentication
     # In production, this should be provided via secrets
     apiKey: "dev-publisher-api-key"
