@@ -614,9 +614,9 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		// Should have 18 builtin evaluators from the migration (12 standard + 6 deepeval)
-		assert.Equal(t, int32(18), result.Total)
-		assert.Len(t, result.Evaluators, 18)
+		// Should have 19 builtin evaluators from the migration (13 standard + 6 deepeval)
+		assert.Equal(t, int32(19), result.Total)
+		assert.Len(t, result.Evaluators, 19)
 
 		// Verify response structure
 		for _, evaluator := range result.Evaluators {
@@ -675,9 +675,9 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		// Should have 12 standard evaluators
-		assert.Equal(t, int32(12), result.Total)
-		assert.Len(t, result.Evaluators, 12)
+		// Should have 13 standard evaluators
+		assert.Equal(t, int32(13), result.Total)
+		assert.Len(t, result.Evaluators, 13)
 
 		// All should be standard provider
 		for _, evaluator := range result.Evaluators {
@@ -805,7 +805,7 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		assert.Equal(t, int32(18), result.Total)
+		assert.Equal(t, int32(19), result.Total)
 		assert.Len(t, result.Evaluators, 5)
 		assert.Equal(t, int32(5), result.Limit)
 		assert.Equal(t, int32(0), result.Offset)
@@ -827,7 +827,7 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		assert.Equal(t, int32(18), result.Total)
+		assert.Equal(t, int32(19), result.Total)
 		assert.Len(t, result.Evaluators, 5)
 		assert.Equal(t, int32(5), result.Limit)
 		assert.Equal(t, int32(10), result.Offset)
@@ -849,7 +849,7 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		assert.Equal(t, int32(18), result.Total)
+		assert.Equal(t, int32(19), result.Total)
 		assert.Equal(t, int32(20), result.Limit) // Default limit
 	})
 

@@ -216,7 +216,7 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 func serializeEvaluators(evaluators []models.MonitorEvaluator) (string, error) {
 	for i, eval := range evaluators {
 		if _, err := json.Marshal(eval); err != nil {
-			return "", fmt.Errorf("failed to serialize evaluator %d (%s): %w", i, eval.Name, err)
+			return "", fmt.Errorf("failed to serialize evaluator %d (%s): %w", i, eval.DisplayName, err)
 		}
 	}
 	evaluatorsJSON, err := json.Marshal(evaluators)

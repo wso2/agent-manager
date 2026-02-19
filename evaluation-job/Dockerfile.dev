@@ -34,6 +34,9 @@ COPY libs/amp-evaluation/pyproject.toml libs/amp-evaluation/README.md ./sdk/
 COPY libs/amp-evaluation/src/ ./sdk/src/
 RUN pip install --no-cache-dir -e ./sdk
 
+# Install additional dependencies
+RUN pip install --no-cache-dir requests
+
 # Copy the job entrypoint
 COPY evaluation-job/main.py ./
 

@@ -30,7 +30,7 @@ import logging
 import inspect
 
 from ..models import EvalResult
-from .config import Param, EvaluationLevel, SpanType
+from .config import Param, EvaluationLevel
 
 if TYPE_CHECKING:
     from ..dataset import Task
@@ -102,7 +102,6 @@ class BaseEvaluator(ABC):
 
     # Configuration parameters (using Param descriptors)
     level = Param(EvaluationLevel, default=EvaluationLevel.TRACE, description="Evaluation level: trace, agent, or span")
-    span_type = Param(SpanType, default=None, description="Span type filter (only for level='span'). None = all spans.")
 
     def __init__(self, **kwargs):
         # Set default name to class name if not already set
@@ -285,14 +284,37 @@ class BaseEvaluator(ABC):
 
         Excludes internal fields (name, description, tags, version)
         and fields starting with underscore.
+
+        The level param's enum_values are filtered to only include
+        levels actually supported by this evaluator (auto-detected
+        from method overrides).
         """
+        schema = self._extract_config_schema()
+
+        supported_level_values = [lvl.value for lvl in self._supported_levels]
+
+        # Filter level enum to only supported levels
+        for param in schema:
+            if param["key"] == "level":
+                param["enum_values"] = supported_level_values
+                break
+        else:  # If no level param defined, add it with supported levels
+            schema.append(
+                {
+                    "key": "level",
+                    "type": "enum",
+                    "description": "Evaluation level",
+                    "enum_values": supported_level_values,
+                    "default": self.level.value if self.level else None,
+                }
+            )
+
         metadata = {
             "name": self.name,
             "description": getattr(self, "description", ""),
             "tags": list(getattr(self, "tags", [])),
             "version": getattr(self, "version", "1.0"),
-            "supported_levels": [lvl.value for lvl in self._supported_levels],
-            "config_schema": self._extract_config_schema(),
+            "config_schema": schema,
         }
         return metadata
 
@@ -303,7 +325,7 @@ class BaseEvaluator(ABC):
         This method handles multi-level dispatching internally based on self.level:
         - "trace": Calls _trace_evaluation() once → 1 result
         - "agent": Calls _agent_evaluation() for each agent → N results
-        - "span": Calls _span_evaluation() for each span of span_type → M results
+        - "span": Calls _span_evaluation() for each LLM span → M results
 
         Args:
             trace: The agent's execution trace (always available)
@@ -336,52 +358,37 @@ class BaseEvaluator(ABC):
                     metrics=trace.metrics,
                 )
                 result = self._agent_evaluation(fallback, task)
+                # Enrich span_id in details
+                if result.details is None:
+                    result.details = {}
+                result.details["span_id"] = fallback.agent_id
                 results.append(result)
             else:
                 for agent_span in agent_spans:
                     agent_trace = trace.create_agent_trace(agent_span.span_id)
                     result = self._agent_evaluation(agent_trace, task)
+                    # Enrich span_id in details
+                    if result.details is None:
+                        result.details = {}
+                    result.details["span_id"] = agent_trace.agent_id
                     results.append(result)
 
         elif self.level == "span":
-            # Span-level: evaluate each span (filtered by span_type)
-            filtered_spans = self._get_spans_by_type(trace, self.span_type)
+            # Span-level: evaluate each LLM span
+            filtered_spans = trace.get_llm_calls(deduplicate_messages=True)
 
             for span in filtered_spans:
                 result = self._span_evaluation(span, task)
+                # Enrich span_id in details
+                if result.details is None:
+                    result.details = {}
+                result.details["span_id"] = getattr(span, "span_id", None)
                 results.append(result)
         else:
             # Unknown level - should not happen due to validation
             raise ValueError(f"Unknown evaluation level: {self.level}")
 
         return results
-
-    def _get_spans_by_type(self, trace: Trace, span_type: Optional[str]) -> List[Any]:
-        """
-        Get spans filtered by type.
-
-        Args:
-            trace: The trace to filter
-            span_type: Type of span to get ("llm", "tool", "retrieval", "embedding"), or None for all spans
-
-        Returns:
-            List of spans of the specified type
-        """
-        if span_type is None:
-            from ..trace.models import AgentSpan as _AgentSpan
-
-            return [s for s in trace.steps if not isinstance(s, _AgentSpan)]
-        elif span_type == "llm":
-            return trace.get_llm_calls(deduplicate_messages=True)
-        elif span_type == "tool":
-            return trace.get_tool_calls()
-        elif span_type == "retrieval":
-            return trace.get_retrievals()
-        elif span_type == "embedding":
-            # Filter steps for embedding spans
-            return [s for s in trace.steps if getattr(s, "kind", None) == "embedding"]
-        else:
-            raise ValueError(f"Unknown span_type: {span_type}")
 
     @abstractmethod
     def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
@@ -426,11 +433,11 @@ class BaseEvaluator(ABC):
         """
         Implement span-level evaluation logic.
 
-        This method is called once per span (of configured span_type) when level="span".
+        This method is called once per LLM span when level="span".
         Only implement if evaluator supports span-level evaluation.
 
         Args:
-            span: The span to evaluate (LLMSpan, ToolSpan, RetrieverSpan, etc.)
+            span: The LLM span to evaluate
             task: Optional task for ground truth
 
         Returns:

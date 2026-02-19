@@ -68,6 +68,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewLLMProxyAPIKeyService,
 	services.NewLLMProxyDeploymentService,
 	services.NewGatewayInternalAPIService,
+	services.NewMonitorScoresService,
 	ProvideLLMTemplateSeeder,
 )
 
@@ -87,6 +88,8 @@ var controllerProviderSet = wire.NewSet(
 	ProvideWebSocketController,
 	controllers.NewGatewayInternalController,
 	controllers.NewMonitorController,
+	controllers.NewMonitorScoresController,
+	controllers.NewMonitorScoresInternalController,
 	controllers.NewEvaluatorController,
 )
 
@@ -130,6 +133,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideLLMProxyRepository,
 	ProvideDeploymentRepository,
 	ProvideArtifactRepository,
+	ProvideScoreRepository,
 )
 
 var websocketProviderSet = wire.NewSet(
@@ -201,6 +205,10 @@ func ProvideDeploymentRepository(db *gorm.DB) repositories.DeploymentRepository 
 
 func ProvideArtifactRepository(db *gorm.DB) repositories.ArtifactRepository {
 	return repositories.NewArtifactRepo(db)
+}
+
+func ProvideScoreRepository(db *gorm.DB) repositories.ScoreRepository {
+	return repositories.NewScoreRepo(db)
 }
 
 // ProvideLLMTemplateSeeder creates a new LLM template seeder with empty templates

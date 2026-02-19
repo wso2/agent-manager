@@ -182,6 +182,7 @@ class EvaluatorScore:
     trace_id: str
     score: float
     passed: bool
+    span_id: Optional[str] = None  # Set for agent/span level evaluations
     timestamp: Optional[datetime] = None  # Trace timestamp (when trace occurred)
     explanation: Optional[str] = None
     # Experiment-specific (optional)

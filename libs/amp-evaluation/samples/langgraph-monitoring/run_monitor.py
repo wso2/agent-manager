@@ -51,12 +51,15 @@ Usage:
 Environment variables:
     AMP_API_KEY         - API key for the AMP platform
     AMP_API_URL         - AMP platform URL (default: https://api.amp.wso2.com)
+    AMP_MONITOR_ID      - (Optional) Monitor ID to publish results to
+    AMP_INTERNAL_API_KEY - (Optional) API key for internal endpoint (required if publishing)
     OPENAI_API_KEY      - Required for llm-hallucination-judge evaluator
     JUDGE_MODEL         - LLM model for judging (default: gpt-4o-mini)
 """
 
 import argparse
 import sys
+import os
 from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
@@ -319,6 +322,98 @@ def print_errors(result):
     print()
 
 
+def publish_scores_to_platform(result, monitor_id: str):
+    """
+    Publish evaluation scores to the AMP platform internal API.
+
+    Args:
+        result: RunResult from monitor.run()
+        monitor_id: Monitor ID from environment variable
+
+    Environment variables required:
+        AMP_API_URL: Base URL of the AMP platform
+        AMP_INTERNAL_API_KEY: API key for internal endpoint authentication
+    """
+    import requests
+
+    api_url = os.getenv("AMP_API_URL")
+    api_key = os.getenv("AMP_INTERNAL_API_KEY")
+
+    if not api_url:
+        print("  [WARNING] AMP_API_URL not set - skipping results publishing")
+        return False
+
+    if not api_key:
+        print("  [WARNING] AMP_INTERNAL_API_KEY not set - skipping results publishing")
+        return False
+
+    # Build the publish request payload
+    individual_scores = []
+    aggregated_scores = []
+
+    for evaluator_name, summary in result.scores.items():
+        # Add individual scores
+        for score in summary.individual_scores:
+            score_record = {
+                "evaluatorName": evaluator_name,
+                "level": summary.level,
+                "traceId": score.trace_id,
+                "spanId": score.span_id,
+                "score": score.score if not score.is_error else None,
+                "explanation": score.explanation,
+                "traceTimestamp": score.timestamp.isoformat() if score.timestamp else None,
+                "metadata": score.metadata,
+                "error": score.error,
+            }
+            individual_scores.append(score_record)
+
+        # Add aggregate scores with flexible aggregations
+        # Count errors (scores with error field populated)
+        error_count = sum(1 for s in summary.individual_scores if s.error is not None)
+
+        # Build aggregations map from all computed aggregations
+        aggregations = {}
+        for agg_name, agg_value in summary.aggregated_scores.items():
+            # Convert python naming (e.g., pass_rate_0.5) to more standard format
+            if agg_value is not None:
+                aggregations[agg_name] = agg_value
+
+        aggregate_record = {
+            "evaluatorName": evaluator_name,
+            "level": summary.level,
+            "count": summary.count,
+            "aggregations": aggregations,
+            "errorCount": error_count,
+        }
+
+        aggregated_scores.append(aggregate_record)
+
+    payload = {
+        "individualScores": individual_scores,
+        "aggregatedScores": aggregated_scores,
+    }
+
+    # POST to internal endpoint
+    endpoint = f"{api_url}/api/internal/v1/monitors/{monitor_id}/runs/{result.run_id}/scores"
+    headers = {
+        "x-api-key": api_key,
+        "Content-Type": "application/json",
+    }
+
+    try:
+        print(f"  Publishing scores to {endpoint}...")
+        response = requests.post(endpoint, json=payload, headers=headers, timeout=30)
+        response.raise_for_status()
+        print(f"  [OK] Scores published successfully (HTTP {response.status_code})")
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"  [ERROR] Failed to publish scores: {e}")
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"  Response: {e.response.text}")
+        return False
+
+
+
 def main():
     args = parse_args()
     print_header(args)
@@ -343,6 +438,19 @@ def main():
 
     # Print results
     print_results(result)
+
+    # Publish scores to platform if monitor ID is provided
+    monitor_id = os.getenv("AMP_MONITOR_ID")
+    if monitor_id:
+        print()
+        print("=" * 70)
+        print("  PUBLISHING RESULTS TO PLATFORM")
+        print("=" * 70)
+        publish_scores_to_platform(result, monitor_id)
+    else:
+        print()
+        print("  [INFO] AMP_MONITOR_ID not set - skipping results publishing")
+        print("         Set AMP_MONITOR_ID environment variable to publish scores")
 
     # Exit with non-zero if there were errors
     if not result.success:

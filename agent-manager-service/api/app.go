@@ -45,6 +45,7 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	registerEnvironmentRoutes(apiMux, params.EnvironmentController)
 	RegisterGatewayRoutes(apiMux, params.GatewayController)
 	registerMonitorRoutes(apiMux, params.MonitorController)
+	registerMonitorScoreRoutes(apiMux, params.MonitorScoresController)
 	registerEvaluatorRoutes(apiMux, params.EvaluatorController)
 	RegisterLLMRoutes(apiMux, params.LLMController)
 	RegisterLLMDeploymentRoutes(apiMux, params.LLMDeploymentController)
@@ -82,6 +83,7 @@ func MakeInternalHTTPHandler(params *wiring.AppParams) http.Handler {
 	// These routes use api-key header authentication instead
 	internalMux := http.NewServeMux()
 	RegisterGatewayInternalRoutes(internalMux, params.GatewayInternalController)
+	RegisterMonitorInternalRoutes(internalMux, params.MonitorScoresInternalController)
 	RegisterWebSocketRoutes(internalMux, params.WebSocketController)
 
 	// Apply basic middleware (no JWT auth)

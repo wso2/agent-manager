@@ -50,7 +50,9 @@ type Evaluator struct {
 	UpdatedAt time.Time `gorm:"column:updated_at;not null;default:NOW()"`
 }
 
-// EvaluatorConfigParam represents a single configuration parameter for an evaluator
+// EvaluatorConfigParam represents a single configuration parameter for an evaluator.
+// JSON tags use snake_case to match the Python-generated builtin_evaluators.json
+// which is stored as raw JSONB in the evaluator_catalog table.
 type EvaluatorConfigParam struct {
 	Key         string      `json:"key"`
 	Type        string      `json:"type"` // string, integer, float, boolean, array, enum
@@ -59,7 +61,7 @@ type EvaluatorConfigParam struct {
 	Default     interface{} `json:"default,omitempty"`
 	Min         *float64    `json:"min,omitempty"`
 	Max         *float64    `json:"max,omitempty"`
-	EnumValues  []string    `json:"enumValues,omitempty"`
+	EnumValues  []string    `json:"enum_values,omitempty"`
 }
 
 // TableName specifies the table name for the Evaluator model

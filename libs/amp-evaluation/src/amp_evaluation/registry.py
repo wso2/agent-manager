@@ -65,7 +65,7 @@ class EvaluatorRegistry:
 
         self._evaluators[name] = evaluator
 
-    def register_builtin(self, name: str, **kwargs) -> None:
+    def register_builtin(self, name: str, display_name: str = None, **kwargs) -> None:
         """
         Register a built-in evaluator by name with optional configuration.
 
@@ -73,7 +73,8 @@ class EvaluatorRegistry:
         tag-based filtering. The evaluator is loaded using convention-based discovery.
 
         Args:
-            name: Built-in evaluator name (e.g., "deepeval/plan-quality")
+            name: Built-in evaluator identifier (e.g., "deepeval/plan-quality")
+            display_name: User-facing name to register under; defaults to the evaluator's own name
             **kwargs: Configuration parameters to store with the evaluator.
                      These will be used as defaults when get() is called.
 
@@ -85,6 +86,8 @@ class EvaluatorRegistry:
 
         # Get and store the configured evaluator instance
         instance = get_builtin_evaluator(name, **kwargs)
+        if display_name:
+            instance.name = display_name
         self.register_evaluator(instance)
 
     def get(self, name: str) -> BaseEvaluator:
@@ -148,7 +151,6 @@ class EvaluatorRegistry:
         version: Optional[str] = None,
         aggregations: Optional[List] = None,
         level: Optional[str] = None,
-        span_type: Optional[str] = None,
     ):
         """
         Decorator to register an evaluator instance to the registry.
@@ -236,12 +238,10 @@ class EvaluatorRegistry:
                     result = evaluator_or_func(trace, task)
                 return _normalize_result(result)
 
-            # Build level/span_type kwargs for FunctionEvaluator
+            # Build level kwargs for FunctionEvaluator
             func_kwargs = {}
             if level is not None:
                 func_kwargs["level"] = level
-            if span_type is not None:
-                func_kwargs["span_type"] = span_type
 
             # Wrap in FunctionEvaluator and set metadata as instance attributes
             func_eval = FunctionEvaluator(wrapper, name=name, **func_kwargs)
@@ -341,7 +341,6 @@ def evaluator(
     version: Optional[str] = None,
     aggregations: Optional[List] = None,
     level: Optional[str] = None,
-    span_type: Optional[str] = None,
 ):
     """
     Decorator to register an evaluator to the global registry.
@@ -355,9 +354,8 @@ def evaluator(
         version: Evaluator version
         aggregations: List of aggregations (AggregationType, Aggregation, or callable)
         level: Evaluation level ("trace", "agent", "span"). Defaults to "trace".
-        span_type: Span type filter for span-level evaluators ("llm", "tool", "retrieval"). None = all spans.
     """
-    return _global_registry.register(name, description, tags, version, aggregations, level, span_type)
+    return _global_registry.register(name, description, tags, version, aggregations, level)
 
 
 def register_evaluator(evaluator: BaseEvaluator) -> None:
@@ -370,7 +368,7 @@ def register_evaluator(evaluator: BaseEvaluator) -> None:
     _global_registry.register_evaluator(evaluator)
 
 
-def register_builtin(name: str, **kwargs) -> None:
+def register_builtin(name: str, display_name: str = None, **kwargs) -> None:
     """
     Register a built-in evaluator to the global registry with optional configuration.
 
@@ -383,7 +381,8 @@ def register_builtin(name: str, **kwargs) -> None:
     - Pre-configure evaluators with custom parameters
 
     Args:
-        name: Built-in evaluator name (e.g., "deepeval/plan-quality")
+        name: Built-in evaluator identifier (e.g., "deepeval/plan-quality")
+        display_name: User-facing name to register under; defaults to the evaluator's own name
         **kwargs: Configuration parameters for the evaluator.
                  The instance is created and stored with these parameters.
 
@@ -396,15 +395,15 @@ def register_builtin(name: str, **kwargs) -> None:
         register_builtin("deepeval/plan-quality")
 
         # Register with custom configuration
-        register_builtin("latency", max_latency_ms=500)
+        register_builtin("latency", display_name="API Latency", max_latency_ms=500)
         register_builtin("deepeval/tool-correctness", threshold=0.8, evaluate_input=True)
 
         # Now they appear in list_evaluators() and can be retrieved
-        print(list_evaluators())  # [..., "deepeval/plan-quality", "latency", ...]
+        print(list_evaluators())  # [..., "deepeval/plan-quality", "API Latency", ...]
 
-        evaluator = get_evaluator("latency")  # Returns instance with max_latency_ms=500
+        evaluator = get_evaluator("API Latency")  # Returns instance with max_latency_ms=500
     """
-    _global_registry.register_builtin(name, **kwargs)
+    _global_registry.register_builtin(name, display_name=display_name, **kwargs)
 
 
 def list_builtin_evaluators() -> List[str]:

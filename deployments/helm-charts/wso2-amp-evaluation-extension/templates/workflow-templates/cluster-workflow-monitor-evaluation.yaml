@@ -20,6 +20,10 @@ spec:
       - name: trace-start
       - name: trace-end
       - name: traces-api-endpoint
+      - name: monitor-id
+      - name: run-id
+      - name: agent-manager-api-endpoint
+      - name: api-key
   templates:
     - name: run-monitor
       container:
@@ -35,6 +39,10 @@ spec:
           - '--trace-start={{ "{{" }}workflow.parameters.trace-start{{ "}}" }}'
           - '--trace-end={{ "{{" }}workflow.parameters.trace-end{{ "}}" }}'
           - '--traces-api-endpoint={{ "{{" }}workflow.parameters.traces-api-endpoint{{ "}}" }}'
+          - '--monitor-id={{ "{{" }}workflow.parameters.monitor-id{{ "}}" }}'
+          - '--run-id={{ "{{" }}workflow.parameters.run-id{{ "}}" }}'
+          - '--publisher-endpoint={{ "{{" }}workflow.parameters.publisher-endpoint{{ "}}" }}'
+          - '--publisher-api-key={{ "{{" }}workflow.parameters.publisher-api-key{{ "}}" }}'
         resources:
           requests:
             cpu: "100m"
