@@ -146,10 +146,7 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
 
     def _extract_retrieval_context(self, trace: Trace) -> Optional[List[str]]:
         """Extract retrieval context from retriever spans if available."""
-        if not hasattr(trace, "retriever_spans"):
-            return None
-
-        retriever_spans = trace.retriever_spans
+        retriever_spans = trace.get_retrievals()
         if not retriever_spans:
             return None
 
@@ -171,7 +168,7 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
             raise ImportError("DeepEval is required. Install with: pip install deepeval")
 
         tools = []
-        for span in trace.tool_spans:
+        for span in trace.get_tool_calls():
             # Convert to DeepEval ToolCall format
             tool_call = ToolCall(
                 name=span.name,
@@ -427,7 +424,7 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
 
         # Extract tools called from trace
         tools_called = []
-        for span in trace.tool_spans:
+        for span in trace.get_tool_calls():
             tool_call_kwargs = {"name": span.name}
             if self.evaluate_input and hasattr(span, "input"):
                 tool_call_kwargs["input"] = span.input
@@ -517,7 +514,7 @@ class DeepEvalArgumentCorrectnessEvaluator(DeepEvalBaseEvaluator):
 
         # Extract tools called with input arguments
         tools_called = []
-        for span in trace.tool_spans:
+        for span in trace.get_tool_calls():
             tool_call_kwargs = {"name": span.name}
             if hasattr(span, "input") and span.input:
                 tool_call_kwargs["input"] = span.input

@@ -130,8 +130,8 @@ class TestTraceParser:
         assert eval_trace.trace_id == "trace_123"
         assert eval_trace.input == "What is 2 + 2?"
         assert eval_trace.output == "4"
-        assert len(eval_trace.llm_spans) == 0
-        assert len(eval_trace.tool_spans) == 0
+        assert len(eval_trace.get_llm_calls()) == 0
+        assert len(eval_trace.get_tool_calls()) == 0
 
     def test_parse_llm_span(self):
         """Test parsing an LLM span."""
@@ -160,16 +160,16 @@ class TestTraceParser:
         trace = dict_to_otel_trace(raw_trace_dict)
         eval_trace = parse_trace_for_evaluation(trace)
 
-        assert len(eval_trace.llm_spans) == 1
+        assert len(eval_trace.get_llm_calls()) == 1
 
-        llm_span = eval_trace.llm_spans[0]
+        llm_span = eval_trace.get_llm_calls()[0]
         assert llm_span.span_id == "span_1"
         assert llm_span.model == "gpt-4"
         assert llm_span.vendor == "OpenAI"
         assert llm_span.temperature == 0.7
         assert llm_span.response == "Hi there!"
-        assert llm_span.duration_ms == 500.0
-        assert not llm_span.error
+        assert llm_span.metrics.duration_ms == 500.0
+        assert not llm_span.metrics.error
 
         # Check messages
         assert len(llm_span.messages) == 2
@@ -178,9 +178,9 @@ class TestTraceParser:
         assert llm_span.messages[1].role == "user"
 
         # Check token usage
-        assert llm_span.token_usage.input_tokens == 10
-        assert llm_span.token_usage.output_tokens == 5
-        assert llm_span.token_usage.total_tokens == 15
+        assert llm_span.metrics.token_usage.input_tokens == 10
+        assert llm_span.metrics.token_usage.output_tokens == 5
+        assert llm_span.metrics.token_usage.total_tokens == 15
 
     def test_parse_tool_span(self):
         """Test parsing a tool execution span."""
@@ -205,14 +205,14 @@ class TestTraceParser:
         trace = dict_to_otel_trace(raw_trace_dict)
         eval_trace = parse_trace_for_evaluation(trace)
 
-        assert len(eval_trace.tool_spans) == 1
+        assert len(eval_trace.get_tool_calls()) == 1
 
-        tool_span = eval_trace.tool_spans[0]
+        tool_span = eval_trace.get_tool_calls()[0]
         assert tool_span.span_id == "span_tool_1"
         assert tool_span.name == "web_search"
         assert tool_span.arguments == {"query": "python tutorials"}
         assert tool_span.result == ["result1", "result2"]
-        assert tool_span.duration_ms == 200.0
+        assert tool_span.metrics.duration_ms == 200.0
 
     def test_parse_retriever_span(self):
         """Test parsing a retriever span for RAG."""
@@ -239,9 +239,9 @@ class TestTraceParser:
         trace = dict_to_otel_trace(raw_trace_dict)
         eval_trace = parse_trace_for_evaluation(trace)
 
-        assert len(eval_trace.retriever_spans) == 1
+        assert len(eval_trace.get_retrievals()) == 1
 
-        ret_span = eval_trace.retriever_spans[0]
+        ret_span = eval_trace.get_retrievals()[0]
         assert ret_span.span_id == "span_ret_1"
         assert ret_span.query == "machine learning definition"
         assert ret_span.vector_db == "pinecone"
@@ -281,9 +281,10 @@ class TestTraceParser:
         trace = dict_to_otel_trace(raw_trace_dict)
         eval_trace = parse_trace_for_evaluation(trace)
 
-        assert eval_trace.agent_span is not None
+        agents = eval_trace.get_agents()
+        assert len(agents) == 1
 
-        agent_span = eval_trace.agent_span
+        agent_span = agents[0]
         assert agent_span.span_id == "span_agent_1"
         assert agent_span.name == "TaskAgent"
         assert agent_span.framework == "CrewAI"
@@ -389,11 +390,11 @@ class TestTraceParser:
         eval_trace = parse_trace_for_evaluation(trace)
 
         # Test properties
-        assert eval_trace.has_output
-        assert not eval_trace.has_errors
-        assert eval_trace.all_tool_names == ["search", "calculate"]
-        assert eval_trace.all_tool_results == ["search result", 42]
-        assert eval_trace.all_llm_responses == ["Response 1"]
+        assert bool(eval_trace.output and eval_trace.output.strip())
+        assert not eval_trace.metrics.has_errors
+        assert [t.name for t in eval_trace.get_tool_calls()] == ["search", "calculate"]
+        assert [t.result for t in eval_trace.get_tool_calls()] == ["search result", 42]
+        assert [llm.response for llm in eval_trace.get_llm_calls()] == ["Response 1"]
 
     def test_skip_non_important_spans(self):
         """Test that embedding, rerank, task, chain spans are skipped."""
@@ -445,9 +446,9 @@ class TestTraceParser:
         eval_trace = parse_trace_for_evaluation(trace)
 
         # Should only have LLM span
-        assert len(eval_trace.llm_spans) == 1
-        assert len(eval_trace.tool_spans) == 0
-        assert len(eval_trace.retriever_spans) == 0
+        assert len(eval_trace.get_llm_calls()) == 1
+        assert len(eval_trace.get_tool_calls()) == 0
+        assert len(eval_trace.get_retrievals()) == 0
 
         # But embedding tokens should be counted
         assert eval_trace.metrics.token_usage.total_tokens == 5
@@ -532,13 +533,13 @@ class TestRealOTELTraces:
         assert eval_trace.trace_id == llm_trace["traceId"]
 
         # Should have extracted LLM spans
-        assert len(eval_trace.llm_spans) >= 1
+        assert len(eval_trace.get_llm_calls()) >= 1
 
         # Check LLM span properties
-        llm_span = eval_trace.llm_spans[0]
+        llm_span = eval_trace.get_llm_calls()[0]
         assert llm_span.span_id  # Has span ID
         assert llm_span.model  # Has model name (e.g., gpt-4o)
-        assert llm_span.duration_ms > 0  # Duration converted from nanos
+        assert llm_span.metrics.duration_ms > 0  # Duration converted from nanos
 
     def test_parse_otel_trace_with_agents(self, sample_traces):
         """Test parsing real OTEL trace with agent spans (CrewAI)."""
@@ -563,14 +564,16 @@ class TestRealOTELTraces:
         assert eval_trace.trace_id == agent_trace["traceId"]
 
         # Validate: should have parsed agent span
-        assert eval_trace.agent_span is not None
+        agents = eval_trace.get_agents()
+        assert len(agents) >= 1
 
         # Check: agent span has required fields
-        assert eval_trace.agent_span.span_id  # Has span ID
-        assert eval_trace.agent_span.duration_ms > 0  # Duration is converted
+        agent = agents[0]
+        assert agent.span_id  # Has span ID
+        assert agent.metrics.duration_ms > 0  # Duration is converted
 
         # Check: agent name exists (may be empty string but field should exist)
-        assert hasattr(eval_trace.agent_span, "name")
+        assert hasattr(agent, "name")
 
         # Validate: metrics should have counts
         # Note: tool_call_count may be 0 if no tool spans in this trace
@@ -597,17 +600,18 @@ class TestRealOTELTraces:
                 span_id = raw_span.get("spanId")
 
                 # Find matching span in eval_trace
-                for llm in eval_trace.llm_spans:
+                for llm in eval_trace.get_llm_calls():
                     if llm.span_id == span_id:
-                        assert llm.duration_ms == expected_ms
+                        assert llm.metrics.duration_ms == expected_ms
                         return
-                for tool in eval_trace.tool_spans:
+                for tool in eval_trace.get_tool_calls():
                     if tool.span_id == span_id:
-                        assert tool.duration_ms == expected_ms
+                        assert tool.metrics.duration_ms == expected_ms
                         return
-                if eval_trace.agent_span and eval_trace.agent_span.span_id == span_id:
-                    assert eval_trace.agent_span.duration_ms == expected_ms
-                    return
+                for agent in eval_trace.get_agents():
+                    if agent.span_id == span_id:
+                        assert agent.metrics.duration_ms == expected_ms
+                        return
 
     def test_chain_spans_are_skipped(self, sample_traces):
         """Test that chain spans are correctly skipped."""
@@ -625,18 +629,12 @@ class TestRealOTELTraces:
         traces = [_parse_trace(t) for t in sample_traces]
         eval_traces = parse_traces_for_evaluation(traces)
 
-        # Chain spans should not be in any parsed trace
-        for eval_trace in eval_traces:
-            # Trace only has llm_spans, tool_spans, retriever_spans, agent_span
-            # No chain spans should appear
-            pass  # Structure verification - chains are simply not included
-
         # If there were chain spans, they should have been skipped
         if chain_count > 0:
             # Total parsed spans should be less than total raw spans
             total_raw = sum(len(t.get("spans", [])) for t in sample_traces)
             total_parsed = sum(
-                len(et.llm_spans) + len(et.tool_spans) + len(et.retriever_spans) + (1 if et.agent_span else 0)
+                len(et.get_llm_calls()) + len(et.get_tool_calls()) + len(et.get_retrievals()) + len(et.get_agents())
                 for et in eval_traces
             )
             assert total_parsed < total_raw
@@ -783,9 +781,9 @@ class TestRealOTELTraces:
             assert llm.model is not None
 
             # VERIFY: token usage from ampAttributes.data.tokenUsage
-            if llm.token_usage.total_tokens > 0:
-                assert llm.token_usage.input_tokens >= 0
-                assert llm.token_usage.output_tokens >= 0
+            if llm.metrics.token_usage.total_tokens > 0:
+                assert llm.metrics.token_usage.input_tokens >= 0
+                assert llm.metrics.token_usage.output_tokens >= 0
 
             # VERIFY: messages from ampAttributes.input
             assert isinstance(llm.messages, list)
@@ -830,7 +828,7 @@ class TestRealOTELTraces:
 
             # VERIFY: error status from ampAttributes.status.error
             if "Error:" in str(tool.result):
-                assert tool.error, f"Tool {tool.name} has error in result but flag not set"
+                assert tool.metrics.error, f"Tool {tool.name} has error in result but flag not set"
 
     def test_root_level_spans_real_traces(self, sample_traces):
         """

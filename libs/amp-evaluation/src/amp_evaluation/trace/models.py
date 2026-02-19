@@ -27,7 +27,7 @@ Key Design Principles:
 3. Hierarchy-aware - supports nested tool calls and multi-agent systems
 4. Metrics-aware - separate metrics from content for easy access
 
-The main entry point is the Trajectory class, which provides:
+The main entry point is the Trace class, which provides:
 - get_agent_steps(): Reconstructed conversation flow for evaluators
 - get_llm_calls(), get_tool_calls(), etc.: Filtered access to spans
 - Aggregated metrics via the metrics property
@@ -222,18 +222,6 @@ class LLMSpan:
     # Metrics (separated)
     metrics: LLMMetrics = field(default_factory=LLMMetrics)
 
-    # Convenience accessors for backwards compatibility
-    @property
-    def duration_ms(self) -> float:
-        return self.metrics.duration_ms
-
-    @property
-    def error(self) -> bool:
-        return self.metrics.error
-
-    @property
-    def token_usage(self) -> TokenUsage:
-        return self.metrics.token_usage
 
 
 @dataclass
@@ -257,14 +245,6 @@ class ToolSpan:
 
     # Metrics (separated)
     metrics: ToolMetrics = field(default_factory=ToolMetrics)
-
-    @property
-    def duration_ms(self) -> float:
-        return self.metrics.duration_ms
-
-    @property
-    def error(self) -> bool:
-        return self.metrics.error
 
 
 @dataclass
@@ -291,14 +271,6 @@ class RetrieverSpan:
 
     # Metrics (separated)
     metrics: RetrieverMetrics = field(default_factory=RetrieverMetrics)
-
-    @property
-    def duration_ms(self) -> float:
-        return self.metrics.duration_ms
-
-    @property
-    def error(self) -> bool:
-        return self.metrics.error
 
 
 @dataclass
@@ -329,18 +301,6 @@ class AgentSpan:
 
     # Metrics (separated)
     metrics: AgentMetrics = field(default_factory=AgentMetrics)
-
-    @property
-    def duration_ms(self) -> float:
-        return self.metrics.duration_ms
-
-    @property
-    def error(self) -> bool:
-        return self.metrics.error
-
-    @property
-    def token_usage(self) -> TokenUsage:
-        return self.metrics.token_usage
 
 
 # ============================================================================
@@ -387,7 +347,7 @@ class AgentStep:
     # For assistant steps with tool calls
     tool_calls: List[ToolCallInfo] = field(default_factory=list)
 
-    # For tool result steps
+    # For tool result steps (resolved from assistant tool_calls; falls back to tool_call_id)
     tool_name: Optional[str] = None
     tool_input: Optional[Dict[str, Any]] = None
     tool_output: Optional[Any] = None
@@ -472,7 +432,7 @@ def _hash_message(msg: "Message") -> str:
 
 
 # ============================================================================
-# TRAJECTORY CLASS
+# TRACE CLASS
 # ============================================================================
 
 
@@ -653,6 +613,13 @@ class Trace:
         """
         steps: List[AgentStep] = []
 
+        # Build a lookup from tool_call_id -> tool name from assistant messages
+        tool_call_names: Dict[str, str] = {}
+        for msg in llm_span.messages:
+            if msg.role == "assistant":
+                for tc in msg.tool_calls:
+                    tool_call_names[tc.id] = tc.name
+
         # Extract messages
         for msg in llm_span.messages:
             # Deduplication logic
@@ -680,11 +647,14 @@ class Trace:
                 )
             elif msg.role == "tool":
                 # Tool result message in conversation
+                # Resolve human-readable tool name from prior assistant tool_calls;
+                # falls back to the opaque tool_call_id if no match is found.
+                resolved_name = tool_call_names.get(msg.tool_call_id, msg.tool_call_id)
                 steps.append(
                     AgentStep(
                         step_type="tool_result",
                         content=msg.content,
-                        tool_name=msg.tool_call_id,  # Best we have
+                        tool_name=resolved_name,
                         span_id=llm_span.span_id,
                     )
                 )
@@ -700,8 +670,8 @@ class Trace:
                     content=llm_span.response,
                     tool_calls=tool_call_infos,
                     span_id=llm_span.span_id,
-                    duration_ms=llm_span.duration_ms,
-                    error=llm_span.metrics.error_message if llm_span.error else None,
+                    duration_ms=llm_span.metrics.duration_ms,
+                    error=llm_span.metrics.error_message if llm_span.metrics.error else None,
                 )
             )
 
@@ -717,7 +687,7 @@ class Trace:
 
         # Set error field: prefer error_message, fallback to error_type, or just the error flag
         error_info = None
-        if tool_span.error:
+        if tool_span.metrics.error:
             error_info = tool_span.metrics.error_message or tool_span.metrics.error_type or "Error"
 
         return AgentStep(
@@ -727,7 +697,7 @@ class Trace:
             tool_output=tool_span.result,
             nested_steps=nested_steps,
             span_id=tool_span.span_id,
-            duration_ms=tool_span.duration_ms,
+            duration_ms=tool_span.metrics.duration_ms,
             error=error_info,
         )
 
@@ -738,8 +708,8 @@ class Trace:
             query=retriever_span.query,
             documents=retriever_span.documents,
             span_id=retriever_span.span_id,
-            duration_ms=retriever_span.duration_ms,
-            error=retriever_span.metrics.error_message if retriever_span.error else None,
+            duration_ms=retriever_span.metrics.duration_ms,
+            error=retriever_span.metrics.error_message if retriever_span.metrics.error else None,
         )
 
     # ========================================================================
@@ -884,93 +854,6 @@ class Trace:
         return "\n\n".join(contexts)
 
     # ========================================================================
-    # CONVENIENCE PROPERTIES (backward compatibility)
-    # ========================================================================
-
-    @property
-    def has_output(self) -> bool:
-        """Check if trace has non-empty output."""
-        return bool(self.output and self.output.strip())
-
-    @property
-    def has_errors(self) -> bool:
-        """Check if any spans had errors."""
-        return self.metrics.has_errors
-
-    @property
-    def success(self) -> bool:
-        """Check if the trace was successful (no errors)."""
-        return not self.has_errors
-
-    # Legacy properties (deprecated, use get_* methods instead)
-    @property
-    def llm_spans(self) -> List[LLMSpan]:
-        """Get all LLM spans. Deprecated: use get_llm_calls() instead."""
-        return self.get_llm_calls()
-
-    @property
-    def tool_spans(self) -> List[ToolSpan]:
-        """Get all tool spans. Deprecated: use get_tool_calls() instead."""
-        return self.get_tool_calls()
-
-    @property
-    def retriever_spans(self) -> List[RetrieverSpan]:
-        """Get all retriever spans. Deprecated: use get_retrievals() instead."""
-        return self.get_retrievals()
-
-    @property
-    def agent_span(self) -> Optional[AgentSpan]:
-        """Get first agent span (if any)."""
-        agents = self.get_agents()
-        return agents[0] if agents else None
-
-    @property
-    def all_tool_names(self) -> List[str]:
-        """Get list of all tools used in this trajectory (in order)."""
-        return [t.name for t in self.get_tool_calls()]
-
-    @property
-    def unique_tool_names(self) -> List[str]:
-        """Get list of unique tools used (preserves first occurrence order)."""
-        seen = set()
-        unique = []
-        for name in self.all_tool_names:
-            if name not in seen:
-                seen.add(name)
-                unique.append(name)
-        return unique
-
-    @property
-    def all_tool_results(self) -> List[Any]:
-        """Get list of all tool results in execution order."""
-        return [t.result for t in self.get_tool_calls()]
-
-    @property
-    def all_llm_responses(self) -> List[str]:
-        """Get list of all LLM responses in execution order."""
-        return [llm.response for llm in self.get_llm_calls()]
-
-    @property
-    def unique_models_used(self) -> List[str]:
-        """Get list of unique models used."""
-        models = set()
-        for llm in self.get_llm_calls():
-            if llm.model:
-                models.add(llm.model)
-        for agent in self.get_agents():
-            if agent.model:
-                models.add(agent.model)
-        return list(models)
-
-    @property
-    def framework(self) -> str:
-        """Get the agent framework used (if detected)."""
-        for agent in self.get_agents():
-            if agent.framework:
-                return agent.framework
-        return ""
-
-    # ========================================================================
     # DEDUPLICATION AND FILTERING HELPERS
     # ========================================================================
 
@@ -1085,7 +968,7 @@ class Trace:
         )
 
         total_duration = sum(
-            getattr(s, "duration_ms", 0) or s.metrics.duration_ms for s in agent_steps if hasattr(s, "metrics")
+            s.metrics.duration_ms for s in agent_steps if hasattr(s, "metrics")
         )
 
         return {
@@ -1134,7 +1017,7 @@ class Trace:
                 token_usage = token_usage + llm.metrics.token_usage
 
         agent_metrics = TraceMetrics(
-            total_duration_ms=agent_span.duration_ms or 0,
+            total_duration_ms=agent_span.metrics.duration_ms or 0,
             token_usage=token_usage,
             llm_call_count=len(llm_spans),
             tool_call_count=len(tool_spans),
@@ -1163,16 +1046,16 @@ class Trace:
     # TODO how to handle multi-agent scenarios? Maybe allow passing agent_span_id to filter steps by agent?
     def get_user_input(self) -> str:
         """
-        Extract the initial user input from the trajectory.
+        Extract the initial user input from the trace.
 
         Returns the first user message from agent steps, or falls back to
-        trajectory.input.
+        trace.input.
 
         Returns:
             The initial user query as a string.
 
         Example:
-            >>> query = trajectory.get_user_input()
+            >>> query = trace.get_user_input()
             >>> print(query)
             "Hi im looking to travel with my family to Spain..."
         """
@@ -1187,13 +1070,13 @@ class Trace:
         """
         Extract the final assistant response.
 
-        Returns the last assistant message or trajectory.output.
+        Returns the last assistant message or trace.output.
 
         Returns:
             The final response as a string.
 
         Example:
-            >>> response = trajectory.get_final_response()
+            >>> response = trace.get_final_response()
             >>> print(response)
             "Here are some fantastic family-friendly destinations..."
         """
@@ -1216,7 +1099,7 @@ class Trace:
             List of tuples: [(user_input_1, assistant_response_1), ...]
 
         Example:
-            >>> turns = trajectory.get_conversation_turns()
+            >>> turns = trace.get_conversation_turns()
             >>> for user_msg, asst_msg in turns:
             ...     evaluate_turn(user_msg, asst_msg)
         """
@@ -1251,7 +1134,7 @@ class Trace:
             ]
 
         Example:
-            >>> sequence = trajectory.get_tool_execution_sequence()
+            >>> sequence = trace.get_tool_execution_sequence()
             >>> tool_names = [t["tool"] for t in sequence]
             >>> assert "search_hotels" in tool_names
         """
@@ -1261,8 +1144,8 @@ class Trace:
                 "tool": t.name,
                 "input": t.arguments,
                 "output": t.result,
-                "duration_ms": t.duration_ms,
-                "error": t.metrics.error_message if t.error else None,
+                "duration_ms": t.metrics.duration_ms,
+                "error": t.metrics.error_message if t.metrics.error else None,
             }
             for t in tool_calls
         ]
@@ -1278,8 +1161,8 @@ class Trace:
             Number of tool calls
 
         Example:
-            >>> total_tools = trajectory.get_tool_call_count()
-            >>> hotel_searches = trajectory.get_tool_call_count("search_hotels")
+            >>> total_tools = trace.get_tool_call_count()
+            >>> hotel_searches = trace.get_tool_call_count("search_hotels")
         """
         tools = self.get_tool_calls()
         if tool_name:
@@ -1294,7 +1177,7 @@ class Trace:
             List of dicts: [{"content": "...", "score": 0.95, "metadata": {...}}, ...]
 
         Example:
-            >>> docs = trajectory.get_retrieved_documents()
+            >>> docs = trace.get_retrieved_documents()
             >>> for doc in docs:
             ...     print(f"Score: {doc['score']}, Content: {doc['content'][:50]}...")
         """
@@ -1327,7 +1210,7 @@ class Trace:
             }
 
         Example:
-            >>> metrics = trajectory.get_execution_metrics()
+            >>> metrics = trace.get_execution_metrics()
             >>> print(f"Total tokens: {metrics['total_tokens']}")
         """
         return {
@@ -1347,15 +1230,15 @@ class Trace:
             Dict: {"llm_errors": [...], "tool_errors": [...], "total": N}
 
         Example:
-            >>> errors = trajectory.get_error_summary()
+            >>> errors = trace.get_error_summary()
             >>> if errors["total"] > 0:
             ...     print(f"Found {errors['total']} errors")
         """
         llm_errors = [
-            llm.metrics.error_message for llm in self.get_llm_calls() if llm.error and llm.metrics.error_message
+            llm.metrics.error_message for llm in self.get_llm_calls() if llm.metrics.error and llm.metrics.error_message
         ]
         tool_errors = [
-            tool.metrics.error_message for tool in self.get_tool_calls() if tool.error and tool.metrics.error_message
+            tool.metrics.error_message for tool in self.get_tool_calls() if tool.metrics.error and tool.metrics.error_message
         ]
         return {
             "llm_errors": llm_errors,

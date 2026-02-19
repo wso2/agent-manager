@@ -225,14 +225,6 @@ class TestTrajectoryMetrics:
         assert metrics.avg_tokens_per_llm_call == 0.0
 
 
-class TestBackwardCompatibility:
-    """Tests for backward compatibility aliases."""
-
-    def test_trace_metrics_alias(self):
-        # TraceMetrics should be an alias for TraceMetrics
-        assert TraceMetrics is TraceMetrics
-
-
 class TestAgentStep:
     """Tests for AgentStep dataclass."""
 
@@ -281,10 +273,10 @@ class TestLLMSpan:
         assert simple_llm_span.parent_span_id is None
         assert simple_llm_span.start_time == datetime(2026, 1, 1, 12, 0, 0)
 
-    def test_convenience_properties(self, simple_llm_span):
-        assert simple_llm_span.duration_ms == 150.0
-        assert simple_llm_span.error is False
-        assert simple_llm_span.token_usage.total_tokens == 30
+    def test_metrics_access(self, simple_llm_span):
+        assert simple_llm_span.metrics.duration_ms == 150.0
+        assert simple_llm_span.metrics.error is False
+        assert simple_llm_span.metrics.token_usage.total_tokens == 30
 
 
 class TestToolSpan:
@@ -294,9 +286,9 @@ class TestToolSpan:
         assert tool_span.parent_span_id == "llm-2"
         assert tool_span.start_time == datetime(2026, 1, 1, 12, 0, 1)
 
-    def test_convenience_properties(self, tool_span):
-        assert tool_span.duration_ms == 500.0
-        assert tool_span.error is False
+    def test_metrics_access(self, tool_span):
+        assert tool_span.metrics.duration_ms == 500.0
+        assert tool_span.metrics.error is False
 
 
 class TestRetrieverSpan:
@@ -344,7 +336,7 @@ class TestTrajectorySimple:
         assert trajectory.input == "What is 2+2?"
         assert trajectory.output == "2+2 equals 4."
 
-    def test_convenience_properties(self, simple_llm_span):
+    def test_metrics_access(self, simple_llm_span):
         trajectory = Trace(
             trace_id="trace-1",
             input="test",
@@ -352,16 +344,7 @@ class TestTrajectorySimple:
             steps=[simple_llm_span],
             metrics=TraceMetrics(error_count=0),
         )
-        assert trajectory.has_output is True
-        assert trajectory.has_errors is False
-        assert trajectory.success is True
-
-    def test_has_output_empty(self):
-        trajectory = Trace(trace_id="trace-1", output="")
-        assert trajectory.has_output is False
-
-        trajectory2 = Trace(trace_id="trace-1", output="   ")
-        assert trajectory2.has_output is False
+        assert not trajectory.metrics.has_errors
 
 
 class TestTrajectoryGetLLMCalls:
@@ -655,66 +638,6 @@ class TestTrajectoryGetAgentSteps:
 
         # Should include the worker's LLM call
         assert any(s.content == "Done!" for s in worker_steps if s.step_type == "assistant")
-
-
-# ============================================================================
-# TESTS: Trace - Legacy Properties (Backward Compatibility)
-# ============================================================================
-
-
-class TestTrajectoryLegacyProperties:
-    """Tests for backward-compatible properties."""
-
-    def test_llm_spans_property(self, simple_llm_span):
-        trajectory = Trace(trace_id="trace-1", steps=[simple_llm_span])
-        assert len(trajectory.llm_spans) == 1
-
-    def test_tool_spans_property(self, tool_span):
-        trajectory = Trace(trace_id="trace-1", steps=[tool_span])
-        assert len(trajectory.tool_spans) == 1
-
-    def test_retriever_spans_property(self, retriever_span):
-        trajectory = Trace(trace_id="trace-1", steps=[retriever_span])
-        assert len(trajectory.retriever_spans) == 1
-
-    def test_agent_span_property(self, agent_span):
-        trajectory = Trace(trace_id="trace-1", steps=[agent_span])
-        assert trajectory.agent_span is not None
-        assert trajectory.agent_span.name == "CustomerServiceAgent"
-
-    def test_all_tool_names(self, tool_span):
-        tool2 = ToolSpan(span_id="t2", name="search")
-        trajectory = Trace(trace_id="trace-1", steps=[tool_span, tool2])
-        assert trajectory.all_tool_names == ["get_weather", "search"]
-
-    def test_unique_tool_names(self):
-        tool1 = ToolSpan(span_id="t1", name="search")
-        tool2 = ToolSpan(span_id="t2", name="search")
-        tool3 = ToolSpan(span_id="t3", name="lookup")
-        trajectory = Trace(trace_id="trace-1", steps=[tool1, tool2, tool3])
-        assert trajectory.unique_tool_names == ["search", "lookup"]
-
-    def test_all_tool_results(self, tool_span):
-        trajectory = Trace(trace_id="trace-1", steps=[tool_span])
-        assert trajectory.all_tool_results == ["72°F and sunny"]
-
-    def test_all_llm_responses(self, simple_llm_span):
-        trajectory = Trace(trace_id="trace-1", steps=[simple_llm_span])
-        assert trajectory.all_llm_responses == ["2+2 equals 4."]
-
-    def test_unique_models_used(self):
-        llm1 = LLMSpan(span_id="l1", model="gpt-4")
-        llm2 = LLMSpan(span_id="l2", model="gpt-4")
-        llm3 = LLMSpan(span_id="l3", model="claude-3")
-        trajectory = Trace(trace_id="trace-1", steps=[llm1, llm2, llm3])
-        models = trajectory.unique_models_used
-        assert "gpt-4" in models
-        assert "claude-3" in models
-        assert len(models) == 2
-
-    def test_framework_property(self, agent_span):
-        trajectory = Trace(trace_id="trace-1", steps=[agent_span])
-        assert trajectory.framework == "langchain"
 
 
 # ============================================================================

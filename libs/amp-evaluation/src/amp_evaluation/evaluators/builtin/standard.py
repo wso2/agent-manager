@@ -350,11 +350,11 @@ class ToolSequenceEvaluator(BaseEvaluator):
         if not expected:
             return EvalResult.skip(
                 "No expected tool sequence specified",
-                details={"actual_sequence": [step.name for step in trace.tool_spans if step.name]},
+                details={"actual_sequence": [step.name for step in trace.get_tool_calls() if step.name]},
             )
 
         # Extract actual tool sequence
-        actual_sequence = [step.name for step in trace.tool_spans if step.name]
+        actual_sequence = [step.name for step in trace.get_tool_calls() if step.name]
 
         if self.strict:
             # Exact match
@@ -408,11 +408,11 @@ class RequiredToolsEvaluator(BaseEvaluator):
         if not required:
             return EvalResult.skip(
                 "No required tools specified",
-                details={"used_tools": [step.name for step in trace.tool_spans if step.name]},
+                details={"used_tools": [step.name for step in trace.get_tool_calls() if step.name]},
             )
 
         # Get actually used tools
-        used_tools = {step.name for step in trace.tool_spans if step.name}
+        used_tools = {step.name for step in trace.get_tool_calls() if step.name}
 
         missing_tools = required - used_tools
         found_tools = required.intersection(used_tools)
@@ -448,7 +448,7 @@ class StepSuccessRateEvaluator(BaseEvaluator):
         if not trace.steps:
             return EvalResult.skip("No steps to evaluate", details={"step_count": 0})
 
-        successful_steps = sum(1 for step in trace.steps if not step.error)
+        successful_steps = sum(1 for step in trace.steps if not step.metrics.error)
         total_steps = len(trace.steps)
         success_rate = successful_steps / total_steps
 
