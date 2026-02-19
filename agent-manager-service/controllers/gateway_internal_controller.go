@@ -17,22 +17,17 @@
 package controllers
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // GatewayInternalController defines interface for gateway internal API HTTP handlers
 type GatewayInternalController interface {
-	GetAPIsByOrganization(w http.ResponseWriter, r *http.Request)
-	GetAPI(w http.ResponseWriter, r *http.Request)
-	CreateGatewayDeployment(w http.ResponseWriter, r *http.Request)
 	GetLLMProvider(w http.ResponseWriter, r *http.Request)
 	GetLLMProxy(w http.ResponseWriter, r *http.Request)
 }
@@ -51,221 +46,6 @@ func NewGatewayInternalController(
 		gatewayService:         gatewayService,
 		gatewayInternalService: gatewayInternalService,
 	}
-}
-
-// GetAPIsByOrganization handles GET /api/internal/v1/apis
-func (c *gatewayInternalController) GetAPIsByOrganization(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract client IP for logging
-	clientIP := getClientIP(r)
-
-	// Extract and validate API key from header
-	apiKey := r.Header.Get("api-key")
-	if apiKey == "" {
-		log.Warn("Unauthorized access attempt - Missing API key", "ip", clientIP)
-		http.Error(w, "API key is required. Provide 'api-key' header.", http.StatusUnauthorized)
-		return
-	}
-
-	// Authenticate gateway using API key
-	gateway, err := c.gatewayService.VerifyToken(apiKey)
-	if err != nil {
-		log.Warn("Authentication failed", "ip", clientIP, "error", err)
-		http.Error(w, "Invalid or expired API key", http.StatusUnauthorized)
-		return
-	}
-
-	orgName := gateway.OrganizationName
-	apis, err := c.gatewayInternalService.GetAPIsByOrganization(orgName)
-	if err != nil {
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			http.Error(w, "Organization not found", http.StatusNotFound)
-			return
-		}
-		log.Error("Failed to get APIs", "error", err)
-		http.Error(w, "Failed to get APIs", http.StatusInternalServerError)
-		return
-	}
-
-	// Create ZIP file from API YAML files
-	zipData, err := utils.CreateAPIYamlZip(apis)
-	if err != nil {
-		log.Error("Failed to create ZIP file", "orgName", orgName, "error", err)
-		http.Error(w, "Failed to create API package", http.StatusInternalServerError)
-		return
-	}
-
-	// Set headers for ZIP file download
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"apis-org-%s.zip\"", orgName))
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(zipData)))
-
-	// Return ZIP file
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(zipData); err != nil {
-		log.Error("Failed to write ZIP response", "orgName", orgName, "error", err)
-	}
-}
-
-// GetAPI handles GET /api/internal/v1/apis/:apiId
-func (c *gatewayInternalController) GetAPI(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract client IP for logging
-	clientIP := getClientIP(r)
-
-	// Extract and validate API key from header
-	apiKey := r.Header.Get("api-key")
-	if apiKey == "" {
-		log.Warn("Unauthorized access attempt - Missing API key", "ip", clientIP)
-		http.Error(w, "API key is required. Provide 'api-key' header.", http.StatusUnauthorized)
-		return
-	}
-
-	// Authenticate gateway using API key
-	gateway, err := c.gatewayService.VerifyToken(apiKey)
-	if err != nil {
-		log.Warn("Authentication failed", "ip", clientIP, "error", err)
-		http.Error(w, "Invalid or expired API key", http.StatusUnauthorized)
-		return
-	}
-
-	orgName := gateway.OrganizationName
-	gatewayID := gateway.UUID.String()
-	apiID := r.PathValue("apiId")
-	if apiID == "" {
-		http.Error(w, "API ID is required", http.StatusBadRequest)
-		return
-	}
-
-	api, err := c.gatewayInternalService.GetActiveDeploymentByGateway(apiID, orgName, gatewayID)
-	if err != nil {
-		if errors.Is(err, utils.ErrDeploymentNotActive) {
-			http.Error(w, "No active deployment found for this API on this gateway", http.StatusNotFound)
-			return
-		}
-		if errors.Is(err, utils.ErrAPINotFound) {
-			http.Error(w, "API not found", http.StatusNotFound)
-			return
-		}
-		log.Error("Failed to get API", "error", err)
-		http.Error(w, "Failed to get API", http.StatusInternalServerError)
-		return
-	}
-
-	// Create ZIP file from API YAML file
-	zipData, err := utils.CreateAPIYamlZip(api)
-	if err != nil {
-		log.Error("Failed to create ZIP file", "apiID", apiID, "error", err)
-		http.Error(w, "Failed to create API package", http.StatusInternalServerError)
-		return
-	}
-
-	// Set headers for ZIP file download
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"api-%s.zip\"", apiID))
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(zipData)))
-
-	// Return ZIP file
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(zipData); err != nil {
-		log.Error("Failed to write ZIP response", "apiID", apiID, "error", err)
-	}
-}
-
-// CreateGatewayDeployment handles POST /api/internal/v1/apis/{apiId}/gateway-deployments
-func (c *gatewayInternalController) CreateGatewayDeployment(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract client IP for logging
-	clientIP := getClientIP(r)
-
-	// Extract and validate API key from header
-	apiKey := r.Header.Get("api-key")
-	if apiKey == "" {
-		log.Warn("Unauthorized access attempt - Missing API key", "ip", clientIP)
-		http.Error(w, "API key is required. Provide 'api-key' header.", http.StatusUnauthorized)
-		return
-	}
-
-	// Authenticate gateway using API key
-	gateway, err := c.gatewayService.VerifyToken(apiKey)
-	if err != nil {
-		log.Warn("Authentication failed", "ip", clientIP, "error", err)
-		http.Error(w, "Invalid or expired API key", http.StatusUnauthorized)
-		return
-	}
-
-	// Extract API ID from path parameter
-	apiID := r.PathValue("apiId")
-	if apiID == "" {
-		http.Error(w, "API ID is required", http.StatusBadRequest)
-		return
-	}
-
-	// Extract optional deployment ID from query parameter
-	deploymentID := r.URL.Query().Get("deploymentId")
-	var deploymentIDPtr *string
-	if deploymentID != "" {
-		deploymentIDPtr = &deploymentID
-	}
-
-	// Parse and validate request body
-	var notificationReq models.DeploymentNotification
-	if err := json.NewDecoder(r.Body).Decode(&notificationReq); err != nil {
-		log.Warn("Invalid request body", "ip", clientIP, "error", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// Create API deployment using the service
-	orgName := gateway.OrganizationName
-	gatewayID := gateway.UUID.String()
-
-	// Convert models.DeploymentNotification to services.DeploymentNotification
-	notification := services.DeploymentNotification{
-		ProjectIdentifier: notificationReq.ProjectIdentifier,
-		Configuration: services.APIDeploymentYAML{
-			ApiVersion: notificationReq.Configuration.Version,
-			Kind:       notificationReq.Configuration.Kind,
-			Spec: services.APIDeploymentSpec{
-				Name:    notificationReq.Configuration.Spec.Name,
-				Version: notificationReq.Configuration.Spec.Version,
-				Context: notificationReq.Configuration.Spec.Context,
-			},
-		},
-	}
-
-	response, err := c.gatewayInternalService.CreateGatewayDeployment(
-		apiID, orgName, gatewayID, notification, deploymentIDPtr)
-	if err != nil {
-		if errors.Is(err, utils.ErrInvalidInput) {
-			http.Error(w, "Invalid input data", http.StatusBadRequest)
-			return
-		}
-		if errors.Is(err, utils.ErrGatewayNotFound) {
-			http.Error(w, "Gateway not found", http.StatusNotFound)
-			return
-		}
-		if errors.Is(err, utils.ErrAPINotFound) {
-			http.Error(w, "API not found", http.StatusNotFound)
-			return
-		}
-		log.Error("Failed to create gateway API deployment", "apiID", apiID, "gatewayID", gatewayID, "error", err)
-		http.Error(w, "Failed to create API deployment", http.StatusInternalServerError)
-		return
-	}
-
-	log.Info("Successfully created gateway API deployment", "apiID", apiID, "gatewayID", gatewayID, "created", response.Created)
-
-	// Return success response
-	utils.WriteSuccessResponse(w, http.StatusCreated, map[string]interface{}{
-		"message": response.Message,
-	})
 }
 
 // GetLLMProvider handles GET /api/internal/v1/llm-providers/:providerId

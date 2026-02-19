@@ -40,21 +40,18 @@ import (
 // PlatformGatewayService handles gateway business logic for API Platform integration
 type PlatformGatewayService struct {
 	gatewayRepo repositories.GatewayRepository
-	apiRepo     repositories.APIRepository
 	tokenCache  *TokenCache
 }
 
 // NewPlatformGatewayService creates a new platform gateway service
 func NewPlatformGatewayService(
 	gatewayRepo repositories.GatewayRepository,
-	apiRepo repositories.APIRepository,
 ) *PlatformGatewayService {
 	// Initialize token cache with 5 minute TTL
 	tokenCache := NewTokenCache(5 * time.Minute)
 
 	return &PlatformGatewayService{
 		gatewayRepo: gatewayRepo,
-		apiRepo:     apiRepo,
 		tokenCache:  tokenCache,
 	}
 }
@@ -775,68 +772,6 @@ func (s *PlatformGatewayService) DeleteGatewayEnvironmentMappings(gatewayID stri
 	}
 
 	return nil
-}
-
-// GetGatewayArtifacts retrieves all artifacts (APIs) deployed to a specific gateway
-func (s *PlatformGatewayService) GetGatewayArtifacts(gatewayID, orgName, artifactType string) (*GatewayArtifactListResponse, error) {
-	// First validate that the gateway exists and belongs to the organization
-	gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
-	if err != nil {
-		return nil, err
-	}
-	if gateway == nil {
-		return nil, utils.ErrGatewayNotFound
-	}
-	if gateway.OrganizationName != orgName {
-		return nil, utils.ErrGatewayNotFound
-	}
-
-	// Get all APIs deployed to this gateway
-	apis, err := s.apiRepo.GetDeployedAPIsByGatewayUUID(gatewayID, orgName)
-	if err != nil {
-		return nil, err
-	}
-
-	// Apply type filtering before iterating
-	allArtifacts := make([]GatewayArtifact, 0)
-	// Short-circuit if artifactType filter doesn't match "API", "all", or empty
-	if artifactType != "" && artifactType != "all" && artifactType != "API" {
-		// Return empty list for non-API artifact types
-		listResponse := &GatewayArtifactListResponse{
-			Count: 0,
-			List:  allArtifacts,
-			Pagination: Pagination{
-				Total:  0,
-				Offset: 0,
-				Limit:  0,
-			},
-		}
-		return listResponse, nil
-	}
-
-	// Convert APIs to GatewayArtifact DTOs
-	for _, api := range apis {
-		artifact := GatewayArtifact{
-			ID:        api.Handle,
-			Name:      api.Name,
-			Kind:      "RestAPI",
-			CreatedAt: api.CreatedAt,
-			UpdatedAt: api.UpdatedAt,
-		}
-		allArtifacts = append(allArtifacts, artifact)
-	}
-
-	listResponse := &GatewayArtifactListResponse{
-		Count: len(allArtifacts),
-		List:  allArtifacts,
-		Pagination: Pagination{
-			Total:  len(allArtifacts),
-			Offset: 0,
-			Limit:  len(allArtifacts),
-		},
-	}
-
-	return listResponse, nil
 }
 
 // validateGatewayInput validates gateway registration inputs

@@ -57,7 +57,6 @@ type GatewayController interface {
 	RotateGatewayToken(w http.ResponseWriter, r *http.Request)
 	RevokeGatewayToken(w http.ResponseWriter, r *http.Request)
 	GetGatewayStatus(w http.ResponseWriter, r *http.Request)
-	GetGatewayArtifacts(w http.ResponseWriter, r *http.Request)
 }
 
 type gatewayController struct {
@@ -489,30 +488,6 @@ func (c *gatewayController) GetGatewayStatus(w http.ResponseWriter, r *http.Requ
 
 	utils.WriteSuccessResponse(w, http.StatusOK, statusResp)
 }
-
-func (c *gatewayController) GetGatewayArtifacts(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-	orgName := r.PathValue(utils.PathParamOrgName)
-	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
-
-	// Parse optional artifactType query parameter
-	artifactType := r.URL.Query().Get("type")
-	if artifactType == "" {
-		artifactType = "all"
-	}
-
-	artifactsResp, err := c.gatewayService.GetGatewayArtifacts(gatewayID, orgName, artifactType)
-	if err != nil {
-		log.Error("GetGatewayArtifacts: failed to get artifacts", "error", err)
-		handleGatewayErrors(w, err, "Failed to get gateway artifacts")
-		return
-	}
-
-	utils.WriteSuccessResponse(w, http.StatusOK, artifactsResp)
-}
-
-// Internal helper methods
 
 // getGatewayEnvironmentsFromDB retrieves environments associated with a gateway
 // Fetches environment UUIDs from service layer, then gets environment details from OpenChoreo
