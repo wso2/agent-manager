@@ -87,7 +87,7 @@ var migration008 = migration{
 			`CREATE INDEX IF NOT EXISTS idx_score_run_eval ON scores (run_evaluator_id)`,
 
 			// Unique constraint as index (handles NULL span_id properly)
-			`CREATE UNIQUE INDEX IF NOT EXISTS uq_score_per_item ON scores (run_evaluator_id, trace_id, COALESCE(span_id, ''))`,
+			`CREATE UNIQUE INDEX IF NOT EXISTS uq_score_per_item ON scores (run_evaluator_id, trace_id, span_id) NULLS NOT DISTINCT`,
 		}
 
 		return db.Transaction(func(tx *gorm.DB) error {

@@ -28,6 +28,9 @@ import (
 
 // ScoreRepository defines the interface for score data access
 type ScoreRepository interface {
+	// Transaction support
+	WithTx(tx *gorm.DB) ScoreRepository
+
 	// MonitorRunEvaluator operations
 	UpsertMonitorRunEvaluators(evaluators []models.MonitorRunEvaluator) error
 	GetEvaluatorsByRunID(runID uuid.UUID) ([]models.MonitorRunEvaluator, error)
@@ -118,6 +121,11 @@ type ScoreRepo struct {
 // NewScoreRepo creates a new score repository
 func NewScoreRepo(db *gorm.DB) ScoreRepository {
 	return &ScoreRepo{db: db}
+}
+
+// WithTx returns a new ScoreRepository backed by the given transaction
+func (r *ScoreRepo) WithTx(tx *gorm.DB) ScoreRepository {
+	return &ScoreRepo{db: tx}
 }
 
 // UpsertMonitorRunEvaluators creates or updates evaluator records for a run

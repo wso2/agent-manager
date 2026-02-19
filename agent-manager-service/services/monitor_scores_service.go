@@ -68,10 +68,6 @@ func (s *MonitorScoresService) PublishScores(
 		}
 	}
 
-	if err := s.repo.UpsertMonitorRunEvaluators(runEvaluators); err != nil {
-		return fmt.Errorf("failed to upsert run evaluators: %w", err)
-	}
-
 	// Step 2: Build evaluator displayName → ID map for score insertion
 	evaluatorMap := make(map[string]uuid.UUID)
 	for _, re := range runEvaluators {
@@ -108,9 +104,21 @@ func (s *MonitorScoresService) PublishScores(
 		}
 	}
 
-	// Step 4: Batch create scores (with upsert for reruns)
-	if err := s.repo.BatchCreateScores(scores); err != nil {
-		return fmt.Errorf("failed to create scores: %w", err)
+	// Step 4: Upsert evaluators and scores atomically
+	if err := db.GetDB().Transaction(func(tx *gorm.DB) error {
+		txRepo := s.repo.WithTx(tx)
+
+		if err := txRepo.UpsertMonitorRunEvaluators(runEvaluators); err != nil {
+			return fmt.Errorf("failed to upsert run evaluators: %w", err)
+		}
+
+		if err := txRepo.BatchCreateScores(scores); err != nil {
+			return fmt.Errorf("failed to create scores: %w", err)
+		}
+
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	s.logger.Info("Published evaluation scores",
