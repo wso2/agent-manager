@@ -168,15 +168,15 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 		}
 	}
 
+	// Get or create parameters section in spec
+	parameters, ok := spec["parameters"].(map[string]interface{})
+	if !ok {
+		parameters = make(map[string]interface{})
+		spec["parameters"] = parameters
+	}
+
 	// Update spec.parameters.basePath and port if InputInterface is provided
 	if req.InputInterface != nil {
-		// Get or create parameters section in spec
-		parameters, ok := spec["parameters"].(map[string]interface{})
-		if !ok {
-			parameters = make(map[string]interface{})
-			spec["parameters"] = parameters
-		}
-
 		// Update basePath if provided
 		if req.InputInterface.BasePath != "" {
 			parameters["basePath"] = req.InputInterface.BasePath
@@ -188,14 +188,11 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, n
 		}
 	}
 
-	// Update configurations (enableAutoInstrumentation) in workflow parameters
-	if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil {
-		workflowParams, ok := workflow["parameters"].(map[string]interface{})
-		if !ok {
-			workflowParams = make(map[string]interface{})
-			workflow["parameters"] = workflowParams
+	// Update instrumentation configs in component parameters (not workflow params)
+	if req.Configurations != nil {
+		if req.Configurations.EnableAutoInstrumentation != nil {
+			parameters["enableAutoInstrumentation"] = *req.Configurations.EnableAutoInstrumentation
 		}
-		workflowParams["enableAutoInstrumentation"] = *req.Configurations.EnableAutoInstrumentation
 	}
 
 	// Apply the updated component CR

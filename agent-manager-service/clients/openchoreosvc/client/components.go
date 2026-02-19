@@ -129,6 +129,13 @@ func createComponentCRForInternalAgents(orgName, projectName string, req CreateC
 			"allowHeaders": strings.Split(config.GetAgentWorkloadConfig().CORS.AllowHeaders, ","),
 		},
 	}
+
+	// Add instrumentation configs to component parameters (not workflow params)
+	if req.Configurations != nil {
+		if req.Configurations.EnableAutoInstrumentation != nil {
+			parameters["enableAutoInstrumentation"] = *req.Configurations.EnableAutoInstrumentation
+		}
+	}
 	componentWorkflowParameters, err := buildWorkflowParameters(req)
 	if err != nil {
 		return nil, fmt.Errorf("error building workflow parameters: %w", err)
@@ -250,11 +257,6 @@ func buildWorkflowParameters(req CreateComponentRequest) (map[string]any, error)
 		return nil, err
 	}
 	params["endpoints"] = endpoints
-
-	// Add enableAutoInstrumentation if provided
-	if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil {
-		params["enableAutoInstrumentation"] = *req.Configurations.EnableAutoInstrumentation
-	}
 
 	return params, nil
 }
@@ -1270,7 +1272,7 @@ func convertComponentCR(componentCR map[string]interface{}) (*models.AgentRespon
 			}
 		}
 
-		// Extract parameters including basePath
+		// Extract parameters including basePath and instrumentation configs
 		if parameters, ok := spec["parameters"].(map[string]interface{}); ok {
 			// Extract basePath
 			if basePath, ok := parameters["basePath"].(string); ok && basePath != "" {
@@ -1278,6 +1280,14 @@ func convertComponentCR(componentCR map[string]interface{}) (*models.AgentRespon
 					agent.InputInterface = &models.InputInterface{}
 				}
 				agent.InputInterface.BasePath = basePath
+			}
+
+			// Extract enableAutoInstrumentation
+			if enableAutoInstrumentation, ok := parameters["enableAutoInstrumentation"].(bool); ok {
+				if agent.Configurations == nil {
+					agent.Configurations = &models.Configurations{}
+				}
+				agent.Configurations.EnableAutoInstrumentation = &enableAutoInstrumentation
 			}
 		}
 
@@ -1371,14 +1381,6 @@ func extractWorkflowDetailsFromCR(agent *models.AgentResponse, workflow map[stri
 				}
 			}
 		}
-
-		// Extract enableAutoInstrumentation
-		if enableAutoInstrumentation, ok := params["enableAutoInstrumentation"].(bool); ok {
-			if agent.Configurations == nil {
-				agent.Configurations = &models.Configurations{}
-			}
-			agent.Configurations.EnableAutoInstrumentation = &enableAutoInstrumentation
-		}
 	}
 }
 
@@ -1434,14 +1436,6 @@ func extractComponentWorkflowDetails(agent *models.AgentResponse, workflow *gen.
 				agent.InputInterface.Schema.Path = schemaPath
 			}
 		}
-	}
-
-	// Extract enableAutoInstrumentation
-	if enableAutoInstrumentation, ok := params["enableAutoInstrumentation"].(bool); ok {
-		if agent.Configurations == nil {
-			agent.Configurations = &models.Configurations{}
-		}
-		agent.Configurations.EnableAutoInstrumentation = &enableAutoInstrumentation
 	}
 
 	// Extract git repository info from systemParameters

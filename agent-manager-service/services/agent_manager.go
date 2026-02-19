@@ -178,13 +178,8 @@ func mapInputInterface(specInterface *spec.InputInterface) *client.InputInterfac
 // enableInstrumentation enables observability instrumentation for the agent based on build type.
 // For buildpack builds (Python): attaches OTEL instrumentation trait
 // For docker builds: injects tracing environment variables
+// Note: This function should only be called when instrumentation is enabled (check before calling)
 func (s *agentManagerService) enableInstrumentation(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
-	// Check if auto instrumentation is explicitly disabled
-	if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil && !*req.Configurations.EnableAutoInstrumentation {
-		s.logger.Info("Auto instrumentation disabled by user", "agentName", req.Name)
-		return nil
-	}
-
 	if req.AgentType.Type != string(utils.AgentTypeAPI) {
 		s.logger.Debug("Skipping instrumentation for non-API agent", "agentName", req.Name, "agentType", req.AgentType.Type)
 		return nil
@@ -387,17 +382,22 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		return err
 	}
 
-	// For internal agents, enable instrumentation and trigger initial build
+	// For internal agents, enable instrumentation (if enabled) and trigger initial build
 	if req.Provisioning.Type == string(utils.InternalAgent) {
 		s.logger.Debug("Component created successfully", "agentName", req.Name)
 
-		if err := s.enableInstrumentation(ctx, orgName, projectName, req); err != nil {
-			s.logger.Error("Failed to enable instrumentation for agent", "agentName", req.Name, "error", err)
-			// Rollback - delete the created agent
-			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
-				s.logger.Error("Failed to rollback agent creation after instrumentation enabling failure", "agentName", req.Name, "error", errDeletion)
+		// Only enable instrumentation if not explicitly disabled
+		if req.Configurations == nil || req.Configurations.EnableAutoInstrumentation == nil || *req.Configurations.EnableAutoInstrumentation {
+			if err := s.enableInstrumentation(ctx, orgName, projectName, req); err != nil {
+				s.logger.Error("Failed to enable instrumentation for agent", "agentName", req.Name, "error", err)
+				// Rollback - delete the created agent
+				if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+					s.logger.Error("Failed to rollback agent creation after instrumentation enabling failure", "agentName", req.Name, "error", errDeletion)
+				}
+				return err
 			}
-			return err
+		} else {
+			s.logger.Info("Auto instrumentation disabled by user", "agentName", req.Name)
 		}
 
 		// Trigger initial build
