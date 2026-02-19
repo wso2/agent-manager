@@ -80,7 +80,12 @@ interface MonitorRunListProps {
 }
 
 export default function MonitorRunList({ monitorDisplayName }: MonitorRunListProps) {
-    const { orgId, monitorId } = useParams<{ orgId: string; monitorId: string }>();
+    const { orgId, projectId, agentId, monitorId } = useParams<{
+        orgId: string;
+        projectId: string;
+        agentId: string;
+        monitorId: string;
+    }>();
     const [searchValue, setSearchValue] = useState("");
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(5);
@@ -99,6 +104,8 @@ export default function MonitorRunList({ monitorDisplayName }: MonitorRunListPro
     const { data, isLoading, error, refetch, isRefetching } = useListMonitorRuns({
         monitorName: monitorId ?? "",
         orgName: orgId ?? "",
+        projName: projectId ?? "",
+        agentName: agentId ?? "",
     });
 
     const runs = useMemo(() => data?.runs ?? [], [data]);
@@ -176,8 +183,8 @@ export default function MonitorRunList({ monitorDisplayName }: MonitorRunListPro
         failed: <CircleAlert size={20} color={palette?.error.main} />,
         success: <CheckCircle size={20} color={palette?.success.main} />,
         running: <Activity size={20} color={palette?.warning.main} />,
-        pending: <CircularProgress size={20} sx={{ color: palette?.info.main }} />,
-    }), [palette?.error.main, palette?.success.main, palette?.warning.main, palette?.info.main]);
+        pending: <CircularProgress size={20}/>,
+    }), [palette?.error.main, palette?.success.main, palette?.warning.main]);
 
     if (error) {
         return (
@@ -314,6 +321,8 @@ export default function MonitorRunList({ monitorDisplayName }: MonitorRunListPro
                         run={selectedRun}
                         onClose={handleDrawerClose}
                         orgName={orgId ?? ""}
+                        projectName={projectId ?? ""}
+                        agentName={agentId ?? ""}
                         monitorName={monitorId ?? ""}
                         monitorDisplayName={monitorDisplayName}
                         formatDateTime={formatDateTime}

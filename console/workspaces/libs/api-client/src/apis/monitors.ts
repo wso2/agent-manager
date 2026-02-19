@@ -42,9 +42,14 @@ export async function listMonitors(
   getToken?: () => Promise<string>
 ): Promise<MonitorListResponse> {
   const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/monitors`, { token });
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors`,
+    { token }
+  );
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -55,9 +60,15 @@ export async function createMonitor(
   getToken?: () => Promise<string>
 ): Promise<MonitorResponse> {
   const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpPOST(`${SERVICE_BASE}/orgs/${org}/monitors`, body, { token });
+  const res = await httpPOST(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors`,
+    body,
+    { token }
+  );
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -67,10 +78,15 @@ export async function getMonitor(
   getToken?: () => Promise<string>
 ): Promise<MonitorResponse> {
   const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
   const monitor = encodeRequired(params.monitorName, "monitorName");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/monitors/${monitor}`, { token });
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}`,
+    { token }
+  );
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -81,10 +97,16 @@ export async function updateMonitor(
   getToken?: () => Promise<string>
 ): Promise<MonitorResponse> {
   const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
   const monitor = encodeRequired(params.monitorName, "monitorName");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpPATCH(`${SERVICE_BASE}/orgs/${org}/monitors/${monitor}`, body, { token });
+  const res = await httpPATCH(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}`,
+    body,
+    { token }
+  );
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -94,10 +116,15 @@ export async function deleteMonitor(
   getToken?: () => Promise<string>
 ): Promise<void> {
   const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
   const monitor = encodeRequired(params.monitorName, "monitorName");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpDELETE(`${SERVICE_BASE}/orgs/${org}/monitors/${monitor}`, { token });
+  const res = await httpDELETE(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}`,
+    { token }
+  );
   if (!res.ok) throw await res.json();
   if (res.status === 204 || res.headers.get("content-length") === "0") {
     return;
@@ -110,11 +137,13 @@ export async function stopMonitor(
   getToken?: () => Promise<string>
 ): Promise<MonitorResponse> {
   const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
   const monitor = encodeRequired(params.monitorName, "monitorName");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/monitors/${monitor}/stop`,
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/stop`,
     {},
     { token }
   );
@@ -127,11 +156,13 @@ export async function startMonitor(
   getToken?: () => Promise<string>
 ): Promise<MonitorResponse> {
   const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
   const monitor = encodeRequired(params.monitorName, "monitorName");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/monitors/${monitor}/start`,
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/start`,
     {},
     { token }
   );
@@ -144,11 +175,13 @@ export async function listMonitorRuns(
   getToken?: () => Promise<string>
 ): Promise<MonitorRunListResponse> {
   const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
   const monitor = encodeRequired(params.monitorName, "monitorName");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/monitors/${monitor}/runs`,
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/runs`,
     { token }
   );
   if (!res.ok) throw await res.json();
@@ -160,12 +193,14 @@ export async function rerunMonitor(
   getToken?: () => Promise<string>
 ): Promise<MonitorRunResponse> {
   const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
   const monitor = encodeRequired(params.monitorName, "monitorName");
   const run = encodeRequired(params.runId, "runId");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/monitors/${monitor}/runs/${run}/rerun`,
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/runs/${run}/rerun`,
     {},
     { token }
   );
@@ -178,12 +213,14 @@ export async function getMonitorRunLogs(
   getToken?: () => Promise<string>
 ): Promise<LogsResponse> {
   const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
   const monitor = encodeRequired(params.monitorName, "monitorName");
   const run = encodeRequired(params.runId, "runId");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/monitors/${monitor}/runs/${run}/logs`,
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/runs/${run}/logs`,
     { token }
   );
   if (!res.ok) throw await res.json();

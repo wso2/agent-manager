@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Stack } from "@wso2/oxygen-ui";
 import { ArrowLeft, ArrowRight } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
@@ -35,6 +35,7 @@ interface MonitorFormWizardProps {
     serverError?: unknown;
     missingParamsMessage?: string | null;
     backLabel?: string;
+    isTypeEditable?: boolean;
 }
 
 export function MonitorFormWizard({
@@ -48,6 +49,7 @@ export function MonitorFormWizard({
     serverError,
     missingParamsMessage,
     backLabel = "Back to Monitors",
+    isTypeEditable = true,
 }: MonitorFormWizardProps) {
     const [page, setPage] = useState<1 | 2>(1);
     const [formData, setFormData] = useState<CreateMonitorFormValues>(initialValues);
@@ -183,6 +185,7 @@ export function MonitorFormWizard({
                             formData={formData}
                             errors={errors}
                             onFieldChange={handleFieldChange}
+                            isTypeEditable={isTypeEditable}
                         />
                     )
                 }

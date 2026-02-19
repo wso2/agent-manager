@@ -114,7 +114,12 @@ const evaluationSummaryAverage = {
 
 export const ViewMonitorComponent: React.FC = () => {
     const { orgId, projectId, agentId, envId, monitorId } = useParams();
-    const { data } = useGetMonitor({ monitorName: monitorId!, orgName: orgId! });
+    const { data } = useGetMonitor({
+        monitorName: monitorId ?? "",
+        orgName: orgId ?? "",
+        projName: projectId ?? "",
+        agentName: agentId ?? "",
+    });
 
     const aggregateStats = useMemo<AggregateStats>(() => {
         const scores = evaluatorTrend.map((point) => point.score);

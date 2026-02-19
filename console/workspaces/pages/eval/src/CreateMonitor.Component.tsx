@@ -36,6 +36,8 @@ export const CreateMonitorComponent: React.FC = () => {
 
     const { mutate: createMonitor, isPending, error } = useCreateMonitor({
         orgName: orgId,
+        projName: projectId,
+        agentName: agentId,
     });
 
     const defaultTimeRange = useMemo(() => {

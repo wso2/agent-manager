@@ -40,6 +40,8 @@ const RUN_STATUS_CHIP_COLOR_MAP: Record<MonitorRunStatus, "success" | "warning" 
 export interface MonitorRunDrawerProps {
     run: MonitorRunResponse;
     orgName: string;
+    projectName: string;
+    agentName: string;
     monitorName: string;
     monitorDisplayName?: string;
     onClose: () => void;
@@ -51,6 +53,8 @@ export interface MonitorRunDrawerProps {
 export function MonitorRunDrawer({
     run,
     orgName,
+    projectName,
+    agentName,
     monitorName,
     monitorDisplayName,
     onClose,
@@ -61,6 +65,8 @@ export function MonitorRunDrawer({
 
     const { data, isLoading, error } = useMonitorRunLogs({
         orgName,
+        projName: projectName,
+        agentName,
         monitorName,
         runId: run.id ?? "",
     });

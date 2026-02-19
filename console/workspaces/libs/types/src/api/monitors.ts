@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { type OrgPathParams } from "./common";
+import { type AgentPathParams } from "./common";
 
 export type MonitorType = "future" | "past";
 export type MonitorStatus = "Active" | "Suspended" | "Failed" | "Unknown";
@@ -92,10 +92,10 @@ export interface UpdateMonitorRequest {
   samplingRate?: number;
 }
 
-export type ListMonitorsPathParams = OrgPathParams;
-export type CreateMonitorPathParams = OrgPathParams;
+export type ListMonitorsPathParams = AgentPathParams;
+export type CreateMonitorPathParams = AgentPathParams;
 
-export interface MonitorPathParams extends OrgPathParams {
+export interface MonitorPathParams extends AgentPathParams {
   monitorName: string | undefined;
 }
 

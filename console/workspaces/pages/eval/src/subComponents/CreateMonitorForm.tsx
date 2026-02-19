@@ -26,11 +26,12 @@ interface CreateMonitorFormProps {
     formData: CreateMonitorFormValues;
     errors: Partial<Record<keyof CreateMonitorFormValues, string | undefined>>;
     onFieldChange: (field: keyof CreateMonitorFormValues, value: unknown) => void;
+    isTypeEditable?: boolean;
 }
 
-export function CreateMonitorForm({ formData, errors, onFieldChange }: CreateMonitorFormProps) {
+export function CreateMonitorForm({ formData, errors, onFieldChange, isTypeEditable = true }: CreateMonitorFormProps) {
     const handleTypeChange = (nextType: MonitorType) => {
-        if (formData.type === nextType) {
+        if (!isTypeEditable || formData.type === nextType) {
             return;
         }
         onFieldChange("type", nextType);
@@ -78,7 +79,11 @@ export function CreateMonitorForm({ formData, errors, onFieldChange }: CreateMon
                     Data Collection
                 </Form.Header>
                 <Form.Stack direction="row">
-                    <Form.CardButton onClick={() => handleTypeChange("past")} selected={formData.type === "past"}>
+                    <Form.CardButton
+                        onClick={isTypeEditable ? () => handleTypeChange("past") : undefined}
+                        selected={formData.type === "past"}
+                        disabled={!isTypeEditable}
+                    >
                         <Form.CardHeader
                             title={(
                                 <Form.Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
@@ -88,7 +93,11 @@ export function CreateMonitorForm({ formData, errors, onFieldChange }: CreateMon
                             )}
                         />
                     </Form.CardButton>
-                    <Form.CardButton onClick={() => handleTypeChange("future")} selected={formData.type === "future"}>
+                    <Form.CardButton
+                        onClick={isTypeEditable ? () => handleTypeChange("future") : undefined}
+                        selected={formData.type === "future"}
+                        disabled={!isTypeEditable}
+                    >
                         <Form.CardHeader
                             title={(
                                 <Form.Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
@@ -99,6 +108,11 @@ export function CreateMonitorForm({ formData, errors, onFieldChange }: CreateMon
                         />
                     </Form.CardButton>
                 </Form.Stack>
+                {!isTypeEditable && (
+                    <Typography variant="caption" color="text.secondary">
+                        Monitor type is fixed for existing monitors.
+                    </Typography>
+                )}
                 <Collapse in={formData.type === "past"}>
                     <Form.Stack direction="row" maxWidth={600} justifyContent="space-around" alignItems="flex-start">
                         <Form.ElementWrapper name="traceStart" label="Start Time">

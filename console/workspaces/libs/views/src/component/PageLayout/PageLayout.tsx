@@ -121,8 +121,8 @@ export function PageLayout({
             )}
           </PageTitle.Header>
 
-          {description && (
-            <PageTitle.SubHeader>{description}</PageTitle.SubHeader>
+          {(description || !disableIcon) && (
+            <PageTitle.SubHeader>{description ? description : "No description available"}</PageTitle.SubHeader>
           )}
 
           {actions && <PageTitle.Actions>{actions}</PageTitle.Actions>}

@@ -55,8 +55,8 @@ import { formatDistanceToNow } from "date-fns";
 const projectGridTemplate = {
   xs: "repeat(1, minmax(0, 1fr))",
   md: "repeat(2, minmax(0, 1fr))",
-  lg: "repeat(4, minmax(0, 1fr))",
-  xl: "repeat(5, minmax(0, 1fr))",
+  lg: "repeat(3, minmax(0, 1fr))",
+  xl: "repeat(4, minmax(0, 1fr))",
 };
 
 function ProjectCard(props: {
@@ -99,8 +99,8 @@ function ProjectCard(props: {
           <Form.CardHeader
             title={
               <Form.Stack direction="row" spacing={1.5} alignItems="center">
-                <Avatar sx={{ bgcolor: "primary.main", color: "primary.contrastText", height: 40, width: 40 }}>
-                  <Package size={20} />
+                <Avatar sx={{ bgcolor: "primary.main", color: "primary.contrastText", height: 42, width: 42 }}>
+                  <Package size={24} />
                 </Avatar>
                 <Form.Stack
                   direction="column"

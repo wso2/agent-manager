@@ -27,16 +27,24 @@ interface MonitorStartStopButtonProps {
     monitorType: MonitorResponse["type"];
     monitorStatus?: MonitorResponse["status"] | string;
     orgId?: string;
+    projectId?: string;
+    agentId?: string;
 }
 
-export function MonitorStartStopButton({ monitorName, monitorType, monitorStatus, orgId }:
+export function MonitorStartStopButton({ monitorName, monitorType, monitorStatus, orgId, projectId, agentId }:
     MonitorStartStopButtonProps) {
     const { mutate: startMonitor, isPending: isStarting } = useStartMonitor();
     const { mutate: stopMonitor, isPending: isStopping } = useStopMonitor();
 
     const isPastMonitor = monitorType === "past";
     const isActive = monitorStatus === "Active";
-    const isDisabled = isPastMonitor || isStarting || isStopping || !orgId;
+    const isDisabled =
+        isPastMonitor ||
+        isStarting ||
+        isStopping ||
+        !orgId ||
+        !projectId ||
+        !agentId;
 
     const tooltipTitle = isActive
         ? "Stop Monitor"
@@ -46,7 +54,7 @@ export function MonitorStartStopButton({ monitorName, monitorType, monitorStatus
 
     const handleClick = useCallback((event: MouseEvent<HTMLButtonElement>) => {
         event.stopPropagation();
-        if (isDisabled || !orgId) {
+        if (isDisabled || !orgId || !projectId || !agentId) {
             return;
         }
 
@@ -54,14 +62,18 @@ export function MonitorStartStopButton({ monitorName, monitorType, monitorStatus
             stopMonitor({
                 monitorName,
                 orgName: orgId,
+                projName: projectId,
+                agentName: agentId,
             });
         } else {
             startMonitor({
                 monitorName,
                 orgName: orgId,
+                projName: projectId,
+                agentName: agentId,
             });
         }
-    }, [isActive, isDisabled, monitorName, orgId, startMonitor, stopMonitor]);
+    }, [agentId, isActive, isDisabled, monitorName, orgId, projectId, startMonitor, stopMonitor]);
 
     if (isPastMonitor){
         return (

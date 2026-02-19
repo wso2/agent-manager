@@ -55,7 +55,7 @@ export function useListMonitors(params: ListMonitorsPathParams) {
   return useQuery<MonitorListResponse>({
     queryKey: ["monitors", params],
     queryFn: () => listMonitors(params, getToken),
-    enabled: !!params.orgName,
+    enabled: !!params.orgName && !!params.projName && !!params.agentName,
   });
 }
 
@@ -64,7 +64,11 @@ export function useGetMonitor(params: GetMonitorPathParams) {
   return useQuery<MonitorResponse>({
     queryKey: ["monitor", params],
     queryFn: () => getMonitor(params, getToken),
-    enabled: !!params.orgName && !!params.monitorName,
+    enabled:
+      !!params.orgName &&
+      !!params.projName &&
+      !!params.agentName &&
+      !!params.monitorName,
   });
 }
 
@@ -137,7 +141,11 @@ export function useListMonitorRuns(params: ListMonitorRunsPathParams) {
   return useQuery<MonitorRunListResponse>({
     queryKey: ["monitor-runs", params],
     queryFn: () => listMonitorRuns(params, getToken),
-    enabled: !!params.orgName && !!params.monitorName,
+    enabled:
+      !!params.orgName &&
+      !!params.projName &&
+      !!params.agentName &&
+      !!params.monitorName,
   });
 }
 
@@ -157,6 +165,11 @@ export function useMonitorRunLogs(params: MonitorRunLogsPathParams) {
   return useQuery<LogsResponse>({
     queryKey: ["monitor-run-logs", params],
     queryFn: () => getMonitorRunLogs(params, getToken),
-    enabled: !!params.orgName && !!params.monitorName && !!params.runId,
+    enabled:
+      !!params.orgName &&
+      !!params.projName &&
+      !!params.agentName &&
+      !!params.monitorName &&
+      !!params.runId,
   });
 }

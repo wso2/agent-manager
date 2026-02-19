@@ -35,13 +35,17 @@ export const EditMonitorComponent: React.FC = () => {
     const navigate = useNavigate();
 
     const { data: monitorData, isLoading, error: fetchError } = useGetMonitor({
-        monitorName: monitorId,
-        orgName: orgId,
+        monitorName: monitorId ?? "",
+        orgName: orgId ?? "",
+        projName: projectId ?? "",
+        agentName: agentId ?? "",
     });
 
     const { mutate: updateMonitor, isPending: isUpdating, error: updateError } = useUpdateMonitor({
-        monitorName: monitorId,
-        orgName: orgId,
+        monitorName: monitorId ?? "",
+        orgName: orgId ?? "",
+        projName: projectId ?? "",
+        agentName: agentId ?? "",
     });
 
     const missingParamsMessage = useMemo(() => {
@@ -87,7 +91,7 @@ export const EditMonitorComponent: React.FC = () => {
     }, [monitorData]);
 
     const handleUpdateMonitor = useCallback((values: CreateMonitorFormValues) => {
-        if (!orgId || !monitorId) {
+        if (!orgId || !projectId || !agentId || !monitorId) {
             return;
         }
 
@@ -103,7 +107,7 @@ export const EditMonitorComponent: React.FC = () => {
                 navigate(backHref);
             },
         });
-    }, [backHref, monitorId, navigate, orgId, updateMonitor]);
+    }, [agentId, backHref, monitorId, navigate, orgId, projectId, updateMonitor]);
 
     if (missingParamsMessage) {
         return (
@@ -180,6 +184,7 @@ export const EditMonitorComponent: React.FC = () => {
             onSubmit={handleUpdateMonitor}
             isSubmitting={isUpdating}
             serverError={updateError}
+            isTypeEditable={false}
         />
     );
 };

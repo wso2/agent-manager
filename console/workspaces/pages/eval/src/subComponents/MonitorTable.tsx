@@ -41,7 +41,9 @@ export function MonitorTable() {
         envId: string;
     }>();
     const { data: monitorsList, isLoading, error } = useListMonitors({
-        orgName: orgId ?? "",
+        orgName: orgId,
+        projName: projectId,
+        agentName: agentId,
     });
 
     const { mutate: deleteMonitor } = useDeleteMonitor();
@@ -242,6 +244,8 @@ export function MonitorTable() {
                                         monitorType={monitor.type}
                                         monitorStatus={monitor.status}
                                         orgId={orgId}
+                                        projectId={projectId}
+                                        agentId={agentId}
                                     />
                                     <IconButton onClick={() => navigate(
                                         generatePath(
@@ -266,7 +270,9 @@ export function MonitorTable() {
                                                         //delete action
                                                         deleteMonitor({
                                                             monitorName: monitor.name,
-                                                            orgName: orgId ?? "",
+                                                            orgName: orgId,
+                                                            projName: projectId,
+                                                            agentName: agentId,
                                                         }, {
 
                                                         });
