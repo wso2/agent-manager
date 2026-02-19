@@ -65,9 +65,6 @@ func (c *openChoreoClient) ListOrganizations(ctx context.Context) ([]*models.Org
 	if resp.StatusCode() != http.StatusOK {
 		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{})
 	}
-	fmt.Print("list orgs\n")
-	fmt.Println(string(resp.Body))
-	fmt.Print("list orgs\n")
 
 	if resp.JSON200 == nil || resp.JSON200.Data == nil || resp.JSON200.Data.Items == nil {
 		return []*models.OrganizationResponse{}, nil
