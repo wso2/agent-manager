@@ -172,6 +172,12 @@ func loadEnvs() {
 		Enable:  r.readOptionalBool("API_PLATFORM_ENABLED", false),
 	}
 
+	// Secret Management Service configuration
+	config.SecretManagement = SecretManagementConfig{
+		URL:    r.readOptionalString("SECRET_MGMT_SERVICE_URL", ""),
+		Enable: r.readOptionalBool("SECRET_MGMT_ENABLED", false),
+	}
+
 	// Internal Server configuration (for WebSocket and gateway internal APIs)
 	config.InternalServer = InternalServerConfig{
 		Host:                r.readOptionalString("INTERNAL_SERVER_HOST", ""),

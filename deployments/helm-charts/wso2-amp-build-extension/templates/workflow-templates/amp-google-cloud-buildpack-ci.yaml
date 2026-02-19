@@ -273,7 +273,24 @@ spec:
             # Environment variables
             if [ -n "$ENV_VARS" ] && [ "$ENV_VARS" != "null" ] && [ "$ENV_VARS" != "[]" ]; then
               echo "      env:" >> "$OUT"
-              echo "$ENV_VARS" | jq -r '.[] | "        - key: \(.name)\n          value: \(.value | tostring | @json)"' >> "$OUT"
+              echo "$ENV_VARS" | jq -c '.[]' | while read -r env_var; do
+                NAME=$(echo "$env_var" | jq -r '.name')
+                VALUE=$(echo "$env_var" | jq -r '.value // empty')
+                SECRET_NAME=$(echo "$env_var" | jq -r '.valueFrom.secretKeyRef.name // empty')
+                SECRET_KEY=$(echo "$env_var" | jq -r '.valueFrom.secretKeyRef.key // empty')
+
+                echo "        - key: ${NAME}" >> "$OUT"
+                if [ -n "$SECRET_NAME" ] && [ -n "$SECRET_KEY" ]; then
+                  # Secret reference
+                  echo "          valueFrom:" >> "$OUT"
+                  echo "            secretKeyRef:" >> "$OUT"
+                  echo "              name: ${SECRET_NAME}" >> "$OUT"
+                  echo "              key: ${SECRET_KEY}" >> "$OUT"
+                else
+                  # Plain value
+                  echo "          value: $(echo "$VALUE" | jq -Rs '.')" >> "$OUT"
+                fi
+              done
             fi
 
             # Endpoints

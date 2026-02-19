@@ -29,6 +29,8 @@ type Configurations struct {
 // will change when the set of required properties is changed
 func NewConfigurations() *Configurations {
 	this := Configurations{}
+	var enableAutoInstrumentation bool = true
+	this.EnableAutoInstrumentation = &enableAutoInstrumentation
 	return &this
 }
 
@@ -37,6 +39,8 @@ func NewConfigurations() *Configurations {
 // but it doesn't guarantee that properties required by API are set
 func NewConfigurationsWithDefaults() *Configurations {
 	this := Configurations{}
+	var enableAutoInstrumentation bool = true
+	this.EnableAutoInstrumentation = &enableAutoInstrumentation
 	return &this
 }
 

@@ -20,7 +20,10 @@ import (
 //			ApplyResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
 //				panic("mock out the ApplyResource method")
 //			},
-//			AttachTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) error {
+//			AttachExternalSecretTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, kvPath string, refreshInterval string) error {
+//				panic("mock out the AttachExternalSecretTrait method")
+//			},
+//			AttachTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType, agentApiKey ...string) error {
 //				panic("mock out the AttachTrait method")
 //			},
 //			ComponentExistsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, verifyProject bool) (bool, error) {
@@ -126,6 +129,9 @@ type OpenChoreoClientMock struct {
 	// ApplyResourceFunc mocks the ApplyResource method.
 	ApplyResourceFunc func(ctx context.Context, body map[string]interface{}) error
 
+	// AttachExternalSecretTraitFunc mocks the AttachExternalSecretTrait method.
+	AttachExternalSecretTraitFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, kvPath string, refreshInterval string) error
+
 	// AttachTraitFunc mocks the AttachTrait method.
 	AttachTraitFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) error
 
@@ -230,6 +236,21 @@ type OpenChoreoClientMock struct {
 			Ctx context.Context
 			// Body is the body argument value.
 			Body map[string]interface{}
+		}
+		// AttachExternalSecretTrait holds details about calls to the AttachExternalSecretTrait method.
+		AttachExternalSecretTrait []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// KvPath is the kvPath argument value.
+			KvPath string
+			// RefreshInterval is the refreshInterval argument value.
+			RefreshInterval string
 		}
 		// AttachTrait holds details about calls to the AttachTrait method.
 		AttachTrait []struct {
@@ -571,6 +592,7 @@ type OpenChoreoClientMock struct {
 		}
 	}
 	lockApplyResource                       sync.RWMutex
+	lockAttachExternalSecretTrait           sync.RWMutex
 	lockAttachTrait                         sync.RWMutex
 	lockComponentExists                     sync.RWMutex
 	lockCreateComponent                     sync.RWMutex
@@ -638,6 +660,58 @@ func (mock *OpenChoreoClientMock) ApplyResourceCalls() []struct {
 	mock.lockApplyResource.RLock()
 	calls = mock.calls.ApplyResource
 	mock.lockApplyResource.RUnlock()
+	return calls
+}
+
+// AttachExternalSecretTrait calls AttachExternalSecretTraitFunc.
+func (mock *OpenChoreoClientMock) AttachExternalSecretTrait(ctx context.Context, namespaceName string, projectName string, componentName string, kvPath string, refreshInterval string) error {
+	if mock.AttachExternalSecretTraitFunc == nil {
+		panic("OpenChoreoClientMock.AttachExternalSecretTraitFunc: method is nil but OpenChoreoClient.AttachExternalSecretTrait was just called")
+	}
+	callInfo := struct {
+		Ctx             context.Context
+		NamespaceName   string
+		ProjectName     string
+		ComponentName   string
+		KvPath          string
+		RefreshInterval string
+	}{
+		Ctx:             ctx,
+		NamespaceName:   namespaceName,
+		ProjectName:     projectName,
+		ComponentName:   componentName,
+		KvPath:          kvPath,
+		RefreshInterval: refreshInterval,
+	}
+	mock.lockAttachExternalSecretTrait.Lock()
+	mock.calls.AttachExternalSecretTrait = append(mock.calls.AttachExternalSecretTrait, callInfo)
+	mock.lockAttachExternalSecretTrait.Unlock()
+	return mock.AttachExternalSecretTraitFunc(ctx, namespaceName, projectName, componentName, kvPath, refreshInterval)
+}
+
+// AttachExternalSecretTraitCalls gets all the calls that were made to AttachExternalSecretTrait.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.AttachExternalSecretTraitCalls())
+func (mock *OpenChoreoClientMock) AttachExternalSecretTraitCalls() []struct {
+	Ctx             context.Context
+	NamespaceName   string
+	ProjectName     string
+	ComponentName   string
+	KvPath          string
+	RefreshInterval string
+} {
+	var calls []struct {
+		Ctx             context.Context
+		NamespaceName   string
+		ProjectName     string
+		ComponentName   string
+		KvPath          string
+		RefreshInterval string
+	}
+	mock.lockAttachExternalSecretTrait.RLock()
+	calls = mock.calls.AttachExternalSecretTrait
+	mock.lockAttachExternalSecretTrait.RUnlock()
 	return calls
 }
 

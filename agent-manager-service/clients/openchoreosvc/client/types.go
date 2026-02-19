@@ -159,8 +159,20 @@ type DeployRequest struct {
 
 // EnvVar represents an environment variable for deployment
 type EnvVar struct {
-	Key   string
-	Value string
+	Key       string
+	Value     string
+	ValueFrom *EnvVarValueFrom
+}
+
+// EnvVarValueFrom represents a source for the value of an EnvVar
+type EnvVarValueFrom struct {
+	SecretKeyRef *SecretKeyRef
+}
+
+// SecretKeyRef selects a key of a Secret
+type SecretKeyRef struct {
+	Name string // Name of the secret
+	Key  string // Key within the secret
 }
 
 // -----------------------------------------------------------------------------

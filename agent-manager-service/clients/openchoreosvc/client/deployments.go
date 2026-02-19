@@ -59,11 +59,23 @@ func (c *openChoreoClient) Deploy(ctx context.Context, orgName, projectName, com
 	// Build environment variables
 	var envVars []gen.EnvVar
 	for _, env := range req.Env {
-		value := env.Value
-		envVars = append(envVars, gen.EnvVar{
-			Key:   env.Key,
-			Value: &value,
-		})
+		envVar := gen.EnvVar{
+			Key: env.Key,
+		}
+		if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
+			// Secret reference - use valueFrom pattern
+			envVar.ValueFrom = &gen.EnvVarValueFrom{
+				SecretRef: &gen.SecretKeyRef{
+					Name: env.ValueFrom.SecretKeyRef.Name,
+					Key:  env.ValueFrom.SecretKeyRef.Key,
+				},
+			}
+		} else {
+			// Plain value
+			value := env.Value
+			envVar.Value = &value
+		}
+		envVars = append(envVars, envVar)
 	}
 	// Update only the main container, preserving any existing containers
 	containers, ok := workloadBody["containers"].(map[string]interface{})

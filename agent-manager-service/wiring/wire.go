@@ -28,6 +28,7 @@ import (
 
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmgmtsvc"
 	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
@@ -46,6 +47,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideObservabilitySvcClient,
 	traceobserversvc.NewTraceObserverClient,
 	ProvideOCClient,
+	ProvideSecretManagementClient,
 )
 
 var serviceProviderSet = wire.NewSet(
@@ -94,6 +96,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
 	ProvideTestTraceObserverClient,
+	ProvideTestSecretManagementClient,
 )
 
 // ProvideLogger provides the configured slog.Logger instance
@@ -113,6 +116,18 @@ func ProvideOCClient(cfg config.Config, authProvider occlient.AuthProvider) (occ
 func ProvideObservabilitySvcClient(cfg config.Config, authProvider occlient.AuthProvider) (observabilitysvc.ObservabilitySvcClient, error) {
 	return observabilitysvc.NewObservabilitySvcClient(&observabilitysvc.Config{
 		BaseURL:      cfg.Observer.URL,
+		AuthProvider: authProvider,
+	})
+}
+
+// ProvideSecretManagementClient creates the secret management service client
+// Returns nil if secret management is disabled
+func ProvideSecretManagementClient(cfg config.Config, authProvider occlient.AuthProvider) (secretmgmtsvc.SecretManagementClient, error) {
+	if !cfg.SecretManagement.Enable || cfg.SecretManagement.URL == "" {
+		return nil, nil
+	}
+	return secretmgmtsvc.NewSecretManagementClient(&secretmgmtsvc.Config{
+		BaseURL:      cfg.SecretManagement.URL,
 		AuthProvider: authProvider,
 	})
 }
@@ -148,6 +163,10 @@ func ProvideTestObservabilitySvcClient(testClients TestClients) observabilitysvc
 
 func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.TraceObserverClient {
 	return testClients.TraceObserverClient
+}
+
+func ProvideTestSecretManagementClient(testClients TestClients) secretmgmtsvc.SecretManagementClient {
+	return testClients.SecretMgmtClient
 }
 
 // ProvideWebSocketManager creates a new WebSocket manager with config

@@ -215,8 +215,18 @@ helm upgrade --install amp-evaluation-workflows-extension "${SCRIPT_DIR}/../helm
 echo "✅ Evaluation Workflows Extension installed/upgraded successfully"
 echo ""
 
+# Install Secrets Extension (OpenBao)
+echo "8️⃣ Installing/Upgrading Secrets Extension (OpenBao)..."
+echo "   Setting up OpenBao for data plane secret management..."
+helm dependency update "${SCRIPT_DIR}/../helm-charts/wso2-amp-secrets-extension"
+helm upgrade --install amp-secrets "${SCRIPT_DIR}/../helm-charts/wso2-amp-secrets-extension" --namespace amp-secrets --create-namespace
+echo "⏳ Waiting for OpenBao to be ready..."
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=openbao -n amp-secrets --timeout=120s || echo "⚠️  OpenBao pods may still be starting"
+echo "✅ Secrets Extension installed/upgraded successfully"
+echo ""
+
 # Install Default Platform Resources
-echo "8️⃣ Installing/Upgrading Default Platform Resources..."
+echo "9️⃣ Installing/Upgrading Default Platform Resources..."
 echo "   Creating default Organization, Project, Environment, and DeploymentPipeline..."
 helm upgrade --install amp-default-platform-resources "${SCRIPT_DIR}/../helm-charts/wso2-amp-platform-resources-extension" --namespace default
 echo "✅ Default Platform Resources installed/upgraded successfully"
@@ -224,7 +234,7 @@ echo ""
 
 # ============================================================================
 # Step 4: Install OpenChoreo  Observability Plane
-echo "9️⃣  Installing OpenChoreo Observability Plane..."
+echo "🔟  Installing OpenChoreo Observability Plane..."
 if helm status openchoreo-observability-plane -n openchoreo-observability-plane &>/dev/null; then
     echo "⏭️  Observability Plane already installed, skipping..."
 else

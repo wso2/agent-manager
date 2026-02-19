@@ -71,6 +71,9 @@ type Config struct {
 	// API Platform configuration
 	APIPlatform APIPlatformConfig
 
+	// Secret Management Service configuration
+	SecretManagement SecretManagementConfig
+
 	// Internal Server configuration (for WebSocket and gateway internal APIs)
 	InternalServer InternalServerConfig
 
@@ -200,6 +203,14 @@ type PublicKeysConfig struct {
 type APIPlatformConfig struct {
 	BaseURL string // Base URL for API Platform
 	Enable  bool
+}
+
+// SecretManagementConfig holds Secret Management Service configuration
+type SecretManagementConfig struct {
+	// URL is the Secret Management Service base URL
+	URL string
+	// Enable flag to enable/disable secret management integration
+	Enable bool
 }
 
 // InternalServerConfig holds configuration for the internal HTTPS server

@@ -1,0 +1,347 @@
+openapi: 3.0.3
+info:
+  title: Secret Management Service API
+  description: API for managing secrets in KV stores (OpenBao, HashiCorp Vault, etc.)
+  version: 1.0.0
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: http://localhost:9099
+    description: Local development server
+
+paths:
+  /api/v1/health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+
+  /api/v1/organizations/{orgName}/secrets:
+    get:
+      summary: List secrets metadata
+      operationId: listSecrets
+      tags:
+        - Secrets
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: path
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Path prefix to filter secrets
+      responses:
+        '200':
+          description: List of secret metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SecretMetadata'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      summary: Create a new secret
+      operationId: createSecret
+      tags:
+        - Secrets
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSecretRequest'
+      responses:
+        '201':
+          description: Secret created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecretResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/organizations/{orgName}/secrets/{path}:
+    get:
+      summary: Get a secret
+      operationId: getSecret
+      tags:
+        - Secrets
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Secret path
+        - name: version
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Specific version to retrieve
+      responses:
+        '200':
+          description: Secret retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecretResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      summary: Update a secret
+      operationId: updateSecret
+      tags:
+        - Secrets
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Secret path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSecretRequest'
+      responses:
+        '200':
+          description: Secret updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecretResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      summary: Delete a secret
+      operationId: deleteSecret
+      tags:
+        - Secrets
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Secret path
+      responses:
+        '204':
+          description: Secret deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/organizations/{orgName}/secrets/{path}/versions:
+    get:
+      summary: List secret versions
+      operationId: listSecretVersions
+      tags:
+        - Secrets
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Secret path
+      responses:
+        '200':
+          description: List of secret versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SecretVersion'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  schemas:
+    CreateSecretRequest:
+      type: object
+      required:
+        - path
+        - data
+      properties:
+        path:
+          type: string
+          description: Secret path within organization scope
+          example: agents/my-agent/api-keys
+        data:
+          type: object
+          additionalProperties:
+            type: string
+          description: Key-value pairs for the secret
+          example:
+            API_KEY: sk-xxx
+            API_SECRET: secret123
+
+    UpdateSecretRequest:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          additionalProperties:
+            type: string
+          description: Key-value pairs to update
+          example:
+            API_KEY: sk-new-key
+
+    SecretResponse:
+      type: object
+      properties:
+        path:
+          type: string
+          description: Full path of the secret
+        data:
+          type: object
+          additionalProperties:
+            type: string
+          description: Secret data
+        version:
+          type: integer
+          description: Current version number
+        metadata:
+          $ref: '#/components/schemas/SecretMetadata'
+
+    SecretMetadata:
+      type: object
+      properties:
+        path:
+          type: string
+          description: Secret path
+        version:
+          type: integer
+          description: Version number
+        createdTime:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedTime:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    SecretVersion:
+      type: object
+      properties:
+        version:
+          type: integer
+          description: Version number
+        createdTime:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        deleted:
+          type: boolean
+          description: Whether this version is deleted
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Secrets
+    description: Secret management operations

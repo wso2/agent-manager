@@ -391,6 +391,7 @@ jobs:
             ### Docker Images
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-console:v${{ inputs.target-release }}`
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-api:v${{ inputs.target-release }}`
+            - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-secret-manager:v${{ inputs.target-release }}`
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-traces-observer:v${{ inputs.target-release }}`
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-python-instrumentation-provider:v${{ inputs.target-release }}`
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-quick-start:v${{ inputs.target-release }}`

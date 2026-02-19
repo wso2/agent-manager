@@ -7,14 +7,10 @@
 package wiring
 
 import (
-	"log/slog"
-	"time"
-
 	"github.com/google/wire"
-	"gorm.io/gorm"
-
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmgmtsvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
@@ -22,6 +18,9 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
+	"gorm.io/gorm"
+	"log/slog"
+	"time"
 )
 
 // Injectors from wire.go:
@@ -39,13 +38,17 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	if err != nil {
 		return nil, err
 	}
+	secretManagementClient, err := ProvideSecretManagementClient(configConfig, authProvider)
+	if err != nil {
+		return nil, err
+	}
 	repositoryService := services.NewRepositoryService()
 	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
 	agentTokenManagerService, err := services.NewAgentTokenManagerService(openChoreoClient, jwtSigningConfig, logger)
 	if err != nil {
 		return nil, err
 	}
-	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, repositoryService, agentTokenManagerService, logger)
+	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, secretManagementClient, repositoryService, agentTokenManagerService, logger)
 	agentController := controllers.NewAgentController(agentManagerService)
 	organizationRepository := ProvideOrganizationRepository(db)
 	infraResourceManager := services.NewInfraResourceManager(openChoreoClient, organizationRepository, logger)
@@ -122,6 +125,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	logger := ProvideLogger()
 	openChoreoClient := ProvideTestOpenChoreoClient(testClients)
 	observabilitySvcClient := ProvideTestObservabilitySvcClient(testClients)
+	secretManagementClient := ProvideTestSecretManagementClient(testClients)
 	repositoryService := services.NewRepositoryService()
 	configConfig := ProvideConfigFromPtr(cfg)
 	jwtSigningConfig := ProvideJWTSigningConfig(configConfig)
@@ -129,7 +133,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	if err != nil {
 		return nil, err
 	}
-	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, repositoryService, agentTokenManagerService, logger)
+	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, secretManagementClient, repositoryService, agentTokenManagerService, logger)
 	agentController := controllers.NewAgentController(agentManagerService)
 	organizationRepository := ProvideOrganizationRepository(db)
 	infraResourceManager := services.NewInfraResourceManager(openChoreoClient, organizationRepository, logger)
@@ -209,7 +213,9 @@ var configProviderSet = wire.NewSet(
 )
 
 var clientProviderSet = wire.NewSet(
-	ProvideObservabilitySvcClient, traceobserversvc.NewTraceObserverClient, ProvideOCClient,
+	ProvideObservabilitySvcClient, traceobserversvc.NewTraceObserverClient, ProvideOCAuthProvider,
+	ProvideOCClient,
+	ProvideSecretManagementClient,
 )
 
 var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, services.NewMonitorSchedulerService, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewLLMProxyDeploymentService, services.NewGatewayInternalAPIService, ProvideLLMTemplateSeeder)
@@ -220,6 +226,7 @@ var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
 	ProvideTestObservabilitySvcClient,
 	ProvideTestTraceObserverClient,
+	ProvideTestSecretManagementClient,
 )
 
 // ProvideLogger provides the configured slog.Logger instance
@@ -239,6 +246,18 @@ func ProvideOCClient(cfg config.Config, authProvider client.AuthProvider) (clien
 func ProvideObservabilitySvcClient(cfg config.Config, authProvider client.AuthProvider) (observabilitysvc.ObservabilitySvcClient, error) {
 	return observabilitysvc.NewObservabilitySvcClient(&observabilitysvc.Config{
 		BaseURL:      cfg.Observer.URL,
+		AuthProvider: authProvider,
+	})
+}
+
+// ProvideSecretManagementClient creates the secret management service client
+// Returns nil if secret management is disabled
+func ProvideSecretManagementClient(cfg config.Config, authProvider client.AuthProvider) (secretmgmtsvc.SecretManagementClient, error) {
+	if !cfg.SecretManagement.Enable || cfg.SecretManagement.URL == "" {
+		return nil, nil
+	}
+	return secretmgmtsvc.NewSecretManagementClient(&secretmgmtsvc.Config{
+		BaseURL:      cfg.SecretManagement.URL,
 		AuthProvider: authProvider,
 	})
 }
@@ -273,6 +292,10 @@ func ProvideTestObservabilitySvcClient(testClients TestClients) observabilitysvc
 
 func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.TraceObserverClient {
 	return testClients.TraceObserverClient
+}
+
+func ProvideTestSecretManagementClient(testClients TestClients) secretmgmtsvc.SecretManagementClient {
+	return testClients.SecretMgmtClient
 }
 
 // ProvideWebSocketManager creates a new WebSocket manager with config

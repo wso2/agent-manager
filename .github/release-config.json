@@ -12,6 +12,10 @@
       "dir": "agent-manager-service"
     },
     {
+      "name": "amp-secret-manager",
+      "dir": "secret-management-service"
+    },
+    {
       "name": "amp-traces-observer",
       "dir": "traces-observer-service"
     },
@@ -32,6 +36,7 @@
     "wso2-amp-build-extension",
     "wso2-amp-observability-extension",
     "wso2-amp-platform-resources-extension",
+    "wso2-amp-secrets-extension",
     "wso2-amp-thunder-extension"
   ]
 }

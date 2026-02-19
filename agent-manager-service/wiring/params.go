@@ -23,6 +23,7 @@ import (
 
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmgmtsvc"
 	traceobserversvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
@@ -75,6 +76,7 @@ type TestClients struct {
 	OpenChoreoClient       occlient.OpenChoreoClient
 	ObservabilitySvcClient observabilitysvc.ObservabilitySvcClient
 	TraceObserverClient    traceobserversvc.TraceObserverClient
+	SecretMgmtClient       secretmgmtsvc.SecretManagementClient
 }
 
 func ProvideConfigFromPtr(config *config.Config) config.Config {

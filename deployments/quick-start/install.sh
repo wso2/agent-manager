@@ -958,6 +958,16 @@ log_success "Agent Management Platform installed successfully"
 echo ""
 
 
+# Install secrets extension (OpenBao)
+log_info "Installing Secrets Extension (OpenBao for secret management)..."
+if ! install_secrets_extension; then
+    log_warning "Secrets Extension installation failed (non-fatal)"
+    echo "The platform is installed but secret management features may not work."
+else
+    log_success "Secrets Extension installed successfully"
+fi
+echo ""
+
 # Install platform resources extension
 log_info "Installing Platform Resources Extension (Default Organization, Project, Environment, DeploymentPipeline)..."
 if ! install_platform_resources_extension; then

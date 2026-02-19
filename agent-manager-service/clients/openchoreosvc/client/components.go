@@ -308,10 +308,22 @@ func buildEnvironmentVariables(req CreateComponentRequest) []map[string]any {
 	envVars := make([]map[string]any, 0)
 	if req.Configurations != nil {
 		for _, env := range req.Configurations.Env {
-			envVars = append(envVars, map[string]any{
-				"name":  env.Key,
-				"value": env.Value,
-			})
+			envVar := map[string]any{
+				"name": env.Key,
+			}
+			if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
+				// Secret reference - use valueFrom pattern
+				envVar["valueFrom"] = map[string]any{
+					"secretKeyRef": map[string]any{
+						"name": env.ValueFrom.SecretKeyRef.Name,
+						"key":  env.ValueFrom.SecretKeyRef.Key,
+					},
+				}
+			} else {
+				// Plain value
+				envVar["value"] = env.Value
+			}
+			envVars = append(envVars, envVar)
 		}
 	}
 	return envVars
@@ -862,6 +874,97 @@ func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, proje
 	return nil
 }
 
+// AttachExternalSecretTrait attaches the external-secret-trait to a component for syncing secrets from OpenBao
+func (c *openChoreoClient) AttachExternalSecretTrait(ctx context.Context, namespaceName, projectName, componentName, kvPath string, refreshInterval string) error {
+	// Get the current traits for the component
+	listResp, err := c.ocClient.ListComponentTraitsWithResponse(ctx, namespaceName, projectName, componentName)
+	if err != nil {
+		return fmt.Errorf("failed to list component traits: %w", err)
+	}
+
+	if listResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(listResp.StatusCode(), listResp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	// Build the new traits list including existing traits
+	var traits []gen.ComponentTraitRequest
+	instanceName := fmt.Sprintf("%s-secrets", componentName)
+
+	// Parse existing traits from the generic response
+	if listResp.JSON200 != nil && listResp.JSON200.Data != nil && listResp.JSON200.Data.Items != nil {
+		for _, item := range *listResp.JSON200.Data.Items {
+			name, _ := item["name"].(string)
+			existingInstanceName, _ := item["instanceName"].(string)
+			// Check if external-secret-trait already exists with same instance name
+			if name == string(TraitExternalSecret) && existingInstanceName == instanceName {
+				// Trait already exists, update its parameters
+				params := map[string]interface{}{
+					"kvPath":          kvPath,
+					"refreshInterval": refreshInterval,
+				}
+				trait := gen.ComponentTraitRequest{
+					Name:         name,
+					InstanceName: existingInstanceName,
+					Parameters:   &params,
+				}
+				traits = append(traits, trait)
+				continue
+			}
+			trait := gen.ComponentTraitRequest{
+				Name:         name,
+				InstanceName: existingInstanceName,
+			}
+			if params, ok := item["parameters"].(map[string]interface{}); ok {
+				trait.Parameters = &params
+			}
+			traits = append(traits, trait)
+		}
+	}
+
+	// Check if we already added the trait (update case)
+	traitExists := false
+	for _, t := range traits {
+		if t.Name == string(TraitExternalSecret) && t.InstanceName == instanceName {
+			traitExists = true
+			break
+		}
+	}
+
+	// Add the new trait if it doesn't exist
+	if !traitExists {
+		params := map[string]interface{}{
+			"kvPath":          kvPath,
+			"refreshInterval": refreshInterval,
+		}
+		newTrait := gen.ComponentTraitRequest{
+			Name:         string(TraitExternalSecret),
+			InstanceName: instanceName,
+			Parameters:   &params,
+		}
+		traits = append(traits, newTrait)
+	}
+
+	// Update traits
+	updateReq := gen.UpdateComponentTraitsJSONRequestBody{
+		Traits: traits,
+	}
+
+	updateResp, err := c.ocClient.UpdateComponentTraitsWithResponse(ctx, namespaceName, projectName, componentName, updateReq)
+	if err != nil {
+		return fmt.Errorf("failed to update component traits: %w", err)
+	}
+
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), updateResp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	return nil
+}
+
 // UpdateComponentEnvironmentVariables updates the environment variables for a component
 func (c *openChoreoClient) UpdateComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
 	// Fetch the full component CR with server-managed fields removed
@@ -908,10 +1011,22 @@ func (c *openChoreoClient) UpdateComponentEnvironmentVariables(ctx context.Conte
 	}
 
 	for _, newEnv := range envVars {
-		envMap[newEnv.Key] = map[string]any{
-			"name":  newEnv.Key,
-			"value": newEnv.Value,
+		envVar := map[string]any{
+			"name": newEnv.Key,
 		}
+		if newEnv.ValueFrom != nil && newEnv.ValueFrom.SecretKeyRef != nil {
+			// Secret reference - use valueFrom pattern
+			envVar["valueFrom"] = map[string]any{
+				"secretKeyRef": map[string]any{
+					"name": newEnv.ValueFrom.SecretKeyRef.Name,
+					"key":  newEnv.ValueFrom.SecretKeyRef.Key,
+				},
+			}
+		} else {
+			// Plain value
+			envVar["value"] = newEnv.Value
+		}
+		envMap[newEnv.Key] = envVar
 	}
 	mergedEnvVars := make([]map[string]any, 0, len(envMap))
 	for _, env := range envMap {
