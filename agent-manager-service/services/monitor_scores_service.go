@@ -28,6 +28,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // MonitorScoresService handles evaluation score business logic
@@ -209,9 +210,9 @@ func (s *MonitorScoresService) GetEvaluatorTimeSeries(
 
 // GetTraceScores returns all evaluation scores for a specific trace across all monitors
 func (s *MonitorScoresService) GetTraceScores(
-	traceID, orgName, agentName string,
+	traceID, orgName, projName, agentName string,
 ) (*models.TraceScoresResponse, error) {
-	scores, err := s.repo.GetScoresByTraceID(traceID, orgName, agentName)
+	scores, err := s.repo.GetScoresByTraceID(traceID, orgName, projName, agentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get trace scores: %w", err)
 	}
@@ -288,15 +289,12 @@ func (s *MonitorScoresService) GetTraceScores(
 
 // GetMonitorID resolves monitor name to monitor ID
 func (s *MonitorScoresService) GetMonitorID(orgName, projName, agentName, monitorName string) (uuid.UUID, error) {
-	var monitor models.Monitor
-	if err := db.GetDB().Where(
-		"name = ? AND org_name = ? AND project_name = ? AND agent_name = ?",
-		monitorName, orgName, projName, agentName,
-	).Select("id").First(&monitor).Error; err != nil {
+	id, err := s.repo.GetMonitorID(orgName, projName, agentName, monitorName)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return uuid.Nil, fmt.Errorf("monitor not found: %s", monitorName)
+			return uuid.Nil, fmt.Errorf("monitor %q not found: %w", monitorName, utils.ErrMonitorNotFound)
 		}
 		return uuid.Nil, fmt.Errorf("failed to query monitor: %w", err)
 	}
-	return monitor.ID, nil
+	return id, nil
 }

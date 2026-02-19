@@ -65,7 +65,7 @@ kubectl port-forward -n openchoreo-data-plane svc/obs-gateway-gateway-router 228
 
 # Port forward OpenChoreo API
 echo "🚀 Forwarding OpenChoreo API (8080)..."
-kubectl port-forward -n openchoreo-control-plane svc/openchoreo-api 8080:8080
+kubectl port-forward -n openchoreo-control-plane svc/openchoreo-api 8080:8080 &
 
 
 echo ""

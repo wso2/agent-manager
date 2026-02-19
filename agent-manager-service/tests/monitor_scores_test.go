@@ -17,21 +17,64 @@
 package tests
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 )
 
-// newScoresHandler builds a minimal ServeMux wired to a scores controller with a nil service.
-// All validation-failure paths return before the service is called, so nil is safe.
+// stubScoreRepo is a minimal ScoreRepository that returns "not found" for monitor lookups.
+type stubScoreRepo struct{}
+
+func (s *stubScoreRepo) WithTx(_ *gorm.DB) repositories.ScoreRepository { return s }
+func (s *stubScoreRepo) UpsertMonitorRunEvaluators(_ []models.MonitorRunEvaluator) error {
+	return nil
+}
+
+func (s *stubScoreRepo) GetEvaluatorsByRunID(_ uuid.UUID) ([]models.MonitorRunEvaluator, error) {
+	return nil, nil
+}
+func (s *stubScoreRepo) BatchCreateScores(_ []models.Score) error { return nil }
+func (s *stubScoreRepo) DeleteScoresByRunEvaluatorAndTraces(_ uuid.UUID, _ []string) error {
+	return nil
+}
+
+func (s *stubScoreRepo) GetScoresByMonitorAndTimeRange(_ uuid.UUID, _, _ time.Time, _ repositories.ScoreFilters) ([]repositories.ScoreWithEvaluator, error) {
+	return nil, nil
+}
+
+func (s *stubScoreRepo) GetMonitorScoresAggregated(_ uuid.UUID, _, _ time.Time, _ repositories.ScoreFilters) ([]repositories.EvaluatorAggregation, error) {
+	return nil, nil
+}
+
+func (s *stubScoreRepo) GetEvaluatorTimeSeriesAggregated(_ uuid.UUID, _ string, _, _ time.Time, _ string) ([]repositories.TimeBucketAggregation, error) {
+	return nil, nil
+}
+
+func (s *stubScoreRepo) GetScoresByTraceID(_ string, _, _, _ string) ([]repositories.ScoreWithMonitor, error) {
+	return nil, nil
+}
+
+func (s *stubScoreRepo) GetMonitorID(_, _, _, _ string) (uuid.UUID, error) {
+	return uuid.Nil, gorm.ErrRecordNotFound
+}
+
+// newScoresHandler builds a minimal ServeMux wired to a scores controller backed by
+// a stub repository that returns "not found" for all monitor lookups.
 func newScoresHandler() http.Handler {
 	mux := http.NewServeMux()
-	ctrl := controllers.NewMonitorScoresController(nil)
+	svc := services.NewMonitorScoresService(&stubScoreRepo{}, slog.Default())
+	ctrl := controllers.NewMonitorScoresController(svc)
 
 	base := "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}"
 	agentBase := "/orgs/{orgName}/projects/{projName}/agents/{agentName}"

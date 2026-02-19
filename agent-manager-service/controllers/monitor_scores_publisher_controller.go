@@ -98,8 +98,8 @@ func (c *monitorScoresPublisherController) PublishScores(w http.ResponseWriter, 
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
 	if _, err := w.Write([]byte(`{"message":"scores published successfully"}`)); err != nil {
 		log.Error("Failed to write response", "error", err)
 	}

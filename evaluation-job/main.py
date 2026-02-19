@@ -431,8 +431,9 @@ def main():
         )
 
         if not publish_success:
-            logger.error("Failed to publish scores - evaluation results not persisted")
-            sys.exit(1)
+            logger.warning(
+                "Failed to publish scores - evaluation results not persisted"
+            )
 
         # Exit with appropriate code
         sys.exit(0 if result.success else 1)

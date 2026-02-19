@@ -1117,7 +1117,8 @@ class Monitor(BaseRunner):
                 # Parse fetched traces to Trace
                 for trace in fetched:
                     try:
-                        # _fetch_traces() returns Trace objects, pass directly to parser
+                        # TODO: Investigate whether parse_trace_for_evaluation is needed for TraceLoader results.
+                        # TraceLoader.load_batch() may already return evaluation-ready Trace objects.
                         eval_traces.append(parse_trace_for_evaluation(trace))
                     except Exception as parse_error:
                         logger.error(f"Error parsing trace: {parse_error}")

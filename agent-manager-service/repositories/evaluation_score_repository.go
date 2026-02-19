@@ -47,7 +47,10 @@ type ScoreRepository interface {
 	GetEvaluatorTimeSeriesAggregated(monitorID uuid.UUID, displayName string, startTime, endTime time.Time, granularity string) ([]TimeBucketAggregation, error)
 
 	// Trace-level queries (cross-monitor)
-	GetScoresByTraceID(traceID string, orgName, agentName string) ([]ScoreWithMonitor, error)
+	GetScoresByTraceID(traceID string, orgName, projName, agentName string) ([]ScoreWithMonitor, error)
+
+	// Monitor lookup
+	GetMonitorID(orgName, projName, agentName, monitorName string) (uuid.UUID, error)
 }
 
 // ScoreFilters contains optional filters for querying scores
@@ -205,7 +208,7 @@ func (r *ScoreRepo) GetScoresByMonitorAndTimeRange(
 }
 
 // GetScoresByTraceID fetches all scores for a specific trace across all monitors
-func (r *ScoreRepo) GetScoresByTraceID(traceID string, orgName, agentName string) ([]ScoreWithMonitor, error) {
+func (r *ScoreRepo) GetScoresByTraceID(traceID string, orgName, projName, agentName string) ([]ScoreWithMonitor, error) {
 	var results []ScoreWithMonitor
 
 	err := r.db.Table("scores s").
@@ -214,11 +217,23 @@ func (r *ScoreRepo) GetScoresByTraceID(traceID string, orgName, agentName string
 		Joins("JOIN monitor_runs mr ON mre.monitor_run_id = mr.id").
 		Joins("JOIN monitors m ON mr.monitor_id = m.id").
 		Where("s.trace_id = ?", traceID).
-		Where("m.org_name = ? AND m.agent_name = ?", orgName, agentName).
+		Where("m.org_name = ? AND m.project_name = ? AND m.agent_name = ?", orgName, projName, agentName).
 		Order("m.name, mre.display_name, s.created_at").
 		Find(&results).Error
 
 	return results, err
+}
+
+// GetMonitorID resolves monitor name to monitor ID
+func (r *ScoreRepo) GetMonitorID(orgName, projName, agentName, monitorName string) (uuid.UUID, error) {
+	var monitor models.Monitor
+	if err := r.db.Where(
+		"name = ? AND org_name = ? AND project_name = ? AND agent_name = ?",
+		monitorName, orgName, projName, agentName,
+	).Select("id").First(&monitor).Error; err != nil {
+		return uuid.Nil, err
+	}
+	return monitor.ID, nil
 }
 
 // GetMonitorScoresAggregated returns pre-aggregated scores per evaluator using SQL GROUP BY

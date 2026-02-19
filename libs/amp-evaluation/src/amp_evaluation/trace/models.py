@@ -596,13 +596,16 @@ class Trace:
                 root_spans.append(span)
         return root_spans
 
-    def _get_descendant_spans(self, parent_id: str) -> List[Span]:
+    def _get_descendant_spans(self, parent_id: str, _visited: Optional[set] = None) -> List[Span]:
         """Get all descendants of a span (recursive)."""
+        if _visited is None:
+            _visited = set()
         descendants = []
         for span in self.steps:
-            if getattr(span, "parent_span_id", None) == parent_id:
+            if getattr(span, "parent_span_id", None) == parent_id and span.span_id not in _visited:
+                _visited.add(span.span_id)
                 descendants.append(span)
-                descendants.extend(self._get_descendant_spans(span.span_id))
+                descendants.extend(self._get_descendant_spans(span.span_id, _visited))
         return descendants
 
     def _get_children_of(self, parent_id: str) -> List[Span]:

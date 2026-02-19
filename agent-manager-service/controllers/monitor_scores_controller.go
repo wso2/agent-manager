@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -94,12 +95,15 @@ func (c *monitorScoresController) GetMonitorScores(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Get monitor ID from the service (or pass monitorName)
-	// For now, we'll use a helper to resolve the monitor
+	// Resolve monitor name to ID
 	monitorID, err := c.scoresService.GetMonitorID(orgName, projName, agentName, monitorName)
 	if err != nil {
+		if errors.Is(err, utils.ErrMonitorNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
+			return
+		}
 		log.Error("Failed to resolve monitor", "monitorName", monitorName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to resolve monitor")
 		return
 	}
 
@@ -168,11 +172,15 @@ func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *
 
 	granularity := CalculateGranularity(duration)
 
-	// Get monitor ID
+	// Resolve monitor name to ID
 	monitorID, err := c.scoresService.GetMonitorID(orgName, projName, agentName, monitorName)
 	if err != nil {
+		if errors.Is(err, utils.ErrMonitorNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
+			return
+		}
 		log.Error("Failed to resolve monitor", "monitorName", monitorName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to resolve monitor")
 		return
 	}
 
@@ -213,6 +221,7 @@ func (c *monitorScoresController) GetTraceScores(w http.ResponseWriter, r *http.
 
 	// Extract path parameters
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
 	agentName := r.PathValue("agentName")
 	traceID := r.PathValue("traceId")
 
@@ -221,7 +230,7 @@ func (c *monitorScoresController) GetTraceScores(w http.ResponseWriter, r *http.
 		return
 	}
 
-	result, err := c.scoresService.GetTraceScores(traceID, orgName, agentName)
+	result, err := c.scoresService.GetTraceScores(traceID, orgName, projName, agentName)
 	if err != nil {
 		log.Error("Failed to get trace scores", "traceId", traceID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get trace scores")

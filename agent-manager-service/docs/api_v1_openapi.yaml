@@ -8581,7 +8581,6 @@ components:
         - evaluatorName
         - level
         - traceId
-        - score
       properties:
         id:
           type: string
@@ -8597,6 +8596,7 @@ components:
         score:
           type: number
           format: double
+          nullable: true
           minimum: 0
           maximum: 1
         explanation:

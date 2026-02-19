@@ -25,7 +25,7 @@ type EvaluationScoreResponse struct {
 	Level          string                 `json:"level"`
 	TraceId        string                 `json:"traceId"`
 	SpanId         *string                `json:"spanId,omitempty"`
-	Score          float64                `json:"score"`
+	Score          NullableFloat64        `json:"score,omitempty"`
 	Explanation    *string                `json:"explanation,omitempty"`
 	TraceTimestamp *time.Time             `json:"traceTimestamp,omitempty"`
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
@@ -36,13 +36,12 @@ type EvaluationScoreResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewEvaluationScoreResponse(id string, evaluatorName string, level string, traceId string, score float64) *EvaluationScoreResponse {
+func NewEvaluationScoreResponse(id string, evaluatorName string, level string, traceId string) *EvaluationScoreResponse {
 	this := EvaluationScoreResponse{}
 	this.Id = id
 	this.EvaluatorName = evaluatorName
 	this.Level = level
 	this.TraceId = traceId
-	this.Score = score
 	return &this
 }
 
@@ -182,28 +181,47 @@ func (o *EvaluationScoreResponse) SetSpanId(v string) {
 	o.SpanId = &v
 }
 
-// GetScore returns the Score field value
+// GetScore returns the Score field value if set, zero value otherwise (both if not set or set to explicit null).
 func (o *EvaluationScoreResponse) GetScore() float64 {
-	if o == nil {
+	if o == nil || IsNil(o.Score.Get()) {
 		var ret float64
 		return ret
 	}
-
-	return o.Score
+	return *o.Score.Get()
 }
 
-// GetScoreOk returns a tuple with the Score field value
+// GetScoreOk returns a tuple with the Score field value if set, nil otherwise
 // and a boolean to check if the value has been set.
+// NOTE: If the value is an explicit nil, `nil, true` will be returned
 func (o *EvaluationScoreResponse) GetScoreOk() (*float64, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.Score, true
+	return o.Score.Get(), o.Score.IsSet()
 }
 
-// SetScore sets field value
+// HasScore returns a boolean if a field has been set.
+func (o *EvaluationScoreResponse) HasScore() bool {
+	if o != nil && o.Score.IsSet() {
+		return true
+	}
+
+	return false
+}
+
+// SetScore gets a reference to the given NullableFloat64 and assigns it to the Score field.
 func (o *EvaluationScoreResponse) SetScore(v float64) {
-	o.Score = v
+	o.Score.Set(&v)
+}
+
+// SetScoreNil sets the value for Score to be an explicit nil
+func (o *EvaluationScoreResponse) SetScoreNil() {
+	o.Score.Set(nil)
+}
+
+// UnsetScore ensures that no value is present for Score, not even an explicit nil
+func (o *EvaluationScoreResponse) UnsetScore() {
+	o.Score.Unset()
 }
 
 // GetExplanation returns the Explanation field value if set, zero value otherwise.
@@ -351,7 +369,9 @@ func (o EvaluationScoreResponse) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.SpanId) {
 		toSerialize["spanId"] = o.SpanId
 	}
-	toSerialize["score"] = o.Score
+	if o.Score.IsSet() {
+		toSerialize["score"] = o.Score.Get()
+	}
 	if !IsNil(o.Explanation) {
 		toSerialize["explanation"] = o.Explanation
 	}
