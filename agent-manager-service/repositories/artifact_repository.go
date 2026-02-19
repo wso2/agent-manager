@@ -35,7 +35,6 @@ type ArtifactRepository interface {
 	Exists(kind, handle, orgUUID string) (bool, error)
 	GetByHandle(handle, orgUUID string) (*models.Artifact, error)
 	CountByKindAndOrg(kind, orgUUID string) (int, error)
-	GetOrganizationName(orgUUID string) (string, error)
 }
 
 // ArtifactRepo implements ArtifactRepository using GORM
@@ -139,17 +138,4 @@ func (r *ArtifactRepo) UpdateCatalogStatus(tx *gorm.DB, uuid, organizationUUID s
 		return gorm.ErrRecordNotFound
 	}
 	return nil
-}
-
-// GetOrganizationName retrieves organization name from UUID
-func (r *ArtifactRepo) GetOrganizationName(orgUUID string) (string, error) {
-	var org models.Organization
-	err := r.db.Table("organizations").
-		Where("uuid = ?", orgUUID).
-		First(&org).Error
-	if err != nil {
-		return "", err
-	}
-
-	return org.Name, nil
 }

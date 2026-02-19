@@ -109,7 +109,7 @@ type CatalogService interface {
 type catalogService struct {
 	logger           *slog.Logger
 	catalogRepo      repositories.CatalogRepository
-	artifactRepo     repositories.ArtifactRepository
+	organizationRepo repositories.OrganizationRepository
 	openChoreoClient client.OpenChoreoClient
 }
 
@@ -117,13 +117,13 @@ type catalogService struct {
 func NewCatalogService(
 	logger *slog.Logger,
 	catalogRepo repositories.CatalogRepository,
-	artifactRepo repositories.ArtifactRepository,
+	organizationRepo repositories.OrganizationRepository,
 	openChoreoClient client.OpenChoreoClient,
 ) CatalogService {
 	return &catalogService{
 		logger:           logger,
 		catalogRepo:      catalogRepo,
-		artifactRepo:     artifactRepo,
+		organizationRepo: organizationRepo,
 		openChoreoClient: openChoreoClient,
 	}
 }
@@ -268,7 +268,7 @@ func (s *catalogService) ListLLMProviders(ctx context.Context, filters *models.C
 // buildEnvironmentMapping fetches all environments and builds UUID to name mapping
 func (s *catalogService) buildEnvironmentMapping(ctx context.Context, orgUUID uuid.UUID) (map[string]string, error) {
 	// Get organization name first
-	orgName, err := s.getOrganizationName(ctx, orgUUID)
+	orgName, err := s.getOrganizationName(orgUUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get organization name: %w", err)
 	}
@@ -292,11 +292,11 @@ func (s *catalogService) buildEnvironmentMapping(ctx context.Context, orgUUID uu
 }
 
 // getOrganizationName retrieves organization name from UUID using repository
-func (s *catalogService) getOrganizationName(ctx context.Context, orgUUID uuid.UUID) (string, error) {
-	orgName, err := s.artifactRepo.GetOrganizationName(orgUUID.String())
+func (s *catalogService) getOrganizationName(orgUUID uuid.UUID) (string, error) {
+	orgName, err := s.organizationRepo.GetOrganizationByUUID(orgUUID.String())
 	if err != nil {
 		return "", fmt.Errorf("failed to get organization: %w", err)
 	}
 
-	return orgName, nil
+	return orgName.Name, nil
 }
