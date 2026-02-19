@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -42,7 +41,7 @@ func NewLLMProviderTemplateService(templateRepo repositories.LLMProviderTemplate
 }
 
 // Create creates a new LLM provider template
-func (s *LLMProviderTemplateService) Create(orgID, createdBy string, template *models.LLMProviderTemplate) (*models.LLMProviderTemplate, error) {
+func (s *LLMProviderTemplateService) Create(orgName, createdBy string, template *models.LLMProviderTemplate) (*models.LLMProviderTemplate, error) {
 	if template == nil {
 		return nil, utils.ErrInvalidInput
 	}
@@ -51,7 +50,7 @@ func (s *LLMProviderTemplateService) Create(orgID, createdBy string, template *m
 	}
 
 	// Check if template already exists
-	exists, err := s.templateRepo.Exists(template.Handle, orgID)
+	exists, err := s.templateRepo.Exists(template.Handle, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check template exists: %w", err)
 	}
@@ -59,14 +58,8 @@ func (s *LLMProviderTemplateService) Create(orgID, createdBy string, template *m
 		return nil, utils.ErrLLMProviderTemplateExists
 	}
 
-	// Parse organization UUID
-	orgUUID, err := uuid.Parse(orgID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid organization UUID: %w", err)
-	}
-
 	// Set metadata
-	template.OrganizationUUID = orgUUID
+	template.OrganizationName = orgName
 	template.CreatedBy = createdBy
 
 	// Serialize configuration
@@ -80,7 +73,7 @@ func (s *LLMProviderTemplateService) Create(orgID, createdBy string, template *m
 	}
 
 	// Fetch created template
-	created, err := s.templateRepo.GetByHandle(template.Handle, orgID)
+	created, err := s.templateRepo.GetByHandle(template.Handle, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch created template: %w", err)
 	}
@@ -97,8 +90,8 @@ func (s *LLMProviderTemplateService) Create(orgID, createdBy string, template *m
 }
 
 // List lists all LLM provider templates for an organization
-func (s *LLMProviderTemplateService) List(orgID string, limit, offset int) ([]*models.LLMProviderTemplate, int, error) {
-	templates, err := s.templateRepo.List(orgID, limit, offset)
+func (s *LLMProviderTemplateService) List(orgName string, limit, offset int) ([]*models.LLMProviderTemplate, int, error) {
+	templates, err := s.templateRepo.List(orgName, limit, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list templates: %w", err)
 	}
@@ -110,7 +103,7 @@ func (s *LLMProviderTemplateService) List(orgID string, limit, offset int) ([]*m
 		}
 	}
 
-	totalCount, err := s.templateRepo.Count(orgID)
+	totalCount, err := s.templateRepo.Count(orgName)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to count templates: %w", err)
 	}
@@ -119,12 +112,12 @@ func (s *LLMProviderTemplateService) List(orgID string, limit, offset int) ([]*m
 }
 
 // Get retrieves an LLM provider template by ID
-func (s *LLMProviderTemplateService) Get(orgID, templateID string) (*models.LLMProviderTemplate, error) {
+func (s *LLMProviderTemplateService) Get(orgName, templateID string) (*models.LLMProviderTemplate, error) {
 	if templateID == "" {
 		return nil, utils.ErrInvalidInput
 	}
 
-	template, err := s.templateRepo.GetByHandle(templateID, orgID)
+	template, err := s.templateRepo.GetByHandle(templateID, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get template: %w", err)
 	}
@@ -141,7 +134,7 @@ func (s *LLMProviderTemplateService) Get(orgID, templateID string) (*models.LLMP
 }
 
 // Update updates an existing LLM provider template
-func (s *LLMProviderTemplateService) Update(orgID, templateID string, updates *models.LLMProviderTemplate) (*models.LLMProviderTemplate, error) {
+func (s *LLMProviderTemplateService) Update(orgName, templateID string, updates *models.LLMProviderTemplate) (*models.LLMProviderTemplate, error) {
 	if templateID == "" || updates == nil {
 		return nil, utils.ErrInvalidInput
 	}
@@ -149,15 +142,9 @@ func (s *LLMProviderTemplateService) Update(orgID, templateID string, updates *m
 		return nil, utils.ErrInvalidInput
 	}
 
-	// Parse organization UUID
-	orgUUID, err := uuid.Parse(orgID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid organization UUID: %w", err)
-	}
-
 	// Set metadata for update
 	updates.Handle = templateID
-	updates.OrganizationUUID = orgUUID
+	updates.OrganizationName = orgName
 
 	// Serialize configuration
 	if err := s.serializeConfiguration(updates); err != nil {
@@ -173,7 +160,7 @@ func (s *LLMProviderTemplateService) Update(orgID, templateID string, updates *m
 	}
 
 	// Fetch updated template
-	updated, err := s.templateRepo.GetByHandle(templateID, orgID)
+	updated, err := s.templateRepo.GetByHandle(templateID, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch updated template: %w", err)
 	}
@@ -190,12 +177,12 @@ func (s *LLMProviderTemplateService) Update(orgID, templateID string, updates *m
 }
 
 // Delete deletes an LLM provider template
-func (s *LLMProviderTemplateService) Delete(orgID, templateID string) error {
+func (s *LLMProviderTemplateService) Delete(orgName, templateID string) error {
 	if templateID == "" {
 		return utils.ErrInvalidInput
 	}
 
-	if err := s.templateRepo.Delete(templateID, orgID); err != nil {
+	if err := s.templateRepo.Delete(templateID, orgName); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return utils.ErrLLMProviderTemplateNotFound
 		}

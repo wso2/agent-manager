@@ -77,8 +77,8 @@ func (c *gatewayInternalController) GetAPIsByOrganization(w http.ResponseWriter,
 		return
 	}
 
-	orgID := gateway.OrganizationUUID.String()
-	apis, err := c.gatewayInternalService.GetAPIsByOrganization(orgID)
+	orgName := gateway.OrganizationName
+	apis, err := c.gatewayInternalService.GetAPIsByOrganization(orgName)
 	if err != nil {
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
 			http.Error(w, "Organization not found", http.StatusNotFound)
@@ -92,20 +92,20 @@ func (c *gatewayInternalController) GetAPIsByOrganization(w http.ResponseWriter,
 	// Create ZIP file from API YAML files
 	zipData, err := utils.CreateAPIYamlZip(apis)
 	if err != nil {
-		log.Error("Failed to create ZIP file", "orgID", orgID, "error", err)
+		log.Error("Failed to create ZIP file", "orgName", orgName, "error", err)
 		http.Error(w, "Failed to create API package", http.StatusInternalServerError)
 		return
 	}
 
 	// Set headers for ZIP file download
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"apis-org-%s.zip\"", orgID))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"apis-org-%s.zip\"", orgName))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(zipData)))
 
 	// Return ZIP file
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(zipData); err != nil {
-		log.Error("Failed to write ZIP response", "orgID", orgID, "error", err)
+		log.Error("Failed to write ZIP response", "orgName", orgName, "error", err)
 	}
 }
 
@@ -133,7 +133,7 @@ func (c *gatewayInternalController) GetAPI(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	orgID := gateway.OrganizationUUID.String()
+	orgName := gateway.OrganizationName
 	gatewayID := gateway.UUID.String()
 	apiID := r.PathValue("apiId")
 	if apiID == "" {
@@ -141,7 +141,7 @@ func (c *gatewayInternalController) GetAPI(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	api, err := c.gatewayInternalService.GetActiveDeploymentByGateway(apiID, orgID, gatewayID)
+	api, err := c.gatewayInternalService.GetActiveDeploymentByGateway(apiID, orgName, gatewayID)
 	if err != nil {
 		if errors.Is(err, utils.ErrDeploymentNotActive) {
 			http.Error(w, "No active deployment found for this API on this gateway", http.StatusNotFound)
@@ -223,7 +223,7 @@ func (c *gatewayInternalController) CreateGatewayDeployment(w http.ResponseWrite
 	}
 
 	// Create API deployment using the service
-	orgID := gateway.OrganizationUUID.String()
+	orgName := gateway.OrganizationName
 	gatewayID := gateway.UUID.String()
 
 	// Convert models.DeploymentNotification to services.DeploymentNotification
@@ -241,7 +241,7 @@ func (c *gatewayInternalController) CreateGatewayDeployment(w http.ResponseWrite
 	}
 
 	response, err := c.gatewayInternalService.CreateGatewayDeployment(
-		apiID, orgID, gatewayID, notification, deploymentIDPtr)
+		apiID, orgName, gatewayID, notification, deploymentIDPtr)
 	if err != nil {
 		if errors.Is(err, utils.ErrInvalidInput) {
 			http.Error(w, "Invalid input data", http.StatusBadRequest)
@@ -292,7 +292,7 @@ func (c *gatewayInternalController) GetLLMProvider(w http.ResponseWriter, r *htt
 		return
 	}
 
-	orgID := gateway.OrganizationUUID.String()
+	orgName := gateway.OrganizationName
 	gatewayID := gateway.UUID.String()
 	providerID := r.PathValue("providerId")
 	if providerID == "" {
@@ -300,7 +300,7 @@ func (c *gatewayInternalController) GetLLMProvider(w http.ResponseWriter, r *htt
 		return
 	}
 
-	provider, err := c.gatewayInternalService.GetActiveLLMProviderDeploymentByGateway(providerID, orgID, gatewayID)
+	provider, err := c.gatewayInternalService.GetActiveLLMProviderDeploymentByGateway(providerID, orgName, gatewayID)
 	if err != nil {
 		if errors.Is(err, utils.ErrDeploymentNotActive) {
 			http.Error(w, "No active deployment found for this LLM provider on this gateway", http.StatusNotFound)
@@ -359,7 +359,7 @@ func (c *gatewayInternalController) GetLLMProxy(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	orgID := gateway.OrganizationUUID.String()
+	orgName := gateway.OrganizationName
 	gatewayID := gateway.UUID.String()
 	proxyID := r.PathValue("proxyId")
 	if proxyID == "" {
@@ -367,7 +367,7 @@ func (c *gatewayInternalController) GetLLMProxy(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	proxy, err := c.gatewayInternalService.GetActiveLLMProxyDeploymentByGateway(proxyID, orgID, gatewayID)
+	proxy, err := c.gatewayInternalService.GetActiveLLMProxyDeploymentByGateway(proxyID, orgName, gatewayID)
 	if err != nil {
 		if errors.Is(err, utils.ErrDeploymentNotActive) {
 			http.Error(w, "No active deployment found for this LLM proxy on this gateway", http.StatusNotFound)
