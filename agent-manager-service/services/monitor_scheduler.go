@@ -292,8 +292,7 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 		if errorMsg := s.extractErrorMessage(cr); errorMsg != "" {
 			updates["error_message"] = errorMsg
 		} else {
-			msg := "workflow failed to start — check WorkflowRun CR conditions"
-			updates["error_message"] = msg
+			updates["error_message"] = "workflow completed with unknown failure — no reason or message in WorkflowRun conditions"
 		}
 
 	case "Running":
@@ -378,7 +377,9 @@ func (s *monitorSchedulerService) extractWorkflowStatus(cr map[string]interface{
 	return "Pending", nil
 }
 
-// extractErrorMessage extracts error message from WorkflowRun CR
+// extractErrorMessage extracts a descriptive error from the WorkflowRun CR.
+// It combines the condition's reason and message fields for better diagnostics.
+// Examples: "WorkflowFailed: out of memory", "RenderFailed: missing parameter X"
 func (s *monitorSchedulerService) extractErrorMessage(cr map[string]interface{}) string {
 	status, ok := cr["status"].(map[string]interface{})
 	if !ok {
@@ -398,8 +399,18 @@ func (s *monitorSchedulerService) extractErrorMessage(cr map[string]interface{})
 
 		condType, _ := condMap["type"].(string)
 		if condType == "WorkflowCompleted" {
+			reason, _ := condMap["reason"].(string)
 			message, _ := condMap["message"].(string)
-			return message
+
+			switch {
+			case reason != "" && message != "":
+				return reason + ": " + message
+			case reason != "":
+				return reason
+			case message != "":
+				return message
+			}
+			return ""
 		}
 	}
 

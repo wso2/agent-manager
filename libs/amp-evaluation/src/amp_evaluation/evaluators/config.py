@@ -15,13 +15,41 @@
 # under the License.
 
 """
-Parameter descriptor for evaluators.
+Parameter descriptor and evaluation level enums for evaluators.
 
-Provides declarative parameter definition with type validation, defaults, and constraints.
+Provides declarative parameter definition with type validation, defaults, and constraints,
+plus typed enums for evaluation levels.
 """
 
+import enum as _enum
 from typing import Any, Optional, List
 
+
+# ============================================================================
+# EVALUATION LEVEL ENUMS
+# ============================================================================
+
+
+class EvaluationLevel(str, _enum.Enum):
+    """
+    Supported evaluation levels for evaluators.
+
+    Inherits from str so enum values are string-compatible:
+        EvaluationLevel.TRACE == "trace"  # True
+
+    Usage:
+        evaluator = LatencyEvaluator(level=EvaluationLevel.AGENT)
+        evaluator = LatencyEvaluator(level="agent")  # Also works - auto-coerced
+    """
+
+    TRACE = "trace"
+    AGENT = "agent"
+    SPAN = "span"
+
+
+# ============================================================================
+# PARAM DESCRIPTOR
+# ============================================================================
 
 # Sentinel value to distinguish "no default" from "default is None"
 _NO_DEFAULT = object()
@@ -32,7 +60,7 @@ class Param:
     Descriptor for evaluator parameters.
 
     Provides:
-      - Type validation
+      - Type validation with Enum coercion (str → EvaluationLevel)
       - Default values
       - Rich metadata (description, constraints)
       - Runtime introspection for schema generation
@@ -97,6 +125,17 @@ class Param:
 
     def _validate(self, value):
         """Validate a param value against constraints. Returns the coerced value."""
+        # Coerce str → Enum when type is an Enum subclass (str(Enum) pattern).
+        # This allows users to pass "trace" instead of EvaluationLevel.TRACE.
+        if isinstance(self.type, type) and issubclass(self.type, _enum.Enum):
+            if not isinstance(value, self.type):
+                try:
+                    value = self.type(value)
+                except ValueError:
+                    valid = [e.value for e in self.type]
+                    raise ValueError(f"Param '{self._attr_name}' must be one of {valid}, got '{value}'")
+            return value  # Skip remaining checks — enum validation is complete
+
         # Type coercion for common cases
         if self.type is set and isinstance(value, (list, tuple)):
             value = set(value)
@@ -117,7 +156,7 @@ class Param:
         if self.max is not None and value > self.max:
             raise ValueError(f"Param '{self._attr_name}' must be <= {self.max}, got {value}")
 
-        # Enum check
+        # Enum check (for non-Enum-type params with allowed values list)
         if self.enum is not None and value not in self.enum:
             raise ValueError(f"Param '{self._attr_name}' must be one of {self.enum}, got {value}")
 
@@ -137,23 +176,27 @@ class Param:
 
         schema = {
             "key": self._attr_name,
-            "type": type_map.get(self.type, "string"),
             "required": self.required,
             "description": self.description,
         }
 
+        # Determine type string and enum_values
+        if isinstance(self.type, type) and issubclass(self.type, _enum.Enum):
+            schema["type"] = "string"
+            schema["enum_values"] = [e.value for e in self.type]
+        else:
+            schema["type"] = type_map.get(self.type, "string")
+            if self.enum is not None:
+                schema["enum_values"] = self.enum
+
         # Only include default if one was explicitly provided
         if self.default is not _NO_DEFAULT:
-            schema["default"] = self.default
+            # Serialize enum defaults to their string values
+            default_val = self.default.value if isinstance(self.default, _enum.Enum) else self.default
+            schema["default"] = default_val
         if self.min is not None:
             schema["min"] = self.min
         if self.max is not None:
             schema["max"] = self.max
-        if self.enum is not None:
-            schema["enum_values"] = self.enum
 
         return schema
-
-
-# Backward compatibility alias
-Config = Param

@@ -17,7 +17,6 @@
 package models
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -49,29 +48,10 @@ const (
 
 // MonitorEvaluator represents an evaluator with its configuration
 type MonitorEvaluator struct {
-	Name   string                 `json:"name" validate:"required,min=1"`
-	Config map[string]interface{} `json:"config,omitempty"`
-}
-
-// UnmarshalJSON provides backward compatibility for reading old string format
-// Old format: "latency" -> New format: {"name": "latency", "config": {}}
-func (e *MonitorEvaluator) UnmarshalJSON(data []byte) error {
-	// Try to unmarshal as string (old format)
-	var name string
-	if err := json.Unmarshal(data, &name); err == nil {
-		e.Name = name
-		e.Config = nil
-		return nil
-	}
-
-	// Unmarshal as object (new format)
-	type Alias MonitorEvaluator
-	aux := &struct {
-		*Alias
-	}{
-		Alias: (*Alias)(e),
-	}
-	return json.Unmarshal(data, aux)
+	Identifier  string                 `json:"identifier" validate:"required,min=1"`
+	DisplayName string                 `json:"displayName" validate:"required,min=1"`
+	Config      map[string]interface{} `json:"config,omitempty"`
+	Level       string                 `json:"level" validate:"required,oneof=trace agent span"`
 }
 
 // Monitor is the GORM model for the monitors table
@@ -165,7 +145,7 @@ type CreateMonitorRequest struct {
 	Evaluators      []MonitorEvaluator `json:"evaluators" validate:"required,min=1,dive"`
 	Type            string             `json:"type" validate:"required,oneof=future past"`
 	// Future monitor fields
-	IntervalMinutes *int `json:"intervalMinutes,omitempty" validate:"omitempty,min=5"`
+	IntervalMinutes *int `json:"intervalMinutes,omitempty"`
 	// Past monitor fields
 	TraceStart *time.Time `json:"traceStart,omitempty"`
 	TraceEnd   *time.Time `json:"traceEnd,omitempty"`
@@ -177,7 +157,7 @@ type CreateMonitorRequest struct {
 type UpdateMonitorRequest struct {
 	DisplayName     *string             `json:"displayName,omitempty" validate:"omitempty,min=1,max=128"`
 	Evaluators      *[]MonitorEvaluator `json:"evaluators,omitempty" validate:"omitempty,min=1,dive"`
-	IntervalMinutes *int                `json:"intervalMinutes,omitempty" validate:"omitempty,min=5"`
+	IntervalMinutes *int                `json:"intervalMinutes,omitempty"`
 	TraceStart      *time.Time          `json:"traceStart,omitempty"`
 	TraceEnd        *time.Time          `json:"traceEnd,omitempty"`
 	SamplingRate    *float64            `json:"samplingRate,omitempty" validate:"omitempty,gt=0,lte=1"`
@@ -235,6 +215,7 @@ type MonitorRunsListResponse struct {
 // Default values
 const (
 	DefaultIntervalMinutes = 60
+	MinIntervalMinutes     = 5
 	DefaultSamplingRate    = 1.0
 	SafetyDeltaPercent     = 0.05 // 5% of interval
 	MonitorWorkflowName    = "monitor-evaluation-workflow"

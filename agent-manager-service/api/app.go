@@ -45,6 +45,7 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	registerEnvironmentRoutes(apiMux, params.EnvironmentController)
 	RegisterGatewayRoutes(apiMux, params.GatewayController)
 	registerMonitorRoutes(apiMux, params.MonitorController)
+	registerMonitorScoreRoutes(apiMux, params.MonitorScoresController)
 	registerEvaluatorRoutes(apiMux, params.EvaluatorController)
 	registerCatalogRoutes(apiMux, params.CatalogController)
 	RegisterLLMRoutes(apiMux, params.LLMController)
@@ -62,6 +63,18 @@ func MakeHTTPHandler(params *wiring.AppParams) http.Handler {
 	apiHandler = middleware.RecovererOnPanic()(apiHandler)
 
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", apiHandler))
+
+	// Register publisher routes outside JWT middleware (uses API-key auth instead)
+	publisherMux := http.NewServeMux()
+	RegisterMonitorPublisherRoutes(publisherMux, params.MonitorScoresPublisherController)
+
+	publisherHandler := http.Handler(publisherMux)
+	publisherHandler = logger.RequestLogger()(publisherHandler)
+	publisherHandler = middleware.AddCorrelationID()(publisherHandler)
+	publisherHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(publisherHandler)
+	publisherHandler = middleware.RecovererOnPanic()(publisherHandler)
+
+	mux.Handle("/api/v1/publisher/", http.StripPrefix("/api/v1/publisher", publisherHandler))
 
 	return mux
 }

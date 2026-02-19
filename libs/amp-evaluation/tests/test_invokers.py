@@ -35,7 +35,7 @@ from unittest.mock import Mock
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from amp_evaluation.invokers import InvokeResult, AgentInvoker, HttpAgentInvoker
-from amp_evaluation.trace import Trajectory
+from amp_evaluation.trace import Trace
 
 
 class TestInvokeResult:
@@ -84,7 +84,7 @@ class TestInvokeResult:
 
     def test_with_trajectory(self):
         """Test InvokeResult with direct trajectory."""
-        trajectory = Trajectory(trace_id="trace-123")
+        trajectory = Trace(trace_id="trace-123")
 
         result = InvokeResult(output="response", trajectory=trajectory)
 

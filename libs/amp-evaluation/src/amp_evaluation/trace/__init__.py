@@ -6,20 +6,22 @@ with agent execution traces in an evaluation context.
 
 Public API:
     >>> from amp_evaluation.trace import (
-    ...     Trajectory,                          # Complete agent execution path
+    ...     Trace,                               # Complete agent execution path
     ...     LLMSpan, ToolSpan, RetrieverSpan, AgentSpan,  # Span types
     ...     TraceMetrics, TokenUsage,            # Metrics
     ...     Message, ToolCall, RetrievedDoc,     # Supporting types
     ...     parse_trace_for_evaluation,          # Parser
     ...     parse_traces_for_evaluation,
-    ...     TraceFetcher,                        # Fetch traces from platform API
+    ...     TraceFetcher, TraceLoader,           # Fetch traces from platform or files
     ... )
 """
 
 # Models
 from .models import (
     # Core trace class
-    Trajectory,
+    Trace,
+    # Agent-scoped trace for agent-level evaluation
+    AgentTrace,
     # Span types
     LLMSpan,
     ToolSpan,
@@ -32,6 +34,9 @@ from .models import (
     Message,
     ToolCall,
     RetrievedDoc,
+    # Reconstructed step types
+    AgentStep,
+    ToolCallInfo,
 )
 
 # Parser
@@ -41,12 +46,14 @@ from .parser import (
 )
 
 # Fetcher
-from .fetcher import TraceFetcher
+from .fetcher import TraceFetcher, TraceLoader
 
 
 __all__ = [
     # Core trace
-    "Trajectory",
+    "Trace",
+    # Agent-scoped trace
+    "AgentTrace",
     # Span types
     "LLMSpan",
     "ToolSpan",
@@ -59,9 +66,13 @@ __all__ = [
     "Message",
     "ToolCall",
     "RetrievedDoc",
+    # Reconstructed step types
+    "AgentStep",
+    "ToolCallInfo",
     # Parser functions
     "parse_trace_for_evaluation",
     "parse_traces_for_evaluation",
-    # Fetcher
+    # Fetchers
     "TraceFetcher",
+    "TraceLoader",
 ]

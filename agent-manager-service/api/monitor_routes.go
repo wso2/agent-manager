@@ -22,34 +22,52 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 )
 
+func registerMonitorScoreRoutes(mux *http.ServeMux, controller controllers.MonitorScoresController) {
+	agentBase := "/orgs/{orgName}/projects/{projName}/agents/{agentName}"
+	monitorBase := agentBase + "/monitors/{monitorName}"
+
+	// GET .../monitors/{monitorName}/scores - Get scores for a monitor (time-range based)
+	// Query params: startTime, endTime, evaluator (optional), level (optional), span_type (optional)
+	mux.HandleFunc("GET "+monitorBase+"/scores", controller.GetMonitorScores)
+
+	// GET .../monitors/{monitorName}/scores/timeseries - Get time-series data for an evaluator
+	// Query params: startTime, endTime, evaluator (required), granularity (optional: hour/day/week)
+	mux.HandleFunc("GET "+monitorBase+"/scores/timeseries", controller.GetScoresTimeSeries)
+
+	// GET .../agents/{agentName}/traces/{traceId}/scores - Get all evaluation scores for a trace across all monitors
+	mux.HandleFunc("GET "+agentBase+"/traces/{traceId}/scores", controller.GetTraceScores)
+}
+
 func registerMonitorRoutes(mux *http.ServeMux, controller controllers.MonitorController) {
+	base := "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors"
+
 	// GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors - List all monitors
-	mux.HandleFunc("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors", controller.ListMonitors)
+	mux.HandleFunc("GET "+base, controller.ListMonitors)
 
 	// POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors - Create a new evaluation monitor
-	mux.HandleFunc("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors", controller.CreateMonitor)
+	mux.HandleFunc("POST "+base, controller.CreateMonitor)
 
 	// GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName} - Get a specific monitor
-	mux.HandleFunc("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}", controller.GetMonitor)
+	mux.HandleFunc("GET "+base+"/{monitorName}", controller.GetMonitor)
 
 	// DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName} - Delete a monitor
-	mux.HandleFunc("DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}", controller.DeleteMonitor)
+	mux.HandleFunc("DELETE "+base+"/{monitorName}", controller.DeleteMonitor)
 
 	// PATCH /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName} - Update a monitor
-	mux.HandleFunc("PATCH /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}", controller.UpdateMonitor)
+	mux.HandleFunc("PATCH "+base+"/{monitorName}", controller.UpdateMonitor)
 
 	// POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/stop - Stop a monitor
-	mux.HandleFunc("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/stop", controller.StopMonitor)
+	mux.HandleFunc("POST "+base+"/{monitorName}/stop", controller.StopMonitor)
 
 	// POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/start - Start a monitor
-	mux.HandleFunc("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/start", controller.StartMonitor)
+	mux.HandleFunc("POST "+base+"/{monitorName}/start", controller.StartMonitor)
 
 	// GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs - List monitor runs
-	mux.HandleFunc("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs", controller.ListMonitorRuns)
+	mux.HandleFunc("GET "+base+"/{monitorName}/runs", controller.ListMonitorRuns)
 
 	// POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/rerun - Create a new run with same time parameters
-	mux.HandleFunc("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/rerun", controller.RerunMonitor)
+	mux.HandleFunc("POST "+base+"/{monitorName}/runs/{runId}/rerun", controller.RerunMonitor)
 
 	// GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/logs - Get monitor run logs
-	mux.HandleFunc("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/logs", controller.GetMonitorRunLogs)
+	mux.HandleFunc("GET "+base+"/{monitorName}/runs/{runId}/logs", controller.GetMonitorRunLogs)
 }

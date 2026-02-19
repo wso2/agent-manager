@@ -74,7 +74,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 import logging
 
-from .trace import Trajectory, parse_trace_for_evaluation, TraceFetcher
+from .trace import Trace, parse_trace_for_evaluation, TraceFetcher, TraceLoader
 from .registry import get_registry, get_evaluator
 from .evaluators.base import BaseEvaluator
 from .models import EvaluatorSummary, EvaluatorScore
@@ -261,7 +261,7 @@ class BaseRunner(ABC):
         # Trace fetcher (lazy initialization)
         self._trace_fetcher = trace_fetcher
         self._trace_service_url = trace_service_url
-        self._fetcher_instance: Optional[TraceFetcher] = None
+        self._fetcher_instance: Optional[Any] = None  # Can be TraceFetcher or TraceLoader
 
         # Individual parameters override config
         self.include = set(include) if include else None
@@ -286,20 +286,24 @@ class BaseRunner(ABC):
         self._evaluators: List[BaseEvaluator] = []
         self._load_evaluators()
 
-    def _get_fetcher(self) -> TraceFetcher:
+    def _get_fetcher(self) -> Any:
         """
         Get or create the trace fetcher instance (lazy initialization).
+
+        Supports both TraceLoader (for local files) and TraceFetcher (for platform API).
 
         Priority (highest to lowest):
             1. Explicit trace_fetcher passed to __init__
             2. Explicit trace_service_url passed to __init__
-            3. Create from config (platform mode with api_url)
+            3. Create from config:
+               - File mode: TraceLoader (if trace_file_path is set)
+               - Platform mode: TraceFetcher (if api_url is set)
 
         Returns:
-            TraceFetcher instance
+            TraceFetcher or TraceLoader instance
 
         Raises:
-            ValueError: If no fetcher and config doesn't have required settings
+            ValueError: If no fetcher can be created from provided config
         """
         if self._fetcher_instance is not None:
             return self._fetcher_instance
@@ -314,20 +318,57 @@ class BaseRunner(ABC):
                 agent_uid=self.config.agent.agent_uid,
                 environment_uid=self.config.agent.environment_uid,
             )
-        elif self.config.trace_loader.mode == "platform" and self.config.platform.api_url:
-            # Create from config when in platform mode
-            self._fetcher_instance = TraceFetcher(
-                base_url=self.config.platform.api_url,
-                agent_uid=self.config.agent.agent_uid,
-                environment_uid=self.config.agent.environment_uid,
-            )
         else:
-            raise ValueError(
-                "No trace_fetcher or trace_service_url provided and config is missing platform API URL. "
-                "Either pass trace_fetcher/trace_service_url parameter or set AMP_API_URL environment variable."
-            )
+            # Use config-based fetcher selection
+            trace_config = self.config.trace_loader
+
+            # File mode: try to use TraceLoader
+            if trace_config.mode == "file" and trace_config.trace_file_path:
+                logger.info(f"Using TraceLoader with file: {trace_config.trace_file_path}")
+                self._fetcher_instance = TraceLoader(
+                    file_path=trace_config.trace_file_path,
+                    agent_uid=self.config.agent.agent_uid,
+                    environment_uid=self.config.agent.environment_uid,
+                )
+            # Platform mode: use TraceFetcher
+            elif self.config.platform.api_url:
+                logger.info(f"Using TraceFetcher with platform API: {self.config.platform.api_url}")
+                self._fetcher_instance = TraceFetcher(
+                    base_url=self.config.platform.api_url,
+                    agent_uid=self.config.agent.agent_uid,
+                    environment_uid=self.config.agent.environment_uid,
+                )
+            else:
+                raise ValueError(
+                    "Cannot create trace fetcher. Either:\n"
+                    "  1. Pass trace_fetcher or trace_service_url to runner __init__,\n"
+                    "  2. Set AMP_API_URL environment variable (for platform mode), or\n"
+                    "  3. Set AMP_TRACE_LOADER_MODE=file and AMP_TRACE_LOADER_TRACE_FILE_PATH=/path/to/traces.json"
+                )
 
         return self._fetcher_instance
+
+    def _fetch_traces(self, start_time: str, end_time: str, limit: int = 100, offset: int = 0) -> List[Trace]:
+        """
+        Unified interface to fetch traces from either TraceFetcher or TraceLoader.
+
+        Args:
+            start_time: Start time in ISO 8601 format
+            end_time: End time in ISO 8601 format
+            limit: Maximum number of traces to fetch
+            offset: Number of traces to skip (used by TraceFetcher)
+
+        Returns:
+            List of Trace objects
+        """
+        fetcher = self._get_fetcher()
+
+        # Handle TraceLoader (uses load_batch interface)
+        if isinstance(fetcher, TraceLoader):
+            return fetcher.load_batch(limit=limit, start_time=start_time, end_time=end_time)
+        # Handle TraceFetcher (uses fetch_traces interface)
+        else:
+            return fetcher.fetch_traces(start_time=start_time, end_time=end_time, limit=limit, offset=offset)
 
     def _load_evaluators(self):
         """Load evaluators from registry based on filters."""
@@ -382,66 +423,71 @@ class BaseRunner(ABC):
         return len(self._evaluators)
 
     def evaluate_trace(
-        self, trace: Trajectory, task: Optional[Task] = None, trial_id: Optional[str] = None
-    ) -> Dict[str, EvaluatorScore]:
+        self, trace: Trace, task: Optional[Task] = None, trial_id: Optional[str] = None
+    ) -> Dict[str, List[EvaluatorScore]]:
         """
         Run all evaluators on a single trace.
 
+        Evaluators handle their own level dispatching internally, returning
+        one or more results based on their configured level.
+
         Args:
-            trace: The Trajectory to evaluate
+            trace: The Trace to evaluate
             task: Optional task for reference/ground truth data
             trial_id: Optional trial identifier for experiments
 
         Returns:
-            Dict mapping evaluator name to EvaluatorScore
+            Dict mapping evaluator name to list of EvaluatorScore objects
         """
-        # Create observation from trace (always available)
-        from .models import Observation
-
-        observation = Observation(trajectory=trace)
-
         scores = {}
 
         for evaluator in self._evaluators:
             try:
-                # Call evaluator with new two-parameter signature
-                eval_result = evaluator(observation, task)
+                # Call evaluator - it handles level dispatching internally
+                eval_results = evaluator(trace, task)
 
-                # Create EvaluatorScore from EvalResult
-                # Handle both success and error results correctly
-                if eval_result.is_error:
-                    # Error result - don't access score/passed
-                    evaluator_score = EvaluatorScore(
-                        trace_id=trace.trace_id,
-                        score=0.0,  # Placeholder, marked as error
-                        passed=False,
-                        timestamp=trace.timestamp,
-                        explanation=eval_result.explanation,
-                        task_id=task.task_id if task else None,
-                        trial_id=trial_id,
-                        metadata=eval_result.details or {},
-                        error=eval_result.error,
-                    )
-                else:
-                    # Success result - safe to access score/passed
-                    evaluator_score = EvaluatorScore(
-                        trace_id=trace.trace_id,
-                        score=eval_result.score,
-                        passed=eval_result.passed,
-                        timestamp=trace.timestamp,
-                        explanation=eval_result.explanation,
-                        task_id=task.task_id if task else None,
-                        trial_id=trial_id,
-                        metadata=eval_result.details or {},
-                        error=None,
-                    )
-                scores[evaluator.name] = evaluator_score
+                # Convert EvalResult list to EvaluatorScore list
+                evaluator_scores = []
+                for eval_result in eval_results:
+                    # Extract span_id from details if present
+                    details = eval_result.details or {}
+                    span_id = details.get("span_id")
+
+                    if eval_result.is_error:
+                        score = EvaluatorScore(
+                            trace_id=trace.trace_id,
+                            score=0.0,
+                            passed=False,
+                            span_id=span_id,
+                            timestamp=trace.timestamp,
+                            explanation=eval_result.explanation,
+                            task_id=task.task_id if task else None,
+                            trial_id=trial_id,
+                            metadata=details,
+                            error=eval_result.error,
+                        )
+                    else:
+                        score = EvaluatorScore(
+                            trace_id=trace.trace_id,
+                            score=eval_result.score,
+                            passed=eval_result.passed,
+                            span_id=span_id,
+                            timestamp=trace.timestamp,
+                            explanation=eval_result.explanation,
+                            task_id=task.task_id if task else None,
+                            trial_id=trial_id,
+                            metadata=details,
+                            error=None,
+                        )
+                    evaluator_scores.append(score)
+
+                scores[evaluator.name] = evaluator_scores
 
             except Exception as e:
-                # Record unexpected exception during evaluation
+                # Unexpected exception during evaluation
                 error_score = EvaluatorScore(
                     trace_id=trace.trace_id,
-                    score=0.0,  # Placeholder, marked as error
+                    score=0.0,
                     passed=False,
                     timestamp=trace.timestamp,
                     explanation=f"Evaluator raised exception: {str(e)}",
@@ -450,13 +496,13 @@ class BaseRunner(ABC):
                     metadata={},
                     error=str(e),
                 )
-                scores[evaluator.name] = error_score
+                scores[evaluator.name] = [error_score]
 
         return scores
 
     def _evaluate_traces(
         self,
-        traces: List[Trajectory],
+        traces: List[Trace],
         tasks: Optional[Dict[str, Task]] = None,
         trial_info: Optional[Dict[str, str]] = None,
     ) -> RunResult:
@@ -464,7 +510,7 @@ class BaseRunner(ABC):
         Internal method to evaluate a list of traces.
 
         Args:
-            traces: List of Trajectory objects
+            traces: List of Trace objects
             tasks: Optional dict mapping trace_id to Task
             trial_info: Optional dict mapping trace_id to trial_id (for experiments)
 
@@ -494,13 +540,13 @@ class BaseRunner(ABC):
             trial_id = trial_info.get(trace.trace_id) if trial_info else None
 
             try:
-                # evaluate_trace returns Dict[str, EvaluatorScore]
+                # evaluate_trace returns Dict[str, List[EvaluatorScore]]
                 trace_scores = self.evaluate_trace(trace, task, trial_id=trial_id)
                 result.traces_evaluated += 1
 
-                # Collect scores by evaluator
-                for evaluator_name, score in trace_scores.items():
-                    scores_by_evaluator[evaluator_name].append(score)
+                # Collect scores by evaluator (extend for multi-level support)
+                for evaluator_name, score_list in trace_scores.items():
+                    scores_by_evaluator[evaluator_name].extend(score_list)
 
             except Exception as e:
                 error_msg = f"Error evaluating trace {trace.trace_id}: {e}"
@@ -560,12 +606,23 @@ class BaseRunner(ABC):
                     logger.warning(f"Failed to compute {agg.name} for {evaluator_name}: {e}")
                     # Skip failed aggregations - don't add 0.0 as it's misleading
 
+            # Calculate items per trace for multi-level evaluators
+            items_per_trace = {}
+            for score in all_scores:
+                trace_id = score.trace_id
+                items_per_trace[trace_id] = items_per_trace.get(trace_id, 0) + 1
+
+            # Get evaluator level
+            level = evaluator.level if evaluator else "trace"
+
             # Create EvaluatorSummary
             summary = EvaluatorSummary(
                 evaluator_name=evaluator_name,
                 count=len(all_scores),
                 aggregated_scores=aggregated_scores,
                 individual_scores=all_scores,
+                level=level,
+                items_per_trace=items_per_trace if any(count > 1 for count in items_per_trace.values()) else None,
             )
             summaries[evaluator_name] = summary
 
@@ -678,14 +735,14 @@ class Experiment(BaseRunner):
     def run(
         self,
         dataset: Optional[Dataset] = None,
-        traces: Optional[List[Trajectory]] = None,
+        traces: Optional[List[Trace]] = None,
     ) -> RunResult:
         """
         Run benchmark evaluation.
 
         Args:
             dataset: Optional dataset (overrides constructor dataset)
-            traces: Pre-fetched Trajectory objects (skip agent invocation and trace fetching)
+            traces: Pre-fetched Trace objects (skip agent invocation and trace fetching)
 
         Returns:
             RunResult with aggregated scores
@@ -733,7 +790,7 @@ class Experiment(BaseRunner):
         errors.extend(match_errors)
 
         # Phase 3: Collect trajectories for evaluation
-        traces: List[Trajectory] = []
+        traces: List[Trace] = []
         tasks_by_trace_id: Dict[str, Task] = {}
         trial_info_by_trace: Dict[str, str] = {}
 
@@ -850,7 +907,7 @@ class Experiment(BaseRunner):
         Phase 2: Fetch traces from trace service and match to task results.
 
         For each matched trace:
-        - Parses the OTEL trace into a Trajectory
+        - Parses the OTEL trace into a Trace
         - Stamps the invoker's authoritative input/output onto the trajectory
           (the invoker knows exactly what was sent/received; trace-parsed values
           may be truncated or missing)
@@ -876,8 +933,6 @@ class Experiment(BaseRunner):
         fetch_end = experiment_end + timedelta(seconds=5)
 
         try:
-            fetcher = self._get_fetcher()
-
             # Wait for traces to be exported
             if self.trace_fetch_wait_seconds > 0:
                 logger.info(f"Waiting {self.trace_fetch_wait_seconds}s for traces to be exported...")
@@ -886,7 +941,7 @@ class Experiment(BaseRunner):
             expected_count = len(dataset.tasks) * self.trials_per_task
             fetch_limit = max(expected_count * 2, 100)
 
-            fetched_traces = fetcher.fetch_traces(
+            fetched_traces = self._fetch_traces(
                 start_time=fetch_start.isoformat(),
                 end_time=fetch_end.isoformat(),
                 limit=fetch_limit,
@@ -920,7 +975,7 @@ class Experiment(BaseRunner):
                     trajectory = parse_trace_for_evaluation(otel_trace)
 
                     # Stamp authoritative input/output from invoker onto trajectory.
-                    # Evaluators access observation.input / observation.output which
+                    # Evaluators access trajectory.input / trajectory.output which
                     # delegate to trajectory.input / trajectory.output. The invoker
                     # values are the ground truth of what was actually sent/received.
                     # Only override if invoker has non-None values; otherwise keep trace-parsed values.
@@ -1034,7 +1089,7 @@ class Monitor(BaseRunner):
         start_time: Optional[str] = None,
         end_time: Optional[str] = None,
         limit: Optional[int] = None,
-        traces: Optional[List[Trajectory]] = None,
+        traces: Optional[List[Trace]] = None,
     ) -> RunResult:
         """
         Run monitor evaluation.
@@ -1045,25 +1100,24 @@ class Monitor(BaseRunner):
             start_time: Start time in ISO format (for fetching)
             end_time: End time in ISO format (for fetching)
             limit: Max traces to fetch
-            traces: Pre-fetched Trajectory objects (skip fetching)
+            traces: Pre-fetched Trace objects (skip fetching)
 
         Returns:
             RunResult with aggregated scores
         """
-        eval_traces: List[Trajectory] = []
+        eval_traces: List[Trace] = []
 
         if traces:
             # Use provided traces directly
             eval_traces = traces
         else:
-            # Fetch from trace service
+            # Fetch from trace service or file
             try:
-                fetcher = self._get_fetcher()
-                fetched = fetcher.fetch_traces(start_time=start_time, end_time=end_time, limit=limit)
-                # Parse fetched traces to Trajectory
+                fetched = self._fetch_traces(start_time=start_time, end_time=end_time, limit=limit)
+                # Parse fetched traces to Trace
                 for trace in fetched:
                     try:
-                        # fetcher.fetch_traces() returns Trace objects, pass directly to parser
+                        # _fetch_traces() returns Trace objects, pass directly to parser
                         eval_traces.append(parse_trace_for_evaluation(trace))
                     except Exception as parse_error:
                         logger.error(f"Error parsing trace: {parse_error}")

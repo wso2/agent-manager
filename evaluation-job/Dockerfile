@@ -32,8 +32,8 @@ WORKDIR /app
 # Install system dependencies
 RUN apk add --no-cache git
 
-# Install amp-evaluation SDK from PyPI
-RUN pip install --no-cache-dir amp-evaluation==${AMP_EVALUATION_VERSION}
+# Install amp-evaluation SDK from PyPI and additional dependencies
+RUN pip install --no-cache-dir amp-evaluation==${AMP_EVALUATION_VERSION} requests
 
 # Copy the job entrypoint
 COPY main.py ./

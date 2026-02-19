@@ -41,10 +41,9 @@ from amp_evaluation.evaluators.builtin.standard import (
     TokenEfficiencyEvaluator,
     IterationCountEvaluator,
 )
-from amp_evaluation.models import Observation
 from amp_evaluation.dataset import Task
 from amp_evaluation.trace import (
-    Trajectory,
+    Trace,
     TraceMetrics,
     TokenUsage,
     ToolSpan,
@@ -58,9 +57,9 @@ from amp_evaluation.trace.models import ToolMetrics
 
 
 @pytest.fixture
-def basic_observation():
+def basic_trajectory():
     """Create a basic observation for testing."""
-    trajectory = Trajectory(
+    trajectory = Trace(
         trace_id="test-trace-1",
         input="What is the capital of France?",
         output="The capital of France is Paris.",
@@ -71,11 +70,11 @@ def basic_observation():
         ),
         steps=[],
     )
-    return Observation(trajectory=trajectory)
+    return trajectory
 
 
 @pytest.fixture
-def observation_with_tools():
+def trajectory_with_tools():
     """Create an observation with tool calls."""
     tool_span_1 = ToolSpan(
         span_id="tool-1",
@@ -90,7 +89,7 @@ def observation_with_tools():
         result={"confirmation": "CONF-789"},
     )
 
-    trajectory = Trajectory(
+    trajectory = Trace(
         trace_id="test-trace-2",
         input="Book a flight from NYC to Paris",
         output="Flight booked successfully. Confirmation: CONF-789",
@@ -102,7 +101,7 @@ def observation_with_tools():
         steps=[tool_span_1, tool_span_2],
     )
     trajectory._tool_spans = [tool_span_1, tool_span_2]
-    return Observation(trajectory=trajectory)
+    return trajectory
 
 
 @pytest.fixture
@@ -126,28 +125,28 @@ def basic_task():
 class TestAnswerLengthEvaluator:
     """Test AnswerLengthEvaluator."""
 
-    def test_answer_within_bounds(self, basic_observation):
+    def test_answer_within_bounds(self, basic_trajectory):
         """Test when answer length is within acceptable bounds."""
         evaluator = AnswerLengthEvaluator(min_length=10, max_length=100)
-        result = evaluator.evaluate(basic_observation)
+        result = evaluator.evaluate(basic_trajectory)[0]
 
         assert result.score == 1.0
         assert result.passed is True
         assert "acceptable" in result.explanation.lower()
 
-    def test_answer_too_short(self, basic_observation):
+    def test_answer_too_short(self, basic_trajectory):
         """Test when answer is too short."""
         evaluator = AnswerLengthEvaluator(min_length=100, max_length=1000)
-        result = evaluator.evaluate(basic_observation)
+        result = evaluator.evaluate(basic_trajectory)[0]
 
         assert result.score == 0.0
         assert result.passed is False
         assert "too short" in result.explanation.lower()
 
-    def test_answer_too_long(self, basic_observation):
+    def test_answer_too_long(self, basic_trajectory):
         """Test when answer is too long."""
         evaluator = AnswerLengthEvaluator(min_length=1, max_length=10)
-        result = evaluator.evaluate(basic_observation)
+        result = evaluator.evaluate(basic_trajectory)[0]
 
         assert result.score == 0.0
         assert result.passed is False
@@ -155,7 +154,7 @@ class TestAnswerLengthEvaluator:
 
     def test_empty_output(self):
         """Test with empty output."""
-        trajectory = Trajectory(
+        trajectory = Trace(
             trace_id="test",
             input="test",
             output="",
@@ -163,10 +162,9 @@ class TestAnswerLengthEvaluator:
             metrics=TraceMetrics(),
             steps=[],
         )
-        observation = Observation(trajectory=trajectory)
 
         evaluator = AnswerLengthEvaluator(min_length=1, max_length=100)
-        result = evaluator.evaluate(observation)
+        result = evaluator.evaluate(trajectory)[0]
 
         assert result.score == 0.0
         assert result.passed is False
@@ -175,17 +173,17 @@ class TestAnswerLengthEvaluator:
 class TestAnswerRelevancyEvaluator:
     """Test AnswerRelevancyEvaluator."""
 
-    def test_high_relevancy(self, basic_observation):
+    def test_high_relevancy(self, basic_trajectory):
         """Test when answer has high word overlap with input."""
         evaluator = AnswerRelevancyEvaluator(min_overlap_ratio=0.1)
-        result = evaluator.evaluate(basic_observation)
+        result = evaluator.evaluate(basic_trajectory)[0]
 
         assert result.score > 0.0
         assert result.passed is True
 
     def test_low_relevancy(self):
         """Test when answer has low word overlap with input."""
-        trajectory = Trajectory(
+        trajectory = Trace(
             trace_id="test",
             input="What is the capital of France?",
             output="Bananas are yellow.",
@@ -193,10 +191,9 @@ class TestAnswerRelevancyEvaluator:
             metrics=TraceMetrics(),
             steps=[],
         )
-        observation = Observation(trajectory=trajectory)
 
         evaluator = AnswerRelevancyEvaluator(min_overlap_ratio=0.5)
-        result = evaluator.evaluate(observation)
+        result = evaluator.evaluate(trajectory)[0]
 
         assert result.score < 0.5
         assert result.passed is False
@@ -205,26 +202,26 @@ class TestAnswerRelevancyEvaluator:
 class TestRequiredContentEvaluator:
     """Test RequiredContentEvaluator."""
 
-    def test_all_required_strings_present(self, basic_observation):
+    def test_all_required_strings_present(self, basic_trajectory):
         """Test when all required strings are present."""
         evaluator = RequiredContentEvaluator(required_strings=["Paris", "France"], case_sensitive=False)
-        result = evaluator.evaluate(basic_observation)
+        result = evaluator.evaluate(basic_trajectory)[0]
 
         assert result.score == 1.0
         assert result.passed is True
 
-    def test_missing_required_strings(self, basic_observation):
+    def test_missing_required_strings(self, basic_trajectory):
         """Test when some required strings are missing."""
         evaluator = RequiredContentEvaluator(required_strings=["Paris", "London", "Berlin"], case_sensitive=False)
-        result = evaluator.evaluate(basic_observation)
+        result = evaluator.evaluate(basic_trajectory)[0]
 
         assert result.score < 1.0
         assert result.passed is False
 
-    def test_required_patterns(self, basic_observation):
+    def test_required_patterns(self, basic_trajectory):
         """Test with regex patterns."""
         evaluator = RequiredContentEvaluator(required_patterns=[r"\bParis\b", r"\bcapital\b"], case_sensitive=False)
-        result = evaluator.evaluate(basic_observation)
+        result = evaluator.evaluate(basic_trajectory)[0]
 
         assert result.score == 1.0
         assert result.passed is True
@@ -233,26 +230,26 @@ class TestRequiredContentEvaluator:
 class TestProhibitedContentEvaluator:
     """Test ProhibitedContentEvaluator."""
 
-    def test_no_prohibited_content(self, basic_observation):
+    def test_no_prohibited_content(self, basic_trajectory):
         """Test when no prohibited content is found."""
         evaluator = ProhibitedContentEvaluator(prohibited_strings=["London", "Berlin"], case_sensitive=False)
-        result = evaluator.evaluate(basic_observation)
+        result = evaluator.evaluate(basic_trajectory)[0]
 
         assert result.score == 1.0
         assert result.passed is True
 
-    def test_prohibited_content_found(self, basic_observation):
+    def test_prohibited_content_found(self, basic_trajectory):
         """Test when prohibited content is found."""
         evaluator = ProhibitedContentEvaluator(prohibited_strings=["Paris"], case_sensitive=False)
-        result = evaluator.evaluate(basic_observation)
+        result = evaluator.evaluate(basic_trajectory)[0]
 
         assert result.score == 0.0
         assert result.passed is False
 
-    def test_prohibited_from_task_context(self, basic_observation, basic_task):
+    def test_prohibited_from_task_context(self, basic_trajectory, basic_task):
         """Test using prohibited content from task."""
         evaluator = ProhibitedContentEvaluator(use_context_prohibited=True)
-        result = evaluator.evaluate(basic_observation, basic_task)
+        result = evaluator.evaluate(basic_trajectory, basic_task)[0]
 
         # Paris is in output, but London and Berlin (from task) are not
         assert result.score == 1.0
@@ -264,7 +261,7 @@ class TestExactMatchEvaluator:
 
     def test_exact_match(self):
         """Test when output exactly matches expected."""
-        trajectory = Trajectory(
+        trajectory = Trace(
             trace_id="test",
             input="What is 2+2?",
             output="4",
@@ -272,7 +269,6 @@ class TestExactMatchEvaluator:
             metrics=TraceMetrics(),
             steps=[],
         )
-        observation = Observation(trajectory=trajectory)
         task = Task(
             task_id="task-1",
             name="Test",
@@ -282,22 +278,22 @@ class TestExactMatchEvaluator:
         )
 
         evaluator = ExactMatchEvaluator()
-        result = evaluator.evaluate(observation, task)
+        result = evaluator.evaluate(trajectory, task)[0]
 
         assert result.score == 1.0
         assert result.passed is True
 
-    def test_no_match(self, basic_observation, basic_task):
+    def test_no_match(self, basic_trajectory, basic_task):
         """Test when output doesn't match expected."""
         evaluator = ExactMatchEvaluator()
-        result = evaluator.evaluate(basic_observation, basic_task)
+        result = evaluator.evaluate(basic_trajectory, basic_task)[0]
 
         assert result.score == 0.0
         assert result.passed is False
 
     def test_case_insensitive_match(self):
         """Test case-insensitive matching."""
-        trajectory = Trajectory(
+        trajectory = Trace(
             trace_id="test",
             input="test",
             output="PARIS",
@@ -305,7 +301,6 @@ class TestExactMatchEvaluator:
             metrics=TraceMetrics(),
             steps=[],
         )
-        observation = Observation(trajectory=trajectory)
         task = Task(
             task_id="task-1",
             name="Test",
@@ -315,7 +310,7 @@ class TestExactMatchEvaluator:
         )
 
         evaluator = ExactMatchEvaluator(case_sensitive=False)
-        result = evaluator.evaluate(observation, task)
+        result = evaluator.evaluate(trajectory, task)[0]
 
         assert result.score == 1.0
         assert result.passed is True
@@ -324,17 +319,17 @@ class TestExactMatchEvaluator:
 class TestContainsMatchEvaluator:
     """Test ContainsMatchEvaluator."""
 
-    def test_contains_match(self, basic_observation, basic_task):
+    def test_contains_match(self, basic_trajectory, basic_task):
         """Test when output contains expected."""
         evaluator = ContainsMatchEvaluator()
-        result = evaluator.evaluate(basic_observation, basic_task)
+        result = evaluator.evaluate(basic_trajectory, basic_task)[0]
 
         assert result.score == 1.0
         assert result.passed is True
 
     def test_no_contains_match(self):
         """Test when output doesn't contain expected."""
-        trajectory = Trajectory(
+        trajectory = Trace(
             trace_id="test",
             input="test",
             output="The answer is London",
@@ -342,7 +337,6 @@ class TestContainsMatchEvaluator:
             metrics=TraceMetrics(),
             steps=[],
         )
-        observation = Observation(trajectory=trajectory)
         task = Task(
             task_id="task-1",
             name="Test",
@@ -352,7 +346,7 @@ class TestContainsMatchEvaluator:
         )
 
         evaluator = ContainsMatchEvaluator()
-        result = evaluator.evaluate(observation, task)
+        result = evaluator.evaluate(trajectory, task)[0]
 
         assert result.score == 0.0
         assert result.passed is False
@@ -366,26 +360,26 @@ class TestContainsMatchEvaluator:
 class TestToolSequenceEvaluator:
     """Test ToolSequenceEvaluator."""
 
-    def test_correct_sequence(self, observation_with_tools):
+    def test_correct_sequence(self, trajectory_with_tools):
         """Test when tools are called in correct sequence."""
         evaluator = ToolSequenceEvaluator(expected_sequence=["search_flights", "book_flight"], strict=True)
-        result = evaluator.evaluate(observation_with_tools)
+        result = evaluator.evaluate(trajectory_with_tools)[0]
 
         assert result.score == 1.0
         assert result.passed is True
 
-    def test_wrong_sequence(self, observation_with_tools):
+    def test_wrong_sequence(self, trajectory_with_tools):
         """Test when tools are called in wrong sequence."""
         evaluator = ToolSequenceEvaluator(expected_sequence=["book_flight", "search_flights"], strict=True)
-        result = evaluator.evaluate(observation_with_tools)
+        result = evaluator.evaluate(trajectory_with_tools)[0]
 
         assert result.score < 1.0
         assert result.passed is False
 
-    def test_partial_sequence_non_strict(self, observation_with_tools):
+    def test_partial_sequence_non_strict(self, trajectory_with_tools):
         """Test partial sequence in non-strict mode."""
         evaluator = ToolSequenceEvaluator(expected_sequence=["search_flights"], strict=False)
-        result = evaluator.evaluate(observation_with_tools)
+        result = evaluator.evaluate(trajectory_with_tools)[0]
 
         assert result.score > 0.0
         assert result.passed is True
@@ -394,18 +388,18 @@ class TestToolSequenceEvaluator:
 class TestRequiredToolsEvaluator:
     """Test RequiredToolsEvaluator."""
 
-    def test_all_required_tools_called(self, observation_with_tools):
+    def test_all_required_tools_called(self, trajectory_with_tools):
         """Test when all required tools are called."""
         evaluator = RequiredToolsEvaluator(required_tools=["search_flights", "book_flight"])
-        result = evaluator.evaluate(observation_with_tools)
+        result = evaluator.evaluate(trajectory_with_tools)[0]
 
         assert result.score == 1.0
         assert result.passed is True
 
-    def test_missing_required_tools(self, observation_with_tools):
+    def test_missing_required_tools(self, trajectory_with_tools):
         """Test when some required tools are missing."""
         evaluator = RequiredToolsEvaluator(required_tools=["search_flights", "book_flight", "cancel_flight"])
-        result = evaluator.evaluate(observation_with_tools)
+        result = evaluator.evaluate(trajectory_with_tools)[0]
 
         assert result.score < 1.0
         assert result.passed is False
@@ -414,10 +408,10 @@ class TestRequiredToolsEvaluator:
 class TestStepSuccessRateEvaluator:
     """Test StepSuccessRateEvaluator."""
 
-    def test_all_steps_successful(self, observation_with_tools):
+    def test_all_steps_successful(self, trajectory_with_tools):
         """Test when all steps are successful."""
         evaluator = StepSuccessRateEvaluator(min_success_rate=0.8)
-        result = evaluator.evaluate(observation_with_tools)
+        result = evaluator.evaluate(trajectory_with_tools)[0]
 
         # All steps are successful (no error field)
         assert result.score == 1.0
@@ -440,7 +434,7 @@ class TestStepSuccessRateEvaluator:
         # Set error on span 2 - create ToolMetrics with error set
         tool_span_2.metrics = ToolMetrics(error=True)
 
-        trajectory = Trajectory(
+        trajectory = Trace(
             trace_id="test",
             input="test",
             output="test",
@@ -448,10 +442,9 @@ class TestStepSuccessRateEvaluator:
             metrics=TraceMetrics(),
             steps=[tool_span_1, tool_span_2],
         )
-        observation = Observation(trajectory=trajectory)
 
         evaluator = StepSuccessRateEvaluator(min_success_rate=0.8)
-        result = evaluator.evaluate(observation)
+        result = evaluator.evaluate(trajectory)[0]
 
         assert result.score == 0.5  # 1 out of 2 successful
         assert result.passed is False
@@ -465,20 +458,20 @@ class TestStepSuccessRateEvaluator:
 class TestLatencyEvaluator:
     """Test LatencyEvaluator."""
 
-    def test_latency_within_limit(self, basic_observation):
+    def test_latency_within_limit(self, basic_trajectory):
         """Test when latency is within acceptable limit."""
         evaluator = LatencyEvaluator(max_latency_ms=2000.0)
-        result = evaluator.evaluate(basic_observation)
+        result = evaluator.evaluate(basic_trajectory)[0]
 
         assert result.score == 1.0
         assert result.passed is True
 
-    def test_latency_exceeds_limit(self, basic_observation):
+    def test_latency_exceeds_limit(self, basic_trajectory):
         """Test when latency exceeds limit."""
         evaluator = LatencyEvaluator(max_latency_ms=1000.0)
-        result = evaluator.evaluate(basic_observation)
+        result = evaluator.evaluate(basic_trajectory)[0]
 
-        # basic_observation has 1500ms latency
+        # basic_trajectory has 1500ms latency
         # Score decreases linearly: 1.0 - (1500-1000)/1000 = 0.5
         assert result.score == 0.5
         assert result.passed is False
@@ -487,20 +480,20 @@ class TestLatencyEvaluator:
 class TestTokenEfficiencyEvaluator:
     """Test TokenEfficiencyEvaluator."""
 
-    def test_efficient_token_usage(self, basic_observation):
+    def test_efficient_token_usage(self, basic_trajectory):
         """Test when token usage is efficient."""
-        # basic_observation uses 150 tokens
+        # basic_trajectory uses 150 tokens
         evaluator = TokenEfficiencyEvaluator(max_tokens=200)
-        result = evaluator.evaluate(basic_observation)
+        result = evaluator.evaluate(basic_trajectory)[0]
 
         assert result.passed is True
         assert result.score == 1.0
 
-    def test_inefficient_token_usage(self, basic_observation):
+    def test_inefficient_token_usage(self, basic_trajectory):
         """Test when token usage is inefficient."""
-        # basic_observation uses 150 tokens, set limit to 100
+        # basic_trajectory uses 150 tokens, set limit to 100
         evaluator = TokenEfficiencyEvaluator(max_tokens=100)
-        result = evaluator.evaluate(basic_observation)
+        result = evaluator.evaluate(basic_trajectory)[0]
 
         assert result.passed is False
         # Score: 1.0 - (150-100)/100 = 0.5
@@ -510,19 +503,19 @@ class TestTokenEfficiencyEvaluator:
 class TestIterationCountEvaluator:
     """Test IterationCountEvaluator."""
 
-    def test_within_max_iterations(self, observation_with_tools):
+    def test_within_max_iterations(self, trajectory_with_tools):
         """Test when iteration count is within max."""
         evaluator = IterationCountEvaluator(max_iterations=5)
-        result = evaluator.evaluate(observation_with_tools)
+        result = evaluator.evaluate(trajectory_with_tools)[0]
 
         # 2 tool calls = 2 iterations
         assert result.score == 1.0
         assert result.passed is True
 
-    def test_exceeds_max_iterations(self, observation_with_tools):
+    def test_exceeds_max_iterations(self, trajectory_with_tools):
         """Test when iteration count exceeds max."""
         evaluator = IterationCountEvaluator(max_iterations=1)
-        result = evaluator.evaluate(observation_with_tools)
+        result = evaluator.evaluate(trajectory_with_tools)[0]
 
         # 2 tool calls > 1 max
         assert result.score == 0.0
