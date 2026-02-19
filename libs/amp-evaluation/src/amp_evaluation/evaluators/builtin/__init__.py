@@ -100,7 +100,7 @@ def discover_evaluator(name: str) -> Optional[Type[BaseEvaluator]]:
                     continue
 
                 # Skip classes with abstract methods
-                abstract_methods = getattr(obj, "__abstractmethods__", set())
+                abstract_methods: frozenset[str] = getattr(obj, "__abstractmethods__", frozenset())
                 if abstract_methods:
                     continue
 
@@ -152,7 +152,7 @@ def list_builtin_evaluators() -> List[Dict[str, Any]]:
                     continue
 
                 # Skip classes with abstract methods
-                abstract_methods = getattr(obj, "__abstractmethods__", set())
+                abstract_methods: frozenset[str] = getattr(obj, "__abstractmethods__", frozenset())
                 if abstract_methods:
                     continue
 

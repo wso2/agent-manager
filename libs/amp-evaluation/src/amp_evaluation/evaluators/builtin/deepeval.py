@@ -40,7 +40,7 @@ Reference: https://deepeval.com/guides/guides-ai-agent-evaluation-metrics
 from __future__ import annotations
 
 import logging
-from typing import Optional, List, Any, TYPE_CHECKING
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 from amp_evaluation.evaluators.base import BaseEvaluator
 from amp_evaluation.evaluators.config import Param
@@ -123,7 +123,7 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
         actual_output = trace.output or ""
 
         # Build test case kwargs
-        kwargs = {
+        kwargs: Dict[str, Any] = {
             "input": input_text,
             "actual_output": actual_output,
         }
@@ -425,12 +425,12 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
         # Extract tools called from trace
         tools_called = []
         for span in trace.get_tool_calls():
-            tool_call_kwargs = {"name": span.name}
+            tc_kwargs: Dict[str, Any] = {"name": span.name}
             if self.evaluate_input and hasattr(span, "input"):
-                tool_call_kwargs["input"] = span.input
+                tc_kwargs["input"] = span.input
             if self.evaluate_output and hasattr(span, "output"):
-                tool_call_kwargs["output"] = span.output
-            tools_called.append(ToolCall(**tool_call_kwargs))
+                tc_kwargs["output"] = span.output
+            tools_called.append(ToolCall(**tc_kwargs))
 
         # Build expected tools from task if available
         expected_tools = None
@@ -438,15 +438,15 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
             expected_tools = []
             for step in task.expected_trajectory:
                 # TrajectoryStep has: tool, args, expected_output
-                tool_call_kwargs = {"name": step.tool}
+                et_kwargs: Dict[str, Any] = {"name": step.tool}
                 if self.evaluate_input and step.args:
-                    tool_call_kwargs["input"] = step.args
+                    et_kwargs["input"] = step.args
                 if self.evaluate_output and step.expected_output:
-                    tool_call_kwargs["output"] = step.expected_output
-                expected_tools.append(ToolCall(**tool_call_kwargs))
+                    et_kwargs["output"] = step.expected_output
+                expected_tools.append(ToolCall(**et_kwargs))
 
         # Build kwargs for test case
-        kwargs = {
+        kwargs: Dict[str, Any] = {
             "input": trace.input or "",
             "actual_output": trace.output or "",
             "tools_called": tools_called,
@@ -515,10 +515,10 @@ class DeepEvalArgumentCorrectnessEvaluator(DeepEvalBaseEvaluator):
         # Extract tools called with input arguments
         tools_called = []
         for span in trace.get_tool_calls():
-            tool_call_kwargs = {"name": span.name}
+            tc_kwargs: Dict[str, Any] = {"name": span.name}
             if hasattr(span, "input") and span.input:
-                tool_call_kwargs["input"] = span.input
-            tools_called.append(ToolCall(**tool_call_kwargs))
+                tc_kwargs["input"] = span.input
+            tools_called.append(ToolCall(**tc_kwargs))
 
         return LLMTestCase(
             input=trace.input or "",

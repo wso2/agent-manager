@@ -580,7 +580,7 @@ class Trace:
             deduplicate_messages: If True, remove duplicate messages across LLM spans
         """
         steps: List[AgentStep] = []
-        seen_messages = set() if deduplicate_messages else None
+        seen_messages: Optional[set[str]] = set() if deduplicate_messages else None
 
         for span in spans:
             if isinstance(span, LLMSpan):
@@ -648,7 +648,7 @@ class Trace:
                 # Tool result message in conversation
                 # Resolve human-readable tool name from prior assistant tool_calls;
                 # falls back to the opaque tool_call_id if no match is found.
-                resolved_name = tool_call_names.get(msg.tool_call_id, msg.tool_call_id)
+                resolved_name = tool_call_names.get(msg.tool_call_id or "", msg.tool_call_id or "")
                 steps.append(
                     AgentStep(
                         step_type="tool_result",
@@ -962,9 +962,10 @@ class Trace:
         llm_calls = [s for s in agent_steps if isinstance(s, LLMSpan)]
         tool_calls = [s for s in agent_steps if isinstance(s, ToolSpan)]
 
-        total_tokens = sum(
-            llm.metrics.token_usage.total_tokens for llm in llm_calls if llm.metrics and llm.metrics.token_usage
-        )
+        total_tokens = 0
+        for llm in llm_calls:
+            if llm.metrics and llm.metrics.token_usage:
+                total_tokens += llm.metrics.token_usage.total_tokens
 
         total_duration = sum(s.metrics.duration_ms for s in agent_steps if hasattr(s, "metrics"))
 

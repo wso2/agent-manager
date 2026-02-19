@@ -65,7 +65,7 @@ class EvaluatorRegistry:
 
         self._evaluators[name] = evaluator
 
-    def register_builtin(self, name: str, display_name: str = None, **kwargs) -> None:
+    def register_builtin(self, name: str, display_name: Optional[str] = None, **kwargs) -> None:
         """
         Register a built-in evaluator by name with optional configuration.
 
@@ -368,7 +368,7 @@ def register_evaluator(evaluator: BaseEvaluator) -> None:
     _global_registry.register_evaluator(evaluator)
 
 
-def register_builtin(name: str, display_name: str = None, **kwargs) -> None:
+def register_builtin(name: str, display_name: Optional[str] = None, **kwargs) -> None:
     """
     Register a built-in evaluator to the global registry with optional configuration.
 

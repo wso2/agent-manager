@@ -492,7 +492,7 @@ class LatencyEvaluator(BaseEvaluator):
         max_latency = self.max_latency_ms
         if self.use_task_constraint and task and task.constraints:
             constraints = task.constraints
-            if constraints and constraints.has_latency_constraint():
+            if constraints and constraints.max_latency_ms is not None:
                 max_latency = constraints.max_latency_ms
         return max_latency
 
@@ -603,7 +603,7 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
         max_tokens = self.max_tokens
         if self.use_context_constraint and task and task.constraints:
             constraints = task.constraints
-            if constraints and constraints.has_token_constraint():
+            if constraints and constraints.max_tokens is not None:
                 max_tokens = constraints.max_tokens
 
         if max_tokens is None:
@@ -647,7 +647,7 @@ class IterationCountEvaluator(BaseEvaluator):
         max_iterations = self.max_iterations
         if self.use_context_constraint and task and task.constraints:
             constraints = task.constraints
-            if constraints and constraints.has_iteration_constraint():
+            if constraints and constraints.max_iterations is not None:
                 max_iterations = constraints.max_iterations
 
         actual_iterations = len(trace.steps)

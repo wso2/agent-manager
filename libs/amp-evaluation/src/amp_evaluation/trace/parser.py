@@ -153,7 +153,7 @@ def filter_infrastructure_spans(spans: List[OTELSpan], create_synthetic_root: bo
         if kind in SEMANTIC_KINDS:
             # Remap parent
             old_parent = span.parentSpanId
-            new_parent = remap_map.get(old_parent, old_parent)
+            new_parent = remap_map.get(old_parent or "", old_parent)
 
             if new_parent is None and len(orphans) > 1:
                 # Orphan, connect to synthetic root
@@ -628,7 +628,7 @@ def _parse_token_usage(data: Dict[str, Any]) -> TokenUsage:
 
 def _parse_messages(raw_input: Any) -> List[Message]:
     """Parse messages from LLM input."""
-    messages = []
+    messages: List[Message] = []
 
     if not raw_input:
         return messages
@@ -704,7 +704,7 @@ def _parse_llm_response(raw_output: Any) -> str:
 
 def _parse_retrieved_docs(raw_output: Any) -> List[RetrievedDoc]:
     """Parse retrieved documents from retriever output."""
-    docs = []
+    docs: List[RetrievedDoc] = []
 
     if not raw_output:
         return docs
@@ -715,7 +715,7 @@ def _parse_retrieved_docs(raw_output: Any) -> List[RetrievedDoc]:
                 docs.append(
                     RetrievedDoc(
                         id=item.get("id", ""),
-                        content=item.get("content", item.get("text", "")),
+                        content=item.get("content") or item.get("text") or "",
                         score=item.get("score", 0.0),
                         metadata=item.get("metadata", {}),
                     )

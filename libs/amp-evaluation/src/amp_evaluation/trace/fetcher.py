@@ -298,8 +298,8 @@ class TraceFetcher:
                     "endTime": end_time,
                     "componentUid": self.agent_uid,
                     "environmentUid": self.environment_uid,
-                    "limit": limit,
-                    "offset": offset,
+                    "limit": str(limit),
+                    "offset": str(offset),
                 },
                 timeout=self.timeout,
             )
