@@ -76,6 +76,9 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 	// Generate unique WorkflowRun name
 	workflowRunName := fmt.Sprintf("%s-%d", params.Monitor.Name, time.Now().Unix())
 
+	// Pre-generate run ID so it can be included in the WorkflowRun CR for score publishing
+	runID := uuid.New()
+
 	// Use provided evaluators or fall back to monitor's current evaluators
 	evaluators := params.Evaluators
 	if len(evaluators) == 0 {
@@ -94,6 +97,7 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		params.OrgName,
 		params.Monitor,
 		workflowRunName,
+		runID,
 		params.StartTime,
 		params.EndTime,
 		evaluators,
@@ -109,7 +113,7 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 
 	// Create monitor_runs entry
 	run := &models.MonitorRun{
-		ID:         uuid.New(),
+		ID:         runID,
 		MonitorID:  params.Monitor.ID,
 		Name:       workflowRunName,
 		Evaluators: evaluators,
@@ -163,6 +167,7 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 	orgName string,
 	monitor *models.Monitor,
 	workflowRunName string,
+	runID uuid.UUID,
 	startTime, endTime time.Time,
 	evaluators []models.MonitorEvaluator,
 ) (map[string]interface{}, error) {
@@ -205,6 +210,10 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 						"traceStart":   startTime.Format(time.RFC3339),
 						"traceEnd":     endTime.Format(time.RFC3339),
 					},
+					"publishing": map[string]interface{}{
+						"monitorId": monitor.ID.String(),
+						"runId":     runID.String(),
+					},
 				},
 			},
 		},
@@ -216,7 +225,7 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 func serializeEvaluators(evaluators []models.MonitorEvaluator) (string, error) {
 	for i, eval := range evaluators {
 		if _, err := json.Marshal(eval); err != nil {
-			return "", fmt.Errorf("failed to serialize evaluator %d (%s): %w", i, eval.Name, err)
+			return "", fmt.Errorf("failed to serialize evaluator %d (%s): %w", i, eval.DisplayName, err)
 		}
 	}
 	evaluatorsJSON, err := json.Marshal(evaluators)

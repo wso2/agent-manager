@@ -19,19 +19,25 @@ var _ MappedNullable = &MonitorEvaluator{}
 
 // MonitorEvaluator struct for MonitorEvaluator
 type MonitorEvaluator struct {
-	// Evaluator identifier (e.g., \"latency\", \"answer_relevancy\", \"deepeval/plan-quality\")
-	Name string `json:"name"`
+	// Evaluator type/definition key for catalog lookup (e.g., \"latency\", \"answer_relevancy\", \"deepeval/plan-quality\")
+	Identifier string `json:"identifier"`
+	// User-facing name, unique per monitor (e.g., \"Latency Check\", \"Customer Query Latency\")
+	DisplayName string `json:"displayName"`
 	// Optional evaluator-specific configuration parameters
 	Config map[string]interface{} `json:"config,omitempty"`
+	// Evaluation level
+	Level string `json:"level"`
 }
 
 // NewMonitorEvaluator instantiates a new MonitorEvaluator object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewMonitorEvaluator(name string) *MonitorEvaluator {
+func NewMonitorEvaluator(identifier string, displayName string, level string) *MonitorEvaluator {
 	this := MonitorEvaluator{}
-	this.Name = name
+	this.Identifier = identifier
+	this.DisplayName = displayName
+	this.Level = level
 	return &this
 }
 
@@ -43,28 +49,52 @@ func NewMonitorEvaluatorWithDefaults() *MonitorEvaluator {
 	return &this
 }
 
-// GetName returns the Name field value
-func (o *MonitorEvaluator) GetName() string {
+// GetIdentifier returns the Identifier field value
+func (o *MonitorEvaluator) GetIdentifier() string {
 	if o == nil {
 		var ret string
 		return ret
 	}
 
-	return o.Name
+	return o.Identifier
 }
 
-// GetNameOk returns a tuple with the Name field value
+// GetIdentifierOk returns a tuple with the Identifier field value
 // and a boolean to check if the value has been set.
-func (o *MonitorEvaluator) GetNameOk() (*string, bool) {
+func (o *MonitorEvaluator) GetIdentifierOk() (*string, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.Name, true
+	return &o.Identifier, true
 }
 
-// SetName sets field value
-func (o *MonitorEvaluator) SetName(v string) {
-	o.Name = v
+// SetIdentifier sets field value
+func (o *MonitorEvaluator) SetIdentifier(v string) {
+	o.Identifier = v
+}
+
+// GetDisplayName returns the DisplayName field value
+func (o *MonitorEvaluator) GetDisplayName() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.DisplayName
+}
+
+// GetDisplayNameOk returns a tuple with the DisplayName field value
+// and a boolean to check if the value has been set.
+func (o *MonitorEvaluator) GetDisplayNameOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.DisplayName, true
+}
+
+// SetDisplayName sets field value
+func (o *MonitorEvaluator) SetDisplayName(v string) {
+	o.DisplayName = v
 }
 
 // GetConfig returns the Config field value if set, zero value otherwise.
@@ -99,6 +129,30 @@ func (o *MonitorEvaluator) SetConfig(v map[string]interface{}) {
 	o.Config = v
 }
 
+// GetLevel returns the Level field value
+func (o *MonitorEvaluator) GetLevel() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Level
+}
+
+// GetLevelOk returns a tuple with the Level field value
+// and a boolean to check if the value has been set.
+func (o *MonitorEvaluator) GetLevelOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Level, true
+}
+
+// SetLevel sets field value
+func (o *MonitorEvaluator) SetLevel(v string) {
+	o.Level = v
+}
+
 func (o MonitorEvaluator) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -109,10 +163,12 @@ func (o MonitorEvaluator) MarshalJSON() ([]byte, error) {
 
 func (o MonitorEvaluator) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["name"] = o.Name
+	toSerialize["identifier"] = o.Identifier
+	toSerialize["displayName"] = o.DisplayName
 	if !IsNil(o.Config) {
 		toSerialize["config"] = o.Config
 	}
+	toSerialize["level"] = o.Level
 	return toSerialize, nil
 }
 
