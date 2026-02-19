@@ -252,11 +252,13 @@ func (s *agentManagerService) handleInstrumentationUpdate(ctx context.Context, o
 		return nil
 	}
 
-	// Determine desired instrumentation state (default to enabled if not specified)
-	enableInstrumentation := true
-	if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil {
-		enableInstrumentation = *req.Configurations.EnableAutoInstrumentation
+	// If the caller did not explicitly provide EnableAutoInstrumentation, preserve the
+	// current trait state and return without making any changes.
+	if req.Configurations == nil || req.Configurations.EnableAutoInstrumentation == nil {
+		s.logger.Debug("EnableAutoInstrumentation not specified, preserving current instrumentation state", "agentName", agentName)
+		return nil
 	}
+	enableInstrumentation := *req.Configurations.EnableAutoInstrumentation
 
 	// Check current trait state
 	hasTrait, err := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation)
