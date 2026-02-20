@@ -75,6 +75,9 @@ spec:
             - name: http
               containerPort: {{ .Values.agentManagerService.service.targetPort }}
               protocol: TCP
+            - name: https
+              containerPort: {{ .Values.agentManagerService.internalService.targetPort }}
+              protocol: TCP
           env:
             - name: DB_HOST
               value: {{ include "agent-management-platform.postgresql.host" . | quote }}
@@ -118,6 +121,11 @@ spec:
             - name: jwt-keys
               mountPath: /app/keys
               readOnly: true
+            {{- if .Values.agentManagerService.certificates.certificatesSecret }}
+            - name: certificates
+              mountPath: /app/data/certs
+              readOnly: true
+            {{- end }}
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -127,6 +135,12 @@ spec:
             secretName: {{ include "agent-management-platform.jwtKeysSecretName" . }}
             defaultMode: 0440
             optional: true
+        {{- if .Values.agentManagerService.certificates.certificatesSecret }}
+        - name: certificates
+          secret:
+            secretName: {{ .Values.agentManagerService.certificates.certificatesSecret }}
+            defaultMode: 0440
+        {{- end }}
         {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
