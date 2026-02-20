@@ -62,7 +62,7 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 		CreateComponentFunc: func(ctx context.Context, namespaceName string, projectName string, req client.CreateComponentRequest) error {
 			return nil
 		},
-		AttachTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) error {
+		AttachTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType, agentApiKey ...string) error {
 			return nil
 		},
 		UpdateComponentEnvironmentVariablesFunc: func(ctx context.Context, namespaceName, projectName, componentName string, envVars []client.EnvVar) error {
