@@ -24,8 +24,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -800,7 +798,7 @@ func getInputInterfaceConfig(req CreateComponentRequest) (int32, string) {
 	return req.InputInterface.Port, req.InputInterface.BasePath
 }
 
-func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) error {
+func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) error {
 	// Get the current traits for the component
 	listResp, err := c.ocClient.ListComponentTraitsWithResponse(ctx, namespaceName, projectName, componentName)
 	if err != nil {
@@ -837,7 +835,7 @@ func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, proje
 	}
 
 	// Add the new trait with type-specific parameters
-	newTrait, err := c.buildTraitRequest(ctx, namespaceName, projectName, componentName, traitType)
+	newTrait, err := c.buildTraitRequest(ctx, namespaceName, projectName, componentName, traitType, agentApiKey...)
 	if err != nil {
 		return fmt.Errorf("failed to build trait request: %w", err)
 	}
@@ -937,13 +935,17 @@ func (c *openChoreoClient) UpdateComponentEnvironmentVariables(ctx context.Conte
 	return nil
 }
 
-func (c *openChoreoClient) buildTraitRequest(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) (gen.ComponentTraitRequest, error) {
+func (c *openChoreoClient) buildTraitRequest(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) (gen.ComponentTraitRequest, error) {
 	trait := gen.ComponentTraitRequest{
 		Name:         string(traitType),
 		InstanceName: fmt.Sprintf("%s-%s", componentName, string(traitType)),
 	}
 	if traitType == TraitOTELInstrumentation {
-		params, err := c.buildOTELTraitParameters(ctx, namespaceName, projectName, componentName)
+		apiKey := ""
+		if len(agentApiKey) > 0 {
+			apiKey = agentApiKey[0]
+		}
+		params, err := c.buildOTELTraitParameters(ctx, namespaceName, projectName, componentName, apiKey)
 		if err != nil {
 			return gen.ComponentTraitRequest{}, err
 		}
@@ -952,7 +954,10 @@ func (c *openChoreoClient) buildTraitRequest(ctx context.Context, namespaceName,
 	return trait, nil
 }
 
-func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespaceName, projectName, componentName string) (map[string]interface{}, error) {
+func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespaceName, projectName, componentName, agentApiKey string) (map[string]interface{}, error) {
+	if agentApiKey == "" {
+		return nil, fmt.Errorf("agent API key is required for OTEL instrumentation trait")
+	}
 	// Get the component to retrieve UUID and language version
 	component, err := c.GetComponent(ctx, namespaceName, projectName, componentName)
 	if err != nil {
@@ -972,19 +977,6 @@ func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespa
 		return nil, fmt.Errorf("failed to attach trait: project %s does not have a deployment pipeline configured", projectName)
 	}
 
-	// Get the deployment pipeline to find the lowest environment
-	pipeline, err := c.GetProjectDeploymentPipeline(ctx, namespaceName, projectName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get deployment pipeline for trait attachment: %w", err)
-	}
-	lowestEnvName := findLowestEnvironment(pipeline.PromotionPaths)
-
-	// Get the environment UUID
-	env, err := c.GetEnvironment(ctx, namespaceName, lowestEnvName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get environment for trait attachment: %w", err)
-	}
-
 	cfg := config.GetConfig()
 	instrumentationImage, err := getInstrumentationImage(languageVersion, cfg.PackageVersion)
 	if err != nil {
@@ -997,8 +989,7 @@ func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespa
 		"sdkMountPath":          cfg.OTEL.SDKMountPath,
 		"otelEndpoint":          cfg.OTEL.ExporterEndpoint,
 		"isTraceContentEnabled": utils.BoolAsString(cfg.OTEL.IsTraceContentEnabled),
-		"traceAttributes":       fmt.Sprintf("%s=%s,%s=%s", TraceAttributeKeyEnvironment, env.UUID, TraceAttributeKeyComponent, component.UUID),
-		"agentApiKey":           uuid.New().String(),
+		"agentApiKey":           agentApiKey,
 	}, nil
 }
 

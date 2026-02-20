@@ -165,81 +165,94 @@ func mapInputInterface(specInterface *spec.InputInterface) *client.InputInterfac
 	return config
 }
 
-// attachTraits attaches necessary traits to the agent based on its type and build configuration
-func (s *agentManagerService) attachTraits(ctx context.Context, orgName, projectName, agentName string, agentType spec.AgentType, build *spec.Build) error {
-	// Only attach traits for API agents
-	if agentType.Type != string(utils.AgentTypeAPI) {
+// enableInstrumentation enables observability instrumentation for the agent based on build type.
+// For buildpack builds (Python): attaches OTEL instrumentation trait
+// For docker builds: injects tracing environment variables
+func (s *agentManagerService) enableInstrumentation(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
+	if req.AgentType.Type != string(utils.AgentTypeAPI) {
+		s.logger.Debug("Skipping instrumentation for non-API agent", "agentName", req.Name, "agentType", req.AgentType.Type)
 		return nil
 	}
 
-	// Only attach OTEL instrumentation for buildpack builds
-	if build.BuildpackBuild == nil {
+	if req.Build == nil {
+		s.logger.Debug("Skipping instrumentation, no build configuration", "agentName", req.Name)
 		return nil
 	}
 
-	// Only attach for Python language
-	language := build.BuildpackBuild.Buildpack.Language
-	if language != string(utils.LanguagePython) {
-		return nil
-	}
-
-	// Attach OTEL instrumentation trait
-	if err := s.ocClient.AttachTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation); err != nil {
-		s.logger.Error("Failed to attach OTEL instrumentation trait", "agentName", agentName, "error", err)
-		// Rollback - delete the created agent
-		if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, agentName); errDeletion != nil {
-			s.logger.Error("Failed to rollback agent creation after OTEL instrumentation trait attachment failure", "agentName", agentName, "error", errDeletion)
+	// For buildpack builds, use traits (currently only Python supported)
+	if req.Build.BuildpackBuild != nil {
+		language := req.Build.BuildpackBuild.Buildpack.Language
+		if language == string(utils.LanguagePython) {
+			s.logger.Debug("Enabling instrumentation via trait for buildpack build", "agentName", req.Name, "language", language)
+			return s.attachOTELInstrumentationTrait(ctx, orgName, projectName, req.Name)
 		}
+		s.logger.Debug("Instrumentation not supported for buildpack language", "agentName", req.Name, "language", language)
+		return nil
+	}
+
+	// For docker builds, inject environment variables
+	if req.Build.DockerBuild != nil {
+		s.logger.Debug("Enabling instrumentation via env vars for docker build", "agentName", req.Name)
+		return s.injectTracingEnvVarsForDockerAgents(ctx, orgName, projectName, req)
+	}
+
+	return nil
+}
+
+// attachOTELInstrumentationTrait attaches OTEL instrumentation trait to the agent
+// The trait handles injection of OTEL configuration including the agent API key
+func (s *agentManagerService) attachOTELInstrumentationTrait(ctx context.Context, orgName, projectName, agentName string) error {
+	// Generate agent API key for the trait parameters
+	apiKey, err := s.generateAgentAPIKey(ctx, orgName, projectName, agentName)
+	if err != nil {
+		return fmt.Errorf("failed to generate agent API key: %w", err)
+	}
+
+	if err := s.ocClient.AttachTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation, apiKey); err != nil {
 		return fmt.Errorf("error attaching OTEL instrumentation trait: %w", err)
 	}
 
-	s.logger.Debug("Attached OTEL instrumentation trait", "agentName", agentName)
+	s.logger.Info("Enabled instrumentation for buildpack agent", "agentName", agentName)
 	return nil
 }
 
-// injectSystemEnvironmentVariables injects system environment variables based on agent build type
-func (s *agentManagerService) injectSystemEnvironmentVariables(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
-	// For docker-based agents, inject tracing environment variables
-	if req.Build != nil && req.Build.DockerBuild != nil {
-		if err := s.injectTracingEnvVarsForDockerAgents(ctx, orgName, projectName, req); err != nil {
-			s.logger.Error("Failed to inject system environment variables", "agentName", req.Name, "error", err)
-			// Rollback - delete the created agent
-			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
-				s.logger.Error("Failed to rollback agent creation after env var injection failure", "agentName", req.Name, "error", errDeletion)
-			}
-			return fmt.Errorf("failed to inject system environment variables: %w", err)
-		}
-	}
-	// For other build types, no system environment variables are needed currently
-	return nil
-}
-
-// injectTracingEnvVarsForDockerAgents injects tracing-related environment variables for docker-based agents
-// This function is called AFTER the component is created
-func (s *agentManagerService) injectTracingEnvVarsForDockerAgents(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
-	s.logger.Debug("Injecting tracing environment variables for docker-based agent", "agentName", req.Name)
-
+// generateAgentAPIKey generates an agent API key (JWT token) for the agent
+// This is a common utility used by both buildpack and docker agent instrumentation
+func (s *agentManagerService) generateAgentAPIKey(ctx context.Context, orgName, projectName, agentName string) (string, error) {
 	// Get the deployment pipeline to find the first environment
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to get deployment pipeline for token generation", "projectName", projectName, "error", err)
-		return fmt.Errorf("failed to get deployment pipeline: %w", err)
+		return "", fmt.Errorf("failed to get deployment pipeline: %w", err)
 	}
 	firstEnvName := findLowestEnvironment(pipeline.PromotionPaths)
 
 	// Generate agent API key using token manager service with 1 year expiry
-	// The component exists now, so we can generate a proper JWT token
 	tokenReq := GenerateTokenRequest{
 		OrgName:     orgName,
 		ProjectName: projectName,
-		AgentName:   req.Name,
+		AgentName:   agentName,
 		Environment: firstEnvName,
 		ExpiresIn:   "8760h", // 1 year (365 days * 24 hours)
 	}
 	tokenResp, err := s.tokenManagerService.GenerateToken(ctx, tokenReq)
 	if err != nil {
-		s.logger.Error("Failed to generate agent API key", "agentName", req.Name, "error", err)
-		return fmt.Errorf("failed to generate agent API key: %w", err)
+		s.logger.Error("Failed to generate agent API key", "agentName", agentName, "error", err)
+		return "", fmt.Errorf("failed to generate agent API key: %w", err)
+	}
+
+	s.logger.Debug("Generated agent API key", "agentName", agentName)
+	return tokenResp.Token, nil
+}
+
+// injectTracingEnvVarsForDockerAgents injects tracing-related environment variables for docker-based agents
+func (s *agentManagerService) injectTracingEnvVarsForDockerAgents(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
+	s.logger.Debug("Injecting tracing environment variables for docker-based agent", "agentName", req.Name)
+
+	// Generate agent API key
+	apiKey, err := s.generateAgentAPIKey(ctx, orgName, projectName, req.Name)
+	if err != nil {
+		return err
 	}
 
 	// Get OTEL exporter endpoint from config
@@ -254,7 +267,7 @@ func (s *agentManagerService) injectTracingEnvVarsForDockerAgents(ctx context.Co
 		},
 		{
 			Key:   client.EnvVarAgentAPIKey,
-			Value: tokenResp.Token,
+			Value: apiKey,
 		},
 	}
 
@@ -358,17 +371,16 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		return err
 	}
 
-	// For internal agents, inject system environment variables, attach traits, and trigger initial build
+	// For internal agents, enable instrumentation and trigger initial build
 	if req.Provisioning.Type == string(utils.InternalAgent) {
 		s.logger.Debug("Component created successfully", "agentName", req.Name)
 
-		// Inject system environment variables AFTER component creation (requires component to exist for JWT token generation)
-		if err := s.injectSystemEnvironmentVariables(ctx, orgName, projectName, req); err != nil {
-			return err
-		}
-
-		// Attach necessary traits based on agent type and build configuration
-		if err := s.attachTraits(ctx, orgName, projectName, req.Name, req.AgentType, req.Build); err != nil {
+		if err := s.enableInstrumentation(ctx, orgName, projectName, req); err != nil {
+			s.logger.Error("Failed to enable instrumentation for agent", "agentName", req.Name, "error", err)
+			// Rollback - delete the created agent
+			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+				s.logger.Error("Failed to rollback agent creation after instrumentation enabling failure", "agentName", req.Name, "error", errDeletion)
+			}
 			return err
 		}
 

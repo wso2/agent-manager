@@ -61,8 +61,8 @@ export function OxygenLayout() {
   }, [organizations]);
 
   const user = {
-    name: userInfo?.displayName ?? userInfo?.username ?? "User",
-    email: userInfo?.username ?? userInfo?.orgHandle ?? "",
+    primaryLine: userInfo?.givenName ?? userInfo?.username ?? "User",
+    secondaryLine: userInfo?.orgName ?? userInfo?.familyName ?? userInfo?.username ?? "Organization",
   };
 
   const navigationItems = useNavigationItems();

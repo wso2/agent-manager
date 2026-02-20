@@ -25,25 +25,17 @@ export const useAuthHooks = () => {
       signIn, 
       signOut,
       getIDToken,
-      getDecodedIDToken,
+      getBasicUserInfo,
       isAuthenticated,
       trySignInSilently,
     } = useAuthContext() ?? {};
 
   const { data: userInfo , isLoading: isLoadingUserInfo } = useQuery({
-    queryKey: ['auth', 'userInfo'],
+    queryKey: ['auth', 'userInfo', getBasicUserInfo],
     queryFn: async () => {
-      const idToken = await getDecodedIDToken();
-      return {
-        sub: idToken.sub,
-        username: idToken.preferred_username || idToken.email || idToken.sub,
-        displayName: idToken.name,
-        email: idToken.email,
-        givenName: idToken.given_name,
-        familyName: idToken.family_name,
-      };
+      return getBasicUserInfo()
     },
-    enabled: !!getDecodedIDToken,
+    enabled: !!getBasicUserInfo,
   });
 
   const {

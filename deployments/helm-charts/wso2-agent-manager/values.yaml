@@ -105,7 +105,7 @@ agentManagerService:
     # OpenTelemetry configuration
     otel:
       traceContent: "true"
-      exporterEndpoint: "http://opentelemetry-collector.openchoreo-observability-plane.svc.cluster.local:4318"
+      exporterEndpoint: "http://obs-gateway-gateway-router.data-plane.svc.cluster.local:22893/otel"
 
     # Key Manager configuration
     keyManager:
@@ -200,16 +200,16 @@ console:
   config:
     # Authentication (set to "" to disable)
     auth:
-      clientId: ""
-      baseUrl: ""
-      signInRedirectURL: ""
-      signOutRedirectURL: ""
+      clientId: "amp-console-client"
+      baseUrl: "http://thunder.amp.localhost:8080"
+      signInRedirectURL: "http://localhost:3000/login"
+      signOutRedirectURL: "http://localhost:3000/login"
       existingSecret: ""
       validateIDToken: "false"
       clockTolerance: 300
 
     # Disable auth for development
-    disableAuth: "true"
+    disableAuth: "false"
 
     # Backend API URLs (will be auto-configured if empty)
     apiBaseUrl: "http://localhost:9000"
