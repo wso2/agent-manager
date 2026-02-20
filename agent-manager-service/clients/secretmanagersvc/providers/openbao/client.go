@@ -8,6 +8,7 @@ import (
 	"path"
 
 	vault "github.com/hashicorp/vault/api"
+
 	secretmanagersvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
 )
 
