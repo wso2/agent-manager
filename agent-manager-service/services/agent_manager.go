@@ -336,16 +336,15 @@ func (s *agentManagerService) generateAgentAPIKey(ctx context.Context, orgName, 
 	return tokenResp.Token, nil
 }
 
-// injectTracingEnvVarsByName injects tracing-related environment variables (OTEL endpoint and
-// agent API key) for the named agent. This is the common implementation used by both docker
-// and Python buildpack agents (the latter when auto-instrumentation is disabled).
-func (s *agentManagerService) injectTracingEnvVarsByName(ctx context.Context, orgName, projectName, agentName string) error {
-	s.logger.Debug("Injecting tracing environment variables", "agentName", agentName)
+// generateTracingEnvVars generates tracing-related environment variables (OTEL endpoint and
+// agent API key) for the named agent. Returns the env vars without persisting them.
+func (s *agentManagerService) generateTracingEnvVars(ctx context.Context, orgName, projectName, agentName string) ([]client.EnvVar, error) {
+	s.logger.Debug("Generating tracing environment variables", "agentName", agentName)
 
 	// Generate agent API key
 	apiKey, err := s.generateAgentAPIKey(ctx, orgName, projectName, agentName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Get OTEL exporter endpoint from config
@@ -364,7 +363,21 @@ func (s *agentManagerService) injectTracingEnvVarsByName(ctx context.Context, or
 		},
 	}
 
-	// Update component configurations with tracing environment variables
+	return tracingEnvVars, nil
+}
+
+// injectTracingEnvVarsByName injects tracing-related environment variables (OTEL endpoint and
+// agent API key) for the named agent into the Component CR. This is used during agent creation
+// for docker and Python buildpack agents (the latter when auto-instrumentation is disabled).
+func (s *agentManagerService) injectTracingEnvVarsByName(ctx context.Context, orgName, projectName, agentName string) error {
+	s.logger.Debug("Injecting tracing environment variables", "agentName", agentName)
+
+	tracingEnvVars, err := s.generateTracingEnvVars(ctx, orgName, projectName, agentName)
+	if err != nil {
+		return err
+	}
+
+	// Update component configurations with tracing environment variables (for persistence)
 	if err := s.updateComponentEnvVars(ctx, orgName, projectName, agentName, tracingEnvVars); err != nil {
 		s.logger.Error("Failed to update component with tracing env vars", "agentName", agentName, "error", err)
 		return fmt.Errorf("failed to update component env vars: %w", err)
@@ -1061,7 +1074,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		return "", fmt.Errorf("deploy operation is not supported for agent type: '%s'", agent.Provisioning.Type)
 	}
 
-	// Convert to deploy request
+	// Convert to deploy request with user-provided env vars
 	deployReq := client.DeployRequest{
 		ImageID: req.ImageId,
 	}
@@ -1075,34 +1088,52 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		}
 	}
 
-	// Deploy agent component in OpenChoreo
-	s.logger.Debug("Deploying agent component in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "imageId", req.ImageId)
-	if err := s.ocClient.Deploy(ctx, orgName, projectName, agentName, deployReq); err != nil {
-		s.logger.Error("Failed to deploy agent component in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return "", err
+	// Generate and add tracing env vars (AMP_OTEL_ENDPOINT and AMP_AGENT_API_KEY) for both
+	// Python buildpack and Docker agents. These are added to deployReq.Env so they get
+	// applied to the Workload during deploy.
+	if agent.Build != nil && (agent.Build.Buildpack != nil || agent.Build.Docker != nil) {
+		s.logger.Debug("Generating tracing env vars for deploy", "agentName", agentName)
+		tracingEnvVars, err := s.generateTracingEnvVars(ctx, orgName, projectName, agentName)
+		if err != nil {
+			s.logger.Warn("Failed to generate tracing env vars for deploy", "agentName", agentName, "error", err)
+		} else {
+			// Append tracing env vars to deploy request (they will overwrite if duplicates exist)
+			deployReq.Env = append(deployReq.Env, tracingEnvVars...)
+			// Also persist to Component CR for future reference
+			if injectErr := s.updateComponentEnvVars(ctx, orgName, projectName, agentName, tracingEnvVars); injectErr != nil {
+				s.logger.Warn("Failed to persist tracing env vars to component CR", "agentName", agentName, "error", injectErr)
+			}
+		}
 	}
 
-	// Update instrumentation trait if enableAutoInstrumentation is specified and agent is a Python buildpack build
+	// Update instrumentation trait before deploy if enableAutoInstrumentation is specified and agent is a Python buildpack build
 	if req.EnableAutoInstrumentation != nil && agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguagePython) {
 		enableInstrumentation := *req.EnableAutoInstrumentation
 		hasTrait, traitErr := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation)
 		if traitErr != nil {
-			s.logger.Warn("Failed to check instrumentation trait status during deploy", "agentName", agentName, "error", traitErr)
+			s.logger.Warn("Failed to check instrumentation trait status before deploy", "agentName", agentName, "error", traitErr)
 		} else if enableInstrumentation && !hasTrait {
-			s.logger.Info("Enabling instrumentation (attaching trait) during deploy", "agentName", agentName)
+			s.logger.Info("Enabling instrumentation (attaching trait) before deploy", "agentName", agentName)
 			if attachErr := s.attachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); attachErr != nil {
-				s.logger.Warn("Failed to attach instrumentation trait during deploy", "agentName", agentName, "error", attachErr)
+				s.logger.Warn("Failed to attach instrumentation trait before deploy", "agentName", agentName, "error", attachErr)
 			}
 		} else if !enableInstrumentation && hasTrait {
-			s.logger.Info("Disabling instrumentation (detaching trait) during deploy", "agentName", agentName)
+			s.logger.Info("Disabling instrumentation (detaching trait) before deploy", "agentName", agentName)
 			if detachErr := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); detachErr != nil {
-				s.logger.Warn("Failed to detach instrumentation trait during deploy", "agentName", agentName, "error", detachErr)
+				s.logger.Warn("Failed to detach instrumentation trait before deploy", "agentName", agentName, "error", detachErr)
 			}
 		}
 		// Persist the setting to the component CR so subsequent reads reflect the current state
 		if configErr := s.ocClient.UpdateComponentInstrumentationConfig(ctx, orgName, projectName, agentName, enableInstrumentation); configErr != nil {
-			s.logger.Warn("Failed to persist instrumentation config during deploy", "agentName", agentName, "error", configErr)
+			s.logger.Warn("Failed to persist instrumentation config before deploy", "agentName", agentName, "error", configErr)
 		}
+	}
+
+	// Deploy agent component in OpenChoreo (after env vars and instrumentation are configured)
+	s.logger.Debug("Deploying agent component in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "imageId", req.ImageId)
+	if err := s.ocClient.Deploy(ctx, orgName, projectName, agentName, deployReq); err != nil {
+		s.logger.Error("Failed to deploy agent component in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		return "", err
 	}
 
 	// Get deployment pipeline from project
