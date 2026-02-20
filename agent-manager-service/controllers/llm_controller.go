@@ -123,6 +123,9 @@ func (c *llmController) CreateLLMProviderTemplate(w http.ResponseWriter, r *http
 	created, err := c.templateService.Create(orgName, "system", template)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrSystemTemplateOverride):
+			utils.WriteErrorResponse(w, http.StatusConflict, "Cannot use handle of built-in template")
+			return
 		case errors.Is(err, utils.ErrLLMProviderTemplateExists):
 			utils.WriteErrorResponse(w, http.StatusConflict, "LLM provider template already exists")
 			return
@@ -241,6 +244,9 @@ func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http
 	updated, err := c.templateService.Update(orgName, templateID, modelTemplate)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrSystemTemplateImmutable):
+			utils.WriteErrorResponse(w, http.StatusForbidden, "System templates cannot be modified")
+			return
 		case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider template not found")
 			return
@@ -267,6 +273,9 @@ func (c *llmController) DeleteLLMProviderTemplate(w http.ResponseWriter, r *http
 
 	if err := c.templateService.Delete(orgName, templateID); err != nil {
 		switch {
+		case errors.Is(err, utils.ErrSystemTemplateImmutable):
+			utils.WriteErrorResponse(w, http.StatusForbidden, "System templates cannot be deleted")
+			return
 		case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider template not found")
 			return
@@ -311,7 +320,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 	log.Info("CreateLLMProvider: calling service layer", "orgName", orgName, "orgName", orgName,
 		"providerName", provider.Configuration.Name,
 		"providerVersion", provider.Configuration.Version,
-		"templateUUID", provider.TemplateUUID)
+		"templateHandle", provider.TemplateHandle)
 
 	var created *models.LLMProvider
 

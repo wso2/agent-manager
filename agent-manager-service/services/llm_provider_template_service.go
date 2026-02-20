@@ -30,13 +30,18 @@ import (
 
 // LLMProviderTemplateService handles LLM provider template business logic
 type LLMProviderTemplateService struct {
-	templateRepo repositories.LLMProviderTemplateRepository
+	templateRepo  repositories.LLMProviderTemplateRepository
+	templateStore *LLMTemplateStore
 }
 
 // NewLLMProviderTemplateService creates a new LLM provider template service
-func NewLLMProviderTemplateService(templateRepo repositories.LLMProviderTemplateRepository) *LLMProviderTemplateService {
+func NewLLMProviderTemplateService(
+	templateRepo repositories.LLMProviderTemplateRepository,
+	templateStore *LLMTemplateStore,
+) *LLMProviderTemplateService {
 	return &LLMProviderTemplateService{
-		templateRepo: templateRepo,
+		templateRepo:  templateRepo,
+		templateStore: templateStore,
 	}
 }
 
@@ -49,6 +54,11 @@ func (s *LLMProviderTemplateService) Create(orgName, createdBy string, template 
 		return nil, utils.ErrInvalidInput
 	}
 
+	// Check if handle conflicts with built-in template
+	if s.templateStore.Exists(template.Handle) {
+		return nil, utils.ErrSystemTemplateOverride
+	}
+
 	// Check if template already exists
 	exists, err := s.templateRepo.Exists(template.Handle, orgName)
 	if err != nil {
@@ -58,9 +68,10 @@ func (s *LLMProviderTemplateService) Create(orgName, createdBy string, template 
 		return nil, utils.ErrLLMProviderTemplateExists
 	}
 
-	// Set metadata
+	// Set metadata - user templates are never system templates
 	template.OrganizationName = orgName
 	template.CreatedBy = createdBy
+	template.IsSystem = false
 
 	// Serialize configuration
 	if err := s.serializeConfiguration(template); err != nil {
@@ -89,34 +100,52 @@ func (s *LLMProviderTemplateService) Create(orgName, createdBy string, template 
 	return created, nil
 }
 
-// List lists all LLM provider templates for an organization
+// List lists all LLM provider templates for an organization (built-in + user-defined)
 func (s *LLMProviderTemplateService) List(orgName string, limit, offset int) ([]*models.LLMProviderTemplate, int, error) {
-	templates, err := s.templateRepo.List(orgName, limit, offset)
+	// Get built-in templates from in-memory store
+	builtInTemplates := s.templateStore.List()
+
+	// Get user templates from database
+	userTemplates, err := s.templateRepo.List(orgName, limit, offset)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list templates: %w", err)
+		return nil, 0, fmt.Errorf("failed to list user templates: %w", err)
 	}
 
-	// Deserialize configuration for each template
-	for _, t := range templates {
+	// Deserialize configuration for each user template
+	for _, t := range userTemplates {
 		if err := s.deserializeConfiguration(t); err != nil {
 			return nil, 0, fmt.Errorf("failed to deserialize configuration: %w", err)
 		}
 	}
 
-	totalCount, err := s.templateRepo.Count(orgName)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to count templates: %w", err)
-	}
+	// Merge built-in and user templates
+	// Built-in templates first, then user templates
+	allTemplates := make([]*models.LLMProviderTemplate, 0, len(builtInTemplates)+len(userTemplates))
+	allTemplates = append(allTemplates, builtInTemplates...)
+	allTemplates = append(allTemplates, userTemplates...)
 
-	return templates, totalCount, nil
+	// Total count is built-in + user templates
+	userCount, err := s.templateRepo.Count(orgName)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count user templates: %w", err)
+	}
+	totalCount := s.templateStore.Count() + userCount
+
+	return allTemplates, totalCount, nil
 }
 
-// Get retrieves an LLM provider template by ID
+// Get retrieves an LLM provider template by ID (checks built-in first, then user templates)
 func (s *LLMProviderTemplateService) Get(orgName, templateID string) (*models.LLMProviderTemplate, error) {
 	if templateID == "" {
 		return nil, utils.ErrInvalidInput
 	}
 
+	// First check built-in templates
+	if builtInTemplate := s.templateStore.Get(templateID); builtInTemplate != nil {
+		return builtInTemplate, nil
+	}
+
+	// Then check user templates in database
 	template, err := s.templateRepo.GetByHandle(templateID, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get template: %w", err)
@@ -142,9 +171,15 @@ func (s *LLMProviderTemplateService) Update(orgName, templateID string, updates 
 		return nil, utils.ErrInvalidInput
 	}
 
+	// Check if this is a system template (cannot be modified)
+	if s.templateStore.Exists(templateID) {
+		return nil, utils.ErrSystemTemplateImmutable
+	}
+
 	// Set metadata for update
 	updates.Handle = templateID
 	updates.OrganizationName = orgName
+	updates.IsSystem = false // Ensure user templates remain non-system
 
 	// Serialize configuration
 	if err := s.serializeConfiguration(updates); err != nil {
@@ -180,6 +215,11 @@ func (s *LLMProviderTemplateService) Update(orgName, templateID string, updates 
 func (s *LLMProviderTemplateService) Delete(orgName, templateID string) error {
 	if templateID == "" {
 		return utils.ErrInvalidInput
+	}
+
+	// Check if this is a system template (cannot be deleted)
+	if s.templateStore.Exists(templateID) {
+		return utils.ErrSystemTemplateImmutable
 	}
 
 	if err := s.templateRepo.Delete(templateID, orgName); err != nil {

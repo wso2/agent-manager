@@ -34,7 +34,7 @@ RUN apk add --no-cache ca-certificates tzdata bash openssl
 RUN addgroup -g 1000 app && adduser -D -u 1000 -G app app
 
 # Create directory for schema files, keys, certificates and resources
-RUN mkdir -p /app/clients/openchoreosvc/client /app/keys /app/data/certs /app/resources/default-llm-provider-templates && chown -R 1000:1000 /app
+RUN mkdir -p /app/clients/openchoreosvc/client /app/keys /app/data/certs && chown -R 1000:1000 /app
 
 # Copy binary with ownership set
 COPY --from=builder --chown=1000:1000 /go/bin/agent-manager-service /go/bin/agent-manager-service
@@ -44,9 +44,6 @@ COPY --from=builder --chown=1000:1000 /app/clients/openchoreosvc/client/default-
 
 # Copy default certificates
 COPY --from=builder --chown=1000:1000 /app/data/certs/ /app/data/certs/
-
-# Copy LLM provider template definitions
-COPY --from=builder --chown=1000:1000 /app/resources/default-llm-provider-templates/ /app/resources/default-llm-provider-templates/
 
 # Copy scripts for runtime key generation
 COPY --from=builder --chown=1000:1000 /app/scripts/gen_keys.sh /app/scripts/gen_keys.sh

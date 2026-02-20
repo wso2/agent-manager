@@ -182,12 +182,12 @@ func (r *LLMProviderRepo) Update(p *models.LLMProvider, providerID string, orgUU
 		result := tx.Model(&models.LLMProvider{}).
 			Where("uuid = ?", providerID).
 			Updates(map[string]any{
-				"description":   p.Description,
-				"template_uuid": p.TemplateUUID,
-				"openapi_spec":  p.OpenAPISpec,
-				"model_list":    p.ModelList,
-				"status":        p.Status,
-				"configuration": p.Configuration,
+				"description":     p.Description,
+				"template_handle": p.TemplateHandle,
+				"openapi_spec":    p.OpenAPISpec,
+				"model_list":      p.ModelList,
+				"status":          p.Status,
+				"configuration":   p.Configuration,
 			})
 
 		if result.Error != nil {

@@ -58,14 +58,16 @@ var (
 	ErrEnvironmentAlreadyExists = errors.New("environment already exists")
 	ErrEnvironmentHasGateways   = errors.New("environment has associated gateways")
 
-	// LLM Provider-related errors (Phase 7)
-	ErrProviderNotFound       = errors.New("provider not found")
-	ErrProviderAlreadyExists  = errors.New("provider already exists")
-	ErrProviderHasDeployments = errors.New("provider has active deployments")
-	ErrDeploymentNotFound     = errors.New("deployment not found")
-	ErrDeploymentFailed       = errors.New("deployment failed")
-	ErrPolicyNotSupported     = errors.New("policy not supported by gateway")
-	ErrInvalidProviderConfig  = errors.New("invalid provider configuration")
+	// LLM Provider-related errors
+	ErrProviderNotFound        = errors.New("provider not found")
+	ErrProviderAlreadyExists   = errors.New("provider already exists")
+	ErrProviderHasDeployments  = errors.New("provider has active deployments")
+	ErrDeploymentNotFound      = errors.New("deployment not found")
+	ErrDeploymentFailed        = errors.New("deployment failed")
+	ErrPolicyNotSupported      = errors.New("policy not supported by gateway")
+	ErrInvalidProviderConfig   = errors.New("invalid provider configuration")
+	ErrSystemTemplateImmutable = errors.New("system templates cannot be modified or deleted")
+	ErrSystemTemplateOverride  = errors.New("cannot create user template with same handle as system template")
 
 	// API Platform integration errors
 	ErrHandleExists                = errors.New("handle already exists")
@@ -95,4 +97,8 @@ var (
 
 	// Implementation status errors
 	ErrNotImplemented = errors.New("not implemented")
+
+	// Agent Configuration errors
+	ErrAgentConfigNotFound      = errors.New("agent configuration not found")
+	ErrAgentConfigAlreadyExists = errors.New("agent configuration already exists for this agent")
 )

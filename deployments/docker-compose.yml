@@ -78,31 +78,31 @@ services:
       - "host.docker.internal:host-gateway"
 
   # Agent Manager Console (React Frontend)
-  agent-manager-console:
-    build:
-      context: ../console
-      dockerfile: Dockerfile.dev
-    container_name: agent-manager-console
-    ports:
-      - "3000:3000"
-    environment:
-      - AUTH_CLIENT_ID=null
-      - AUTH_BASE_URL=null
-      - SIGN_IN_REDIRECT_URL=null
-      - SIGN_OUT_REDIRECT_URL=null
-      - API_BASE_URL=http://localhost:9000
-      - DISABLE_AUTH=true
-      - OBS_API_BASE_URL=http://localhost:9098
-    volumes:
-      # Mount source code for hot-reloading with Vite HMR
-      - ../console:/app
-      # Exclude directories with platform-specific binaries (use container's Linux versions)
-      - console_node_modules:/app/node_modules
-      - console_common_temp:/app/common/temp
-    networks:
-      - agent-manager
-    depends_on:
-      - agent-manager-service
+  # agent-manager-console:
+  #   build:
+  #     context: ../console
+  #     dockerfile: Dockerfile.dev
+  #   container_name: agent-manager-console
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - AUTH_CLIENT_ID=null
+  #     - AUTH_BASE_URL=null
+  #     - SIGN_IN_REDIRECT_URL=null
+  #     - SIGN_OUT_REDIRECT_URL=null
+  #     - API_BASE_URL=http://localhost:9000
+  #     - DISABLE_AUTH=true
+  #     - OBS_API_BASE_URL=http://localhost:9098
+  #   volumes:
+  #     # Mount source code for hot-reloading with Vite HMR
+  #     - ../console:/app
+  #     # Exclude directories with platform-specific binaries (use container's Linux versions)
+  #     - console_node_modules:/app/node_modules
+  #     - console_common_temp:/app/common/temp
+  #   networks:
+  #     - agent-manager
+  #   depends_on:
+  #     - agent-manager-service
 
 volumes:
   postgres_data:
