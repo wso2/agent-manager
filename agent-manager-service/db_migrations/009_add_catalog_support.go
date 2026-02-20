@@ -21,8 +21,8 @@ import (
 )
 
 // Add catalog support and agent configuration tables
-var migration008 = migration{
-	ID: 8,
+var migration009 = migration{
+	ID: 9,
 	Migrate: func(db *gorm.DB) error {
 		addCatalogSupportSQL := `
 			-- Add in_catalog column to artifacts table

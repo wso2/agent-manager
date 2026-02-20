@@ -20,14 +20,14 @@ Tests for base evaluator coverage - aiming for 90%+.
 
 import pytest
 from amp_evaluation.evaluators.base import BaseEvaluator, LLMAsJudgeEvaluator, FunctionEvaluator
-from amp_evaluation.models import EvalResult, Observation
+from amp_evaluation.models import EvalResult
 from amp_evaluation.dataset import Task
-from amp_evaluation.trace import Trajectory, TraceMetrics, TokenUsage
+from amp_evaluation.trace import Trace, TraceMetrics, TokenUsage
 
 
-def create_test_observation():
-    """Helper to create a test observation with a trajectory."""
-    trajectory = Trajectory(
+def create_test_trajectory():
+    """Helper to create a test trajectory."""
+    trajectory = Trace(
         trace_id="test-123",
         input="What is AI?",
         output="AI is artificial intelligence.",
@@ -37,7 +37,7 @@ def create_test_observation():
         ),
         steps=[],
     )
-    return Observation(trajectory=trajectory)
+    return trajectory
 
 
 class TestBaseEvaluatorCall:
@@ -49,18 +49,19 @@ class TestBaseEvaluatorCall:
         class SimpleEvaluator(BaseEvaluator):
             name = "simple-eval"
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=0.8, explanation="Good")
 
         evaluator = SimpleEvaluator()
-        observation = create_test_observation()
+        observation = create_test_trajectory()
 
         # Call using __call__
-        result = evaluator(observation)
+        results = evaluator(observation)
 
-        assert isinstance(result, EvalResult)
-        assert result.score == 0.8
-        assert result.explanation == "Good"
+        assert isinstance(results, list)
+        assert isinstance(results[0], EvalResult)
+        assert results[0].score == 0.8
+        assert results[0].explanation == "Good"
 
 
 class TestLLMAsJudgeEvaluator:
@@ -104,9 +105,9 @@ class TestLLMAsJudgeEvaluator:
                 return {"score": 0.85, "explanation": "Clear"}
 
         evaluator = MockLLMEval()
-        observation = create_test_observation()
+        observation = create_test_trajectory()
 
-        result = evaluator.evaluate(observation)
+        result = evaluator.evaluate(observation)[0]
         assert result.score == 0.85
 
     def test_default_prompt_builder_with_task_expected_output(self):
@@ -118,7 +119,7 @@ class TestLLMAsJudgeEvaluator:
                 return {"score": 0.95, "explanation": "Perfect match"}
 
         evaluator = MockLLMEval()
-        observation = create_test_observation()
+        observation = create_test_trajectory()
 
         task = Task(
             task_id="task-1",
@@ -128,7 +129,7 @@ class TestLLMAsJudgeEvaluator:
             expected_output="correct answer",
         )
 
-        result = evaluator.evaluate(observation, task)
+        result = evaluator.evaluate(observation, task)[0]
         assert result.score == 0.95
 
     def test_default_prompt_builder_with_task_success_criteria(self):
@@ -140,7 +141,7 @@ class TestLLMAsJudgeEvaluator:
                 return {"score": 0.75, "explanation": "Meets criteria"}
 
         evaluator = MockLLMEval()
-        observation = create_test_observation()
+        observation = create_test_trajectory()
 
         task = Task(
             task_id="task-2",
@@ -150,7 +151,7 @@ class TestLLMAsJudgeEvaluator:
             success_criteria="Must be accurate",
         )
 
-        result = evaluator.evaluate(observation, task)
+        result = evaluator.evaluate(observation, task)[0]
         assert result.score == 0.75
 
     def test_custom_prompt_builder(self):
@@ -171,9 +172,9 @@ class TestLLMAsJudgeEvaluator:
                 return {"score": 0.6, "explanation": "Custom eval"}
 
         evaluator = MockLLMEval(prompt_builder=custom_builder)
-        observation = create_test_observation()
+        observation = create_test_trajectory()
 
-        result = evaluator.evaluate(observation)
+        result = evaluator.evaluate(observation)[0]
         assert result.score == 0.6
 
     def test_llm_response_with_details(self):
@@ -188,9 +189,9 @@ class TestLLMAsJudgeEvaluator:
                 }
 
         evaluator = MockLLMEval(model="gpt-4-turbo", criteria="excellence")
-        observation = create_test_observation()
+        observation = create_test_trajectory()
 
-        result = evaluator.evaluate(observation)
+        result = evaluator.evaluate(observation)[0]
 
         assert result.score == 0.88
         assert result.explanation == "Well done"
@@ -206,13 +207,13 @@ class TestFunctionEvaluator:
     def test_function_returns_eval_result(self):
         """Test function that returns EvalResult."""
 
-        def my_eval(observation, task=None):
+        def custom_eval(trajectory, task=None):
             return EvalResult(score=0.7, explanation="Custom")
 
-        evaluator = FunctionEvaluator(my_eval, name="test-eval")
-        observation = create_test_observation()
+        evaluator = FunctionEvaluator(custom_eval, name="test-eval")
+        observation = create_test_trajectory()
 
-        result = evaluator.evaluate(observation)
+        result = evaluator.evaluate(observation)[0]
 
         assert isinstance(result, EvalResult)
         assert result.score == 0.7
@@ -221,13 +222,13 @@ class TestFunctionEvaluator:
     def test_function_returns_dict_full(self):
         """Test function that returns dict with all fields."""
 
-        def my_eval(observation, task=None):
+        def custom_eval(trajectory, task=None):
             return {"score": 0.85, "passed": True, "explanation": "All good", "details": {"key": "value"}}
 
-        evaluator = FunctionEvaluator(my_eval)
-        observation = create_test_observation()
+        evaluator = FunctionEvaluator(custom_eval)
+        observation = create_test_trajectory()
 
-        result = evaluator.evaluate(observation)
+        result = evaluator.evaluate(observation)[0]
 
         assert result.score == 0.85
         assert result.passed is True
@@ -237,13 +238,13 @@ class TestFunctionEvaluator:
     def test_function_returns_dict_minimal(self):
         """Test function that returns dict with only score."""
 
-        def my_eval(observation, task=None):
+        def custom_eval(trajectory, task=None):
             return {"score": 0.5}
 
-        evaluator = FunctionEvaluator(my_eval)
-        observation = create_test_observation()
+        evaluator = FunctionEvaluator(custom_eval)
+        observation = create_test_trajectory()
 
-        result = evaluator.evaluate(observation)
+        result = evaluator.evaluate(observation)[0]
 
         assert result.score == 0.5
         assert result.passed is True  # Auto-calculated from score >= 0.5
@@ -253,37 +254,37 @@ class TestFunctionEvaluator:
     def test_function_returns_float(self):
         """Test function that returns float."""
 
-        def my_eval(observation, task=None):
+        def custom_eval(trajectory, task=None):
             return 0.92
 
-        evaluator = FunctionEvaluator(my_eval)
-        observation = create_test_observation()
+        evaluator = FunctionEvaluator(custom_eval)
+        observation = create_test_trajectory()
 
-        result = evaluator.evaluate(observation)
+        result = evaluator.evaluate(observation)[0]
 
         assert result.score == 0.92
 
     def test_function_returns_int(self):
         """Test function that returns int."""
 
-        def my_eval(observation, task=None):
+        def custom_eval(trajectory, task=None):
             return 1
 
-        evaluator = FunctionEvaluator(my_eval)
-        observation = create_test_observation()
+        evaluator = FunctionEvaluator(custom_eval)
+        observation = create_test_trajectory()
 
-        result = evaluator.evaluate(observation)
+        result = evaluator.evaluate(observation)[0]
 
         assert result.score == 1.0
 
     def test_function_returns_invalid_type(self):
         """Test function that returns invalid type raises error."""
 
-        def bad_eval(observation, task=None):
+        def custom_eval(trajectory, task=None):
             return "invalid return type"
 
-        evaluator = FunctionEvaluator(bad_eval)
-        observation = create_test_observation()
+        evaluator = FunctionEvaluator(custom_eval)
+        observation = create_test_trajectory()
 
         with pytest.raises(TypeError, match="must return EvalResult, dict, or float"):
             evaluator.evaluate(observation)

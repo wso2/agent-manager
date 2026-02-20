@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from amp_evaluation import evaluator, get_registry
 from amp_evaluation.runner import Monitor, RunResult
-from amp_evaluation.trace import Trajectory, TraceMetrics, TokenUsage
+from amp_evaluation.trace import Trace, TraceMetrics, TokenUsage
 
 
 # ============================================================================
@@ -88,21 +88,21 @@ def clean_registry():
 
 @pytest.fixture
 def sample_traces():
-    """Create sample Trajectory objects for testing."""
+    """Create sample Trace objects for testing."""
     return [
-        Trajectory(
+        Trace(
             trace_id="trace_1",
             input="What is 2+2?",
             output="4",
             metrics=TraceMetrics(total_duration_ms=100.0, token_usage=TokenUsage(total_tokens=50), llm_call_count=1),
         ),
-        Trajectory(
+        Trace(
             trace_id="trace_2",
             input="Hello",
             output="Hi there!",
             metrics=TraceMetrics(total_duration_ms=200.0, token_usage=TokenUsage(total_tokens=30), llm_call_count=1),
         ),
-        Trajectory(
+        Trace(
             trace_id="trace_3",
             input="Bad input",
             output="",  # Empty output
@@ -305,8 +305,8 @@ class TestMonitorAggregation:
         """Individual scores with trace_ids are included in results."""
 
         @evaluator(name="test_eval")
-        def test_eval(observation, task=None):
-            return 1.0 if observation.output else 0.0
+        def custom_eval(trajectory, task=None):
+            return 1.0 if trajectory.output else 0.0
 
         runner = Monitor()
         result = runner.run(traces=sample_traces)

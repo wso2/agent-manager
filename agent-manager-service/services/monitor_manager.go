@@ -62,6 +62,7 @@ type monitorManagerService struct {
 	ocClient               client.OpenChoreoClient
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient
 	executor               MonitorExecutor
+	evaluatorService       EvaluatorManagerService
 }
 
 // NewMonitorManagerService creates a new monitor manager service instance
@@ -70,12 +71,14 @@ func NewMonitorManagerService(
 	ocClient client.OpenChoreoClient,
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient,
 	executor MonitorExecutor,
+	evaluatorService EvaluatorManagerService,
 ) MonitorManagerService {
 	return &monitorManagerService{
 		logger:                 logger,
 		ocClient:               ocClient,
 		observabilitySvcClient: observabilitySvcClient,
 		executor:               executor,
+		evaluatorService:       evaluatorService,
 	}
 }
 
@@ -92,6 +95,11 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 
 	// Validate type-specific fields
 	if err := s.validateCreateRequest(req); err != nil {
+		return nil, err
+	}
+
+	// Validate evaluators against catalog schema
+	if err := s.validateEvaluators(ctx, req.Evaluators); err != nil {
 		return nil, err
 	}
 
@@ -239,6 +247,13 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, moni
 		return nil, fmt.Errorf("failed to get monitor: %w", err)
 	}
 
+	// Validate evaluators against catalog schema if provided
+	if req.Evaluators != nil {
+		if err := s.validateEvaluators(ctx, *req.Evaluators); err != nil {
+			return nil, err
+		}
+	}
+
 	// Apply partial updates
 	if req.DisplayName != nil {
 		monitor.DisplayName = *req.DisplayName
@@ -247,8 +262,8 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, moni
 		monitor.Evaluators = *req.Evaluators
 	}
 	if req.IntervalMinutes != nil {
-		if *req.IntervalMinutes < 5 {
-			return nil, fmt.Errorf("intervalMinutes must be at least 5: %w", utils.ErrInvalidInput)
+		if *req.IntervalMinutes < models.MinIntervalMinutes {
+			return nil, fmt.Errorf("intervalMinutes must be at least %d: %w", models.MinIntervalMinutes, utils.ErrInvalidInput)
 		}
 		monitor.IntervalMinutes = req.IntervalMinutes
 	}
@@ -470,7 +485,7 @@ func (s *monitorManagerService) RerunMonitor(ctx context.Context, orgName, monit
 		return nil, fmt.Errorf("failed to get monitor run: %w", err)
 	}
 
-	// Create new WorkflowRun with same time parameters and evaluators from original run
+	// Create new WorkflowRun with same time parameters and evaluators from monitor
 	result, err := s.executor.ExecuteMonitorRun(ctx, ExecuteMonitorRunParams{
 		OrgName:    orgName,
 		Monitor:    &monitor,
@@ -577,14 +592,238 @@ func (s *monitorManagerService) validateCreateRequest(req *models.CreateMonitorR
 		}
 	}
 	if req.IntervalMinutes != nil {
-		if *req.IntervalMinutes < 5 {
-			return fmt.Errorf("intervalMinutes must be at least 5: %w", utils.ErrInvalidInput)
+		if *req.IntervalMinutes < models.MinIntervalMinutes {
+			return fmt.Errorf("intervalMinutes must be at least %d: %w", models.MinIntervalMinutes, utils.ErrInvalidInput)
 		}
 	}
 	if req.SamplingRate != nil {
 		if *req.SamplingRate <= 0 || *req.SamplingRate > 1 {
 			return fmt.Errorf("samplingRate must be between 0 (exclusive) and 1 (inclusive): %w", utils.ErrInvalidInput)
 		}
+	}
+	return nil
+}
+
+// validateEvaluators validates evaluators against the catalog schema and populates defaults.
+// It mutates evaluator configs in-place to fill in default values from the schema.
+func (s *monitorManagerService) validateEvaluators(ctx context.Context, evaluators []models.MonitorEvaluator) error {
+	// Check for duplicate displayNames
+	displayNames := make(map[string]int) // displayName -> first index
+	for i, eval := range evaluators {
+		if firstIdx, exists := displayNames[eval.DisplayName]; exists {
+			return fmt.Errorf("evaluators[%d]: duplicate displayName %q (also used by evaluators[%d]): %w",
+				i, eval.DisplayName, firstIdx, utils.ErrInvalidInput)
+		}
+		displayNames[eval.DisplayName] = i
+	}
+
+	for i := range evaluators {
+		eval := &evaluators[i]
+		prefix := fmt.Sprintf("evaluators[%d]", i)
+
+		// Check evaluator exists in catalog
+		evaluatorResp, err := s.evaluatorService.GetEvaluator(ctx, nil, eval.Identifier)
+		if err != nil {
+			if errors.Is(err, utils.ErrEvaluatorNotFound) {
+				return fmt.Errorf("%s: evaluator %q not found in catalog: %w",
+					prefix, eval.Identifier, utils.ErrInvalidInput)
+			}
+			return fmt.Errorf("%s: failed to look up evaluator %q: %w", prefix, eval.Identifier, err)
+		}
+
+		// Validate level against the schema's level enum_values (which are already filtered to supported levels)
+		for _, param := range evaluatorResp.ConfigSchema {
+			if param.Key == "level" {
+				if len(param.EnumValues) > 0 {
+					found := false
+					for _, v := range param.EnumValues {
+						if v == eval.Level {
+							found = true
+							break
+						}
+					}
+					if !found {
+						return fmt.Errorf("%s: level %q is not supported by evaluator %q (supported: %v): %w",
+							prefix, eval.Level, eval.Identifier, param.EnumValues, utils.ErrInvalidInput)
+					}
+				}
+				break
+			}
+		}
+
+		// Validate and apply defaults to config
+		if err := validateAndApplyDefaults(i, eval.Identifier, &eval.Config, evaluatorResp.ConfigSchema); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateAndApplyDefaults validates config values against the evaluator's schema
+// and populates default values for missing optional params.
+func validateAndApplyDefaults(idx int, identifier string, config *map[string]interface{}, schema []models.EvaluatorConfigParam) error {
+	prefix := fmt.Sprintf("evaluators[%d]", idx)
+
+	// Filter out level from schema — it's a top-level MonitorEvaluator field
+	var filteredSchema []models.EvaluatorConfigParam
+	for _, p := range schema {
+		if p.Key != "level" {
+			filteredSchema = append(filteredSchema, p)
+		}
+	}
+
+	// Build schema lookup
+	schemaMap := make(map[string]models.EvaluatorConfigParam)
+	for _, p := range filteredSchema {
+		schemaMap[p.Key] = p
+	}
+
+	// Initialize config map if nil
+	if *config == nil {
+		*config = make(map[string]interface{})
+	}
+
+	// Check for unknown keys
+	for key := range *config {
+		if _, exists := schemaMap[key]; !exists {
+			return fmt.Errorf("%s: config key %q is not defined in evaluator %q schema: %w",
+				prefix, key, identifier, utils.ErrInvalidInput)
+		}
+	}
+
+	// Check required params and populate defaults
+	for _, param := range filteredSchema {
+		_, present := (*config)[param.Key]
+		if !present {
+			if param.Required && param.Default == nil {
+				return fmt.Errorf("%s: required config %q is missing for evaluator %q: %w",
+					prefix, param.Key, identifier, utils.ErrInvalidInput)
+			}
+			// Populate default if available
+			if param.Default != nil {
+				(*config)[param.Key] = param.Default
+			}
+		}
+	}
+
+	// Validate each value against its schema param
+	for key, value := range *config {
+		param := schemaMap[key]
+		if err := validateConfigValue(prefix, param, value); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateConfigValue validates a single config value against its schema param
+func validateConfigValue(prefix string, param models.EvaluatorConfigParam, value interface{}) error {
+	switch param.Type {
+	case "string":
+		if _, ok := value.(string); !ok {
+			return fmt.Errorf("%s: config %q must be a string: %w",
+				prefix, param.Key, utils.ErrInvalidInput)
+		}
+		// Check enum values for string type with enum_values
+		if len(param.EnumValues) > 0 {
+			strVal := value.(string)
+			found := false
+			for _, ev := range param.EnumValues {
+				if ev == strVal {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("%s: config %q must be one of %v: %w",
+					prefix, param.Key, param.EnumValues, utils.ErrInvalidInput)
+			}
+		}
+
+	case "integer":
+		num, ok := toFloat64(value)
+		if !ok {
+			return fmt.Errorf("%s: config %q must be an integer: %w",
+				prefix, param.Key, utils.ErrInvalidInput)
+		}
+		if num != float64(int64(num)) {
+			return fmt.Errorf("%s: config %q must be an integer: %w",
+				prefix, param.Key, utils.ErrInvalidInput)
+		}
+		if err := checkMinMax(prefix, param, num); err != nil {
+			return err
+		}
+
+	case "float":
+		num, ok := toFloat64(value)
+		if !ok {
+			return fmt.Errorf("%s: config %q must be a float: %w",
+				prefix, param.Key, utils.ErrInvalidInput)
+		}
+		if err := checkMinMax(prefix, param, num); err != nil {
+			return err
+		}
+
+	case "boolean":
+		if _, ok := value.(bool); !ok {
+			return fmt.Errorf("%s: config %q must be a boolean: %w",
+				prefix, param.Key, utils.ErrInvalidInput)
+		}
+
+	case "array":
+		if _, ok := value.([]interface{}); !ok {
+			return fmt.Errorf("%s: config %q must be an array: %w",
+				prefix, param.Key, utils.ErrInvalidInput)
+		}
+
+	case "enum":
+		strVal, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("%s: config %q must be a string: %w",
+				prefix, param.Key, utils.ErrInvalidInput)
+		}
+		found := false
+		for _, ev := range param.EnumValues {
+			if ev == strVal {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("%s: config %q must be one of %v: %w",
+				prefix, param.Key, param.EnumValues, utils.ErrInvalidInput)
+		}
+	}
+
+	return nil
+}
+
+// toFloat64 extracts a float64 from a value (handles JSON number decoding)
+func toFloat64(val interface{}) (float64, bool) {
+	switch v := val.(type) {
+	case float64:
+		return v, true
+	case float32:
+		return float64(v), true
+	case int:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	default:
+		return 0, false
+	}
+}
+
+// checkMinMax validates a numeric value against min/max constraints
+func checkMinMax(prefix string, param models.EvaluatorConfigParam, num float64) error {
+	if param.Min != nil && num < *param.Min {
+		return fmt.Errorf("%s: config %q must be >= %v: %w",
+			prefix, param.Key, *param.Min, utils.ErrInvalidInput)
+	}
+	if param.Max != nil && num > *param.Max {
+		return fmt.Errorf("%s: config %q must be <= %v: %w",
+			prefix, param.Key, *param.Max, utils.ErrInvalidInput)
 	}
 	return nil
 }

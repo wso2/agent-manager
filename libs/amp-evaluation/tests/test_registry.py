@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from amp_evaluation.registry import EvaluatorRegistry
 from amp_evaluation.models import EvalResult
-from amp_evaluation.trace import Trajectory
+from amp_evaluation.trace import Trace
 from amp_evaluation.evaluators.base import BaseEvaluator
 from amp_evaluation.aggregators.base import AggregationType, Aggregation
 
@@ -51,7 +51,7 @@ class TestRegistryAggregations:
         """When no aggregations specified, evaluator should use None (runner defaults to MEAN)."""
 
         @self.registry.register("test-no-agg")
-        def evaluator(trace: Trajectory) -> EvalResult:
+        def evaluator(trace: Trace) -> EvalResult:
             return EvalResult(score=1.0)
 
         # Get evaluator instance
@@ -64,7 +64,7 @@ class TestRegistryAggregations:
         """Test registration with a single aggregation type."""
 
         @self.registry.register("test-single-agg", aggregations=[AggregationType.MEDIAN])
-        def evaluator(trace: Trajectory) -> EvalResult:
+        def evaluator(trace: Trace) -> EvalResult:
             return EvalResult(score=0.5)
 
         eval_instance = self.registry.get("test-single-agg")
@@ -79,7 +79,7 @@ class TestRegistryAggregations:
         @self.registry.register(
             "test-multi-agg", aggregations=[AggregationType.MEAN, AggregationType.MEDIAN, AggregationType.P95]
         )
-        def evaluator(trace: Trajectory) -> EvalResult:
+        def evaluator(trace: Trace) -> EvalResult:
             return EvalResult(score=0.75)
 
         eval_instance = self.registry.get("test-multi-agg")
@@ -101,7 +101,7 @@ class TestRegistryAggregations:
                 Aggregation(AggregationType.PASS_RATE, threshold=0.9),
             ],
         )
-        def evaluator(trace: Trajectory) -> EvalResult:
+        def evaluator(trace: Trace) -> EvalResult:
             return EvalResult(score=0.8)
 
         eval_instance = self.registry.get("test-param-agg")
@@ -130,7 +130,7 @@ class TestRegistryAggregations:
         """Test that function-based evaluators work with aggregations."""
 
         @self.registry.register("func-eval", aggregations=[AggregationType.MEAN, AggregationType.MAX])
-        def simple_eval(trace: Trajectory) -> float:
+        def simple_eval(trace: Trace) -> float:
             return 1.0 if len(trace.output or "") > 0 else 0.0
 
         eval_instance = self.registry.get("func-eval")
@@ -145,8 +145,8 @@ class TestRegistryAggregations:
             "class-eval", aggregations=[AggregationType.MEDIAN, Aggregation(AggregationType.PASS_RATE, threshold=0.5)]
         )
         class CustomEvaluator(BaseEvaluator):
-            def evaluate(self, context) -> EvalResult:
-                return self._create_result(target_id=context.trace.trace_id, target_type="trace", score=0.75)
+            def _trace_evaluation(self, trace, task=None) -> EvalResult:
+                return EvalResult(score=0.75)
 
         eval_instance = self.registry.get("class-eval")
 
@@ -160,15 +160,15 @@ class TestRegistryAggregations:
         """Test that different evaluators can have different aggregations."""
 
         @self.registry.register("eval1", aggregations=[AggregationType.MEAN])
-        def eval1(trace: Trajectory) -> float:
+        def eval1(trace: Trace) -> float:
             return 0.5
 
         @self.registry.register("eval2", aggregations=[AggregationType.MEDIAN, AggregationType.P99])
-        def eval2(trace: Trajectory) -> float:
+        def eval2(trace: Trace) -> float:
             return 0.8
 
         @self.registry.register("eval3")  # No aggregations - should default
-        def eval3(trace: Trajectory) -> float:
+        def eval3(trace: Trace) -> float:
             return 0.9
 
         e1 = self.registry.get("eval1")
@@ -191,7 +191,7 @@ class TestRegistryBasics:
         """Test basic registration and retrieval."""
 
         @self.registry.register("basic-test")
-        def evaluator(trace: Trajectory) -> float:
+        def evaluator(trace: Trace) -> float:
             return 1.0
 
         eval_instance = self.registry.get("basic-test")
@@ -208,11 +208,11 @@ class TestRegistryBasics:
         """Test listing all registered evaluators."""
 
         @self.registry.register("eval-a")
-        def eval_a(trace: Trajectory) -> float:
+        def eval_a(trace: Trace) -> float:
             return 0.5
 
         @self.registry.register("eval-b")
-        def eval_b(trace: Trajectory) -> float:
+        def eval_b(trace: Trace) -> float:
             return 0.7
 
         evaluators = self.registry.list_evaluators()
@@ -224,7 +224,7 @@ class TestRegistryBasics:
         """Test that metadata is properly stored and retrieved."""
 
         @self.registry.register("meta-test", description="A test evaluator", tags=["test", "quality"], version="1.2.3")
-        def evaluator(trace: Trajectory) -> float:
+        def evaluator(trace: Trace) -> float:
             return 0.5
 
         metadata = self.registry.get_metadata("meta-test")

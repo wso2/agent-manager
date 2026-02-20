@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
@@ -73,6 +74,11 @@ func (m *mockExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.UUI
 
 func newTestScheduler(executor MonitorExecutor) *monitorSchedulerService {
 	return &monitorSchedulerService{
+		ocClient: &clientmocks.OpenChoreoClientMock{
+			GetResourceFunc: func(ctx context.Context, namespaceName string, kind string, name string) (map[string]interface{}, error) {
+				return nil, fmt.Errorf("mock: resource not found")
+			},
+		},
 		logger:   slog.Default(),
 		executor: executor,
 		stopCh:   make(chan struct{}),
@@ -276,7 +282,7 @@ func TestExtractErrorMessage_NoConditions(t *testing.T) {
 	assert.Empty(t, msg)
 }
 
-func TestExtractErrorMessage_WithMessage(t *testing.T) {
+func TestExtractErrorMessage_WithReasonAndMessage(t *testing.T) {
 	s := newTestScheduler(nil)
 	cr := map[string]interface{}{
 		"status": map[string]interface{}{
@@ -292,10 +298,10 @@ func TestExtractErrorMessage_WithMessage(t *testing.T) {
 	}
 
 	msg := s.extractErrorMessage(cr)
-	assert.Equal(t, "out of memory", msg)
+	assert.Equal(t, "WorkflowFailed: out of memory", msg)
 }
 
-func TestExtractErrorMessage_EmptyMessage(t *testing.T) {
+func TestExtractErrorMessage_ReasonOnly(t *testing.T) {
 	s := newTestScheduler(nil)
 	cr := map[string]interface{}{
 		"status": map[string]interface{}{
@@ -304,6 +310,41 @@ func TestExtractErrorMessage_EmptyMessage(t *testing.T) {
 					"type":   "WorkflowCompleted",
 					"status": "True",
 					"reason": "WorkflowFailed",
+				},
+			},
+		},
+	}
+
+	msg := s.extractErrorMessage(cr)
+	assert.Equal(t, "WorkflowFailed", msg)
+}
+
+func TestExtractErrorMessage_MessageOnly(t *testing.T) {
+	s := newTestScheduler(nil)
+	cr := map[string]interface{}{
+		"status": map[string]interface{}{
+			"conditions": []interface{}{
+				map[string]interface{}{
+					"type":    "WorkflowCompleted",
+					"status":  "True",
+					"message": "something went wrong",
+				},
+			},
+		},
+	}
+
+	msg := s.extractErrorMessage(cr)
+	assert.Equal(t, "something went wrong", msg)
+}
+
+func TestExtractErrorMessage_NoReasonNoMessage(t *testing.T) {
+	s := newTestScheduler(nil)
+	cr := map[string]interface{}{
+		"status": map[string]interface{}{
+			"conditions": []interface{}{
+				map[string]interface{}{
+					"type":   "WorkflowCompleted",
+					"status": "True",
 				},
 			},
 		},
@@ -349,7 +390,7 @@ func TestTriggerMonitor_Success(t *testing.T) {
 		OrgName:         "test-org",
 		IntervalMinutes: intPtr(interval),
 		NextRunTime:     timePtr(now),
-		Evaluators:      []models.MonitorEvaluator{{Name: "eval-1"}},
+		Evaluators:      []models.MonitorEvaluator{{Identifier: "eval-1", DisplayName: "eval-1", Level: "trace"}},
 		SamplingRate:    1.0,
 	}
 
@@ -361,7 +402,7 @@ func TestTriggerMonitor_Success(t *testing.T) {
 	call := executor.executeCalls[0]
 	assert.Equal(t, "test-org", call.OrgName)
 	assert.Equal(t, monitor, call.Monitor)
-	assert.Equal(t, []models.MonitorEvaluator{{Name: "eval-1"}}, call.Evaluators)
+	assert.Equal(t, []models.MonitorEvaluator{{Identifier: "eval-1", DisplayName: "eval-1", Level: "trace"}}, call.Evaluators)
 
 	// Verify time window calculation
 	expectedStart := now.Add(-time.Duration(interval) * time.Minute)
@@ -449,7 +490,7 @@ func TestTriggerMonitor_UpdateNextRunTimeError(t *testing.T) {
 		OrgName:         "test-org",
 		IntervalMinutes: intPtr(60),
 		NextRunTime:     timePtr(time.Now()),
-		Evaluators:      []models.MonitorEvaluator{{Name: "eval-1"}},
+		Evaluators:      []models.MonitorEvaluator{{Identifier: "eval-1", DisplayName: "eval-1", Level: "trace"}},
 	}
 
 	// Should NOT return error — update failure is non-fatal
@@ -474,7 +515,7 @@ func TestTriggerMonitor_TimeWindowCalculation(t *testing.T) {
 		OrgName:         "test-org",
 		IntervalMinutes: intPtr(interval),
 		NextRunTime:     timePtr(nextRunTime),
-		Evaluators:      []models.MonitorEvaluator{{Name: "eval-1"}},
+		Evaluators:      []models.MonitorEvaluator{{Identifier: "eval-1", DisplayName: "eval-1", Level: "trace"}},
 	}
 
 	err := s.triggerMonitor(context.Background(), monitor)
@@ -551,10 +592,13 @@ func TestSchedulerStopsOnContextCancel(t *testing.T) {
 }
 
 func TestSchedulerStopsOnStopChannel(t *testing.T) {
+	ctx := context.Background()
+
+	// Clean stale monitors so the initial cycle doesn't do unnecessary DB work
+	db.DB(ctx).Where("type = ?", models.MonitorTypeFuture).Delete(&models.Monitor{})
+
 	executor := &mockExecutor{}
 	s := newTestScheduler(executor)
-
-	ctx := context.Background()
 
 	done := make(chan struct{})
 	go func() {
@@ -562,12 +606,13 @@ func TestSchedulerStopsOnStopChannel(t *testing.T) {
 		close(done)
 	}()
 
-	// Close stop channel
+	// Close stop channel — the loop will exit after the initial cycle completes
 	close(s.stopCh)
 
 	select {
 	case <-done:
 		// Loop exited as expected
+		assert.True(t, true, "scheduler loop stopped on stop channel")
 	case <-time.After(5 * time.Second):
 		t.Fatal("scheduler loop did not stop after stop channel closed")
 	}
@@ -648,6 +693,9 @@ func TestSchedulerCycle_AdvisoryLockReleasedAfterCycle(t *testing.T) {
 func TestSchedulerCycle_TwoConcurrentCycles(t *testing.T) {
 	ctx := context.Background()
 
+	// Clean up stale monitors from other test runs so we only test our monitor
+	db.DB(ctx).Where("type = ?", models.MonitorTypeFuture).Delete(&models.Monitor{})
+
 	var executeCalled atomic.Int32
 	// Make execution take some time so both goroutines overlap
 	executor := &mockExecutor{
@@ -674,7 +722,7 @@ func TestSchedulerCycle_TwoConcurrentCycles(t *testing.T) {
 		AgentID:         "test-agent-id",
 		EnvironmentName: "dev",
 		EnvironmentID:   "test-env-id",
-		Evaluators:      []models.MonitorEvaluator{{Name: "eval-1"}},
+		Evaluators:      []models.MonitorEvaluator{{Identifier: "eval-1", DisplayName: "eval-1", Level: "trace"}},
 		IntervalMinutes: intPtr(60),
 		NextRunTime:     timePtr(time.Now().Add(-1 * time.Minute)), // Due for trigger
 		SamplingRate:    1.0,

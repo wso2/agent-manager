@@ -17,7 +17,7 @@
 """
 Unit tests for trace parsing utilities.
 
-Tests parsing raw OTEL/AMP traces into Trajectory format.
+Tests parsing raw OTEL/AMP traces into Trace format.
 """
 
 import pytest
@@ -43,6 +43,13 @@ from amp_evaluation.trace.fetcher import (
     Trace as OTELTrace,
     Span as OTELSpan,
     TraceStatus as OTELTraceStatus,
+)
+
+# Import span types and models for testing
+from amp_evaluation.trace.models import (
+    AgentStep,
+    ToolSpan,
+    AgentSpan,
 )
 
 # Also import the internal parse function from fetcher to convert real OTEL JSON
@@ -123,8 +130,8 @@ class TestTraceParser:
         assert eval_trace.trace_id == "trace_123"
         assert eval_trace.input == "What is 2 + 2?"
         assert eval_trace.output == "4"
-        assert len(eval_trace.llm_spans) == 0
-        assert len(eval_trace.tool_spans) == 0
+        assert len(eval_trace.get_llm_calls()) == 0
+        assert len(eval_trace.get_tool_calls()) == 0
 
     def test_parse_llm_span(self):
         """Test parsing an LLM span."""
@@ -153,16 +160,16 @@ class TestTraceParser:
         trace = dict_to_otel_trace(raw_trace_dict)
         eval_trace = parse_trace_for_evaluation(trace)
 
-        assert len(eval_trace.llm_spans) == 1
+        assert len(eval_trace.get_llm_calls()) == 1
 
-        llm_span = eval_trace.llm_spans[0]
+        llm_span = eval_trace.get_llm_calls()[0]
         assert llm_span.span_id == "span_1"
         assert llm_span.model == "gpt-4"
         assert llm_span.vendor == "OpenAI"
         assert llm_span.temperature == 0.7
         assert llm_span.response == "Hi there!"
-        assert llm_span.duration_ms == 500.0
-        assert not llm_span.error
+        assert llm_span.metrics.duration_ms == 500.0
+        assert not llm_span.metrics.error
 
         # Check messages
         assert len(llm_span.messages) == 2
@@ -171,9 +178,9 @@ class TestTraceParser:
         assert llm_span.messages[1].role == "user"
 
         # Check token usage
-        assert llm_span.token_usage.input_tokens == 10
-        assert llm_span.token_usage.output_tokens == 5
-        assert llm_span.token_usage.total_tokens == 15
+        assert llm_span.metrics.token_usage.input_tokens == 10
+        assert llm_span.metrics.token_usage.output_tokens == 5
+        assert llm_span.metrics.token_usage.total_tokens == 15
 
     def test_parse_tool_span(self):
         """Test parsing a tool execution span."""
@@ -198,14 +205,14 @@ class TestTraceParser:
         trace = dict_to_otel_trace(raw_trace_dict)
         eval_trace = parse_trace_for_evaluation(trace)
 
-        assert len(eval_trace.tool_spans) == 1
+        assert len(eval_trace.get_tool_calls()) == 1
 
-        tool_span = eval_trace.tool_spans[0]
+        tool_span = eval_trace.get_tool_calls()[0]
         assert tool_span.span_id == "span_tool_1"
         assert tool_span.name == "web_search"
         assert tool_span.arguments == {"query": "python tutorials"}
         assert tool_span.result == ["result1", "result2"]
-        assert tool_span.duration_ms == 200.0
+        assert tool_span.metrics.duration_ms == 200.0
 
     def test_parse_retriever_span(self):
         """Test parsing a retriever span for RAG."""
@@ -232,9 +239,9 @@ class TestTraceParser:
         trace = dict_to_otel_trace(raw_trace_dict)
         eval_trace = parse_trace_for_evaluation(trace)
 
-        assert len(eval_trace.retriever_spans) == 1
+        assert len(eval_trace.get_retrievals()) == 1
 
-        ret_span = eval_trace.retriever_spans[0]
+        ret_span = eval_trace.get_retrievals()[0]
         assert ret_span.span_id == "span_ret_1"
         assert ret_span.query == "machine learning definition"
         assert ret_span.vector_db == "pinecone"
@@ -274,9 +281,10 @@ class TestTraceParser:
         trace = dict_to_otel_trace(raw_trace_dict)
         eval_trace = parse_trace_for_evaluation(trace)
 
-        assert eval_trace.agent_span is not None
+        agents = eval_trace.get_agents()
+        assert len(agents) == 1
 
-        agent_span = eval_trace.agent_span
+        agent_span = agents[0]
         assert agent_span.span_id == "span_agent_1"
         assert agent_span.name == "TaskAgent"
         assert agent_span.framework == "CrewAI"
@@ -340,7 +348,7 @@ class TestTraceParser:
         assert eval_trace.metrics.total_duration_ms == 230.0
 
     def test_convenience_properties(self):
-        """Test Trajectory convenience properties."""
+        """Test Trace convenience properties."""
         raw_trace_dict = {
             "trace_id": "trace_props",
             "input": "input",
@@ -382,11 +390,11 @@ class TestTraceParser:
         eval_trace = parse_trace_for_evaluation(trace)
 
         # Test properties
-        assert eval_trace.has_output
-        assert not eval_trace.has_errors
-        assert eval_trace.all_tool_names == ["search", "calculate"]
-        assert eval_trace.all_tool_results == ["search result", 42]
-        assert eval_trace.all_llm_responses == ["Response 1"]
+        assert bool(eval_trace.output and eval_trace.output.strip())
+        assert not eval_trace.metrics.has_errors
+        assert [t.name for t in eval_trace.get_tool_calls()] == ["search", "calculate"]
+        assert [t.result for t in eval_trace.get_tool_calls()] == ["search result", 42]
+        assert [llm.response for llm in eval_trace.get_llm_calls()] == ["Response 1"]
 
     def test_skip_non_important_spans(self):
         """Test that embedding, rerank, task, chain spans are skipped."""
@@ -438,9 +446,9 @@ class TestTraceParser:
         eval_trace = parse_trace_for_evaluation(trace)
 
         # Should only have LLM span
-        assert len(eval_trace.llm_spans) == 1
-        assert len(eval_trace.tool_spans) == 0
-        assert len(eval_trace.retriever_spans) == 0
+        assert len(eval_trace.get_llm_calls()) == 1
+        assert len(eval_trace.get_tool_calls()) == 0
+        assert len(eval_trace.get_retrievals()) == 0
 
         # But embedding tokens should be counted
         assert eval_trace.metrics.token_usage.total_tokens == 5
@@ -463,7 +471,7 @@ class TestTraceParser:
 
 
 class TestTrajectoryStructure:
-    """Test the Trajectory data structure itself."""
+    """Test the Trace data structure itself."""
 
     def test_token_usage_addition(self):
         """Test that TokenUsage objects can be added."""
@@ -525,13 +533,13 @@ class TestRealOTELTraces:
         assert eval_trace.trace_id == llm_trace["traceId"]
 
         # Should have extracted LLM spans
-        assert len(eval_trace.llm_spans) >= 1
+        assert len(eval_trace.get_llm_calls()) >= 1
 
         # Check LLM span properties
-        llm_span = eval_trace.llm_spans[0]
+        llm_span = eval_trace.get_llm_calls()[0]
         assert llm_span.span_id  # Has span ID
         assert llm_span.model  # Has model name (e.g., gpt-4o)
-        assert llm_span.duration_ms > 0  # Duration converted from nanos
+        assert llm_span.metrics.duration_ms > 0  # Duration converted from nanos
 
     def test_parse_otel_trace_with_agents(self, sample_traces):
         """Test parsing real OTEL trace with agent spans (CrewAI)."""
@@ -556,14 +564,16 @@ class TestRealOTELTraces:
         assert eval_trace.trace_id == agent_trace["traceId"]
 
         # Validate: should have parsed agent span
-        assert eval_trace.agent_span is not None
+        agents = eval_trace.get_agents()
+        assert len(agents) >= 1
 
         # Check: agent span has required fields
-        assert eval_trace.agent_span.span_id  # Has span ID
-        assert eval_trace.agent_span.duration_ms > 0  # Duration is converted
+        agent = agents[0]
+        assert agent.span_id  # Has span ID
+        assert agent.metrics.duration_ms > 0  # Duration is converted
 
         # Check: agent name exists (may be empty string but field should exist)
-        assert hasattr(eval_trace.agent_span, "name")
+        assert hasattr(agent, "name")
 
         # Validate: metrics should have counts
         # Note: tool_call_count may be 0 if no tool spans in this trace
@@ -590,17 +600,18 @@ class TestRealOTELTraces:
                 span_id = raw_span.get("spanId")
 
                 # Find matching span in eval_trace
-                for llm in eval_trace.llm_spans:
+                for llm in eval_trace.get_llm_calls():
                     if llm.span_id == span_id:
-                        assert llm.duration_ms == expected_ms
+                        assert llm.metrics.duration_ms == expected_ms
                         return
-                for tool in eval_trace.tool_spans:
+                for tool in eval_trace.get_tool_calls():
                     if tool.span_id == span_id:
-                        assert tool.duration_ms == expected_ms
+                        assert tool.metrics.duration_ms == expected_ms
                         return
-                if eval_trace.agent_span and eval_trace.agent_span.span_id == span_id:
-                    assert eval_trace.agent_span.duration_ms == expected_ms
-                    return
+                for agent in eval_trace.get_agents():
+                    if agent.span_id == span_id:
+                        assert agent.metrics.duration_ms == expected_ms
+                        return
 
     def test_chain_spans_are_skipped(self, sample_traces):
         """Test that chain spans are correctly skipped."""
@@ -618,21 +629,266 @@ class TestRealOTELTraces:
         traces = [_parse_trace(t) for t in sample_traces]
         eval_traces = parse_traces_for_evaluation(traces)
 
-        # Chain spans should not be in any parsed trace
-        for eval_trace in eval_traces:
-            # Trajectory only has llm_spans, tool_spans, retriever_spans, agent_span
-            # No chain spans should appear
-            pass  # Structure verification - chains are simply not included
-
         # If there were chain spans, they should have been skipped
         if chain_count > 0:
             # Total parsed spans should be less than total raw spans
             total_raw = sum(len(t.get("spans", [])) for t in sample_traces)
             total_parsed = sum(
-                len(et.llm_spans) + len(et.tool_spans) + len(et.retriever_spans) + (1 if et.agent_span else 0)
+                len(et.get_llm_calls()) + len(et.get_tool_calls()) + len(et.get_retrievals()) + len(et.get_agents())
                 for et in eval_traces
             )
             assert total_parsed < total_raw
+
+    def test_crewai_sequential_agents_reconstruction(self, sample_traces):
+        """
+        Test sequential agent execution with real CrewAI trace.
+
+        This trace (66ea0b364e7397376b7c9edcc82e1f85) has 3 agents executing sequentially:
+        - Activity Planner (first)
+        - Restaurant Scout (second)
+        - Itinerary Compiler (third)
+
+        Each has multiple internal LLM calls. Tests that get_agent_steps()
+        correctly reconstructs the execution flow.
+        """
+        # Load CrewAI trace
+        crew_trace = next((t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"), None)
+        assert crew_trace is not None, "CrewAI multi-agent trace not found"
+
+        # Parse to Trace
+        trace = _parse_trace(crew_trace)
+        trajectory = parse_trace_for_evaluation(trace)
+
+        # VERIFY: 3 agents extracted from ampAttributes
+        agents = trajectory.get_agents()
+        assert len(agents) == 3, f"Expected 3 agents, got {len(agents)}"
+
+        # VERIFY: Agent names from ampAttributes.data.name
+        agent_names = [a.name for a in agents]
+        assert "Activity Planner" in agent_names
+        assert "Restaurant Scout" in agent_names
+        assert "Itinerary Compiler" in agent_names
+
+        # VERIFY: Framework from ampAttributes.data.framework
+        for agent in agents:
+            assert agent.framework == "crewai"
+            assert agent.system_prompt, f"{agent.name} missing system prompt"
+            assert agent.available_tools, f"{agent.name} has no tools"
+
+        # VERIFY: get_agent_steps() returns steps for all agents
+        all_steps = trajectory.get_agent_steps()
+        assert len(all_steps) > 0, "No steps reconstructed"
+
+        # VERIFY: System prompts extracted (one per agent)
+        system_steps = [s for s in all_steps if s.step_type == "system"]
+        assert len(system_steps) >= 3, "Should have system prompts for 3 agents"
+
+        # VERIFY: get_agent_steps(agent_span_id) for each agent
+        for agent in agents:
+            agent_steps = trajectory.get_agent_steps(agent_span_id=agent.span_id)
+            assert len(agent_steps) > 0, f"No steps for {agent.name}"
+
+            # Should have assistant steps (from LLM calls)
+            assistant_steps = [s for s in agent_steps if s.step_type == "assistant"]
+            assert len(assistant_steps) > 0, f"No assistant steps for {agent.name}"
+
+    def test_sequential_agents_are_not_nested(self, sample_traces):
+        """
+        Verify sequential agents (siblings) are NOT confused with nested agents (parent-child).
+        """
+        crew_trace = next((t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"), None)
+        assert crew_trace is not None, "CrewAI multi-agent trace not found"
+
+        trace = _parse_trace(crew_trace)
+        trajectory = parse_trace_for_evaluation(trace)
+
+        agents = trajectory.get_agents()
+        agent_ids = {a.span_id for a in agents}
+
+        # VERIFY: No agent has another agent as parent (they're sequential, not nested)
+        for agent in agents:
+            parent = agent.parent_span_id
+            assert parent not in agent_ids, f"{agent.name} has agent parent - should be sequential not nested"
+
+    def test_langgraph_parallel_tools_and_errors(self, sample_traces):
+        """
+        Test LangGraph trace with parallel tools and errors.
+
+        Trace 789a4cc3a165ed330d3244aca8b61dbb has:
+        - Multiple LLM calls with messages from ampAttributes.input
+        - 5 parallel search_hotels tool calls
+        - Tool errors in results
+        """
+        lg_trace = sample_traces[0]
+        assert lg_trace["traceId"] == "789a4cc3a165ed330d3244aca8b61dbb"
+
+        trace = _parse_trace(lg_trace)
+        trajectory = parse_trace_for_evaluation(trace)
+
+        # VERIFY: LLM calls extracted from ampAttributes
+        llm_calls = trajectory.get_llm_calls()
+        assert len(llm_calls) > 0, "No LLM calls extracted"
+
+        for llm in llm_calls:
+            # VERIFY: Messages from ampAttributes.input
+            assert llm.messages, f"LLM {llm.span_id} has no messages"
+            for msg in llm.messages:
+                assert msg.role in ["system", "user", "assistant", "tool"]
+
+            # VERIFY: Model from ampAttributes.data.model
+            if llm.model:
+                assert "gpt" in llm.model.lower() or "claude" in llm.model.lower()
+
+        # VERIFY: Tool calls extracted
+        tool_calls = trajectory.get_tool_calls()
+        assert len(tool_calls) >= 5, f"Expected >=5 tools, got {len(tool_calls)}"
+
+        # VERIFY: 5 parallel search_hotels calls
+        hotel_tools = [t for t in tool_calls if "search_hotels" in t.name]
+        assert len(hotel_tools) == 5, f"Expected 5 hotel searches, got {len(hotel_tools)}"
+
+        # VERIFY: Errors captured
+        assert trajectory.metrics.error_count > 0, "Expected errors in this trace"
+
+        # VERIFY: get_agent_steps() reconstruction
+        steps = trajectory.get_agent_steps()
+
+        # Should have assistant steps
+        assistant_steps = [s for s in steps if s.step_type == "assistant"]
+        assert len(assistant_steps) > 0, "Should have assistant steps"
+
+        # Should have tool_result steps (tools were executed even if not in LLM tool_calls)
+        tool_result_steps = [s for s in steps if s.step_type == "tool_result"]
+        assert len(tool_result_steps) >= 5, "Should have tool results"
+
+        # VERIFY: Tool errors in steps
+        error_tools = [s for s in tool_result_steps if s.error]
+        assert len(error_tools) > 0, "Tool errors not in reconstructed steps"
+
+    def test_ampattributes_extraction_llm(self, sample_traces):
+        """
+        Verify LLM span ampAttributes are correctly extracted into LLMSpan fields.
+        """
+        lg_trace = sample_traces[0]
+        trace = _parse_trace(lg_trace)
+        trajectory = parse_trace_for_evaluation(trace)
+
+        llm_calls = trajectory.get_llm_calls()
+        assert len(llm_calls) > 0
+
+        for llm in llm_calls:
+            # VERIFY: model from ampAttributes.data.model
+            assert llm.model is not None
+
+            # VERIFY: token usage from ampAttributes.data.tokenUsage
+            if llm.metrics.token_usage.total_tokens > 0:
+                assert llm.metrics.token_usage.input_tokens >= 0
+                assert llm.metrics.token_usage.output_tokens >= 0
+
+            # VERIFY: messages from ampAttributes.input
+            assert isinstance(llm.messages, list)
+
+            # VERIFY: tool_calls from ampAttributes.output
+            # (may be empty, that's ok)
+
+    def test_ampattributes_extraction_agent(self, sample_traces):
+        """
+        Verify Agent span ampAttributes.data fields are correctly extracted.
+        """
+        crew_trace = next((t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"), None)
+        assert crew_trace is not None, "CrewAI multi-agent trace not found"
+
+        trace = _parse_trace(crew_trace)
+        trajectory = parse_trace_for_evaluation(trace)
+
+        agents = trajectory.get_agents()
+        for agent in agents:
+            # VERIFY: All from ampAttributes.data
+            assert agent.framework == "crewai"
+            assert agent.name in ["Activity Planner", "Restaurant Scout", "Itinerary Compiler"]
+            assert agent.system_prompt  # From data.systemPrompt
+            assert isinstance(agent.available_tools, list)
+            assert len(agent.available_tools) > 0
+
+    def test_ampattributes_extraction_tool(self, sample_traces):
+        """
+        Verify Tool span ampAttributes are correctly extracted.
+        """
+        lg_trace = sample_traces[0]
+        trace = _parse_trace(lg_trace)
+        trajectory = parse_trace_for_evaluation(trace)
+
+        tool_calls = trajectory.get_tool_calls()
+        for tool in tool_calls:
+            # VERIFY: arguments from ampAttributes.input
+            assert tool.arguments is not None  # Can be empty dict
+
+            # VERIFY: result from ampAttributes.output
+            assert tool.result is not None
+
+            # VERIFY: error status from ampAttributes.status.error
+            if "Error:" in str(tool.result):
+                assert tool.metrics.error, f"Tool {tool.name} has error in result but flag not set"
+
+    def test_root_level_spans_real_traces(self, sample_traces):
+        """
+        Test _get_root_level_spans() with real trace hierarchies.
+        """
+        # Test with LangGraph (has tool nesting)
+        lg_trace = sample_traces[0]
+        trace = _parse_trace(lg_trace)
+        trajectory = parse_trace_for_evaluation(trace)
+
+        root_spans = trajectory._get_root_level_spans()
+        tool_span_ids = {s.span_id for s in trajectory.steps if isinstance(s, ToolSpan)}
+
+        # VERIFY: No root span has tool as parent
+        for span in root_spans:
+            parent = getattr(span, "parent_span_id", None)
+            assert parent not in tool_span_ids, f"Root span {span.span_id} has tool parent"
+
+        # Test with CrewAI (has agents)
+        crew_trace = next((t for t in sample_traces if t["traceId"] == "66ea0b364e7397376b7c9edcc82e1f85"), None)
+        assert crew_trace is not None, "CrewAI multi-agent trace not found"
+
+        trace = _parse_trace(crew_trace)
+        trajectory = parse_trace_for_evaluation(trace)
+
+        root_spans = trajectory._get_root_level_spans()
+        agents = trajectory.get_agents()
+
+        # VERIFY: All agents are in root level
+        agent_ids_in_root = {s.span_id for s in root_spans if isinstance(s, AgentSpan)}
+        assert len(agent_ids_in_root) == len(agents), "Not all agents in root level"
+
+    def test_all_traces_agent_steps_reconstruction(self, sample_traces):
+        """
+        Run get_agent_steps() on ALL 14 real traces and verify correctness.
+        """
+        for i, trace_dict in enumerate(sample_traces):
+            trace = _parse_trace(trace_dict)
+            trajectory = parse_trace_for_evaluation(trace)
+
+            # Should not crash
+            steps = trajectory.get_agent_steps()
+
+            # VERIFY: All steps are valid AgentSteps
+            assert isinstance(steps, list)
+            for step in steps:
+                assert isinstance(step, AgentStep)
+                assert step.step_type in ["system", "user", "assistant", "tool_result", "retrieval"]
+
+                # VERIFY: Nested steps are also valid
+                if step.nested_steps:
+                    for nested in step.nested_steps:
+                        assert isinstance(nested, AgentStep)
+                        assert nested.step_type in ["system", "user", "assistant", "tool_result", "retrieval"]
+
+            # VERIFY: If multi-agent, test agent-specific extraction
+            agents = trajectory.get_agents()
+            for agent in agents:
+                agent_steps = trajectory.get_agent_steps(agent_span_id=agent.span_id)
+                assert isinstance(agent_steps, list)
 
 
 if __name__ == "__main__":

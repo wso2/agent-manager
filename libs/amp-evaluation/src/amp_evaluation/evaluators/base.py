@@ -17,8 +17,8 @@
 """
 Base evaluator classes and interfaces.
 
-Two-parameter architecture: evaluate(observation, task)
-- observation: What we observed (always available)
+Two-parameter architecture: evaluate(trace, task)
+- trace: The agent's execution trace (always available)
 - task: What we expected (only for experiments)
 """
 
@@ -29,11 +29,12 @@ from typing import List, Optional, Callable, TYPE_CHECKING, Any, Dict
 import logging
 import inspect
 
-from ..models import EvalResult, Observation
-from .config import Param
+from ..models import EvalResult
+from .config import Param, EvaluationLevel
 
 if TYPE_CHECKING:
     from ..dataset import Task
+    from ..trace.models import Trace
 
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ class BaseEvaluator(ABC):
     Abstract base class for all evaluators.
 
     Evaluators score specific aspects of agent performance using a two-parameter interface:
-    - observation: What the agent did (always available)
+    - trace: The agent's execution trace (always available)
     - task: What it should have done (only for experiments with datasets)
 
     The runner automatically enriches EvalResult into EvaluatorScore
@@ -68,8 +69,8 @@ class BaseEvaluator(ABC):
                 super().__init__()
                 self.max_latency = max_latency_ms
 
-            def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
-                latency = observation.metrics.total_duration_ms
+            def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+                latency = trace.metrics.total_duration_ms
                 passed = latency <= self.max_latency
                 return EvalResult(
                     score=1.0 if passed else 0.0,
@@ -82,11 +83,11 @@ class BaseEvaluator(ABC):
             description = "Checks if output exactly matches expected output"
             tags = ["accuracy"]
 
-            def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+            def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
                 if not task or not task.expected_output:
                     return EvalResult.skip("Requires task with expected_output")
 
-                matches = observation.output == task.expected_output
+                matches = trace.output == task.expected_output
                 return EvalResult(
                     score=1.0 if matches else 0.0,
                     explanation=f"Exact match: {matches}"
@@ -98,6 +99,9 @@ class BaseEvaluator(ABC):
     description: str = ""
     tags: List[str] = ()  # Immutable default; subclasses should override with a list
     version: str = "1.0"
+
+    # Configuration parameters (using Param descriptors)
+    level = Param(EvaluationLevel, default=EvaluationLevel.TRACE, description="Evaluation level: trace, agent, or span")
 
     def __init__(self, **kwargs):
         # Set default name to class name if not already set
@@ -119,6 +123,16 @@ class BaseEvaluator(ABC):
 
         # Validate that built-in evaluators use Param descriptors properly
         self._validate_param_usage()
+
+        # Auto-detect supported levels from method overrides (always — no class-level declaration allowed)
+        self._supported_levels = self._auto_detect_supported_levels()
+
+        # Validate level is supported (runtime validation)
+        if self.level not in self._supported_levels:
+            raise ValueError(
+                f"{self.name} does not support level='{self.level.value}'. "
+                f"Supported levels: {', '.join(lvl.value for lvl in self._supported_levels)}"
+            )
 
     def _init_params_from_kwargs(self, kwargs: Dict[str, Any]):
         """
@@ -199,6 +213,41 @@ class BaseEvaluator(ABC):
                 f"          super().__init__(**kwargs)"
             )
 
+    def _auto_detect_supported_levels(self) -> List[str]:
+        """
+        Auto-detect supported evaluation levels from overridden methods.
+
+        Checks which protected methods are implemented by the subclass to
+        automatically determine the list of supported levels. Levels cannot be
+        declared manually — they are always derived from the evaluator's implementation.
+
+        Detection rules:
+        - "trace": Always included (_trace_evaluation is abstract, must be implemented)
+        - "agent": Included if _agent_evaluation is overridden in the subclass
+        - "span": Included if _span_evaluation is overridden in the subclass
+
+        Returns:
+            List of EvaluationLevel values the evaluator supports
+
+        Example:
+            class MyEvaluator(BaseEvaluator):
+                def _trace_evaluation(self, trace, task): ...  # trace supported
+                def _agent_evaluation(self, agent, task): ...  # agent auto-detected
+                # No _span_evaluation → span NOT supported
+        """
+        levels = [EvaluationLevel.TRACE]  # Always supported - _trace_evaluation is abstract
+
+        # Check if _agent_evaluation is overridden in any class in the MRO
+        # (excluding BaseEvaluator itself - we check if subclass provides an impl)
+        if type(self)._agent_evaluation is not BaseEvaluator._agent_evaluation:
+            levels.append(EvaluationLevel.AGENT)
+
+        # Check if _span_evaluation is overridden in any class in the MRO
+        if type(self)._span_evaluation is not BaseEvaluator._span_evaluation:
+            levels.append(EvaluationLevel.SPAN)
+
+        return levels
+
     def _extract_config_schema(self) -> List[Dict[str, Any]]:
         """
         Extract configuration schema from Param descriptors.
@@ -235,37 +284,180 @@ class BaseEvaluator(ABC):
 
         Excludes internal fields (name, description, tags, version)
         and fields starting with underscore.
+
+        The level param's enum_values are filtered to only include
+        levels actually supported by this evaluator (auto-detected
+        from method overrides).
         """
+        schema = self._extract_config_schema()
+
+        supported_level_values = [lvl.value for lvl in self._supported_levels]
+
+        # Filter level enum to only supported levels
+        for param in schema:
+            if param["key"] == "level":
+                param["enum_values"] = supported_level_values
+                break
+        else:  # If no level param defined, add it with supported levels
+            schema.append(
+                {
+                    "key": "level",
+                    "type": "enum",
+                    "description": "Evaluation level",
+                    "enum_values": supported_level_values,
+                    "default": self.level.value if self.level else None,
+                }
+            )
+
         metadata = {
             "name": self.name,
             "description": getattr(self, "description", ""),
             "tags": list(getattr(self, "tags", [])),
             "version": getattr(self, "version", "1.0"),
-            "config_schema": self._extract_config_schema(),
+            "config_schema": schema,
         }
         return metadata
 
-    @abstractmethod
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def evaluate(self, trace: Trace, task: Optional[Task] = None) -> List[EvalResult]:
         """
-        Evaluate an agent's performance.
+        Evaluate an agent's performance at the configured level.
+
+        This method handles multi-level dispatching internally based on self.level:
+        - "trace": Calls _trace_evaluation() once → 1 result
+        - "agent": Calls _agent_evaluation() for each agent → N results
+        - "span": Calls _span_evaluation() for each LLM span → M results
 
         Args:
-            observation: What we observed from the agent's execution (always available)
+            trace: The agent's execution trace (always available)
             task: What we expected (ground truth, constraints) - only for experiments
 
         Returns:
-            EvalResult with score and explanation (metadata added automatically by runner)
+            List of EvalResult objects (one per evaluated item)
+        """
+
+        results = []
+
+        if self.level == "trace":
+            # Trace-level: evaluate entire trace once
+            result = self._trace_evaluation(trace, task)
+            results.append(result)
+
+        elif self.level == "agent":
+            # Agent-level: evaluate each agent separately as an AgentTrace
+            from ..trace.models import AgentTrace as _AgentTrace
+
+            agent_spans = trace.get_agents()
+
+            if not agent_spans:
+                # No explicit agents — wrap the full trace as a single AgentTrace
+                fallback = _AgentTrace(
+                    agent_id=trace.trace_id,
+                    input=trace.input,
+                    output=trace.output,
+                    steps=trace.get_agent_steps(deduplicate_messages=True),
+                    metrics=trace.metrics,
+                )
+                result = self._agent_evaluation(fallback, task)
+                # Enrich span_id in details
+                if result.details is None:
+                    result.details = {}
+                result.details["span_id"] = fallback.agent_id
+                results.append(result)
+            else:
+                for agent_span in agent_spans:
+                    agent_trace = trace.create_agent_trace(agent_span.span_id)
+                    result = self._agent_evaluation(agent_trace, task)
+                    # Enrich span_id in details
+                    if result.details is None:
+                        result.details = {}
+                    result.details["span_id"] = agent_trace.agent_id
+                    results.append(result)
+
+        elif self.level == "span":
+            # Span-level: evaluate each LLM span
+            filtered_spans = trace.get_llm_calls(deduplicate_messages=True)
+
+            for span in filtered_spans:
+                result = self._span_evaluation(span, task)
+                # Enrich span_id in details
+                if result.details is None:
+                    result.details = {}
+                result.details["span_id"] = getattr(span, "span_id", None)
+                results.append(result)
+        else:
+            # Unknown level - should not happen due to validation
+            raise ValueError(f"Unknown evaluation level: {self.level}")
+
+        return results
+
+    @abstractmethod
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+        """
+        Implement trace-level evaluation logic.
+
+        This method is called when level="trace" and should evaluate the entire trace.
+
+        Args:
+            trace: The complete trace to evaluate
+            task: Optional task for ground truth
+
+        Returns:
+            EvalResult with score and explanation
         """
         pass
 
-    def __call__(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _agent_evaluation(self, agent_trace: Any, task: Optional[Task] = None) -> EvalResult:
+        """
+        Implement agent-level evaluation logic.
+
+        This method is called once per agent when level="agent".
+        Only implement if evaluator supports agent-level evaluation.
+
+        Args:
+            agent_trace: AgentTrace scoped to this agent (reconstructed steps,
+                         metadata, and metrics for a single agent in the trace)
+            task: Optional task for ground truth
+
+        Returns:
+            EvalResult with score and explanation
+
+        Raises:
+            NotImplementedError: If evaluator doesn't support agent-level
+        """
+        raise NotImplementedError(
+            f"{self.name} does not support level='agent'. "
+            f"Supported levels: {', '.join(lvl.value for lvl in self._supported_levels)}"
+        )
+
+    def _span_evaluation(self, span: Any, task: Optional[Task] = None) -> EvalResult:
+        """
+        Implement span-level evaluation logic.
+
+        This method is called once per LLM span when level="span".
+        Only implement if evaluator supports span-level evaluation.
+
+        Args:
+            span: The LLM span to evaluate
+            task: Optional task for ground truth
+
+        Returns:
+            EvalResult with score and explanation
+
+        Raises:
+            NotImplementedError: If evaluator doesn't support span-level
+        """
+        raise NotImplementedError(
+            f"{self.name} does not support level='span'. "
+            f"Supported levels: {', '.join(lvl.value for lvl in self._supported_levels)}"
+        )
+
+    def __call__(self, trace: Trace, task: Optional[Task] = None) -> List[EvalResult]:
         """
         Execute the evaluator.
 
         Simply calls evaluate() - the runner will handle enriching with metadata.
         """
-        return self.evaluate(observation, task)
+        return self.evaluate(trace, task)
 
 
 class LLMAsJudgeEvaluator(BaseEvaluator):
@@ -274,7 +466,7 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
     Uses an LLM to evaluate outputs for subjective criteria.
 
     Supports flexible prompt templates with flat variable access (Python str.format()).
-    Use a custom prompt_builder to extract and flatten data from observation/task.
+    Use a custom prompt_builder to extract and flatten data from trace/task.
 
     Example with custom prompt:
         class CustomJudge(LLMAsJudgeEvaluator):
@@ -294,12 +486,12 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
                     prompt_builder=self.build_prompt
                 )
 
-            def build_prompt(self, observation, task):
+            def build_prompt(self, trace, task):
                 # Extract and flatten data for template variables
-                tools_used = [s.name for s in observation.trajectory.tool_spans]
+                tools_used = [s.name for s in trace.get_tool_calls()]
                 return {
-                    "query": observation.input,
-                    "response": observation.output,
+                    "query": trace.input,
+                    "response": trace.output,
                     "tools_used": ", ".join(tools_used) if tools_used else "None"
                 }
 
@@ -347,12 +539,12 @@ Score: <number between 0.0 and 1.0>
 Explanation: <your reasoning>
 """
 
-    def _default_prompt_builder(self, observation: Observation, task: Optional[Task] = None) -> dict:
+    def _default_prompt_builder(self, trace: Trace, task: Optional[Task] = None) -> dict:
         """
         Build template variables for the default prompt.
 
         Returns a dict of flat variables for str.format(). Python's str.format() doesn't
-        support nested attribute access (like {observation.input}), so extract and flatten
+        support nested attribute access (like {trace.input}), so extract and flatten
         all needed values.
 
         Override this or provide custom prompt_builder to customize variables.
@@ -366,8 +558,8 @@ Explanation: <your reasoning>
             criteria_section = f"\nSuccess Criteria: {task.success_criteria}"
 
         return {
-            "input": observation.input,
-            "output": observation.output,
+            "input": trace.input,
+            "output": trace.output,
             "reference_section": reference_section,
             "criteria_section": criteria_section,
         }
@@ -388,10 +580,10 @@ Explanation: <your reasoning>
         """
         pass
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         """Evaluate using LLM-as-judge."""
         # Build template variables using custom or default builder
-        template_vars = self.prompt_builder(observation, task)
+        template_vars = self.prompt_builder(trace, task)
 
         # Format the prompt with variables
         prompt = self.prompt_template.format(**template_vars)
@@ -407,18 +599,33 @@ Explanation: <your reasoning>
 
 
 class FunctionEvaluator(BaseEvaluator):
-    """Wraps a simple function as an evaluator."""
+    """
+    Wraps a plain function as an evaluator (single-level).
 
-    def __init__(self, func: Callable[[Observation, Optional[Task]], any], name: Optional[str] = None, **kwargs):
+    The function receives the appropriate observation type for its level:
+    - trace:  fn(trace: Trace, task=None)
+    - agent:  fn(agent_trace: AgentTrace, task=None)
+    - span:   fn(span: LLMSpan|ToolSpan|..., task=None)
+
+    Supports exactly one level (the level it was registered with).
+    _auto_detect_supported_levels() returns [self.level] instead of
+    inspecting method overrides.
+    """
+
+    def __init__(self, func: Callable, name: Optional[str] = None, **kwargs):
+        # super().__init__ runs _init_params_from_kwargs (sets self.level)
+        # then _auto_detect_supported_levels (uses self.level) — ordering is correct.
         super().__init__(**kwargs)
         self.func = func
         self.name = name or func.__name__
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
-        """Call the wrapped function."""
-        result = self.func(observation, task)
+    def _auto_detect_supported_levels(self) -> List:
+        """Return only the level this function was registered with."""
+        return [self.level]
 
-        # Handle different return types from user functions
+    def _call_func(self, observation: Any, task: Optional[Task] = None) -> EvalResult:
+        """Call the wrapped function and normalize its return value."""
+        result = self.func(observation, task)
         if isinstance(result, EvalResult):
             return result
         elif isinstance(result, dict):
@@ -432,3 +639,12 @@ class FunctionEvaluator(BaseEvaluator):
             return EvalResult(score=float(result))
         else:
             raise TypeError(f"Evaluator function must return EvalResult, dict, or float, got {type(result)}")
+
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+        return self._call_func(trace, task)
+
+    def _agent_evaluation(self, agent_trace: Any, task: Optional[Task] = None) -> EvalResult:
+        return self._call_func(agent_trace, task)
+
+    def _span_evaluation(self, span: Any, task: Optional[Task] = None) -> EvalResult:
+        return self._call_func(span, task)
