@@ -73,9 +73,6 @@ type Config struct {
 
 	// WebSocket configuration
 	WebSocket WebSocketConfig
-
-	// LLM Provider Template configuration
-	LLMTemplateDefinitionsPath string
 }
 
 // OpenChoreoConfig holds OpenChoreo API configuration

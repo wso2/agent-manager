@@ -209,12 +209,12 @@ func ConvertModelToSpecLLMProviderTemplateMetadata(meta *models.LLMProviderTempl
 // ConvertSpecToModelLLMProvider converts spec.CreateLLMProviderRequest to models.LLMProvider
 func ConvertSpecToModelLLMProvider(req *spec.CreateLLMProviderRequest, orgName string) *models.LLMProvider {
 	provider := &models.LLMProvider{
-		UUID:          uuid.New(),
-		TemplateUUID:  uuid.MustParse(req.TemplateUuid),
-		Description:   ptrToString(req.Description),
-		OpenAPISpec:   ptrToString(req.Openapi),
-		Status:        "ACTIVE",
-		Configuration: ConvertSpecToModelLLMProviderConfig(req.Configuration),
+		UUID:           uuid.New(),
+		TemplateHandle: req.TemplateHandle,
+		Description:    ptrToString(req.Description),
+		OpenAPISpec:    ptrToString(req.Openapi),
+		Status:         "ACTIVE",
+		Configuration:  ConvertSpecToModelLLMProviderConfig(req.Configuration),
 	}
 
 	return provider
@@ -223,13 +223,13 @@ func ConvertSpecToModelLLMProvider(req *spec.CreateLLMProviderRequest, orgName s
 // ConvertModelToSpecLLMProviderResponse converts models.LLMProvider to spec.LLMProviderResponse
 func ConvertModelToSpecLLMProviderResponse(model *models.LLMProvider) spec.LLMProviderResponse {
 	resp := &spec.LLMProviderResponse{
-		Uuid:          model.UUID.String(),
-		TemplateUuid:  model.TemplateUUID.String(),
-		Status:        model.Status,
-		Description:   stringToPtr(model.Description),
-		CreatedBy:     stringToPtr(model.CreatedBy),
-		Openapi:       stringToPtr(model.OpenAPISpec),
-		Configuration: ConvertModelToSpecLLMProviderConfig(model.Configuration),
+		Uuid:           model.UUID.String(),
+		TemplateHandle: model.TemplateHandle,
+		Status:         model.Status,
+		Description:    stringToPtr(model.Description),
+		CreatedBy:      stringToPtr(model.CreatedBy),
+		Openapi:        stringToPtr(model.OpenAPISpec),
+		Configuration:  ConvertModelToSpecLLMProviderConfig(model.Configuration),
 	}
 
 	// Convert model providers

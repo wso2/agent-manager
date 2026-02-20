@@ -31,6 +31,7 @@ type LLMProviderTemplate struct {
 	Name             string    `gorm:"column:name" json:"name"`
 	Description      string    `gorm:"column:description" json:"description,omitempty"`
 	CreatedBy        string    `gorm:"column:created_by" json:"createdBy,omitempty"`
+	IsSystem         bool      `gorm:"column:is_system;default:false" json:"isSystem"`
 	Configuration    string    `gorm:"column:configuration;type:text" json:"-"` // TEXT field stores raw config as JSON
 	CreatedAt        time.Time `gorm:"column:created_at" json:"createdAt"`
 	UpdatedAt        time.Time `gorm:"column:updated_at" json:"updatedAt"`
