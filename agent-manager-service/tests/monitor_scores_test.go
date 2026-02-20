@@ -34,19 +34,22 @@ import (
 )
 
 // stubScoreRepo is a minimal ScoreRepository that returns "not found" for monitor lookups.
-type stubScoreRepo struct{}
+type stubScoreRepo struct {
+	evaluators []models.MonitorRunEvaluator
+}
 
 func (s *stubScoreRepo) WithTx(_ *gorm.DB) repositories.ScoreRepository { return s }
 func (s *stubScoreRepo) RunInTransaction(fn func(txRepo repositories.ScoreRepository) error) error {
 	return fn(s)
 }
 
-func (s *stubScoreRepo) UpsertMonitorRunEvaluators(_ []models.MonitorRunEvaluator) error {
+func (s *stubScoreRepo) UpsertMonitorRunEvaluators(evals []models.MonitorRunEvaluator) error {
+	s.evaluators = evals
 	return nil
 }
 
 func (s *stubScoreRepo) GetEvaluatorsByRunID(_ uuid.UUID) ([]models.MonitorRunEvaluator, error) {
-	return nil, nil
+	return s.evaluators, nil
 }
 func (s *stubScoreRepo) BatchCreateScores(_ []models.Score) error { return nil }
 func (s *stubScoreRepo) DeleteScoresByRunEvaluatorAndTraces(_ uuid.UUID, _ []string) error {
