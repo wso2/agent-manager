@@ -109,9 +109,9 @@ agentManagerService:
 
     # Key Manager configuration
     keyManager:
-      issuer: "Agent Management Platform Local"
-      audience: "localhost"
-      jwksUrl: ""
+      issuer: "thunder"
+      audience: "amp-console-client"
+      jwksUrl: "http://thunder.amp.localhost:8080/oauth2/jwks"
       defaultIssuer: "Agent Management Platform Local"
 
     # On-premise deployment flag
