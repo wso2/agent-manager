@@ -46,7 +46,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: amp-evaluation-coverage
-          path: htmlcov
+          path: libs/amp-evaluation/htmlcov
 
   release:
     name: Release
@@ -63,11 +63,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.branch }}
+          fetch-tags: true
 
       - name: Set release tag and version
         run: |
-          echo "RELEASE_TAG=amp-evaluation/v${{ inputs.target_version }}" >> $GITHUB_ENV
-          echo "VERSION=${{ inputs.target_version }}" >> $GITHUB_ENV
+          echo "RELEASE_TAG=amp-evaluation/v${{ inputs.target_version }}" >> "$GITHUB_ENV"
+          echo "VERSION=${{ inputs.target_version }}" >> "$GITHUB_ENV"
+
+      - name: Check tag does not already exist
+        run: |
+          if git ls-remote --tags origin "${{ env.RELEASE_TAG }}" | grep -q "${{ env.RELEASE_TAG }}"; then
+            echo "Error: Tag ${{ env.RELEASE_TAG }} already exists. Please use a different version."
+            exit 1
+          fi
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -89,6 +97,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pyproject.toml
           git commit -m "Bump version to ${{ inputs.target_version }}"
+          git push origin HEAD:refs/heads/${{ inputs.branch }}
 
       - name: Install build tools
         run: |
@@ -106,14 +115,8 @@ jobs:
 
       - name: Create and push tag
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          if git rev-parse ${{ env.RELEASE_TAG }} >/dev/null 2>&1; then
-            echo "Error: Tag ${{ env.RELEASE_TAG }} already exists. Please use a different version."
-            exit 1
-          fi
-          git tag -a ${{ env.RELEASE_TAG }} -m "Release ${{ env.VERSION }}"
-          git push origin ${{ env.RELEASE_TAG }}
+          git tag -a "${{ env.RELEASE_TAG }}" -m "Release ${{ env.VERSION }}"
+          git push origin "${{ env.RELEASE_TAG }}"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

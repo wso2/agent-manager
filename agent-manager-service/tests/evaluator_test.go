@@ -1019,6 +1019,7 @@ func TestGetEvaluator(t *testing.T) {
 			"answer_relevancy",
 			"contains_match",
 			"exact_match",
+			"hallucination",
 			"iteration_count",
 			"latency",
 			"prohibited_content",

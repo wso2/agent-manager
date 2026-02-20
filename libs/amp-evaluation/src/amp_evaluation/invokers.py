@@ -52,7 +52,7 @@ Example (In-Process Agent):
     class InProcessInvoker(AgentInvoker):
         def invoke(self, input: Any) -> InvokeResult:
             response = my_agent.run(input)
-            trajectory = Trace(trace_id="...")  # From instrumentation
+            trajectory = Trace(traceId="...", rootSpanId="...", rootSpanName="...", startTime="...", endTime="...", spans=[])  # From instrumentation
             return InvokeResult(input=input, output=response, trajectory=trajectory)
 """
 
@@ -259,7 +259,7 @@ class HttpAgentInvoker(AgentInvoker):
         payload = self.payload_builder(input)
 
         # Merge headers (default + user headers)
-        request_headers = self.headers
+        request_headers = dict(self.headers)
 
         try:
             # Make request based on method

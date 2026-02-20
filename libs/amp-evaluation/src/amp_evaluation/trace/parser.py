@@ -24,6 +24,7 @@ The parser accepts Trace objects from the fetcher (OTEL/AMP attribute model)
 and converts them to Trace (evaluation-optimized model).
 """
 
+from dataclasses import replace as dataclass_replace
 from typing import Dict, Any, List, Optional
 import logging
 import uuid
@@ -159,10 +160,8 @@ def filter_infrastructure_spans(spans: List[OTELSpan], create_synthetic_root: bo
                 # Orphan, connect to synthetic root
                 new_parent = synthetic_root.spanId if synthetic_root else None
 
-            # Create new span with remapped parent
-            # Note: We need to modify the parentSpanId attribute
-            span.parentSpanId = new_parent
-            filtered_spans.append(span)
+            # Create a copy of the span with the remapped parent to avoid mutating the original
+            filtered_spans.append(dataclass_replace(span, parentSpanId=new_parent))
 
     # Phase 6: Validate
     _validate_trace_structure(filtered_spans)
