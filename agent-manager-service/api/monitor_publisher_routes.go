@@ -20,11 +20,12 @@ import (
 	"net/http"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware"
 )
 
 // RegisterMonitorPublisherRoutes registers monitor score publishing routes
 // These routes use API key authentication instead of JWT
 func RegisterMonitorPublisherRoutes(mux *http.ServeMux, ctrl controllers.MonitorScoresPublisherController) {
 	// POST /monitors/{monitorId}/runs/{runId}/scores - Publish evaluation scores
-	mux.HandleFunc("POST /monitors/{monitorId}/runs/{runId}/scores", ctrl.PublishScores)
+	middleware.HandleFuncWithValidation(mux, route("POST", "/monitors/{monitorId}/runs/{runId}/scores"), ctrl.PublishScores)
 }
