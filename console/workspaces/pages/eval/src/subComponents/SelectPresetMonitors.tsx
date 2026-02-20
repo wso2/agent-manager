@@ -32,8 +32,8 @@ const toSlug = (value: string): string => value
 
 interface SelectPresetMonitorsProps {
     selectedEvaluators: MonitorEvaluator[];
-    onToggleEvaluator: (value: string) => void;
-    onSaveEvaluatorConfig: (value: string, config: Record<string, unknown>) => void;
+    onToggleEvaluator: (evaluator: EvaluatorResponse) => void;
+    onSaveEvaluatorConfig: (evaluator: EvaluatorResponse, config: Record<string, unknown>) => void;
     error?: string;
 }
 
@@ -52,7 +52,7 @@ export function SelectPresetMonitors({
     const [drawerEvaluator, setDrawerEvaluator] = useState<EvaluatorResponse | null>(null);
 
     const selectedEvaluatorNames = useMemo(
-        () => selectedEvaluators.map((item) => item.name),
+        () => selectedEvaluators.map((item) => item.identifier),
         [selectedEvaluators]
     );
 
@@ -97,14 +97,14 @@ export function SelectPresetMonitors({
         if (!drawerIdentifier) {
             return undefined;
         }
-        return selectedEvaluators.find((item) => item.name === drawerIdentifier)?.config;
+        return selectedEvaluators.find((item) => item.identifier === drawerIdentifier)?.config;
     }, [drawerIdentifier, selectedEvaluators]);
 
     const handleConfirmEvaluator = useCallback((config: Record<string, unknown>) => {
         if (!drawerEvaluator || !drawerIdentifier) {
             return;
         }
-        onSaveEvaluatorConfig(drawerIdentifier, config);
+        onSaveEvaluatorConfig(drawerEvaluator, config);
         handleCloseDrawer();
     }, [drawerEvaluator, drawerIdentifier, handleCloseDrawer, onSaveEvaluatorConfig]);
 
@@ -113,7 +113,7 @@ export function SelectPresetMonitors({
             return;
         }
         if (selectedEvaluatorNames.includes(drawerIdentifier)) {
-            onToggleEvaluator(drawerIdentifier);
+            onToggleEvaluator(drawerEvaluator);
         }
         handleCloseDrawer();
     }, [drawerEvaluator, drawerIdentifier,
@@ -137,13 +137,11 @@ export function SelectPresetMonitors({
                 <Form.Section>
                     <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
                         {selectedFullEval.map((evaluator) => {
-                            const identifier = evaluator.identifier ??
-                                toSlug(evaluator.displayName);
                             return (
                                 <Box py={0.25} key={evaluator.id}>
                                     <Chip
                                         label={evaluator.displayName}
-                                        onDelete={() => onToggleEvaluator(identifier)}
+                                        onDelete={() => onToggleEvaluator(evaluator)}
                                         color="primary"
                                     />
                                 </Box>
@@ -207,7 +205,7 @@ export function SelectPresetMonitors({
                         {filteredEvaluators.map((monitor) => {
                             const identifier = monitor.identifier ?? toSlug(monitor.displayName);
                             const isSelected = selectedEvaluators.some(
-                                (item) => item.name === identifier);
+                                (item) => item.identifier === identifier);
                             return (
                                 <Form.CardButton
                                     key={monitor.id}

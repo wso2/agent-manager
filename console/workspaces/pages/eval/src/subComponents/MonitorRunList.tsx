@@ -70,7 +70,7 @@ const partitionEvaluators = (evaluators?: MonitorRunResponse["evaluators"]) => {
     const visible = list.slice(0, 3);
     const extraLabels = list
         .slice(3)
-        .map((evaluator) => evaluator.name)
+        .map((evaluator) => evaluator.displayName ?? evaluator.identifier)
         .filter((name): name is string => Boolean(name));
     return { visible, extraLabels };
 };
@@ -139,7 +139,7 @@ export default function MonitorRunList({ monitorDisplayName }: MonitorRunListPro
             return runs;
         }
         return runs.filter((run) => {
-            const evaluatorNames = run.evaluators?.map((evaluator) => evaluator.name ?? "").join(" ") ?? "";
+            const evaluatorNames = run.evaluators?.map((evaluator) => evaluator.displayName ?? evaluator.identifier ?? "").join(" ") ?? "";
             const haystack = [
                 run.id,
                 run.status,
@@ -274,7 +274,7 @@ export default function MonitorRunList({ monitorDisplayName }: MonitorRunListPro
                                     <ListingTable.Cell>
                                         <Stack direction="row" spacing={1} flexWrap="wrap">
                                             {visible.map((evaluator, index) => {
-                                                const label = evaluator.name ?? `Evaluator ${index + 1}`;
+                                                const label = evaluator.displayName ?? evaluator.identifier ?? `Evaluator ${index + 1}`;
                                                 return (
                                                     <Chip
                                                         key={`${run.id}-${label}-${index}`}

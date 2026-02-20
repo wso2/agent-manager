@@ -78,7 +78,7 @@ export function MonitorTable() {
                 "-",
             dataSource: monitor.type === "future" ? "Continuous" : "Historical",
             evaluators:
-                monitor.evaluators?.map((evaluator) => evaluator.name).filter(
+                monitor.evaluators?.map((evaluator) => evaluator.displayName ?? evaluator.identifier).filter(
                     (name): name is string => Boolean(name)) ?? [],
             type: monitor.type,
             status: monitor.status ?? "Unknown",
@@ -208,8 +208,8 @@ export function MonitorTable() {
                                     }))}>
                             <ListingTable.Cell>
                                 <Stack spacing={0.5}>
-                                    <Typography variant="body1">{monitor.displayName}
-
+                                    <Typography variant="body2">
+                                        {monitor.displayName}
                                     </Typography>
                                 </Stack>
                             </ListingTable.Cell>

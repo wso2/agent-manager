@@ -31,9 +31,17 @@ import {
   type MonitorRunListResponse,
   type MonitorRunLogsPathParams,
   type MonitorRunResponse,
+  type MonitorScoresPathParams,
+  type MonitorScoresQueryParams,
+  type MonitorScoresResponse,
+  type MonitorScoresTimeSeriesPathParams,
+  type MonitorScoresTimeSeriesQueryParams,
   type RerunMonitorPathParams,
   type StartMonitorPathParams,
   type StopMonitorPathParams,
+  type TimeSeriesResponse,
+  type TraceScoresPathParams,
+  type TraceScoresResponse,
   type UpdateMonitorPathParams,
   type UpdateMonitorRequest,
 } from "@agent-management-platform/types";
@@ -42,6 +50,9 @@ import {
   deleteMonitor,
   getMonitor,
   getMonitorRunLogs,
+  getMonitorScores,
+  getMonitorScoresTimeSeries,
+  getTraceScores,
   listMonitorRuns,
   listMonitors,
   rerunMonitor,
@@ -171,5 +182,55 @@ export function useMonitorRunLogs(params: MonitorRunLogsPathParams) {
       !!params.agentName &&
       !!params.monitorName &&
       !!params.runId,
+  });
+}
+
+export function useMonitorScores(
+  params: MonitorScoresPathParams,
+  query: MonitorScoresQueryParams
+) {
+  const { getToken } = useAuthHooks();
+  return useQuery<MonitorScoresResponse>({
+    queryKey: ["monitor-scores", params, query],
+    queryFn: () => getMonitorScores(params, query, getToken),
+    enabled:
+      !!params.orgName &&
+      !!params.projName &&
+      !!params.agentName &&
+      !!params.monitorName &&
+      !!query.startTime &&
+      !!query.endTime,
+  });
+}
+
+export function useMonitorScoresTimeSeries(
+  params: MonitorScoresTimeSeriesPathParams,
+  query: MonitorScoresTimeSeriesQueryParams
+) {
+  const { getToken } = useAuthHooks();
+  return useQuery<TimeSeriesResponse>({
+    queryKey: ["monitor-scores-timeseries", params, query],
+    queryFn: () => getMonitorScoresTimeSeries(params, query, getToken),
+    enabled:
+      !!params.orgName &&
+      !!params.projName &&
+      !!params.agentName &&
+      !!params.monitorName &&
+      !!query.startTime &&
+      !!query.endTime &&
+      !!query.evaluator,
+  });
+}
+
+export function useTraceScores(params: TraceScoresPathParams) {
+  const { getToken } = useAuthHooks();
+  return useQuery<TraceScoresResponse>({
+    queryKey: ["trace-scores", params],
+    queryFn: () => getTraceScores(params, getToken),
+    enabled:
+      !!params.orgName &&
+      !!params.projName &&
+      !!params.agentName &&
+      !!params.traceId,
   });
 }

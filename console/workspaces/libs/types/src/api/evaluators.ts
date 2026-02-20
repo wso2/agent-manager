@@ -17,6 +17,7 @@
  */
 
 import { type ListQuery, type OrgPathParams } from "./common";
+import { type EvaluationLevel } from "./monitors";
 
 export interface EvaluatorConfigParam {
   key: string;
@@ -36,6 +37,7 @@ export interface EvaluatorResponse {
   description: string;
   version: string;
   provider: string;
+  level?: EvaluationLevel;
   tags: string[];
   isBuiltin: boolean;
   configSchema: EvaluatorConfigParam[];

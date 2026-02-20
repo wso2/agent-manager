@@ -105,8 +105,8 @@ export function OxygenLayout() {
           <Header.Actions>
             <ColorSchemeToggle />
             <UserMenu>
-              <UserMenu.Trigger name={user.name} />
-              <UserMenu.Header name={user.name} email={user.email} />
+              <UserMenu.Trigger name={user.primaryLine} />
+              <UserMenu.Header name={user.primaryLine} email={user.secondaryLine} />
               <UserMenu.Divider />
               <UserMenu.Logout  onClick={handleLogout} />
             </UserMenu>

@@ -18,12 +18,17 @@
 
 import { type AgentPathParams } from "./common";
 
+export type EvaluationLevel = "trace" | "agent" | "span";
+export type MonitorScoreGranularity = "hour" | "day" | "week";
+
 export type MonitorType = "future" | "past";
 export type MonitorStatus = "Active" | "Suspended" | "Failed" | "Unknown";
 export type MonitorRunStatus = "pending" | "running" | "success" | "failed";
 
 export interface MonitorEvaluator {
-  name: string;
+  identifier: string;
+  displayName: string;
+  level: EvaluationLevel;
   config?: Record<string, unknown>;
 }
 
@@ -105,6 +110,8 @@ export type DeleteMonitorPathParams = MonitorPathParams;
 export type StopMonitorPathParams = MonitorPathParams;
 export type StartMonitorPathParams = MonitorPathParams;
 export type ListMonitorRunsPathParams = MonitorPathParams;
+export type MonitorScoresPathParams = MonitorPathParams;
+export type MonitorScoresTimeSeriesPathParams = MonitorPathParams;
 
 export interface MonitorRunPathParams extends MonitorPathParams {
   runId: string | undefined;
@@ -112,3 +119,80 @@ export interface MonitorRunPathParams extends MonitorPathParams {
 
 export type RerunMonitorPathParams = MonitorRunPathParams;
 export type MonitorRunLogsPathParams = MonitorRunPathParams;
+
+export interface MonitorScoresQueryParams {
+  startTime: string;
+  endTime: string;
+  evaluator?: string;
+  level?: EvaluationLevel;
+}
+
+export interface MonitorScoresTimeSeriesQueryParams {
+  startTime: string;
+  endTime: string;
+  evaluator: string;
+  granularity?: MonitorScoreGranularity;
+}
+
+export interface TimeRange {
+  start: string;
+  end: string;
+}
+
+export interface EvaluatorScoreSummary {
+  evaluatorName: string;
+  level: EvaluationLevel;
+  count: number;
+  errorCount: number;
+  aggregations: Record<string, unknown>;
+}
+
+export interface MonitorScoresResponse {
+  monitorName: string;
+  timeRange: TimeRange;
+  evaluators: EvaluatorScoreSummary[];
+}
+
+export interface TimeSeriesPoint {
+  timestamp: string;
+  count: number;
+  errorCount: number;
+  aggregations: Record<string, unknown>;
+}
+
+export interface TimeSeriesResponse {
+  monitorName: string;
+  evaluatorName: string;
+  granularity: MonitorScoreGranularity;
+  points: TimeSeriesPoint[];
+}
+
+export interface ScoreItem {
+  spanId?: string | null;
+  score?: number | null;
+  explanation?: string | null;
+  metadata?: Record<string, unknown>;
+  error?: string | null;
+}
+
+export interface EvaluatorTraceGroup {
+  evaluatorName: string;
+  level: EvaluationLevel;
+  scores: ScoreItem[];
+}
+
+export interface MonitorTraceGroup {
+  monitorName: string;
+  monitorId: string;
+  runId: string;
+  evaluators: EvaluatorTraceGroup[];
+}
+
+export interface TraceScoresResponse {
+  traceId: string;
+  monitors: MonitorTraceGroup[];
+}
+
+export interface TraceScoresPathParams extends AgentPathParams {
+  traceId: string | undefined;
+}

@@ -17,13 +17,18 @@
  */
 
 import { z } from "zod";
-import type { MonitorEvaluator, MonitorType } from "@agent-management-platform/types";
+import type { EvaluationLevel, MonitorEvaluator, MonitorType } from "@agent-management-platform/types";
 
 const evaluatorSchema: z.ZodType<MonitorEvaluator> = z.object({
-    name: z
+    identifier: z
         .string()
         .trim()
-        .min(1, "Evaluator name is required"),
+        .min(1, "Evaluator identifier is required"),
+    displayName: z
+        .string()
+        .trim()
+        .min(1, "Evaluator display name is required"),
+    level: z.enum(["trace", "agent", "span"]) as z.ZodType<EvaluationLevel>,
     config: z.record(z.string(), z.unknown()).optional(),
 });
 

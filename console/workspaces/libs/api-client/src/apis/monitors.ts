@@ -23,17 +23,25 @@ import {
   type GetMonitorPathParams,
   type ListMonitorRunsPathParams,
   type ListMonitorsPathParams,
+  type LogsResponse,
   type MonitorListResponse,
   type MonitorResponse,
   type MonitorRunListResponse,
   type MonitorRunLogsPathParams,
   type MonitorRunResponse,
+  type MonitorScoresPathParams,
+  type MonitorScoresQueryParams,
+  type MonitorScoresResponse,
+  type MonitorScoresTimeSeriesPathParams,
+  type MonitorScoresTimeSeriesQueryParams,
   type RerunMonitorPathParams,
   type StartMonitorPathParams,
   type StopMonitorPathParams,
+  type TimeSeriesResponse,
+  type TraceScoresPathParams,
+  type TraceScoresResponse,
   type UpdateMonitorPathParams,
   type UpdateMonitorRequest,
-  type LogsResponse,
 } from "@agent-management-platform/types";
 import { httpDELETE, httpGET, httpPATCH, httpPOST, SERVICE_BASE } from "../utils";
 
@@ -221,6 +229,80 @@ export async function getMonitorRunLogs(
 
   const res = await httpGET(
     `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/runs/${run}/logs`,
+    { token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function getMonitorScores(
+  params: MonitorScoresPathParams,
+  query: MonitorScoresQueryParams,
+  getToken?: () => Promise<string>
+): Promise<MonitorScoresResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const monitor = encodeRequired(params.monitorName, "monitorName");
+  const token = getToken ? await getToken() : undefined;
+  const searchParams: Record<string, string> = {
+    startTime: query.startTime,
+    endTime: query.endTime,
+  };
+  if (query.evaluator) {
+    searchParams.evaluator = query.evaluator;
+  }
+  if (query.level) {
+    searchParams.level = query.level;
+  }
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/scores`,
+    { searchParams, token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function getMonitorScoresTimeSeries(
+  params: MonitorScoresTimeSeriesPathParams,
+  query: MonitorScoresTimeSeriesQueryParams,
+  getToken?: () => Promise<string>
+): Promise<TimeSeriesResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const monitor = encodeRequired(params.monitorName, "monitorName");
+  const token = getToken ? await getToken() : undefined;
+  const searchParams: Record<string, string> = {
+    startTime: query.startTime,
+    endTime: query.endTime,
+    evaluator: query.evaluator,
+  };
+  if (query.granularity) {
+    searchParams.granularity = query.granularity;
+  }
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/scores/timeseries`,
+    { searchParams, token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function getTraceScores(
+  params: TraceScoresPathParams,
+  getToken?: () => Promise<string>
+): Promise<TraceScoresResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const trace = encodeRequired(params.traceId, "traceId");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/traces/${trace}/scores`,
     { token }
   );
   if (!res.ok) throw await res.json();

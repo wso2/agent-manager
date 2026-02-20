@@ -21,6 +21,7 @@ import { Alert, Button, Stack } from "@wso2/oxygen-ui";
 import { ArrowLeft, ArrowRight } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { createMonitorSchema, type CreateMonitorFormValues } from "../form/schema";
+import type { EvaluationLevel, EvaluatorResponse } from "@agent-management-platform/types";
 import { CreateMonitorForm } from "./CreateMonitorForm";
 import { SelectPresetMonitors } from "./SelectPresetMonitors";
 
@@ -98,12 +99,17 @@ export function MonitorFormWizard({
             });
         }, [setFieldError, slugify, validateField]);
 
-    const handleToggleEvaluator = useCallback((evaluatorName: string) => {
+    const handleToggleEvaluator = useCallback((ev: EvaluatorResponse) => {
         setFormData((prev) => {
-            const exists = prev.evaluators.some((evaluator) => evaluator.name === evaluatorName);
+            const exists = prev.evaluators.some(
+                (evaluator) => evaluator.identifier === ev.identifier);
             const nextEvaluators = exists
-                ? prev.evaluators.filter((evaluator) => evaluator.name !== evaluatorName)
-                : [...prev.evaluators, { name: evaluatorName }];
+                ? prev.evaluators.filter((evaluator) => evaluator.identifier !== ev.identifier)
+                : [...prev.evaluators, {
+                    identifier: ev.identifier,
+                    displayName: ev.displayName,
+                    level: (ev.level ?? "trace") as EvaluationLevel,
+                }];
 
             const next = { ...prev, evaluators: nextEvaluators } as CreateMonitorFormValues;
             const evalError = validateField("evaluators", nextEvaluators, next);
@@ -112,14 +118,20 @@ export function MonitorFormWizard({
         });
     }, [setFieldError, validateField]);
 
-    const handleSaveEvaluatorConfig = useCallback((evaluatorName: string,
+    const handleSaveEvaluatorConfig = useCallback((ev: EvaluatorResponse,
         config: Record<string, unknown>) => {
         setFormData((prev) => {
-            const exists = prev.evaluators.some((evaluator) => evaluator.name === evaluatorName);
+            const exists = prev.evaluators.some(
+                (evaluator) => evaluator.identifier === ev.identifier);
             const nextEvaluators = exists
                 ? prev.evaluators.map((evaluator) =>
-                    evaluator.name === evaluatorName ? { ...evaluator, config } : evaluator)
-                : [...prev.evaluators, { name: evaluatorName, config }];
+                    evaluator.identifier === ev.identifier ? { ...evaluator, config } : evaluator)
+                : [...prev.evaluators, {
+                    identifier: ev.identifier,
+                    displayName: ev.displayName,
+                    level: (ev.level ?? "trace") as EvaluationLevel,
+                    config,
+                }];
             const next = { ...prev, evaluators: nextEvaluators } as CreateMonitorFormValues;
             const evalError = validateField("evaluators", nextEvaluators, next);
             setFieldError("evaluators", evalError);
