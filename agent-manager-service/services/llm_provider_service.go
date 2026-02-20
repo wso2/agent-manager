@@ -57,11 +57,12 @@ type UpdateAndSyncResponse struct {
 
 // LLMProviderService handles LLM provider business logic
 type LLMProviderService struct {
-	db           *gorm.DB
-	providerRepo repositories.LLMProviderRepository
-	templateRepo repositories.LLMProviderTemplateRepository
-	proxyRepo    repositories.LLMProxyRepository
-	artifactRepo repositories.ArtifactRepository
+	db            *gorm.DB
+	providerRepo  repositories.LLMProviderRepository
+	templateRepo  repositories.LLMProviderTemplateRepository
+	templateStore *LLMTemplateStore
+	proxyRepo     repositories.LLMProxyRepository
+	artifactRepo  repositories.ArtifactRepository
 }
 
 // NewLLMProviderService creates a new LLM provider service
@@ -69,15 +70,17 @@ func NewLLMProviderService(
 	db *gorm.DB,
 	providerRepo repositories.LLMProviderRepository,
 	templateRepo repositories.LLMProviderTemplateRepository,
+	templateStore *LLMTemplateStore,
 	proxyRepo repositories.LLMProxyRepository,
 	artifactRepo repositories.ArtifactRepository,
 ) *LLMProviderService {
 	return &LLMProviderService{
-		db:           db,
-		providerRepo: providerRepo,
-		templateRepo: templateRepo,
-		proxyRepo:    proxyRepo,
-		artifactRepo: artifactRepo,
+		db:            db,
+		providerRepo:  providerRepo,
+		templateRepo:  templateRepo,
+		templateStore: templateStore,
+		proxyRepo:     proxyRepo,
+		artifactRepo:  artifactRepo,
 	}
 }
 
@@ -133,21 +136,28 @@ func (s *LLMProviderService) Create(orgName, createdBy string, provider *models.
 		provider.ModelList = string(modelListBytes)
 	}
 
+	// Validate template exists (check both built-in and user templates)
+	slog.Info("LLMProviderService.Create: validating template", "orgName", orgName, "handle", handle, "template", template)
+	templateExists := s.templateStore.Exists(template)
+	if !templateExists {
+		// Check user templates in database
+		userTemplateExists, err := s.templateRepo.Exists(template, orgName)
+		if err != nil {
+			slog.Error("LLMProviderService.Create: failed to validate user template", "orgName", orgName, "handle", handle, "template", template, "error", err)
+			return nil, fmt.Errorf("failed to validate template: %w", err)
+		}
+		if !userTemplateExists {
+			slog.Warn("LLMProviderService.Create: template not found", "orgName", orgName, "handle", handle, "template", template)
+			return nil, utils.ErrLLMProviderTemplateNotFound
+		}
+	}
+
+	// Set template handle in provider
+	provider.TemplateHandle = template
+
 	// Create provider in transaction with validation
 	slog.Info("LLMProviderService.Create: creating provider in database", "orgName", orgName, "handle", handle, "name", name, "version", version)
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		// Validate template exists within transaction
-		slog.Info("LLMProviderService.Create: validating template in transaction", "orgName", orgName, "handle", handle, "template", template)
-		templateExists, err := s.templateRepo.Exists(template, orgName)
-		if err != nil {
-			slog.Error("LLMProviderService.Create: failed to validate template", "orgName", orgName, "handle", handle, "template", template, "error", err)
-			return fmt.Errorf("failed to validate template: %w", err)
-		}
-		if !templateExists {
-			slog.Warn("LLMProviderService.Create: template not found", "orgName", orgName, "handle", handle, "template", template)
-			return utils.ErrLLMProviderTemplateNotFound
-		}
-
 		// Create provider - uniqueness enforced by DB constraint
 		return s.providerRepo.Create(tx, provider, handle, name, version, orgName)
 	})
@@ -265,19 +275,25 @@ func (s *LLMProviderService) Update(providerID, orgName string, updates *models.
 		return nil, utils.ErrInvalidInput
 	}
 
-	// Validate template exists
+	// Validate template exists (check both built-in and user templates)
 	template := updates.Configuration.Template
 	if template != "" {
 		slog.Info("LLMProviderService.Update: validating template", "orgName", orgName, "providerID", providerID, "template", template)
-		templateExists, err := s.templateRepo.Exists(template, orgName)
-		if err != nil {
-			slog.Error("LLMProviderService.Update: failed to validate template", "orgName", orgName, "providerID", providerID, "template", template, "error", err)
-			return nil, fmt.Errorf("failed to validate template: %w", err)
-		}
+		templateExists := s.templateStore.Exists(template)
 		if !templateExists {
-			slog.Warn("LLMProviderService.Update: template not found", "orgName", orgName, "providerID", providerID, "template", template)
-			return nil, utils.ErrLLMProviderTemplateNotFound
+			// Check user templates in database
+			userTemplateExists, err := s.templateRepo.Exists(template, orgName)
+			if err != nil {
+				slog.Error("LLMProviderService.Update: failed to validate user template", "orgName", orgName, "providerID", providerID, "template", template, "error", err)
+				return nil, fmt.Errorf("failed to validate template: %w", err)
+			}
+			if !userTemplateExists {
+				slog.Warn("LLMProviderService.Update: template not found", "orgName", orgName, "providerID", providerID, "template", template)
+				return nil, utils.ErrLLMProviderTemplateNotFound
+			}
 		}
+		// Set template handle in updates
+		updates.TemplateHandle = template
 	}
 
 	// Serialize model providers to ModelList
