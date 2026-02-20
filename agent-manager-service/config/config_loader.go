@@ -117,7 +117,7 @@ func loadEnvs() {
 		IsTraceContentEnabled: r.readOptionalBool("OTEL_TRACELOOP_TRACE_CONTENT", true),
 
 		// OTLP Exporter configuration
-		ExporterEndpoint: r.readOptionalString("OTEL_EXPORTER_OTLP_ENDPOINT", "http://opentelemetry-collector.openchoreo-observability-plane.svc.cluster.local:4318"),
+		ExporterEndpoint: r.readOptionalString("OTEL_EXPORTER_OTLP_ENDPOINT", "http://obs-gateway-gateway-router.data-plane.svc.cluster.local:22893/otel"),
 	}
 
 	// Observer service configuration - temporarily use localhost for agent-manager-service to access observer service
