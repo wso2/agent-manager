@@ -27,7 +27,7 @@ window.__RUNTIME_CONFIG__ = {
     // Disable strict ID token validation for providers with non-standard issuers 
     // (e.g., Thunder uses "thunder" instead of a URL)
     // Set VALIDATE_ID_TOKEN=true for providers that comply with OIDC standards (e.g., Asgardeo)
-    validateIDToken: '$VALIDATE_ID_TOKEN' !== 'true',
+    validateIDToken: '$VALIDATE_ID_TOKEN' === 'true',
     // Clock tolerance (in seconds) to handle time skew between client and server
     // Prevents token validation failures due to minor time differences
     clockTolerance: 300
