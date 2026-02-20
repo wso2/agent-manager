@@ -44,10 +44,11 @@ from typing import Optional, List, Any, TYPE_CHECKING
 
 from amp_evaluation.evaluators.base import BaseEvaluator
 from amp_evaluation.evaluators.config import Param
-from amp_evaluation.models import Observation, EvalResult
+from amp_evaluation.models import EvalResult
 
 if TYPE_CHECKING:
     from amp_evaluation.dataset import Task
+    from amp_evaluation.trace.models import Trace
 
 logger = logging.getLogger(__name__)
 
@@ -106,9 +107,9 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
                 "DeepEval is not installed. Evaluator will fail at runtime. Install with: pip install deepeval"
             )
 
-    def _build_deepeval_test_case(self, observation: Observation, task: Optional[Task] = None) -> Any:
+    def _build_deepeval_test_case(self, trace: Trace, task: Optional[Task] = None) -> Any:
         """
-        Build a DeepEval LLMTestCase from observation and task.
+        Build a DeepEval LLMTestCase from trace and task.
 
         Subclasses may override to customize test case construction.
         """
@@ -118,8 +119,8 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
             raise ImportError("DeepEval is required. Install with: pip install deepeval")
 
         # Extract input and output
-        input_text = observation.input or ""
-        actual_output = observation.output or ""
+        input_text = trace.input or ""
+        actual_output = trace.output or ""
 
         # Build test case kwargs
         kwargs = {
@@ -132,23 +133,20 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
             kwargs["expected_output"] = task.expected_output
 
         # Add retrieval context if available from tool spans
-        retrieval_context = self._extract_retrieval_context(observation)
+        retrieval_context = self._extract_retrieval_context(trace)
         if retrieval_context:
             kwargs["retrieval_context"] = retrieval_context
 
         # Add tool call information
-        tool_calls = self._extract_tools_called(observation)
+        tool_calls = self._extract_tools_called(trace)
         if tool_calls:
             kwargs["tools_called"] = tool_calls
 
         return LLMTestCase(**kwargs)
 
-    def _extract_retrieval_context(self, observation: Observation) -> Optional[List[str]]:
+    def _extract_retrieval_context(self, trace: Trace) -> Optional[List[str]]:
         """Extract retrieval context from retriever spans if available."""
-        if not observation.trajectory or not hasattr(observation.trajectory, "retriever_spans"):
-            return None
-
-        retriever_spans = observation.trajectory.retriever_spans
+        retriever_spans = trace.get_retrievals()
         if not retriever_spans:
             return None
 
@@ -162,15 +160,15 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
 
         return context if context else None
 
-    def _extract_tools_called(self, observation: Observation) -> List[Any]:
-        """Extract tool call information from observation as DeepEval ToolCall objects."""
+    def _extract_tools_called(self, trace: Trace) -> List[Any]:
+        """Extract tool call information from trace as DeepEval ToolCall objects."""
         try:
             from deepeval.test_case import ToolCall
         except ImportError:
             raise ImportError("DeepEval is required. Install with: pip install deepeval")
 
         tools = []
-        for span in observation.tool_spans:
+        for span in trace.get_tool_calls():
             # Convert to DeepEval ToolCall format
             tool_call = ToolCall(
                 name=span.name,
@@ -203,7 +201,7 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
             },
         )
 
-    def evaluate(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         """
         Template method for DeepEval evaluations with error handling.
 
@@ -211,7 +209,7 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
         This method wraps the evaluation with consistent error handling.
         """
         try:
-            return self._evaluate_with_deepeval(observation, task)
+            return self._evaluate_with_deepeval(trace, task)
         except ImportError as e:
             return EvalResult.skip(
                 f"DeepEval not installed: {e}",
@@ -224,7 +222,7 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
                 details={"error": str(e)},
             )
 
-    def _evaluate_with_deepeval(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         """
         Perform the actual DeepEval metric evaluation.
 
@@ -236,7 +234,7 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
         4. Call metric.measure()
         5. Convert and return the result
 
-        Error handling is done by the parent evaluate() method.
+        Error handling is done by the parent _trace_evaluation() method.
         """
         raise NotImplementedError("Subclasses must implement _evaluate_with_deepeval()")
 
@@ -270,7 +268,7 @@ class DeepEvalPlanQualityEvaluator(DeepEvalBaseEvaluator):
     evaluator_type = "agent"
     version = "1.0"
 
-    def _evaluate_with_deepeval(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         """Evaluate the quality of the agent's plan."""
         PlanQualityMetric = _get_deepeval_metric_class("PlanQualityMetric")
 
@@ -283,7 +281,7 @@ class DeepEvalPlanQualityEvaluator(DeepEvalBaseEvaluator):
         )
 
         # Build test case
-        test_case = self._build_deepeval_test_case(observation, task)
+        test_case = self._build_deepeval_test_case(trace, task)
 
         # Measure
         metric.measure(test_case)
@@ -315,7 +313,7 @@ class DeepEvalPlanAdherenceEvaluator(DeepEvalBaseEvaluator):
     evaluator_type = "agent"
     version = "1.0"
 
-    def _evaluate_with_deepeval(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         """Evaluate how well the agent adheres to its plan."""
         PlanAdherenceMetric = _get_deepeval_metric_class("PlanAdherenceMetric")
 
@@ -328,7 +326,7 @@ class DeepEvalPlanAdherenceEvaluator(DeepEvalBaseEvaluator):
         )
 
         # Build test case
-        test_case = self._build_deepeval_test_case(observation, task)
+        test_case = self._build_deepeval_test_case(trace, task)
 
         # Measure
         metric.measure(test_case)
@@ -393,7 +391,7 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
         super().__init__(**kwargs)
         # Set default aggregations
 
-    def _evaluate_with_deepeval(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         """Evaluate if the agent selected the correct tools."""
         ToolCorrectnessMetric = _get_deepeval_metric_class("ToolCorrectnessMetric")
 
@@ -410,23 +408,23 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
         metric = ToolCorrectnessMetric(**metric_kwargs)
 
         # Build test case with tools information
-        test_case = self._build_tool_test_case(observation, task)
+        test_case = self._build_tool_test_case(trace, task)
 
         # Measure
         metric.measure(test_case)
 
         return self._convert_deepeval_result(metric)
 
-    def _build_tool_test_case(self, observation: Observation, task: Optional[Task] = None) -> Any:
+    def _build_tool_test_case(self, trace: Trace, task: Optional[Task] = None) -> Any:
         """Build test case with tool call information."""
         try:
             from deepeval.test_case import LLMTestCase, ToolCall
         except ImportError:
             raise ImportError("DeepEval is required. Install with: pip install deepeval")
 
-        # Extract tools called from observation
+        # Extract tools called from trace
         tools_called = []
-        for span in observation.tool_spans:
+        for span in trace.get_tool_calls():
             tool_call_kwargs = {"name": span.name}
             if self.evaluate_input and hasattr(span, "input"):
                 tool_call_kwargs["input"] = span.input
@@ -449,8 +447,8 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
 
         # Build kwargs for test case
         kwargs = {
-            "input": observation.input or "",
-            "actual_output": observation.output or "",
+            "input": trace.input or "",
+            "actual_output": trace.output or "",
             "tools_called": tools_called,
         }
 
@@ -487,7 +485,7 @@ class DeepEvalArgumentCorrectnessEvaluator(DeepEvalBaseEvaluator):
     evaluator_type = "agent"
     version = "1.0"
 
-    def _evaluate_with_deepeval(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         """Evaluate if the agent generated correct arguments for tool calls."""
         ArgumentCorrectnessMetric = _get_deepeval_metric_class("ArgumentCorrectnessMetric")
 
@@ -500,14 +498,14 @@ class DeepEvalArgumentCorrectnessEvaluator(DeepEvalBaseEvaluator):
         )
 
         # Build test case with tool call details
-        test_case = self._build_argument_test_case(observation, task)
+        test_case = self._build_argument_test_case(trace, task)
 
         # Measure
         metric.measure(test_case)
 
         return self._convert_deepeval_result(metric)
 
-    def _build_argument_test_case(self, observation: Observation, task: Optional[Task] = None) -> Any:
+    def _build_argument_test_case(self, trace: Trace, task: Optional[Task] = None) -> Any:
         """Build test case with tool argument information."""
         try:
             from deepeval.test_case import LLMTestCase, ToolCall
@@ -516,15 +514,15 @@ class DeepEvalArgumentCorrectnessEvaluator(DeepEvalBaseEvaluator):
 
         # Extract tools called with input arguments
         tools_called = []
-        for span in observation.tool_spans:
+        for span in trace.get_tool_calls():
             tool_call_kwargs = {"name": span.name}
             if hasattr(span, "input") and span.input:
                 tool_call_kwargs["input"] = span.input
             tools_called.append(ToolCall(**tool_call_kwargs))
 
         return LLMTestCase(
-            input=observation.input or "",
-            actual_output=observation.output or "",
+            input=trace.input or "",
+            actual_output=trace.output or "",
             tools_called=tools_called,
         )
 
@@ -572,7 +570,7 @@ class DeepEvalTaskCompletionEvaluator(DeepEvalBaseEvaluator):
         super().__init__(**kwargs)
         # Set default aggregations
 
-    def _evaluate_with_deepeval(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         """Evaluate if the agent completed the task."""
         TaskCompletionMetric = _get_deepeval_metric_class("TaskCompletionMetric")
 
@@ -587,7 +585,7 @@ class DeepEvalTaskCompletionEvaluator(DeepEvalBaseEvaluator):
         metric = TaskCompletionMetric(**metric_kwargs)
 
         # Build test case
-        test_case = self._build_deepeval_test_case(observation, task)
+        test_case = self._build_deepeval_test_case(trace, task)
 
         # Measure with better error handling
         try:
@@ -628,7 +626,7 @@ class DeepEvalStepEfficiencyEvaluator(DeepEvalBaseEvaluator):
     evaluator_type = "agent"
     version = "1.0"
 
-    def _evaluate_with_deepeval(self, observation: Observation, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         """Evaluate if the agent completed the task efficiently."""
         StepEfficiencyMetric = _get_deepeval_metric_class("StepEfficiencyMetric")
 
@@ -641,7 +639,7 @@ class DeepEvalStepEfficiencyEvaluator(DeepEvalBaseEvaluator):
         )
 
         # Build test case
-        test_case = self._build_deepeval_test_case(observation, task)
+        test_case = self._build_deepeval_test_case(trace, task)
 
         # Measure with better error handling
         try:

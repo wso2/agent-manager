@@ -31,8 +31,10 @@ func convertSpecEvaluatorsToModels(specEvals []spec.MonitorEvaluator) []models.M
 	modelsEvals := make([]models.MonitorEvaluator, len(specEvals))
 	for i, eval := range specEvals {
 		modelsEvals[i] = models.MonitorEvaluator{
-			Name:   eval.Name,
-			Config: eval.Config,
+			Identifier:  eval.Identifier,
+			DisplayName: eval.DisplayName,
+			Config:      eval.Config,
+			Level:       eval.Level,
 		}
 	}
 	return modelsEvals
@@ -46,8 +48,10 @@ func convertModelsEvaluatorsToSpec(modelsEvals []models.MonitorEvaluator) []spec
 	specEvals := make([]spec.MonitorEvaluator, len(modelsEvals))
 	for i, eval := range modelsEvals {
 		specEvals[i] = spec.MonitorEvaluator{
-			Name:   eval.Name,
-			Config: eval.Config,
+			Identifier:  eval.Identifier,
+			DisplayName: eval.DisplayName,
+			Config:      eval.Config,
+			Level:       eval.Level,
 		}
 	}
 	return specEvals
@@ -694,5 +698,117 @@ func ConvertToMonitorRunListResponse(runList *models.MonitorRunsListResponse) sp
 	return spec.MonitorRunListResponse{
 		Runs:  responses,
 		Total: int32(runList.Total),
+	}
+}
+
+// ConvertToMonitorScoresResponse converts a models.MonitorScoresResponse to spec.MonitorScoresResponse
+func ConvertToMonitorScoresResponse(response *models.MonitorScoresResponse) spec.MonitorScoresResponse {
+	if response == nil {
+		return spec.MonitorScoresResponse{
+			MonitorName: "",
+			TimeRange:   spec.TimeRange{},
+			Evaluators:  []spec.EvaluatorScoreSummary{},
+		}
+	}
+
+	evaluators := make([]spec.EvaluatorScoreSummary, len(response.Evaluators))
+	for i, eval := range response.Evaluators {
+		evaluators[i] = spec.EvaluatorScoreSummary{
+			EvaluatorName: eval.EvaluatorName,
+			Level:         eval.Level,
+			Count:         int32(eval.Count),
+			ErrorCount:    int32(eval.ErrorCount),
+			Aggregations:  eval.Aggregations,
+		}
+	}
+
+	return spec.MonitorScoresResponse{
+		MonitorName: response.MonitorName,
+		TimeRange: spec.TimeRange{
+			Start: response.TimeRange.Start,
+			End:   response.TimeRange.End,
+		},
+		Evaluators: evaluators,
+	}
+}
+
+// ConvertToTimeSeriesResponse converts a models.TimeSeriesResponse to spec.TimeSeriesResponse
+func ConvertToTimeSeriesResponse(response *models.TimeSeriesResponse) spec.TimeSeriesResponse {
+	if response == nil {
+		return spec.TimeSeriesResponse{
+			MonitorName:   "",
+			EvaluatorName: "",
+			Granularity:   "",
+			Points:        []spec.TimeSeriesPoint{},
+		}
+	}
+
+	points := make([]spec.TimeSeriesPoint, len(response.Points))
+	for i, point := range response.Points {
+		points[i] = spec.TimeSeriesPoint{
+			Timestamp:    point.Timestamp,
+			Count:        int32(point.Count),
+			ErrorCount:   int32(point.ErrorCount),
+			Aggregations: point.Aggregations,
+		}
+	}
+
+	return spec.TimeSeriesResponse{
+		MonitorName:   response.MonitorName,
+		EvaluatorName: response.EvaluatorName,
+		Granularity:   response.Granularity,
+		Points:        points,
+	}
+}
+
+// ConvertToTraceScoresResponse converts a models.TraceScoresResponse to spec.TraceScoresResponse
+func ConvertToTraceScoresResponse(response *models.TraceScoresResponse) spec.TraceScoresResponse {
+	if response == nil {
+		return spec.TraceScoresResponse{
+			TraceId:  "",
+			Monitors: []spec.MonitorTraceGroup{},
+		}
+	}
+
+	monitors := make([]spec.MonitorTraceGroup, len(response.Monitors))
+	for i, monitor := range response.Monitors {
+		evaluators := make([]spec.EvaluatorTraceGroup, len(monitor.Evaluators))
+		for j, eval := range monitor.Evaluators {
+			scores := make([]spec.ScoreItem, len(eval.Scores))
+			for k, score := range eval.Scores {
+				// Convert score from *float64 to *float32 for spec
+				var scoreFloat32 *float32
+				if score.Score != nil {
+					f32 := float32(*score.Score)
+					scoreFloat32 = &f32
+				}
+
+				scores[k] = spec.ScoreItem{
+					SpanId:      *spec.NewNullableString(score.SpanID),
+					Score:       *spec.NewNullableFloat32(scoreFloat32),
+					Explanation: *spec.NewNullableString(score.Explanation),
+					Metadata:    score.Metadata,
+					Error:       *spec.NewNullableString(score.Error),
+				}
+			}
+
+			evaluators[j] = spec.EvaluatorTraceGroup{
+				EvaluatorName: eval.EvaluatorName,
+				Level:         eval.Level,
+				Scores:        scores,
+			}
+		}
+
+		monitors[i] = spec.MonitorTraceGroup{
+			MonitorName: monitor.MonitorName,
+			MonitorId:   monitor.MonitorID,
+			RunId:       monitor.RunID,
+			Evaluators:  evaluators,
+		}
+	}
+
+	return spec.TraceScoresResponse{
+		TraceId:  response.TraceID,
+		Monitors: monitors,
 	}
 }

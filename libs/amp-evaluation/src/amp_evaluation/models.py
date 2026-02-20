@@ -19,11 +19,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Dict, Any, Optional, TYPE_CHECKING
-from amp_evaluation.trace.models import ToolSpan
+from typing import List, Dict, Any, Optional
 
-if TYPE_CHECKING:
-    from .trace.models import Trajectory
 
 """
 Core data models for the evaluation framework.
@@ -56,72 +53,8 @@ class DataNotAvailableError(Exception):
 
 
 # ============================================================================
-# OBSERVATION MODEL
 # ============================================================================
-
-
-@dataclass
-class Observation:
-    """
-    What we observed from the agent's execution.
-
-    This is ALWAYS available - for both Experiments and Monitors.
-    Contains the complete execution trace and all derived metrics.
-
-    Source: Trace data from OpenTelemetry
-
-    Example:
-        observation = Observation(trajectory=trajectory)
-
-        # Access observed data
-        output = observation.output
-        latency = observation.metrics.total_duration_ms
-        steps = observation.trajectory.steps
-    """
-
-    # Core trace data
-    trajectory: "Trajectory"
-
-    # ==========================================================================
-    # Convenience Properties (delegated from trajectory)
-    # ==========================================================================
-
-    @property
-    def trace_id(self) -> str:
-        """Unique identifier for this execution."""
-        return self.trajectory.trace_id
-
-    @property
-    def input(self) -> str:
-        """What was sent to the agent (observed input)."""
-        return self.trajectory.input
-
-    @property
-    def output(self) -> str:
-        """What the agent produced (observed output)."""
-        return self.trajectory.output
-
-    @property
-    def metrics(self):
-        """Performance metrics (latency, tokens, cost, etc.)."""
-        return self.trajectory.metrics
-
-    @property
-    def timestamp(self) -> Optional[datetime]:
-        """When the execution started."""
-        return self.trajectory.timestamp
-
-    @property
-    def steps(self) -> List:
-        """Sequential execution steps (LLM calls, tool calls, etc.)."""
-        return self.trajectory.steps
-
-    @property
-    def tool_spans(self) -> List[ToolSpan]:
-        """Tool call spans from the trajectory."""
-        return self.trajectory.tool_spans
-
-
+# EVAL RESULT MODELS
 # ============================================================================
 # EVALUATION RESULT MODELS
 # ============================================================================
@@ -249,6 +182,7 @@ class EvaluatorScore:
     trace_id: str
     score: float
     passed: bool
+    span_id: Optional[str] = None  # Set for agent/span level evaluations
     timestamp: Optional[datetime] = None  # Trace timestamp (when trace occurred)
     explanation: Optional[str] = None
     # Experiment-specific (optional)
@@ -285,6 +219,8 @@ class EvaluatorSummary:
     count: int
     aggregated_scores: Dict[str, float] = field(default_factory=dict)  # e.g., {"mean": 0.85, "pass_rate_0.5": 0.9}
     individual_scores: List[EvaluatorScore] = field(default_factory=list)
+    level: str = "trace"  # Evaluation level: "trace", "agent", or "span"
+    items_per_trace: Optional[Dict[str, int]] = None  # For multi-item: {trace_id: num_items}
 
     def __getitem__(self, key: str) -> float:
         """Allow dict-like access to aggregated scores."""
@@ -306,6 +242,46 @@ class EvaluatorSummary:
         if rate is not None:
             return rate
         return self.aggregated_scores.get("pass_rate_0.5")
+
+    def get_by_trace(self, trace_id: str) -> List[EvaluatorScore]:
+        """
+        Get all evaluation scores for a specific trace.
+
+        Useful for multi-item evaluators (agent-level, span-level) where
+        one trace produces multiple scores.
+
+        Args:
+            trace_id: The trace ID to filter by
+
+        Returns:
+            List of EvaluatorScore objects for this trace
+        """
+        return [score for score in self.individual_scores if score.trace_id == trace_id]
+
+    def get_by_metadata(self, key: str, value: Any) -> List[EvaluatorScore]:
+        """
+        Filter scores by metadata field.
+
+        Args:
+            key: Metadata key to filter by (e.g., "agent_name", "span_type")
+            value: Value to match
+
+        Returns:
+            List of EvaluatorScore objects matching the filter
+        """
+        return [score for score in self.individual_scores if score.metadata.get(key) == value]
+
+    def get_agent_scores(self, agent_name: str) -> List[EvaluatorScore]:
+        """
+        Get all scores for a specific agent (for agent-level evaluators).
+
+        Args:
+            agent_name: Name of the agent to filter by
+
+        Returns:
+            List of EvaluatorScore objects for this agent
+        """
+        return self.get_by_metadata("agent_name", agent_name)
 
 
 # ============================================================================

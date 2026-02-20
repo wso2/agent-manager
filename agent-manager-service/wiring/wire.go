@@ -68,6 +68,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewLLMProxyAPIKeyService,
 	services.NewLLMProxyDeploymentService,
 	services.NewGatewayInternalAPIService,
+	services.NewMonitorScoresService,
 	services.NewCatalogService,
 	ProvideLLMTemplateSeeder,
 )
@@ -88,6 +89,8 @@ var controllerProviderSet = wire.NewSet(
 	ProvideWebSocketController,
 	controllers.NewGatewayInternalController,
 	controllers.NewMonitorController,
+	controllers.NewMonitorScoresController,
+	controllers.NewMonitorScoresPublisherController,
 	controllers.NewEvaluatorController,
 	controllers.NewCatalogController,
 )
@@ -132,6 +135,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideLLMProxyRepository,
 	ProvideDeploymentRepository,
 	ProvideArtifactRepository,
+	ProvideScoreRepository,
 	ProvideCatalogRepository,
 )
 
@@ -204,6 +208,10 @@ func ProvideDeploymentRepository(db *gorm.DB) repositories.DeploymentRepository 
 
 func ProvideArtifactRepository(db *gorm.DB) repositories.ArtifactRepository {
 	return repositories.NewArtifactRepo(db)
+}
+
+func ProvideScoreRepository(db *gorm.DB) repositories.ScoreRepository {
+	return repositories.NewScoreRepo(db)
 }
 
 func ProvideCatalogRepository(db *gorm.DB) repositories.CatalogRepository {

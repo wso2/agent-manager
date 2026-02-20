@@ -5,7 +5,7 @@
 global:
   # -- Base domain for external access
   baseDomain: ""
-  
+
   # -- Container registry configuration
   registry:
     # -- Registry endpoint for pushing and pulling images
@@ -30,7 +30,7 @@ ampEvaluation:
 
     # -- Image pull policy
     pullPolicy: "IfNotPresent"
-  
+
   # -- Whether to use local registry or external image
   # When true, image will be prefixed with registry endpoint
   # When false, uses repository:tag directly (for k3d imported images or external registries)
@@ -38,3 +38,12 @@ ampEvaluation:
 
   # -- In-cluster URL for the traces observer API
   tracesApiEndpoint: "http://amp-traces-observer.openchoreo-observability-plane.svc.cluster.local:9098"
+
+  # -- Publisher settings (for publishing evaluation scores to agent-manager)
+  publisher:
+    # -- In-cluster URL for the agent-manager API
+    endpoint: "http://amp-agent-manager.openchoreo-control-plane.svc.cluster.local:8080"
+
+    # -- API key for publisher authentication
+    # In production, provide via --set or values override
+    apiKey: ""
