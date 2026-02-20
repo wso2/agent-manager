@@ -130,7 +130,7 @@ func mapConfigurations(specConfigs *spec.Configurations) *client.Configurations 
 		Env: make([]client.EnvVar, len(specConfigs.Env)),
 	}
 	for i, env := range specConfigs.Env {
-		configs.Env[i] = client.EnvVar{Key: env.Key, Value: env.Value}
+		configs.Env[i] = client.EnvVar{Key: env.Key, Value: env.GetValue()}
 	}
 	return configs
 }
@@ -138,17 +138,9 @@ func mapConfigurations(specConfigs *spec.Configurations) *client.Configurations 
 // mapConfigurationsWithSecrets converts spec.Configurations to client.Configurations
 // handling secret env vars by using secretKeyRef instead of plain values
 func mapConfigurationsWithSecrets(specConfigs *spec.Configurations, componentName string) (*client.Configurations, bool) {
-	if specConfigs == nil {
-		return nil, false
-	}
-
-	// Check if there's anything to map
-	if len(specConfigs.Env) == 0 && specConfigs.EnableAutoInstrumentation == nil {
-		return nil, false
-	}
-
+	
 	configs := &client.Configurations{
-		EnableAutoInstrumentation: specConfigs.EnableAutoInstrumentation,
+		Env: make([]client.EnvVar, len(specConfigs.Env)),
 	}
 
 	hasSecrets := false
