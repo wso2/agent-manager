@@ -17,15 +17,12 @@
 package controllers
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
@@ -42,30 +39,15 @@ type LLMDeploymentController interface {
 
 type llmDeploymentController struct {
 	deploymentService *services.LLMProviderDeploymentService
-	orgRepo           repositories.OrganizationRepository
 }
 
 // NewLLMDeploymentController creates a new LLM deployment controller
 func NewLLMDeploymentController(
 	deploymentService *services.LLMProviderDeploymentService,
-	orgRepo repositories.OrganizationRepository,
 ) LLMDeploymentController {
 	return &llmDeploymentController{
 		deploymentService: deploymentService,
-		orgRepo:           orgRepo,
 	}
-}
-
-// resolveOrgUUID resolves organization handle to UUID
-func (c *llmDeploymentController) resolveOrgUUID(ctx context.Context, orgName string) (string, error) {
-	org, err := c.orgRepo.GetOrganizationByName(orgName)
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve organization: %w", err)
-	}
-	if org == nil {
-		return "", utils.ErrOrganizationNotFound
-	}
-	return org.UUID.String(), nil
 }
 
 func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *http.Request) {
@@ -76,19 +58,7 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 
 	log.Info("DeployLLMProvider: starting", "orgName", orgName, "providerID", providerID)
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
-	if err != nil {
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			log.Warn("DeployLLMProvider: organization not found", "orgName", orgName)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		} else {
-			log.Error("DeployLLMProvider: failed to resolve organization", "orgName", orgName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
-		}
-		return
-	}
-
-	log.Info("DeployLLMProvider: organization resolved", "orgName", orgName, "orgID", orgID)
+	log.Info("DeployLLMProvider: organization resolved", "orgName", orgName, "orgName", orgName)
 
 	if providerID == "" {
 		log.Error("DeployLLMProvider: provider ID is empty", "orgName", orgName)
@@ -126,7 +96,7 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 	log.Info("DeployLLMProvider: calling service layer", "orgName", orgName, "providerID", providerID,
 		"deploymentName", req.Name, "gatewayID", req.GatewayID)
 
-	deployment, err := c.deploymentService.DeployLLMProvider(providerID, &req, orgID)
+	deployment, err := c.deploymentService.DeployLLMProvider(providerID, &req, orgName)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
@@ -187,19 +157,7 @@ func (c *llmDeploymentController) UndeployLLMProviderDeployment(w http.ResponseW
 	log.Info("UndeployLLMProviderDeployment: starting", "orgName", orgName, "providerID", providerID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID)
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
-	if err != nil {
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			log.Warn("UndeployLLMProviderDeployment: organization not found", "orgName", orgName)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		} else {
-			log.Error("UndeployLLMProviderDeployment: failed to resolve organization", "orgName", orgName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
-		}
-		return
-	}
-
-	log.Info("UndeployLLMProviderDeployment: organization resolved", "orgName", orgName, "orgID", orgID)
+	log.Info("UndeployLLMProviderDeployment: organization resolved", "orgName", orgName, "orgName", orgName)
 
 	if providerID == "" {
 		log.Error("UndeployLLMProviderDeployment: provider ID is empty", "orgName", orgName)
@@ -220,7 +178,7 @@ func (c *llmDeploymentController) UndeployLLMProviderDeployment(w http.ResponseW
 	log.Info("UndeployLLMProviderDeployment: calling service layer", "orgName", orgName, "providerID", providerID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID)
 
-	_, err = c.deploymentService.UndeployLLMProviderDeployment(providerID, deploymentID, gatewayID, orgID)
+	_, err := c.deploymentService.UndeployLLMProviderDeployment(providerID, deploymentID, gatewayID, orgName)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
@@ -269,19 +227,7 @@ func (c *llmDeploymentController) RestoreLLMProviderDeployment(w http.ResponseWr
 	log.Info("RestoreLLMProviderDeployment: starting", "orgName", orgName, "providerID", providerID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID)
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
-	if err != nil {
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			log.Warn("RestoreLLMProviderDeployment: organization not found", "orgName", orgName)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		} else {
-			log.Error("RestoreLLMProviderDeployment: failed to resolve organization", "orgName", orgName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
-		}
-		return
-	}
-
-	log.Info("RestoreLLMProviderDeployment: organization resolved", "orgName", orgName, "orgID", orgID)
+	log.Info("RestoreLLMProviderDeployment: organization resolved", "orgName", orgName, "orgName", orgName)
 
 	if providerID == "" {
 		log.Error("RestoreLLMProviderDeployment: provider ID is empty", "orgName", orgName)
@@ -302,7 +248,7 @@ func (c *llmDeploymentController) RestoreLLMProviderDeployment(w http.ResponseWr
 	log.Info("RestoreLLMProviderDeployment: calling service layer", "orgName", orgName, "providerID", providerID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID)
 
-	deployment, err := c.deploymentService.RestoreLLMProviderDeployment(providerID, deploymentID, gatewayID, orgID)
+	deployment, err := c.deploymentService.RestoreLLMProviderDeployment(providerID, deploymentID, gatewayID, orgName)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
@@ -346,19 +292,7 @@ func (c *llmDeploymentController) DeleteLLMProviderDeployment(w http.ResponseWri
 
 	log.Info("DeleteLLMProviderDeployment: starting", "orgName", orgName, "providerID", providerID, "deploymentID", deploymentID)
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
-	if err != nil {
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			log.Warn("DeleteLLMProviderDeployment: organization not found", "orgName", orgName)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		} else {
-			log.Error("DeleteLLMProviderDeployment: failed to resolve organization", "orgName", orgName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
-		}
-		return
-	}
-
-	log.Info("DeleteLLMProviderDeployment: organization resolved", "orgName", orgName, "orgID", orgID)
+	log.Info("DeleteLLMProviderDeployment: organization resolved", "orgName", orgName, "orgName", orgName)
 
 	if providerID == "" {
 		log.Error("DeleteLLMProviderDeployment: provider ID is empty", "orgName", orgName)
@@ -373,7 +307,7 @@ func (c *llmDeploymentController) DeleteLLMProviderDeployment(w http.ResponseWri
 
 	log.Info("DeleteLLMProviderDeployment: calling service layer", "orgName", orgName, "providerID", providerID, "deploymentID", deploymentID)
 
-	err = c.deploymentService.DeleteLLMProviderDeployment(providerID, deploymentID, orgID)
+	err := c.deploymentService.DeleteLLMProviderDeployment(providerID, deploymentID, orgName)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
@@ -409,19 +343,7 @@ func (c *llmDeploymentController) GetLLMProviderDeployment(w http.ResponseWriter
 
 	log.Info("GetLLMProviderDeployment: starting", "orgName", orgName, "providerID", providerID, "deploymentID", deploymentID)
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
-	if err != nil {
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			log.Warn("GetLLMProviderDeployment: organization not found", "orgName", orgName)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		} else {
-			log.Error("GetLLMProviderDeployment: failed to resolve organization", "orgName", orgName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
-		}
-		return
-	}
-
-	log.Info("GetLLMProviderDeployment: organization resolved", "orgName", orgName, "orgID", orgID)
+	log.Info("GetLLMProviderDeployment: organization resolved", "orgName", orgName, "orgName", orgName)
 
 	if providerID == "" {
 		log.Error("GetLLMProviderDeployment: provider ID is empty", "orgName", orgName)
@@ -436,7 +358,7 @@ func (c *llmDeploymentController) GetLLMProviderDeployment(w http.ResponseWriter
 
 	log.Info("GetLLMProviderDeployment: calling service layer", "orgName", orgName, "providerID", providerID, "deploymentID", deploymentID)
 
-	deployment, err := c.deploymentService.GetLLMProviderDeployment(providerID, deploymentID, orgID)
+	deployment, err := c.deploymentService.GetLLMProviderDeployment(providerID, deploymentID, orgName)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
@@ -472,19 +394,7 @@ func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWrite
 	log.Info("GetLLMProviderDeployments: starting", "orgName", orgName, "providerID", providerID,
 		"gatewayID", gatewayID, "status", status)
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
-	if err != nil {
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			log.Warn("GetLLMProviderDeployments: organization not found", "orgName", orgName)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		} else {
-			log.Error("GetLLMProviderDeployments: failed to resolve organization", "orgName", orgName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
-		}
-		return
-	}
-
-	log.Info("GetLLMProviderDeployments: organization resolved", "orgName", orgName, "orgID", orgID)
+	log.Info("GetLLMProviderDeployments: organization resolved", "orgName", orgName, "orgName", orgName)
 
 	if providerID == "" {
 		log.Error("GetLLMProviderDeployments: provider ID is empty", "orgName", orgName)
@@ -504,7 +414,7 @@ func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWrite
 	log.Info("GetLLMProviderDeployments: calling service layer", "orgName", orgName, "providerID", providerID,
 		"hasGatewayFilter", gatewayIDPtr != nil, "hasStatusFilter", statusPtr != nil)
 
-	deployments, err := c.deploymentService.GetLLMProviderDeployments(providerID, orgID, gatewayIDPtr, statusPtr)
+	deployments, err := c.deploymentService.GetLLMProviderDeployments(providerID, orgName, gatewayIDPtr, statusPtr)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):

@@ -52,7 +52,6 @@ __version__ = "0.0.0-dev"
 # CORE MODELS
 # ============================================================================
 from .models import (
-    Observation,
     EvalResult,
     EvaluatorScore,
     EvaluatorSummary,
@@ -104,6 +103,11 @@ from .config import (
 from .invokers import AgentInvoker, InvokeResult, HttpAgentInvoker
 
 # ============================================================================
+# EVALUATION LEVELS
+# ============================================================================
+from .evaluators.config import EvaluationLevel
+
+# ============================================================================
 # CONVENIENCE DECORATORS (allowed in main module for ergonomics)
 # ============================================================================
 from .registry import evaluator
@@ -148,7 +152,6 @@ __all__ = [
     # -------------------------------------------------------------------------
     # Core types
     # -------------------------------------------------------------------------
-    "Observation",
     "EvalResult",
     "EvaluatorScore",
     "EvaluatorSummary",
@@ -180,4 +183,8 @@ __all__ = [
     # Configuration
     # -------------------------------------------------------------------------
     "Config",
+    # -------------------------------------------------------------------------
+    # Evaluation levels
+    # -------------------------------------------------------------------------
+    "EvaluationLevel",
 ]

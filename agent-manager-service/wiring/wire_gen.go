@@ -52,8 +52,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	}
 	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, secretManagementClient, repositoryService, agentTokenManagerService, logger)
 	agentController := controllers.NewAgentController(agentManagerService)
-	organizationRepository := ProvideOrganizationRepository(db)
-	infraResourceManager := services.NewInfraResourceManager(openChoreoClient, organizationRepository, logger)
+	infraResourceManager := services.NewInfraResourceManager(openChoreoClient, logger)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
 	traceObserverClient := traceobserversvc.NewTraceObserverClient()
 	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoClient, logger)
@@ -63,61 +62,71 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	gatewayRepository := ProvideGatewayRepository(db)
 	environmentService := services.NewEnvironmentService(logger, gatewayRepository, openChoreoClient)
 	environmentController := controllers.NewEnvironmentController(environmentService)
-	apiRepository := ProvideAPIRepository(db)
-	platformGatewayService := services.NewPlatformGatewayService(gatewayRepository, organizationRepository, apiRepository)
-	gatewayController := controllers.NewGatewayController(platformGatewayService, organizationRepository, openChoreoClient)
+	platformGatewayService := services.NewPlatformGatewayService(gatewayRepository)
+	gatewayController := controllers.NewGatewayController(platformGatewayService, openChoreoClient)
 	llmProviderTemplateRepository := ProvideLLMProviderTemplateRepository(db)
 	llmProviderTemplateService := services.NewLLMProviderTemplateService(llmProviderTemplateRepository)
 	llmProviderRepository := ProvideLLMProviderRepository(db)
 	llmProxyRepository := ProvideLLMProxyRepository(db)
-	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmProxyRepository)
+	artifactRepository := ProvideArtifactRepository(db)
+	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmProxyRepository, artifactRepository)
 	llmProxyService := services.NewLLMProxyService(llmProxyRepository, llmProviderRepository)
 	deploymentRepository := ProvideDeploymentRepository(db)
 	manager := ProvideWebSocketManager(configConfig)
 	gatewayEventsService := services.NewGatewayEventsService(manager)
 	llmProviderDeploymentService := services.NewLLMProviderDeploymentService(deploymentRepository, llmProviderRepository, llmProviderTemplateRepository, gatewayRepository, gatewayEventsService)
-	llmController := controllers.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, llmProviderDeploymentService, organizationRepository, openChoreoClient)
-	llmDeploymentController := controllers.NewLLMDeploymentController(llmProviderDeploymentService, organizationRepository)
+	llmController := controllers.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, llmProviderDeploymentService, artifactRepository, openChoreoClient)
+	llmDeploymentController := controllers.NewLLMDeploymentController(llmProviderDeploymentService)
 	llmProviderAPIKeyService := services.NewLLMProviderAPIKeyService(llmProviderRepository, gatewayRepository, gatewayEventsService)
-	llmProviderAPIKeyController := controllers.NewLLMProviderAPIKeyController(llmProviderAPIKeyService, organizationRepository)
+	llmProviderAPIKeyController := controllers.NewLLMProviderAPIKeyController(llmProviderAPIKeyService)
 	llmProxyAPIKeyService := services.NewLLMProxyAPIKeyService(llmProxyRepository, gatewayRepository, gatewayEventsService)
-	llmProxyAPIKeyController := controllers.NewLLMProxyAPIKeyController(llmProxyAPIKeyService, organizationRepository)
+	llmProxyAPIKeyController := controllers.NewLLMProxyAPIKeyController(llmProxyAPIKeyService)
 	llmProxyDeploymentService := services.NewLLMProxyDeploymentService(deploymentRepository, llmProxyRepository, llmProviderRepository, gatewayRepository, gatewayEventsService)
-	llmProxyDeploymentController := controllers.NewLLMProxyDeploymentController(llmProxyDeploymentService, organizationRepository)
+	llmProxyDeploymentController := controllers.NewLLMProxyDeploymentController(llmProxyDeploymentService)
 	webSocketController := ProvideWebSocketController(manager, platformGatewayService, configConfig)
-	gatewayInternalAPIService := services.NewGatewayInternalAPIService(apiRepository, llmProviderRepository, llmProxyRepository, deploymentRepository, gatewayRepository, organizationRepository, infraResourceManager)
+	gatewayInternalAPIService := services.NewGatewayInternalAPIService(llmProviderRepository, llmProxyRepository, deploymentRepository, gatewayRepository, infraResourceManager)
 	gatewayInternalController := controllers.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService)
 	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger)
-	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor)
-	monitorController := controllers.NewMonitorController(monitorManagerService)
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger)
+	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService)
+	monitorController := controllers.NewMonitorController(monitorManagerService)
+	scoreRepository := ProvideScoreRepository(db)
+	monitorScoresService := services.NewMonitorScoresService(scoreRepository, logger)
+	monitorScoresController := controllers.NewMonitorScoresController(monitorScoresService)
+	monitorScoresPublisherController := controllers.NewMonitorScoresPublisherController(monitorScoresService, configConfig)
 	evaluatorController := controllers.NewEvaluatorController(evaluatorManagerService)
+	catalogRepository := ProvideCatalogRepository(db)
+	catalogService := services.NewCatalogService(logger, catalogRepository, openChoreoClient)
+	catalogController := controllers.NewCatalogController(catalogService)
 	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, logger, monitorExecutor)
 	llmTemplateSeeder := ProvideLLMTemplateSeeder(llmProviderTemplateRepository)
 	appParams := &AppParams{
-		AuthMiddleware:               middleware,
-		Logger:                       logger,
-		AgentController:              agentController,
-		InfraResourceController:      infraResourceController,
-		ObservabilityController:      observabilityController,
-		AgentTokenController:         agentTokenController,
-		RepositoryController:         repositoryController,
-		EnvironmentController:        environmentController,
-		GatewayController:            gatewayController,
-		LLMController:                llmController,
-		LLMDeploymentController:      llmDeploymentController,
-		LLMProviderAPIKeyController:  llmProviderAPIKeyController,
-		LLMProxyAPIKeyController:     llmProxyAPIKeyController,
-		LLMProxyDeploymentController: llmProxyDeploymentController,
-		WebSocketController:          webSocketController,
-		GatewayInternalController:    gatewayInternalController,
-		MonitorController:            monitorController,
-		EvaluatorController:          evaluatorController,
-		MonitorScheduler:             monitorSchedulerService,
-		LLMTemplateSeeder:            llmTemplateSeeder,
-		OrganizationRepository:       organizationRepository,
-		WebSocketManager:             manager,
-		DB:                           db,
+		AuthMiddleware:                   middleware,
+		Logger:                           logger,
+		AgentController:                  agentController,
+		InfraResourceController:          infraResourceController,
+		ObservabilityController:          observabilityController,
+		AgentTokenController:             agentTokenController,
+		RepositoryController:             repositoryController,
+		EnvironmentController:            environmentController,
+		GatewayController:                gatewayController,
+		LLMController:                    llmController,
+		LLMDeploymentController:          llmDeploymentController,
+		LLMProviderAPIKeyController:      llmProviderAPIKeyController,
+		LLMProxyAPIKeyController:         llmProxyAPIKeyController,
+		LLMProxyDeploymentController:     llmProxyDeploymentController,
+		WebSocketController:              webSocketController,
+		GatewayInternalController:        gatewayInternalController,
+		MonitorController:                monitorController,
+		MonitorScoresController:          monitorScoresController,
+		MonitorScoresPublisherController: monitorScoresPublisherController,
+		EvaluatorController:              evaluatorController,
+		CatalogController:                catalogController,
+		MonitorScheduler:                 monitorSchedulerService,
+		LLMTemplateSeeder:                llmTemplateSeeder,
+		OpenChoreoClient:                 openChoreoClient,
+		WebSocketManager:                 manager,
+		DB:                               db,
 	}
 	return appParams, nil
 }
@@ -137,8 +146,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	}
 	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, secretManagementClient, repositoryService, agentTokenManagerService, logger)
 	agentController := controllers.NewAgentController(agentManagerService)
-	organizationRepository := ProvideOrganizationRepository(db)
-	infraResourceManager := services.NewInfraResourceManager(openChoreoClient, organizationRepository, logger)
+	infraResourceManager := services.NewInfraResourceManager(openChoreoClient, logger)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
 	traceObserverClient := ProvideTestTraceObserverClient(testClients)
 	observabilityManagerService := services.NewObservabilityManager(traceObserverClient, openChoreoClient, logger)
@@ -148,61 +156,71 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	gatewayRepository := ProvideGatewayRepository(db)
 	environmentService := services.NewEnvironmentService(logger, gatewayRepository, openChoreoClient)
 	environmentController := controllers.NewEnvironmentController(environmentService)
-	apiRepository := ProvideAPIRepository(db)
-	platformGatewayService := services.NewPlatformGatewayService(gatewayRepository, organizationRepository, apiRepository)
-	gatewayController := controllers.NewGatewayController(platformGatewayService, organizationRepository, openChoreoClient)
+	platformGatewayService := services.NewPlatformGatewayService(gatewayRepository)
+	gatewayController := controllers.NewGatewayController(platformGatewayService, openChoreoClient)
 	llmProviderTemplateRepository := ProvideLLMProviderTemplateRepository(db)
 	llmProviderTemplateService := services.NewLLMProviderTemplateService(llmProviderTemplateRepository)
 	llmProviderRepository := ProvideLLMProviderRepository(db)
 	llmProxyRepository := ProvideLLMProxyRepository(db)
-	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmProxyRepository)
+	artifactRepository := ProvideArtifactRepository(db)
+	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmProxyRepository, artifactRepository)
 	llmProxyService := services.NewLLMProxyService(llmProxyRepository, llmProviderRepository)
 	deploymentRepository := ProvideDeploymentRepository(db)
 	manager := ProvideWebSocketManager(configConfig)
 	gatewayEventsService := services.NewGatewayEventsService(manager)
 	llmProviderDeploymentService := services.NewLLMProviderDeploymentService(deploymentRepository, llmProviderRepository, llmProviderTemplateRepository, gatewayRepository, gatewayEventsService)
-	llmController := controllers.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, llmProviderDeploymentService, organizationRepository, openChoreoClient)
-	llmDeploymentController := controllers.NewLLMDeploymentController(llmProviderDeploymentService, organizationRepository)
+	llmController := controllers.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, llmProviderDeploymentService, artifactRepository, openChoreoClient)
+	llmDeploymentController := controllers.NewLLMDeploymentController(llmProviderDeploymentService)
 	llmProviderAPIKeyService := services.NewLLMProviderAPIKeyService(llmProviderRepository, gatewayRepository, gatewayEventsService)
-	llmProviderAPIKeyController := controllers.NewLLMProviderAPIKeyController(llmProviderAPIKeyService, organizationRepository)
+	llmProviderAPIKeyController := controllers.NewLLMProviderAPIKeyController(llmProviderAPIKeyService)
 	llmProxyAPIKeyService := services.NewLLMProxyAPIKeyService(llmProxyRepository, gatewayRepository, gatewayEventsService)
-	llmProxyAPIKeyController := controllers.NewLLMProxyAPIKeyController(llmProxyAPIKeyService, organizationRepository)
+	llmProxyAPIKeyController := controllers.NewLLMProxyAPIKeyController(llmProxyAPIKeyService)
 	llmProxyDeploymentService := services.NewLLMProxyDeploymentService(deploymentRepository, llmProxyRepository, llmProviderRepository, gatewayRepository, gatewayEventsService)
-	llmProxyDeploymentController := controllers.NewLLMProxyDeploymentController(llmProxyDeploymentService, organizationRepository)
+	llmProxyDeploymentController := controllers.NewLLMProxyDeploymentController(llmProxyDeploymentService)
 	webSocketController := ProvideWebSocketController(manager, platformGatewayService, configConfig)
-	gatewayInternalAPIService := services.NewGatewayInternalAPIService(apiRepository, llmProviderRepository, llmProxyRepository, deploymentRepository, gatewayRepository, organizationRepository, infraResourceManager)
+	gatewayInternalAPIService := services.NewGatewayInternalAPIService(llmProviderRepository, llmProxyRepository, deploymentRepository, gatewayRepository, infraResourceManager)
 	gatewayInternalController := controllers.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService)
 	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger)
-	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor)
-	monitorController := controllers.NewMonitorController(monitorManagerService)
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger)
+	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService)
+	monitorController := controllers.NewMonitorController(monitorManagerService)
+	scoreRepository := ProvideScoreRepository(db)
+	monitorScoresService := services.NewMonitorScoresService(scoreRepository, logger)
+	monitorScoresController := controllers.NewMonitorScoresController(monitorScoresService)
+	monitorScoresPublisherController := controllers.NewMonitorScoresPublisherController(monitorScoresService, configConfig)
 	evaluatorController := controllers.NewEvaluatorController(evaluatorManagerService)
+	catalogRepository := ProvideCatalogRepository(db)
+	catalogService := services.NewCatalogService(logger, catalogRepository, openChoreoClient)
+	catalogController := controllers.NewCatalogController(catalogService)
 	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, logger, monitorExecutor)
 	llmTemplateSeeder := ProvideLLMTemplateSeeder(llmProviderTemplateRepository)
 	appParams := &AppParams{
-		AuthMiddleware:               authMiddleware,
-		Logger:                       logger,
-		AgentController:              agentController,
-		InfraResourceController:      infraResourceController,
-		ObservabilityController:      observabilityController,
-		AgentTokenController:         agentTokenController,
-		RepositoryController:         repositoryController,
-		EnvironmentController:        environmentController,
-		GatewayController:            gatewayController,
-		LLMController:                llmController,
-		LLMDeploymentController:      llmDeploymentController,
-		LLMProviderAPIKeyController:  llmProviderAPIKeyController,
-		LLMProxyAPIKeyController:     llmProxyAPIKeyController,
-		LLMProxyDeploymentController: llmProxyDeploymentController,
-		WebSocketController:          webSocketController,
-		GatewayInternalController:    gatewayInternalController,
-		MonitorController:            monitorController,
-		EvaluatorController:          evaluatorController,
-		MonitorScheduler:             monitorSchedulerService,
-		LLMTemplateSeeder:            llmTemplateSeeder,
-		OrganizationRepository:       organizationRepository,
-		WebSocketManager:             manager,
-		DB:                           db,
+		AuthMiddleware:                   authMiddleware,
+		Logger:                           logger,
+		AgentController:                  agentController,
+		InfraResourceController:          infraResourceController,
+		ObservabilityController:          observabilityController,
+		AgentTokenController:             agentTokenController,
+		RepositoryController:             repositoryController,
+		EnvironmentController:            environmentController,
+		GatewayController:                gatewayController,
+		LLMController:                    llmController,
+		LLMDeploymentController:          llmDeploymentController,
+		LLMProviderAPIKeyController:      llmProviderAPIKeyController,
+		LLMProxyAPIKeyController:         llmProxyAPIKeyController,
+		LLMProxyDeploymentController:     llmProxyDeploymentController,
+		WebSocketController:              webSocketController,
+		GatewayInternalController:        gatewayInternalController,
+		MonitorController:                monitorController,
+		MonitorScoresController:          monitorScoresController,
+		MonitorScoresPublisherController: monitorScoresPublisherController,
+		EvaluatorController:              evaluatorController,
+		CatalogController:                catalogController,
+		MonitorScheduler:                 monitorSchedulerService,
+		LLMTemplateSeeder:                llmTemplateSeeder,
+		OpenChoreoClient:                 openChoreoClient,
+		WebSocketManager:                 manager,
+		DB:                               db,
 	}
 	return appParams, nil
 }
@@ -220,9 +238,9 @@ var clientProviderSet = wire.NewSet(
 	ProvideSecretManagementClient,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, services.NewMonitorSchedulerService, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewLLMProxyDeploymentService, services.NewGatewayInternalAPIService, ProvideLLMTemplateSeeder)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, services.NewMonitorSchedulerService, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewLLMProxyDeploymentService, services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, ProvideLLMTemplateSeeder)
 
-var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewLLMController, controllers.NewLLMDeploymentController, controllers.NewLLMProviderAPIKeyController, controllers.NewLLMProxyAPIKeyController, controllers.NewLLMProxyDeploymentController, ProvideWebSocketController, controllers.NewGatewayInternalController, controllers.NewMonitorController, controllers.NewEvaluatorController)
+var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewLLMController, controllers.NewLLMDeploymentController, controllers.NewLLMProviderAPIKeyController, controllers.NewLLMProxyAPIKeyController, controllers.NewLLMProxyDeploymentController, ProvideWebSocketController, controllers.NewGatewayInternalController, controllers.NewMonitorController, controllers.NewMonitorScoresController, controllers.NewMonitorScoresPublisherController, controllers.NewEvaluatorController, controllers.NewCatalogController)
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestOpenChoreoClient,
@@ -269,14 +287,14 @@ var loggerProviderSet = wire.NewSet(
 )
 
 var repositoryProviderSet = wire.NewSet(
-	ProvideOrganizationRepository,
 	ProvideGatewayRepository,
-	ProvideAPIRepository,
 	ProvideLLMProviderTemplateRepository,
 	ProvideLLMProviderRepository,
 	ProvideLLMProxyRepository,
 	ProvideDeploymentRepository,
 	ProvideArtifactRepository,
+	ProvideScoreRepository,
+	ProvideCatalogRepository,
 )
 
 var websocketProviderSet = wire.NewSet(
@@ -320,17 +338,8 @@ func ProvideWebSocketController(
 	return controllers.NewWebSocketController(manager, gatewayService, rateLimitCount)
 }
 
-// Repository providers (injecting *gorm.DB)
-func ProvideOrganizationRepository(db *gorm.DB) repositories.OrganizationRepository {
-	return repositories.NewOrganizationRepo(db)
-}
-
 func ProvideGatewayRepository(db *gorm.DB) repositories.GatewayRepository {
 	return repositories.NewGatewayRepo(db)
-}
-
-func ProvideAPIRepository(db *gorm.DB) repositories.APIRepository {
-	return repositories.NewAPIRepo(db)
 }
 
 func ProvideLLMProviderTemplateRepository(db *gorm.DB) repositories.LLMProviderTemplateRepository {
@@ -351,6 +360,14 @@ func ProvideDeploymentRepository(db *gorm.DB) repositories.DeploymentRepository 
 
 func ProvideArtifactRepository(db *gorm.DB) repositories.ArtifactRepository {
 	return repositories.NewArtifactRepo(db)
+}
+
+func ProvideScoreRepository(db *gorm.DB) repositories.ScoreRepository {
+	return repositories.NewScoreRepo(db)
+}
+
+func ProvideCatalogRepository(db *gorm.DB) repositories.CatalogRepository {
+	return repositories.NewCatalogRepo(db)
 }
 
 // ProvideLLMTemplateSeeder creates a new LLM template seeder with empty templates

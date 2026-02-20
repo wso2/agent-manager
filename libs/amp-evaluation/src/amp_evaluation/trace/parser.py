@@ -18,17 +18,18 @@
 Trace parsing utilities for converting OTEL/AMP traces to evaluation format.
 
 This module provides functions to parse traces with OTEL/AMP Attributes
-and convert them to the Trajectory format used by evaluators.
+and convert them to the Trace format used by evaluators.
 
 The parser accepts Trace objects from the fetcher (OTEL/AMP attribute model)
-and converts them to Trajectory (evaluation-optimized model).
+and converts them to Trace (evaluation-optimized model).
 """
 
 from typing import Dict, Any, List, Optional
 import logging
+import uuid
 
 from .models import (
-    Trajectory,
+    Trace,
     TraceMetrics,
     TokenUsage,
     LLMSpan,
@@ -50,30 +51,230 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
+# SPAN FILTERING UTILITIES
+# ============================================================================
+
+
+# Infrastructure span kinds that add no semantic value for evaluation
+INFRASTRUCTURE_KINDS = {"chain", "unknown", "task", "crewaitask"}
+
+# Semantic span kinds that should be kept for evaluation
+SEMANTIC_KINDS = {"llm", "tool", "agent", "retriever", "embedding"}
+
+
+def filter_infrastructure_spans(spans: List[OTELSpan], create_synthetic_root: bool = True) -> List[OTELSpan]:
+    """
+    Filter infrastructure spans while preserving trace tree structure.
+
+    Removes spans with kind: chain, unknown, task, crewaitask
+    Keeps semantic spans: llm, tool, agent, retriever, embedding
+    Remaps parent references to maintain valid tree.
+
+    Args:
+        spans: List of OTEL spans to filter
+        create_synthetic_root: If True, creates synthetic root when >1 orphaned semantic span
+
+    Returns:
+        Filtered list of OTEL spans with remapped parent references
+    """
+    if not spans:
+        return spans
+
+    # Phase 1: Build indices
+    spans_by_id = {s.spanId: s for s in spans}
+
+    # Phase 2: Calculate remappings
+    remap_map = {}
+    for span in spans:
+        kind = span.ampAttributes.get("kind", "unknown")
+        if kind in INFRASTRUCTURE_KINDS:
+            ancestor = _find_semantic_ancestor(span.spanId, spans_by_id)
+            remap_map[span.spanId] = ancestor
+
+    # Phase 3: Detect orphans
+    semantic_spans = [s for s in spans if s.ampAttributes.get("kind", "unknown") in SEMANTIC_KINDS]
+    orphans = []
+
+    for span in semantic_spans:
+        parent_id = span.parentSpanId
+        if parent_id:
+            # Walk up to find semantic parent
+            final_parent = remap_map.get(parent_id, parent_id)
+            if final_parent is None:
+                orphans.append(span)
+        elif parent_id is None:
+            # Root span - check if it's infrastructure
+            kind = span.ampAttributes.get("kind", "unknown")
+            if kind in INFRASTRUCTURE_KINDS:
+                orphans.append(span)
+
+    # Phase 4: Create synthetic root if needed
+    synthetic_root = None
+    if create_synthetic_root and len(orphans) > 1:
+        # Find min start time
+        start_times = [s.startTime for s in orphans if s.startTime]
+        min_start = min(start_times) if start_times else ""
+
+        # Find max end time (use start+1ms if no endTime)
+        end_times = [s.endTime if hasattr(s, "endTime") and s.endTime else s.startTime for s in orphans if s.startTime]
+        max_end = max(end_times) if end_times else min_start
+
+        # Create synthetic root span using OTELSpan dataclass
+        synthetic_root_id = f"_synthetic_root_{uuid.uuid4().hex[:8]}"
+
+        # Get trace ID from first orphan
+        trace_id = orphans[0].traceId if orphans else "unknown"
+
+        synthetic_root = OTELSpan(
+            traceId=trace_id,
+            spanId=synthetic_root_id,
+            name="trace_root",
+            service="synthetic",
+            startTime=min_start,
+            endTime=max_end,
+            durationInNanos=0,
+            kind="INTERNAL",
+            status="OK",
+            parentSpanId=None,
+            ampAttributes={
+                "kind": "unknown",
+                "synthetic": True,
+            },
+            attributes={},
+        )
+
+    # Phase 5: Filter & Remap
+    filtered_spans = []
+    if synthetic_root:
+        filtered_spans.append(synthetic_root)
+
+    for span in spans:
+        kind = span.ampAttributes.get("kind", "unknown")
+        if kind in SEMANTIC_KINDS:
+            # Remap parent
+            old_parent = span.parentSpanId
+            new_parent = remap_map.get(old_parent, old_parent)
+
+            if new_parent is None and len(orphans) > 1:
+                # Orphan, connect to synthetic root
+                new_parent = synthetic_root.spanId if synthetic_root else None
+
+            # Create new span with remapped parent
+            # Note: We need to modify the parentSpanId attribute
+            span.parentSpanId = new_parent
+            filtered_spans.append(span)
+
+    # Phase 6: Validate
+    _validate_trace_structure(filtered_spans)
+
+    return filtered_spans
+
+
+def _find_semantic_ancestor(span_id: str, spans_by_id: Dict[str, OTELSpan]) -> Optional[str]:
+    """
+    Walk up parent chain to find first semantic ancestor.
+
+    Args:
+        span_id: Starting span ID
+        spans_by_id: Lookup dict of span ID to OTELSpan
+
+    Returns:
+        Span ID of first semantic ancestor, or None if no semantic ancestor found
+    """
+    visited = set()
+    current_id = span_id
+
+    while current_id in spans_by_id:
+        if current_id in visited:
+            logger.warning(f"Cycle detected in span hierarchy at {current_id}")
+            return None  # Cycle detected
+        visited.add(current_id)
+
+        current_span = spans_by_id[current_id]
+        parent_id = current_span.parentSpanId
+
+        if parent_id is None:
+            return None  # Reached root
+
+        if parent_id not in spans_by_id:
+            logger.warning(f"Parent span {parent_id} not found for span {current_id}")
+            return None
+
+        parent_span = spans_by_id[parent_id]
+        parent_kind = parent_span.ampAttributes.get("kind", "unknown")
+
+        if parent_kind in SEMANTIC_KINDS:
+            return parent_id  # Found semantic ancestor
+
+        current_id = parent_id  # Continue walking
+
+    return None
+
+
+def _validate_trace_structure(spans: List[OTELSpan]) -> None:
+    """
+    Validate trace has single root, no cycles, all reachable.
+
+    Args:
+        spans: List of spans to validate
+
+    Raises:
+        ValueError: If trace structure is invalid
+    """
+    if not spans:
+        return
+
+    span_ids = {s.spanId for s in spans}
+    roots = [s for s in spans if s.parentSpanId is None]
+
+    if len(roots) != 1:
+        logger.warning(f"Expected 1 root span, got {len(roots)}")
+        # Don't raise error, just warn - some traces may have multiple roots
+
+    # Verify all parent IDs exist
+    for span in spans:
+        parent_id = span.parentSpanId
+        if parent_id and parent_id not in span_ids:
+            raise ValueError(f"Span {span.spanId} has invalid parent {parent_id}")
+
+
+# ============================================================================
 # MAIN PARSING FUNCTION
 # ============================================================================
 
 
-def parse_trace_for_evaluation(trace: OTELTrace) -> Trajectory:
+def parse_trace_for_evaluation(trace: OTELTrace, filter_infrastructure: bool = True) -> Trace:
     """
-    Parse an OTEL/AMP Trace model into Trajectory format for evaluation.
+    Parse an OTEL/AMP Trace model into Trace format for evaluation.
 
     This function:
     1. Extracts trace_id and top-level I/O from the Trace model
-    2. Parses spans into typed collections (LLM, Tool, Retriever, Agent)
-    3. Aggregates metrics (tokens, duration, counts)
+    2. Optionally filters infrastructure spans (chain, unknown, task, crewaitask)
+    3. Parses spans into typed collections (LLM, Tool, Retriever, Agent)
+    4. Aggregates metrics (tokens, duration, counts)
 
     Args:
         trace: Trace object from fetcher (OTEL/AMP attribute model)
+        filter_infrastructure: If True, removes infrastructure spans (default: True)
 
     Returns:
-        Trajectory: Evaluation-optimized trace structure with metrics
+        Trace: Evaluation-optimized trace structure with metrics
     """
     # Extract trace-level info from Trace model
     trace_id = trace.traceId
     trace_input = trace.input if trace.input is not None else ""
     trace_output = trace.output if trace.output is not None else ""
     timestamp = trace.timestamp  # Uses the @property that parses startTime
+
+    # Filter infrastructure spans if requested
+    spans_to_process = trace.spans
+    if filter_infrastructure:
+        try:
+            spans_to_process = filter_infrastructure_spans(trace.spans)
+            logger.debug(f"Filtered spans from {len(trace.spans)} to {len(spans_to_process)}")
+        except Exception as e:
+            logger.warning(f"Failed to filter infrastructure spans: {e}. Using all spans.")
+            spans_to_process = trace.spans
 
     # Initialize containers
     llm_spans: List[LLMSpan] = []
@@ -88,7 +289,7 @@ def parse_trace_for_evaluation(trace: OTELTrace) -> Trajectory:
     error_count = trace.status.errorCount if trace.status else 0
 
     # Process each span from the Trace model
-    for otel_span in sorted(trace.spans, key=lambda s: s.startTime or ""):
+    for otel_span in sorted(spans_to_process, key=lambda s: s.startTime or ""):
         # Get semantic kind from ampAttributes (top-level field in span)
         amp_attrs = otel_span.ampAttributes
         semantic_kind = amp_attrs.get("kind", "unknown")
@@ -145,15 +346,15 @@ def parse_trace_for_evaluation(trace: OTELTrace) -> Trajectory:
         error_count=error_count,
     )
 
-    # Create Trajectory
-    return Trajectory(
+    # Create Trace
+    return Trace(
         trace_id=trace_id, input=trace_input, output=trace_output, steps=steps, metrics=metrics, timestamp=timestamp
     )
 
 
-def parse_traces_for_evaluation(traces: List[OTELTrace]) -> List[Trajectory]:
+def parse_traces_for_evaluation(traces: List[OTELTrace]) -> List[Trace]:
     """
-    Parse multiple OTEL/AMP Trace models into Trajectory format.
+    Parse multiple OTEL/AMP Trace models into Trace format.
 
     Args:
         traces: List of Trace objects from fetcher
@@ -176,14 +377,23 @@ def _otel_span_to_dict(otel_span: OTELSpan) -> Dict[str, Any]:
     """
     amp_attrs = otel_span.ampAttributes
 
+    # Check for errors in both OTEL status and ampAttributes.status
+    amp_status = amp_attrs.get("status", {})
+    has_error = otel_span.status == "ERROR" or amp_status.get("error", False)
+    error_message = amp_attrs.get("error", {}).get("message") if otel_span.status == "ERROR" else None
+    error_type = amp_status.get("errorType")
+
     return {
         "span_id": otel_span.spanId,
+        "parent_span_id": otel_span.parentSpanId,
+        "start_time": otel_span.startTime,
         "kind": amp_attrs.get("kind", "unknown"),
         "input": amp_attrs.get("input"),
         "output": amp_attrs.get("output"),
         "status": {
-            "error": otel_span.status == "ERROR",
-            "error_message": amp_attrs.get("error", {}).get("message") if otel_span.status == "ERROR" else None,
+            "error": has_error,
+            "error_message": error_message,
+            "errorType": error_type,
         },
         "data": amp_attrs.get("data", {}),
         "duration_ms": otel_span.duration_ms,
@@ -248,6 +458,8 @@ def _parse_llm_span(raw_span: Dict[str, Any]) -> LLMSpan:
 
     return LLMSpan(
         span_id=span_id,
+        parent_span_id=raw_span.get("parent_span_id"),
+        start_time=raw_span.get("start_time"),
         messages=messages,
         response=response,
         tool_calls=tool_calls,
@@ -286,7 +498,15 @@ def _parse_tool_span(raw_span: Dict[str, Any]) -> ToolSpan:
         error_message=status.get("error_message"),
     )
 
-    return ToolSpan(span_id=span_id, name=name, arguments=arguments, result=result, metrics=metrics)
+    return ToolSpan(
+        span_id=span_id,
+        parent_span_id=raw_span.get("parent_span_id"),
+        start_time=raw_span.get("start_time"),
+        name=name,
+        arguments=arguments,
+        result=result,
+        metrics=metrics,
+    )
 
 
 def _parse_retriever_span(raw_span: Dict[str, Any]) -> RetrieverSpan:
@@ -317,6 +537,8 @@ def _parse_retriever_span(raw_span: Dict[str, Any]) -> RetrieverSpan:
 
     return RetrieverSpan(
         span_id=span_id,
+        parent_span_id=raw_span.get("parent_span_id"),
+        start_time=raw_span.get("start_time"),
         query=query,
         documents=documents,
         vector_db=data.get("vectorDB", data.get("vector_db", "")),
@@ -370,6 +592,8 @@ def _parse_agent_span(raw_span: Dict[str, Any]) -> AgentSpan:
 
     return AgentSpan(
         span_id=span_id,
+        parent_span_id=raw_span.get("parent_span_id"),
+        start_time=raw_span.get("start_time"),
         name=data.get("name", raw_span.get("name", "")),
         framework=data.get("framework", ""),
         model=data.get("model", ""),

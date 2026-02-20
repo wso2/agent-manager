@@ -117,7 +117,7 @@ func loadEnvs() {
 		IsTraceContentEnabled: r.readOptionalBool("OTEL_TRACELOOP_TRACE_CONTENT", true),
 
 		// OTLP Exporter configuration
-		ExporterEndpoint: r.readOptionalString("OTEL_EXPORTER_OTLP_ENDPOINT", "http://opentelemetry-collector.openchoreo-observability-plane.svc.cluster.local:4318"),
+		ExporterEndpoint: r.readOptionalString("OTEL_EXPORTER_OTLP_ENDPOINT", "http://obs-gateway-gateway-router.data-plane.svc.cluster.local:22893/otel"),
 	}
 
 	// Observer service configuration - temporarily use localhost for agent-manager-service to access observer service
@@ -166,23 +166,12 @@ func loadEnvs() {
 		BaseURL: r.readRequiredString("OPEN_CHOREO_BASE_URL"),
 	}
 
-	// API Platform configuration
-	config.APIPlatform = APIPlatformConfig{
-		BaseURL: r.readOptionalString("API_PLATFORM_BASE_URL", ""),
-		Enable:  r.readOptionalBool("API_PLATFORM_ENABLED", false),
-	}
-
-	// Secret Management Service configuration
-	config.SecretManagement = SecretManagementConfig{
-		URL:    r.readOptionalString("SECRET_MGMT_SERVICE_URL", ""),
-		Enable: r.readOptionalBool("SECRET_MGMT_ENABLED", false),
-	}
-
 	// Internal Server configuration (for WebSocket and gateway internal APIs)
 	config.InternalServer = InternalServerConfig{
 		Host:                r.readOptionalString("INTERNAL_SERVER_HOST", ""),
 		Port:                int(r.readOptionalInt64("INTERNAL_SERVER_PORT", 9243)),
 		CertDir:             r.readOptionalString("INTERNAL_SERVER_CERT_DIR", "./data/certs"),
+		APIKey:              r.readOptionalString("INTERNAL_API_KEY", "dev-publisher-api-key"),
 		ReadTimeoutSeconds:  int(r.readOptionalInt64("INTERNAL_SERVER_READ_TIMEOUT_SECONDS", 10)),
 		WriteTimeoutSeconds: int(r.readOptionalInt64("INTERNAL_SERVER_WRITE_TIMEOUT_SECONDS", 90)),
 		IdleTimeoutSeconds:  int(r.readOptionalInt64("INTERNAL_SERVER_IDLE_TIMEOUT_SECONDS", 60)),
@@ -244,5 +233,8 @@ func validateInternalServerConfigs(cfg *Config, r *configReader) {
 	}
 	if cfg.InternalServer.CertDir == "" {
 		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_CERT_DIR must be non-empty"))
+	}
+	if cfg.InternalServer.APIKey == "dev-publisher-api-key" {
+		slog.Warn("INTERNAL_API_KEY is using the default dev value — set INTERNAL_API_KEY in production")
 	}
 }

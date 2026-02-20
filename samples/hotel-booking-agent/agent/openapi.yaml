@@ -1,0 +1,153 @@
+openapi: 3.1.0
+info:
+  title: Hotel Booking Agent
+  version: 0.1.0
+  description: AI-powered travel planning agent that provides personalized travel recommendations and itineraries
+
+servers:
+  - url: http://localhost:9090
+    description: Local development server
+  - url: https://api.yourcompany.com
+    description: Production server
+
+paths:
+  /chat:
+    post:
+      summary: Send Message to Agent
+      description: Send a chat message to the AI agent and receive travel recommendations, itineraries, or answers to travel-related questions
+      operationId: chat_chat_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+            examples:
+              simple_query:
+                summary: Simple travel query
+                value:
+                  message: "Plan a 5-day trip to Tokyo"
+                  session_id: "session_abc123"
+                  user_id: "user_123"
+                  user_name: "Traveler"
+              with_session:
+                summary: Continuing conversation
+                value:
+                  message: "What about hotels near Shibuya?"
+                  session_id: "session_abc123"
+                  user_id: "user_123"
+                  user_name: "Traveler"
+      responses:
+        '200':
+          description: Successfully processed the message and generated a response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+              examples:
+                itinerary_response:
+                  summary: Travel itinerary response
+                  value:
+                    message: "Here's a suggested 5-day Tokyo itinerary: Day 1: Explore Shibuya and Harajuku..."
+                hotel_response:
+                  summary: Hotel recommendations
+                  value:
+                    message: "Here are some great hotels near Shibuya: 1. Shibuya Excel Hotel..."
+        '422':
+          description: Validation error - invalid request format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "An unexpected error occurred"
+
+components:
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - message
+        - session_id
+        - user_id
+      properties:
+        message:
+          type: string
+          title: Message
+          description: The user's chat message or travel query
+          example: "Plan a 5-day trip to Tokyo"
+          minLength: 1
+        session_id:
+          type: string
+          title: SessionId
+          description: Session identifier for maintaining conversation context
+          example: "session_abc123"
+        user_id:
+          type: string
+          title: UserId
+          description: The user's unique identifier for this chat session
+          example: "user_123"
+          minLength: 1
+        user_name:
+          anyOf:
+            - type: string
+            - type: null
+          title: UserName
+          description: Optional display name for the user
+          example: "Traveler"
+      title: ChatRequest
+
+    ChatResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          title: Message
+          description: The AI agent's response with travel recommendations or information
+          example: "Here's a suggested 5-day Tokyo itinerary: Day 1: Visit Senso-ji Temple and explore Asakusa..."
+      title: ChatResponse
+
+    HTTPValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidationError"
+          title: Detail
+      title: HTTPValidationError
+
+    ValidationError:
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      properties:
+        loc:
+          type: array
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          title: Location
+          description: The location of the validation error in the request
+        msg:
+          type: string
+          title: Message
+          description: Human-readable error message
+        type:
+          type: string
+          title: Error Type
+          description: The type of validation error
+      title: ValidationError

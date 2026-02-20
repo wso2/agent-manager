@@ -212,11 +212,20 @@ data:
             "response_types": {{ .Values.thunder.bootstrap.ampConsoleClient.responseTypes | toJson }},
             "token_endpoint_auth_method": "{{ .Values.thunder.bootstrap.ampConsoleClient.tokenEndpointAuthMethod }}",
             "pkce_required": {{ .Values.thunder.bootstrap.ampConsoleClient.pkceRequired }},
-            "public_client": {{ .Values.thunder.bootstrap.ampConsoleClient.publicClient }}
+            "public_client": {{ .Values.thunder.bootstrap.ampConsoleClient.publicClient }},
+            "token": {
+              "access_token": {
+                "validity_period": {{ .Values.thunder.bootstrap.ampConsoleClient.accessTokenValidityPeriod }},
+                "user_attributes": {{ .Values.thunder.bootstrap.ampConsoleClient.userAttributes | toJson }}
+              },
+              "id_token": {
+                "validity_period": {{ .Values.thunder.bootstrap.ampConsoleClient.idTokenValidityPeriod }},
+                "user_attributes": {{ .Values.thunder.bootstrap.ampConsoleClient.userAttributes | toJson }}
+              }
+            }
           }
         }
       ],
-      "user_attributes": {{ .Values.thunder.bootstrap.ampConsoleClient.userAttributes | toJson }},
       "allowed_user_types": {{ .Values.thunder.bootstrap.ampConsoleClient.allowed_user_types | toJson }}
     }'
 

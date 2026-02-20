@@ -1,0 +1,1306 @@
+{
+  "hotels": [
+    {
+      "hotel_id": "mock-001-paris",
+      "hotel_name": "Azure Bay Resort Paris",
+      "description": "A luxury resort in the heart of Paris offering stunning Seine River views, world-class dining, and elegant accommodations. Perfect for romantic getaways and business travelers alike.",
+      "address": "Azure Bay Resort Paris, 45 Rue de Rivoli, Paris 75001, France",
+      "city": "Paris, France",
+      "country": "France",
+      "images": [
+        "https://i.ibb.co/pjVVCMtJ/1.png"
+      ],
+      "rating": 5.0,
+      "review_count": 1,
+      "amenities": [
+        "Free WiFi",
+        "Seine River View",
+        "Rooftop Restaurant",
+        "Spa & Wellness Center",
+        "Fitness Center",
+        "Concierge Service",
+        "Airport Shuttle (Paid)",
+        "24-hour Front Desk",
+        "Bar/Lounge",
+        "Room Service"
+      ],
+      "property_type": [
+        "Luxury Hotel",
+        "Resort"
+      ],
+      "location": {
+        "latitude": 48.8606,
+        "longitude": 2.3376,
+        "landmark": "45 Rue de Rivoli, Paris 75001, France",
+        "distance_from_center": 0.5
+      },
+      "contact_info": {
+        "phone": "+33 1 4261 5000",
+        "email": "reservations@azurebay-paris.com",
+        "website": "https://www.example-hotels.com/azure-bay-paris"
+      },
+      "lowest_price": 285.0,
+      "is_available": true
+    },
+    {
+      "hotel_id": "mock-002-tokyo",
+      "hotel_name": "The Crimson Tower Tokyo",
+      "description": "Ultra-modern high-rise hotel in Shibuya offering panoramic city views, innovative Japanese cuisine, and cutting-edge technology in every room.",
+      "address": "The Crimson Tower, 2-24-1 Dogenzaka, Shibuya-ku, Tokyo 150-0043, Japan",
+      "city": "Tokyo, Japan",
+      "country": "Japan",
+      "images": [
+        "https://i.ibb.co/QvG1z1bp/2.png"
+      ],
+      "rating": 4.5,
+      "review_count": 1,
+      "amenities": [
+        "Free WiFi",
+        "Panoramic City Views",
+        "Rooftop Bar",
+        "Japanese Restaurant",
+        "Fitness Center",
+        "Business Center",
+        "Meeting Rooms",
+        "Laundry Service",
+        "Airport Shuttle (Paid)",
+        "Room Service"
+      ],
+      "property_type": [
+        "Luxury Hotel",
+        "Business Hotel"
+      ],
+      "location": {
+        "latitude": 35.658,
+        "longitude": 139.6982,
+        "landmark": "Shibuya-ku, Tokyo 150-0043, Japan",
+        "distance_from_center": 1.2
+      },
+      "contact_info": {
+        "phone": "+81 3 5458 1234",
+        "email": "info@crimsontower-tokyo.jp",
+        "website": "https://www.example-hotels.com/crimson-tower-tokyo"
+      },
+      "lowest_price": 195.0,
+      "is_available": true
+    },
+    {
+      "hotel_id": "mock-003-newyork",
+      "hotel_name": "Manhattan Heritage Inn",
+      "description": "Historic boutique hotel in the heart of Manhattan's Financial District, featuring classic architecture with modern amenities and personalized service.",
+      "address": "Manhattan Heritage Inn, 88 Wall Street, New York, NY 10005, USA",
+      "city": "New York, USA",
+      "country": "United States",
+      "images": [
+        "https://i.ibb.co/DgPbWQkz/3.png"
+      ],
+      "rating": 4.5,
+      "review_count": 1,
+      "amenities": [
+        "Free WiFi",
+        "Heritage Building",
+        "Boutique Experience",
+        "Restaurant",
+        "Bar/Lounge",
+        "Fitness Center",
+        "Business Center",
+        "Concierge",
+        "Laundry Service",
+        "Room Service"
+      ],
+      "property_type": [
+        "Boutique Hotel",
+        "Heritage Hotel"
+      ],
+      "location": {
+        "latitude": 40.7074,
+        "longitude": -74.0113,
+        "landmark": "Wall Street, New York, NY 10005, USA",
+        "distance_from_center": 0.8
+      },
+      "contact_info": {
+        "phone": "+1 212 555 7890",
+        "email": "reservations@manhattan-heritage.com",
+        "website": "https://www.example-hotels.com/manhattan-heritage"
+      },
+      "lowest_price": 320.0,
+      "is_available": true
+    },
+    {
+      "hotel_id": "mock-004-dubai",
+      "hotel_name": "Golden Sands Palace Dubai",
+      "description": "Opulent beachfront resort on the Palm Jumeirah offering world-class luxury, private beach access, and stunning Arabian Gulf views.",
+      "address": "Golden Sands Palace, Palm Jumeirah Crescent, Dubai, UAE",
+      "city": "Dubai, UAE",
+      "country": "United Arab Emirates",
+      "images": [
+        "https://i.ibb.co/9HXJyf7q/4.png"
+      ],
+      "rating": 5.0,
+      "review_count": 1,
+      "amenities": [
+        "Free WiFi",
+        "Private Beach",
+        "Infinity Pool",
+        "Spa & Wellness Center",
+        "Multiple Restaurants",
+        "Kids' Club",
+        "Water Sports",
+        "Fitness Center",
+        "Free Parking",
+        "Airport Shuttle (Paid)"
+      ],
+      "property_type": [
+        "Luxury Resort",
+        "Beach Hotel"
+      ],
+      "location": {
+        "latitude": 25.1124,
+        "longitude": 55.139,
+        "landmark": "Palm Jumeirah, Dubai, UAE",
+        "distance_from_center": 8.5
+      },
+      "contact_info": {
+        "phone": "+971 4 555 1234",
+        "email": "info@goldensands-dubai.ae",
+        "website": "https://www.example-hotels.com/golden-sands-dubai"
+      },
+      "lowest_price": 425.0,
+      "is_available": true
+    },
+    {
+      "hotel_id": "mock-005-sydney",
+      "hotel_name": "Harbour View Suites Sydney",
+      "description": "Contemporary hotel with spectacular Sydney Harbour and Opera House views, featuring spacious suites and a rooftop infinity pool.",
+      "address": "Harbour View Suites, 102 George Street, The Rocks, Sydney NSW 2000, Australia",
+      "city": "Sydney, Australia",
+      "country": "Australia",
+      "images": [
+        "https://i.ibb.co/B55nv6BS/5.png"
+      ],
+      "rating": 4.5,
+      "review_count": 1,
+      "amenities": [
+        "Free WiFi",
+        "Harbour Views",
+        "Rooftop Infinity Pool",
+        "Restaurant",
+        "Bar/Lounge",
+        "Fitness Center",
+        "Concierge",
+        "Laundry Service",
+        "Airport Shuttle (Paid)",
+        "Room Service"
+      ],
+      "property_type": [
+        "Hotel",
+        "Suite Hotel"
+      ],
+      "location": {
+        "latitude": -33.8599,
+        "longitude": 151.209,
+        "landmark": "The Rocks, Sydney NSW 2000, Australia",
+        "distance_from_center": 0.3
+      },
+      "contact_info": {
+        "phone": "+61 2 9247 5555",
+        "email": "reservations@harbourview-sydney.com.au",
+        "website": "https://www.example-hotels.com/harbour-view-sydney"
+      },
+      "lowest_price": 275.0,
+      "is_available": true
+    },
+    {
+      "hotel_id": "mock-006-london",
+      "hotel_name": "The Westminster Grand",
+      "description": "Elegant five-star hotel in Westminster offering British heritage charm, fine dining, and proximity to London's iconic landmarks.",
+      "address": "The Westminster Grand, 45 Whitehall Place, London SW1A 2BD, UK",
+      "city": "London, UK",
+      "country": "United Kingdom",
+      "images": [
+        "https://i.ibb.co/qFM7pDmX/6.png"
+      ],
+      "rating": 5.0,
+      "review_count": 1,
+      "amenities": [
+        "Free WiFi",
+        "Heritage Property",
+        "Michelin-Star Restaurant",
+        "Afternoon Tea Service",
+        "Spa & Wellness Center",
+        "Fitness Center",
+        "Business Center",
+        "Concierge",
+        "Valet Parking",
+        "Room Service"
+      ],
+      "property_type": [
+        "Luxury Hotel",
+        "Heritage Hotel"
+      ],
+      "location": {
+        "latitude": 51.5049,
+        "longitude": -0.1245,
+        "landmark": "Whitehall Place, London SW1A 2BD, UK",
+        "distance_from_center": 0.4
+      },
+      "contact_info": {
+        "phone": "+44 20 7930 8888",
+        "email": "info@westminster-grand.co.uk",
+        "website": "https://www.example-hotels.com/westminster-grand"
+      },
+      "lowest_price": 395.0,
+      "is_available": true
+    },
+    {
+      "hotel_id": "mock-012-tokyo",
+      "hotel_name": "Zen Garden Inn Kyoto-Tokyo",
+      "description": "Traditional Japanese ryokan-style hotel blending minimalist design with modern comfort, featuring onsen baths and kaiseki dining.",
+      "address": "Zen Garden Inn, 5-7-1 Ginza, Chuo-ku, Tokyo 104-0061, Japan",
+      "city": "Tokyo, Japan",
+      "country": "Japan",
+      "images": [
+        "https://i.ibb.co/VpWXGzyJ/7.png"
+      ],
+      "rating": 4.5,
+      "review_count": 1,
+      "amenities": [
+        "Free WiFi",
+        "Onsen Baths",
+        "Kaiseki Restaurant",
+        "Tea Ceremony Room",
+        "Garden",
+        "Traditional Tatami Rooms",
+        "Zen Meditation Space",
+        "Concierge",
+        "Airport Shuttle (Paid)",
+        "Room Service"
+      ],
+      "property_type": [
+        "Ryokan",
+        "Boutique Hotel"
+      ],
+      "location": {
+        "latitude": 35.6717,
+        "longitude": 139.7645,
+        "landmark": "Ginza, Tokyo 104-0061, Japan",
+        "distance_from_center": 2.1
+      },
+      "contact_info": {
+        "phone": "+81 3 3571 2468",
+        "email": "info@zengarden-tokyo.jp",
+        "website": "https://www.example-hotels.com/zen-garden-tokyo"
+      },
+      "lowest_price": 220.0,
+      "is_available": true
+    },
+    {
+      "hotel_id": "mock-013-newyork",
+      "hotel_name": "Brooklyn Heights Loft Hotel",
+      "description": "Industrial-chic hotel in Brooklyn Heights offering loft-style rooms, rooftop bar with Manhattan skyline views, and artisan coffee lounge.",
+      "address": "Brooklyn Heights Loft, 75 Henry Street, Brooklyn, NY 11201, USA",
+      "city": "New York, USA",
+      "country": "United States",
+      "images": [
+        "https://i.ibb.co/4Rxw32YR/8.png"
+      ],
+      "rating": 3.5,
+      "review_count": 1,
+      "amenities": [
+        "Free WiFi",
+        "Rooftop Bar",
+        "Coffee Lounge",
+        "Fitness Center",
+        "Business Center",
+        "Bike Rental",
+        "Laundry Service",
+        "Pet-Friendly",
+        "Airport Shuttle (Paid)",
+        "Room Service"
+      ],
+      "property_type": [
+        "Boutique Hotel"
+      ],
+      "location": {
+        "latitude": 40.6938,
+        "longitude": -73.995,
+        "landmark": "Brooklyn Heights, NY 11201, USA",
+        "distance_from_center": 3.2
+      },
+      "contact_info": {
+        "phone": "+1 718 555 3456",
+        "email": "reservations@brooklynheights-loft.com",
+        "website": "https://www.example-hotels.com/brooklyn-loft"
+      },
+      "lowest_price": 185.0,
+      "is_available": true
+    },
+    {
+      "hotel_id": "mock-014-dubai",
+      "hotel_name": "Desert Oasis Retreat",
+      "description": "Exclusive desert resort offering luxury tented accommodations, camel treks, traditional Bedouin dining, and stunning dune views.",
+      "address": "Desert Oasis Retreat, Dubai Desert Conservation Reserve, Dubai, UAE",
+      "city": "Dubai, UAE",
+      "country": "United Arab Emirates",
+      "images": [
+        "https://i.ibb.co/3mhCGd8S/9.png"
+      ],
+      "rating": 4.5,
+      "review_count": 1,
+      "amenities": [
+        "Free WiFi",
+        "Luxury Tents",
+        "Desert Safari",
+        "Camel Riding",
+        "Bedouin Restaurant",
+        "Spa",
+        "Pool",
+        "Stargazing Tours",
+        "Airport Transfer (Included)",
+        "Room Service"
+      ],
+      "property_type": [
+        "Resort",
+        "Glamping"
+      ],
+      "location": {
+        "latitude": 24.8607,
+        "longitude": 55.6131,
+        "landmark": "Dubai Desert Conservation Reserve, Dubai, UAE",
+        "distance_from_center": 45.0
+      },
+      "contact_info": {
+        "phone": "+971 4 832 9900",
+        "email": "info@desertoasis-dubai.ae",
+        "website": "https://www.example-hotels.com/desert-oasis"
+      },
+      "lowest_price": 520.0,
+      "is_available": true
+    },
+    {
+      "hotel_id": "mock-015-sydney",
+      "hotel_name": "Bondi Beach Retreat",
+      "description": "Beachfront hotel on iconic Bondi Beach featuring ocean-view rooms, surf school, and fresh seafood restaurant with sunset views.",
+      "address": "Bondi Beach Retreat, 178 Campbell Parade, Bondi Beach NSW 2026, Australia",
+      "city": "Sydney, Australia",
+      "country": "Australia",
+      "images": [
+        "https://i.ibb.co/KcXv6Rxg/10.png"
+      ],
+      "rating": 4.0,
+      "review_count": 1,
+      "amenities": [
+        "Free WiFi",
+        "Beachfront",
+        "Ocean Views",
+        "Surf School",
+        "Seafood Restaurant",
+        "Bar/Lounge",
+        "Pool",
+        "Fitness Center",
+        "Beach Equipment",
+        "Room Service"
+      ],
+      "property_type": [
+        "Beach Hotel"
+      ],
+      "location": {
+        "latitude": -33.8915,
+        "longitude": 151.2767,
+        "landmark": "Campbell Parade, Bondi Beach NSW 2026, Australia",
+        "distance_from_center": 7.0
+      },
+      "contact_info": {
+        "phone": "+61 2 9130 5555",
+        "email": "info@bondibeach-retreat.com.au",
+        "website": "https://www.example-hotels.com/bondi-retreat"
+      },
+      "lowest_price": 195.0,
+      "is_available": true
+    },
+    {
+      "hotel_id": "mock-016-london",
+      "hotel_name": "Shoreditch Art House",
+      "description": "Hip boutique hotel in trendy Shoreditch featuring street art decor, craft cocktail bar, and contemporary British restaurant.",
+      "address": "Shoreditch Art House, 88 Redchurch Street, London E2 7DP, UK",
+      "city": "London, UK",
+      "country": "United Kingdom",
+      "images": [
+        "https://i.ibb.co/xSYWVRQn/11.png"
+      ],
+      "rating": 3.5,
+      "review_count": 1,
+      "amenities": [
+        "Free WiFi",
+        "Street Art Gallery",
+        "Craft Cocktail Bar",
+        "Restaurant",
+        "Vinyl Record Library",
+        "Bike Rental",
+        "Co-working Space",
+        "Laundry Service",
+        "Airport Shuttle (Paid)",
+        "Room Service"
+      ],
+      "property_type": [
+        "Boutique Hotel"
+      ],
+      "location": {
+        "latitude": 51.5241,
+        "longitude": -0.0715,
+        "landmark": "Shoreditch, London E2 7DP, UK",
+        "distance_from_center": 3.5
+      },
+      "contact_info": {
+        "phone": "+44 20 7729 8888",
+        "email": "hello@shoreditch-arthouse.co.uk",
+        "website": "https://www.example-hotels.com/shoreditch-art"
+      },
+      "lowest_price": 145.0,
+      "is_available": true
+    },
+    {
+      "hotel_id": "mock-021-colombo",
+      "hotel_name": "Cinnamon Oceanfront Colombo",
+      "description": "Luxurious beachfront hotel along Galle Face Green offering stunning Indian Ocean views, authentic Sri Lankan cuisine, and world-class spa treatments with traditional Ayurveda.",
+      "address": "Cinnamon Oceanfront, 100 Galle Road, Colombo 00300, Sri Lanka",
+      "city": "Colombo, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://i.ibb.co/XZRRvcS9/12.png"
+      ],
+      "rating": 4.5,
+      "review_count": 1,
+      "amenities": [
+        "Free WiFi",
+        "Ocean Views",
+        "Infinity Pool",
+        "Ayurveda Spa",
+        "Sri Lankan Restaurant",
+        "Fitness Center",
+        "Business Center",
+        "Concierge",
+        "Airport Shuttle (Paid)",
+        "Room Service"
+      ],
+      "property_type": [
+        "Luxury Hotel",
+        "Beach Hotel"
+      ],
+      "location": {
+        "latitude": 6.9271,
+        "longitude": 79.8612,
+        "landmark": "Galle Face Green, Colombo 00300, Sri Lanka",
+        "distance_from_center": 2.5
+      },
+      "contact_info": {
+        "phone": "+94 11 244 1000",
+        "email": "reservations@cinnamon-colombo.lk",
+        "website": "https://www.example-hotels.com/cinnamon-colombo"
+      },
+      "lowest_price": 165.0,
+      "is_available": true
+    },
+    {
+      "hotel_id": "mock-022-galle",
+      "hotel_name": "Fort Heritage Boutique Galle",
+      "description": "Charming colonial-era boutique hotel within the historic Galle Fort featuring authentic Dutch architecture, rooftop terrace with fort views, and curated Sri Lankan art collection.",
+      "address": "Fort Heritage Boutique, 25 Church Street, Galle Fort, Galle 80000, Sri Lanka",
+      "city": "Galle, Sri Lanka",
+      "country": "Sri Lanka",
+      "images": [
+        "https://i.ibb.co/b5n4BsXr/13.png"
+      ],
+      "rating": 4.0,
+      "review_count": 1,
+      "amenities": [
+        "Free WiFi",
+        "Heritage Building",
+        "Rooftop Terrace",
+        "Art Gallery",
+        "Restaurant",
+        "Courtyard Garden",
+        "Library",
+        "Concierge",
+        "Airport Shuttle (Paid)",
+        "Room Service"
+      ],
+      "property_type": [
+        "Boutique Hotel",
+        "Heritage Hotel"
+      ],
+      "location": {
+        "latitude": 6.0329,
+        "longitude": 80.2168,
+        "landmark": "Galle Fort, Galle 80000, Sri Lanka",
+        "distance_from_center": 0.2
+      },
+      "contact_info": {
+        "phone": "+94 91 222 4567",
+        "email": "info@fortheritagehotel.lk",
+        "website": "https://www.example-hotels.com/fort-heritage-galle"
+      },
+      "lowest_price": 125.0,
+      "is_available": true
+    }
+  ],
+  "rooms": [
+    {
+      "room_id": "mock-001-paris_BookingCom_1",
+      "hotel_id": "mock-001-paris",
+      "room_type": "Junior Suite",
+      "room_name": "Booking.com Rate",
+      "description": "Rate via Booking.com",
+      "max_occupancy": 2,
+      "price_per_night": 371.88,
+      "amenities": [
+        "Work Desk",
+        "Private Bathroom",
+        "Premium Toiletries",
+        "Air Conditioning",
+        "Tea/Coffee Maker",
+        "Flat-screen TV",
+        "Safe",
+        "Nespresso Machine"
+      ],
+      "bed_configuration": {
+        "single_beds": 0,
+        "double_beds": 0,
+        "king_beds": 0,
+        "queen_beds": 1
+      },
+      "room_size": 45,
+      "available_count": 1
+    },
+    {
+      "room_id": "mock-002-tokyo_PreferredHotels1_1",
+      "hotel_id": "mock-002-tokyo",
+      "room_type": "Junior Suite",
+      "room_name": "Official Site Rate",
+      "description": "Rate via PreferredHotels1",
+      "max_occupancy": 3,
+      "price_per_night": 184.69,
+      "amenities": [
+        "Flat-screen TV",
+        "Safe",
+        "Tea/Coffee Maker",
+        "Air Conditioning",
+        "Nespresso Machine",
+        "Work Desk",
+        "Separate Living Area"
+      ],
+      "bed_configuration": {
+        "single_beds": 0,
+        "double_beds": 0,
+        "king_beds": 1,
+        "queen_beds": 0
+      },
+      "room_size": 50,
+      "available_count": 1
+    },
+    {
+      "room_id": "mock-003-newyork_CtripTA_1",
+      "hotel_id": "mock-003-newyork",
+      "room_type": "Deluxe Room",
+      "room_name": "Trip.com Rate",
+      "description": "Rate via Trip.com",
+      "max_occupancy": 4,
+      "price_per_night": 294.13,
+      "amenities": [
+        "Safe",
+        "Minibar",
+        "Flat-screen TV",
+        "Balcony",
+        "Work Desk",
+        "Air Conditioning",
+        "City View",
+        "Tea/Coffee Maker"
+      ],
+      "bed_configuration": {
+        "single_beds": 0,
+        "double_beds": 0,
+        "king_beds": 1,
+        "queen_beds": 0
+      },
+      "room_size": 45,
+      "available_count": 1
+    },
+    {
+      "room_id": "mock-004-dubai_BookingCom_1",
+      "hotel_id": "mock-004-dubai",
+      "room_type": "Premium Suite",
+      "room_name": "Booking.com Rate",
+      "description": "Rate via Booking.com",
+      "max_occupancy": 2,
+      "price_per_night": 531.02,
+      "amenities": [
+        "City View",
+        "Separate Living Area",
+        "Premium Toiletries",
+        "Tea/Coffee Maker",
+        "Minibar",
+        "Private Bathroom",
+        "Flat-screen TV",
+        "Balcony",
+        "Nespresso Machine"
+      ],
+      "bed_configuration": {
+        "single_beds": 0,
+        "double_beds": 1,
+        "king_beds": 0,
+        "queen_beds": 0
+      },
+      "room_size": 38,
+      "available_count": 1
+    },
+    {
+      "room_id": "mock-005-sydney_Vio_1",
+      "hotel_id": "mock-005-sydney",
+      "room_type": "Junior Suite",
+      "room_name": "Vio.com Rate",
+      "description": "Rate via Vio",
+      "max_occupancy": 3,
+      "price_per_night": 381.87,
+      "amenities": [
+        "Balcony",
+        "Private Bathroom",
+        "Safe",
+        "Nespresso Machine",
+        "Minibar",
+        "Work Desk",
+        "Flat-screen TV",
+        "Premium Toiletries",
+        "City View",
+        "Tea/Coffee Maker"
+      ],
+      "bed_configuration": {
+        "single_beds": 0,
+        "double_beds": 0,
+        "king_beds": 1,
+        "queen_beds": 0
+      },
+      "room_size": 35,
+      "available_count": 1
+    },
+    {
+      "room_id": "mock-006-london_CtripTA_1",
+      "hotel_id": "mock-006-london",
+      "room_type": "Junior Suite",
+      "room_name": "Trip.com Rate",
+      "description": "Rate via Trip.com",
+      "max_occupancy": 4,
+      "price_per_night": 369.34,
+      "amenities": [
+        "Work Desk",
+        "City View",
+        "Premium Toiletries",
+        "Separate Living Area",
+        "Tea/Coffee Maker",
+        "Flat-screen TV",
+        "Air Conditioning",
+        "Safe"
+      ],
+      "bed_configuration": {
+        "single_beds": 0,
+        "double_beds": 0,
+        "king_beds": 0,
+        "queen_beds": 1
+      },
+      "room_size": 30,
+      "available_count": 1
+    },
+    {
+      "room_id": "mock-012-tokyo_BookingCom_1",
+      "hotel_id": "mock-012-tokyo",
+      "room_type": "Standard Room",
+      "room_name": "Booking.com Rate",
+      "description": "Rate via Booking.com",
+      "max_occupancy": 2,
+      "price_per_night": 256.75,
+      "amenities": [
+        "Flat-screen TV",
+        "Safe",
+        "Air Conditioning",
+        "Private Bathroom",
+        "Tea/Coffee Maker",
+        "Work Desk"
+      ],
+      "bed_configuration": {
+        "single_beds": 2,
+        "double_beds": 0,
+        "king_beds": 0,
+        "queen_beds": 0
+      },
+      "room_size": 45,
+      "available_count": 1
+    },
+    {
+      "room_id": "mock-013-newyork_Expedia_1",
+      "hotel_id": "mock-013-newyork",
+      "room_type": "Junior Suite",
+      "room_name": "Expedia Rate",
+      "description": "Rate via Expedia",
+      "max_occupancy": 3,
+      "price_per_night": 244.04,
+      "amenities": [
+        "Work Desk",
+        "Tea/Coffee Maker",
+        "Balcony",
+        "Flat-screen TV",
+        "Private Bathroom",
+        "City View",
+        "Minibar",
+        "Air Conditioning",
+        "Separate Living Area",
+        "Safe"
+      ],
+      "bed_configuration": {
+        "single_beds": 0,
+        "double_beds": 0,
+        "king_beds": 0,
+        "queen_beds": 1
+      },
+      "room_size": 28,
+      "available_count": 1
+    },
+    {
+      "room_id": "mock-014-dubai_HotelsComUS_1",
+      "hotel_id": "mock-014-dubai",
+      "room_type": "Deluxe Room",
+      "room_name": "Hotels.com Rate",
+      "description": "Rate via Hotels.com",
+      "max_occupancy": 4,
+      "price_per_night": 733.05,
+      "amenities": [
+        "Flat-screen TV",
+        "Balcony",
+        "Minibar",
+        "Safe",
+        "Tea/Coffee Maker",
+        "Work Desk",
+        "City View"
+      ],
+      "bed_configuration": {
+        "single_beds": 0,
+        "double_beds": 0,
+        "king_beds": 1,
+        "queen_beds": 0
+      },
+      "room_size": 32,
+      "available_count": 1
+    },
+    {
+      "room_id": "mock-015-sydney_CtripTA_1",
+      "hotel_id": "mock-015-sydney",
+      "room_type": "Deluxe Room",
+      "room_name": "Trip.com Rate",
+      "description": "Rate via Trip.com",
+      "max_occupancy": 2,
+      "price_per_night": 225.23,
+      "amenities": [
+        "Tea/Coffee Maker",
+        "Air Conditioning",
+        "Safe",
+        "Private Bathroom",
+        "Minibar",
+        "Flat-screen TV",
+        "Work Desk",
+        "Balcony"
+      ],
+      "bed_configuration": {
+        "single_beds": 2,
+        "double_beds": 0,
+        "king_beds": 0,
+        "queen_beds": 0
+      },
+      "room_size": 35,
+      "available_count": 1
+    },
+    {
+      "room_id": "mock-016-london_HotelsComUS_1",
+      "hotel_id": "mock-016-london",
+      "room_type": "Deluxe Room",
+      "room_name": "Hotels.com Rate",
+      "description": "Rate via Hotels.com",
+      "max_occupancy": 3,
+      "price_per_night": 169.09,
+      "amenities": [
+        "Safe",
+        "Minibar",
+        "Tea/Coffee Maker",
+        "Private Bathroom",
+        "Work Desk",
+        "Air Conditioning",
+        "City View",
+        "Balcony"
+      ],
+      "bed_configuration": {
+        "single_beds": 0,
+        "double_beds": 0,
+        "king_beds": 1,
+        "queen_beds": 0
+      },
+      "room_size": 35,
+      "available_count": 1
+    },
+    {
+      "room_id": "mock-021-colombo_BookingCom_1",
+      "hotel_id": "mock-021-colombo",
+      "room_type": "Deluxe Ocean View Room",
+      "room_name": "Booking.com Rate",
+      "description": "Rate via Booking.com",
+      "max_occupancy": 4,
+      "price_per_night": 185.5,
+      "amenities": [
+        "Ocean View",
+        "Balcony",
+        "Air Conditioning",
+        "Flat-screen TV",
+        "Tea/Coffee Maker",
+        "Minibar",
+        "Safe",
+        "Private Bathroom",
+        "Work Desk"
+      ],
+      "bed_configuration": {
+        "single_beds": 0,
+        "double_beds": 0,
+        "king_beds": 1,
+        "queen_beds": 0
+      },
+      "room_size": 38,
+      "available_count": 1
+    },
+    {
+      "room_id": "mock-021-colombo_Agoda_2",
+      "hotel_id": "mock-021-colombo",
+      "room_type": "Premium Suite",
+      "room_name": "Agoda.com Rate",
+      "description": "Rate via Agoda",
+      "max_occupancy": 2,
+      "price_per_night": 245.0,
+      "amenities": [
+        "Ocean View",
+        "Separate Living Area",
+        "Balcony",
+        "Air Conditioning",
+        "Flat-screen TV",
+        "Nespresso Machine",
+        "Premium Toiletries",
+        "Minibar",
+        "Safe",
+        "Private Bathroom"
+      ],
+      "bed_configuration": {
+        "single_beds": 0,
+        "double_beds": 0,
+        "king_beds": 0,
+        "queen_beds": 1
+      },
+      "room_size": 52,
+      "available_count": 1
+    },
+    {
+      "room_id": "mock-021-colombo_CtripTA_3",
+      "hotel_id": "mock-021-colombo",
+      "room_type": "Superior Room",
+      "room_name": "Trip.com Rate",
+      "description": "Rate via Trip.com",
+      "max_occupancy": 3,
+      "price_per_night": 155.75,
+      "amenities": [
+        "City View",
+        "Air Conditioning",
+        "Flat-screen TV",
+        "Tea/Coffee Maker",
+        "Safe",
+        "Private Bathroom",
+        "Work Desk"
+      ],
+      "bed_configuration": {
+        "single_beds": 2,
+        "double_beds": 0,
+        "king_beds": 0,
+        "queen_beds": 0
+      },
+      "room_size": 32,
+      "available_count": 1
+    },
+    {
+      "room_id": "mock-022-galle_BookingCom_1",
+      "hotel_id": "mock-022-galle",
+      "room_type": "Heritage Suite",
+      "room_name": "Booking.com Rate",
+      "description": "Rate via Booking.com",
+      "max_occupancy": 4,
+      "price_per_night": 145.0,
+      "amenities": [
+        "Fort Views",
+        "Four-Poster Bed",
+        "Air Conditioning",
+        "Ceiling Fan",
+        "Antique Furniture",
+        "Private Bathroom",
+        "Tea/Coffee Maker",
+        "Safe",
+        "Minibar"
+      ],
+      "bed_configuration": {
+        "single_beds": 0,
+        "double_beds": 0,
+        "king_beds": 1,
+        "queen_beds": 0
+      },
+      "room_size": 35,
+      "available_count": 1
+    },
+    {
+      "room_id": "mock-022-galle_Agoda_2",
+      "hotel_id": "mock-022-galle",
+      "room_type": "Deluxe Room",
+      "room_name": "Agoda.com Rate",
+      "description": "Rate via Agoda",
+      "max_occupancy": 2,
+      "price_per_night": 125.5,
+      "amenities": [
+        "Courtyard View",
+        "Air Conditioning",
+        "Ceiling Fan",
+        "Flat-screen TV",
+        "Tea/Coffee Maker",
+        "Safe",
+        "Private Bathroom",
+        "Colonial Decor"
+      ],
+      "bed_configuration": {
+        "single_beds": 0,
+        "double_beds": 0,
+        "king_beds": 0,
+        "queen_beds": 1
+      },
+      "room_size": 28,
+      "available_count": 1
+    },
+    {
+      "room_id": "mock-022-galle_Expedia_3",
+      "hotel_id": "mock-022-galle",
+      "room_type": "Standard Room",
+      "room_name": "Expedia Rate",
+      "description": "Rate via Expedia",
+      "max_occupancy": 3,
+      "price_per_night": 105.0,
+      "amenities": [
+        "Air Conditioning",
+        "Ceiling Fan",
+        "Private Bathroom",
+        "Tea/Coffee Maker",
+        "Safe",
+        "Heritage Architecture"
+      ],
+      "bed_configuration": {
+        "single_beds": 2,
+        "double_beds": 0,
+        "king_beds": 0,
+        "queen_beds": 0
+      },
+      "room_size": 25,
+      "available_count": 1
+    }
+  ],
+  "nearby_attractions": [
+    {
+      "hotel_id": "mock-001-paris",
+      "attractions": [
+        {
+          "name": "Louvre Museum",
+          "category": "Museum",
+          "distance": 0.8,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "Louvre Museum, Paris, France",
+            "distance_from_center": null
+          }
+        },
+        {
+          "name": "Notre-Dame Cathedral",
+          "category": "Cultural Landmark",
+          "distance": 1.2,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "Notre-Dame Cathedral, Paris, France",
+            "distance_from_center": null
+          }
+        },
+        {
+          "name": "Tuileries Garden",
+          "category": "Park",
+          "distance": 0.3,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "Tuileries Garden, Paris, France",
+            "distance_from_center": null
+          }
+        }
+      ]
+    },
+    {
+      "hotel_id": "mock-003-newyork",
+      "attractions": [
+        {
+          "name": "Wall Street",
+          "category": "Financial District",
+          "distance": 0.2,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "Wall Street, New York, USA",
+            "distance_from_center": null
+          }
+        },
+        {
+          "name": "9/11 Memorial",
+          "category": "Memorial",
+          "distance": 0.5,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "9/11 Memorial, New York, USA",
+            "distance_from_center": null
+          }
+        },
+        {
+          "name": "Brooklyn Bridge",
+          "category": "Landmark",
+          "distance": 1.0,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "Brooklyn Bridge, New York, USA",
+            "distance_from_center": null
+          }
+        }
+      ]
+    },
+    {
+      "hotel_id": "mock-004-dubai",
+      "attractions": [
+        {
+          "name": "Atlantis The Palm",
+          "category": "Entertainment",
+          "distance": 2.0,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "Atlantis The Palm, Dubai, UAE",
+            "distance_from_center": null
+          }
+        },
+        {
+          "name": "The Lost Chambers Aquarium",
+          "category": "Attraction",
+          "distance": 2.2,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "The Lost Chambers Aquarium, Dubai, UAE",
+            "distance_from_center": null
+          }
+        },
+        {
+          "name": "Aquaventure Waterpark",
+          "category": "Water Park",
+          "distance": 2.5,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "Aquaventure Waterpark, Dubai, UAE",
+            "distance_from_center": null
+          }
+        }
+      ]
+    },
+    {
+      "hotel_id": "mock-006-london",
+      "attractions": [
+        {
+          "name": "Big Ben",
+          "category": "Landmark",
+          "distance": 0.3,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "Big Ben, London, UK",
+            "distance_from_center": null
+          }
+        },
+        {
+          "name": "Westminster Abbey",
+          "category": "Cultural Landmark",
+          "distance": 0.4,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "Westminster Abbey, London, UK",
+            "distance_from_center": null
+          }
+        },
+        {
+          "name": "Houses of Parliament",
+          "category": "Government Building",
+          "distance": 0.2,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "Houses of Parliament, London, UK",
+            "distance_from_center": null
+          }
+        }
+      ]
+    },
+    {
+      "hotel_id": "mock-021-colombo",
+      "attractions": [
+        {
+          "name": "Galle Face Green",
+          "category": "Park",
+          "distance": 0.3,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "Galle Face Green, Colombo, Sri Lanka",
+            "distance_from_center": null
+          }
+        },
+        {
+          "name": "National Museum of Colombo",
+          "category": "Museum",
+          "distance": 3.5,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "National Museum, Colombo, Sri Lanka",
+            "distance_from_center": null
+          }
+        },
+        {
+          "name": "Gangaramaya Temple",
+          "category": "Temple",
+          "distance": 4.2,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "Gangaramaya Temple, Colombo, Sri Lanka",
+            "distance_from_center": null
+          }
+        }
+      ]
+    },
+    {
+      "hotel_id": "mock-022-galle",
+      "attractions": [
+        {
+          "name": "Galle Fort Lighthouse",
+          "category": "Landmark",
+          "distance": 0.4,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "Galle Fort Lighthouse, Galle, Sri Lanka",
+            "distance_from_center": null
+          }
+        },
+        {
+          "name": "Dutch Reformed Church",
+          "category": "Cultural Landmark",
+          "distance": 0.2,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "Dutch Reformed Church, Galle Fort, Sri Lanka",
+            "distance_from_center": null
+          }
+        },
+        {
+          "name": "National Maritime Museum",
+          "category": "Museum",
+          "distance": 0.3,
+          "location": {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "landmark": "Maritime Museum, Galle Fort, Sri Lanka",
+            "distance_from_center": null
+          }
+        }
+      ]
+    }
+  ],
+  "reviews": [
+    {
+      "hotel_id": "mock-001-paris",
+      "review_id": "mock_rev_paris_001",
+      "author": "Sophie M.",
+      "rating": 5,
+      "title": "Perfect Parisian experience!",
+      "comment": "Stunning views of the Seine, impeccable service, and the breakfast was exceptional. Highly recommend!",
+      "created_at": "2025-11-15"
+    },
+    {
+      "hotel_id": "mock-002-tokyo",
+      "review_id": "mock_rev_tokyo_001",
+      "author": "James T.",
+      "rating": 4,
+      "title": "Modern and efficient",
+      "comment": "Great location in Shibuya. Rooms are sleek and modern with amazing tech features. The rooftop bar is a must-visit!",
+      "created_at": "2025-10-22"
+    },
+    {
+      "hotel_id": "mock-003-newyork",
+      "review_id": "mock_rev_ny_001",
+      "author": "Emily R.",
+      "rating": 5,
+      "title": "Historic charm meets modern comfort",
+      "comment": "Loved the boutique feel and historic architecture. Walking distance to everything in the Financial District.",
+      "created_at": "2025-12-01"
+    },
+    {
+      "hotel_id": "mock-004-dubai",
+      "review_id": "mock_rev_dubai_001",
+      "author": "Ahmed K.",
+      "rating": 5,
+      "title": "Absolute luxury",
+      "comment": "The private beach is pristine, staff are incredibly attentive, and the infinity pool has breathtaking views.",
+      "created_at": "2025-11-08"
+    },
+    {
+      "hotel_id": "mock-005-sydney",
+      "review_id": "mock_rev_sydney_001",
+      "author": "Rachel W.",
+      "rating": 4,
+      "title": "Amazing harbour views",
+      "comment": "The Opera House view from our room was spectacular! Pool area is fantastic.",
+      "created_at": "2025-10-30"
+    },
+    {
+      "hotel_id": "mock-021-colombo",
+      "review_id": "mock_rev_colombo_001",
+      "author": "Priya S.",
+      "rating": 4,
+      "title": "Wonderful ocean views and authentic Sri Lankan hospitality",
+      "comment": "The Ayurveda spa was incredible, and the Sri Lankan breakfast buffet was delicious. Staff were very welcoming and helpful!",
+      "created_at": "2025-12-10"
+    },
+    {
+      "hotel_id": "mock-022-galle",
+      "review_id": "mock_rev_galle_001",
+      "author": "David L.",
+      "rating": 4,
+      "title": "Charming heritage property in the heart of the Fort",
+      "comment": "Beautifully restored colonial building with lots of character. The rooftop terrace views at sunset are magical. Perfect location for exploring Galle Fort.",
+      "created_at": "2025-11-28"
+    }
+  ],
+  "bookings": []
+}

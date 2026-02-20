@@ -33,8 +33,8 @@ import { LogOutIcon } from "@wso2/oxygen-ui-icons-react";
 
 interface UserMenuProps {
   user: {
-    name: string;
-    email: string;
+    primaryLine: string;
+    secondaryLine: string;
   };
   onLogout: () => Promise<void>;
 }
@@ -68,7 +68,7 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
           aria-expanded={open ? "true" : undefined}
         >
           <Avatar sx={{ width: 32, height: 32 }}>
-            {user.name.charAt(0)}
+            {user.primaryLine.charAt(0)}
           </Avatar>
         </IconButton>
       </Tooltip>
@@ -93,11 +93,11 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
         <Box sx={{ px: 2, py: 1.5 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
             <Avatar sx={{ width: 40, height: 40 }}>
-              {user.name.charAt(0)}
+              {user.primaryLine.charAt(0)}
             </Avatar>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography variant="subtitle2" noWrap>
-                {user.name}
+                {user.primaryLine}
               </Typography>
               <Typography
                 variant="caption"
@@ -105,7 +105,7 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
                 noWrap
                 sx={{ display: "block" }}
               >
-                {user.email}
+                {user.secondaryLine}
               </Typography>
             </Box>
           </Box>

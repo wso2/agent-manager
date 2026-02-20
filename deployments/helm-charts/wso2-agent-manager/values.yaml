@@ -105,13 +105,17 @@ agentManagerService:
     # OpenTelemetry configuration
     otel:
       traceContent: "true"
-      exporterEndpoint: "http://opentelemetry-collector.openchoreo-observability-plane.svc.cluster.local:4318"
+      exporterEndpoint: "http://obs-gateway-gateway-router.data-plane.svc.cluster.local:22893/otel"
 
     # Key Manager configuration
     keyManager:
       issuer: "thunder"
       audience: "amp-console-client"
+<<<<<<< HEAD
       jwksUrl: "http://thunder.amp.localhost:8080/oauth2/jwks"
+=======
+      jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
+>>>>>>> upstream/main
       defaultIssuer: "Agent Management Platform Local"
 
     # On-premise deployment flag
@@ -200,16 +204,16 @@ console:
   config:
     # Authentication (set to "" to disable)
     auth:
-      clientId: ""
-      baseUrl: ""
-      signInRedirectURL: ""
-      signOutRedirectURL: ""
+      clientId: "amp-console-client"
+      baseUrl: "http://thunder.amp.localhost:8080"
+      signInRedirectURL: "http://localhost:3000/login"
+      signOutRedirectURL: "http://localhost:3000/login"
       existingSecret: ""
       validateIDToken: "false"
       clockTolerance: 300
 
     # Disable auth for development
-    disableAuth: "true"
+    disableAuth: "false"
 
     # Backend API URLs (will be auto-configured if empty)
     apiBaseUrl: "http://localhost:9000"
@@ -244,14 +248,7 @@ dbMigration:
     limits:
       memory: 256Mi
       cpu: 200m
-
-  # Builtin evaluator generator configuration
-  evaluatorGenerator:
-    image:
-      repository: ghcr.io/wso2/amp-evaluation-monitor
-      tag: "0.0.0-dev"  # In prod: must match amp-evaluation SDK version
-      pullPolicy: IfNotPresent
-
+      
   backoffLimit: 3
   podSecurityContext: {}
   securityContext: {}

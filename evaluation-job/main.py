@@ -40,8 +40,11 @@ import logging
 import os
 import sys
 from datetime import datetime
+from typing import Dict, List, Any
 
+import requests
 from amp_evaluation import Monitor, register_builtin
+from amp_evaluation.models import EvaluatorSummary
 from amp_evaluation.trace import TraceFetcher
 
 logger = logging.getLogger(__name__)
@@ -129,6 +132,24 @@ def parse_args():
         help="Traces API endpoint (e.g., http://traces-observer-service:8080)",
     )
 
+    parser.add_argument(
+        "--monitor-id",
+        required=True,
+        help="Monitor UUID for publishing scores",
+    )
+
+    parser.add_argument(
+        "--run-id",
+        required=True,
+        help="Run UUID for this evaluation execution",
+    )
+
+    parser.add_argument(
+        "--publisher-endpoint",
+        required=True,
+        help="Publisher API endpoint for score publishing (e.g., http://agent-manager-internal:8081)",
+    )
+
     return parser.parse_args()
 
 
@@ -141,10 +162,119 @@ def validate_time_format(time_str: str) -> bool:
         return False
 
 
+def publish_scores(
+    monitor_id: str,
+    run_id: str,
+    scores: Dict[str, EvaluatorSummary],
+    display_name_to_identifier: Dict[str, str],
+    api_endpoint: str,
+    api_key: str,
+) -> bool:
+    """
+    Publish evaluation scores to the agent-manager internal API.
+
+    Args:
+        monitor_id: Monitor UUID
+        run_id: Run UUID
+        scores: Dict of evaluator display_name -> EvaluatorSummary from RunResult
+        display_name_to_identifier: Mapping of display_name -> evaluator identifier
+        api_endpoint: Agent Manager internal API base URL
+        api_key: API key for authentication
+
+    Returns:
+        True if publishing succeeded, False otherwise
+    """
+    if not scores:
+        logger.warning("No scores to publish")
+        return True
+
+    # Build the publish request payload
+    individual_scores: List[Dict[str, Any]] = []
+    aggregated_scores: List[Dict[str, Any]] = []
+
+    for display_name, summary in scores.items():
+        identifier = display_name_to_identifier.get(display_name, display_name)
+        # Add aggregated scores (evaluator metadata + aggregations)
+        aggregated_scores.append(
+            {
+                "identifier": identifier,
+                "displayName": display_name,
+                "level": summary.level,
+                "aggregations": summary.aggregated_scores,
+                "count": summary.count,
+                "errorCount": sum(1 for s in summary.individual_scores if s.is_error),
+            }
+        )
+
+        # Add individual scores (per-trace/span scores)
+        for score in summary.individual_scores:
+            item: Dict[str, Any] = {
+                "displayName": display_name,
+                "level": summary.level,
+                "traceId": score.trace_id,
+            }
+
+            # Optional fields
+            if score.span_id:
+                item["spanId"] = score.span_id
+            if not score.is_error and score.score is not None:
+                item["score"] = score.score
+            if score.explanation:
+                item["explanation"] = score.explanation
+            if score.timestamp:
+                item["traceTimestamp"] = score.timestamp.isoformat()
+            if score.metadata:
+                item["metadata"] = score.metadata
+            if score.error:
+                item["error"] = score.error
+
+            individual_scores.append(item)
+
+    payload = {
+        "individualScores": individual_scores,
+        "aggregatedScores": aggregated_scores,
+    }
+
+    # Publish scores to agent-manager API
+    url = f"{api_endpoint}/api/v1/publisher/monitors/{monitor_id}/runs/{run_id}/scores"
+    headers = {
+        "x-api-key": api_key,
+        "Content-Type": "application/json",
+    }
+
+    try:
+        logger.info(
+            "Publishing scores monitor_id=%s run_id=%s evaluators=%d individual_scores=%d",
+            monitor_id,
+            run_id,
+            len(scores),
+            len(individual_scores),
+        )
+
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        response.raise_for_status()
+
+        logger.info("Successfully published scores to agent-manager")
+        return True
+
+    except requests.exceptions.RequestException as e:
+        logger.error("Failed to publish scores: %s", e)
+        if hasattr(e, "response") and e.response is not None:
+            logger.error("Response status: %d", e.response.status_code)
+            logger.error("Response body: %s", e.response.text[:500])
+        return False
+
+
 def main():
     """Main entry point for monitor job."""
     args = parse_args()
     configure_logging()
+
+    # Read API key from environment variable (injected via Kubernetes Secret)
+    publisher_api_key = os.environ.get("PUBLISHER_API_KEY")
+    if not publisher_api_key:
+        logger.error("PUBLISHER_API_KEY environment variable is not set")
+        sys.exit(1)
 
     logger.info(
         "Starting monitor evaluation monitor=%s agent=%s env=%s "
@@ -186,34 +316,51 @@ def main():
 
     for i, evaluator in enumerate(evaluators_config):
         if not isinstance(evaluator, dict):
-            logger.error("Evaluator at index %d must be an object/dict, got %s", i, type(evaluator).__name__)
+            logger.error(
+                "Evaluator at index %d must be an object/dict, got %s",
+                i,
+                type(evaluator).__name__,
+            )
             sys.exit(1)
 
-    evaluator_names_summary = [e.get("name", "unknown") for e in evaluators_config]
+    evaluator_names_summary = [
+        e.get("displayName", e.get("identifier", "unknown")) for e in evaluators_config
+    ]
     logger.info("Evaluators to run: %s", ", ".join(evaluator_names_summary))
     for evaluator in evaluators_config:
         config = evaluator.get("config", {})
         if config:
-            logger.debug("Evaluator '%s' config: %s", evaluator.get("name"), config)
+            logger.debug(
+                "Evaluator '%s' config: %s",
+                evaluator.get("displayName", evaluator.get("identifier")),
+                config,
+            )
 
     # Register built-in evaluators with configurations
+    # Build identifier lookup for publish: display_name -> identifier
+    display_name_to_identifier = {}
     evaluator_names = []
     for evaluator in evaluators_config:
-        name = evaluator.get("name")
-        if not name:
-            logger.error("Evaluator missing 'name' field")
+        identifier = evaluator.get("identifier")
+        display_name = evaluator.get("displayName")
+        if not identifier:
+            logger.error("Evaluator missing 'identifier' field")
+            sys.exit(1)
+        if not display_name:
+            logger.error("Evaluator missing 'displayName' field")
             sys.exit(1)
 
         config = evaluator.get("config", {})
 
         try:
-            register_builtin(name, **config)  # Pass config as kwargs
-            evaluator_names.append(name)
+            register_builtin(identifier, display_name=display_name, **config)
+            evaluator_names.append(display_name)
+            display_name_to_identifier[display_name] = identifier
         except (ValueError, ImportError) as e:
-            logger.error("Failed to register evaluator '%s': %s", name, e)
+            logger.error("Failed to register evaluator '%s': %s", identifier, e)
             sys.exit(1)
         except TypeError as e:
-            logger.error("Invalid config for evaluator '%s': %s", name, e)
+            logger.error("Invalid config for evaluator '%s': %s", identifier, e)
             sys.exit(1)
 
     # Initialize and run monitor
@@ -272,6 +419,22 @@ def main():
                 logger.debug("Evaluation error: %s", error)
             if len(result.errors) > 5:
                 logger.debug("... and %d more errors", len(result.errors) - 5)
+
+        # Publish scores to agent-manager
+        publish_success = publish_scores(
+            monitor_id=args.monitor_id,
+            run_id=args.run_id,
+            scores=result.scores,
+            display_name_to_identifier=display_name_to_identifier,
+            api_endpoint=args.publisher_endpoint,
+            api_key=publisher_api_key,
+        )
+
+        if not publish_success:
+            logger.error(
+                "Failed to publish scores - evaluation results not persisted"
+            )
+            sys.exit(1)
 
         # Exit with appropriate code
         sys.exit(0 if result.success else 1)

@@ -27,6 +27,9 @@ spec:
         samplingRate: "number | default=1.0 description=\"Sampling rate for traces (0.0-1.0)\""
         traceStart: "string | description=\"Start time for trace evaluation (ISO 8601 format, calculated by scheduler)\""
         traceEnd: "string | description=\"End time for trace evaluation (ISO 8601 format, calculated by scheduler)\""
+      publishing:
+        monitorId: "string | description=\"Monitor UUID for publishing scores\""
+        runId: "string | description=\"Run UUID for this evaluation execution\""
 
   # Rendered workflow resource for WorkflowRun executions
   # Each WorkflowRun creates a single Workflow (not CronWorkflow)
@@ -62,6 +65,14 @@ spec:
             value: ${parameters.evaluation.traceEnd}
           - name: traces-api-endpoint
             value: {{ .Values.ampEvaluation.tracesApiEndpoint | quote }}
+          - name: monitor-id
+            value: ${parameters.publishing.monitorId}
+          - name: run-id
+            value: ${parameters.publishing.runId}
+          - name: publisher-endpoint
+            value: {{ .Values.ampEvaluation.publisher.endpoint | quote }}
+          - name: publisher-api-key
+            value: {{ .Values.ampEvaluation.publisher.apiKey | quote }}
       workflowTemplateRef:
         clusterScope: true
         name: amp-monitor-evaluation

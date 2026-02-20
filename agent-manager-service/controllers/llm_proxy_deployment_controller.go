@@ -17,15 +17,12 @@
 package controllers
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
@@ -42,30 +39,15 @@ type LLMProxyDeploymentController interface {
 
 type llmProxyDeploymentController struct {
 	deploymentService *services.LLMProxyDeploymentService
-	orgRepo           repositories.OrganizationRepository
 }
 
 // NewLLMProxyDeploymentController creates a new LLM proxy deployment controller
 func NewLLMProxyDeploymentController(
 	deploymentService *services.LLMProxyDeploymentService,
-	orgRepo repositories.OrganizationRepository,
 ) LLMProxyDeploymentController {
 	return &llmProxyDeploymentController{
 		deploymentService: deploymentService,
-		orgRepo:           orgRepo,
 	}
-}
-
-// resolveOrgUUID resolves organization handle to UUID
-func (c *llmProxyDeploymentController) resolveOrgUUID(ctx context.Context, orgName string) (string, error) {
-	org, err := c.orgRepo.GetOrganizationByName(orgName)
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve organization: %w", err)
-	}
-	if org == nil {
-		return "", utils.ErrOrganizationNotFound
-	}
-	return org.UUID.String(), nil
 }
 
 func (c *llmProxyDeploymentController) DeployLLMProxy(w http.ResponseWriter, r *http.Request) {
@@ -76,19 +58,7 @@ func (c *llmProxyDeploymentController) DeployLLMProxy(w http.ResponseWriter, r *
 
 	log.Info("DeployLLMProxy: starting", "orgName", orgName, "proxyID", proxyID)
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
-	if err != nil {
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			log.Warn("DeployLLMProxy: organization not found", "orgName", orgName)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		} else {
-			log.Error("DeployLLMProxy: failed to resolve organization", "orgName", orgName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
-		}
-		return
-	}
-
-	log.Info("DeployLLMProxy: organization resolved", "orgName", orgName, "orgID", orgID)
+	log.Info("DeployLLMProxy: organization resolved", "orgName", orgName, "orgName", orgName)
 
 	if proxyID == "" {
 		log.Error("DeployLLMProxy: proxy ID is empty", "orgName", orgName)
@@ -126,7 +96,7 @@ func (c *llmProxyDeploymentController) DeployLLMProxy(w http.ResponseWriter, r *
 	log.Info("DeployLLMProxy: calling service layer", "orgName", orgName, "proxyID", proxyID,
 		"deploymentName", req.Name, "gatewayID", req.GatewayID)
 
-	deployment, err := c.deploymentService.DeployLLMProxy(proxyID, &req, orgID)
+	deployment, err := c.deploymentService.DeployLLMProxy(proxyID, &req, orgName)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
@@ -187,19 +157,7 @@ func (c *llmProxyDeploymentController) UndeployLLMProxyDeployment(w http.Respons
 	log.Info("UndeployLLMProxyDeployment: starting", "orgName", orgName, "proxyID", proxyID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID)
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
-	if err != nil {
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			log.Warn("UndeployLLMProxyDeployment: organization not found", "orgName", orgName)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		} else {
-			log.Error("UndeployLLMProxyDeployment: failed to resolve organization", "orgName", orgName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
-		}
-		return
-	}
-
-	log.Info("UndeployLLMProxyDeployment: organization resolved", "orgName", orgName, "orgID", orgID)
+	log.Info("UndeployLLMProxyDeployment: organization resolved", "orgName", orgName, "orgName", orgName)
 
 	if proxyID == "" {
 		log.Error("UndeployLLMProxyDeployment: proxy ID is empty", "orgName", orgName)
@@ -220,7 +178,7 @@ func (c *llmProxyDeploymentController) UndeployLLMProxyDeployment(w http.Respons
 	log.Info("UndeployLLMProxyDeployment: calling service layer", "orgName", orgName, "proxyID", proxyID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID)
 
-	_, err = c.deploymentService.UndeployLLMProxyDeployment(proxyID, deploymentID, gatewayID, orgID)
+	_, err := c.deploymentService.UndeployLLMProxyDeployment(proxyID, deploymentID, gatewayID, orgName)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
@@ -269,19 +227,7 @@ func (c *llmProxyDeploymentController) RestoreLLMProxyDeployment(w http.Response
 	log.Info("RestoreLLMProxyDeployment: starting", "orgName", orgName, "proxyID", proxyID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID)
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
-	if err != nil {
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			log.Warn("RestoreLLMProxyDeployment: organization not found", "orgName", orgName)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		} else {
-			log.Error("RestoreLLMProxyDeployment: failed to resolve organization", "orgName", orgName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
-		}
-		return
-	}
-
-	log.Info("RestoreLLMProxyDeployment: organization resolved", "orgName", orgName, "orgID", orgID)
+	log.Info("RestoreLLMProxyDeployment: organization resolved", "orgName", orgName, "orgName", orgName)
 
 	if proxyID == "" {
 		log.Error("RestoreLLMProxyDeployment: proxy ID is empty", "orgName", orgName)
@@ -302,7 +248,7 @@ func (c *llmProxyDeploymentController) RestoreLLMProxyDeployment(w http.Response
 	log.Info("RestoreLLMProxyDeployment: calling service layer", "orgName", orgName, "proxyID", proxyID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID)
 
-	deployment, err := c.deploymentService.RestoreLLMProxyDeployment(proxyID, deploymentID, gatewayID, orgID)
+	deployment, err := c.deploymentService.RestoreLLMProxyDeployment(proxyID, deploymentID, gatewayID, orgName)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
@@ -346,19 +292,7 @@ func (c *llmProxyDeploymentController) DeleteLLMProxyDeployment(w http.ResponseW
 
 	log.Info("DeleteLLMProxyDeployment: starting", "orgName", orgName, "proxyID", proxyID, "deploymentID", deploymentID)
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
-	if err != nil {
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			log.Warn("DeleteLLMProxyDeployment: organization not found", "orgName", orgName)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		} else {
-			log.Error("DeleteLLMProxyDeployment: failed to resolve organization", "orgName", orgName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
-		}
-		return
-	}
-
-	log.Info("DeleteLLMProxyDeployment: organization resolved", "orgName", orgName, "orgID", orgID)
+	log.Info("DeleteLLMProxyDeployment: organization resolved", "orgName", orgName, "orgName", orgName)
 
 	if proxyID == "" {
 		log.Error("DeleteLLMProxyDeployment: proxy ID is empty", "orgName", orgName)
@@ -373,7 +307,7 @@ func (c *llmProxyDeploymentController) DeleteLLMProxyDeployment(w http.ResponseW
 
 	log.Info("DeleteLLMProxyDeployment: calling service layer", "orgName", orgName, "proxyID", proxyID, "deploymentID", deploymentID)
 
-	err = c.deploymentService.DeleteLLMProxyDeployment(proxyID, deploymentID, orgID)
+	err := c.deploymentService.DeleteLLMProxyDeployment(proxyID, deploymentID, orgName)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
@@ -409,19 +343,7 @@ func (c *llmProxyDeploymentController) GetLLMProxyDeployment(w http.ResponseWrit
 
 	log.Info("GetLLMProxyDeployment: starting", "orgName", orgName, "proxyID", proxyID, "deploymentID", deploymentID)
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
-	if err != nil {
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			log.Warn("GetLLMProxyDeployment: organization not found", "orgName", orgName)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		} else {
-			log.Error("GetLLMProxyDeployment: failed to resolve organization", "orgName", orgName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
-		}
-		return
-	}
-
-	log.Info("GetLLMProxyDeployment: organization resolved", "orgName", orgName, "orgID", orgID)
+	log.Info("GetLLMProxyDeployment: organization resolved", "orgName", orgName, "orgName", orgName)
 
 	if proxyID == "" {
 		log.Error("GetLLMProxyDeployment: proxy ID is empty", "orgName", orgName)
@@ -436,7 +358,7 @@ func (c *llmProxyDeploymentController) GetLLMProxyDeployment(w http.ResponseWrit
 
 	log.Info("GetLLMProxyDeployment: calling service layer", "orgName", orgName, "proxyID", proxyID, "deploymentID", deploymentID)
 
-	deployment, err := c.deploymentService.GetLLMProxyDeployment(proxyID, deploymentID, orgID)
+	deployment, err := c.deploymentService.GetLLMProxyDeployment(proxyID, deploymentID, orgName)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
@@ -472,19 +394,7 @@ func (c *llmProxyDeploymentController) GetLLMProxyDeployments(w http.ResponseWri
 	log.Info("GetLLMProxyDeployments: starting", "orgName", orgName, "proxyID", proxyID,
 		"gatewayID", gatewayID, "status", status)
 
-	orgID, err := c.resolveOrgUUID(ctx, orgName)
-	if err != nil {
-		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			log.Warn("GetLLMProxyDeployments: organization not found", "orgName", orgName)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		} else {
-			log.Error("GetLLMProxyDeployments: failed to resolve organization", "orgName", orgName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
-		}
-		return
-	}
-
-	log.Info("GetLLMProxyDeployments: organization resolved", "orgName", orgName, "orgID", orgID)
+	log.Info("GetLLMProxyDeployments: organization resolved", "orgName", orgName, "orgName", orgName)
 
 	if proxyID == "" {
 		log.Error("GetLLMProxyDeployments: proxy ID is empty", "orgName", orgName)
@@ -504,7 +414,7 @@ func (c *llmProxyDeploymentController) GetLLMProxyDeployments(w http.ResponseWri
 	log.Info("GetLLMProxyDeployments: calling service layer", "orgName", orgName, "proxyID", proxyID,
 		"hasGatewayFilter", gatewayIDPtr != nil, "hasStatusFilter", statusPtr != nil)
 
-	deployments, err := c.deploymentService.GetLLMProxyDeployments(proxyID, orgID, gatewayIDPtr, statusPtr)
+	deployments, err := c.deploymentService.GetLLMProxyDeployments(proxyID, orgName, gatewayIDPtr, statusPtr)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):

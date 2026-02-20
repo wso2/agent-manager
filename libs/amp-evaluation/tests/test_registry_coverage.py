@@ -45,7 +45,7 @@ class TestRegistryOverwrite:
         class TestEval(BaseEvaluator):
             name = "my-eval"
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         # Register first time
@@ -104,7 +104,7 @@ class TestRegistryMetadata:
             description = "A class evaluator"
             tags = ["test"]
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         # Register as instance (registry only accepts instances)
@@ -124,7 +124,7 @@ class TestRegistryMetadata:
             name = "instance-eval"
             description = "An instance evaluator"
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         # Register as INSTANCE
@@ -155,14 +155,14 @@ class TestRegistryFiltering:
             name = "eval1"
             tags = ["quality", "test"]
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         class Eval2(BaseEvaluator):
             name = "eval2"
             tags = ["performance"]
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         registry.register_evaluator(Eval1())
@@ -181,7 +181,7 @@ class TestRegistryFiltering:
             name = "eval1"
             tags = ["other"]
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         registry.register_evaluator(Eval1())
@@ -199,7 +199,7 @@ class TestRegistryDecorator:
 
         @registry.register(name="decorated", tags=["test"])
         class DecoratedEval(BaseEvaluator):
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         # Should be retrievable
@@ -223,7 +223,7 @@ class TestRegistryDecorator:
             tags=["custom", "test"],
             version="2.0",
         )
-        def my_evaluator(observation, task=None):
+        def my_evaluator(trajectory, task=None):
             return EvalResult(score=0.9)
 
         # Should be registered
@@ -263,7 +263,7 @@ class TestRegistryDecorator:
             tags = ["original"]
             version = "1.0"
 
-            def evaluate(self, observation, task=None):
+            def _trace_evaluation(self, trace, task=None):
                 return EvalResult(score=1.0)
 
         # Get the registered instance and verify metadata was overridden
@@ -278,7 +278,7 @@ class TestRegistryDecorator:
         registry = clean_registry
 
         @registry.register(name="func-agg", aggregations=["mean", "p95"])
-        def my_eval(observation, task=None):
+        def custom_eval(trajectory, task=None):
             return {"score": 0.8}
 
         retrieved = registry.get("func-agg")
@@ -350,11 +350,10 @@ class TestValidationErrors:
 
         evaluator = registry.get("bad-dict")
 
-        # Create observation
-        from amp_evaluation.models import Observation
-        from amp_evaluation.trace import Trajectory, TraceMetrics, TokenUsage
+        # Create trace
+        from amp_evaluation.trace import Trace, TraceMetrics, TokenUsage
 
-        trajectory = Trajectory(
+        trace = Trace(
             trace_id="test",
             input="test",
             output="test",
@@ -364,10 +363,9 @@ class TestValidationErrors:
             ),
             steps=[],
         )
-        observation = Observation(trajectory=trajectory)
 
         with pytest.raises(ValueError) as exc_info:
-            evaluator.evaluate(observation)
+            evaluator.evaluate(trace)
 
         assert "without 'score' field" in str(exc_info.value)
 
@@ -381,11 +379,10 @@ class TestValidationErrors:
 
         evaluator = registry.get("bad-type")
 
-        # Create observation
-        from amp_evaluation.models import Observation
-        from amp_evaluation.trace import Trajectory, TraceMetrics, TokenUsage
+        # Create trace
+        from amp_evaluation.trace import Trace, TraceMetrics, TokenUsage
 
-        trajectory = Trajectory(
+        trace = Trace(
             trace_id="test",
             input="test",
             output="test",
@@ -395,10 +392,9 @@ class TestValidationErrors:
             ),
             steps=[],
         )
-        observation = Observation(trajectory=trajectory)
 
         with pytest.raises(TypeError) as exc_info:
-            evaluator.evaluate(observation)
+            evaluator.evaluate(trace)
 
         assert "returned invalid type" in str(exc_info.value)
         assert "str" in str(exc_info.value)
@@ -412,7 +408,7 @@ class TestGlobalAPIFunctions:
         from amp_evaluation import evaluator
 
         @evaluator(name="global-test", tags=["global"])
-        def global_eval(observation, task=None):
+        def custom_eval(trajectory, task=None):
             return EvalResult(score=0.95)
 
         # Should be in global registry
@@ -428,7 +424,7 @@ class TestGlobalAPIFunctions:
         initial_count = len(list_evaluators())
 
         @evaluator(name="list-test")
-        def temp_eval(observation, task=None):
+        def custom_eval(trajectory, task=None):
             return EvalResult(score=1.0)
 
         # Should appear in list
@@ -441,7 +437,7 @@ class TestGlobalAPIFunctions:
         from amp_evaluation import get_evaluator_metadata, evaluator
 
         @evaluator(name="meta-test", description="Test metadata", version="5.0")
-        def temp_eval(observation, task=None):
+        def custom_eval(trajectory, task=None):
             return EvalResult(score=1.0)
 
         metadata = get_evaluator_metadata("meta-test")

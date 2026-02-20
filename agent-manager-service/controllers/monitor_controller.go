@@ -19,6 +19,7 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
@@ -59,22 +60,8 @@ func (c *monitorController) CreateMonitor(w http.ResponseWriter, r *http.Request
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	projName := r.PathValue("projName")
-	if projName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Project name is required")
-		return
-	}
-
 	agentName := r.PathValue("agentName")
-	if agentName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Agent name is required")
-		return
-	}
 
 	var req spec.CreateMonitorRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -95,6 +82,24 @@ func (c *monitorController) CreateMonitor(w http.ResponseWriter, r *http.Request
 	if len(req.Evaluators) == 0 {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "At least one evaluator is required")
 		return
+	}
+	for i, eval := range req.Evaluators {
+		if eval.Identifier == "" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].identifier is required", i))
+			return
+		}
+		if eval.DisplayName == "" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].displayName is required", i))
+			return
+		}
+		if eval.Level == "" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].level is required", i))
+			return
+		}
+		if eval.Level != "trace" && eval.Level != "agent" && eval.Level != "span" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].level must be one of: trace, agent, span", i))
+			return
+		}
 	}
 	if req.Type == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor type is required (future or past)")
@@ -148,16 +153,7 @@ func (c *monitorController) GetMonitor(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	monitorName := r.PathValue("monitorName")
-	if monitorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
 
 	monitor, err := c.monitorService.GetMonitor(ctx, orgName, monitorName)
 	if err != nil {
@@ -185,22 +181,8 @@ func (c *monitorController) ListMonitors(w http.ResponseWriter, r *http.Request)
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	projName := r.PathValue("projName")
-	if projName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Project name is required")
-		return
-	}
-
 	agentName := r.PathValue("agentName")
-	if agentName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Agent name is required")
-		return
-	}
 
 	result, err := c.monitorService.ListMonitors(ctx, orgName, projName, agentName)
 	if err != nil {
@@ -224,16 +206,7 @@ func (c *monitorController) DeleteMonitor(w http.ResponseWriter, r *http.Request
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	monitorName := r.PathValue("monitorName")
-	if monitorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
 
 	err := c.monitorService.DeleteMonitor(ctx, orgName, monitorName)
 	if err != nil {
@@ -255,22 +228,33 @@ func (c *monitorController) UpdateMonitor(w http.ResponseWriter, r *http.Request
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	monitorName := r.PathValue("monitorName")
-	if monitorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
 
 	var req spec.UpdateMonitorRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Warn("Failed to parse request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
+	}
+
+	// Validate evaluator fields if provided
+	for i, eval := range req.Evaluators {
+		if eval.Identifier == "" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].identifier is required", i))
+			return
+		}
+		if eval.DisplayName == "" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].displayName is required", i))
+			return
+		}
+		if eval.Level == "" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].level is required", i))
+			return
+		}
+		if eval.Level != "trace" && eval.Level != "agent" && eval.Level != "span" {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].level must be one of: trace, agent, span", i))
+			return
+		}
 	}
 
 	// Convert spec request to models request
@@ -306,16 +290,7 @@ func (c *monitorController) ListMonitorRuns(w http.ResponseWriter, r *http.Reque
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	monitorName := r.PathValue("monitorName")
-	if monitorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
 
 	result, err := c.monitorService.ListMonitorRuns(ctx, orgName, monitorName)
 	if err != nil {
@@ -343,22 +318,8 @@ func (c *monitorController) RerunMonitor(w http.ResponseWriter, r *http.Request)
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	monitorName := r.PathValue("monitorName")
-	if monitorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
-
 	runID := r.PathValue("runId")
-	if runID == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Run ID is required")
-		return
-	}
 
 	result, err := c.monitorService.RerunMonitor(ctx, orgName, monitorName, runID)
 	if err != nil {
@@ -395,22 +356,8 @@ func (c *monitorController) GetMonitorRunLogs(w http.ResponseWriter, r *http.Req
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	monitorName := r.PathValue("monitorName")
-	if monitorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
-
 	runID := r.PathValue("runId")
-	if runID == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Run ID is required")
-		return
-	}
 
 	result, err := c.monitorService.GetMonitorRunLogs(ctx, orgName, monitorName, runID)
 	if err != nil {
@@ -437,16 +384,7 @@ func (c *monitorController) StopMonitor(w http.ResponseWriter, r *http.Request) 
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	monitorName := r.PathValue("monitorName")
-	if monitorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
 
 	result, err := c.monitorService.StopMonitor(ctx, orgName, monitorName)
 	if err != nil {
@@ -482,16 +420,7 @@ func (c *monitorController) StartMonitor(w http.ResponseWriter, r *http.Request)
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	monitorName := r.PathValue("monitorName")
-	if monitorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
 
 	result, err := c.monitorService.StartMonitor(ctx, orgName, monitorName)
 	if err != nil {

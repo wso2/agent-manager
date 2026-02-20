@@ -70,6 +70,8 @@ var serviceProviderSet = wire.NewSet(
 	services.NewLLMProxyAPIKeyService,
 	services.NewLLMProxyDeploymentService,
 	services.NewGatewayInternalAPIService,
+	services.NewMonitorScoresService,
+	services.NewCatalogService,
 	ProvideLLMTemplateSeeder,
 )
 
@@ -89,7 +91,10 @@ var controllerProviderSet = wire.NewSet(
 	ProvideWebSocketController,
 	controllers.NewGatewayInternalController,
 	controllers.NewMonitorController,
+	controllers.NewMonitorScoresController,
+	controllers.NewMonitorScoresPublisherController,
 	controllers.NewEvaluatorController,
+	controllers.NewCatalogController,
 )
 
 var testClientProviderSet = wire.NewSet(
@@ -137,14 +142,14 @@ var loggerProviderSet = wire.NewSet(
 )
 
 var repositoryProviderSet = wire.NewSet(
-	ProvideOrganizationRepository,
 	ProvideGatewayRepository,
-	ProvideAPIRepository,
 	ProvideLLMProviderTemplateRepository,
 	ProvideLLMProviderRepository,
 	ProvideLLMProxyRepository,
 	ProvideDeploymentRepository,
 	ProvideArtifactRepository,
+	ProvideScoreRepository,
+	ProvideCatalogRepository,
 )
 
 var websocketProviderSet = wire.NewSet(
@@ -189,17 +194,8 @@ func ProvideWebSocketController(
 	return controllers.NewWebSocketController(manager, gatewayService, rateLimitCount)
 }
 
-// Repository providers (injecting *gorm.DB)
-func ProvideOrganizationRepository(db *gorm.DB) repositories.OrganizationRepository {
-	return repositories.NewOrganizationRepo(db)
-}
-
 func ProvideGatewayRepository(db *gorm.DB) repositories.GatewayRepository {
 	return repositories.NewGatewayRepo(db)
-}
-
-func ProvideAPIRepository(db *gorm.DB) repositories.APIRepository {
-	return repositories.NewAPIRepo(db)
 }
 
 func ProvideLLMProviderTemplateRepository(db *gorm.DB) repositories.LLMProviderTemplateRepository {
@@ -220,6 +216,14 @@ func ProvideDeploymentRepository(db *gorm.DB) repositories.DeploymentRepository 
 
 func ProvideArtifactRepository(db *gorm.DB) repositories.ArtifactRepository {
 	return repositories.NewArtifactRepo(db)
+}
+
+func ProvideScoreRepository(db *gorm.DB) repositories.ScoreRepository {
+	return repositories.NewScoreRepo(db)
+}
+
+func ProvideCatalogRepository(db *gorm.DB) repositories.CatalogRepository {
+	return repositories.NewCatalogRepo(db)
 }
 
 // ProvideLLMTemplateSeeder creates a new LLM template seeder with empty templates

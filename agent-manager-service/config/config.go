@@ -68,12 +68,6 @@ type Config struct {
 	// OpenChoreo API configuration
 	OpenChoreo OpenChoreoConfig
 
-	// API Platform configuration
-	APIPlatform APIPlatformConfig
-
-	// Secret Management Service configuration
-	SecretManagement SecretManagementConfig
-
 	// Internal Server configuration (for WebSocket and gateway internal APIs)
 	InternalServer InternalServerConfig
 
@@ -219,6 +213,7 @@ type InternalServerConfig struct {
 	Host    string // Server host (default: "")
 	Port    int    // Server port (default: 9243)
 	CertDir string // Directory for TLS certificates (default: "./data/certs")
+	APIKey  string `json:"-"` // API key for internal service-to-service auth
 	// HTTP Server timeout configurations
 	ReadTimeoutSeconds  int
 	WriteTimeoutSeconds int
