@@ -75,10 +75,10 @@ agentManagerService:
     periodSeconds: 10
 
   readinessProbe:
-    tcpSocket:
-      port: 8080
-    initialDelaySeconds: 5
-    periodSeconds: 10
+      tcpSocket:
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 10
 
   # Application configuration
   config:
@@ -91,7 +91,7 @@ agentManagerService:
     corsAllowedOrigin: "*"
     observerURL: "http://observer.openchoreo-observability-plane.svc.cluster.local:8080"
     traceObserverURL: "http://amp-traces-observer.openchoreo-observability-plane.svc.cluster.local:9098"
-
+  
     # API Key configuration
     apiKey:
       header: "X-API-Key"
@@ -135,11 +135,11 @@ agentManagerService:
       token: ""
       existingSecret: ""
       existingSecretKey: "github-token"
-
+    
     # OpenChoreo API configuration
     openChoreo:
       baseURL: "http://openchoreo-api.openchoreo-control-plane:8080/api/v1"
-
+      
   agentWorkload:
     cors:
       allowedOrigin: "http://localhost:3000"
@@ -244,7 +244,7 @@ dbMigration:
     limits:
       memory: 256Mi
       cpu: 200m
-
+      
   backoffLimit: 3
   podSecurityContext: {}
   securityContext: {}
@@ -253,7 +253,7 @@ dbMigration:
 jwtKeysGeneration:
   enabled: true
   backoffLimit: 3
-
+  
   resources:
     requests:
       memory: 64Mi
@@ -261,7 +261,7 @@ jwtKeysGeneration:
     limits:
       memory: 128Mi
       cpu: 100m
-
+  
   podSecurityContext: {}
   securityContext: {}
 
@@ -285,37 +285,37 @@ ingress:
   - host: amp.local
     http:
       paths:
-        - path: /v1/traces
-          pathType: Prefix
-          backend:
-            service:
-              name: data-prepper-external
-              port:
-                number: 21893
+      - path: /v1/traces
+        pathType: Prefix
+        backend:
+          service:
+            name: data-prepper-external
+            port:
+              number: 21893
 
-        - path: /api/trace
-          pathType: Prefix
-          backend:
-            service:
-              name: amp-traces-observer-external
-              port:
-                number: 9098
+      - path: /api/trace
+        pathType: Prefix
+        backend:
+          service:
+            name: amp-traces-observer-external
+            port:
+              number: 9098
 
-        - path: /api/v1
-          pathType: Prefix
-          backend:
-            service:
-              name: amp-api
-              port:
-                number: 8080
+      - path: /api/v1
+        pathType: Prefix
+        backend:
+          service:
+            name: amp-api
+            port:
+              number: 8080
 
-        - path: /
-          pathType: Prefix
-          backend:
-            service:
-              name: amp-console
-              port:
-                number: 3000
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: amp-console
+            port:
+              number: 3000
   tls: []
 
 # ServiceAccount Configuration
