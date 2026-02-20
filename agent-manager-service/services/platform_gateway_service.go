@@ -599,7 +599,7 @@ func (s *PlatformGatewayService) InvalidateGatewayTokensCache(gatewayUUID uuid.U
 func (s *PlatformGatewayService) GetGatewayStatus(orgName string, gatewayID *string) (*GatewayStatusListResponse, error) {
 	// Validate organizationId is provided and valid
 	if strings.TrimSpace(orgName) == "" {
-		return nil, errors.New("organization ID is required")
+		return nil, errors.New("organization name is required")
 	}
 
 	var gateways []*models.Gateway
@@ -778,7 +778,7 @@ func (s *PlatformGatewayService) DeleteGatewayEnvironmentMappings(gatewayID stri
 func (s *PlatformGatewayService) validateGatewayInput(orgName, name, displayName, vhost, functionalityType string) error {
 	// Organization ID validation
 	if strings.TrimSpace(orgName) == "" {
-		return errors.New("organization ID is required")
+		return errors.New("organization name is required")
 	}
 
 	// Gateway name validation
