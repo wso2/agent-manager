@@ -51,7 +51,7 @@ secretStore:
     kubernetes:
       # Auth method mount path in OpenBao
       mountPath: kubernetes
-      # Role for write access (used by secret-management-service)
+      # Role for write access (used by agent-manager-service)
       writerRole: amp-secret-writer-role
       # Role for read access (used by data planes)
       readerRole: amp-secret-reader-role

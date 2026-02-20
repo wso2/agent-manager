@@ -76,7 +76,7 @@ spec:
               }
               EOF
 
-              # Create writer policy (for secret-management-service)
+              # Create writer policy (for agent-manager-service)
               echo "Creating writer policy..."
               bao policy write amp-secret-writer-policy - <<EOF
               # Full CRUD on secrets

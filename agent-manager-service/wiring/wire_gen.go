@@ -10,7 +10,7 @@ import (
 	"github.com/google/wire"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmgmtsvc"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/traceobserversvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
@@ -252,11 +252,11 @@ func ProvideObservabilitySvcClient(cfg config.Config, authProvider client.AuthPr
 
 // ProvideSecretManagementClient creates the secret management service client
 // Returns nil if secret management is disabled
-func ProvideSecretManagementClient(cfg config.Config, authProvider client.AuthProvider) (secretmgmtsvc.SecretManagementClient, error) {
+func ProvideSecretManagementClient(cfg config.Config, authProvider client.AuthProvider) (secretmanagersvc.SecretManagementClient, error) {
 	if !cfg.SecretManagement.Enable || cfg.SecretManagement.URL == "" {
 		return nil, nil
 	}
-	return secretmgmtsvc.NewSecretManagementClient(&secretmgmtsvc.Config{
+	return secretmanagersvc.NewSecretManagementClient(&secretmanagersvc.Config{
 		BaseURL:      cfg.SecretManagement.URL,
 		AuthProvider: authProvider,
 	})
@@ -294,7 +294,7 @@ func ProvideTestTraceObserverClient(testClients TestClients) traceobserversvc.Tr
 	return testClients.TraceObserverClient
 }
 
-func ProvideTestSecretManagementClient(testClients TestClients) secretmgmtsvc.SecretManagementClient {
+func ProvideTestSecretManagementClient(testClients TestClients) secretmanagersvc.SecretManagementClient {
 	return testClients.SecretMgmtClient
 }
 

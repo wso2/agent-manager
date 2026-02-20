@@ -12,10 +12,6 @@
       "dir": "agent-manager-service"
     },
     {
-      "name": "amp-secret-manager",
-      "dir": "secret-management-service"
-    },
-    {
       "name": "amp-traces-observer",
       "dir": "traces-observer-service"
     },

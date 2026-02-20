@@ -24,7 +24,7 @@ import (
 
 	observabilitysvc "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmgmtsvc"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
@@ -56,7 +56,7 @@ type AgentManagerService interface {
 type agentManagerService struct {
 	ocClient               client.OpenChoreoClient
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient
-	secretMgmtClient       secretmgmtsvc.SecretManagementClient
+	secretMgmtClient       secretmanagersvc.SecretManagementClient
 	gitRepositoryService   RepositoryService
 	tokenManagerService    AgentTokenManagerService
 	logger                 *slog.Logger
@@ -65,7 +65,7 @@ type agentManagerService struct {
 func NewAgentManagerService(
 	OpenChoreoClient client.OpenChoreoClient,
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient,
-	secretMgmtClient secretmgmtsvc.SecretManagementClient,
+	secretMgmtClient secretmanagersvc.SecretManagementClient,
 	gitRepositoryService RepositoryService,
 	tokenManagerService AgentTokenManagerService,
 	logger *slog.Logger,
@@ -129,19 +129,8 @@ func mapConfigurations(specConfigs *spec.Configurations) *client.Configurations 
 	configs := &client.Configurations{
 		Env: make([]client.EnvVar, len(specConfigs.Env)),
 	}
-<<<<<<< Updated upstream
 	for i, env := range specConfigs.Env {
 		configs.Env[i] = client.EnvVar{Key: env.Key, Value: env.Value}
-=======
-
-	if len(specConfigs.Env) > 0 {
-		configs.Env = make([]client.EnvVar, len(specConfigs.Env))
-		for i, env := range specConfigs.Env {
-			// For creation, we pass all env vars including secrets
-			// The secret handling (storing in OpenBao, attaching trait) happens separately
-			configs.Env[i] = client.EnvVar{Key: env.Key, Value: env.GetValue()}
-		}
->>>>>>> Stashed changes
 	}
 	return configs
 }
@@ -427,9 +416,6 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		return err
 	}
 
-<<<<<<< Updated upstream
-	// For internal agents, inject system environment variables, attach traits, and trigger initial build
-=======
 	// Handle secrets: store in OpenBao and attach external-secret-trait
 	if hasSecrets {
 		if err := s.processSecretsForCreate(ctx, orgName, projectName, req.Name, req.Configurations.Env); err != nil {
@@ -443,7 +429,6 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 	}
 
 	// For internal agents, enable instrumentation and trigger initial build
->>>>>>> Stashed changes
 	if req.Provisioning.Type == string(utils.InternalAgent) {
 		s.logger.Debug("Component created successfully", "agentName", req.Name)
 
@@ -550,9 +535,9 @@ func (s *agentManagerService) processSecretsForCreate(
 	// Build the KV path: {orgName}/{projectName}/{componentName}
 	kvPath := fmt.Sprintf("%s/%s/%s", orgName, projectName, componentName)
 
-	// Store secrets in OpenBao via secret-management-service
+	// Store secrets in OpenBao via secretmanagersvc client
 	s.logger.Debug("Storing secrets in OpenBao during agent creation", "componentName", componentName, "kvPath", kvPath, "secretCount", len(secretData))
-	_, err := s.secretMgmtClient.CreateSecret(ctx, orgName, secretmgmtsvc.CreateSecretRequest{
+	_, err := s.secretMgmtClient.CreateSecret(ctx, orgName, secretmanagersvc.CreateSecretRequest{
 		Path: kvPath,
 		Data: secretData,
 	})
@@ -1120,7 +1105,7 @@ func findLowestEnvironment(promotionPaths []models.PromotionPath) string {
 
 // processEnvVars handles environment variables, separating secrets from plain values.
 // For secret env vars (isSecret=true):
-//   - Stores the secret value in OpenBao via secret-management-service
+//   - Stores the secret value in OpenBao via secretmanagersvc client
 //   - Attaches external-secret-trait to sync secrets to K8s
 //   - Returns env var with secretKeyRef pointing to the synced K8s secret
 //
@@ -1167,15 +1152,15 @@ func (s *agentManagerService) processEnvVars(
 		// Build the KV path: {orgName}/{projectName}/{componentName}
 		kvPath := fmt.Sprintf("%s/%s/%s", orgName, projectName, componentName)
 
-		// Store secrets in OpenBao via secret-management-service
+		// Store secrets in OpenBao via secretmanagersvc client
 		s.logger.Debug("Storing secrets in OpenBao", "componentName", componentName, "kvPath", kvPath, "secretCount", len(secretData))
-		_, err := s.secretMgmtClient.CreateSecret(ctx, orgName, secretmgmtsvc.CreateSecretRequest{
+		_, err := s.secretMgmtClient.CreateSecret(ctx, orgName, secretmanagersvc.CreateSecretRequest{
 			Path: kvPath,
 			Data: secretData,
 		})
 		if err != nil {
 			// If secret already exists, try to update it
-			_, updateErr := s.secretMgmtClient.UpdateSecret(ctx, orgName, kvPath, secretmgmtsvc.UpdateSecretRequest{
+			_, updateErr := s.secretMgmtClient.UpdateSecret(ctx, orgName, kvPath, secretmanagersvc.UpdateSecretRequest{
 				Data: secretData,
 			})
 			if updateErr != nil {
