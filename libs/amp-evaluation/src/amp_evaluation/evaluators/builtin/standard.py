@@ -561,13 +561,16 @@ class LatencyEvaluator(BaseEvaluator):
         max_latency = self._get_max_latency(task)
 
         span_name = getattr(span, "name", "unknown_span")
+        # Spans store duration in metrics.duration_ms; fall back to a top-level attribute for safety
+        metrics = getattr(span, "metrics", None)
+        actual_latency = getattr(metrics, "duration_ms", None) or getattr(span, "duration_ms", None) or 0
+
         if max_latency is None:
             return EvalResult.skip(
                 "No latency constraint specified",
-                details={"span_name": span_name, "actual_latency_ms": getattr(span, "duration_ms", 0)},
+                details={"span_name": span_name, "actual_latency_ms": actual_latency},
             )
 
-        actual_latency = getattr(span, "duration_ms", 0) or 0
         score, passed = self._calculate_score(actual_latency, max_latency)
 
         span_type = type(span).__name__

@@ -223,7 +223,6 @@ class LLMSpan:
     metrics: LLMMetrics = field(default_factory=LLMMetrics)
 
 
-
 @dataclass
 class ToolSpan:
     """
@@ -535,22 +534,36 @@ class Trace:
         """
         # Get relevant spans
         if agent_span_id:
-            spans = self._get_descendant_spans(agent_span_id)
+            # Only include root-level children of the agent span so that spans
+            # already nested inside a ToolSpan are not also emitted as top-level
+            # steps (they are handled recursively by _reconstruct_tool_step).
+            spans = self._get_root_level_spans(agent_span_id)
         else:
             # Get root-level spans (no parent or parent is agent)
             spans = self._get_root_level_spans()
 
         return self._reconstruct_steps(spans, deduplicate_messages=deduplicate_messages)
 
-    def _get_root_level_spans(self) -> List[Span]:
-        """Get spans that are at the root level (not nested inside tools)."""
+    def _get_root_level_spans(self, agent_span_id: Optional[str] = None) -> List[Span]:
+        """Get spans that are at the root level (not nested inside tools).
+
+        Args:
+            agent_span_id: If provided, restrict to descendants of this agent span
+                           while still excluding spans whose immediate parent is a tool.
+        """
         # Find all tool span IDs
         tool_span_ids = {s.span_id for s in self.steps if isinstance(s, ToolSpan)}
+
+        if agent_span_id:
+            # Candidate pool: only direct children of the given agent span
+            candidate_spans = self._get_children_of(agent_span_id)
+        else:
+            candidate_spans = self.steps
 
         # Root spans are those whose parent is not a tool
         # (parent is None, or parent is an agent span)
         root_spans = []
-        for span in self.steps:
+        for span in candidate_spans:
             parent_id = getattr(span, "parent_span_id", None)
             if parent_id is None or parent_id not in tool_span_ids:
                 root_spans.append(span)
@@ -967,9 +980,7 @@ class Trace:
             llm.metrics.token_usage.total_tokens for llm in llm_calls if llm.metrics and llm.metrics.token_usage
         )
 
-        total_duration = sum(
-            s.metrics.duration_ms for s in agent_steps if hasattr(s, "metrics")
-        )
+        total_duration = sum(s.metrics.duration_ms for s in agent_steps if hasattr(s, "metrics"))
 
         return {
             "agent_id": agent_span_id,
@@ -1238,7 +1249,9 @@ class Trace:
             llm.metrics.error_message for llm in self.get_llm_calls() if llm.metrics.error and llm.metrics.error_message
         ]
         tool_errors = [
-            tool.metrics.error_message for tool in self.get_tool_calls() if tool.metrics.error and tool.metrics.error_message
+            tool.metrics.error_message
+            for tool in self.get_tool_calls()
+            if tool.metrics.error and tool.metrics.error_message
         ]
         return {
             "llm_errors": llm_errors,
