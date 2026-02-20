@@ -21,29 +21,37 @@ import { useQuery } from '@tanstack/react-query';
 import { UserInfo } from '../../types';
 
 export const useAuthHooks = () => {
-  const { 
-      signIn, 
+  const {
+      signIn,
       signOut,
       getIDToken,
-      getBasicUserInfo,
+      getDecodedIDToken,
       isAuthenticated,
       trySignInSilently,
     } = useAuthContext() ?? {};
 
   const { data: userInfo , isLoading: isLoadingUserInfo } = useQuery({
-    queryKey: ['auth', 'userInfo', getBasicUserInfo],
+    queryKey: ['auth', 'userInfo'],
     queryFn: async () => {
-      return getBasicUserInfo()
+      const idToken = await getDecodedIDToken();
+      return {
+        sub: idToken.sub,
+        username: idToken.preferred_username || idToken.email || idToken.sub,
+        displayName: idToken.name,
+        email: idToken.email,
+        givenName: idToken.given_name,
+        familyName: idToken.family_name,
+      };
     },
-    enabled: !!getBasicUserInfo,
+    enabled: !!getDecodedIDToken,
   });
 
   const {
       data: isAuthenticatedState,
       isLoading: isLoadingIsAuthenticated,
-      refetch: refetchIsAuthenticated 
+      refetch: refetchIsAuthenticated
     } = useQuery({
-    queryKey: ['isAuthenticated',isAuthenticated],
+    queryKey: ['isAuthenticated'],
     queryFn: () => {
       return isAuthenticated();
     },
