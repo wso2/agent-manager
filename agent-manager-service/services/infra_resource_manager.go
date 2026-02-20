@@ -25,7 +25,6 @@ import (
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
@@ -46,18 +45,15 @@ type InfraResourceManager interface {
 
 type infraResourceManager struct {
 	ocClient client.OpenChoreoClient
-	orgRepo  repositories.OrganizationRepository
 	logger   *slog.Logger
 }
 
 func NewInfraResourceManager(
 	openChoreoClient client.OpenChoreoClient,
-	orgRepo repositories.OrganizationRepository,
 	logger *slog.Logger,
 ) InfraResourceManager {
 	return &infraResourceManager{
 		ocClient: openChoreoClient,
-		orgRepo:  orgRepo,
 		logger:   logger,
 	}
 }
@@ -72,15 +68,6 @@ func (s *infraResourceManager) ListOrganizations(ctx context.Context, limit int,
 		return nil, 0, err
 	}
 	s.logger.Debug("Retrieved organizations from openchoreo", "totalCount", len(orgs))
-
-	// Ensure all organizations have UUIDs in local database (on-demand sync)
-	for _, org := range orgs {
-		_, err := s.orgRepo.GetOrCreateOrganization(org.Name)
-		if err != nil {
-			s.logger.Warn("Failed to ensure organization UUID", "orgName", org.Name, "error", err)
-			// Continue processing other organizations even if one fails
-		}
-	}
 
 	total := len(orgs)
 	// Apply pagination

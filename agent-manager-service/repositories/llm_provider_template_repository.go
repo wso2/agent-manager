@@ -110,7 +110,7 @@ func (r *LLMProviderTemplateRepo) Create(t *models.LLMProviderTemplate) error {
 // GetByID retrieves an LLM provider template by ID (handle)
 func (r *LLMProviderTemplateRepo) GetByHandle(templateHandle, orgUUID string) (*models.LLMProviderTemplate, error) {
 	var template models.LLMProviderTemplate
-	err := r.db.Where("handle = ? AND organization_uuid = ?", templateHandle, orgUUID).
+	err := r.db.Where("handle = ? AND organization_name = ?", templateHandle, orgUUID).
 		First(&template).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -129,7 +129,7 @@ func (r *LLMProviderTemplateRepo) GetByHandle(templateHandle, orgUUID string) (*
 // GetByUUID retrieves an LLM provider template by UUID
 func (r *LLMProviderTemplateRepo) GetByUUID(uuid, orgUUID string) (*models.LLMProviderTemplate, error) {
 	var template models.LLMProviderTemplate
-	err := r.db.Where("uuid = ? AND organization_uuid = ?", uuid, orgUUID).
+	err := r.db.Where("uuid = ? AND organization_name = ?", uuid, orgUUID).
 		First(&template).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -148,7 +148,7 @@ func (r *LLMProviderTemplateRepo) GetByUUID(uuid, orgUUID string) (*models.LLMPr
 // List retrieves LLM provider templates with pagination
 func (r *LLMProviderTemplateRepo) List(orgUUID string, limit, offset int) ([]*models.LLMProviderTemplate, error) {
 	var templates []*models.LLMProviderTemplate
-	err := r.db.Where("organization_uuid = ?", orgUUID).
+	err := r.db.Where("organization_name = ?", orgUUID).
 		Order("created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -171,7 +171,7 @@ func (r *LLMProviderTemplateRepo) List(orgUUID string, limit, offset int) ([]*mo
 func (r *LLMProviderTemplateRepo) Count(orgUUID string) (int, error) {
 	var count int64
 	err := r.db.Model(&models.LLMProviderTemplate{}).
-		Where("organization_uuid = ?", orgUUID).
+		Where("organization_name = ?", orgUUID).
 		Count(&count).Error
 	return int(count), err
 }
@@ -196,7 +196,7 @@ func (r *LLMProviderTemplateRepo) Update(t *models.LLMProviderTemplate) error {
 	t.Configuration = string(configJSON)
 
 	result := r.db.Model(&models.LLMProviderTemplate{}).
-		Where("handle = ? AND organization_uuid = ?", t.Handle, t.OrganizationUUID).
+		Where("handle = ? AND organization_name = ?", t.Handle, t.OrganizationName).
 		Updates(map[string]interface{}{
 			"name":          t.Name,
 			"description":   t.Description,
@@ -215,7 +215,7 @@ func (r *LLMProviderTemplateRepo) Update(t *models.LLMProviderTemplate) error {
 
 // Delete removes an LLM provider template
 func (r *LLMProviderTemplateRepo) Delete(templateID, orgUUID string) error {
-	result := r.db.Where("handle = ? AND organization_uuid = ?", templateID, orgUUID).
+	result := r.db.Where("handle = ? AND organization_name = ?", templateID, orgUUID).
 		Delete(&models.LLMProviderTemplate{})
 	if result.Error != nil {
 		return result.Error
@@ -230,7 +230,7 @@ func (r *LLMProviderTemplateRepo) Delete(templateID, orgUUID string) error {
 func (r *LLMProviderTemplateRepo) Exists(templateID, orgUUID string) (bool, error) {
 	var count int64
 	err := r.db.Model(&models.LLMProviderTemplate{}).
-		Where("handle = ? AND organization_uuid = ?", templateID, orgUUID).
+		Where("handle = ? AND organization_name = ?", templateID, orgUUID).
 		Count(&count).Error
 	if err != nil {
 		return false, err

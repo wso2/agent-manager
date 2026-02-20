@@ -34,7 +34,7 @@ type LLMProxy struct {
 	Configuration LLMProxyConfig `gorm:"column:configuration;type:jsonb;serializer:json" json:"configuration"`
 
 	// Computed/derived fields from Artifact table (populated via joins, not stored in llm_proxies table)
-	OrganizationUUID string    `gorm:"-" json:"organizationId,omitempty"`
+	OrganizationName string    `gorm:"-" json:"organizationName,omitempty"`
 	ID               string    `gorm:"-" json:"id,omitempty"`
 	Name             string    `gorm:"-" json:"name,omitempty"`
 	Handle           string    `gorm:"-" json:"handle,omitempty"`

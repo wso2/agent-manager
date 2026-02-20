@@ -26,7 +26,7 @@ import (
 type AssociationMapping struct {
 	ID               int64     `gorm:"column:id;primaryKey" json:"id"`
 	ArtifactUUID     uuid.UUID `gorm:"column:artifact_uuid" json:"artifactId"`
-	OrganizationUUID uuid.UUID `gorm:"column:organization_uuid" json:"organizationId"`
+	OrganizationName string    `gorm:"column:organization_name" json:"organizationId"`
 	ResourceUUID     uuid.UUID `gorm:"column:resource_uuid" json:"resourceId"`
 	AssociationType  string    `gorm:"column:association_type" json:"associationType"`
 	CreatedAt        time.Time `gorm:"column:created_at" json:"createdAt"`

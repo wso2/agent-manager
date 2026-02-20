@@ -26,7 +26,6 @@ import (
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
@@ -39,14 +38,12 @@ type CatalogController interface {
 
 type catalogController struct {
 	catalogService services.CatalogService
-	orgRepo        repositories.OrganizationRepository
 }
 
 // NewCatalogController creates a new catalog controller
-func NewCatalogController(catalogService services.CatalogService, orgRepo repositories.OrganizationRepository) CatalogController {
+func NewCatalogController(catalogService services.CatalogService) CatalogController {
 	return &catalogController{
 		catalogService: catalogService,
-		orgRepo:        orgRepo,
 	}
 }
 
@@ -56,19 +53,6 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue(utils.PathParamOrgName)
-
-	// Resolve organization UUID
-	org, err := c.orgRepo.GetOrganizationByName(orgName)
-	if err != nil {
-		log.Error("ListCatalog: failed to get organization", "orgName", orgName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to resolve organization")
-		return
-	}
-	if org == nil {
-		log.Error("ListCatalog: organization not found", "orgName", orgName)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
-		return
-	}
 
 	// Parse query parameters
 	kind := r.URL.Query().Get("kind")
@@ -123,7 +107,7 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	if kind == models.CatalogKindLLMProvider {
 		// Build filter struct
 		filters := &models.CatalogListFilters{
-			OrganizationUUID: org.UUID.String(),
+			OrganizationName: orgName,
 			Kind:             kind,
 			Name:             name,
 			EnvironmentUUID:  environmentUUID,
@@ -145,7 +129,7 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// For other kinds or no kind specified, use the basic service method
-	entries, total, err := c.catalogService.ListCatalog(ctx, org.UUID.String(), kind, limit, offset)
+	entries, total, err := c.catalogService.ListCatalog(ctx, orgName, kind, limit, offset)
 	if err != nil {
 		log.Error("ListCatalog: failed to list catalog", "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list catalog entries")

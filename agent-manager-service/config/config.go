@@ -68,9 +68,6 @@ type Config struct {
 	// OpenChoreo API configuration
 	OpenChoreo OpenChoreoConfig
 
-	// API Platform configuration
-	APIPlatform APIPlatformConfig
-
 	// Internal Server configuration (for WebSocket and gateway internal APIs)
 	InternalServer InternalServerConfig
 

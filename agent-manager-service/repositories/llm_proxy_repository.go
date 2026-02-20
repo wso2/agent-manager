@@ -28,17 +28,17 @@ import (
 
 // LLMProxyRepository defines the interface for LLM proxy persistence
 type LLMProxyRepository interface {
-	Create(p *models.LLMProxy, handle, name, version string, orgUUID uuid.UUID) error
-	GetByID(proxyID, orgUUID string) (*models.LLMProxy, error)
-	List(orgUUID string, limit, offset int) ([]*models.LLMProxy, error)
-	ListByProject(orgUUID, projectUUID string, limit, offset int) ([]*models.LLMProxy, error)
-	ListByProvider(orgUUID, providerUUID string, limit, offset int) ([]*models.LLMProxy, error)
-	Count(orgUUID string) (int, error)
-	CountByProject(orgUUID, projectUUID string) (int, error)
-	CountByProvider(orgUUID, providerUUID string) (int, error)
-	Update(p *models.LLMProxy, handle string, orgUUID uuid.UUID) error
-	Delete(proxyID, orgUUID string) error
-	Exists(proxyID, orgUUID string) (bool, error)
+	Create(p *models.LLMProxy, handle, name, version string, orgName string) error
+	GetByID(proxyID, orgName string) (*models.LLMProxy, error)
+	List(orgName string, limit, offset int) ([]*models.LLMProxy, error)
+	ListByProject(orgName, projectUUID string, limit, offset int) ([]*models.LLMProxy, error)
+	ListByProvider(orgName, providerUUID string, limit, offset int) ([]*models.LLMProxy, error)
+	Count(orgName string) (int, error)
+	CountByProject(orgName, projectUUID string) (int, error)
+	CountByProvider(orgName, providerUUID string) (int, error)
+	Update(p *models.LLMProxy, handle string, orgName string) error
+	Delete(proxyID, orgName string) error
+	Exists(proxyID, orgName string) (bool, error)
 }
 
 // LLMProxyRepo implements LLMProxyRepository using GORM
@@ -58,7 +58,7 @@ func NewLLMProxyRepo(db *gorm.DB) LLMProxyRepository {
 // proxyWithArtifact is a helper struct for joining LLM proxies with artifact data
 type proxyWithArtifact struct {
 	models.LLMProxy
-	ArtifactOrgUUID   uuid.UUID `gorm:"column:artifact_org_uuid"`
+	ArtifactOrgName   string    `gorm:"column:artifact_org_name"`
 	ArtifactHandle    string    `gorm:"column:artifact_handle"`
 	ArtifactName      string    `gorm:"column:artifact_name"`
 	ArtifactVersion   string    `gorm:"column:artifact_version"`
@@ -68,7 +68,7 @@ type proxyWithArtifact struct {
 
 // populateProxyArtifactFields populates the artifact-derived fields in an LLMProxy
 func populateProxyArtifactFields(proxy *models.LLMProxy, result proxyWithArtifact) {
-	proxy.OrganizationUUID = result.ArtifactOrgUUID.String()
+	proxy.OrganizationName = result.ArtifactOrgName
 	proxy.ID = result.ArtifactHandle
 	proxy.Name = result.ArtifactName
 	proxy.Version = result.ArtifactVersion
@@ -89,11 +89,11 @@ func convertProxyResults(results []proxyWithArtifact) []*models.LLMProxy {
 }
 
 // getProxyUUIDByHandle retrieves the proxy UUID from a handle
-func (r *LLMProxyRepo) getProxyUUIDByHandle(tx *gorm.DB, handle string, orgUUID uuid.UUID) (uuid.UUID, error) {
+func (r *LLMProxyRepo) getProxyUUIDByHandle(tx *gorm.DB, handle string, orgName string) (uuid.UUID, error) {
 	var artifact struct{ UUID uuid.UUID }
 	result := tx.Table("artifacts").
 		Select("uuid").
-		Where("handle = ? AND organization_uuid = ? AND kind = ?", handle, orgUUID, models.KindLLMProxy).
+		Where("handle = ? AND organization_name = ? AND kind = ?", handle, orgName, models.KindLLMProxy).
 		Scan(&artifact)
 	if result.Error != nil {
 		return uuid.Nil, result.Error
@@ -105,7 +105,7 @@ func (r *LLMProxyRepo) getProxyUUIDByHandle(tx *gorm.DB, handle string, orgUUID 
 }
 
 // Create inserts a new LLM proxy
-func (r *LLMProxyRepo) Create(p *models.LLMProxy, handle, name, version string, orgUUID uuid.UUID) error {
+func (r *LLMProxyRepo) Create(p *models.LLMProxy, handle, name, version string, orgName string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if p.UUID == uuid.Nil {
 			p.UUID = uuid.New()
@@ -119,7 +119,7 @@ func (r *LLMProxyRepo) Create(p *models.LLMProxy, handle, name, version string, 
 			Name:             name,
 			Version:          version,
 			Kind:             models.KindLLMProxy,
-			OrganizationUUID: orgUUID,
+			OrganizationName: orgName,
 			CreatedAt:        now,
 			UpdatedAt:        now,
 		}); err != nil {
@@ -132,14 +132,14 @@ func (r *LLMProxyRepo) Create(p *models.LLMProxy, handle, name, version string, 
 }
 
 // GetByID retrieves an LLM proxy by ID (handle)
-func (r *LLMProxyRepo) GetByID(proxyID, orgUUID string) (*models.LLMProxy, error) {
+func (r *LLMProxyRepo) GetByID(proxyID, orgName string) (*models.LLMProxy, error) {
 	var result proxyWithArtifact
 
 	err := r.db.
 		Table("llm_proxies").
-		Select("llm_proxies.*, a.organization_uuid as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
+		Select("llm_proxies.*, a.organization_name as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
 		Joins("JOIN artifacts a ON llm_proxies.uuid = a.uuid").
-		Where("a.handle = ? AND a.organization_uuid = ? AND a.kind = ?", proxyID, orgUUID, models.KindLLMProxy).
+		Where("a.handle = ? AND a.organization_name = ? AND a.kind = ?", proxyID, orgName, models.KindLLMProxy).
 		Take(&result).Error
 	if err != nil {
 		return nil, err
@@ -156,13 +156,13 @@ func (r *LLMProxyRepo) GetByID(proxyID, orgUUID string) (*models.LLMProxy, error
 }
 
 // List retrieves LLM proxies with pagination
-func (r *LLMProxyRepo) List(orgUUID string, limit, offset int) ([]*models.LLMProxy, error) {
+func (r *LLMProxyRepo) List(orgName string, limit, offset int) ([]*models.LLMProxy, error) {
 	var results []proxyWithArtifact
 	err := r.db.
 		Table("llm_proxies").
-		Select("llm_proxies.*, a.organization_uuid as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
+		Select("llm_proxies.*, a.organization_name as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
 		Joins("JOIN artifacts a ON llm_proxies.uuid = a.uuid").
-		Where("a.organization_uuid = ? AND a.kind = ?", orgUUID, models.KindLLMProxy).
+		Where("a.organization_name = ? AND a.kind = ?", orgName, models.KindLLMProxy).
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -175,13 +175,13 @@ func (r *LLMProxyRepo) List(orgUUID string, limit, offset int) ([]*models.LLMPro
 }
 
 // ListByProject retrieves LLM proxies for a specific project with pagination
-func (r *LLMProxyRepo) ListByProject(orgUUID, projectUUID string, limit, offset int) ([]*models.LLMProxy, error) {
+func (r *LLMProxyRepo) ListByProject(orgName, projectUUID string, limit, offset int) ([]*models.LLMProxy, error) {
 	var results []proxyWithArtifact
 	err := r.db.
 		Table("llm_proxies").
-		Select("llm_proxies.*, a.organization_uuid as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
+		Select("llm_proxies.*, a.organization_name as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
 		Joins("JOIN artifacts a ON llm_proxies.uuid = a.uuid").
-		Where("a.organization_uuid = ? AND llm_proxies.project_uuid = ? AND a.kind = ?", orgUUID, projectUUID, models.KindLLMProxy).
+		Where("a.organization_name = ? AND llm_proxies.project_uuid = ? AND a.kind = ?", orgName, projectUUID, models.KindLLMProxy).
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -194,13 +194,13 @@ func (r *LLMProxyRepo) ListByProject(orgUUID, projectUUID string, limit, offset 
 }
 
 // ListByProvider retrieves LLM proxies for a specific provider with pagination
-func (r *LLMProxyRepo) ListByProvider(orgUUID, providerUUID string, limit, offset int) ([]*models.LLMProxy, error) {
+func (r *LLMProxyRepo) ListByProvider(orgName, providerUUID string, limit, offset int) ([]*models.LLMProxy, error) {
 	var results []proxyWithArtifact
 	err := r.db.
 		Table("llm_proxies").
-		Select("llm_proxies.*, a.organization_uuid as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
+		Select("llm_proxies.*, a.organization_name as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
 		Joins("JOIN artifacts a ON llm_proxies.uuid = a.uuid").
-		Where("a.organization_uuid = ? AND llm_proxies.provider_uuid = ? AND a.kind = ?", orgUUID, providerUUID, models.KindLLMProxy).
+		Where("a.organization_name = ? AND llm_proxies.provider_uuid = ? AND a.kind = ?", orgName, providerUUID, models.KindLLMProxy).
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -213,37 +213,37 @@ func (r *LLMProxyRepo) ListByProvider(orgUUID, providerUUID string, limit, offse
 }
 
 // Count counts LLM proxies for an organization
-func (r *LLMProxyRepo) Count(orgUUID string) (int, error) {
-	return r.artifactRepo.CountByKindAndOrg(models.KindLLMProxy, orgUUID)
+func (r *LLMProxyRepo) Count(orgName string) (int, error) {
+	return r.artifactRepo.CountByKindAndOrg(models.KindLLMProxy, orgName)
 }
 
 // CountByProject counts LLM proxies for a specific project
-func (r *LLMProxyRepo) CountByProject(orgUUID, projectUUID string) (int, error) {
+func (r *LLMProxyRepo) CountByProject(orgName, projectUUID string) (int, error) {
 	var count int64
 	err := r.db.Table("artifacts a").
 		Joins("JOIN llm_proxies p ON a.uuid = p.uuid").
-		Where("a.organization_uuid = ? AND p.project_uuid = ? AND a.kind = ?", orgUUID, projectUUID, models.KindLLMProxy).
+		Where("a.organization_name = ? AND p.project_uuid = ? AND a.kind = ?", orgName, projectUUID, models.KindLLMProxy).
 		Count(&count).Error
 	return int(count), err
 }
 
 // CountByProvider counts LLM proxies for a specific provider
-func (r *LLMProxyRepo) CountByProvider(orgUUID, providerUUID string) (int, error) {
+func (r *LLMProxyRepo) CountByProvider(orgName, providerUUID string) (int, error) {
 	var count int64
 	err := r.db.Table("artifacts a").
 		Joins("JOIN llm_proxies p ON a.uuid = p.uuid").
-		Where("a.organization_uuid = ? AND p.provider_uuid = ? AND a.kind = ?", orgUUID, providerUUID, models.KindLLMProxy).
+		Where("a.organization_name = ? AND p.provider_uuid = ? AND a.kind = ?", orgName, providerUUID, models.KindLLMProxy).
 		Count(&count).Error
 	return int(count), err
 }
 
 // Update modifies an existing LLM proxy
-func (r *LLMProxyRepo) Update(p *models.LLMProxy, handle string, orgUUID uuid.UUID) error {
+func (r *LLMProxyRepo) Update(p *models.LLMProxy, handle string, orgName string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
 
 		// Get the proxy UUID from handle
-		proxyUUID, err := r.getProxyUUIDByHandle(tx, handle, orgUUID)
+		proxyUUID, err := r.getProxyUUIDByHandle(tx, handle, orgName)
 		if err != nil {
 			return err
 		}
@@ -251,7 +251,7 @@ func (r *LLMProxyRepo) Update(p *models.LLMProxy, handle string, orgUUID uuid.UU
 		// Update artifacts table
 		if err := r.artifactRepo.Update(tx, &models.Artifact{
 			UUID:             proxyUUID,
-			OrganizationUUID: orgUUID,
+			OrganizationName: orgName,
 			UpdatedAt:        now,
 		}); err != nil {
 			return fmt.Errorf("failed to update artifact: %w", err)
@@ -279,15 +279,9 @@ func (r *LLMProxyRepo) Update(p *models.LLMProxy, handle string, orgUUID uuid.UU
 }
 
 // Delete removes an LLM proxy
-func (r *LLMProxyRepo) Delete(proxyID, orgUUID string) error {
+func (r *LLMProxyRepo) Delete(proxyID, orgName string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Get the proxy UUID from handle
-		orgUUIDParsed, err := uuid.Parse(orgUUID)
-		if err != nil {
-			return fmt.Errorf("invalid organization UUID: %w", err)
-		}
-
-		proxyUUID, err := r.getProxyUUIDByHandle(tx, proxyID, orgUUIDParsed)
+		proxyUUID, err := r.getProxyUUIDByHandle(tx, proxyID, orgName)
 		if err != nil {
 			return err
 		}
@@ -303,6 +297,6 @@ func (r *LLMProxyRepo) Delete(proxyID, orgUUID string) error {
 }
 
 // Exists checks if an LLM proxy exists
-func (r *LLMProxyRepo) Exists(proxyID, orgUUID string) (bool, error) {
-	return r.artifactRepo.Exists(models.KindLLMProxy, proxyID, orgUUID)
+func (r *LLMProxyRepo) Exists(proxyID, orgName string) (bool, error) {
+	return r.artifactRepo.Exists(models.KindLLMProxy, proxyID, orgName)
 }
