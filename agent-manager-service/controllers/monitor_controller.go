@@ -60,22 +60,8 @@ func (c *monitorController) CreateMonitor(w http.ResponseWriter, r *http.Request
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	projName := r.PathValue("projName")
-	if projName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Project name is required")
-		return
-	}
-
 	agentName := r.PathValue("agentName")
-	if agentName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Agent name is required")
-		return
-	}
 
 	var req spec.CreateMonitorRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -167,16 +153,7 @@ func (c *monitorController) GetMonitor(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	monitorName := r.PathValue("monitorName")
-	if monitorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
 
 	monitor, err := c.monitorService.GetMonitor(ctx, orgName, monitorName)
 	if err != nil {
@@ -204,22 +181,8 @@ func (c *monitorController) ListMonitors(w http.ResponseWriter, r *http.Request)
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	projName := r.PathValue("projName")
-	if projName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Project name is required")
-		return
-	}
-
 	agentName := r.PathValue("agentName")
-	if agentName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Agent name is required")
-		return
-	}
 
 	result, err := c.monitorService.ListMonitors(ctx, orgName, projName, agentName)
 	if err != nil {
@@ -243,16 +206,7 @@ func (c *monitorController) DeleteMonitor(w http.ResponseWriter, r *http.Request
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	monitorName := r.PathValue("monitorName")
-	if monitorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
 
 	err := c.monitorService.DeleteMonitor(ctx, orgName, monitorName)
 	if err != nil {
@@ -274,16 +228,7 @@ func (c *monitorController) UpdateMonitor(w http.ResponseWriter, r *http.Request
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	monitorName := r.PathValue("monitorName")
-	if monitorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
 
 	var req spec.UpdateMonitorRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -345,16 +290,7 @@ func (c *monitorController) ListMonitorRuns(w http.ResponseWriter, r *http.Reque
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	monitorName := r.PathValue("monitorName")
-	if monitorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
 
 	result, err := c.monitorService.ListMonitorRuns(ctx, orgName, monitorName)
 	if err != nil {
@@ -382,22 +318,8 @@ func (c *monitorController) RerunMonitor(w http.ResponseWriter, r *http.Request)
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	monitorName := r.PathValue("monitorName")
-	if monitorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
-
 	runID := r.PathValue("runId")
-	if runID == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Run ID is required")
-		return
-	}
 
 	result, err := c.monitorService.RerunMonitor(ctx, orgName, monitorName, runID)
 	if err != nil {
@@ -434,22 +356,8 @@ func (c *monitorController) GetMonitorRunLogs(w http.ResponseWriter, r *http.Req
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	monitorName := r.PathValue("monitorName")
-	if monitorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
-
 	runID := r.PathValue("runId")
-	if runID == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Run ID is required")
-		return
-	}
 
 	result, err := c.monitorService.GetMonitorRunLogs(ctx, orgName, monitorName, runID)
 	if err != nil {
@@ -476,16 +384,7 @@ func (c *monitorController) StopMonitor(w http.ResponseWriter, r *http.Request) 
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	monitorName := r.PathValue("monitorName")
-	if monitorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
 
 	result, err := c.monitorService.StopMonitor(ctx, orgName, monitorName)
 	if err != nil {
@@ -521,16 +420,7 @@ func (c *monitorController) StartMonitor(w http.ResponseWriter, r *http.Request)
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	monitorName := r.PathValue("monitorName")
-	if monitorName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor name is required")
-		return
-	}
 
 	result, err := c.monitorService.StartMonitor(ctx, orgName, monitorName)
 	if err != nil {
