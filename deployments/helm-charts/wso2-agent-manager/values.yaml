@@ -282,40 +282,40 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
   hosts:
-    - host: amp.local
-      http:
-        paths:
-          - path: /v1/traces
-            pathType: Prefix
-            backend:
-              service:
-                name: data-prepper-external
-                port:
-                  number: 21893
+  - host: amp.local
+    http:
+      paths:
+        - path: /v1/traces
+          pathType: Prefix
+          backend:
+            service:
+              name: data-prepper-external
+              port:
+                number: 21893
 
-          - path: /api/trace
-            pathType: Prefix
-            backend:
-              service:
-                name: amp-traces-observer-external
-                port:
-                  number: 9098
+        - path: /api/trace
+          pathType: Prefix
+          backend:
+            service:
+              name: amp-traces-observer-external
+              port:
+                number: 9098
 
-          - path: /api/v1
-            pathType: Prefix
-            backend:
-              service:
-                name: amp-api
-                port:
-                  number: 8080
+        - path: /api/v1
+          pathType: Prefix
+          backend:
+            service:
+              name: amp-api
+              port:
+                number: 8080
 
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: amp-console
-                port:
-                  number: 3000
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: amp-console
+              port:
+                number: 3000
   tls: []
 
 # ServiceAccount Configuration
