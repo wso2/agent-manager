@@ -60,6 +60,7 @@ type AppParams struct {
 	MonitorScoresPublisherController controllers.MonitorScoresPublisherController
 	EvaluatorController              controllers.EvaluatorController
 	CatalogController                controllers.CatalogController
+	AgentConfigurationController     controllers.AgentConfigurationController
 	MonitorScheduler                 services.MonitorSchedulerService
 
 	// Services
