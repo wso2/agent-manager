@@ -127,9 +127,7 @@ var loggerProviderSet = wire.NewSet(
 )
 
 var repositoryProviderSet = wire.NewSet(
-	ProvideOrganizationRepository,
 	ProvideGatewayRepository,
-	ProvideAPIRepository,
 	ProvideLLMProviderTemplateRepository,
 	ProvideLLMProviderRepository,
 	ProvideLLMProxyRepository,
@@ -177,17 +175,8 @@ func ProvideWebSocketController(
 	return controllers.NewWebSocketController(manager, gatewayService, rateLimitCount)
 }
 
-// Repository providers (injecting *gorm.DB)
-func ProvideOrganizationRepository(db *gorm.DB) repositories.OrganizationRepository {
-	return repositories.NewOrganizationRepo(db)
-}
-
 func ProvideGatewayRepository(db *gorm.DB) repositories.GatewayRepository {
 	return repositories.NewGatewayRepo(db)
-}
-
-func ProvideAPIRepository(db *gorm.DB) repositories.APIRepository {
-	return repositories.NewAPIRepo(db)
 }
 
 func ProvideLLMProviderTemplateRepository(db *gorm.DB) repositories.LLMProviderTemplateRepository {

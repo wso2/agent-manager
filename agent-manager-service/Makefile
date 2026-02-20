@@ -115,5 +115,5 @@ gen-builtin-evaluators: ## Generate builtin evaluators JSON using PyPI amp-evalu
 .PHONY: dev-migrate
 dev-migrate: gen-builtin-evaluators-dev ## Generate evaluators and run migrations
 	@echo "🗄️  Running database migrations..."
-	@go run -mod=readonly . -migrate -server=false
+	@ENV_FILE_PATH=.env go run -mod=readonly . -migrate -server=false
 	@echo "✅ Migrations completed"

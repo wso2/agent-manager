@@ -31,7 +31,7 @@ type CatalogEntry struct {
 	Version          string    `gorm:"column:version;not null" json:"version"`
 	Kind             string    `gorm:"column:kind;not null" json:"kind"`
 	InCatalog        bool      `gorm:"column:in_catalog" json:"inCatalog"`
-	OrganizationUUID uuid.UUID `gorm:"column:organization_uuid;not null" json:"-"`
+	OrganizationName string    `gorm:"column:organization_name;not null" json:"-"`
 	CreatedAt        time.Time `gorm:"column:created_at" json:"createdAt"`
 }
 
