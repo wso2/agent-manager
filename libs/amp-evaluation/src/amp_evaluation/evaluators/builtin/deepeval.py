@@ -152,7 +152,7 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
 
         context = []
         for span in retriever_spans:
-            if hasattr(span, "output") and span.documents:
+            if span.documents:
                 if isinstance(span.documents, list):
                     context.extend([str(item) for item in span.documents])
                 else:
@@ -398,6 +398,8 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
         # Create metric with configuration
         metric_kwargs = {
             "threshold": self.threshold,
+            "evaluate_order": self.evaluate_order,
+            "exact_match": self.exact_match,
         }
 
         # Only add model if LLM-based evaluation is needed
@@ -426,10 +428,10 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
         tools_called = []
         for span in trace.get_tool_calls():
             tc_kwargs: Dict[str, Any] = {"name": span.name}
-            if self.evaluate_input and hasattr(span, "input"):
-                tc_kwargs["input"] = span.input
-            if self.evaluate_output and hasattr(span, "output"):
-                tc_kwargs["output"] = span.output
+            if self.evaluate_input:
+                tc_kwargs["input"] = span.arguments
+            if self.evaluate_output:
+                tc_kwargs["output"] = span.result
             tools_called.append(ToolCall(**tc_kwargs))
 
         # Build expected tools from task if available
@@ -584,8 +586,20 @@ class DeepEvalTaskCompletionEvaluator(DeepEvalBaseEvaluator):
 
         metric = TaskCompletionMetric(**metric_kwargs)
 
-        # Build test case
+        # Build test case, using custom_task to override the input if provided
         test_case = self._build_deepeval_test_case(trace, task)
+        if self.custom_task:
+            try:
+                from deepeval.test_case import LLMTestCase
+            except ImportError:
+                raise ImportError("DeepEval is required. Install with: pip install deepeval")
+            test_case = LLMTestCase(
+                input=self.custom_task,
+                actual_output=test_case.actual_output,
+                expected_output=test_case.expected_output,
+                retrieval_context=test_case.retrieval_context,
+                tools_called=test_case.tools_called,
+            )
 
         # Measure with better error handling
         try:

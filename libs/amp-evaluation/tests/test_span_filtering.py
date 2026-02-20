@@ -16,6 +16,7 @@
 
 """Tests for infrastructure span filtering with parent remapping."""
 
+import copy
 import pytest
 import json
 
@@ -273,12 +274,13 @@ class TestSpanFiltering:
         Test filtering integration with full parsing pipeline.
         """
         lg_trace = _parse_trace(sample_traces[0])
+        lg_trace_copy = copy.deepcopy(lg_trace)
 
         # Parse WITH filtering (default)
         trajectory_filtered = parse_trace_for_evaluation(lg_trace, filter_infrastructure=True)
 
-        # Parse WITHOUT filtering
-        trajectory_unfiltered = parse_trace_for_evaluation(lg_trace, filter_infrastructure=False)
+        # Parse WITHOUT filtering — use a deep copy to avoid operating on mutated spans
+        trajectory_unfiltered = parse_trace_for_evaluation(lg_trace_copy, filter_infrastructure=False)
 
         # VERIFY: Both produce same semantic results
         # (steps only contains semantic spans, so count should be same)

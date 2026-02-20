@@ -77,6 +77,7 @@ echo "   Traces Observer Service:      http://localhost:9098"
 echo "   Observability Gateway:       http://localhost:22893/otel"
 echo "   Observability Gateway (HTTPS):       https://localhost:22894/otel"
 echo "   OpenSearch Dashboard: http://localhost:5601"
+echo "   OpenChoreo API:       http://localhost:8080"
 
 echo ""
 echo "💡 Keep this terminal open. Press Ctrl+C to stop."

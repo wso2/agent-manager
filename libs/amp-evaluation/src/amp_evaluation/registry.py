@@ -266,7 +266,7 @@ def _validate_evaluator_function(func: Callable, name: str) -> None:
     Validate that a function has the correct signature.
 
     Expected: (target) -> EvalResult | dict | float
-    Where target can be Trace, Trace, Outcome, Trial, or Task
+    Where target can be Trace, Outcome, Trial, or Task
     """
     sig = inspect.signature(func)
     params = list(sig.parameters.values())
