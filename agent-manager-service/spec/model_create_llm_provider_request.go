@@ -21,8 +21,8 @@ var _ MappedNullable = &CreateLLMProviderRequest{}
 type CreateLLMProviderRequest struct {
 	// Description of the LLM provider
 	Description *string `json:"description,omitempty"`
-	// UUID of the provider template to use
-	TemplateUuid string `json:"templateUuid"`
+	// handle of the template being used
+	TemplateHandle string `json:"templateHandle"`
 	// Custom OpenAPI specification (overrides template)
 	Openapi *string `json:"openapi,omitempty"`
 	// Custom model list (overrides template)
@@ -35,9 +35,9 @@ type CreateLLMProviderRequest struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewCreateLLMProviderRequest(templateUuid string, configuration LLMProviderConfig) *CreateLLMProviderRequest {
+func NewCreateLLMProviderRequest(templateHandle string, configuration LLMProviderConfig) *CreateLLMProviderRequest {
 	this := CreateLLMProviderRequest{}
-	this.TemplateUuid = templateUuid
+	this.TemplateHandle = templateHandle
 	this.Configuration = configuration
 	return &this
 }
@@ -82,28 +82,28 @@ func (o *CreateLLMProviderRequest) SetDescription(v string) {
 	o.Description = &v
 }
 
-// GetTemplateUuid returns the TemplateUuid field value
-func (o *CreateLLMProviderRequest) GetTemplateUuid() string {
+// GetTemplateHandle returns the TemplateHandle field value
+func (o *CreateLLMProviderRequest) GetTemplateHandle() string {
 	if o == nil {
 		var ret string
 		return ret
 	}
 
-	return o.TemplateUuid
+	return o.TemplateHandle
 }
 
-// GetTemplateUuidOk returns a tuple with the TemplateUuid field value
+// GetTemplateHandleOk returns a tuple with the TemplateHandle field value
 // and a boolean to check if the value has been set.
-func (o *CreateLLMProviderRequest) GetTemplateUuidOk() (*string, bool) {
+func (o *CreateLLMProviderRequest) GetTemplateHandleOk() (*string, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.TemplateUuid, true
+	return &o.TemplateHandle, true
 }
 
-// SetTemplateUuid sets field value
-func (o *CreateLLMProviderRequest) SetTemplateUuid(v string) {
-	o.TemplateUuid = v
+// SetTemplateHandle sets field value
+func (o *CreateLLMProviderRequest) SetTemplateHandle(v string) {
+	o.TemplateHandle = v
 }
 
 // GetOpenapi returns the Openapi field value if set, zero value otherwise.
@@ -239,7 +239,7 @@ func (o CreateLLMProviderRequest) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Description) {
 		toSerialize["description"] = o.Description
 	}
-	toSerialize["templateUuid"] = o.TemplateUuid
+	toSerialize["templateHandle"] = o.TemplateHandle
 	if !IsNil(o.Openapi) {
 		toSerialize["openapi"] = o.Openapi
 	}
