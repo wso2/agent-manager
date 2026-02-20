@@ -7956,18 +7956,17 @@ components:
     CreateLLMProviderRequest:
       type: object
       required:
-        - templateUuid
+        - templateHandle
         - configuration
       properties:
         description:
           type: string
           description: Description of the LLM provider
           example: OpenAI GPT-4 provider for production
-        templateUuid:
+        templateHandle:
           type: string
-          format: uuid
-          description: UUID of the provider template to use
-          example: 550e8400-e29b-41d4-a716-446655440000
+          description: handle of the template being used
+          example: openai
         openapi:
           type: string
           description: Custom OpenAPI specification (overrides template)
@@ -7991,10 +7990,9 @@ components:
         description:
           type: string
           description: Updated description
-        templateUuid:
+        templateHandle:
           type: string
-          format: uuid
-          description: Updated template UUID
+          description: Updated template handle
         openapi:
           type: string
           description: Updated OpenAPI specification
@@ -8028,7 +8026,7 @@ components:
       type: object
       required:
         - uuid
-        - templateUuid
+        - templateHandle
         - status
         - configuration
       properties:
@@ -8042,10 +8040,9 @@ components:
         createdBy:
           type: string
           description: User who created the provider
-        templateUuid:
+        templateHandle:
           type: string
-          format: uuid
-          description: Template UUID
+          description: Template handle
         openapi:
           type: string
           description: OpenAPI specification
