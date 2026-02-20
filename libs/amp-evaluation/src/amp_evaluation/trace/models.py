@@ -549,7 +549,7 @@ class Trace:
 
         Args:
             agent_span_id: If provided, restrict to descendants of this agent span
-                           while still excluding spans whose immediate parent is a tool.
+                           while still excluding any span that has a tool ancestor.
         """
         # Find all tool span IDs
         tool_span_ids = {s.span_id for s in self.steps if isinstance(s, ToolSpan)}
@@ -560,12 +560,30 @@ class Trace:
         else:
             candidate_spans = self.steps
 
-        # Root spans are those whose parent is not a tool
-        # (parent is None, or parent is an agent span)
+        # Build a lookup map for ancestor traversal
+        span_by_id: Dict[str, Span] = {s.span_id: s for s in self.steps}
+
+        def has_tool_ancestor(span_id: str) -> bool:
+            """Walk up parent chain to check if any ancestor is a tool span."""
+            visited: set = set()
+            current_id: Optional[str] = span_id
+            while current_id:
+                if current_id in visited:
+                    break
+                visited.add(current_id)
+                if current_id in tool_span_ids:
+                    return True
+                parent_span = span_by_id.get(current_id)
+                if parent_span is None:
+                    break
+                current_id = getattr(parent_span, "parent_span_id", None)
+            return False
+
+        # Root spans are those with no tool ancestor
         root_spans = []
         for span in candidate_spans:
             parent_id = getattr(span, "parent_span_id", None)
-            if parent_id is None or parent_id not in tool_span_ids:
+            if parent_id is None or not has_tool_ancestor(parent_id):
                 root_spans.append(span)
         return root_spans
 
@@ -594,7 +612,7 @@ class Trace:
             deduplicate_messages: If True, remove duplicate messages across LLM spans
         """
         steps: List[AgentStep] = []
-        seen_messages = set() if deduplicate_messages else None
+        seen_messages: Optional[set[str]] = set() if deduplicate_messages else None
 
         for span in spans:
             if isinstance(span, LLMSpan):
@@ -662,7 +680,7 @@ class Trace:
                 # Tool result message in conversation
                 # Resolve human-readable tool name from prior assistant tool_calls;
                 # falls back to the opaque tool_call_id if no match is found.
-                resolved_name = tool_call_names.get(msg.tool_call_id, msg.tool_call_id)
+                resolved_name = tool_call_names.get(msg.tool_call_id or "", msg.tool_call_id or "")
                 steps.append(
                     AgentStep(
                         step_type="tool_result",
@@ -976,9 +994,10 @@ class Trace:
         llm_calls = [s for s in agent_steps if isinstance(s, LLMSpan)]
         tool_calls = [s for s in agent_steps if isinstance(s, ToolSpan)]
 
-        total_tokens = sum(
-            llm.metrics.token_usage.total_tokens for llm in llm_calls if llm.metrics and llm.metrics.token_usage
-        )
+        total_tokens = 0
+        for llm in llm_calls:
+            if llm.metrics and llm.metrics.token_usage:
+                total_tokens += llm.metrics.token_usage.total_tokens
 
         total_duration = sum(s.metrics.duration_ms for s in agent_steps if hasattr(s, "metrics"))
 

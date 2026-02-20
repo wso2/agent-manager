@@ -97,7 +97,7 @@ class BaseEvaluator(ABC):
     # Class-level metadata attributes (can be overridden by subclasses or instances)
     name: str = ""  # Defaults to class name if not set
     description: str = ""
-    tags: List[str] = ()  # Immutable default; subclasses should override with a list
+    tags: List[str] = []  # Subclasses should override; __init__ creates a per-instance copy
     version: str = "1.0"
 
     # Configuration parameters (using Param descriptors)
@@ -213,7 +213,7 @@ class BaseEvaluator(ABC):
                 f"          super().__init__(**kwargs)"
             )
 
-    def _auto_detect_supported_levels(self) -> List[str]:
+    def _auto_detect_supported_levels(self) -> List[EvaluationLevel]:
         """
         Auto-detect supported evaluation levels from overridden methods.
 

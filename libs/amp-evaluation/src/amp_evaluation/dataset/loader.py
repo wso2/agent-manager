@@ -234,7 +234,7 @@ def save_dataset_to_json(dataset: Dataset, path: str, indent: int = 2):
 
 def dataset_to_dict(dataset: Dataset) -> Dict[str, Any]:
     """Convert Dataset object to dictionary for JSON serialization."""
-    result = {
+    result: Dict[str, Any] = {
         "name": dataset.name,
         "description": dataset.description,
         "version": dataset.version,
@@ -260,7 +260,7 @@ def dataset_to_dict(dataset: Dataset) -> Dict[str, Any]:
 
 def task_to_dict(task: Task) -> Dict[str, Any]:
     """Convert Task object to dictionary for JSON serialization."""
-    result = {"id": task.task_id, "input": task.input}
+    result: Dict[str, Any] = {"id": task.task_id, "input": task.input}
 
     if task.name:
         result["name"] = task.name

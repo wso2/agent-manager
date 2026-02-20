@@ -195,7 +195,7 @@ func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *
 	}
 }
 
-// calculateGranularity returns the appropriate time bucket granularity for the given duration:
+// CalculateGranularity returns the appropriate time bucket granularity for the given duration:
 //
 //	<= 2 days  → "hour"
 //	<= 28 days → "day"

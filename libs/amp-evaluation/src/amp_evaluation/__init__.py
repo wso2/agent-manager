@@ -27,10 +27,11 @@ Tier 1 - Main module (amp_evaluation):
     >>> from amp_evaluation import (
     ...     Experiment, Monitor,                    # Runners
     ...     evaluator, aggregator,                  # Decorators
-    ...     Observation, EvalResult, Task, Dataset,  # Core types
+    ...     EvalResult, Task, Dataset,               # Core types
     ...     register_builtin, list_evaluators,       # Registry
     ...     HttpAgentInvoker,                        # Invocation
     ...     Config,                                  # Configuration
+    ...     EvaluationLevel,                         # Evaluation levels
     ... )
 
 Tier 2 - Submodules for domain-specific types:

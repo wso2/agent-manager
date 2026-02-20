@@ -114,7 +114,7 @@ class Config(BaseSettings):
         Raises:
             ValueError: If validation fails
         """
-        errors = []
+        errors: list[str] = []
 
         # Platform config (if publishing results or using platform mode)
         # Only validate if these features are enabled and no explicit overrides provided

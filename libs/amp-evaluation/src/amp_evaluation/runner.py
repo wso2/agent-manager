@@ -75,6 +75,7 @@ from enum import Enum
 import logging
 
 from .trace import Trace, parse_trace_for_evaluation, TraceFetcher, TraceLoader
+from .trace.fetcher import Trace as OTELTrace
 from .registry import get_registry, get_evaluator
 from .evaluators.base import BaseEvaluator
 from .models import EvaluatorSummary, EvaluatorScore
@@ -348,7 +349,7 @@ class BaseRunner(ABC):
 
         return self._fetcher_instance
 
-    def _fetch_traces(self, start_time: str, end_time: str, limit: int = 100, offset: int = 0) -> List[Trace]:
+    def _fetch_traces(self, start_time: str, end_time: str, limit: int = 100, offset: int = 0) -> List[OTELTrace]:
         """
         Unified interface to fetch traces from either TraceFetcher or TraceLoader.
 
@@ -607,7 +608,7 @@ class BaseRunner(ABC):
                     # Skip failed aggregations - don't add 0.0 as it's misleading
 
             # Calculate items per trace for multi-level evaluators
-            items_per_trace = {}
+            items_per_trace: Dict[str, int] = {}
             for score in all_scores:
                 trace_id = score.trace_id
                 items_per_trace[trace_id] = items_per_trace.get(trace_id, 0) + 1
@@ -736,6 +737,7 @@ class Experiment(BaseRunner):
         self,
         dataset: Optional[Dataset] = None,
         traces: Optional[List[Trace]] = None,
+        **kwargs: Any,
     ) -> RunResult:
         """
         Run benchmark evaluation.
@@ -751,8 +753,8 @@ class Experiment(BaseRunner):
         if traces:
             # Build task mapping if we have a dataset
             tasks_by_trace_id = None
-            if dataset or self.dataset:
-                ds = dataset or self.dataset
+            ds = dataset or self.dataset
+            if ds is not None:
                 # Try to match traces to tasks by trace_id == task_id (convention)
                 tasks_by_trace_id = {task.task_id: task for task in ds.tasks}
 
@@ -1090,6 +1092,7 @@ class Monitor(BaseRunner):
         end_time: Optional[str] = None,
         limit: Optional[int] = None,
         traces: Optional[List[Trace]] = None,
+        **kwargs: Any,
     ) -> RunResult:
         """
         Run monitor evaluation.
@@ -1113,7 +1116,11 @@ class Monitor(BaseRunner):
         else:
             # Fetch from trace service or file
             try:
-                fetched = self._fetch_traces(start_time=start_time, end_time=end_time, limit=limit)
+                fetched = self._fetch_traces(
+                    start_time=start_time or "",
+                    end_time=end_time or "",
+                    limit=limit or 100,
+                )
                 # Parse fetched traces to Trace
                 for trace in fetched:
                     try:

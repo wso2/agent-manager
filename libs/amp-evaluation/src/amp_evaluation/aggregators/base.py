@@ -232,7 +232,7 @@ class Aggregation:
 
 # Default aggregations for evaluators that don't specify any
 # Using only MEAN as the default keeps it simple and predictable
-DEFAULT_AGGREGATIONS: List[Union[AggregationType, Aggregation]] = [
+DEFAULT_AGGREGATIONS: List[AggregationType] = [
     AggregationType.MEAN,
 ]
 

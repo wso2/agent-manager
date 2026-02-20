@@ -19,7 +19,7 @@ Unit tests for DeepEval agent evaluators.
 
 Tests all evaluators in evaluators/builtin/deepeval/agent.py
 Uses real DeepEval library with mocked metric.measure() to verify:
-1. Correct construction of DeepEval LLMTestCase from our Observation
+1. Correct construction of DeepEval LLMTestCase from our Trace
 2. Proper extraction of scores from DeepEval metrics
 3. Integration with actual DeepEval data structures
 """
@@ -56,7 +56,7 @@ from amp_evaluation.trace import (
 
 @pytest.fixture
 def basic_trajectory():
-    """Create a basic observation for testing."""
+    """Create a basic trace for testing."""
     trajectory = Trace(
         trace_id="test-trace-1",
         input="Book the cheapest flight from NYC to Paris",
@@ -73,7 +73,7 @@ def basic_trajectory():
 
 @pytest.fixture
 def trajectory_with_tools():
-    """Create an observation with tool calls."""
+    """Create a trace with tool calls."""
     tool_span_1 = ToolSpan(
         span_id="tool-1",
         name="search_flights",
@@ -339,7 +339,6 @@ class TestDeepEvalToolCorrectnessEvaluator:
 
             assert result.score == 0.9
             assert result.passed is True
-        assert result.passed is True
 
 
 class TestDeepEvalArgumentCorrectnessEvaluator:
