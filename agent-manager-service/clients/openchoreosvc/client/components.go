@@ -130,12 +130,6 @@ func createComponentCRForInternalAgents(orgName, projectName string, req CreateC
 		},
 	}
 
-	// Add instrumentation configs to component parameters (not workflow params)
-	if req.Configurations != nil {
-		if req.Configurations.EnableAutoInstrumentation != nil {
-			parameters["enableAutoInstrumentation"] = *req.Configurations.EnableAutoInstrumentation
-		}
-	}
 	componentWorkflowParameters, err := buildWorkflowParameters(req)
 	if err != nil {
 		return nil, fmt.Errorf("error building workflow parameters: %w", err)
@@ -746,40 +740,6 @@ func extractResourceConfig(resources map[string]interface{}) *ResourceConfig {
 	return nil
 }
 
-// UpdateComponentInstrumentationConfig updates the enableAutoInstrumentation parameter stored in the component CR
-func (c *openChoreoClient) UpdateComponentInstrumentationConfig(ctx context.Context, namespaceName, projectName, componentName string, enableAutoInstrumentation bool) error {
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
-	if err != nil {
-		return fmt.Errorf("failed to get component resource: %w", err)
-	}
-
-	spec, ok := componentCR["spec"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid spec in component CR")
-	}
-
-	parameters, ok := spec["parameters"].(map[string]interface{})
-	if !ok {
-		parameters = make(map[string]interface{})
-		spec["parameters"] = parameters
-	}
-
-	parameters["enableAutoInstrumentation"] = enableAutoInstrumentation
-
-	applyResp, err := c.ocClient.ApplyResourceWithResponse(ctx, componentCR)
-	if err != nil {
-		return fmt.Errorf("failed to update component instrumentation config: %w", err)
-	}
-
-	if applyResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(applyResp.StatusCode(), applyResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
-		})
-	}
-
-	return nil
-}
-
 func (c *openChoreoClient) DeleteComponent(ctx context.Context, namespaceName, projectName, componentName string) error {
 	resp, err := c.ocClient.DeleteComponentWithResponse(ctx, namespaceName, projectName, componentName)
 	if err != nil {
@@ -839,31 +799,24 @@ func getInputInterfaceConfig(req CreateComponentRequest) (int32, string) {
 	return req.InputInterface.Port, req.InputInterface.BasePath
 }
 
-func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) error {
-	// Get the current traits for the component
+// listComponentTraits retrieves and parses the current traits for a component
+func (c *openChoreoClient) listComponentTraits(ctx context.Context, namespaceName, projectName, componentName string) ([]gen.ComponentTraitRequest, error) {
 	listResp, err := c.ocClient.ListComponentTraitsWithResponse(ctx, namespaceName, projectName, componentName)
 	if err != nil {
-		return fmt.Errorf("failed to list component traits: %w", err)
+		return nil, fmt.Errorf("failed to list component traits: %w", err)
 	}
 
 	if listResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(listResp.StatusCode(), listResp.Body, ErrorContext{
+		return nil, handleErrorResponse(listResp.StatusCode(), listResp.Body, ErrorContext{
 			NotFoundErr: utils.ErrAgentNotFound,
 		})
 	}
 
-	// Build the new traits list including the new trait
 	var traits []gen.ComponentTraitRequest
-
-	// Parse existing traits from the generic response
 	if listResp.JSON200 != nil && listResp.JSON200.Data != nil && listResp.JSON200.Data.Items != nil {
 		for _, item := range *listResp.JSON200.Data.Items {
 			name, _ := item["name"].(string)
 			instanceName, _ := item["instanceName"].(string)
-			if name == string(traitType) {
-				// Trait already exists, no need to add
-				return nil
-			}
 			trait := gen.ComponentTraitRequest{
 				Name:         name,
 				InstanceName: instanceName,
@@ -872,6 +825,22 @@ func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, proje
 				trait.Parameters = &params
 			}
 			traits = append(traits, trait)
+		}
+	}
+
+	return traits, nil
+}
+
+func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) error {
+	traits, err := c.listComponentTraits(ctx, namespaceName, projectName, componentName)
+	if err != nil {
+		return err
+	}
+
+	// Check if trait already exists
+	for _, trait := range traits {
+		if trait.Name == string(traitType) {
+			return nil
 		}
 	}
 
@@ -903,47 +872,26 @@ func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, proje
 
 // DetachTrait removes a trait from a component
 func (c *openChoreoClient) DetachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) error {
-	// Get the current traits for the component
-	listResp, err := c.ocClient.ListComponentTraitsWithResponse(ctx, namespaceName, projectName, componentName)
+	traits, err := c.listComponentTraits(ctx, namespaceName, projectName, componentName)
 	if err != nil {
-		return fmt.Errorf("failed to list component traits: %w", err)
+		return err
 	}
 
-	if listResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(listResp.StatusCode(), listResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
-		})
-	}
-
-	// Build the new traits list excluding the trait to detach
-	var traits []gen.ComponentTraitRequest
+	// Build new traits list excluding the trait to detach
+	var updatedTraits []gen.ComponentTraitRequest
 	traitFound := false
-
-	// Parse existing traits from the generic response
-	if listResp.JSON200 != nil && listResp.JSON200.Data != nil && listResp.JSON200.Data.Items != nil {
-		for _, item := range *listResp.JSON200.Data.Items {
-			name, _ := item["name"].(string)
-			instanceName, _ := item["instanceName"].(string)
-			if name == string(traitType) {
-				// Skip this trait (it will be removed)
-				traitFound = true
-				continue
-			}
-			trait := gen.ComponentTraitRequest{
-				Name:         name,
-				InstanceName: instanceName,
-			}
-			if params, ok := item["parameters"].(map[string]interface{}); ok {
-				trait.Parameters = &params
-			}
-			traits = append(traits, trait)
+	for _, trait := range traits {
+		if trait.Name == string(traitType) {
+			traitFound = true
+			continue
 		}
+		updatedTraits = append(updatedTraits, trait)
 	}
 
 	if !traitFound {
-		// Trait doesn't exist, nothing to do
 		return nil
 	}
+	traits = updatedTraits
 
 	// Update traits (with the trait removed)
 	updateReq := gen.UpdateComponentTraitsJSONRequestBody{
@@ -966,25 +914,14 @@ func (c *openChoreoClient) DetachTrait(ctx context.Context, namespaceName, proje
 
 // HasTrait checks if a component has a specific trait attached
 func (c *openChoreoClient) HasTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) (bool, error) {
-	// Get the current traits for the component
-	listResp, err := c.ocClient.ListComponentTraitsWithResponse(ctx, namespaceName, projectName, componentName)
+	traits, err := c.listComponentTraits(ctx, namespaceName, projectName, componentName)
 	if err != nil {
-		return false, fmt.Errorf("failed to list component traits: %w", err)
+		return false, err
 	}
 
-	if listResp.StatusCode() != http.StatusOK {
-		return false, handleErrorResponse(listResp.StatusCode(), listResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
-		})
-	}
-
-	// Check if the trait exists
-	if listResp.JSON200 != nil && listResp.JSON200.Data != nil && listResp.JSON200.Data.Items != nil {
-		for _, item := range *listResp.JSON200.Data.Items {
-			name, _ := item["name"].(string)
-			if name == string(traitType) {
-				return true, nil
-			}
+	for _, trait := range traits {
+		if trait.Name == string(traitType) {
+			return true, nil
 		}
 	}
 
@@ -1404,14 +1341,6 @@ func convertComponentCR(componentCR map[string]interface{}) (*models.AgentRespon
 					agent.InputInterface = &models.InputInterface{}
 				}
 				agent.InputInterface.BasePath = basePath
-			}
-
-			// Extract enableAutoInstrumentation
-			if enableAutoInstrumentation, ok := parameters["enableAutoInstrumentation"].(bool); ok {
-				if agent.Configurations == nil {
-					agent.Configurations = &models.Configurations{}
-				}
-				agent.Configurations.EnableAutoInstrumentation = &enableAutoInstrumentation
 			}
 		}
 
