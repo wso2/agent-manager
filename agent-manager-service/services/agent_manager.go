@@ -339,9 +339,7 @@ func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, 
 		OrgName:                   orgName,
 		ProjectName:               projectName,
 		AgentName:                 agentName,
-		AgentID:                   agentUUID,
 		EnvironmentName:           targetEnv.Name,
-		EnvironmentID:             targetEnv.UUID,
 		EnableAutoInstrumentation: enableAutoInstrumentation,
 	}
 
@@ -621,13 +619,6 @@ func (s *agentManagerService) persistInitialAgentConfig(ctx context.Context, org
 		s.logger.Info("persistInitialAgentConfig: No value in request, using default true", "agentName", req.Name, "configurations_nil", req.Configurations == nil)
 	}
 
-	// Get the agent to retrieve UUID
-	agent, err := s.ocClient.GetComponent(ctx, orgName, projectName, req.Name)
-	if err != nil {
-		s.logger.Warn("Failed to get agent for config persistence", "agentName", req.Name, "error", err)
-		return
-	}
-
 	// Get the first/lowest environment
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
@@ -651,9 +642,7 @@ func (s *agentManagerService) persistInitialAgentConfig(ctx context.Context, org
 		OrgName:                   orgName,
 		ProjectName:               projectName,
 		AgentName:                 req.Name,
-		AgentID:                   agent.UUID,
 		EnvironmentName:           targetEnv.Name,
-		EnvironmentID:             targetEnv.UUID,
 		EnableAutoInstrumentation: enableAutoInstrumentation,
 	}
 
@@ -1332,9 +1321,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 			OrgName:                   orgName,
 			ProjectName:               projectName,
 			AgentName:                 agentName,
-			AgentID:                   agent.UUID,
 			EnvironmentName:           targetEnv.Name,
-			EnvironmentID:             targetEnv.UUID,
 			EnableAutoInstrumentation: enableAutoInstrumentation,
 		}
 		if configErr := s.agentConfigRepo.Upsert(agentConfig); configErr != nil {
