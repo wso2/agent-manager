@@ -34,7 +34,6 @@ func convertSpecEvaluatorsToModels(specEvals []spec.MonitorEvaluator) []models.M
 			Identifier:  eval.Identifier,
 			DisplayName: eval.DisplayName,
 			Config:      eval.Config,
-			Level:       eval.Level,
 		}
 	}
 	return modelsEvals
@@ -51,7 +50,6 @@ func convertModelsEvaluatorsToSpec(modelsEvals []models.MonitorEvaluator) []spec
 			Identifier:  eval.Identifier,
 			DisplayName: eval.DisplayName,
 			Config:      eval.Config,
-			Level:       eval.Level,
 		}
 	}
 	return specEvals

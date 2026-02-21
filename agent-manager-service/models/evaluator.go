@@ -20,39 +20,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
-// Evaluator represents an evaluator definition in the catalog
-// Supports both platform-provided builtin evaluators and organization-specific custom evaluators
-type Evaluator struct {
-	ID          uuid.UUID `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
-	Identifier  string    `gorm:"column:identifier;not null"`
-	DisplayName string    `gorm:"column:display_name;not null"`
-	Description string    `gorm:"column:description;not null;default:''"`
-	Version     string    `gorm:"column:version;not null;default:'1.0'"`
-
-	// SDK binding
-	Provider  string `gorm:"column:provider;not null"`
-	ClassName string `gorm:"column:class_name;not null"`
-
-	// Classification
-	Tags         []string               `gorm:"column:tags;type:jsonb;serializer:json;not null;default:'[]'"`
-	IsBuiltin    bool                   `gorm:"column:is_builtin;not null;default:false"`
-	ConfigSchema []EvaluatorConfigParam `gorm:"column:config_schema;type:jsonb;serializer:json;not null;default:'[]'"`
-
-	// Ownership (NULL for builtins)
-	OrgID     *uuid.UUID `gorm:"column:org_id;type:uuid"`
-	CreatedBy string     `gorm:"column:created_by"`
-
-	// Timestamps
-	CreatedAt time.Time `gorm:"column:created_at;not null;default:NOW()"`
-	UpdatedAt time.Time `gorm:"column:updated_at;not null;default:NOW()"`
-}
-
 // EvaluatorConfigParam represents a single configuration parameter for an evaluator.
-// JSON tags use snake_case to match the Python-generated builtin_evaluators.json
-// which is stored as raw JSONB in the evaluator_catalog table.
+// JSON tags use snake_case to match the Python-generated catalog output.
 type EvaluatorConfigParam struct {
 	Key         string      `json:"key"`
 	Type        string      `json:"type"` // string, integer, float, boolean, array, enum
@@ -62,19 +33,6 @@ type EvaluatorConfigParam struct {
 	Min         *float64    `json:"min,omitempty"`
 	Max         *float64    `json:"max,omitempty"`
 	EnumValues  []string    `json:"enum_values,omitempty"`
-}
-
-// TableName specifies the table name for the Evaluator model
-func (Evaluator) TableName() string {
-	return "evaluator_catalog"
-}
-
-// BeforeCreate hook is called before creating a new evaluator
-func (e *Evaluator) BeforeCreate(tx *gorm.DB) error {
-	if e.ID == uuid.Nil {
-		e.ID = uuid.New()
-	}
-	return nil
 }
 
 // EvaluatorResponse is the API response DTO for an evaluator
@@ -90,21 +48,4 @@ type EvaluatorResponse struct {
 	ConfigSchema []EvaluatorConfigParam `json:"configSchema"`
 	CreatedAt    time.Time              `json:"createdAt"`
 	UpdatedAt    time.Time              `json:"updatedAt"`
-}
-
-// ToResponse converts an Evaluator model to EvaluatorResponse DTO
-func (e *Evaluator) ToResponse() *EvaluatorResponse {
-	return &EvaluatorResponse{
-		ID:           e.ID,
-		Identifier:   e.Identifier,
-		DisplayName:  e.DisplayName,
-		Description:  e.Description,
-		Version:      e.Version,
-		Provider:     e.Provider,
-		Tags:         e.Tags,
-		IsBuiltin:    e.IsBuiltin,
-		ConfigSchema: e.ConfigSchema,
-		CreatedAt:    e.CreatedAt,
-		UpdatedAt:    e.UpdatedAt,
-	}
 }

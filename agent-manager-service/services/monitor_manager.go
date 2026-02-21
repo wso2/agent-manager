@@ -631,27 +631,7 @@ func (s *monitorManagerService) validateEvaluators(ctx context.Context, evaluato
 			return fmt.Errorf("%s: failed to look up evaluator %q: %w", prefix, eval.Identifier, err)
 		}
 
-		// Validate level against the schema's level enum_values (which are already filtered to supported levels)
-		for _, param := range evaluatorResp.ConfigSchema {
-			if param.Key == "level" {
-				if len(param.EnumValues) > 0 {
-					found := false
-					for _, v := range param.EnumValues {
-						if v == eval.Level {
-							found = true
-							break
-						}
-					}
-					if !found {
-						return fmt.Errorf("%s: level %q is not supported by evaluator %q (supported: %v): %w",
-							prefix, eval.Level, eval.Identifier, param.EnumValues, utils.ErrInvalidInput)
-					}
-				}
-				break
-			}
-		}
-
-		// Validate and apply defaults to config
+		// Validate and apply defaults to config (including level)
 		if err := validateAndApplyDefaults(i, eval.Identifier, &eval.Config, evaluatorResp.ConfigSchema); err != nil {
 			return err
 		}
@@ -664,17 +644,9 @@ func (s *monitorManagerService) validateEvaluators(ctx context.Context, evaluato
 func validateAndApplyDefaults(idx int, identifier string, config *map[string]interface{}, schema []models.EvaluatorConfigParam) error {
 	prefix := fmt.Sprintf("evaluators[%d]", idx)
 
-	// Filter out level from schema — it's a top-level MonitorEvaluator field
-	var filteredSchema []models.EvaluatorConfigParam
-	for _, p := range schema {
-		if p.Key != "level" {
-			filteredSchema = append(filteredSchema, p)
-		}
-	}
-
 	// Build schema lookup
 	schemaMap := make(map[string]models.EvaluatorConfigParam)
-	for _, p := range filteredSchema {
+	for _, p := range schema {
 		schemaMap[p.Key] = p
 	}
 
@@ -692,7 +664,7 @@ func validateAndApplyDefaults(idx int, identifier string, config *map[string]int
 	}
 
 	// Check required params and populate defaults
-	for _, param := range filteredSchema {
+	for _, param := range schema {
 		_, present := (*config)[param.Key]
 		if !present {
 			if param.Required && param.Default == nil {

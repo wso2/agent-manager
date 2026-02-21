@@ -21,8 +21,8 @@ import (
 )
 
 // Create monitors and monitor_runs tables
-var migration006 = migration{
-	ID: 6,
+var migration005 = migration{
+	ID: 5,
 	Migrate: func(db *gorm.DB) error {
 		createMonitorsTable := `
 		CREATE TABLE IF NOT EXISTS monitors (
