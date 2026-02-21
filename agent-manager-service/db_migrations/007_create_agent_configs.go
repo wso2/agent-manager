@@ -32,11 +32,9 @@ var migration007 = migration{
 			org_name                    VARCHAR(255) NOT NULL,
 			project_name                VARCHAR(63) NOT NULL,
 			agent_name                  VARCHAR(63) NOT NULL,
-			agent_id                    VARCHAR(255) NOT NULL,
 
 			-- Environment identification
 			environment_name            VARCHAR(63) NOT NULL,
-			environment_id              VARCHAR(255) NOT NULL,
 
 			-- Configuration settings
 			enable_auto_instrumentation BOOLEAN NOT NULL DEFAULT true,
@@ -45,8 +43,8 @@ var migration007 = migration{
 			created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-			-- Unique constraint: one config per agent per environment
-			CONSTRAINT uq_agent_config_agent_env UNIQUE (org_name, agent_name, environment_name)
+			-- Unique constraint: one config per agent per environment (must include project_name)
+			CONSTRAINT uq_agent_config_agent_env UNIQUE (org_name, project_name, agent_name, environment_name)
 		)`
 
 		createIndexes := []string{

@@ -52,7 +52,7 @@ func (r *AgentConfigRepo) Upsert(config *models.AgentConfig) error {
 	// Use Select("*") to force GORM to include all fields including boolean false values
 	// Without this, GORM skips "zero value" fields like false booleans during Create
 	return r.db.Select("*").Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "org_name"}, {Name: "agent_name"}, {Name: "environment_name"}},
+		Columns: []clause.Column{{Name: "org_name"}, {Name: "project_name"}, {Name: "agent_name"}, {Name: "environment_name"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{
 			"enable_auto_instrumentation": config.EnableAutoInstrumentation,
 			"updated_at":                  clause.Expr{SQL: "NOW()"},

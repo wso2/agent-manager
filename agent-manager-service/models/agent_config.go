@@ -29,9 +29,7 @@ type AgentConfig struct {
 	OrgName                   string    `gorm:"column:org_name;not null"`
 	ProjectName               string    `gorm:"column:project_name;not null"`
 	AgentName                 string    `gorm:"column:agent_name;not null"`
-	AgentID                   string    `gorm:"column:agent_id;not null"`
 	EnvironmentName           string    `gorm:"column:environment_name;not null"`
-	EnvironmentID             string    `gorm:"column:environment_id;not null"`
 	EnableAutoInstrumentation bool      `gorm:"column:enable_auto_instrumentation;not null"`
 	CreatedAt                 time.Time `gorm:"column:created_at;not null;default:NOW()"`
 	UpdatedAt                 time.Time `gorm:"column:updated_at;not null;default:NOW()"`
