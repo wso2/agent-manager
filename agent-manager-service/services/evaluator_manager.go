@@ -64,6 +64,12 @@ func (s *evaluatorManagerService) ListEvaluators(_ context.Context, _ *uuid.UUID
 	// Apply pagination
 	offset := int(filters.Offset)
 	limit := int(filters.Limit)
+	if offset < 0 {
+		offset = 0
+	}
+	if limit < 0 {
+		limit = 0
+	}
 
 	if offset >= len(all) {
 		return []*models.EvaluatorResponse{}, total, nil

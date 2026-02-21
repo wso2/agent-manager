@@ -63,7 +63,7 @@ func (c *evaluatorController) ListEvaluators(w http.ResponseWriter, r *http.Requ
 
 	// Parse query parameters
 	limit, _ := strconv.ParseInt(r.URL.Query().Get("limit"), 10, 32)
-	if limit == 0 {
+	if limit <= 0 {
 		limit = 20 // default
 	}
 	if limit > 100 {
@@ -71,6 +71,9 @@ func (c *evaluatorController) ListEvaluators(w http.ResponseWriter, r *http.Requ
 	}
 
 	offset, _ := strconv.ParseInt(r.URL.Query().Get("offset"), 10, 32)
+	if offset < 0 {
+		offset = 0
+	}
 
 	// Parse tags filter (comma-separated)
 	var tags []string
