@@ -92,14 +92,6 @@ func (c *monitorController) CreateMonitor(w http.ResponseWriter, r *http.Request
 			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].displayName is required", i))
 			return
 		}
-		if eval.Level == "" {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].level is required", i))
-			return
-		}
-		if eval.Level != "trace" && eval.Level != "agent" && eval.Level != "span" {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].level must be one of: trace, agent, span", i))
-			return
-		}
 	}
 	if req.Type == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor type is required (future or past)")
@@ -245,14 +237,6 @@ func (c *monitorController) UpdateMonitor(w http.ResponseWriter, r *http.Request
 		}
 		if eval.DisplayName == "" {
 			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].displayName is required", i))
-			return
-		}
-		if eval.Level == "" {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].level is required", i))
-			return
-		}
-		if eval.Level != "trace" && eval.Level != "agent" && eval.Level != "span" {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].level must be one of: trace, agent, span", i))
 			return
 		}
 	}

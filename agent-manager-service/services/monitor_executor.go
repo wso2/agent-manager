@@ -220,8 +220,6 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 }
 
 // serializeEvaluators converts evaluators to a JSON string for the evaluation job workflow parameter.
-// It merges the top-level Level field into each evaluator's Config map because the amp-evaluation
-// SDK expects "level" as a regular config kwarg (it's a Param on BaseEvaluator).
 func serializeEvaluators(evaluators []models.MonitorEvaluator) (string, error) {
 	type evalJobEvaluator struct {
 		Identifier  string                 `json:"identifier"`
@@ -231,16 +229,10 @@ func serializeEvaluators(evaluators []models.MonitorEvaluator) (string, error) {
 
 	jobEvaluators := make([]evalJobEvaluator, len(evaluators))
 	for i, eval := range evaluators {
-		config := make(map[string]interface{}, len(eval.Config)+1)
-		for k, v := range eval.Config {
-			config[k] = v
-		}
-		config["level"] = eval.Level
-
 		jobEvaluators[i] = evalJobEvaluator{
 			Identifier:  eval.Identifier,
 			DisplayName: eval.DisplayName,
-			Config:      config,
+			Config:      eval.Config,
 		}
 	}
 

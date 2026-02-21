@@ -21,8 +21,8 @@ import (
 )
 
 // Create monitor_run_evaluators and scores tables (redesigned schema)
-var migration007 = migration{
-	ID: 7,
+var migration006 = migration{
+	ID: 6,
 	Migrate: func(db *gorm.DB) error {
 		createMonitorRunEvaluatorsTable := `
 		CREATE TABLE IF NOT EXISTS monitor_run_evaluators (

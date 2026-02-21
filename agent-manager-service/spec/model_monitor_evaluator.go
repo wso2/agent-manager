@@ -23,21 +23,18 @@ type MonitorEvaluator struct {
 	Identifier string `json:"identifier"`
 	// User-facing name, unique per monitor (e.g., \"Latency Check\", \"Customer Query Latency\")
 	DisplayName string `json:"displayName"`
-	// Optional evaluator-specific configuration parameters
+	// Evaluator-specific configuration parameters (includes 'level' for evaluation granularity)
 	Config map[string]interface{} `json:"config,omitempty"`
-	// Evaluation level
-	Level string `json:"level"`
 }
 
 // NewMonitorEvaluator instantiates a new MonitorEvaluator object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewMonitorEvaluator(identifier string, displayName string, level string) *MonitorEvaluator {
+func NewMonitorEvaluator(identifier string, displayName string) *MonitorEvaluator {
 	this := MonitorEvaluator{}
 	this.Identifier = identifier
 	this.DisplayName = displayName
-	this.Level = level
 	return &this
 }
 
@@ -129,30 +126,6 @@ func (o *MonitorEvaluator) SetConfig(v map[string]interface{}) {
 	o.Config = v
 }
 
-// GetLevel returns the Level field value
-func (o *MonitorEvaluator) GetLevel() string {
-	if o == nil {
-		var ret string
-		return ret
-	}
-
-	return o.Level
-}
-
-// GetLevelOk returns a tuple with the Level field value
-// and a boolean to check if the value has been set.
-func (o *MonitorEvaluator) GetLevelOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.Level, true
-}
-
-// SetLevel sets field value
-func (o *MonitorEvaluator) SetLevel(v string) {
-	o.Level = v
-}
-
 func (o MonitorEvaluator) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -168,7 +141,6 @@ func (o MonitorEvaluator) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Config) {
 		toSerialize["config"] = o.Config
 	}
-	toSerialize["level"] = o.Level
 	return toSerialize, nil
 }
 

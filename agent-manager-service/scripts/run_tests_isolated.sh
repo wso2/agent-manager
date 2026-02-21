@@ -77,11 +77,6 @@ echo "Step 2: Checking RSA keys"
 bash scripts/gen_keys.sh
 echo ""
 
-# Step 2.5: Generate builtin evaluators
-echo "Step 2.5: Generating builtin evaluators"
-bash scripts/generate-builtin-evaluators.sh --dev --output data/builtin_evaluators.json
-echo ""
-
 # Step 3: Run migrations
 echo "Step 3: Running migrations on test database"
 export ENV_FILE_PATH="$ENV_TEST_FILE"

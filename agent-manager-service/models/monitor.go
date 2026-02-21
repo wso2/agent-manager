@@ -51,7 +51,6 @@ type MonitorEvaluator struct {
 	Identifier  string                 `json:"identifier" validate:"required,min=1"`
 	DisplayName string                 `json:"displayName" validate:"required,min=1"`
 	Config      map[string]interface{} `json:"config,omitempty"`
-	Level       string                 `json:"level" validate:"required,oneof=trace agent span"`
 }
 
 // Monitor is the GORM model for the monitors table
