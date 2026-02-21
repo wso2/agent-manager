@@ -49,6 +49,7 @@ export const connectAgentSchema = z.object({
 export const createAgentSchema = z.object({
   ...baseAgentFields,
   deploymentType: z.literal('new').optional(),
+  enableAutoInstrumentation: z.boolean().default(true),
   repositoryUrl: z
     .string()
     .trim()

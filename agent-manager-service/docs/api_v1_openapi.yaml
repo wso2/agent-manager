@@ -5164,6 +5164,8 @@ components:
           $ref: "#/components/schemas/Build"
         inputInterface:
           $ref: "#/components/schemas/InputInterface"
+        configurations:
+          $ref: "#/components/schemas/Configurations"
 
     UpdateAgentResourceConfigsRequest:
       type: object
@@ -5538,6 +5540,10 @@ components:
           description: Environment variables
           items:
             $ref: "#/components/schemas/EnvironmentVariable"
+        enableAutoInstrumentation:
+          type: boolean
+          description: Enable auto instrumentation for observability
+          default: true
       required:
         - imageId
     Configurations:
@@ -5548,6 +5554,10 @@ components:
           description: Environment variables
           items:
             $ref: "#/components/schemas/EnvironmentVariable"
+        enableAutoInstrumentation:
+          type: boolean
+          description: Enable automatic OTEL instrumentation for the agent
+          default: true
     EnvironmentVariable:
       type: object
       required:

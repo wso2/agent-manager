@@ -26,6 +26,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
@@ -57,6 +58,7 @@ type agentManagerService struct {
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient
 	gitRepositoryService   RepositoryService
 	tokenManagerService    AgentTokenManagerService
+	agentConfigRepo        repositories.AgentConfigRepository
 	logger                 *slog.Logger
 }
 
@@ -65,6 +67,7 @@ func NewAgentManagerService(
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient,
 	gitRepositoryService RepositoryService,
 	tokenManagerService AgentTokenManagerService,
+	agentConfigRepo repositories.AgentConfigRepository,
 	logger *slog.Logger,
 ) AgentManagerService {
 	return &agentManagerService{
@@ -72,6 +75,7 @@ func NewAgentManagerService(
 		observabilitySvcClient: observabilitySvcClient,
 		gitRepositoryService:   gitRepositoryService,
 		tokenManagerService:    tokenManagerService,
+		agentConfigRepo:        agentConfigRepo,
 		logger:                 logger,
 	}
 }
@@ -117,16 +121,26 @@ func mapBuildConfig(specBuild *spec.Build) *client.BuildConfig {
 
 // mapConfigurations converts spec.Configurations to client.Configurations
 func mapConfigurations(specConfigs *spec.Configurations) *client.Configurations {
-	if specConfigs == nil || len(specConfigs.Env) == 0 {
+	if specConfigs == nil {
+		return nil
+	}
+
+	// Check if there's anything to map
+	if len(specConfigs.Env) == 0 && specConfigs.EnableAutoInstrumentation == nil {
 		return nil
 	}
 
 	configs := &client.Configurations{
-		Env: make([]client.EnvVar, len(specConfigs.Env)),
+		EnableAutoInstrumentation: specConfigs.EnableAutoInstrumentation,
 	}
-	for i, env := range specConfigs.Env {
-		configs.Env[i] = client.EnvVar{Key: env.Key, Value: env.Value}
+
+	if len(specConfigs.Env) > 0 {
+		configs.Env = make([]client.EnvVar, len(specConfigs.Env))
+		for i, env := range specConfigs.Env {
+			configs.Env[i] = client.EnvVar{Key: env.Key, Value: env.Value}
+		}
 	}
+
 	return configs
 }
 
@@ -168,6 +182,7 @@ func mapInputInterface(specInterface *spec.InputInterface) *client.InputInterfac
 // enableInstrumentation enables observability instrumentation for the agent based on build type.
 // For buildpack builds (Python): attaches OTEL instrumentation trait
 // For docker builds: injects tracing environment variables
+// Note: This function should only be called when instrumentation is enabled (check before calling)
 func (s *agentManagerService) enableInstrumentation(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
 	if req.AgentType.Type != string(utils.AgentTypeAPI) {
 		s.logger.Debug("Skipping instrumentation for non-API agent", "agentName", req.Name, "agentType", req.AgentType.Type)
@@ -216,6 +231,103 @@ func (s *agentManagerService) attachOTELInstrumentationTrait(ctx context.Context
 	return nil
 }
 
+// detachOTELInstrumentationTrait removes the OTEL instrumentation trait from the agent
+func (s *agentManagerService) detachOTELInstrumentationTrait(ctx context.Context, orgName, projectName, agentName string) error {
+	if err := s.ocClient.DetachTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation); err != nil {
+		return fmt.Errorf("error detaching OTEL instrumentation trait: %w", err)
+	}
+
+	s.logger.Info("Disabled instrumentation for buildpack agent", "agentName", agentName)
+	return nil
+}
+
+// handleInstrumentationUpdate handles enabling/disabling instrumentation when build parameters are updated
+// It always injects tracing env vars and manages the OTEL instrumentation trait for Python buildpack builds
+func (s *agentManagerService) handleInstrumentationUpdate(ctx context.Context, orgName, projectName, agentName string, existingAgent *models.AgentResponse, req *spec.UpdateAgentBuildParametersRequest) error {
+	// Only handle instrumentation for API agents
+	if existingAgent.Type.Type != string(utils.AgentTypeAPI) {
+		return nil
+	}
+
+	// Check if this is a Python buildpack build
+	isPythonBuildpack := req.Build.BuildpackBuild != nil && req.Build.BuildpackBuild.Buildpack.Language == string(utils.LanguagePython)
+
+	// Determine if instrumentation should be enabled
+	// Default to true if not specified, but only for Python buildpack builds
+	enableInstrumentation := true
+	if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil {
+		enableInstrumentation = *req.Configurations.EnableAutoInstrumentation
+	} else if !isPythonBuildpack {
+		enableInstrumentation = false
+	} else {
+		// No explicit config provided for Python buildpack - preserve current state
+		s.logger.Debug("EnableAutoInstrumentation not specified, preserving current state", "agentName", agentName)
+		return nil
+	}
+
+	// Rule 1: ALWAYS inject tracing env vars (for both Python and Docker builds)
+	s.logger.Debug("Injecting tracing env vars", "agentName", agentName, "isPython", isPythonBuildpack)
+	if err := s.injectTracingEnvVarsByName(ctx, orgName, projectName, agentName); err != nil {
+		return fmt.Errorf("failed to inject tracing env vars: %w", err)
+	}
+
+	// Rule 2: Manage the instrumentation trait for Python buildpack only
+	// - Add trait if: Python buildpack AND instrumentation enabled
+	// - Remove trait otherwise
+	if isPythonBuildpack && enableInstrumentation {
+		s.logger.Info("Attaching instrumentation trait", "agentName", agentName)
+		if err := s.attachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); err != nil {
+			return fmt.Errorf("failed to attach instrumentation trait: %w", err)
+		}
+	} else {
+		s.logger.Info("Detaching instrumentation trait", "agentName", agentName, "isPython", isPythonBuildpack, "enabled", enableInstrumentation)
+		if err := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); err != nil {
+			return fmt.Errorf("failed to detach instrumentation trait: %w", err)
+		}
+	}
+
+	// Persist updated instrumentation config to database
+	s.persistInstrumentationConfig(ctx, orgName, projectName, agentName, existingAgent.UUID, enableInstrumentation)
+
+	return nil
+}
+
+// persistInstrumentationConfig saves the instrumentation config to the database
+func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, orgName, projectName, agentName, agentUUID string, enableAutoInstrumentation bool) {
+	// Get the first/lowest environment
+	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
+	if err != nil {
+		s.logger.Warn("Failed to get deployment pipeline for config persistence", "agentName", agentName, "error", err)
+		return
+	}
+
+	lowestEnv := findLowestEnvironment(pipeline.PromotionPaths)
+	if lowestEnv == "" {
+		s.logger.Warn("No environment found for config persistence", "agentName", agentName)
+		return
+	}
+
+	targetEnv, err := s.ocClient.GetEnvironment(ctx, orgName, lowestEnv)
+	if err != nil {
+		s.logger.Warn("Failed to get environment details for config persistence", "agentName", agentName, "environment", lowestEnv, "error", err)
+		return
+	}
+
+	agentConfig := &models.AgentConfig{
+		OrgName:                   orgName,
+		ProjectName:               projectName,
+		AgentName:                 agentName,
+		EnvironmentName:           targetEnv.Name,
+		EnableAutoInstrumentation: enableAutoInstrumentation,
+	}
+
+	if err := s.agentConfigRepo.Upsert(agentConfig); err != nil {
+		s.logger.Warn("Failed to persist instrumentation config to database", "agentName", agentName, "error", err)
+	} else {
+		s.logger.Debug("Persisted instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "enableAutoInstrumentation", enableAutoInstrumentation)
+	}
+}
+
 // generateAgentAPIKey generates an agent API key (JWT token) for the agent
 // This is a common utility used by both buildpack and docker agent instrumentation
 func (s *agentManagerService) generateAgentAPIKey(ctx context.Context, orgName, projectName, agentName string) (string, error) {
@@ -245,14 +357,15 @@ func (s *agentManagerService) generateAgentAPIKey(ctx context.Context, orgName, 
 	return tokenResp.Token, nil
 }
 
-// injectTracingEnvVarsForDockerAgents injects tracing-related environment variables for docker-based agents
-func (s *agentManagerService) injectTracingEnvVarsForDockerAgents(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
-	s.logger.Debug("Injecting tracing environment variables for docker-based agent", "agentName", req.Name)
+// generateTracingEnvVars generates tracing-related environment variables (OTEL endpoint and
+// agent API key) for the named agent. Returns the env vars without persisting them.
+func (s *agentManagerService) generateTracingEnvVars(ctx context.Context, orgName, projectName, agentName string) ([]client.EnvVar, error) {
+	s.logger.Debug("Generating tracing environment variables", "agentName", agentName)
 
 	// Generate agent API key
-	apiKey, err := s.generateAgentAPIKey(ctx, orgName, projectName, req.Name)
+	apiKey, err := s.generateAgentAPIKey(ctx, orgName, projectName, agentName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Get OTEL exporter endpoint from config
@@ -271,18 +384,38 @@ func (s *agentManagerService) injectTracingEnvVarsForDockerAgents(ctx context.Co
 		},
 	}
 
-	// Update component configurations with tracing environment variables
-	if err := s.updateComponentEnvVars(ctx, orgName, projectName, req.Name, tracingEnvVars); err != nil {
-		s.logger.Error("Failed to update component with tracing env vars", "agentName", req.Name, "error", err)
+	return tracingEnvVars, nil
+}
+
+// injectTracingEnvVarsByName injects tracing-related environment variables (OTEL endpoint and
+// agent API key) for the named agent into the Component CR. This is used during agent creation
+// for docker and Python buildpack agents (the latter when auto-instrumentation is disabled).
+func (s *agentManagerService) injectTracingEnvVarsByName(ctx context.Context, orgName, projectName, agentName string) error {
+	s.logger.Debug("Injecting tracing environment variables", "agentName", agentName)
+
+	tracingEnvVars, err := s.generateTracingEnvVars(ctx, orgName, projectName, agentName)
+	if err != nil {
+		return err
+	}
+
+	// Update component configurations with tracing environment variables (for persistence)
+	if err := s.updateComponentEnvVars(ctx, orgName, projectName, agentName, tracingEnvVars); err != nil {
+		s.logger.Error("Failed to update component with tracing env vars", "agentName", agentName, "error", err)
 		return fmt.Errorf("failed to update component env vars: %w", err)
 	}
 
-	s.logger.Info("Injected tracing environment variables for docker agent",
-		"agentName", req.Name,
+	s.logger.Info("Injected tracing environment variables",
+		"agentName", agentName,
 		"envVarCount", len(tracingEnvVars),
 	)
 
 	return nil
+}
+
+// injectTracingEnvVarsForDockerAgents injects tracing-related environment variables for docker-based agents
+func (s *agentManagerService) injectTracingEnvVarsForDockerAgents(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
+	s.logger.Debug("Injecting tracing environment variables for docker-based agent", "agentName", req.Name)
+	return s.injectTracingEnvVarsByName(ctx, orgName, projectName, req.Name)
 }
 
 // updateComponentEnvVars updates the component's workflow parameters with new environment variables
@@ -316,6 +449,32 @@ func (s *agentManagerService) GetAgent(ctx context.Context, orgName string, proj
 		s.logger.Error("Failed to fetch agent from OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
 		return nil, fmt.Errorf("failed to fetch agent from oc: %w", err)
 	}
+
+	// Populate enableAutoInstrumentation from database
+	// Get the first/lowest environment to read the config
+	pipeline, pipelineErr := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
+	if pipelineErr == nil && len(pipeline.PromotionPaths) > 0 {
+		lowestEnv := findLowestEnvironment(pipeline.PromotionPaths)
+		if lowestEnv != "" {
+			agentConfig, configErr := s.agentConfigRepo.Get(orgName, agentName, lowestEnv)
+			if configErr != nil {
+				s.logger.Warn("Failed to read agent config from database", "agentName", agentName, "environment", lowestEnv, "error", configErr)
+			} else if agentConfig != nil {
+				agent.Configurations = &models.Configurations{
+					EnableAutoInstrumentation: &agentConfig.EnableAutoInstrumentation,
+				}
+				s.logger.Debug("Populated enableAutoInstrumentation from database", "agentName", agentName, "environment", lowestEnv, "enableAutoInstrumentation", agentConfig.EnableAutoInstrumentation)
+			} else {
+				// No config in DB - default to true for display purposes
+				defaultEnabled := true
+				agent.Configurations = &models.Configurations{
+					EnableAutoInstrumentation: &defaultEnabled,
+				}
+				s.logger.Debug("No agent config in database, defaulting to enabled", "agentName", agentName)
+			}
+		}
+	}
+
 	s.logger.Info("Fetched agent successfully from oc", "agentName", agent.Name, "orgName", orgName, "projectName", projectName, "provisioningType", agent.Provisioning.Type)
 	return agent, nil
 }
@@ -356,7 +515,16 @@ func (s *agentManagerService) ListAgents(ctx context.Context, orgName string, pr
 }
 
 func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, projectName string, req *spec.CreateAgentRequest) error {
-	s.logger.Info("Creating agent", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "provisioningType", req.Provisioning.Type)
+	// Log the enableAutoInstrumentation value received
+	var enableAutoInstrumentationValue string = "nil (Configurations is nil)"
+	if req.Configurations != nil {
+		if req.Configurations.EnableAutoInstrumentation != nil {
+			enableAutoInstrumentationValue = fmt.Sprintf("%v", *req.Configurations.EnableAutoInstrumentation)
+		} else {
+			enableAutoInstrumentationValue = "nil (pointer is nil)"
+		}
+	}
+	s.logger.Info("Creating agent", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "provisioningType", req.Provisioning.Type, "enableAutoInstrumentation", enableAutoInstrumentationValue)
 
 	// Validate organization exists
 	_, err := s.ocClient.GetOrganization(ctx, orgName)
@@ -371,17 +539,36 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		return err
 	}
 
-	// For internal agents, enable instrumentation and trigger initial build
+	// For internal agents, enable instrumentation (if enabled) and trigger initial build
 	if req.Provisioning.Type == string(utils.InternalAgent) {
 		s.logger.Debug("Component created successfully", "agentName", req.Name)
 
-		if err := s.enableInstrumentation(ctx, orgName, projectName, req); err != nil {
-			s.logger.Error("Failed to enable instrumentation for agent", "agentName", req.Name, "error", err)
-			// Rollback - delete the created agent
-			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
-				s.logger.Error("Failed to rollback agent creation after instrumentation enabling failure", "agentName", req.Name, "error", errDeletion)
+		// Only enable instrumentation if not explicitly disabled
+		if req.Configurations == nil || req.Configurations.EnableAutoInstrumentation == nil || *req.Configurations.EnableAutoInstrumentation {
+			if err := s.enableInstrumentation(ctx, orgName, projectName, req); err != nil {
+				s.logger.Error("Failed to enable instrumentation for agent", "agentName", req.Name, "error", err)
+				// Rollback - delete the created agent
+				if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+					s.logger.Error("Failed to rollback agent creation after instrumentation enabling failure", "agentName", req.Name, "error", errDeletion)
+				}
+				return err
 			}
-			return err
+		} else {
+			s.logger.Info("Auto instrumentation disabled by user", "agentName", req.Name)
+			// For Python buildpack agents, inject tracing env vars even when auto-instrumentation
+			// is disabled so the agent can reach the observability backend via the SDK manually,
+			// matching the behaviour of Docker-based agents.
+			if req.Build != nil && req.Build.BuildpackBuild != nil &&
+				req.Build.BuildpackBuild.Buildpack.Language == string(utils.LanguagePython) {
+				if err := s.injectTracingEnvVarsByName(ctx, orgName, projectName, req.Name); err != nil {
+					s.logger.Error("Failed to inject tracing env vars for disabled Python instrumentation", "agentName", req.Name, "error", err)
+					// Rollback - delete the created agent
+					if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
+						s.logger.Error("Failed to rollback agent creation after env var injection failure", "agentName", req.Name, "error", errDeletion)
+					}
+					return err
+				}
+			}
 		}
 
 		// Trigger initial build
@@ -390,10 +577,58 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 			return err
 		}
 		s.logger.Debug("Triggered initial build for agent", "agentName", req.Name)
+
+		// Persist initial instrumentation config to database
+		s.persistInitialAgentConfig(ctx, orgName, projectName, req)
 	}
 
 	s.logger.Info("Agent created successfully", "agentName", req.Name, "orgName", orgName, "projectName", projectName, "provisioningType", req.Provisioning.Type)
 	return nil
+}
+
+// persistInitialAgentConfig saves the initial agent configuration to the database
+func (s *agentManagerService) persistInitialAgentConfig(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) {
+	// Determine enableAutoInstrumentation value
+	enableAutoInstrumentation := true // Default
+	if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil {
+		enableAutoInstrumentation = *req.Configurations.EnableAutoInstrumentation
+		s.logger.Info("persistInitialAgentConfig: Using value from request", "agentName", req.Name, "enableAutoInstrumentation", enableAutoInstrumentation)
+	} else {
+		s.logger.Info("persistInitialAgentConfig: No value in request, using default true", "agentName", req.Name, "configurations_nil", req.Configurations == nil)
+	}
+
+	// Get the first/lowest environment
+	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
+	if err != nil {
+		s.logger.Warn("Failed to get deployment pipeline for config persistence", "agentName", req.Name, "error", err)
+		return
+	}
+
+	lowestEnv := findLowestEnvironment(pipeline.PromotionPaths)
+	if lowestEnv == "" {
+		s.logger.Warn("No environment found for config persistence", "agentName", req.Name)
+		return
+	}
+
+	targetEnv, err := s.ocClient.GetEnvironment(ctx, orgName, lowestEnv)
+	if err != nil {
+		s.logger.Warn("Failed to get environment details for config persistence", "agentName", req.Name, "environment", lowestEnv, "error", err)
+		return
+	}
+
+	agentConfig := &models.AgentConfig{
+		OrgName:                   orgName,
+		ProjectName:               projectName,
+		AgentName:                 req.Name,
+		EnvironmentName:           targetEnv.Name,
+		EnableAutoInstrumentation: enableAutoInstrumentation,
+	}
+
+	if err := s.agentConfigRepo.Upsert(agentConfig); err != nil {
+		s.logger.Warn("Failed to persist initial agent config to database", "agentName", req.Name, "error", err)
+	} else {
+		s.logger.Debug("Persisted initial agent config to database", "agentName", req.Name, "environment", lowestEnv, "enableAutoInstrumentation", enableAutoInstrumentation)
+	}
 }
 
 func (s *agentManagerService) triggerInitialBuild(ctx context.Context, orgName, projectName string, req *spec.CreateAgentRequest) error {
@@ -529,6 +764,12 @@ func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, or
 	if err := s.ocClient.UpdateComponentBuildParameters(ctx, orgName, projectName, agentName, updateReq); err != nil {
 		s.logger.Error("Failed to update agent build parameters in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
 		return nil, fmt.Errorf("failed to update agent build parameters: %w", err)
+	}
+
+	// Handle instrumentation trait attachment/detachment based on enableAutoInstrumentation change
+	if err := s.handleInstrumentationUpdate(ctx, orgName, projectName, agentName, existingAgent, req); err != nil {
+		s.logger.Error("Failed to update instrumentation", "agentName", agentName, "error", err)
+		return nil, fmt.Errorf("failed to update instrumentation: %w", err)
 	}
 
 	// Fetch agent to return current state
@@ -735,6 +976,7 @@ func buildUpdateBuildParametersRequest(req *spec.UpdateAgentBuildParametersReque
 		Repository:     mapRepository(req.Provisioning.Repository),
 		Build:          mapBuildConfig(&req.Build),
 		InputInterface: mapInputInterface(&req.InputInterface),
+		Configurations: mapConfigurations(req.Configurations),
 	}
 }
 
@@ -874,11 +1116,22 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentNotFound) {
 			s.logger.Warn("Agent not found during deletion, delete is idempotent", "agentName", agentName, "orgName", orgName, "projectName", projectName)
+			// Still cleanup agent configs from database even if agent not found in OpenChoreo
+			if configErr := s.agentConfigRepo.DeleteAllByAgent(orgName, projectName, agentName); configErr != nil {
+				s.logger.Warn("Failed to delete agent configs from database", "agentName", agentName, "error", configErr)
+			}
 			return nil
 		}
 		s.logger.Error("Failed to delete oc agent", "agentName", agentName, "error", err)
 		return err
 	}
+
+	// Cleanup agent configs from database
+	if configErr := s.agentConfigRepo.DeleteAllByAgent(orgName, projectName, agentName); configErr != nil {
+		s.logger.Warn("Failed to delete agent configs from database", "agentName", agentName, "error", configErr)
+		// Don't fail the deletion - configs will be orphaned but harmless
+	}
+
 	s.logger.Debug("Agent deleted from OpenChoreo successfully", "orgName", orgName, "agentName", agentName)
 	return nil
 }
@@ -921,7 +1174,12 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, orgName string, pr
 
 // DeployAgent deploys an agent.
 func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, projectName string, agentName string, req *spec.DeployAgentRequest) (string, error) {
-	s.logger.Info("Deploying agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "imageId", req.ImageId)
+	// Log the enableAutoInstrumentation value received in deploy request
+	var enableAutoInstrumentationValue string = "nil (not provided)"
+	if req.EnableAutoInstrumentation != nil {
+		enableAutoInstrumentationValue = fmt.Sprintf("%v", *req.EnableAutoInstrumentation)
+	}
+	s.logger.Info("Deploying agent", "agentName", agentName, "orgName", orgName, "projectName", projectName, "imageId", req.ImageId, "enableAutoInstrumentation", enableAutoInstrumentationValue)
 	org, err := s.ocClient.GetOrganization(ctx, orgName)
 	if err != nil {
 		s.logger.Error("Failed to find organization", "orgName", orgName, "error", err)
@@ -936,7 +1194,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		return "", fmt.Errorf("deploy operation is not supported for agent type: '%s'", agent.Provisioning.Type)
 	}
 
-	// Convert to deploy request
+	// Convert to deploy request with user-provided env vars
 	deployReq := client.DeployRequest{
 		ImageID: req.ImageId,
 	}
@@ -950,20 +1208,107 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		}
 	}
 
-	// Deploy agent component in OpenChoreo
-	s.logger.Debug("Deploying agent component in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "imageId", req.ImageId)
-	if err := s.ocClient.Deploy(ctx, orgName, projectName, agentName, deployReq); err != nil {
-		s.logger.Error("Failed to deploy agent component in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
-		return "", err
+	// Generate and add tracing env vars (AMP_OTEL_ENDPOINT and AMP_AGENT_API_KEY) for both
+	// Python buildpack and Docker agents. These are added to deployReq.Env so they get
+	// applied to the Workload during deploy.
+	if agent.Build != nil && (agent.Build.Buildpack != nil || agent.Build.Docker != nil) {
+		s.logger.Debug("Generating tracing env vars for deploy", "agentName", agentName)
+		tracingEnvVars, err := s.generateTracingEnvVars(ctx, orgName, projectName, agentName)
+		if err != nil {
+			s.logger.Warn("Failed to generate tracing env vars for deploy", "agentName", agentName, "error", err)
+		} else {
+			// Append tracing env vars to deploy request (they will overwrite if duplicates exist)
+			deployReq.Env = append(deployReq.Env, tracingEnvVars...)
+			// Also persist to Component CR for future reference
+			if injectErr := s.updateComponentEnvVars(ctx, orgName, projectName, agentName, tracingEnvVars); injectErr != nil {
+				s.logger.Warn("Failed to persist tracing env vars to component CR", "agentName", agentName, "error", injectErr)
+			}
+		}
 	}
 
-	// Get deployment pipeline from project
+	// Get deployment pipeline and environment info early (needed for instrumentation config)
 	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
 	if err != nil {
 		s.logger.Error("Failed to fetch deployment pipeline", "orgName", orgName, "projectName", projectName, "error", err)
 		return "", fmt.Errorf("failed to fetch deployment pipeline: %w", err)
 	}
 	lowestEnv := findLowestEnvironment(pipeline.PromotionPaths)
+
+	var targetEnv *models.EnvironmentResponse
+	if lowestEnv != "" {
+		targetEnv, err = s.ocClient.GetEnvironment(ctx, orgName, lowestEnv)
+		if err != nil {
+			s.logger.Warn("Failed to get environment details", "environment", lowestEnv, "error", err)
+		}
+	}
+
+	// Resolve enableAutoInstrumentation value:
+	// 1. Use request value if provided
+	// 2. Otherwise, read from DB for this environment
+	// 3. If not in DB, default to true (first deployment)
+	var enableAutoInstrumentation bool
+	if req.EnableAutoInstrumentation != nil {
+		enableAutoInstrumentation = *req.EnableAutoInstrumentation
+		s.logger.Info("Using enableAutoInstrumentation from request", "agentName", agentName, "value", enableAutoInstrumentation)
+	} else if targetEnv != nil {
+		// Try to read from database
+		existingConfig, configErr := s.agentConfigRepo.Get(orgName, agentName, targetEnv.Name)
+		if configErr != nil {
+			s.logger.Warn("Failed to read instrumentation config from database", "agentName", agentName, "environment", targetEnv.Name, "error", configErr)
+			enableAutoInstrumentation = true // Default to enabled on error
+		} else if existingConfig != nil {
+			enableAutoInstrumentation = existingConfig.EnableAutoInstrumentation
+			s.logger.Debug("Read instrumentation config from database", "agentName", agentName, "environment", targetEnv.Name, "enableAutoInstrumentation", enableAutoInstrumentation)
+		} else {
+			// No config in DB - this is first deployment, default to true
+			enableAutoInstrumentation = true
+			s.logger.Debug("No instrumentation config in database, defaulting to enabled", "agentName", agentName, "environment", targetEnv.Name)
+		}
+	} else {
+		enableAutoInstrumentation = true // Default if no environment info available
+	}
+
+	// Update instrumentation trait before deploy for Python buildpack builds
+	if agent.Build != nil && agent.Build.Buildpack != nil && agent.Build.Buildpack.Language == string(utils.LanguagePython) {
+		hasTrait, traitErr := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation)
+		if traitErr != nil {
+			s.logger.Warn("Failed to check instrumentation trait status before deploy", "agentName", agentName, "error", traitErr)
+		} else if enableAutoInstrumentation && !hasTrait {
+			s.logger.Info("Enabling instrumentation (attaching trait) before deploy", "agentName", agentName)
+			if attachErr := s.attachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); attachErr != nil {
+				s.logger.Warn("Failed to attach instrumentation trait before deploy", "agentName", agentName, "error", attachErr)
+			}
+		} else if !enableAutoInstrumentation && hasTrait {
+			s.logger.Info("Disabling instrumentation (detaching trait) before deploy", "agentName", agentName)
+			if detachErr := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); detachErr != nil {
+				s.logger.Warn("Failed to detach instrumentation trait before deploy", "agentName", agentName, "error", detachErr)
+			}
+		}
+	}
+
+	// Deploy agent component in OpenChoreo (after env vars and instrumentation are configured)
+	s.logger.Debug("Deploying agent component in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "imageId", req.ImageId)
+	if err := s.ocClient.Deploy(ctx, orgName, projectName, agentName, deployReq); err != nil {
+		s.logger.Error("Failed to deploy agent component in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
+		return "", err
+	}
+
+	// Persist instrumentation config to database
+	if targetEnv != nil {
+		agentConfig := &models.AgentConfig{
+			OrgName:                   orgName,
+			ProjectName:               projectName,
+			AgentName:                 agentName,
+			EnvironmentName:           targetEnv.Name,
+			EnableAutoInstrumentation: enableAutoInstrumentation,
+		}
+		if configErr := s.agentConfigRepo.Upsert(agentConfig); configErr != nil {
+			s.logger.Error("Failed to persist instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "error", configErr)
+		} else {
+			s.logger.Debug("Persisted instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "enableAutoInstrumentation", enableAutoInstrumentation)
+		}
+	}
+
 	s.logger.Info("Agent deployed successfully to "+lowestEnv, "agentName", agentName, "orgName", org.Name, "projectName", projectName, "environment", lowestEnv)
 	return lowestEnv, nil
 }

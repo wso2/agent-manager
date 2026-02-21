@@ -18,7 +18,7 @@
 
 import { useDeployAgent, useGetAgent, useGetAgentConfigurations, useListEnvironments } from "@agent-management-platform/api-client";
 import { Rocket } from "@wso2/oxygen-ui-icons-react";
-import { Box, Button, Skeleton, Typography} from "@wso2/oxygen-ui";
+import { Box, Button, Checkbox, Collapse, FormControlLabel, Skeleton, Typography} from "@wso2/oxygen-ui";
 import { EnvironmentVariable } from "./EnvironmentVariable";
 import type { Environment, EnvironmentVariable as EnvVar } from "@agent-management-platform/types";
 import { useEffect, useState } from "react";
@@ -44,6 +44,7 @@ export function DeploymentConfig({
     imageId,
 }: DeploymentConfigProps) {
     const [envVariables, setEnvVariables] = useState<Array<{ key: string; value: string }>>([]);
+    const [enableAutoInstrumentation, setEnableAutoInstrumentation] = useState<boolean>(true);
 
     const { mutate: deployAgent, isPending } = useDeployAgent();
     const { data: agent, isLoading: isLoadingAgent } = useGetAgent({
@@ -66,6 +67,14 @@ export function DeploymentConfig({
         setEnvVariables(configurations?.configurations || []);
     }, [configurations]);
 
+    useEffect(() => {
+        if (agent?.configurations?.enableAutoInstrumentation !== undefined) {
+            setEnableAutoInstrumentation(agent.configurations.enableAutoInstrumentation);
+        }
+    }, [agent?.configurations?.enableAutoInstrumentation]);
+
+    const isPythonBuildpack = agent?.build?.type === 'buildpack' && 'buildpack' in agent.build && agent.build.buildpack.language === 'python';
+
     const handleDeploy = async () => {
         try {
             const filteredEnvVars: EnvVar[] = envVariables
@@ -83,6 +92,7 @@ export function DeploymentConfig({
                 body: {
                     imageId: imageId,
                     env: filteredEnvVars.length > 0 ? filteredEnvVars : undefined,
+                    ...(isPythonBuildpack && { enableAutoInstrumentation }),
                 },
             }, {
                 onSuccess: () => {
@@ -138,6 +148,24 @@ export function DeploymentConfig({
                         setEnvVariables={setEnvVariables}
                     />
                 )}
+                <Collapse in={isPythonBuildpack && !isLoadingAgent}>
+                    <Box display="flex" flexDirection="column" gap={1}>
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    checked={enableAutoInstrumentation}
+                                    onChange={(e) => setEnableAutoInstrumentation(e.target.checked)}
+                                    disabled={isPending}
+                                />
+                            }
+                            label="Enable auto instrumentation"
+                        />
+                        <Typography variant="body2" color="text.secondary">
+                            Automatically adds OTEL tracing instrumentation to
+                            your agent for observability.
+                        </Typography>
+                    </Box>
+                </Collapse>
             </Box>
             <Box display="flex" gap={1} justifyContent="flex-end" width="100%">
                 <Button

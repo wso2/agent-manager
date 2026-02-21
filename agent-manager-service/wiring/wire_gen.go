@@ -45,7 +45,8 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	if err != nil {
 		return nil, err
 	}
-	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, repositoryService, agentTokenManagerService, logger)
+	agentConfigRepository := ProvideAgentConfigRepository(db)
+	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, repositoryService, agentTokenManagerService, agentConfigRepository, logger)
 	agentController := controllers.NewAgentController(agentManagerService)
 	infraResourceManager := services.NewInfraResourceManager(openChoreoClient, logger)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
@@ -138,7 +139,8 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	if err != nil {
 		return nil, err
 	}
-	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, repositoryService, agentTokenManagerService, logger)
+	agentConfigRepository := ProvideAgentConfigRepository(db)
+	agentManagerService := services.NewAgentManagerService(openChoreoClient, observabilitySvcClient, repositoryService, agentTokenManagerService, agentConfigRepository, logger)
 	agentController := controllers.NewAgentController(agentManagerService)
 	infraResourceManager := services.NewInfraResourceManager(openChoreoClient, logger)
 	infraResourceController := controllers.NewInfraResourceController(infraResourceManager)
@@ -274,6 +276,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideArtifactRepository,
 	ProvideScoreRepository,
 	ProvideCatalogRepository,
+	ProvideAgentConfigRepository,
 )
 
 var websocketProviderSet = wire.NewSet(
@@ -343,6 +346,10 @@ func ProvideScoreRepository(db *gorm.DB) repositories.ScoreRepository {
 
 func ProvideCatalogRepository(db *gorm.DB) repositories.CatalogRepository {
 	return repositories.NewCatalogRepo(db)
+}
+
+func ProvideAgentConfigRepository(db *gorm.DB) repositories.AgentConfigRepository {
+	return repositories.NewAgentConfigRepo(db)
 }
 
 // ProvideLLMTemplateSeeder creates a new LLM template seeder with empty templates
