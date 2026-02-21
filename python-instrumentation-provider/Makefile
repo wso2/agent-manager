@@ -1,4 +1,4 @@
-.PHONY: help build docker-load-k3d docker-load-kind
+.PHONY: help build docker-load-k3d
 
 # Variables
 TAG ?= dev-python3.11
