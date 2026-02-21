@@ -242,70 +242,48 @@ func (s *agentManagerService) detachOTELInstrumentationTrait(ctx context.Context
 }
 
 // handleInstrumentationUpdate handles enabling/disabling instrumentation when build parameters are updated
-// It attaches or detaches the OTEL instrumentation trait based on the enableAutoInstrumentation setting
+// It always injects tracing env vars and manages the OTEL instrumentation trait for Python buildpack builds
 func (s *agentManagerService) handleInstrumentationUpdate(ctx context.Context, orgName, projectName, agentName string, existingAgent *models.AgentResponse, req *spec.UpdateAgentBuildParametersRequest) error {
-	// Only handle instrumentation for API agents with buildpack builds (Python)
+	// Only handle instrumentation for API agents
 	if existingAgent.Type.Type != string(utils.AgentTypeAPI) {
-		s.logger.Debug("Skipping instrumentation update for non-API agent", "agentName", agentName)
 		return nil
 	}
 
-	// Check if this is a buildpack Python build
-	if req.Build.BuildpackBuild == nil || req.Build.BuildpackBuild.Buildpack.Language != string(utils.LanguagePython) {
-		// The build has switched away from a Python buildpack; detach any previously-applied
-		// Python OTEL trait so it doesn't linger on the agent.
-		hasTrait, err := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation)
-		if err != nil {
-			s.logger.Error("Failed to check trait status", "agentName", agentName, "error", err)
-			return fmt.Errorf("failed to check trait status: %w", err)
-		}
-		if hasTrait {
-			if err := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); err != nil {
-				return fmt.Errorf("failed to detach instrumentation trait on non-Python build: %w", err)
-			}
-		}
-		s.logger.Debug("Skipping instrumentation update for non-Python buildpack", "agentName", agentName)
+	// Check if this is a Python buildpack build
+	isPythonBuildpack := req.Build.BuildpackBuild != nil && req.Build.BuildpackBuild.Buildpack.Language == string(utils.LanguagePython)
+
+	// Determine if instrumentation should be enabled
+	// Default to true if not specified, but only for Python buildpack builds
+	enableInstrumentation := true
+	if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil {
+		enableInstrumentation = *req.Configurations.EnableAutoInstrumentation
+	} else if !isPythonBuildpack {
+		enableInstrumentation = false
+	} else {
+		// No explicit config provided for Python buildpack - preserve current state
+		s.logger.Debug("EnableAutoInstrumentation not specified, preserving current state", "agentName", agentName)
 		return nil
 	}
 
-	// If the caller did not explicitly provide EnableAutoInstrumentation, preserve the
-	// current trait state and return without making any changes.
-	if req.Configurations == nil || req.Configurations.EnableAutoInstrumentation == nil {
-		s.logger.Debug("EnableAutoInstrumentation not specified, preserving current instrumentation state", "agentName", agentName)
-		return nil
-	}
-	enableInstrumentation := *req.Configurations.EnableAutoInstrumentation
-
-	// Check current trait state
-	hasTrait, err := s.ocClient.HasTrait(ctx, orgName, projectName, agentName, client.TraitOTELInstrumentation)
-	if err != nil {
-		s.logger.Error("Failed to check trait status", "agentName", agentName, "error", err)
-		return fmt.Errorf("failed to check trait status: %w", err)
+	// Rule 1: ALWAYS inject tracing env vars (for both Python and Docker builds)
+	s.logger.Debug("Injecting tracing env vars", "agentName", agentName, "isPython", isPythonBuildpack)
+	if err := s.injectTracingEnvVarsByName(ctx, orgName, projectName, agentName); err != nil {
+		return fmt.Errorf("failed to inject tracing env vars: %w", err)
 	}
 
-	// Attach or detach trait based on desired state
-	if enableInstrumentation && !hasTrait {
-		s.logger.Info("Enabling instrumentation (attaching trait)", "agentName", agentName)
+	// Rule 2: Manage the instrumentation trait for Python buildpack only
+	// - Add trait if: Python buildpack AND instrumentation enabled
+	// - Remove trait otherwise
+	if isPythonBuildpack && enableInstrumentation {
+		s.logger.Info("Attaching instrumentation trait", "agentName", agentName)
 		if err := s.attachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); err != nil {
 			return fmt.Errorf("failed to attach instrumentation trait: %w", err)
 		}
-	} else if !enableInstrumentation {
-		// Instrumentation is being disabled (or was already disabled).
-		// IMPORTANT: inject env vars into the Component CR *before* detaching the trait so
-		// that when OpenChoreo reconciles the trait removal and regenerates the ConfigMap it
-		// reads the already-updated CR and preserves AMP_OTEL_ENDPOINT / AMP_AGENT_API_KEY.
-		s.logger.Info("Injecting tracing env vars for Python agent with disabled instrumentation", "agentName", agentName)
-		if err := s.injectTracingEnvVarsByName(ctx, orgName, projectName, agentName); err != nil {
-			return fmt.Errorf("failed to inject tracing env vars: %w", err)
-		}
-		if hasTrait {
-			s.logger.Info("Disabling instrumentation (detaching trait)", "agentName", agentName)
-			if err := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); err != nil {
-				return fmt.Errorf("failed to detach instrumentation trait: %w", err)
-			}
-		}
 	} else {
-		s.logger.Debug("Instrumentation state unchanged", "agentName", agentName, "enabled", enableInstrumentation, "hasTrait", hasTrait)
+		s.logger.Info("Detaching instrumentation trait", "agentName", agentName, "isPython", isPythonBuildpack, "enabled", enableInstrumentation)
+		if err := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); err != nil {
+			return fmt.Errorf("failed to detach instrumentation trait: %w", err)
+		}
 	}
 
 	// Persist updated instrumentation config to database
