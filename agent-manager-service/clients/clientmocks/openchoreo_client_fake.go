@@ -119,9 +119,6 @@ import (
 //			UpdateComponentEnvironmentVariablesFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error {
 //				panic("mock out the UpdateComponentEnvironmentVariables method")
 //			},
-//			UpdateComponentInstrumentationConfigFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, enableAutoInstrumentation bool) error {
-//				panic("mock out the UpdateComponentInstrumentationConfig method")
-//			},
 //			UpdateComponentResourceConfigsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string, req client.UpdateComponentResourceConfigsRequest) error {
 //				panic("mock out the UpdateComponentResourceConfigs method")
 //			},
@@ -233,9 +230,6 @@ type OpenChoreoClientMock struct {
 
 	// UpdateComponentEnvironmentVariablesFunc mocks the UpdateComponentEnvironmentVariables method.
 	UpdateComponentEnvironmentVariablesFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, envVars []client.EnvVar) error
-
-	// UpdateComponentInstrumentationConfigFunc mocks the UpdateComponentInstrumentationConfig method.
-	UpdateComponentInstrumentationConfigFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, enableAutoInstrumentation bool) error
 
 	// UpdateComponentResourceConfigsFunc mocks the UpdateComponentResourceConfigs method.
 	UpdateComponentResourceConfigsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, environment string, req client.UpdateComponentResourceConfigsRequest) error
@@ -600,19 +594,6 @@ type OpenChoreoClientMock struct {
 			// EnvVars is the envVars argument value.
 			EnvVars []client.EnvVar
 		}
-		// UpdateComponentInstrumentationConfig holds details about calls to the UpdateComponentInstrumentationConfig method.
-		UpdateComponentInstrumentationConfig []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// NamespaceName is the namespaceName argument value.
-			NamespaceName string
-			// ProjectName is the projectName argument value.
-			ProjectName string
-			// ComponentName is the componentName argument value.
-			ComponentName string
-			// EnableAutoInstrumentation is the enableAutoInstrumentation argument value.
-			EnableAutoInstrumentation bool
-		}
 		// UpdateComponentResourceConfigs holds details about calls to the UpdateComponentResourceConfigs method.
 		UpdateComponentResourceConfigs []struct {
 			// Ctx is the ctx argument value.
@@ -629,42 +610,41 @@ type OpenChoreoClientMock struct {
 			Req client.UpdateComponentResourceConfigsRequest
 		}
 	}
-	lockApplyResource                        sync.RWMutex
-	lockAttachTrait                          sync.RWMutex
-	lockComponentExists                      sync.RWMutex
-	lockCreateComponent                      sync.RWMutex
-	lockCreateProject                        sync.RWMutex
-	lockDeleteComponent                      sync.RWMutex
-	lockDeleteProject                        sync.RWMutex
-	lockDeleteResource                       sync.RWMutex
-	lockDeploy                               sync.RWMutex
-	lockDetachTrait                          sync.RWMutex
-	lockGetBuild                             sync.RWMutex
-	lockGetComponent                         sync.RWMutex
-	lockGetComponentConfigurations           sync.RWMutex
-	lockGetComponentEndpoints                sync.RWMutex
-	lockGetComponentResourceConfigs          sync.RWMutex
-	lockGetDeployments                       sync.RWMutex
-	lockGetEnvironment                       sync.RWMutex
-	lockGetOrganization                      sync.RWMutex
-	lockGetProject                           sync.RWMutex
-	lockGetProjectDeploymentPipeline         sync.RWMutex
-	lockGetResource                          sync.RWMutex
-	lockHasTrait                             sync.RWMutex
-	lockListBuilds                           sync.RWMutex
-	lockListComponents                       sync.RWMutex
-	lockListDataPlanes                       sync.RWMutex
-	lockListDeploymentPipelines              sync.RWMutex
-	lockListEnvironments                     sync.RWMutex
-	lockListOrganizations                    sync.RWMutex
-	lockListProjects                         sync.RWMutex
-	lockPatchProject                         sync.RWMutex
-	lockTriggerBuild                         sync.RWMutex
-	lockUpdateComponentBasicInfo             sync.RWMutex
-	lockUpdateComponentBuildParameters       sync.RWMutex
-	lockUpdateComponentEnvironmentVariables  sync.RWMutex
-	lockUpdateComponentInstrumentationConfig sync.RWMutex
-	lockUpdateComponentResourceConfigs       sync.RWMutex
+	lockApplyResource                       sync.RWMutex
+	lockAttachTrait                         sync.RWMutex
+	lockComponentExists                     sync.RWMutex
+	lockCreateComponent                     sync.RWMutex
+	lockCreateProject                       sync.RWMutex
+	lockDeleteComponent                     sync.RWMutex
+	lockDeleteProject                       sync.RWMutex
+	lockDeleteResource                      sync.RWMutex
+	lockDeploy                              sync.RWMutex
+	lockDetachTrait                         sync.RWMutex
+	lockGetBuild                            sync.RWMutex
+	lockGetComponent                        sync.RWMutex
+	lockGetComponentConfigurations          sync.RWMutex
+	lockGetComponentEndpoints               sync.RWMutex
+	lockGetComponentResourceConfigs         sync.RWMutex
+	lockGetDeployments                      sync.RWMutex
+	lockGetEnvironment                      sync.RWMutex
+	lockGetOrganization                     sync.RWMutex
+	lockGetProject                          sync.RWMutex
+	lockGetProjectDeploymentPipeline        sync.RWMutex
+	lockGetResource                         sync.RWMutex
+	lockHasTrait                            sync.RWMutex
+	lockListBuilds                          sync.RWMutex
+	lockListComponents                      sync.RWMutex
+	lockListDataPlanes                      sync.RWMutex
+	lockListDeploymentPipelines             sync.RWMutex
+	lockListEnvironments                    sync.RWMutex
+	lockListOrganizations                   sync.RWMutex
+	lockListProjects                        sync.RWMutex
+	lockPatchProject                        sync.RWMutex
+	lockTriggerBuild                        sync.RWMutex
+	lockUpdateComponentBasicInfo            sync.RWMutex
+	lockUpdateComponentBuildParameters      sync.RWMutex
+	lockUpdateComponentEnvironmentVariables sync.RWMutex
+	lockUpdateComponentResourceConfigs      sync.RWMutex
 }
 
 // ApplyResource calls ApplyResourceFunc.
@@ -2128,54 +2108,6 @@ func (mock *OpenChoreoClientMock) UpdateComponentEnvironmentVariablesCalls() []s
 	mock.lockUpdateComponentEnvironmentVariables.RLock()
 	calls = mock.calls.UpdateComponentEnvironmentVariables
 	mock.lockUpdateComponentEnvironmentVariables.RUnlock()
-	return calls
-}
-
-// UpdateComponentInstrumentationConfig calls UpdateComponentInstrumentationConfigFunc.
-func (mock *OpenChoreoClientMock) UpdateComponentInstrumentationConfig(ctx context.Context, namespaceName string, projectName string, componentName string, enableAutoInstrumentation bool) error {
-	if mock.UpdateComponentInstrumentationConfigFunc == nil {
-		panic("OpenChoreoClientMock.UpdateComponentInstrumentationConfigFunc: method is nil but OpenChoreoClient.UpdateComponentInstrumentationConfig was just called")
-	}
-	callInfo := struct {
-		Ctx                       context.Context
-		NamespaceName             string
-		ProjectName               string
-		ComponentName             string
-		EnableAutoInstrumentation bool
-	}{
-		Ctx:                       ctx,
-		NamespaceName:             namespaceName,
-		ProjectName:               projectName,
-		ComponentName:             componentName,
-		EnableAutoInstrumentation: enableAutoInstrumentation,
-	}
-	mock.lockUpdateComponentInstrumentationConfig.Lock()
-	mock.calls.UpdateComponentInstrumentationConfig = append(mock.calls.UpdateComponentInstrumentationConfig, callInfo)
-	mock.lockUpdateComponentInstrumentationConfig.Unlock()
-	return mock.UpdateComponentInstrumentationConfigFunc(ctx, namespaceName, projectName, componentName, enableAutoInstrumentation)
-}
-
-// UpdateComponentInstrumentationConfigCalls gets all the calls that were made to UpdateComponentInstrumentationConfig.
-// Check the length with:
-//
-//	len(mockedOpenChoreoClient.UpdateComponentInstrumentationConfigCalls())
-func (mock *OpenChoreoClientMock) UpdateComponentInstrumentationConfigCalls() []struct {
-	Ctx                       context.Context
-	NamespaceName             string
-	ProjectName               string
-	ComponentName             string
-	EnableAutoInstrumentation bool
-} {
-	var calls []struct {
-		Ctx                       context.Context
-		NamespaceName             string
-		ProjectName               string
-		ComponentName             string
-		EnableAutoInstrumentation bool
-	}
-	mock.lockUpdateComponentInstrumentationConfig.RLock()
-	calls = mock.calls.UpdateComponentInstrumentationConfig
-	mock.lockUpdateComponentInstrumentationConfig.RUnlock()
 	return calls
 }
 

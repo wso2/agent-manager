@@ -130,12 +130,6 @@ func createComponentCRForInternalAgents(orgName, projectName string, req CreateC
 		},
 	}
 
-	// Add instrumentation configs to component parameters (not workflow params)
-	if req.Configurations != nil {
-		if req.Configurations.EnableAutoInstrumentation != nil {
-			parameters["enableAutoInstrumentation"] = *req.Configurations.EnableAutoInstrumentation
-		}
-	}
 	componentWorkflowParameters, err := buildWorkflowParameters(req)
 	if err != nil {
 		return nil, fmt.Errorf("error building workflow parameters: %w", err)
@@ -743,40 +737,6 @@ func extractResourceConfig(resources map[string]interface{}) *ResourceConfig {
 	if config.Requests != nil || config.Limits != nil {
 		return config
 	}
-	return nil
-}
-
-// UpdateComponentInstrumentationConfig updates the enableAutoInstrumentation parameter stored in the component CR
-func (c *openChoreoClient) UpdateComponentInstrumentationConfig(ctx context.Context, namespaceName, projectName, componentName string, enableAutoInstrumentation bool) error {
-	componentCR, err := c.getCleanResourceCR(ctx, namespaceName, ResourceKindComponent, componentName, utils.ErrAgentNotFound, false)
-	if err != nil {
-		return fmt.Errorf("failed to get component resource: %w", err)
-	}
-
-	spec, ok := componentCR["spec"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid spec in component CR")
-	}
-
-	parameters, ok := spec["parameters"].(map[string]interface{})
-	if !ok {
-		parameters = make(map[string]interface{})
-		spec["parameters"] = parameters
-	}
-
-	parameters["enableAutoInstrumentation"] = enableAutoInstrumentation
-
-	applyResp, err := c.ocClient.ApplyResourceWithResponse(ctx, componentCR)
-	if err != nil {
-		return fmt.Errorf("failed to update component instrumentation config: %w", err)
-	}
-
-	if applyResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(applyResp.StatusCode(), applyResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
-		})
-	}
-
 	return nil
 }
 
@@ -1404,14 +1364,6 @@ func convertComponentCR(componentCR map[string]interface{}) (*models.AgentRespon
 					agent.InputInterface = &models.InputInterface{}
 				}
 				agent.InputInterface.BasePath = basePath
-			}
-
-			// Extract enableAutoInstrumentation
-			if enableAutoInstrumentation, ok := parameters["enableAutoInstrumentation"].(bool); ok {
-				if agent.Configurations == nil {
-					agent.Configurations = &models.Configurations{}
-				}
-				agent.Configurations.EnableAutoInstrumentation = &enableAutoInstrumentation
 			}
 		}
 
