@@ -33,15 +33,6 @@ type AgentConfigRepository interface {
 	// Get retrieves agent config for a specific agent and environment
 	Get(orgName, agentName, environmentName string) (*models.AgentConfig, error)
 
-	// GetByAgentID retrieves config by agent UUID and environment
-	GetByAgentID(agentID, environmentID string) (*models.AgentConfig, error)
-
-	// ListByAgent retrieves all configs for an agent across all environments
-	ListByAgent(orgName, projectName, agentName string) ([]*models.AgentConfig, error)
-
-	// Delete removes a specific agent config
-	Delete(orgName, agentName, environmentName string) error
-
 	// DeleteAllByAgent removes all configs for an agent (used when agent is deleted)
 	DeleteAllByAgent(orgName, projectName, agentName string) error
 }
@@ -81,34 +72,6 @@ func (r *AgentConfigRepo) Get(orgName, agentName, environmentName string) (*mode
 		return nil, err
 	}
 	return &config, nil
-}
-
-// GetByAgentID retrieves config by agent UUID and environment
-func (r *AgentConfigRepo) GetByAgentID(agentID, environmentID string) (*models.AgentConfig, error) {
-	var config models.AgentConfig
-	err := r.db.Where("agent_id = ? AND environment_id = ?",
-		agentID, environmentID).First(&config).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &config, nil
-}
-
-// ListByAgent retrieves all configs for an agent across all environments
-func (r *AgentConfigRepo) ListByAgent(orgName, projectName, agentName string) ([]*models.AgentConfig, error) {
-	var configs []*models.AgentConfig
-	err := r.db.Where("org_name = ? AND project_name = ? AND agent_name = ?",
-		orgName, projectName, agentName).Find(&configs).Error
-	return configs, err
-}
-
-// Delete removes a specific agent config
-func (r *AgentConfigRepo) Delete(orgName, agentName, environmentName string) error {
-	return r.db.Where("org_name = ? AND agent_name = ? AND environment_name = ?",
-		orgName, agentName, environmentName).Delete(&models.AgentConfig{}).Error
 }
 
 // DeleteAllByAgent removes all configs for an agent (used when agent is deleted)

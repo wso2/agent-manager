@@ -1326,8 +1326,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		return "", err
 	}
 
-	// Always persist instrumentation config to database on every deployment
-	s.logger.Info("About to persist instrumentation config", "agentName", agentName, "targetEnv", targetEnv != nil, "enableAutoInstrumentation", enableAutoInstrumentation)
+	// Persist instrumentation config to database
 	if targetEnv != nil {
 		agentConfig := &models.AgentConfig{
 			OrgName:                   orgName,
@@ -1341,10 +1340,8 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		if configErr := s.agentConfigRepo.Upsert(agentConfig); configErr != nil {
 			s.logger.Error("Failed to persist instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "error", configErr)
 		} else {
-			s.logger.Info("Successfully persisted instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "enableAutoInstrumentation", enableAutoInstrumentation)
+			s.logger.Debug("Persisted instrumentation config to database", "agentName", agentName, "environment", lowestEnv, "enableAutoInstrumentation", enableAutoInstrumentation)
 		}
-	} else {
-		s.logger.Warn("Cannot persist instrumentation config - targetEnv is nil", "agentName", agentName)
 	}
 
 	s.logger.Info("Agent deployed successfully to "+lowestEnv, "agentName", agentName, "orgName", org.Name, "projectName", projectName, "environment", lowestEnv)

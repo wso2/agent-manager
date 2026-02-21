@@ -50,10 +50,7 @@ var migration008 = migration{
 		)`
 
 		createIndexes := []string{
-			`CREATE INDEX IF NOT EXISTS idx_agent_configs_org ON agent_configs (org_name)`,
 			`CREATE INDEX IF NOT EXISTS idx_agent_configs_agent ON agent_configs (org_name, project_name, agent_name)`,
-			`CREATE INDEX IF NOT EXISTS idx_agent_configs_agent_id ON agent_configs (agent_id)`,
-			`CREATE INDEX IF NOT EXISTS idx_agent_configs_env ON agent_configs (environment_name)`,
 		}
 
 		createTrigger := `
