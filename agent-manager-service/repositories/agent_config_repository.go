@@ -25,13 +25,16 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 )
 
+// ErrAgentConfigNotFound is returned when no agent config exists for the given agent and environment.
+var ErrAgentConfigNotFound = errors.New("agent config not found")
+
 // AgentConfigRepository defines the interface for agent configuration operations
 type AgentConfigRepository interface {
 	// Upsert creates or updates an agent config for a specific environment
 	Upsert(config *models.AgentConfig) error
 
 	// Get retrieves agent config for a specific agent and environment
-	Get(orgName, agentName, environmentName string) (*models.AgentConfig, error)
+	Get(orgName, projectName, agentName, environmentName string) (*models.AgentConfig, error)
 
 	// DeleteAllByAgent removes all configs for an agent (used when agent is deleted)
 	DeleteAllByAgent(orgName, projectName, agentName string) error
@@ -61,13 +64,13 @@ func (r *AgentConfigRepo) Upsert(config *models.AgentConfig) error {
 }
 
 // Get retrieves agent config for a specific agent and environment
-func (r *AgentConfigRepo) Get(orgName, agentName, environmentName string) (*models.AgentConfig, error) {
+func (r *AgentConfigRepo) Get(orgName, projectName, agentName, environmentName string) (*models.AgentConfig, error) {
 	var config models.AgentConfig
-	err := r.db.Where("org_name = ? AND agent_name = ? AND environment_name = ?",
-		orgName, agentName, environmentName).First(&config).Error
+	err := r.db.Where("org_name = ? AND project_name = ? AND agent_name = ? AND environment_name = ?",
+		orgName, projectName, agentName, environmentName).First(&config).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil // Return nil for not found (allows fallback to default)
+			return nil, ErrAgentConfigNotFound
 		}
 		return nil, err
 	}

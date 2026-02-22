@@ -129,7 +129,6 @@ func createComponentCRForInternalAgents(orgName, projectName string, req CreateC
 			"allowHeaders": strings.Split(config.GetAgentWorkloadConfig().CORS.AllowHeaders, ","),
 		},
 	}
-
 	componentWorkflowParameters, err := buildWorkflowParameters(req)
 	if err != nil {
 		return nil, fmt.Errorf("error building workflow parameters: %w", err)
@@ -1333,7 +1332,7 @@ func convertComponentCR(componentCR map[string]interface{}) (*models.AgentRespon
 			}
 		}
 
-		// Extract parameters including basePath and instrumentation configs
+		// Extract parameters including basePath
 		if parameters, ok := spec["parameters"].(map[string]interface{}); ok {
 			// Extract basePath
 			if basePath, ok := parameters["basePath"].(string); ok && basePath != "" {
