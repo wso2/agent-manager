@@ -47,19 +47,28 @@ func (s *LLMTemplateStore) Load(templates []*models.LLMProviderTemplate) {
 }
 
 // Get retrieves a template by handle (returns nil if not found)
+// Returns a deep copy to prevent mutation of shared in-memory templates
 func (s *LLMTemplateStore) Get(handle string) *models.LLMProviderTemplate {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.templates[handle]
+	template := s.templates[handle]
+	if template == nil {
+		return nil
+	}
+	// Return a deep copy to prevent external mutations
+	return s.copyTemplate(template)
 }
 
 // List returns all templates in the store
+// Returns deep copies to prevent mutation of shared in-memory templates
 func (s *LLMTemplateStore) List() []*models.LLMProviderTemplate {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	result := make([]*models.LLMProviderTemplate, 0, len(s.templates))
 	for _, t := range s.templates {
-		result = append(result, t)
+		// Create a deep copy of the template to prevent external mutations
+		copy := s.copyTemplate(t)
+		result = append(result, copy)
 	}
 	return result
 }
@@ -77,4 +86,49 @@ func (s *LLMTemplateStore) Count() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.templates)
+}
+
+// copyTemplate creates a deep copy of a template to prevent external mutations
+// Note: This assumes the template's nested fields (Metadata, ExtractionIdentifier, etc.)
+// are value types or are not modified after creation. For truly deep copy of nested
+// pointers, additional copying would be needed.
+func (s *LLMTemplateStore) copyTemplate(t *models.LLMProviderTemplate) *models.LLMProviderTemplate {
+	if t == nil {
+		return nil
+	}
+
+	// Create a shallow copy of the template struct
+	copy := *t
+
+	// Deep copy nested pointer fields if they exist
+	if t.Metadata != nil {
+		metadataCopy := *t.Metadata
+		copy.Metadata = &metadataCopy
+	}
+	if t.PromptTokens != nil {
+		promptTokensCopy := *t.PromptTokens
+		copy.PromptTokens = &promptTokensCopy
+	}
+	if t.CompletionTokens != nil {
+		completionTokensCopy := *t.CompletionTokens
+		copy.CompletionTokens = &completionTokensCopy
+	}
+	if t.TotalTokens != nil {
+		totalTokensCopy := *t.TotalTokens
+		copy.TotalTokens = &totalTokensCopy
+	}
+	if t.RemainingTokens != nil {
+		remainingTokensCopy := *t.RemainingTokens
+		copy.RemainingTokens = &remainingTokensCopy
+	}
+	if t.RequestModel != nil {
+		requestModelCopy := *t.RequestModel
+		copy.RequestModel = &requestModelCopy
+	}
+	if t.ResponseModel != nil {
+		responseModelCopy := *t.ResponseModel
+		copy.ResponseModel = &responseModelCopy
+	}
+
+	return &copy
 }
