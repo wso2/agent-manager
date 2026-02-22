@@ -1,4 +1,4 @@
-{{- if and .Values.agentManagerService.enabled (not .Values.agentManagerService.certificates.certificatesSecret) }}
+{{- if and .Values.agentManagerService.enabled .Values.tlsCertsGeneration.enabled (not .Values.agentManagerService.certificates.certificatesSecret) }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -44,7 +44,7 @@ spec:
             capabilities:
               drop:
                 - ALL
-            readOnlyRootFilesystem: true
+            readOnlyRootFilesystem: false
           {{- end }}
           command:
             - sh
@@ -103,10 +103,10 @@ spec:
 
               echo "✓ TLS certificates secret created: {{ include "agent-management-platform.tlsCertsSecretName" . }}"
 
-              # Show certificate details
-              echo ""
-              echo "Certificate details:"
-              openssl x509 -in /tmp/cert.pem -noout -subject -issuer -dates -ext subjectAltName || true
+              # Clean up sensitive files from memory
+              rm -f /tmp/key.pem /tmp/cert.pem
+
+              echo "✓ Certificate generation complete"
           {{- with .Values.tlsCertsGeneration.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -116,5 +116,6 @@ spec:
               mountPath: /tmp
       volumes:
         - name: tmp
-          emptyDir: {}
+          emptyDir:
+            medium: Memory
 {{- end }}

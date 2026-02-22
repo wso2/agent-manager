@@ -24,13 +24,13 @@
 
 set -e
 
-# Configuration
+# Configuration (all configurable via environment variables)
 CERT_DIR="${INTERNAL_SERVER_CERT_DIR:-../data/certs}"
 CERT_FILE="${CERT_DIR}/cert.pem"
 KEY_FILE="${CERT_DIR}/key.pem"
-VALIDITY_DAYS=365
-ORGANIZATION="Agent Manager Dev"
-COUNTRY="US"
+VALIDITY_DAYS="${CERT_VALIDITY_DAYS:-365}"
+ORGANIZATION="${CERT_ORGANIZATION:-Agent Manager Dev}"
+COUNTRY="${CERT_COUNTRY:-US}"
 
 # Additional SANs from environment (comma-separated DNS names or IPs)
 # Example: CERT_EXTRA_SANS="amp-api.wso2-amp.svc.cluster.local,amp-api.wso2-amp.svc"
@@ -63,7 +63,9 @@ if [ -n "${EXTRA_SANS}" ]; then
     for san in "${SANS[@]}"; do
         san=$(echo "$san" | xargs)  # Trim whitespace
         # Check if it's an IP address or DNS name
-        if [[ $san =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || [[ $san =~ ^[0-9a-fA-F:]+$ ]]; then
+        # IPv4: must match pattern N.N.N.N where N is 0-255
+        # IPv6: must contain a colon (distinguishes from hex-only DNS labels)
+        if [[ $san =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || [[ $san == *:* ]]; then
             SAN_IP="${SAN_IP},IP:${san}"
         else
             SAN_DNS="${SAN_DNS},DNS:${san}"
