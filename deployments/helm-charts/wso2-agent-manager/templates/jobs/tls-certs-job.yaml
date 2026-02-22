@@ -4,7 +4,7 @@ kind: Job
 metadata:
   name: {{ include "agent-management-platform.agentManagerService.fullname" . }}-tls-certs
   labels:
-    {{- include "agent-management-platform.agentManagerService.labels" . | nindent 4 }}
+    {{- include "agent-management-platform.labels" . | nindent 4 }}
     app.kubernetes.io/component: tls-cert-generator
   annotations:
     helm.sh/hook: pre-install,pre-upgrade
@@ -14,8 +14,9 @@ spec:
   backoffLimit: {{ .Values.tlsCertsGeneration.backoffLimit | default 3 }}
   template:
     metadata:
+      name: {{ include "agent-management-platform.agentManagerService.fullname" . }}-tls-certs
       labels:
-        {{- include "agent-management-platform.agentManagerService.selectorLabels" . | nindent 8 }}
+        {{- include "agent-management-platform.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: tls-cert-generator
     spec:
       restartPolicy: Never
@@ -64,7 +65,7 @@ spec:
 
               # Configuration
               VALIDITY_DAYS=365
-              ORGANIZATION="Platform API Dev"
+              ORGANIZATION="Agent Manager Dev"
               COUNTRY="US"
 
               # Build Subject Alternative Names
