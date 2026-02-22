@@ -56,7 +56,7 @@ func (s *LLMProviderTemplateService) Create(orgName, createdBy string, template 
 
 	// Validate template handle format
 	if err := utils.ValidateTemplateHandle(template.Handle); err != nil {
-		return nil, fmt.Errorf("%w: %v", utils.ErrInvalidInput, err)
+		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
 	}
 
 	// Check if handle conflicts with built-in template
@@ -147,7 +147,7 @@ func (s *LLMProviderTemplateService) Get(orgName, templateID string) (*models.LL
 
 	// Validate template handle format
 	if err := utils.ValidateTemplateHandle(templateID); err != nil {
-		return nil, fmt.Errorf("%w: %v", utils.ErrInvalidInput, err)
+		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
 	}
 
 	// First check built-in templates
@@ -183,7 +183,7 @@ func (s *LLMProviderTemplateService) Update(orgName, templateID string, updates 
 
 	// Validate template handle format
 	if err := utils.ValidateTemplateHandle(templateID); err != nil {
-		return nil, fmt.Errorf("%w: %v", utils.ErrInvalidInput, err)
+		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
 	}
 
 	// Check if this is a system template (cannot be modified)
@@ -234,7 +234,7 @@ func (s *LLMProviderTemplateService) Delete(orgName, templateID string) error {
 
 	// Validate template handle format
 	if err := utils.ValidateTemplateHandle(templateID); err != nil {
-		return fmt.Errorf("%w: %v", utils.ErrInvalidInput, err)
+		return fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
 	}
 
 	// Check if this is a system template (cannot be deleted)

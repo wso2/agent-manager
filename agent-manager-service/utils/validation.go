@@ -21,10 +21,8 @@ import (
 	"regexp"
 )
 
-var (
-	// templateHandleRegex allows alphanumeric characters, hyphens, and underscores
-	templateHandleRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-)
+// templateHandleRegex allows alphanumeric characters, hyphens, and underscores
+var templateHandleRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // ValidateTemplateHandle validates the format and length of a template handle
 func ValidateTemplateHandle(handle string) error {
