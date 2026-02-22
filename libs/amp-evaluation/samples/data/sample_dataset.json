@@ -1,0 +1,216 @@
+{
+  "schema_version": "1.0",
+  "metadata": {
+    "name": "Customer Support Dataset",
+    "description": "Sample dataset for testing customer support agent evaluation",
+    "version": "1.0.0",
+    "created_at": "2024-01-15T10:30:00Z",
+    "tags": ["customer-support", "qa", "sample"],
+    "author": "Test Suite"
+  },
+  "defaults": {
+    "constraints": {
+      "max_latency_ms": 5000,
+      "max_tokens": 1000,
+      "max_iterations": 5,
+      "max_cost": 0.10
+    },
+    "success_criteria": [
+      "Response must address the customer's concern",
+      "Tone should be professional and helpful"
+    ]
+  },
+  "tasks": [
+    {
+      "task_id": "task_001",
+      "input": "How do I reset my password?",
+      "expected_output": "To reset your password, click on 'Forgot Password' on the login page and follow the instructions sent to your email.",
+      "success_criteria": [
+        "Provides clear password reset instructions",
+        "Mentions email verification step"
+      ],
+      "difficulty": "easy",
+      "constraints": {
+        "max_latency_ms": 3000,
+        "max_tokens": 500
+      },
+      "metadata": {
+        "category": "account-management",
+        "priority": "high"
+      },
+      "expected_trajectory": [
+        {
+          "tool": "search_knowledge_base",
+          "args": {
+            "query": "password reset instructions"
+          },
+          "expected_output": "Found password reset documentation"
+        },
+        {
+          "tool": "generate_response",
+          "args": {
+            "context": "password reset steps",
+            "tone": "helpful"
+          }
+        }
+      ]
+    },
+    {
+      "task_id": "task_002",
+      "input": "My order #12345 hasn't arrived yet. It's been 2 weeks.",
+      "expected_output": "I apologize for the delay. Let me check your order #12345 status. I'll also provide you with tracking information and expedite delivery if possible.",
+      "success_criteria": [
+        "Acknowledges the customer's concern",
+        "References specific order number",
+        "Offers to check status and provide tracking",
+        "Suggests resolution (expediting delivery)"
+      ],
+      "difficulty": "medium",
+      "constraints": {
+        "max_latency_ms": 4000,
+        "max_tokens": 800
+      },
+      "metadata": {
+        "category": "order-tracking",
+        "priority": "high"
+      },
+      "expected_trajectory": [
+        {
+          "tool": "lookup_order",
+          "args": {
+            "order_id": "12345"
+          },
+          "expected_output": "Order status: In Transit, Expected delivery: 2024-01-20"
+        },
+        {
+          "tool": "get_tracking_info",
+          "args": {
+            "order_id": "12345"
+          },
+          "expected_output": "Tracking number: TRACK123456789"
+        },
+        {
+          "tool": "generate_response",
+          "args": {
+            "include_tracking": true,
+            "tone": "apologetic"
+          }
+        }
+      ]
+    },
+    {
+      "task_id": "task_003",
+      "input": "Can you recommend a product for outdoor photography?",
+      "expected_output": "For outdoor photography, I recommend our WeatherPro Camera series. It features weather sealing, excellent battery life, and a versatile lens kit perfect for landscape and wildlife photography.",
+      "success_criteria": [
+        "Recommends appropriate product",
+        "Explains why it's suitable for outdoor use",
+        "Mentions key features"
+      ],
+      "difficulty": "medium",
+      "metadata": {
+        "category": "product-recommendation"
+      },
+      "expected_trajectory": [
+        {
+          "tool": "search_products",
+          "args": {
+            "category": "cameras",
+            "use_case": "outdoor photography"
+          },
+          "expected_output": "Found 3 suitable camera models"
+        },
+        {
+          "tool": "get_product_details",
+          "args": {
+            "product_id": "weatherpro-cam-x1"
+          },
+          "expected_output": "WeatherPro Camera X1: Weather-sealed, 20MP, 4K video, $1299"
+        },
+        {
+          "tool": "generate_response",
+          "args": {
+            "include_features": true,
+            "tone": "informative"
+          }
+        }
+      ]
+    },
+    {
+      "task_id": "task_004",
+      "input": "I need to cancel my subscription.",
+      "expected_output": "I understand you'd like to cancel your subscription. I can help with that. May I ask if there's a specific reason for canceling? We might be able to address your concerns, but if you'd still like to proceed, I'll guide you through the cancellation process.",
+      "success_criteria": [
+        "Acknowledges cancellation request",
+        "Offers to understand reason",
+        "Mentions potential solutions before proceeding",
+        "Commits to helping with cancellation if needed"
+      ],
+      "difficulty": "hard",
+      "constraints": {
+        "max_latency_ms": 3500
+      },
+      "metadata": {
+        "category": "subscription-management",
+        "priority": "high",
+        "requires_retention": true
+      },
+      "expected_trajectory": [
+        {
+          "tool": "get_subscription_details",
+          "args": {
+            "user_id": "current_user"
+          },
+          "expected_output": "Premium Plan: $29.99/mo, Active since 2023-06-15"
+        },
+        {
+          "tool": "check_retention_offers",
+          "args": {
+            "subscription_type": "premium"
+          },
+          "expected_output": "Available: 25% discount for 3 months"
+        },
+        {
+          "tool": "generate_response",
+          "args": {
+            "include_retention_offer": true,
+            "tone": "empathetic"
+          }
+        }
+      ]
+    },
+    {
+      "task_id": "task_005",
+      "input": "What are your business hours?",
+      "expected_output": "Our customer support team is available Monday through Friday, 9 AM to 6 PM EST. For urgent issues outside these hours, you can use our automated support at support.example.com.",
+      "success_criteria": [
+        "Provides specific business hours",
+        "Includes time zone",
+        "Mentions alternative support options"
+      ],
+      "difficulty": "easy",
+      "constraints": {
+        "max_latency_ms": 2000,
+        "max_tokens": 300
+      },
+      "metadata": {
+        "category": "general-inquiry"
+      },
+      "expected_trajectory": [
+        {
+          "tool": "search_knowledge_base",
+          "args": {
+            "query": "business hours support availability"
+          },
+          "expected_output": "Support hours: M-F 9AM-6PM EST"
+        },
+        {
+          "tool": "generate_response",
+          "args": {
+            "tone": "informative"
+          }
+        }
+      ]
+    }
+  ]
+}
