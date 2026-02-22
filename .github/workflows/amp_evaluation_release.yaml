@@ -69,6 +69,7 @@ jobs:
         run: |
           echo "RELEASE_TAG=amp-evaluation/v${{ inputs.target_version }}" >> "$GITHUB_ENV"
           echo "VERSION=${{ inputs.target_version }}" >> "$GITHUB_ENV"
+          echo "RELEASE_BRANCH=${{ inputs.branch }}" >> "$GITHUB_ENV"
 
       - name: Check tag does not already exist
         run: |
@@ -85,19 +86,19 @@ jobs:
       - name: Commit package version update
         run: |
           # Update version in pyproject.toml
-          sed -i 's/^version = ".*"/version = "${{ inputs.target_version }}"/' pyproject.toml
-          echo "Updated version to ${{ inputs.target_version }} in pyproject.toml"
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+          echo "Updated version to $VERSION in pyproject.toml"
 
           # Verify the update was successful
-          grep "version = \"${{ inputs.target_version }}\"" pyproject.toml || (echo "Failed to update version in pyproject.toml" && exit 1)
-          echo "Version ${{ inputs.target_version }} successfully set in pyproject.toml"
+          grep "version = \"$VERSION\"" pyproject.toml || (echo "Failed to update version in pyproject.toml" && exit 1)
+          echo "Version $VERSION successfully set in pyproject.toml"
 
           # Commit the version update
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pyproject.toml
-          git commit -m "Bump version to ${{ inputs.target_version }}"
-          git push origin HEAD:refs/heads/${{ inputs.branch }}
+          git commit -m "Bump version to $VERSION"
+          git push origin "HEAD:refs/heads/$RELEASE_BRANCH"
 
       - name: Install build tools
         run: |
@@ -107,16 +108,16 @@ jobs:
       - name: Build package
         run: python -m build
 
+      - name: Create and push tag
+        run: |
+          git tag -a "$RELEASE_TAG" -m "Release $VERSION"
+          git push origin "$RELEASE_TAG"
+
       - name: Publish to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: python -m twine upload dist/*
-
-      - name: Create and push tag
-        run: |
-          git tag -a "${{ env.RELEASE_TAG }}" -m "Release ${{ env.VERSION }}"
-          git push origin "${{ env.RELEASE_TAG }}"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
