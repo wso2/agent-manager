@@ -25,11 +25,11 @@ Public API:
     ... )
 """
 
-from .schema import Task, Dataset, Constraints, TrajectoryStep, generate_id
+from .models import Task, Dataset, Constraints, TrajectoryStep, generate_id
 from .loader import load_dataset_from_json, load_dataset_from_csv, save_dataset_to_json
 
 __all__ = [
-    # Schema models
+    # Data models
     "Task",
     "Dataset",
     "Constraints",

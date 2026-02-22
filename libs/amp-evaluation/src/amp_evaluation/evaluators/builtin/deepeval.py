@@ -40,15 +40,13 @@ Reference: https://deepeval.com/guides/guides-ai-agent-evaluation-metrics
 from __future__ import annotations
 
 import logging
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import Optional, List, Dict, Any
 
 from amp_evaluation.evaluators.base import BaseEvaluator
 from amp_evaluation.evaluators.config import Param
 from amp_evaluation.models import EvalResult
-
-if TYPE_CHECKING:
-    from amp_evaluation.dataset import Task
-    from amp_evaluation.trace.models import Trace
+from amp_evaluation.trace.models import Trace
+from amp_evaluation.dataset import Task
 
 logger = logging.getLogger(__name__)
 
@@ -83,11 +81,11 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
     and DeepEval data structures.
     """
 
-    # Param descriptors
-    threshold = Param(float, default=0.7, min=0.0, max=1.0, description="Minimum score for passing")
-    model = Param(str, default="gpt-4o", description="LLM model to use for evaluation")
-    include_reason = Param(bool, default=True, description="Whether to include reasoning in the result")
-    strict_mode = Param(bool, default=False, description="If True, use binary scoring (0 or 1)")
+    # Param descriptors — type inferred from annotation
+    threshold: float = Param(default=0.7, min=0.0, max=1.0, description="Minimum score for passing")
+    model: str = Param(default="gpt-4o", description="LLM model to use for evaluation")
+    include_reason: bool = Param(default=True, description="Whether to include reasoning in the result")
+    strict_mode: bool = Param(default=False, description="If True, use binary scoring (0 or 1)")
 
     def __init__(self, **kwargs):
         """
@@ -107,7 +105,7 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
                 "DeepEval is not installed. Evaluator will fail at runtime. Install with: pip install deepeval"
             )
 
-    def _build_deepeval_test_case(self, trace: Trace, task: Optional[Task] = None) -> Any:
+    def _build_deepeval_test_case(self, trace: Trace, task: Task) -> Any:
         """
         Build a DeepEval LLMTestCase from trace and task.
 
@@ -201,7 +199,7 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
             },
         )
 
-    def _trace_evaluation(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+    def evaluate(self, trace: Trace, task: Task) -> EvalResult:
         """
         Template method for DeepEval evaluations with error handling.
 
@@ -222,7 +220,7 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
                 details={"error": str(e)},
             )
 
-    def _evaluate_with_deepeval(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, trace: Trace, task: Task) -> EvalResult:
         """
         Perform the actual DeepEval metric evaluation.
 
@@ -234,7 +232,7 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
         4. Call metric.measure()
         5. Convert and return the result
 
-        Error handling is done by the parent _trace_evaluation() method.
+        Error handling is done by the parent evaluate() method.
         """
         raise NotImplementedError("Subclasses must implement _evaluate_with_deepeval()")
 
@@ -268,7 +266,7 @@ class DeepEvalPlanQualityEvaluator(DeepEvalBaseEvaluator):
     evaluator_type = "agent"
     version = "1.0"
 
-    def _evaluate_with_deepeval(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, trace: Trace, task: Task) -> EvalResult:
         """Evaluate the quality of the agent's plan."""
         PlanQualityMetric = _get_deepeval_metric_class("PlanQualityMetric")
 
@@ -313,7 +311,7 @@ class DeepEvalPlanAdherenceEvaluator(DeepEvalBaseEvaluator):
     evaluator_type = "agent"
     version = "1.0"
 
-    def _evaluate_with_deepeval(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, trace: Trace, task: Task) -> EvalResult:
         """Evaluate how well the agent adheres to its plan."""
         PlanAdherenceMetric = _get_deepeval_metric_class("PlanAdherenceMetric")
 
@@ -366,12 +364,12 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
     evaluator_type = "agent"
     version = "1.0"
 
-    # Additional Param descriptors beyond base class
-    evaluate_input = Param(bool, default=False, description="If True, also check input arguments match")
-    evaluate_output = Param(bool, default=False, description="If True, also check outputs match")
-    evaluate_order = Param(bool, default=False, description="If True, enforce call sequence")
-    exact_match = Param(bool, default=False, description="If True, require exact match of tools called vs expected")
-    available_tools = Param(list, default=None, description="List of available tool names for LLM-based evaluation")
+    # Additional Param descriptors — type inferred from annotation
+    evaluate_input: bool = Param(default=False, description="If True, also check input arguments match")
+    evaluate_output: bool = Param(default=False, description="If True, also check outputs match")
+    evaluate_order: bool = Param(default=False, description="If True, enforce call sequence")
+    exact_match: bool = Param(default=False, description="If True, require exact match of tools called vs expected")
+    available_tools: Optional[List[str]] = Param(default=None, description="List of available tool names for LLM-based evaluation")
 
     def __init__(self, **kwargs):
         """
@@ -389,9 +387,8 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
             available_tools: List of available tool names for LLM-based evaluation
         """
         super().__init__(**kwargs)
-        # Set default aggregations
 
-    def _evaluate_with_deepeval(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, trace: Trace, task: Task) -> EvalResult:
         """Evaluate if the agent selected the correct tools."""
         ToolCorrectnessMetric = _get_deepeval_metric_class("ToolCorrectnessMetric")
 
@@ -417,7 +414,7 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
 
         return self._convert_deepeval_result(metric)
 
-    def _build_tool_test_case(self, trace: Trace, task: Optional[Task] = None) -> Any:
+    def _build_tool_test_case(self, trace: Trace, task: Task) -> Any:
         """Build test case with tool call information."""
         try:
             from deepeval.test_case import LLMTestCase, ToolCall
@@ -487,7 +484,7 @@ class DeepEvalArgumentCorrectnessEvaluator(DeepEvalBaseEvaluator):
     evaluator_type = "agent"
     version = "1.0"
 
-    def _evaluate_with_deepeval(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, trace: Trace, task: Task) -> EvalResult:
         """Evaluate if the agent generated correct arguments for tool calls."""
         ArgumentCorrectnessMetric = _get_deepeval_metric_class("ArgumentCorrectnessMetric")
 
@@ -507,7 +504,7 @@ class DeepEvalArgumentCorrectnessEvaluator(DeepEvalBaseEvaluator):
 
         return self._convert_deepeval_result(metric)
 
-    def _build_argument_test_case(self, trace: Trace, task: Optional[Task] = None) -> Any:
+    def _build_argument_test_case(self, trace: Trace, task: Task) -> Any:
         """Build test case with tool argument information."""
         try:
             from deepeval.test_case import LLMTestCase, ToolCall
@@ -555,8 +552,8 @@ class DeepEvalTaskCompletionEvaluator(DeepEvalBaseEvaluator):
     evaluator_type = "agent"
     version = "1.0"
 
-    # Additional Param descriptor beyond base class
-    custom_task = Param(str, default=None, description="Optional custom task description (overrides auto-inference)")
+    # Additional Param descriptor — type inferred from annotation
+    custom_task: Optional[str] = Param(default=None, description="Optional custom task description (overrides auto-inference)")
 
     def __init__(self, **kwargs):
         """
@@ -570,9 +567,8 @@ class DeepEvalTaskCompletionEvaluator(DeepEvalBaseEvaluator):
             custom_task: Optional custom task description (overrides auto-inference)
         """
         super().__init__(**kwargs)
-        # Set default aggregations
 
-    def _evaluate_with_deepeval(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, trace: Trace, task: Task) -> EvalResult:
         """Evaluate if the agent completed the task."""
         TaskCompletionMetric = _get_deepeval_metric_class("TaskCompletionMetric")
 
@@ -640,7 +636,7 @@ class DeepEvalStepEfficiencyEvaluator(DeepEvalBaseEvaluator):
     evaluator_type = "agent"
     version = "1.0"
 
-    def _evaluate_with_deepeval(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
+    def _evaluate_with_deepeval(self, trace: Trace, task: Task) -> EvalResult:
         """Evaluate if the agent completed the task efficiently."""
         StepEfficiencyMetric = _get_deepeval_metric_class("StepEfficiencyMetric")
 

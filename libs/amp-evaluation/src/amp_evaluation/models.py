@@ -14,25 +14,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""
+Core data models for the evaluation framework.
+
+This module defines the evaluation result and summary models:
+- EvalResult: Result returned by evaluators (score + pass/fail + explanation)
+- EvaluatorScore: Individual score for a single trace/evaluator pair
+- EvaluatorSummary: Aggregated results for one evaluator across all traces
+- EvaluatorInfo: Metadata describing an evaluator (name, tags, config schema)
+- DataNotAvailableError: Exception for missing evaluation data
+- Agent: Minimal agent info from config
+"""
+
 from __future__ import annotations
 
 
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-
-
-"""
-Core data models for the evaluation framework.
-
-This module defines all the fundamental concepts:
-- Task: A test case with inputs and success criteria
-- Dataset: Collection of tasks for evaluation
-- Trajectory: Step-by-step execution record from traces
-- EvalResult: Result from an evaluator
-- EvalContext: Context provided to evaluators during evaluation
-- Constraints: Performance constraints for evaluation
-"""
 
 # ============================================================================
 # EXCEPTIONS
@@ -284,6 +283,25 @@ class EvaluatorSummary:
 # ============================================================================
 # AGENT MODEL (Minimal - loaded from config)
 # ============================================================================
+
+
+@dataclass
+class EvaluatorInfo:
+    """
+    Metadata describing an evaluator.
+
+    Returned by .info property and builtin_evaluator_catalog().
+    """
+
+    name: str
+    description: str
+    tags: List[str]
+    version: str
+    modes: List[str]
+    level: str = "trace"  # Single level: "trace", "agent", or "llm"
+    config_schema: List[Dict[str, Any]] = field(default_factory=list)
+    class_name: Optional[str] = None
+    module: Optional[str] = None
 
 
 @dataclass

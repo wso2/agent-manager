@@ -50,10 +50,10 @@ Example (HTTP Agent - with options):
 
 Example (In-Process Agent):
     class InProcessInvoker(AgentInvoker):
-        def invoke(self, input: Any) -> InvokeResult:
-            response = my_agent.run(input)
+        def invoke(self, task_input: Any) -> InvokeResult:
+            response = my_agent.run(task_input)
             trajectory = Trace(traceId="...", rootSpanId="...", rootSpanName="...", startTime="...", endTime="...", spans=[])  # From instrumentation
-            return InvokeResult(input=input, output=response, trajectory=trajectory)
+            return InvokeResult(input=task_input, output=response, trajectory=trajectory)
 """
 
 from abc import ABC, abstractmethod
@@ -126,13 +126,13 @@ class AgentInvoker(ABC):
             def __init__(self, endpoint: str):
                 self.endpoint = endpoint
 
-            def invoke(self, input: Any) -> InvokeResult:
-                response = requests.post(f"{self.endpoint}/chat", json=input)
-                return InvokeResult(input=input, output=response.json())
+            def invoke(self, task_input: Any) -> InvokeResult:
+                response = requests.post(f"{self.endpoint}/chat", json=task_input)
+                return InvokeResult(input=task_input, output=response.json())
     """
 
     @abstractmethod
-    def invoke(self, input: Any) -> InvokeResult:
+    def invoke(self, task_input: Any) -> InvokeResult:
         """
         Invoke the agent with the given input.
 
@@ -140,7 +140,7 @@ class AgentInvoker(ABC):
         (expected_output, expected_trajectory, success_criteria, etc.).
 
         Args:
-            input: The task input (string, dict, or any serializable type)
+            task_input: The task input (string, dict, or any serializable type)
 
         Returns:
             InvokeResult with input, output, and optionally error or trajectory
@@ -161,13 +161,13 @@ class AgentInvoker(ABC):
             List of InvokeResults in same order as inputs
         """
         results = []
-        for input in inputs:
+        for task_input in inputs:
             try:
-                result = self.invoke(input)
+                result = self.invoke(task_input)
                 results.append(result)
             except Exception as e:
                 logger.error(f"Invocation failed: {e}")
-                results.append(InvokeResult(input=input, error=str(e)))
+                results.append(InvokeResult(input=task_input, error=str(e)))
         return results
 
 
@@ -248,7 +248,7 @@ class HttpAgentInvoker(AgentInvoker):
             return task_input
         return {"input": task_input}
 
-    def invoke(self, input: Any) -> InvokeResult:
+    def invoke(self, task_input: Any) -> InvokeResult:
         """
         Invoke HTTP agent with input.
 
@@ -256,7 +256,7 @@ class HttpAgentInvoker(AgentInvoker):
         OpenTelemetry baggage in HTTP headers.
         """
         url = f"{self.base_url}{self.endpoint}"
-        payload = self.payload_builder(input)
+        payload = self.payload_builder(task_input)
 
         # Merge headers (default + user headers)
         request_headers = dict(self.headers)
@@ -271,7 +271,7 @@ class HttpAgentInvoker(AgentInvoker):
                     self.method, url, json=payload, headers=request_headers, timeout=self.timeout
                 )
             else:
-                return InvokeResult(input=input, error=f"Unsupported HTTP method: {self.method}")
+                return InvokeResult(input=task_input, error=f"Unsupported HTTP method: {self.method}")
 
             # Check for HTTP errors
             response.raise_for_status()
@@ -279,8 +279,8 @@ class HttpAgentInvoker(AgentInvoker):
             # Parse response
             output = response.json()
 
-            return InvokeResult(input=input, output=output)
+            return InvokeResult(input=task_input, output=output)
 
         except Exception as e:
             logger.error(f"HTTP invocation failed: {e}")
-            return InvokeResult(input=input, error=str(e))
+            return InvokeResult(input=task_input, error=str(e))

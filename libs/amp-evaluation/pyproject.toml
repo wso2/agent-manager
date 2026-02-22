@@ -20,15 +20,16 @@ dependencies = [
   "opentelemetry-instrumentation-requests>=0.41b0",
   "pydantic>=2.0.0",
   "pydantic-settings>=2.0.0",
-  "deepeval>=3.8.4"
 ]
 
 [project.optional-dependencies]
+deepeval = ["deepeval>=3.8.4"]
 dev = [
   "pytest>=7.0",
   "pytest-cov>=4.0",
   "black>=23.0",
   "ruff>=0.1.0",
+  "deepeval>=3.8.4",
 ]
 
 [project.urls]
