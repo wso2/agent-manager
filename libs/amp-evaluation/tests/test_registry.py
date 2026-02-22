@@ -14,18 +14,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
+
 """
-Unit tests for the evaluator registry system.
+Unit tests for the evaluator decorator and discovery utilities.
 
 Tests:
-- Registration with no aggregations (should default to MEAN)
-- Registration with single aggregation
-- Registration with multiple aggregations
-- Registration with aggregations containing parameters
-- Function-based evaluators
-- Class-based evaluators
+- @evaluator decorator: returns FunctionEvaluator, sets metadata fields
+- FunctionEvaluator aggregations: default None, single, multiple, Aggregation objects
+- discover_evaluators: finds evaluator instances in modules, ignores non-evaluators
+- Evaluator .info property: returns EvaluatorInfo with correct fields
 """
 
+import types
 import pytest
 import sys
 from pathlib import Path
@@ -33,205 +33,249 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from amp_evaluation.registry import EvaluatorRegistry
-from amp_evaluation.models import EvalResult
+from amp_evaluation.registry import evaluator, discover_evaluators
+from amp_evaluation.evaluators.base import BaseEvaluator, FunctionEvaluator
+from amp_evaluation.models import EvalResult, EvaluatorInfo
 from amp_evaluation.trace import Trace
-from amp_evaluation.evaluators.base import BaseEvaluator
+from amp_evaluation.evaluators.config import EvaluationLevel
 from amp_evaluation.aggregators.base import AggregationType, Aggregation
 
 
-class TestRegistryAggregations:
-    """Test registration with different aggregation configurations."""
+class TestEvaluatorDecorator:
+    """Tests for the @evaluator decorator."""
 
-    def setup_method(self):
-        """Create a fresh registry for each test."""
-        self.registry = EvaluatorRegistry()
+    def test_decorator_returns_function_evaluator(self):
+        """@evaluator('test-name') should return a FunctionEvaluator instance."""
 
-    def test_registration_no_aggregations_defaults_to_mean(self):
-        """When no aggregations specified, evaluator should use None (runner defaults to MEAN)."""
-
-        @self.registry.register("test-no-agg")
-        def evaluator(trace: Trace) -> EvalResult:
+        @evaluator("test-name")
+        def my_eval(trace: Trace) -> EvalResult:
             return EvalResult(score=1.0)
 
-        # Get evaluator instance
-        eval_instance = self.registry.get("test-no-agg")
+        assert isinstance(my_eval, FunctionEvaluator)
 
-        # Should have None aggregations (runner will default to MEAN)
-        assert eval_instance.aggregations is None
+    def test_decorator_sets_name(self):
+        """The returned FunctionEvaluator should have the correct name."""
 
-    def test_registration_single_aggregation(self):
-        """Test registration with a single aggregation type."""
+        @evaluator("test-name")
+        def my_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
 
-        @self.registry.register("test-single-agg", aggregations=[AggregationType.MEDIAN])
-        def evaluator(trace: Trace) -> EvalResult:
+        assert my_eval.name == "test-name"
+
+    def test_decorator_sets_description(self):
+        """The description passed to @evaluator should be set on the instance."""
+
+        @evaluator("desc-eval", description="A test evaluator for descriptions")
+        def my_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
+
+        assert my_eval.description == "A test evaluator for descriptions"
+
+    def test_decorator_sets_tags(self):
+        """The tags passed to @evaluator should be set on the instance."""
+
+        @evaluator("tags-eval", tags=["quality", "test", "example"])
+        def my_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
+
+        assert my_eval.tags == ["quality", "test", "example"]
+
+    def test_decorator_sets_version(self):
+        """The version passed to @evaluator should be set on the instance."""
+
+        @evaluator("version-eval", version="2.3.1")
+        def my_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
+
+        assert my_eval.version == "2.3.1"
+
+    def test_decorator_sets_aggregations(self):
+        """The aggregations passed to @evaluator should be set on the instance."""
+
+        @evaluator(
+            "agg-eval",
+            aggregations=[AggregationType.MEAN, AggregationType.MEDIAN],
+        )
+        def my_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
+
+        assert my_eval.aggregations is not None
+        assert len(my_eval.aggregations) == 2
+        assert AggregationType.MEAN in my_eval.aggregations
+        assert AggregationType.MEDIAN in my_eval.aggregations
+
+    def test_decorator_preserves_function_behavior(self):
+        """Calling evaluate on the decorated evaluator should invoke the original function logic."""
+
+        @evaluator("behavior-eval")
+        def my_eval(trace: Trace) -> EvalResult:
+            score = 1.0 if trace.output == "hello" else 0.0
+            return EvalResult(score=score, explanation="checked output")
+
+        trace = Trace(trace_id="t1", input="say hello", output="hello")
+        results = my_eval.run(trace)
+        assert len(results) == 1
+        assert results[0].score == 1.0
+        assert results[0].explanation == "checked output"
+
+
+class TestFunctionEvaluatorAggregations:
+    """Tests for aggregation handling on FunctionEvaluator instances."""
+
+    def test_no_aggregations_default_none(self):
+        """When no aggregations are set, .aggregations should be None."""
+
+        @evaluator("no-agg-eval")
+        def my_eval(trace: Trace) -> EvalResult:
             return EvalResult(score=0.5)
 
-        eval_instance = self.registry.get("test-single-agg")
+        assert my_eval.aggregations is None
 
-        assert eval_instance.aggregations is not None
-        assert len(eval_instance.aggregations) == 1
-        assert eval_instance.aggregations[0] == AggregationType.MEDIAN
+    def test_single_aggregation(self):
+        """Setting a single aggregation should work correctly."""
 
-    def test_registration_multiple_aggregations(self):
-        """Test registration with multiple aggregation types."""
+        @evaluator("single-agg-eval", aggregations=[AggregationType.MEDIAN])
+        def my_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=0.5)
 
-        @self.registry.register(
-            "test-multi-agg", aggregations=[AggregationType.MEAN, AggregationType.MEDIAN, AggregationType.P95]
+        assert my_eval.aggregations is not None
+        assert len(my_eval.aggregations) == 1
+        assert my_eval.aggregations[0] == AggregationType.MEDIAN
+
+    def test_multiple_aggregations(self):
+        """Setting multiple aggregations should work correctly."""
+
+        @evaluator(
+            "multi-agg-eval",
+            aggregations=[AggregationType.MEAN, AggregationType.MEDIAN, AggregationType.P95],
         )
-        def evaluator(trace: Trace) -> EvalResult:
+        def my_eval(trace: Trace) -> EvalResult:
             return EvalResult(score=0.75)
 
-        eval_instance = self.registry.get("test-multi-agg")
+        assert my_eval.aggregations is not None
+        assert len(my_eval.aggregations) == 3
+        assert AggregationType.MEAN in my_eval.aggregations
+        assert AggregationType.MEDIAN in my_eval.aggregations
+        assert AggregationType.P95 in my_eval.aggregations
 
-        assert eval_instance.aggregations is not None
-        assert len(eval_instance.aggregations) == 3
-        assert AggregationType.MEAN in eval_instance.aggregations
-        assert AggregationType.MEDIAN in eval_instance.aggregations
-        assert AggregationType.P95 in eval_instance.aggregations
+    def test_aggregations_with_objects(self):
+        """Can pass Aggregation objects (with parameters) as aggregations."""
 
-    def test_registration_aggregations_with_params(self):
-        """Test registration with parameterized aggregations (e.g., PASS_RATE with threshold)."""
-
-        @self.registry.register(
-            "test-param-agg",
+        @evaluator(
+            "obj-agg-eval",
             aggregations=[
                 AggregationType.MEAN,
                 Aggregation(AggregationType.PASS_RATE, threshold=0.7),
                 Aggregation(AggregationType.PASS_RATE, threshold=0.9),
             ],
         )
-        def evaluator(trace: Trace) -> EvalResult:
+        def my_eval(trace: Trace) -> EvalResult:
             return EvalResult(score=0.8)
 
-        eval_instance = self.registry.get("test-param-agg")
+        assert my_eval.aggregations is not None
+        assert len(my_eval.aggregations) == 3
 
-        assert eval_instance.aggregations is not None
-        assert len(eval_instance.aggregations) == 3
-
-        # Check that we have MEAN and two PASS_RATE with different thresholds
-        agg_types = [agg.type if isinstance(agg, Aggregation) else agg for agg in eval_instance.aggregations]
-        assert AggregationType.MEAN in agg_types
-
-        # Count PASS_RATE aggregations
+        # Verify Aggregation objects are preserved correctly
         pass_rate_aggs = [
             agg
-            for agg in eval_instance.aggregations
+            for agg in my_eval.aggregations
             if isinstance(agg, Aggregation) and agg.type == AggregationType.PASS_RATE
         ]
         assert len(pass_rate_aggs) == 2
 
-        # Check thresholds
-        thresholds = [agg.params.get("threshold") for agg in pass_rate_aggs]
-        assert 0.7 in thresholds
-        assert 0.9 in thresholds
+        thresholds = sorted([agg.params.get("threshold") for agg in pass_rate_aggs])
+        assert thresholds == [0.7, 0.9]
 
-    def test_registration_function_based(self):
-        """Test that function-based evaluators work with aggregations."""
 
-        @self.registry.register("func-eval", aggregations=[AggregationType.MEAN, AggregationType.MAX])
-        def simple_eval(trace: Trace) -> float:
-            return 1.0 if len(trace.output or "") > 0 else 0.0
+class TestDiscoverEvaluators:
+    """Tests for the discover_evaluators function."""
 
-        eval_instance = self.registry.get("func-eval")
+    def test_discovers_evaluator_instances(self):
+        """discover_evaluators should find all BaseEvaluator instances in a module."""
 
-        assert eval_instance.aggregations is not None
-        assert len(eval_instance.aggregations) == 2
+        mock_module = types.ModuleType("mock_module")
 
-    def test_registration_class_based(self):
-        """Test that class-based evaluators work with aggregations."""
+        @evaluator("found-1")
+        def eval1(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
 
-        @self.registry.register(
-            "class-eval", aggregations=[AggregationType.MEDIAN, Aggregation(AggregationType.PASS_RATE, threshold=0.5)]
+        @evaluator("found-2")
+        def eval2(trace: Trace) -> EvalResult:
+            return EvalResult(score=0.5)
+
+        mock_module.eval1 = eval1
+        mock_module.eval2 = eval2
+
+        found = discover_evaluators(mock_module)
+        assert len(found) == 2
+
+        found_names = {e.name for e in found}
+        assert "found-1" in found_names
+        assert "found-2" in found_names
+
+    def test_ignores_non_evaluators(self):
+        """discover_evaluators should skip objects that are not BaseEvaluator instances."""
+
+        mock_module = types.ModuleType("mock_module")
+
+        @evaluator("the-only-eval")
+        def real_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
+
+        mock_module.real_eval = real_eval
+        mock_module.non_evaluator = "just a string"
+        mock_module.some_number = 42
+        mock_module.some_list = [1, 2, 3]
+        mock_module.some_dict = {"key": "value"}
+
+        found = discover_evaluators(mock_module)
+        assert len(found) == 1
+        assert found[0].name == "the-only-eval"
+
+    def test_empty_module_returns_empty(self):
+        """discover_evaluators should return an empty list for a module with no evaluators."""
+
+        mock_module = types.ModuleType("empty_module")
+        mock_module.a_string = "hello"
+        mock_module.a_number = 99
+
+        found = discover_evaluators(mock_module)
+        assert found == []
+
+
+class TestEvaluatorMetadata:
+    """Tests for the .info property on evaluators."""
+
+    def test_info_returns_evaluator_info(self):
+        """.info should return an EvaluatorInfo instance."""
+
+        @evaluator("info-eval", description="An info test")
+        def my_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
+
+        info = my_eval.info
+        assert isinstance(info, EvaluatorInfo)
+
+    def test_info_has_correct_fields(self):
+        """.info should contain the correct name, description, tags, version, level, and modes."""
+
+        @evaluator(
+            "meta-eval",
+            description="Metadata evaluator",
+            tags=["meta", "test"],
+            version="3.0.0",
         )
-        class CustomEvaluator(BaseEvaluator):
-            def _trace_evaluation(self, trace, task=None) -> EvalResult:
-                return EvalResult(score=0.75)
+        def my_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
 
-        eval_instance = self.registry.get("class-eval")
-
-        assert eval_instance.aggregations is not None
-        assert len(eval_instance.aggregations) == 2
-
-        # Verify it's actually our class
-        assert isinstance(eval_instance, CustomEvaluator)
-
-    def test_multiple_evaluators_different_aggregations(self):
-        """Test that different evaluators can have different aggregations."""
-
-        @self.registry.register("eval1", aggregations=[AggregationType.MEAN])
-        def eval1(trace: Trace) -> float:
-            return 0.5
-
-        @self.registry.register("eval2", aggregations=[AggregationType.MEDIAN, AggregationType.P99])
-        def eval2(trace: Trace) -> float:
-            return 0.8
-
-        @self.registry.register("eval3")  # No aggregations - should default
-        def eval3(trace: Trace) -> float:
-            return 0.9
-
-        e1 = self.registry.get("eval1")
-        e2 = self.registry.get("eval2")
-        e3 = self.registry.get("eval3")
-
-        assert len(e1.aggregations) == 1
-        assert len(e2.aggregations) == 2
-        assert e3.aggregations is None  # Will default to MEAN at runtime
-
-
-class TestRegistryBasics:
-    """Test basic registry functionality."""
-
-    def setup_method(self):
-        """Create a fresh registry for each test."""
-        self.registry = EvaluatorRegistry()
-
-    def test_register_and_get_evaluator(self):
-        """Test basic registration and retrieval."""
-
-        @self.registry.register("basic-test")
-        def evaluator(trace: Trace) -> float:
-            return 1.0
-
-        eval_instance = self.registry.get("basic-test")
-        assert eval_instance is not None
-        assert eval_instance.name == "basic-test"
-
-    def test_get_nonexistent_evaluator_raises_error(self):
-        """Test that getting a non-existent evaluator raises ValueError."""
-
-        with pytest.raises(ValueError, match="Evaluator 'does-not-exist' not found"):
-            self.registry.get("does-not-exist")
-
-    def test_list_evaluators(self):
-        """Test listing all registered evaluators."""
-
-        @self.registry.register("eval-a")
-        def eval_a(trace: Trace) -> float:
-            return 0.5
-
-        @self.registry.register("eval-b")
-        def eval_b(trace: Trace) -> float:
-            return 0.7
-
-        evaluators = self.registry.list_evaluators()
-        assert "eval-a" in evaluators
-        assert "eval-b" in evaluators
-        assert len(evaluators) == 2
-
-    def test_metadata_storage(self):
-        """Test that metadata is properly stored and retrieved."""
-
-        @self.registry.register("meta-test", description="A test evaluator", tags=["test", "quality"], version="1.2.3")
-        def evaluator(trace: Trace) -> float:
-            return 0.5
-
-        metadata = self.registry.get_metadata("meta-test")
-        assert metadata["description"] == "A test evaluator"
-        assert "test" in metadata["tags"]
-        assert "quality" in metadata["tags"]
-        assert metadata["version"] == "1.2.3"
+        info = my_eval.info
+        assert info.name == "meta-eval"
+        assert info.description == "Metadata evaluator"
+        assert info.tags == ["meta", "test"]
+        assert info.version == "3.0.0"
+        assert info.level == EvaluationLevel.TRACE.value
+        assert "experiment" in info.modes
+        assert "monitor" in info.modes
 
 
 if __name__ == "__main__":

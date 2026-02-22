@@ -29,12 +29,12 @@
         "Provides clear password reset instructions",
         "Mentions email verification step"
       ],
+      "difficulty": "easy",
       "constraints": {
         "max_latency_ms": 3000,
         "max_tokens": 500
       },
       "metadata": {
-        "difficulty": "easy",
         "category": "account-management",
         "priority": "high"
       },
@@ -65,12 +65,12 @@
         "Offers to check status and provide tracking",
         "Suggests resolution (expediting delivery)"
       ],
+      "difficulty": "medium",
       "constraints": {
         "max_latency_ms": 4000,
         "max_tokens": 800
       },
       "metadata": {
-        "difficulty": "medium",
         "category": "order-tracking",
         "priority": "high"
       },
@@ -107,8 +107,8 @@
         "Explains why it's suitable for outdoor use",
         "Mentions key features"
       ],
+      "difficulty": "medium",
       "metadata": {
-        "difficulty": "medium",
         "category": "product-recommendation"
       },
       "expected_trajectory": [
@@ -146,11 +146,11 @@
         "Mentions potential solutions before proceeding",
         "Commits to helping with cancellation if needed"
       ],
+      "difficulty": "hard",
       "constraints": {
         "max_latency_ms": 3500
       },
       "metadata": {
-        "difficulty": "hard",
         "category": "subscription-management",
         "priority": "high",
         "requires_retention": true
@@ -188,12 +188,12 @@
         "Includes time zone",
         "Mentions alternative support options"
       ],
+      "difficulty": "easy",
       "constraints": {
         "max_latency_ms": 2000,
         "max_tokens": 300
       },
       "metadata": {
-        "difficulty": "easy",
         "category": "general-inquiry"
       },
       "expected_trajectory": [

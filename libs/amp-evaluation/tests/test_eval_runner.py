@@ -18,10 +18,9 @@
 Tests for the evaluation runners (Experiment and Monitor).
 
 Tests:
-1. Default behavior - runs all registered evaluators
-2. Tag-based filtering
-3. Name-based filtering
-4. Aggregation of results
+1. Basic runner functionality with explicit evaluator lists
+2. Aggregation of results
+3. Validation (empty evaluators list raises ValueError)
 """
 
 import pytest
@@ -31,9 +30,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from amp_evaluation import evaluator, get_registry
+from amp_evaluation import evaluator, EvalResult
 from amp_evaluation.runner import Monitor, RunResult
-from amp_evaluation.trace import Trace, TraceMetrics, TokenUsage
+from amp_evaluation.evaluators.config import EvalMode
+from amp_evaluation.trace import Trace, TraceLoader, parse_traces_for_evaluation
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
 # ============================================================================
@@ -41,76 +43,16 @@ from amp_evaluation.trace import Trace, TraceMetrics, TokenUsage
 # ============================================================================
 
 
-@pytest.fixture(autouse=True)
-def test_env_vars():
-    """Set minimal required environment variables for tests."""
-    # Store original values
-    original_env = {}
-    required_vars = {
-        "AGENT_UID": "test-agent",
-        "ENVIRONMENT_UID": "test-env",
-        "PUBLISH_RESULTS": "false",  # Disable platform publishing
-        "TRACE_LOADER_MODE": "file",  # Use file mode for tests
-        "TRACE_FILE_PATH": "/tmp/test_traces.json",
-    }
-
-    for key, value in required_vars.items():
-        if key in os.environ:
-            original_env[key] = os.environ[key]
-        os.environ[key] = value
-
-    yield
-
-    # Restore original values
-    for key in required_vars:
-        if key in original_env:
-            os.environ[key] = original_env[key]
-        else:
-            del os.environ[key]
-
-
-@pytest.fixture(autouse=True)
-def clean_registry():
-    """Clean registry before each test."""
-    registry = get_registry()
-    # Store original evaluators
-    original = registry._evaluators.copy()
-
-    # Clear for test
-    registry._evaluators.clear()
-
-    yield registry
-
-    # Restore after test
-    registry._evaluators.clear()
-    registry._evaluators.update(original)
-
-
 @pytest.fixture
 def sample_traces():
-    """Create sample Trace objects for testing."""
-    return [
-        Trace(
-            trace_id="trace_1",
-            input="What is 2+2?",
-            output="4",
-            metrics=TraceMetrics(total_duration_ms=100.0, token_usage=TokenUsage(total_tokens=50), llm_call_count=1),
-        ),
-        Trace(
-            trace_id="trace_2",
-            input="Hello",
-            output="Hi there!",
-            metrics=TraceMetrics(total_duration_ms=200.0, token_usage=TokenUsage(total_tokens=30), llm_call_count=1),
-        ),
-        Trace(
-            trace_id="trace_3",
-            input="Bad input",
-            output="",  # Empty output
-            metrics=TraceMetrics(
-                total_duration_ms=500.0, token_usage=TokenUsage(total_tokens=100), llm_call_count=2, error_count=1
-            ),
-        ),
-    ]
+    """Load real traces from fixture file."""
+    loader = TraceLoader(
+        file_path=str(FIXTURES_DIR / "sample_traces.json"),
+        agent_uid="sample-agent",
+        environment_uid="test",
+    )
+    otel_traces = loader.load_batch(limit=5)
+    return parse_traces_for_evaluation(otel_traces)
 
 
 # ============================================================================
@@ -119,160 +61,61 @@ def sample_traces():
 
 
 class TestMonitorBasic:
-    """Test basic EvalRunner functionality."""
+    """Test basic Monitor functionality with explicit evaluator lists."""
 
-    def test_empty_runner_no_evaluators(self, clean_registry):
-        """Runner with no registered evaluators has empty list."""
-        runner = Monitor()
-        assert runner.evaluator_count == 0
-        assert runner.evaluator_names == []
+    def test_empty_runner_no_evaluators(self):
+        """Monitor with empty evaluators list raises ValueError."""
+        with pytest.raises(ValueError, match="At least one evaluator is required"):
+            Monitor(evaluators=[])
 
-    def test_runs_all_registered_evaluators(self, clean_registry):
-        """Runner runs all registered evaluators by default."""
+    def test_runs_all_provided_evaluators(self):
+        """Monitor runs all evaluators passed explicitly."""
 
-        # Register some evaluators
         @evaluator(name="eval_a")
-        def eval_a(context):
-            return 1.0
+        def eval_a(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
 
         @evaluator(name="eval_b")
-        def eval_b(context):
-            return 0.5
+        def eval_b(trace: Trace) -> EvalResult:
+            return EvalResult(score=0.5)
 
-        runner = Monitor()
+        runner = Monitor(evaluators=[eval_a, eval_b])
         assert runner.evaluator_count == 2
         assert set(runner.evaluator_names) == {"eval_a", "eval_b"}
 
-    def test_run_returns_result(self, clean_registry, sample_traces):
+    def test_run_returns_result(self, sample_traces):
         """Run returns a RunResult with proper structure."""
 
         @evaluator(name="simple_eval")
-        def simple_eval(observation):
-            return 1.0 if observation.output else 0.0
+        def simple_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0 if trace.output else 0.0)
 
-        runner = Monitor()
+        runner = Monitor(evaluators=[simple_eval])
         result = runner.run(traces=sample_traces)
 
         assert isinstance(result, RunResult)
-        assert result.traces_evaluated == 3
+        assert result.traces_evaluated == len(sample_traces)
         assert result.evaluators_run == 1
         assert result.success
         assert "simple_eval" in result.scores
 
+    def test_multiple_evaluators_run(self, sample_traces):
+        """Multiple evaluators all produce scores."""
 
-# ============================================================================
-# TESTS: TAG-BASED FILTERING
-# ============================================================================
+        @evaluator(name="length_eval")
+        def length_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=min(len(trace.output) / 10.0, 1.0))
 
+        @evaluator(name="has_output_eval")
+        def has_output_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0 if trace.output else 0.0)
 
-class TestMonitorTagFiltering:
-    """Test tag-based filtering of evaluators."""
+        runner = Monitor(evaluators=[length_eval, has_output_eval])
+        result = runner.run(traces=sample_traces)
 
-    def test_include_tags_filters_evaluators(self, clean_registry):
-        """include_tags only runs evaluators with those tags."""
-
-        @evaluator(name="quality_eval", tags=["quality"])
-        def quality_eval(context):
-            return 1.0
-
-        @evaluator(name="perf_eval", tags=["performance"])
-        def perf_eval(context):
-            return 0.8
-
-        @evaluator(name="both_eval", tags=["quality", "performance"])
-        def both_eval(context):
-            return 0.9
-
-        # Only quality tagged
-        runner = Monitor(include_tags=["quality"])
-        assert set(runner.evaluator_names) == {"quality_eval", "both_eval"}
-
-        # Only performance tagged
-        runner = Monitor(include_tags=["performance"])
-        assert set(runner.evaluator_names) == {"perf_eval", "both_eval"}
-
-    def test_exclude_tags_filters_evaluators(self, clean_registry):
-        """exclude_tags removes evaluators with those tags."""
-
-        @evaluator(name="fast_eval", tags=["fast"])
-        def fast_eval(context):
-            return 1.0
-
-        @evaluator(name="llm_judge", tags=["quality", "llm-judge"])
-        def llm_judge(context):
-            return 0.5
-
-        @evaluator(name="simple_eval", tags=["quality"])
-        def simple_eval(context):
-            return 0.7
-
-        # Exclude LLM judges
-        runner = Monitor(exclude_tags=["llm-judge"])
-        assert set(runner.evaluator_names) == {"fast_eval", "simple_eval"}
-
-    def test_include_and_exclude_tags_together(self, clean_registry):
-        """Can use both include_tags and exclude_tags."""
-
-        @evaluator(name="fast_quality", tags=["quality", "fast"])
-        def fast_quality(context):
-            return 1.0
-
-        @evaluator(name="llm_quality", tags=["quality", "llm-judge"])
-        def llm_quality(context):
-            return 0.5
-
-        @evaluator(name="perf_eval", tags=["performance"])
-        def perf_eval(context):
-            return 0.8
-
-        # Quality but not LLM judge
-        runner = Monitor(include_tags=["quality"], exclude_tags=["llm-judge"])
-        assert runner.evaluator_names == ["fast_quality"]
-
-
-# ============================================================================
-# TESTS: NAME-BASED FILTERING
-# ============================================================================
-
-
-class TestMonitorNameFiltering:
-    """Test name-based filtering of evaluators."""
-
-    def test_include_by_name(self, clean_registry):
-        """include parameter specifies exact evaluators to run."""
-
-        @evaluator(name="eval_a")
-        def eval_a(context):
-            return 1.0
-
-        @evaluator(name="eval_b")
-        def eval_b(context):
-            return 0.5
-
-        @evaluator(name="eval_c")
-        def eval_c(context):
-            return 0.7
-
-        runner = Monitor(include=["eval_a", "eval_c"])
-        assert set(runner.evaluator_names) == {"eval_a", "eval_c"}
-
-    def test_exclude_by_name(self, clean_registry):
-        """exclude parameter removes specific evaluators."""
-
-        @evaluator(name="eval_a")
-        def eval_a(context):
-            return 1.0
-
-        @evaluator(name="eval_b")
-        def eval_b(context):
-            return 0.5
-
-        @evaluator(name="eval_c")
-        def eval_c(context):
-            return 0.7
-
-        runner = Monitor(exclude=["eval_b"])
-        assert set(runner.evaluator_names) == {"eval_a", "eval_c"}
+        assert result.evaluators_run == 2
+        assert "length_eval" in result.scores
+        assert "has_output_eval" in result.scores
 
 
 # ============================================================================
@@ -283,42 +126,38 @@ class TestMonitorNameFiltering:
 class TestMonitorAggregation:
     """Test result aggregation."""
 
-    def test_default_mean_aggregation(self, clean_registry, sample_traces):
+    def test_default_mean_aggregation(self, sample_traces):
         """Default aggregation is MEAN when none specified."""
 
-        @evaluator(name="output_check")
-        def output_check(observation, task=None):
-            return 1.0 if observation.output else 0.0
+        @evaluator(name="constant_eval")
+        def constant_eval(trace: Trace) -> EvalResult:
+            # Always return 0.8 — deterministic, tests aggregation math
+            return EvalResult(score=0.8)
 
-        runner = Monitor()
+        runner = Monitor(evaluators=[constant_eval])
         result = runner.run(traces=sample_traces)
 
-        # trace_1 and trace_2 have output (1.0), trace_3 doesn't (0.0)
-        # Mean = (1.0 + 1.0 + 0.0) / 3 = 0.667
-        assert "output_check" in result.scores
-        agg = result.scores["output_check"]
-        # AggregatedResults has .mean property and .aggregations dict
+        assert "constant_eval" in result.scores
+        agg = result.scores["constant_eval"]
         assert agg.mean is not None
-        assert abs(agg.mean - 0.667) < 0.01
+        assert abs(agg.mean - 0.8) < 0.001  # Mean of constant 0.8 must be 0.8
 
-    def test_individual_scores_included(self, clean_registry, sample_traces):
+    def test_individual_scores_included(self, sample_traces):
         """Individual scores with trace_ids are included in results."""
 
         @evaluator(name="test_eval")
-        def custom_eval(trajectory, task=None):
-            return 1.0 if trajectory.output else 0.0
+        def custom_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
 
-        runner = Monitor()
+        runner = Monitor(evaluators=[custom_eval])
         result = runner.run(traces=sample_traces)
 
         summary = result.scores["test_eval"]
-        assert len(summary.individual_scores) == 3
-
-        # Check trace_ids are captured
+        # One score per loaded trace
+        assert len(summary.individual_scores) == len(sample_traces)
+        # All trace IDs are non-empty strings from the real data
         trace_ids = [s.trace_id for s in summary.individual_scores]
-        assert "trace_1" in trace_ids
-        assert "trace_2" in trace_ids
-        assert "trace_3" in trace_ids
+        assert all(isinstance(tid, str) and len(tid) > 0 for tid in trace_ids)
 
 
 # ============================================================================
@@ -329,33 +168,70 @@ class TestMonitorAggregation:
 class TestMonitorValidation:
     """Test input validation."""
 
-    def test_conflicting_evaluator_names_raises_error(self, clean_registry):
-        """Cannot have same evaluator name in both include and exclude."""
-        with pytest.raises(ValueError, match="Evaluator names cannot be in both include and exclude"):
-            Monitor(
-                include=["eval_a", "eval_b"],
-                exclude=["eval_b", "eval_c"],  # eval_b is in both
-            )
+    def test_missing_evaluators_raises_error(self):
+        """Monitor with empty evaluators list raises ValueError."""
+        with pytest.raises(ValueError, match="At least one evaluator is required"):
+            Monitor(evaluators=[])
 
-    def test_conflicting_tags_raises_error(self, clean_registry):
-        """Cannot have same tag in both include_tags and exclude_tags."""
-        with pytest.raises(ValueError, match="Tags cannot be in both include_tags and exclude_tags"):
-            Monitor(
-                include_tags=["quality", "basic"],
-                exclude_tags=["basic", "llm-judge"],  # basic is in both
-            )
+    def test_single_evaluator_accepted(self):
+        """Monitor accepts a single evaluator."""
 
-    def test_no_conflict_when_disjoint_names(self, clean_registry):
-        """No error when include and exclude lists are disjoint."""
-        # Should not raise
-        runner = Monitor(include=["eval_a", "eval_b"], exclude=["eval_c", "eval_d"])
-        assert runner is not None
+        @evaluator(name="solo_eval")
+        def solo_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
 
-    def test_no_conflict_when_disjoint_tags(self, clean_registry):
-        """No error when include_tags and exclude_tags are disjoint."""
-        # Should not raise
-        runner = Monitor(include_tags=["quality"], exclude_tags=["llm-judge"])
-        assert runner is not None
+        runner = Monitor(evaluators=[solo_eval])
+        assert runner.evaluator_count == 1
+        assert runner.evaluator_names == ["solo_eval"]
+
+
+# ============================================================================
+# REGRESSION TESTS: Bugs found during code review
+# ============================================================================
+
+
+class TestRunResultSuccess:
+    """Regression: RunResult.success must be False when no traces were evaluated."""
+
+    def test_success_false_with_zero_traces(self):
+        """An empty run (0 traces evaluated) should NOT be reported as successful."""
+        from datetime import datetime
+
+        result = RunResult(
+            run_id="test_empty",
+            eval_mode=EvalMode.MONITOR,
+            started_at=datetime.now(),
+            traces_evaluated=0,
+            evaluators_run=0,
+        )
+        assert result.success is False
+
+    def test_success_true_with_traces_and_no_errors(self):
+        """A run with evaluated traces and no errors should be successful."""
+        from datetime import datetime
+
+        result = RunResult(
+            run_id="test_ok",
+            eval_mode=EvalMode.MONITOR,
+            started_at=datetime.now(),
+            traces_evaluated=5,
+            evaluators_run=1,
+        )
+        assert result.success is True
+
+    def test_success_false_with_traces_but_errors(self):
+        """A run with errors should not be successful even if traces were evaluated."""
+        from datetime import datetime
+
+        result = RunResult(
+            run_id="test_errors",
+            eval_mode=EvalMode.MONITOR,
+            started_at=datetime.now(),
+            traces_evaluated=5,
+            evaluators_run=1,
+            errors=["Something went wrong"],
+        )
+        assert result.success is False
 
 
 if __name__ == "__main__":

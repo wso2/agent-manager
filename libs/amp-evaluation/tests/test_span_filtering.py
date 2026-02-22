@@ -284,7 +284,7 @@ class TestSpanFiltering:
 
         # VERIFY: Both produce same semantic results
         # (steps only contains semantic spans, so count should be same)
-        assert len(trajectory_filtered.steps) == len(trajectory_unfiltered.steps), (
+        assert len(trajectory_filtered.spans) == len(trajectory_unfiltered.spans), (
             "Filtered and unfiltered should have same semantic step count"
         )
 
@@ -293,7 +293,7 @@ class TestSpanFiltering:
         assert trajectory_filtered.metrics.tool_call_count == trajectory_unfiltered.metrics.tool_call_count
 
         # VERIFY: Filtering actually happened by checking the original trace span count
-        assert len(lg_trace.spans) > len(trajectory_filtered.steps), (
+        assert len(lg_trace.spans) > len(trajectory_filtered.spans), (
             "Original trace should have more spans than filtered semantic steps"
         )
 

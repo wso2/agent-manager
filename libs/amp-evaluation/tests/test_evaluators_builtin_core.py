@@ -68,7 +68,7 @@ def basic_trajectory():
             total_duration_ms=1500.0,
             token_usage=TokenUsage(input_tokens=100, output_tokens=50, total_tokens=150),
         ),
-        steps=[],
+        spans=[],
     )
     return trajectory
 
@@ -98,7 +98,7 @@ def trajectory_with_tools():
             total_duration_ms=2000.0,
             token_usage=TokenUsage(input_tokens=120, output_tokens=80, total_tokens=200),
         ),
-        steps=[tool_span_1, tool_span_2],
+        spans=[tool_span_1, tool_span_2],
     )
     trajectory._tool_spans = [tool_span_1, tool_span_2]
     return trajectory
@@ -128,7 +128,7 @@ class TestAnswerLengthEvaluator:
     def test_answer_within_bounds(self, basic_trajectory):
         """Test when answer length is within acceptable bounds."""
         evaluator = AnswerLengthEvaluator(min_length=10, max_length=100)
-        result = evaluator.evaluate(basic_trajectory)[0]
+        result = evaluator.evaluate(basic_trajectory)
 
         assert result.score == 1.0
         assert result.passed is True
@@ -137,7 +137,7 @@ class TestAnswerLengthEvaluator:
     def test_answer_too_short(self, basic_trajectory):
         """Test when answer is too short."""
         evaluator = AnswerLengthEvaluator(min_length=100, max_length=1000)
-        result = evaluator.evaluate(basic_trajectory)[0]
+        result = evaluator.evaluate(basic_trajectory)
 
         assert result.score == 0.0
         assert result.passed is False
@@ -146,7 +146,7 @@ class TestAnswerLengthEvaluator:
     def test_answer_too_long(self, basic_trajectory):
         """Test when answer is too long."""
         evaluator = AnswerLengthEvaluator(min_length=1, max_length=10)
-        result = evaluator.evaluate(basic_trajectory)[0]
+        result = evaluator.evaluate(basic_trajectory)
 
         assert result.score == 0.0
         assert result.passed is False
@@ -160,11 +160,11 @@ class TestAnswerLengthEvaluator:
             output="",
             timestamp=datetime.now(),
             metrics=TraceMetrics(),
-            steps=[],
+            spans=[],
         )
 
         evaluator = AnswerLengthEvaluator(min_length=1, max_length=100)
-        result = evaluator.evaluate(trajectory)[0]
+        result = evaluator.evaluate(trajectory)
 
         assert result.score == 0.0
         assert result.passed is False
@@ -176,7 +176,7 @@ class TestAnswerRelevancyEvaluator:
     def test_high_relevancy(self, basic_trajectory):
         """Test when answer has high word overlap with input."""
         evaluator = AnswerRelevancyEvaluator(min_overlap_ratio=0.1)
-        result = evaluator.evaluate(basic_trajectory)[0]
+        result = evaluator.evaluate(basic_trajectory)
 
         assert result.score > 0.0
         assert result.passed is True
@@ -189,11 +189,11 @@ class TestAnswerRelevancyEvaluator:
             output="Bananas are yellow.",
             timestamp=datetime.now(),
             metrics=TraceMetrics(),
-            steps=[],
+            spans=[],
         )
 
         evaluator = AnswerRelevancyEvaluator(min_overlap_ratio=0.5)
-        result = evaluator.evaluate(trajectory)[0]
+        result = evaluator.evaluate(trajectory)
 
         assert result.score < 0.5
         assert result.passed is False
@@ -205,7 +205,7 @@ class TestRequiredContentEvaluator:
     def test_all_required_strings_present(self, basic_trajectory):
         """Test when all required strings are present."""
         evaluator = RequiredContentEvaluator(required_strings=["Paris", "France"], case_sensitive=False)
-        result = evaluator.evaluate(basic_trajectory)[0]
+        result = evaluator.evaluate(basic_trajectory)
 
         assert result.score == 1.0
         assert result.passed is True
@@ -213,7 +213,7 @@ class TestRequiredContentEvaluator:
     def test_missing_required_strings(self, basic_trajectory):
         """Test when some required strings are missing."""
         evaluator = RequiredContentEvaluator(required_strings=["Paris", "London", "Berlin"], case_sensitive=False)
-        result = evaluator.evaluate(basic_trajectory)[0]
+        result = evaluator.evaluate(basic_trajectory)
 
         assert result.score < 1.0
         assert result.passed is False
@@ -221,7 +221,7 @@ class TestRequiredContentEvaluator:
     def test_required_patterns(self, basic_trajectory):
         """Test with regex patterns."""
         evaluator = RequiredContentEvaluator(required_patterns=[r"\bParis\b", r"\bcapital\b"], case_sensitive=False)
-        result = evaluator.evaluate(basic_trajectory)[0]
+        result = evaluator.evaluate(basic_trajectory)
 
         assert result.score == 1.0
         assert result.passed is True
@@ -233,7 +233,7 @@ class TestProhibitedContentEvaluator:
     def test_no_prohibited_content(self, basic_trajectory):
         """Test when no prohibited content is found."""
         evaluator = ProhibitedContentEvaluator(prohibited_strings=["London", "Berlin"], case_sensitive=False)
-        result = evaluator.evaluate(basic_trajectory)[0]
+        result = evaluator.evaluate(basic_trajectory)
 
         assert result.score == 1.0
         assert result.passed is True
@@ -241,7 +241,7 @@ class TestProhibitedContentEvaluator:
     def test_prohibited_content_found(self, basic_trajectory):
         """Test when prohibited content is found."""
         evaluator = ProhibitedContentEvaluator(prohibited_strings=["Paris"], case_sensitive=False)
-        result = evaluator.evaluate(basic_trajectory)[0]
+        result = evaluator.evaluate(basic_trajectory)
 
         assert result.score == 0.0
         assert result.passed is False
@@ -249,7 +249,7 @@ class TestProhibitedContentEvaluator:
     def test_prohibited_from_task_context(self, basic_trajectory, basic_task):
         """Test using prohibited content from task."""
         evaluator = ProhibitedContentEvaluator(use_context_prohibited=True)
-        result = evaluator.evaluate(basic_trajectory, basic_task)[0]
+        result = evaluator.evaluate(basic_trajectory, basic_task)
 
         # Paris is in output, but London and Berlin (from task) are not
         assert result.score == 1.0
@@ -267,7 +267,7 @@ class TestExactMatchEvaluator:
             output="4",
             timestamp=datetime.now(),
             metrics=TraceMetrics(),
-            steps=[],
+            spans=[],
         )
         task = Task(
             task_id="task-1",
@@ -278,7 +278,7 @@ class TestExactMatchEvaluator:
         )
 
         evaluator = ExactMatchEvaluator()
-        result = evaluator.evaluate(trajectory, task)[0]
+        result = evaluator.evaluate(trajectory, task)
 
         assert result.score == 1.0
         assert result.passed is True
@@ -286,7 +286,7 @@ class TestExactMatchEvaluator:
     def test_no_match(self, basic_trajectory, basic_task):
         """Test when output doesn't match expected."""
         evaluator = ExactMatchEvaluator()
-        result = evaluator.evaluate(basic_trajectory, basic_task)[0]
+        result = evaluator.evaluate(basic_trajectory, basic_task)
 
         assert result.score == 0.0
         assert result.passed is False
@@ -299,7 +299,7 @@ class TestExactMatchEvaluator:
             output="PARIS",
             timestamp=datetime.now(),
             metrics=TraceMetrics(),
-            steps=[],
+            spans=[],
         )
         task = Task(
             task_id="task-1",
@@ -310,7 +310,7 @@ class TestExactMatchEvaluator:
         )
 
         evaluator = ExactMatchEvaluator(case_sensitive=False)
-        result = evaluator.evaluate(trajectory, task)[0]
+        result = evaluator.evaluate(trajectory, task)
 
         assert result.score == 1.0
         assert result.passed is True
@@ -322,7 +322,7 @@ class TestContainsMatchEvaluator:
     def test_contains_match(self, basic_trajectory, basic_task):
         """Test when output contains expected."""
         evaluator = ContainsMatchEvaluator()
-        result = evaluator.evaluate(basic_trajectory, basic_task)[0]
+        result = evaluator.evaluate(basic_trajectory, basic_task)
 
         assert result.score == 1.0
         assert result.passed is True
@@ -335,7 +335,7 @@ class TestContainsMatchEvaluator:
             output="The answer is London",
             timestamp=datetime.now(),
             metrics=TraceMetrics(),
-            steps=[],
+            spans=[],
         )
         task = Task(
             task_id="task-1",
@@ -346,7 +346,7 @@ class TestContainsMatchEvaluator:
         )
 
         evaluator = ContainsMatchEvaluator()
-        result = evaluator.evaluate(trajectory, task)[0]
+        result = evaluator.evaluate(trajectory, task)
 
         assert result.score == 0.0
         assert result.passed is False
@@ -363,7 +363,7 @@ class TestToolSequenceEvaluator:
     def test_correct_sequence(self, trajectory_with_tools):
         """Test when tools are called in correct sequence."""
         evaluator = ToolSequenceEvaluator(expected_sequence=["search_flights", "book_flight"], strict=True)
-        result = evaluator.evaluate(trajectory_with_tools)[0]
+        result = evaluator.evaluate(trajectory_with_tools)
 
         assert result.score == 1.0
         assert result.passed is True
@@ -371,7 +371,7 @@ class TestToolSequenceEvaluator:
     def test_wrong_sequence(self, trajectory_with_tools):
         """Test when tools are called in wrong sequence."""
         evaluator = ToolSequenceEvaluator(expected_sequence=["book_flight", "search_flights"], strict=True)
-        result = evaluator.evaluate(trajectory_with_tools)[0]
+        result = evaluator.evaluate(trajectory_with_tools)
 
         assert result.score < 1.0
         assert result.passed is False
@@ -379,7 +379,7 @@ class TestToolSequenceEvaluator:
     def test_partial_sequence_non_strict(self, trajectory_with_tools):
         """Test partial sequence in non-strict mode."""
         evaluator = ToolSequenceEvaluator(expected_sequence=["search_flights"], strict=False)
-        result = evaluator.evaluate(trajectory_with_tools)[0]
+        result = evaluator.evaluate(trajectory_with_tools)
 
         assert result.score > 0.0
         assert result.passed is True
@@ -391,7 +391,7 @@ class TestRequiredToolsEvaluator:
     def test_all_required_tools_called(self, trajectory_with_tools):
         """Test when all required tools are called."""
         evaluator = RequiredToolsEvaluator(required_tools=["search_flights", "book_flight"])
-        result = evaluator.evaluate(trajectory_with_tools)[0]
+        result = evaluator.evaluate(trajectory_with_tools)
 
         assert result.score == 1.0
         assert result.passed is True
@@ -399,7 +399,7 @@ class TestRequiredToolsEvaluator:
     def test_missing_required_tools(self, trajectory_with_tools):
         """Test when some required tools are missing."""
         evaluator = RequiredToolsEvaluator(required_tools=["search_flights", "book_flight", "cancel_flight"])
-        result = evaluator.evaluate(trajectory_with_tools)[0]
+        result = evaluator.evaluate(trajectory_with_tools)
 
         assert result.score < 1.0
         assert result.passed is False
@@ -411,7 +411,7 @@ class TestStepSuccessRateEvaluator:
     def test_all_steps_successful(self, trajectory_with_tools):
         """Test when all steps are successful."""
         evaluator = StepSuccessRateEvaluator(min_success_rate=0.8)
-        result = evaluator.evaluate(trajectory_with_tools)[0]
+        result = evaluator.evaluate(trajectory_with_tools)
 
         # All steps are successful (no error field)
         assert result.score == 1.0
@@ -440,11 +440,11 @@ class TestStepSuccessRateEvaluator:
             output="test",
             timestamp=datetime.now(),
             metrics=TraceMetrics(),
-            steps=[tool_span_1, tool_span_2],
+            spans=[tool_span_1, tool_span_2],
         )
 
         evaluator = StepSuccessRateEvaluator(min_success_rate=0.8)
-        result = evaluator.evaluate(trajectory)[0]
+        result = evaluator.evaluate(trajectory)
 
         assert result.score == 0.5  # 1 out of 2 successful
         assert result.passed is False
@@ -461,7 +461,7 @@ class TestLatencyEvaluator:
     def test_latency_within_limit(self, basic_trajectory):
         """Test when latency is within acceptable limit."""
         evaluator = LatencyEvaluator(max_latency_ms=2000.0)
-        result = evaluator.evaluate(basic_trajectory)[0]
+        result = evaluator.evaluate(basic_trajectory)
 
         assert result.score == 1.0
         assert result.passed is True
@@ -469,7 +469,7 @@ class TestLatencyEvaluator:
     def test_latency_exceeds_limit(self, basic_trajectory):
         """Test when latency exceeds limit."""
         evaluator = LatencyEvaluator(max_latency_ms=1000.0)
-        result = evaluator.evaluate(basic_trajectory)[0]
+        result = evaluator.evaluate(basic_trajectory)
 
         # basic_trajectory has 1500ms latency
         # Score decreases linearly: 1.0 - (1500-1000)/1000 = 0.5
@@ -484,7 +484,7 @@ class TestTokenEfficiencyEvaluator:
         """Test when token usage is efficient."""
         # basic_trajectory uses 150 tokens
         evaluator = TokenEfficiencyEvaluator(max_tokens=200)
-        result = evaluator.evaluate(basic_trajectory)[0]
+        result = evaluator.evaluate(basic_trajectory)
 
         assert result.passed is True
         assert result.score == 1.0
@@ -493,7 +493,7 @@ class TestTokenEfficiencyEvaluator:
         """Test when token usage is inefficient."""
         # basic_trajectory uses 150 tokens, set limit to 100
         evaluator = TokenEfficiencyEvaluator(max_tokens=100)
-        result = evaluator.evaluate(basic_trajectory)[0]
+        result = evaluator.evaluate(basic_trajectory)
 
         assert result.passed is False
         # Score: 1.0 - (150-100)/100 = 0.5
@@ -506,7 +506,7 @@ class TestIterationCountEvaluator:
     def test_within_max_iterations(self, trajectory_with_tools):
         """Test when iteration count is within max."""
         evaluator = IterationCountEvaluator(max_iterations=5)
-        result = evaluator.evaluate(trajectory_with_tools)[0]
+        result = evaluator.evaluate(trajectory_with_tools)
 
         # 2 tool calls = 2 iterations
         assert result.score == 1.0
@@ -515,7 +515,7 @@ class TestIterationCountEvaluator:
     def test_exceeds_max_iterations(self, trajectory_with_tools):
         """Test when iteration count exceeds max."""
         evaluator = IterationCountEvaluator(max_iterations=1)
-        result = evaluator.evaluate(trajectory_with_tools)[0]
+        result = evaluator.evaluate(trajectory_with_tools)
 
         # 2 tool calls > 1 max
         assert result.score == 0.0
