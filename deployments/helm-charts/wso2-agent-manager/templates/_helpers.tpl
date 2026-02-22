@@ -219,6 +219,17 @@ JWT Keys Secret name
 {{- end }}
 
 {{/*
+TLS Certificates Secret name
+*/}}
+{{- define "agent-management-platform.tlsCertsSecretName" -}}
+{{- if .Values.agentManagerService.certificates.certificatesSecret }}
+{{- .Values.agentManagerService.certificates.certificatesSecret }}
+{{- else }}
+{{- printf "%s-tls-certs" (include "agent-management-platform.fullname" .) }}
+{{- end }}
+{{- end }}
+
+{{/*
 ==============================================
 Image Pull Secrets
 ==============================================

@@ -42,9 +42,6 @@ COPY --from=builder --chown=1000:1000 /go/bin/agent-manager-service /go/bin/agen
 # Copy the default OpenAPI schema file
 COPY --from=builder --chown=1000:1000 /app/clients/openchoreosvc/client/default-openapi-schema.yaml /app/clients/openchoreosvc/client/default-openapi-schema.yaml
 
-# Copy default certificates
-COPY --from=builder --chown=1000:1000 /app/data/certs/ /app/data/certs/
-
 # Copy scripts for runtime key generation
 COPY --from=builder --chown=1000:1000 /app/scripts/gen_keys.sh /app/scripts/gen_keys.sh
 

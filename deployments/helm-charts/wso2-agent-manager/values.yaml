@@ -146,12 +146,14 @@ agentManagerService:
       baseURL: "http://openchoreo-api.openchoreo-control-plane:8080/api/v1"
 
   # Certificate configuration
-  # Default mode: Uses embedded certificates from Docker image at /app/data/certs/
-  # Custom mode: Provide certificatesSecret to mount custom certificates from Kubernetes secret
   certificates:
-    # Specify a Kubernetes secret name containing custom certificates
-    # Expected keys in secret: cert.pem, key.pem
-    # Leave empty to use default embedded certificates
+    # REQUIRED: Kubernetes secret name containing TLS certificates
+    # Expected keys in secret: cert.pem (certificate), key.pem (private key)
+    # Example creation:
+    #   kubectl create secret generic amp-tls-certs \
+    #     --from-file=cert.pem=/path/to/cert.pem \
+    #     --from-file=key.pem=/path/to/key.pem
+    # For development, leave empty to generate self-signed certs at runtime (insecure)
     certificatesSecret: ""
 
   agentWorkload:
@@ -267,7 +269,7 @@ dbMigration:
 jwtKeysGeneration:
   enabled: true
   backoffLimit: 3
-  
+
   resources:
     requests:
       memory: 64Mi
@@ -275,7 +277,23 @@ jwtKeysGeneration:
     limits:
       memory: 128Mi
       cpu: 100m
-  
+
+  podSecurityContext: {}
+  securityContext: {}
+
+# TLS Certificates Generation Job Configuration
+tlsCertsGeneration:
+  enabled: true
+  backoffLimit: 3
+
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 128Mi
+      cpu: 100m
+
   podSecurityContext: {}
   securityContext: {}
 

@@ -121,11 +121,9 @@ spec:
             - name: jwt-keys
               mountPath: /app/keys
               readOnly: true
-            {{- if .Values.agentManagerService.certificates.certificatesSecret }}
             - name: certificates
               mountPath: /app/data/certs
               readOnly: true
-            {{- end }}
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -135,12 +133,11 @@ spec:
             secretName: {{ include "agent-management-platform.jwtKeysSecretName" . }}
             defaultMode: 0440
             optional: true
-        {{- if .Values.agentManagerService.certificates.certificatesSecret }}
         - name: certificates
           secret:
-            secretName: {{ .Values.agentManagerService.certificates.certificatesSecret }}
+            secretName: {{ include "agent-management-platform.tlsCertsSecretName" . }}
             defaultMode: 0440
-        {{- end }}
+            optional: false
         {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
