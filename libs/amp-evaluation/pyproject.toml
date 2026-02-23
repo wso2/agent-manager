@@ -54,6 +54,10 @@ target-version = "py39"
 [tool.mypy]
 exclude = ["samples/"]
 
+[[tool.mypy.overrides]]
+module = ["deepeval.*", "litellm.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 addopts = "-v --cov=amp_evaluation --cov-report=term-missing"
 python_classes = "Test*"

@@ -552,7 +552,7 @@ Evaluation Criteria: {self.criteria}"""
     def _call_llm_with_retry(self, prompt: str) -> EvalResult:
         """Call LLM via LiteLLM, validate with Pydantic, retry on failure."""
         try:
-            from litellm import completion  # type: ignore[import-not-found]
+            from litellm import completion
         except ImportError:
             raise ImportError("LiteLLM is required for LLM-as-judge evaluators. Install with: pip install litellm")
 
