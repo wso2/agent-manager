@@ -35,7 +35,7 @@ from amp_evaluation.evaluators.base import (  # noqa: E402
     FunctionLLMJudge,
     JudgeOutput,
 )
-from amp_evaluation.evaluators.config import EvalMode, EvaluationLevel  # noqa: E402
+from amp_evaluation.evaluators.params import EvalMode, EvaluationLevel  # noqa: E402
 from amp_evaluation.models import EvalResult  # noqa: E402
 from amp_evaluation.dataset import Task  # noqa: E402
 from amp_evaluation.trace import Trace, TraceMetrics, TokenUsage  # noqa: E402

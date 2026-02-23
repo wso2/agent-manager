@@ -37,7 +37,7 @@ from amp_evaluation.registry import evaluator, discover_evaluators
 from amp_evaluation.evaluators.base import FunctionEvaluator
 from amp_evaluation.models import EvalResult, EvaluatorInfo
 from amp_evaluation.trace import Trace
-from amp_evaluation.evaluators.config import EvaluationLevel
+from amp_evaluation.evaluators.params import EvaluationLevel
 from amp_evaluation.aggregators.base import AggregationType, Aggregation
 
 

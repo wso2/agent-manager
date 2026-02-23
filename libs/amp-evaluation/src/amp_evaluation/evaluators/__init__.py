@@ -39,7 +39,7 @@ subpackage.
 
 # Base classes - always available
 from .base import BaseEvaluator, LLMAsJudgeEvaluator, FunctionEvaluator, FunctionLLMJudge, JudgeOutput
-from .config import Param, EvalMode
+from .params import Param, EvalMode
 
 __all__ = [
     # Base classes

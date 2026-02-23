@@ -80,7 +80,7 @@ class EvalMode(str, _enum.Enum):
 _NO_DEFAULT = object()
 
 
-class Param:
+class _ParamDescriptor:
     """
     Descriptor for evaluator parameters.
 
@@ -140,7 +140,7 @@ class Param:
         if name in annotations:
             self.type = annotations[name]
 
-    def __get__(self, obj, objtype=None):
+    def __get__(self, obj: Any, objtype: Any = None) -> Any:
         """Get the param value from the instance, or the descriptor from the class."""
         if obj is None:
             return self
@@ -148,7 +148,7 @@ class Param:
             return obj.__dict__[self._attr_name]
         return None if self.default is _NO_DEFAULT else self.default
 
-    def __set__(self, obj, value):
+    def __set__(self, obj: Any, value: Any) -> None:
         """Set and validate the param value. All values go through _validate."""
         if self.type is not None:
             value = self._validate(value)
@@ -251,3 +251,40 @@ class Param:
             schema["max"] = self.max
 
         return schema
+
+
+def Param(
+    default: Any = _NO_DEFAULT,
+    description: str = "",
+    required: bool = False,
+    min: Optional[float] = None,
+    max: Optional[float] = None,
+    enum: Optional[List[str]] = None,
+) -> Any:
+    """
+    Create a parameter descriptor for evaluator configuration.
+
+    Returns a descriptor that provides type validation, defaults, and metadata.
+
+    Usage (class-based)::
+
+        class MyEvaluator(BaseEvaluator):
+            threshold: float = Param(default=0.7, description="Min score to pass")
+
+    Usage (function-based)::
+
+        @evaluator("my-eval")
+        def my_eval(
+            trace: Trace,
+            threshold: float = Param(default=0.7, description="Pass threshold"),
+        ) -> EvalResult:
+            ...
+    """
+    return _ParamDescriptor(
+        default=default,
+        description=description,
+        required=required,
+        min=min,
+        max=max,
+        enum=enum,
+    )

@@ -40,7 +40,7 @@ import typing
 from pydantic import BaseModel, Field, ValidationError
 
 from ..models import EvalResult, EvaluatorInfo
-from .config import Param, EvaluationLevel, EvalMode, _NO_DEFAULT
+from .params import Param, _ParamDescriptor, EvaluationLevel, EvalMode, _NO_DEFAULT
 
 if TYPE_CHECKING:
     from ..dataset import Task
@@ -130,7 +130,7 @@ def _detect_modes_from_callable(target, skip_param_defaults: bool = False) -> Li
     params = [p for p in sig.parameters.values() if p.name != "self"]
 
     if skip_param_defaults:
-        params = [p for p in params if not isinstance(p.default, Param)]
+        params = [p for p in params if not isinstance(p.default, _ParamDescriptor)]
 
     required = [p for p in params if p.default is inspect.Parameter.empty]
 
@@ -157,7 +157,7 @@ def _count_callable_params(target, skip_param_defaults: bool = False) -> int:
     params = [p for p in sig.parameters.values() if p.name != "self"]
 
     if skip_param_defaults:
-        params = [p for p in params if not isinstance(p.default, Param)]
+        params = [p for p in params if not isinstance(p.default, _ParamDescriptor)]
 
     return len(params)
 
@@ -242,7 +242,7 @@ class BaseEvaluator(ABC):
         missing_required = []
         for attr_name in dir(type(self)):
             attr = getattr(type(self), attr_name, None)
-            if isinstance(attr, Param):
+            if isinstance(attr, _ParamDescriptor):
                 valid_config_names.add(attr_name)
                 if attr_name in kwargs:
                     setattr(self, attr_name, kwargs[attr_name])
@@ -276,7 +276,7 @@ class BaseEvaluator(ABC):
         schema = []
         for attr_name in dir(type(self)):
             attr = getattr(type(self), attr_name, None)
-            if isinstance(attr, Param):
+            if isinstance(attr, _ParamDescriptor):
                 schema.append(attr.to_schema())
         return schema
 
@@ -326,7 +326,7 @@ class BaseEvaluator(ABC):
         )
 
     @abstractmethod
-    def evaluate(self, trace_or_span, task=None) -> EvalResult:
+    def evaluate(self, *args: Any, **kwargs: Any) -> EvalResult:
         """
         Evaluate a single trace or span.
 
@@ -481,7 +481,7 @@ Evaluate and respond with a JSON object:
 
     # ─── User overrides this ─────────────────────────────────────────
 
-    def build_prompt(self, trace: Trace, task: Optional[Task] = None) -> str:
+    def build_prompt(self, *args: Any, **kwargs: Any) -> str:
         """
         Override this method to write your evaluation prompt.
 
@@ -498,6 +498,9 @@ Evaluate and respond with a JSON object:
         Returns the prompt string. Output format is auto-appended.
         Do NOT include scoring instructions.
         """
+        trace: Trace = args[0] if args else kwargs["trace"]
+        task: Optional[Task] = args[1] if len(args) > 1 else kwargs.get("task")
+
         prompt = f"""You are an expert evaluator assessing AI agent outputs.
 
 Input: {trace.input}
@@ -550,7 +553,7 @@ Evaluation Criteria: {self.criteria}"""
     def _call_llm_with_retry(self, prompt: str) -> EvalResult:
         """Call LLM via LiteLLM, validate with Pydantic, retry on failure."""
         try:
-            from litellm import completion
+            from litellm import completion  # type: ignore[import-not-found]
         except ImportError:
             raise ImportError("LiteLLM is required for LLM-as-judge evaluators. Install with: pip install litellm")
 
@@ -621,7 +624,7 @@ class FunctionEvaluator(BaseEvaluator):
     def __init__(self, func: Callable, name: Optional[str] = None, **kwargs):
         self.func = func
         self._config: Dict[str, Any] = {}
-        self._param_descriptors: Dict[str, Param] = {}
+        self._param_descriptors: Dict[str, _ParamDescriptor] = {}
 
         # Extract Param descriptors from function defaults BEFORE super().__init__
         self._extract_function_params(func)
@@ -651,7 +654,7 @@ class FunctionEvaluator(BaseEvaluator):
             pass
 
         for param_name, param in sig.parameters.items():
-            if isinstance(param.default, Param):
+            if isinstance(param.default, _ParamDescriptor):
                 p = param.default
                 # Infer type from function type hint
                 if param_name in hints:
@@ -659,7 +662,7 @@ class FunctionEvaluator(BaseEvaluator):
                 p._attr_name = param_name
                 self._param_descriptors[param_name] = p
                 # Use Param's default as config value
-                from .config import _NO_DEFAULT
+                from .params import _NO_DEFAULT
 
                 if p.default is not _NO_DEFAULT:
                     self._config[param_name] = p.default
@@ -686,7 +689,7 @@ class FunctionEvaluator(BaseEvaluator):
     def evaluate(self, trace_or_span, task=None) -> EvalResult:
         """Call the wrapped function with config values injected."""
         sig = inspect.signature(self.func)
-        non_config_params = [p for p in sig.parameters.values() if not isinstance(p.default, Param)]
+        non_config_params = [p for p in sig.parameters.values() if not isinstance(p.default, _ParamDescriptor)]
 
         # Build kwargs: trace/span + optional task + config params
         call_kwargs = {}

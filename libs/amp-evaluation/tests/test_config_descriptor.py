@@ -27,7 +27,7 @@ from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from amp_evaluation.evaluators.config import Param
+from amp_evaluation.evaluators.params import Param, _ParamDescriptor
 from amp_evaluation.evaluators.base import BaseEvaluator
 from amp_evaluation.models import EvalResult
 from amp_evaluation.trace import Trace, TraceMetrics, TokenUsage
@@ -88,7 +88,7 @@ class TestConfigDescriptor:
                 return EvalResult(score=self.threshold)
 
         # Class-level access returns the descriptor itself
-        assert isinstance(TestEvaluator.threshold, Param)
+        assert isinstance(TestEvaluator.threshold, _ParamDescriptor)
         assert TestEvaluator.threshold.description == "Test threshold"
 
 
@@ -596,8 +596,8 @@ class TestConfigEnforcement:
         assert evaluator.max_length == 500
 
         # Should have Config descriptors
-        assert isinstance(AnswerLengthEvaluator.min_length, Param)
-        assert isinstance(AnswerLengthEvaluator.max_length, Param)
+        assert isinstance(AnswerLengthEvaluator.min_length, _ParamDescriptor)
+        assert isinstance(AnswerLengthEvaluator.max_length, _ParamDescriptor)
 
 
 # ============================================================================

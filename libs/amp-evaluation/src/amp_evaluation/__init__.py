@@ -108,7 +108,7 @@ from .invokers import AgentInvoker, InvokeResult, HttpAgentInvoker
 # ============================================================================
 # EVALUATION LEVELS AND MODES
 # ============================================================================
-from .evaluators.config import EvaluationLevel, EvalMode, Param
+from .evaluators.params import EvaluationLevel, EvalMode, Param
 
 # ============================================================================
 # BASE CLASSES

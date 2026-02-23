@@ -28,7 +28,7 @@ import re
 from typing import List, Optional, Set
 
 from amp_evaluation.evaluators.base import BaseEvaluator
-from amp_evaluation.evaluators.config import Param
+from amp_evaluation.evaluators.params import Param
 from amp_evaluation.models import EvalResult
 from amp_evaluation.trace.models import Trace
 from amp_evaluation.dataset.models import Task
@@ -133,18 +133,18 @@ class RequiredContentEvaluator(BaseEvaluator):
         compare_output = output if self.case_sensitive else output.lower()
 
         missing_strings = []
-        for required in self.required_strings:
+        for required in self.required_strings or []:
             compare_required = required if self.case_sensitive else required.lower()
             if compare_required not in compare_output:
                 missing_strings.append(required)
 
         missing_patterns = []
-        for pattern in self.required_patterns:
+        for pattern in self.required_patterns or []:
             flags = 0 if self.case_sensitive else re.IGNORECASE
             if not re.search(pattern, output, flags):
                 missing_patterns.append(pattern)
 
-        total_required = len(self.required_strings) + len(self.required_patterns)
+        total_required = len(self.required_strings or []) + len(self.required_patterns or [])
         total_missing = len(missing_strings) + len(missing_patterns)
 
         if total_required == 0:
@@ -184,7 +184,7 @@ class ProhibitedContentEvaluator(BaseEvaluator):
         output = trace.output if trace.output else ""
         compare_output = output if self.case_sensitive else output.lower()
 
-        all_prohibited = list(self.prohibited_strings)
+        all_prohibited = list(self.prohibited_strings or [])
         if self.use_context_prohibited and task and task.prohibited_content:
             all_prohibited.extend(task.prohibited_content)
 
@@ -195,7 +195,7 @@ class ProhibitedContentEvaluator(BaseEvaluator):
                 found_strings.append(prohibited)
 
         found_patterns = []
-        for pattern in self.prohibited_patterns:
+        for pattern in self.prohibited_patterns or []:
             flags = 0 if self.case_sensitive else re.IGNORECASE
             if re.search(pattern, output, flags):
                 found_patterns.append(pattern)
@@ -311,7 +311,7 @@ class ToolSequenceEvaluator(BaseEvaluator):
             self.expected_sequence = []
 
     def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
-        expected = list(self.expected_sequence)
+        expected = list(self.expected_sequence or [])
         if self.use_context_trajectory and task and task.expected_trajectory:
             expected_trajectory = task.expected_trajectory
             expected = [step.tool for step in expected_trajectory if step.tool]
@@ -361,7 +361,7 @@ class RequiredToolsEvaluator(BaseEvaluator):
             self.required_tools = set(self.required_tools)
 
     def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
-        required = set(self.required_tools)
+        required = set(self.required_tools or set())
 
         if not required and task and task.expected_trajectory:
             expected_trajectory = task.expected_trajectory

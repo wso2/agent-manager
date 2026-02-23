@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from amp_evaluation.registry import evaluator, discover_evaluators
 from amp_evaluation.evaluators.base import BaseEvaluator
-from amp_evaluation.evaluators.config import EvaluationLevel, Param, EvalMode
+from amp_evaluation.evaluators.params import EvaluationLevel, Param, EvalMode
 from amp_evaluation.models import EvalResult, EvaluatorInfo
 from amp_evaluation.trace import Trace
 from amp_evaluation.trace.models import AgentTrace, LLMSpan

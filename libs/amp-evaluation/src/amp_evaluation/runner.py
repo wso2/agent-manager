@@ -46,7 +46,7 @@ import logging
 from .trace import Trace, parse_trace_for_evaluation, TraceFetcher, TraceLoader
 from .trace.fetcher import OTELTrace
 from .evaluators.base import BaseEvaluator
-from .evaluators.config import EvalMode
+from .evaluators.params import EvalMode
 from .models import EvaluatorSummary, EvaluatorScore
 from .dataset.models import Task, Dataset
 from .aggregators.base import normalize_aggregations

@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from amp_evaluation import evaluator, EvalResult
 from amp_evaluation.runner import Monitor, RunResult
-from amp_evaluation.evaluators.config import EvalMode
+from amp_evaluation.evaluators.params import EvalMode
 from amp_evaluation.trace import Trace, TraceLoader, parse_traces_for_evaluation
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"

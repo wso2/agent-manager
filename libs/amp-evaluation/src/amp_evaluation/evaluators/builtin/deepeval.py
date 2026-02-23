@@ -43,7 +43,7 @@ import logging
 from typing import Optional, List, Dict, Any
 
 from amp_evaluation.evaluators.base import BaseEvaluator
-from amp_evaluation.evaluators.config import Param
+from amp_evaluation.evaluators.params import Param
 from amp_evaluation.models import EvalResult
 from amp_evaluation.trace.models import Trace
 from amp_evaluation.dataset import Task
@@ -395,7 +395,7 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
         ToolCorrectnessMetric = _get_deepeval_metric_class("ToolCorrectnessMetric")
 
         # Create metric with configuration
-        metric_kwargs = {
+        metric_kwargs: Dict[str, Any] = {
             "threshold": self.threshold,
             "evaluate_order": self.evaluate_order,
             "exact_match": self.exact_match,
