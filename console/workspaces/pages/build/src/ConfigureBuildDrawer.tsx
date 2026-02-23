@@ -272,7 +272,7 @@ export function ConfigureBuildDrawer({
   const handleFieldChange = useCallback(
     (
       field: keyof ConfigureBuildFormValues,
-      value: string | number | InputInterfaceType | undefined
+      value: string | number | boolean | InputInterfaceType | undefined
     ) => {
     const newData: ConfigureBuildFormValues = { ...formData, [field]: value };
     setFormData(newData);
@@ -502,6 +502,7 @@ export function ConfigureBuildDrawer({
                         }
                         disabled={isPending}
                       />
+
                     </Box>
                   </Collapse>
                   <Collapse in={formData.language === "docker"}>

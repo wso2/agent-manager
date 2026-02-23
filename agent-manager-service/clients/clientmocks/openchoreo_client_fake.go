@@ -44,6 +44,9 @@ import (
 //			DeployFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.DeployRequest) error {
 //				panic("mock out the Deploy method")
 //			},
+//			DetachTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) error {
+//				panic("mock out the DetachTrait method")
+//			},
 //			GetBuildFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, buildName string) (*models.BuildDetailsResponse, error) {
 //				panic("mock out the GetBuild method")
 //			},
@@ -76,6 +79,9 @@ import (
 //			},
 //			GetResourceFunc: func(ctx context.Context, namespaceName string, kind string, name string) (map[string]interface{}, error) {
 //				panic("mock out the GetResource method")
+//			},
+//			HasTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) (bool, error) {
+//				panic("mock out the HasTrait method")
 //			},
 //			ListBuildsFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]*models.BuildResponse, error) {
 //				panic("mock out the ListBuilds method")
@@ -150,6 +156,9 @@ type OpenChoreoClientMock struct {
 	// DeployFunc mocks the Deploy method.
 	DeployFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.DeployRequest) error
 
+	// DetachTraitFunc mocks the DetachTrait method.
+	DetachTraitFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) error
+
 	// GetBuildFunc mocks the GetBuild method.
 	GetBuildFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, buildName string) (*models.BuildDetailsResponse, error)
 
@@ -182,6 +191,9 @@ type OpenChoreoClientMock struct {
 
 	// GetResourceFunc mocks the GetResource method.
 	GetResourceFunc func(ctx context.Context, namespaceName string, kind string, name string) (map[string]interface{}, error)
+
+	// HasTraitFunc mocks the HasTrait method.
+	HasTraitFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) (bool, error)
 
 	// ListBuildsFunc mocks the ListBuilds method.
 	ListBuildsFunc func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]*models.BuildResponse, error)
@@ -319,6 +331,19 @@ type OpenChoreoClientMock struct {
 			// Req is the req argument value.
 			Req client.DeployRequest
 		}
+		// DetachTrait holds details about calls to the DetachTrait method.
+		DetachTrait []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// TraitType is the traitType argument value.
+			TraitType client.TraitType
+		}
 		// GetBuild holds details about calls to the GetBuild method.
 		GetBuild []struct {
 			// Ctx is the ctx argument value.
@@ -439,6 +464,19 @@ type OpenChoreoClientMock struct {
 			Kind string
 			// Name is the name argument value.
 			Name string
+		}
+		// HasTrait holds details about calls to the HasTrait method.
+		HasTrait []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+			// TraitType is the traitType argument value.
+			TraitType client.TraitType
 		}
 		// ListBuilds holds details about calls to the ListBuilds method.
 		ListBuilds []struct {
@@ -581,6 +619,7 @@ type OpenChoreoClientMock struct {
 	lockDeleteProject                       sync.RWMutex
 	lockDeleteResource                      sync.RWMutex
 	lockDeploy                              sync.RWMutex
+	lockDetachTrait                         sync.RWMutex
 	lockGetBuild                            sync.RWMutex
 	lockGetComponent                        sync.RWMutex
 	lockGetComponentConfigurations          sync.RWMutex
@@ -592,6 +631,7 @@ type OpenChoreoClientMock struct {
 	lockGetProject                          sync.RWMutex
 	lockGetProjectDeploymentPipeline        sync.RWMutex
 	lockGetResource                         sync.RWMutex
+	lockHasTrait                            sync.RWMutex
 	lockListBuilds                          sync.RWMutex
 	lockListComponents                      sync.RWMutex
 	lockListDataPlanes                      sync.RWMutex
@@ -992,6 +1032,54 @@ func (mock *OpenChoreoClientMock) DeployCalls() []struct {
 	mock.lockDeploy.RLock()
 	calls = mock.calls.Deploy
 	mock.lockDeploy.RUnlock()
+	return calls
+}
+
+// DetachTrait calls DetachTraitFunc.
+func (mock *OpenChoreoClientMock) DetachTrait(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) error {
+	if mock.DetachTraitFunc == nil {
+		panic("OpenChoreoClientMock.DetachTraitFunc: method is nil but OpenChoreoClient.DetachTrait was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		TraitType     client.TraitType
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+		TraitType:     traitType,
+	}
+	mock.lockDetachTrait.Lock()
+	mock.calls.DetachTrait = append(mock.calls.DetachTrait, callInfo)
+	mock.lockDetachTrait.Unlock()
+	return mock.DetachTraitFunc(ctx, namespaceName, projectName, componentName, traitType)
+}
+
+// DetachTraitCalls gets all the calls that were made to DetachTrait.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.DetachTraitCalls())
+func (mock *OpenChoreoClientMock) DetachTraitCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ProjectName   string
+	ComponentName string
+	TraitType     client.TraitType
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		TraitType     client.TraitType
+	}
+	mock.lockDetachTrait.RLock()
+	calls = mock.calls.DetachTrait
+	mock.lockDetachTrait.RUnlock()
 	return calls
 }
 
@@ -1476,6 +1564,54 @@ func (mock *OpenChoreoClientMock) GetResourceCalls() []struct {
 	mock.lockGetResource.RLock()
 	calls = mock.calls.GetResource
 	mock.lockGetResource.RUnlock()
+	return calls
+}
+
+// HasTrait calls HasTraitFunc.
+func (mock *OpenChoreoClientMock) HasTrait(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) (bool, error) {
+	if mock.HasTraitFunc == nil {
+		panic("OpenChoreoClientMock.HasTraitFunc: method is nil but OpenChoreoClient.HasTrait was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		TraitType     client.TraitType
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+		TraitType:     traitType,
+	}
+	mock.lockHasTrait.Lock()
+	mock.calls.HasTrait = append(mock.calls.HasTrait, callInfo)
+	mock.lockHasTrait.Unlock()
+	return mock.HasTraitFunc(ctx, namespaceName, projectName, componentName, traitType)
+}
+
+// HasTraitCalls gets all the calls that were made to HasTrait.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.HasTraitCalls())
+func (mock *OpenChoreoClientMock) HasTraitCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ProjectName   string
+	ComponentName string
+	TraitType     client.TraitType
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+		TraitType     client.TraitType
+	}
+	mock.lockHasTrait.RLock()
+	calls = mock.calls.HasTrait
+	mock.lockHasTrait.RUnlock()
 	return calls
 }
 
