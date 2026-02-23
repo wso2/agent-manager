@@ -273,6 +273,9 @@ func (c *monitorController) ListMonitorRuns(w http.ResponseWriter, r *http.Reque
 			limit = parsed
 		}
 	}
+	if limit > 100 {
+		limit = 100 // max cap
+	}
 	if v := r.URL.Query().Get("offset"); v != "" {
 		if parsed, err := strconv.Atoi(v); err == nil && parsed >= 0 {
 			offset = parsed
