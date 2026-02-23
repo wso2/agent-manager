@@ -35,3 +35,6 @@ venv/
 
 # DeepEval evaluator artifacts
 .deepeval
+
+# Local dev scripts
+scripts/

@@ -29,7 +29,7 @@ import sys
 from pathlib import Path
 
 from amp_evaluation import Monitor, discover_evaluators
-from amp_evaluation.trace import TraceLoader, parse_traces_for_evaluation
+from amp_evaluation.trace import TraceLoader
 
 import evaluators  # noqa: E402 — local evaluators module
 
@@ -38,22 +38,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 DATA_DIR = Path(__file__).parent.parent / "data"
 
 
-def load_sample_traces():
-    loader = TraceLoader(
-        file_path=str(DATA_DIR / "sample_traces.json"),
-        agent_uid="sample-agent",
-        environment_uid="dev",
-    )
-    otel_traces = loader.load_batch(limit=10)
-    return parse_traces_for_evaluation(otel_traces)
-
-
 def main():
-    # 1. Load traces
-    traces = load_sample_traces()
-    print(f"Loaded {len(traces)} traces\n")
-
-    # 2. Discover all evaluators (class-based and decorator-based judges)
+    # 1. Discover all evaluators (class-based and decorator-based judges)
     evals = discover_evaluators(evaluators)
     print(f"Discovered {len(evals)} evaluators:")
     for ev in evals:
@@ -61,10 +47,15 @@ def main():
         print(f"  {info.name} (level={info.level}, modes={info.modes})")
     print()
 
-    # 3. Run Monitor with error handling for missing API keys
-    monitor = Monitor(evaluators=evals)
+    # 2. Run Monitor with error handling for missing API keys
+    loader = TraceLoader(
+        file_path=str(DATA_DIR / "sample_traces.json"),
+        agent_uid="sample-agent",
+        environment_uid="dev",
+    )
+    monitor = Monitor(evaluators=evals, trace_fetcher=loader)
     try:
-        result = monitor.run(traces=traces)
+        result = monitor.run(limit=10)
         print(result.summary())
 
         # 4. Show individual scores and explanations per evaluator

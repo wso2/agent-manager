@@ -28,29 +28,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from amp_evaluation import Monitor, discover_evaluators
-from amp_evaluation.trace import TraceLoader, parse_traces_for_evaluation
+from amp_evaluation.trace import TraceLoader
 
 import evaluators  # noqa: E402 — local evaluators module
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
 
-def load_sample_traces():
-    loader = TraceLoader(
-        file_path=str(DATA_DIR / "sample_traces.json"),
-        agent_uid="sample-agent",
-        environment_uid="dev",
-    )
-    otel_traces = loader.load_batch(limit=10)
-    return parse_traces_for_evaluation(otel_traces)
-
-
 def main():
-    # 1. Load traces
-    traces = load_sample_traces()
-    print(f"Loaded {len(traces)} traces\n")
-
-    # 2. Discover decorator-based evaluators
+    # 1. Discover decorator-based evaluators
     evals = discover_evaluators(evaluators)
     print(f"Discovered evaluators: {[e.name for e in evals]}")
     for ev in evals:
@@ -58,9 +44,14 @@ def main():
         print(f"  {info.name}: {info.description} (level={info.level}, tags={info.tags})")
     print()
 
-    # 3. Run Monitor
-    monitor = Monitor(evaluators=evals)
-    result = monitor.run(traces=traces)
+    # 2. Run Monitor — traces are fetched and parsed internally
+    loader = TraceLoader(
+        file_path=str(DATA_DIR / "sample_traces.json"),
+        agent_uid="sample-agent",
+        environment_uid="dev",
+    )
+    monitor = Monitor(evaluators=evals, trace_fetcher=loader)
+    result = monitor.run(limit=10)
 
     # 4. Print summary
     print(result.summary())

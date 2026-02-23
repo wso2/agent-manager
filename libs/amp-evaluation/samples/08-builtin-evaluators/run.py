@@ -33,19 +33,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from amp_evaluation import builtin, list_builtin_evaluators, builtin_evaluator_catalog, Monitor
-from amp_evaluation.trace import TraceLoader, parse_traces_for_evaluation
+from amp_evaluation.trace import TraceLoader
 
 DATA_DIR = Path(__file__).parent.parent / "data"
-
-
-def load_sample_traces():
-    loader = TraceLoader(
-        file_path=str(DATA_DIR / "sample_traces.json"),
-        agent_uid="sample-agent",
-        environment_uid="dev",
-    )
-    otel_traces = loader.load_batch(limit=10)
-    return parse_traces_for_evaluation(otel_traces)
 
 
 # =========================================================================
@@ -114,13 +104,14 @@ def run_monitor_evaluators():
         print(f"  - {ev.name}")
     print()
 
-    # Load traces
-    traces = load_sample_traces()
-    print(f"Loaded {len(traces)} traces\n")
-
-    # Run monitor
-    monitor = Monitor(evaluators=monitor_evals)
-    result = monitor.run(traces=traces)
+    # Run monitor — traces are fetched and parsed internally
+    loader = TraceLoader(
+        file_path=str(DATA_DIR / "sample_traces.json"),
+        agent_uid="sample-agent",
+        environment_uid="dev",
+    )
+    monitor = Monitor(evaluators=monitor_evals, trace_fetcher=loader)
+    result = monitor.run(limit=10)
 
     print(result.summary())
 

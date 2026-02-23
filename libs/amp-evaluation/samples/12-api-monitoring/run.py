@@ -41,7 +41,7 @@ from datetime import datetime, timedelta, timezone
 sys.path.insert(0, str(Path(__file__).parent))
 
 from amp_evaluation import Monitor, discover_evaluators, builtin
-from amp_evaluation.trace import TraceFetcher, parse_traces_for_evaluation
+from amp_evaluation.trace import TraceFetcher
 
 import evaluators  # noqa: E402 -- local evaluators module
 
@@ -84,21 +84,6 @@ def main():
 
     print(f"\nFetching traces from {start_time} to {end_time} (limit: {args.limit})...")
 
-    # Fetch traces from the trace service API
-    otel_traces = fetcher.fetch_traces(
-        start_time=start_time,
-        end_time=end_time,
-        limit=args.limit,
-    )
-
-    if not otel_traces:
-        print("No traces found for the given time range.")
-        sys.exit(0)
-
-    # Parse OTEL traces into evaluation-ready format
-    traces = parse_traces_for_evaluation(otel_traces)
-    print(f"Fetched and parsed {len(traces)} traces")
-
     # Discover custom evaluators + add built-in evaluators
     evals = discover_evaluators(evaluators)
     evals.append(builtin("latency", max_latency_ms=5000))
@@ -106,9 +91,13 @@ def main():
 
     print(f"Evaluators: {[e.name for e in evals]}")
 
-    # Run monitor evaluation
-    monitor = Monitor(evaluators=evals)
-    result = monitor.run(traces=traces)
+    # Run monitor evaluation — traces are fetched and parsed internally
+    monitor = Monitor(evaluators=evals, trace_fetcher=fetcher)
+    result = monitor.run(
+        start_time=start_time,
+        end_time=end_time,
+        limit=args.limit,
+    )
 
     # Print summary
     print("\n" + result.summary())

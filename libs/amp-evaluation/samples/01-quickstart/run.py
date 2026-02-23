@@ -25,39 +25,30 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from amp_evaluation import Monitor, discover_evaluators, builtin
-from amp_evaluation.trace import TraceLoader, parse_traces_for_evaluation
+from amp_evaluation.trace import TraceLoader
 
 import evaluators  # noqa: E402 — local evaluators module
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
 
-def load_sample_traces():
+def main():
+    # 1. Discover custom evaluators from the evaluators module
+    evals = discover_evaluators(evaluators)
+    print(f"Discovered evaluators: {[e.name for e in evals]}")
+
+    # 2. Add a built-in evaluator
+    evals.append(builtin("latency"))
+    print(f"All evaluators: {[e.name for e in evals]}\n")
+
+    # 3. Run Monitor — traces are fetched and parsed internally
     loader = TraceLoader(
         file_path=str(DATA_DIR / "sample_traces.json"),
         agent_uid="sample-agent",
         environment_uid="dev",
     )
-    otel_traces = loader.load_batch(limit=10)
-    return parse_traces_for_evaluation(otel_traces)
-
-
-def main():
-    # 1. Load traces
-    traces = load_sample_traces()
-    print(f"Loaded {len(traces)} traces\n")
-
-    # 2. Discover custom evaluators from the evaluators module
-    evals = discover_evaluators(evaluators)
-    print(f"Discovered evaluators: {[e.name for e in evals]}")
-
-    # 3. Add a built-in evaluator
-    evals.append(builtin("latency"))
-    print(f"All evaluators: {[e.name for e in evals]}\n")
-
-    # 4. Run Monitor
-    monitor = Monitor(evaluators=evals)
-    result = monitor.run(traces=traces)
+    monitor = Monitor(evaluators=evals, trace_fetcher=loader)
+    result = monitor.run(limit=10)
 
     # 5. Print summary
     print(result.summary())

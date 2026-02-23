@@ -37,7 +37,7 @@ Both runners require evaluators to be passed directly:
     result = monitor.run(limit=1000)
 """
 
-from typing import List, Dict, Optional, Any, TYPE_CHECKING
+from typing import List, Dict, Optional, Any, Union, TYPE_CHECKING
 from dataclasses import dataclass, field
 from datetime import datetime
 from abc import ABC, abstractmethod
@@ -183,7 +183,7 @@ class BaseRunner(ABC):
         self,
         evaluators: List[BaseEvaluator],
         config: Optional[Config] = None,
-        trace_fetcher: Optional[TraceFetcher] = None,
+        trace_fetcher: Optional[Union[TraceFetcher, TraceLoader]] = None,
         trace_service_url: Optional[str] = None,
     ):
         """
@@ -192,7 +192,7 @@ class BaseRunner(ABC):
         Args:
             evaluators: List of evaluator instances to run (REQUIRED)
             config: Config object (loads from env if None)
-            trace_fetcher: Optional TraceFetcher instance
+            trace_fetcher: Optional TraceFetcher or TraceLoader instance
             trace_service_url: Optional trace service URL (overrides config)
         """
         if not evaluators:
@@ -491,7 +491,7 @@ class Experiment(BaseRunner):
         trials_per_task: int = 1,
         trace_fetch_wait_seconds: float = 60.0,
         config: Optional[Config] = None,
-        trace_fetcher: Optional[TraceFetcher] = None,
+        trace_fetcher: Optional[Union[TraceFetcher, TraceLoader]] = None,
         trace_service_url: Optional[str] = None,
     ):
         super().__init__(
@@ -759,7 +759,7 @@ class Monitor(BaseRunner):
         self,
         evaluators: List[BaseEvaluator],
         config: Optional[Config] = None,
-        trace_fetcher: Optional[TraceFetcher] = None,
+        trace_fetcher: Optional[Union[TraceFetcher, TraceLoader]] = None,
         trace_service_url: Optional[str] = None,
     ):
         super().__init__(
