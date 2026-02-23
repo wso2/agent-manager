@@ -32,6 +32,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 )
 
 // mockExecutor is a test mock for the MonitorExecutor interface
@@ -79,9 +80,10 @@ func newTestScheduler(executor MonitorExecutor) *monitorSchedulerService {
 				return nil, fmt.Errorf("mock: resource not found")
 			},
 		},
-		logger:   slog.Default(),
-		executor: executor,
-		stopCh:   make(chan struct{}),
+		logger:      slog.Default(),
+		executor:    executor,
+		monitorRepo: repositories.NewMonitorRepo(db.GetDB()),
+		stopCh:      make(chan struct{}),
 	}
 }
 
@@ -541,7 +543,7 @@ func TestTriggerMonitor_TimeWindowCalculation(t *testing.T) {
 
 func TestSchedulerStartStop(t *testing.T) {
 	executor := &mockExecutor{}
-	svc := NewMonitorSchedulerService(nil, slog.Default(), executor)
+	svc := NewMonitorSchedulerService(nil, slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -555,7 +557,7 @@ func TestSchedulerStartStop(t *testing.T) {
 
 func TestSchedulerStopIdempotent(t *testing.T) {
 	executor := &mockExecutor{}
-	svc := NewMonitorSchedulerService(nil, slog.Default(), executor)
+	svc := NewMonitorSchedulerService(nil, slog.Default(), executor, repositories.NewMonitorRepo(db.GetDB()))
 
 	// Calling Stop multiple times should not panic
 	err := svc.Stop()

@@ -6440,8 +6440,6 @@ components:
         - tags
         - isBuiltin
         - configSchema
-        - createdAt
-        - updatedAt
       properties:
         id:
           type: string
@@ -6482,16 +6480,6 @@ components:
           items:
             $ref: "#/components/schemas/EvaluatorConfigParam"
           description: Configuration schema for the evaluator
-        createdAt:
-          type: string
-          format: date-time
-          description: Creation timestamp
-          example: "2026-01-01T00:00:00Z"
-        updatedAt:
-          type: string
-          format: date-time
-          description: Last update timestamp
-          example: "2026-01-01T00:00:00Z"
 
     EvaluatorConfigParam:
       type: object

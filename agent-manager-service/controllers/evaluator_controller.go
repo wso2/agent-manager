@@ -220,7 +220,5 @@ func convertToSpecEvaluatorResponse(evaluator *models.EvaluatorResponse) spec.Ev
 		Tags:         evaluator.Tags,
 		IsBuiltin:    evaluator.IsBuiltin,
 		ConfigSchema: configFields,
-		CreatedAt:    evaluator.CreatedAt,
-		UpdatedAt:    evaluator.UpdatedAt,
 	}
 }

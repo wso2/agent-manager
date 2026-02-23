@@ -26,6 +26,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 )
 
 const (
@@ -40,11 +41,12 @@ type MonitorSchedulerService interface {
 }
 
 type monitorSchedulerService struct {
-	ocClient client.OpenChoreoClient
-	logger   *slog.Logger
-	executor MonitorExecutor
-	stopCh   chan struct{}
-	stopOnce sync.Once
+	ocClient    client.OpenChoreoClient
+	logger      *slog.Logger
+	executor    MonitorExecutor
+	monitorRepo repositories.MonitorRepository
+	stopCh      chan struct{}
+	stopOnce    sync.Once
 }
 
 // NewMonitorSchedulerService creates a new monitor scheduler service
@@ -52,12 +54,14 @@ func NewMonitorSchedulerService(
 	ocClient client.OpenChoreoClient,
 	logger *slog.Logger,
 	executor MonitorExecutor,
+	monitorRepo repositories.MonitorRepository,
 ) MonitorSchedulerService {
 	return &monitorSchedulerService{
-		ocClient: ocClient,
-		logger:   logger,
-		executor: executor,
-		stopCh:   make(chan struct{}),
+		ocClient:    ocClient,
+		logger:      logger,
+		executor:    executor,
+		monitorRepo: monitorRepo,
+		stopCh:      make(chan struct{}),
 	}
 }
 
@@ -107,6 +111,8 @@ func (s *monitorSchedulerService) runSchedulerLoop(ctx context.Context) {
 func (s *monitorSchedulerService) runSchedulerCycle(ctx context.Context) {
 	// Use a transaction to pin the advisory lock to a single connection.
 	// pg_try_advisory_xact_lock auto-releases when the transaction ends.
+	// Note: Advisory lock is a DB-level coordination mechanism, kept as direct DB access.
+	// This will be refactored in the future to use an external scheduler
 	tx := db.DB(ctx).Begin()
 	if tx.Error != nil {
 		s.logger.Error("Failed to begin transaction for advisory lock", "error", tx.Error)
@@ -141,10 +147,7 @@ func (s *monitorSchedulerService) runSchedulerCycle(ctx context.Context) {
 
 // triggerPendingMonitors checks for monitors that need to run and creates WorkflowRun CRs
 func (s *monitorSchedulerService) triggerPendingMonitors(ctx context.Context) error {
-	var monitors []models.Monitor
-	err := db.DB(ctx).
-		Where("type = ? AND next_run_time <= ?", models.MonitorTypeFuture, time.Now()).
-		Find(&monitors).Error
+	monitors, err := s.monitorRepo.ListDueMonitors(models.MonitorTypeFuture, time.Now())
 	if err != nil {
 		return fmt.Errorf("failed to query pending monitors: %w", err)
 	}
@@ -217,12 +220,7 @@ func (s *monitorSchedulerService) triggerMonitor(ctx context.Context, monitor *m
 
 // syncRunStatus queries OpenChoreo API for pending/running workflows and updates DB
 func (s *monitorSchedulerService) syncRunStatus(ctx context.Context) error {
-	var runs []models.MonitorRun
-	err := db.DB(ctx).
-		Where("status IN ?", []string{models.RunStatusPending, models.RunStatusRunning}).
-		Order("created_at ASC").
-		Limit(100).
-		Find(&runs).Error
+	runs, err := s.monitorRepo.ListPendingOrRunningRuns(100)
 	if err != nil {
 		return fmt.Errorf("failed to query pending/running runs: %w", err)
 	}
@@ -246,8 +244,8 @@ func (s *monitorSchedulerService) syncRunStatus(ctx context.Context) error {
 // syncSingleRunStatus queries OpenChoreo API for a single run and updates DB
 func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *models.MonitorRun) error {
 	// Get monitor to find orgName
-	var monitor models.Monitor
-	if err := db.DB(ctx).Where("id = ?", run.MonitorID).First(&monitor).Error; err != nil {
+	monitor, err := s.monitorRepo.GetMonitorByID(run.MonitorID)
+	if err != nil {
 		return fmt.Errorf("failed to get monitor: %w", err)
 	}
 
@@ -314,7 +312,7 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 	}
 
 	if len(updates) > 0 {
-		if err := db.DB(ctx).Model(run).Updates(updates).Error; err != nil {
+		if err := s.monitorRepo.UpdateMonitorRun(run, updates); err != nil {
 			return fmt.Errorf("failed to update run status: %w", err)
 		}
 		s.logger.Info("Updated run status", "runID", run.ID, "status", updates["status"])
