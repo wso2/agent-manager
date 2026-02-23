@@ -22,22 +22,24 @@ type PublishAggregateItem struct {
 	// Evaluator type/definition key
 	Identifier string `json:"identifier"`
 	// User-facing evaluator name
-	DisplayName string   `json:"displayName"`
-	Level       string   `json:"level"`
-	Count       int32    `json:"count"`
-	Mean        *float64 `json:"mean,omitempty"`
-	PassRate    *float64 `json:"passRate,omitempty"`
+	DisplayName string `json:"displayName"`
+	Level       string `json:"level"`
+	// Flexible aggregation results (e.g., mean, pass_rate)
+	Aggregations map[string]interface{} `json:"aggregations"`
+	Count        int32                  `json:"count"`
+	ErrorCount   *int32                 `json:"errorCount,omitempty"`
 }
 
 // NewPublishAggregateItem instantiates a new PublishAggregateItem object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewPublishAggregateItem(identifier string, displayName string, level string, count int32) *PublishAggregateItem {
+func NewPublishAggregateItem(identifier string, displayName string, level string, aggregations map[string]interface{}, count int32) *PublishAggregateItem {
 	this := PublishAggregateItem{}
 	this.Identifier = identifier
 	this.DisplayName = displayName
 	this.Level = level
+	this.Aggregations = aggregations
 	this.Count = count
 	return &this
 }
@@ -122,6 +124,30 @@ func (o *PublishAggregateItem) SetLevel(v string) {
 	o.Level = v
 }
 
+// GetAggregations returns the Aggregations field value
+func (o *PublishAggregateItem) GetAggregations() map[string]interface{} {
+	if o == nil {
+		var ret map[string]interface{}
+		return ret
+	}
+
+	return o.Aggregations
+}
+
+// GetAggregationsOk returns a tuple with the Aggregations field value
+// and a boolean to check if the value has been set.
+func (o *PublishAggregateItem) GetAggregationsOk() (map[string]interface{}, bool) {
+	if o == nil {
+		return map[string]interface{}{}, false
+	}
+	return o.Aggregations, true
+}
+
+// SetAggregations sets field value
+func (o *PublishAggregateItem) SetAggregations(v map[string]interface{}) {
+	o.Aggregations = v
+}
+
 // GetCount returns the Count field value
 func (o *PublishAggregateItem) GetCount() int32 {
 	if o == nil {
@@ -146,68 +172,36 @@ func (o *PublishAggregateItem) SetCount(v int32) {
 	o.Count = v
 }
 
-// GetMean returns the Mean field value if set, zero value otherwise.
-func (o *PublishAggregateItem) GetMean() float64 {
-	if o == nil || IsNil(o.Mean) {
-		var ret float64
+// GetErrorCount returns the ErrorCount field value if set, zero value otherwise.
+func (o *PublishAggregateItem) GetErrorCount() int32 {
+	if o == nil || IsNil(o.ErrorCount) {
+		var ret int32
 		return ret
 	}
-	return *o.Mean
+	return *o.ErrorCount
 }
 
-// GetMeanOk returns a tuple with the Mean field value if set, nil otherwise
+// GetErrorCountOk returns a tuple with the ErrorCount field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *PublishAggregateItem) GetMeanOk() (*float64, bool) {
-	if o == nil || IsNil(o.Mean) {
+func (o *PublishAggregateItem) GetErrorCountOk() (*int32, bool) {
+	if o == nil || IsNil(o.ErrorCount) {
 		return nil, false
 	}
-	return o.Mean, true
+	return o.ErrorCount, true
 }
 
-// HasMean returns a boolean if a field has been set.
-func (o *PublishAggregateItem) HasMean() bool {
-	if o != nil && !IsNil(o.Mean) {
+// HasErrorCount returns a boolean if a field has been set.
+func (o *PublishAggregateItem) HasErrorCount() bool {
+	if o != nil && !IsNil(o.ErrorCount) {
 		return true
 	}
 
 	return false
 }
 
-// SetMean gets a reference to the given float64 and assigns it to the Mean field.
-func (o *PublishAggregateItem) SetMean(v float64) {
-	o.Mean = &v
-}
-
-// GetPassRate returns the PassRate field value if set, zero value otherwise.
-func (o *PublishAggregateItem) GetPassRate() float64 {
-	if o == nil || IsNil(o.PassRate) {
-		var ret float64
-		return ret
-	}
-	return *o.PassRate
-}
-
-// GetPassRateOk returns a tuple with the PassRate field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *PublishAggregateItem) GetPassRateOk() (*float64, bool) {
-	if o == nil || IsNil(o.PassRate) {
-		return nil, false
-	}
-	return o.PassRate, true
-}
-
-// HasPassRate returns a boolean if a field has been set.
-func (o *PublishAggregateItem) HasPassRate() bool {
-	if o != nil && !IsNil(o.PassRate) {
-		return true
-	}
-
-	return false
-}
-
-// SetPassRate gets a reference to the given float64 and assigns it to the PassRate field.
-func (o *PublishAggregateItem) SetPassRate(v float64) {
-	o.PassRate = &v
+// SetErrorCount gets a reference to the given int32 and assigns it to the ErrorCount field.
+func (o *PublishAggregateItem) SetErrorCount(v int32) {
+	o.ErrorCount = &v
 }
 
 func (o PublishAggregateItem) MarshalJSON() ([]byte, error) {
@@ -223,12 +217,10 @@ func (o PublishAggregateItem) ToMap() (map[string]interface{}, error) {
 	toSerialize["identifier"] = o.Identifier
 	toSerialize["displayName"] = o.DisplayName
 	toSerialize["level"] = o.Level
+	toSerialize["aggregations"] = o.Aggregations
 	toSerialize["count"] = o.Count
-	if !IsNil(o.Mean) {
-		toSerialize["mean"] = o.Mean
-	}
-	if !IsNil(o.PassRate) {
-		toSerialize["passRate"] = o.PassRate
+	if !IsNil(o.ErrorCount) {
+		toSerialize["errorCount"] = o.ErrorCount
 	}
 	return toSerialize, nil
 }

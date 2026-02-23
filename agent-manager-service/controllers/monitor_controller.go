@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -264,7 +265,21 @@ func (c *monitorController) ListMonitorRuns(w http.ResponseWriter, r *http.Reque
 	orgName := r.PathValue("orgName")
 	monitorName := r.PathValue("monitorName")
 
-	result, err := c.monitorService.ListMonitorRuns(ctx, orgName, monitorName)
+	// Parse pagination params (default: limit=20, offset=0)
+	limit := 20
+	offset := 0
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	result, err := c.monitorService.ListMonitorRuns(ctx, orgName, monitorName, limit, offset)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")

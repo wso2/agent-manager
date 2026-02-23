@@ -35,6 +35,9 @@ func registerMonitorScoreRoutes(mux *http.ServeMux, controller controllers.Monit
 	// Query params: startTime, endTime, evaluator (optional), level (optional), span_type (optional)
 	middleware.HandleFuncWithValidation(mux, route("GET", monitorBase+"/scores"), controller.GetMonitorScores)
 
+	// GET .../monitors/{monitorName}/runs/{runId}/scores - Get per-run aggregated scores
+	middleware.HandleFuncWithValidation(mux, route("GET", monitorBase+"/runs/{runId}/scores"), controller.GetMonitorRunScores)
+
 	// GET .../monitors/{monitorName}/scores/timeseries - Get time-series data for an evaluator
 	// Query params: startTime, endTime, evaluator (required), granularity (optional: hour/day/week)
 	middleware.HandleFuncWithValidation(mux, route("GET", monitorBase+"/scores/timeseries"), controller.GetScoresTimeSeries)

@@ -27,7 +27,7 @@ Verifies:
 import json
 import sys
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -40,18 +40,83 @@ from main import parse_args, validate_time_format, publish_scores
 # ---------------------------------------------------------------------------
 
 REALISTIC_EVALUATORS = [
-    {"identifier": "latency", "displayName": "Latency Check", "config": {"max_latency_ms": 3000, "use_task_constraint": False, "level": "trace"}},
-    {"identifier": "iteration_count", "displayName": "Iteration Count", "config": {"max_iterations": 5, "use_context_constraint": False, "level": "trace"}},
-    {"identifier": "token_efficiency", "displayName": "Token Efficiency", "config": {"max_tokens": 4000, "use_context_constraint": False, "level": "trace"}},
-    {"identifier": "answer_relevancy", "displayName": "Answer Relevancy", "config": {"min_overlap_ratio": 0.2, "level": "trace"}},
-    {"identifier": "prohibited_content", "displayName": "Prohibited Content", "config": {"case_sensitive": False, "prohibited_strings": ["internal error", "stack trace", "debug:", "hotels"], "use_context_prohibited": False, "level": "trace"}},
-    {"identifier": "answer_length", "displayName": "Answer Length", "config": {"max_length": 5000, "min_length": 10, "level": "trace"}},
-    {"identifier": "latency", "displayName": "Agent Latency", "config": {"max_latency_ms": 5000, "use_task_constraint": True, "level": "agent"}},
-    {"identifier": "latency", "displayName": "Span Latency", "config": {"max_latency_ms": 1000, "use_task_constraint": True, "level": "span"}},
+    {
+        "identifier": "latency",
+        "displayName": "Latency Check",
+        "config": {
+            "max_latency_ms": 3000,
+            "use_task_constraint": False,
+            "level": "trace",
+        },
+    },
+    {
+        "identifier": "iteration_count",
+        "displayName": "Iteration Count",
+        "config": {
+            "max_iterations": 5,
+            "use_context_constraint": False,
+            "level": "trace",
+        },
+    },
+    {
+        "identifier": "token_efficiency",
+        "displayName": "Token Efficiency",
+        "config": {
+            "max_tokens": 4000,
+            "use_context_constraint": False,
+            "level": "trace",
+        },
+    },
+    {
+        "identifier": "answer_relevancy",
+        "displayName": "Answer Relevancy",
+        "config": {"min_overlap_ratio": 0.2, "level": "trace"},
+    },
+    {
+        "identifier": "prohibited_content",
+        "displayName": "Prohibited Content",
+        "config": {
+            "case_sensitive": False,
+            "prohibited_strings": ["internal error", "stack trace", "debug:", "hotels"],
+            "use_context_prohibited": False,
+            "level": "trace",
+        },
+    },
+    {
+        "identifier": "answer_length",
+        "displayName": "Answer Length",
+        "config": {"max_length": 5000, "min_length": 10, "level": "trace"},
+    },
+    {
+        "identifier": "latency",
+        "displayName": "Agent Latency",
+        "config": {
+            "max_latency_ms": 5000,
+            "use_task_constraint": True,
+            "level": "agent",
+        },
+    },
+    {
+        "identifier": "latency",
+        "displayName": "Span Latency",
+        "config": {
+            "max_latency_ms": 1000,
+            "use_task_constraint": True,
+            "level": "span",
+        },
+    },
 ]
 
 
-def _make_evaluator_score(trace_id, score, span_id=None, explanation=None, timestamp=None, metadata=None, error=None):
+def _make_evaluator_score(
+    trace_id,
+    score,
+    span_id=None,
+    explanation=None,
+    timestamp=None,
+    metadata=None,
+    error=None,
+):
     """Helper to create a mock EvaluatorScore."""
     s = MagicMock()
     s.trace_id = trace_id
@@ -109,16 +174,26 @@ class TestValidateTimeFormat:
 
 class TestParseArgs:
     REQUIRED_ARGS = [
-        "--monitor-name", "test-monitor",
-        "--agent-id", "agent-uid-123",
-        "--environment-id", "env-uid-456",
-        "--evaluators", json.dumps(REALISTIC_EVALUATORS),
-        "--trace-start", "2026-01-15T10:00:00Z",
-        "--trace-end", "2026-01-15T11:00:00Z",
-        "--traces-api-endpoint", "http://traces:8080",
-        "--monitor-id", "550e8400-e29b-41d4-a716-446655440000",
-        "--run-id", "660e8400-e29b-41d4-a716-446655440000",
-        "--publisher-endpoint", "http://agent-manager:8081",
+        "--monitor-name",
+        "test-monitor",
+        "--agent-id",
+        "agent-uid-123",
+        "--environment-id",
+        "env-uid-456",
+        "--evaluators",
+        json.dumps(REALISTIC_EVALUATORS),
+        "--trace-start",
+        "2026-01-15T10:00:00Z",
+        "--trace-end",
+        "2026-01-15T11:00:00Z",
+        "--traces-api-endpoint",
+        "http://traces:8080",
+        "--monitor-id",
+        "550e8400-e29b-41d4-a716-446655440000",
+        "--run-id",
+        "660e8400-e29b-41d4-a716-446655440000",
+        "--publisher-endpoint",
+        "http://agent-manager:8081",
     ]
 
     def test_all_required_args(self):
@@ -164,9 +239,21 @@ class TestEvaluatorRegistration:
         from main import main
 
         evaluators = [
-            {"identifier": "latency", "displayName": "Latency Check", "config": {"max_latency_ms": 3000, "level": "trace"}},
-            {"identifier": "latency", "displayName": "Agent Latency", "config": {"max_latency_ms": 5000, "level": "agent"}},
-            {"identifier": "latency", "displayName": "Span Latency", "config": {"max_latency_ms": 1000, "level": "span"}},
+            {
+                "identifier": "latency",
+                "displayName": "Latency Check",
+                "config": {"max_latency_ms": 3000, "level": "trace"},
+            },
+            {
+                "identifier": "latency",
+                "displayName": "Agent Latency",
+                "config": {"max_latency_ms": 5000, "level": "agent"},
+            },
+            {
+                "identifier": "latency",
+                "displayName": "Span Latency",
+                "config": {"max_latency_ms": 1000, "level": "span"},
+            },
         ]
 
         mock_monitor_instance = MagicMock()
@@ -177,23 +264,35 @@ class TestEvaluatorRegistration:
 
         argv = [
             "main.py",
-            "--monitor-name", "test",
-            "--agent-id", "agent-1",
-            "--environment-id", "env-1",
-            "--evaluators", json.dumps(evaluators),
-            "--trace-start", "2026-01-15T10:00:00Z",
-            "--trace-end", "2026-01-15T11:00:00Z",
-            "--traces-api-endpoint", "http://traces:8080",
-            "--monitor-id", "550e8400-e29b-41d4-a716-446655440000",
-            "--run-id", "660e8400-e29b-41d4-a716-446655440000",
-            "--publisher-endpoint", "http://agent-manager:8081",
+            "--monitor-name",
+            "test",
+            "--agent-id",
+            "agent-1",
+            "--environment-id",
+            "env-1",
+            "--evaluators",
+            json.dumps(evaluators),
+            "--trace-start",
+            "2026-01-15T10:00:00Z",
+            "--trace-end",
+            "2026-01-15T11:00:00Z",
+            "--traces-api-endpoint",
+            "http://traces:8080",
+            "--monitor-id",
+            "550e8400-e29b-41d4-a716-446655440000",
+            "--run-id",
+            "660e8400-e29b-41d4-a716-446655440000",
+            "--publisher-endpoint",
+            "http://agent-manager:8081",
         ]
 
-        with patch.object(sys, "argv", argv), \
-             patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}), \
-             patch("main.TraceFetcher"), \
-             patch("main.Monitor", return_value=mock_monitor_instance), \
-             pytest.raises(SystemExit) as exc_info:
+        with (
+            patch.object(sys, "argv", argv),
+            patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}),
+            patch("main.TraceFetcher"),
+            patch("main.Monitor", return_value=mock_monitor_instance),
+            pytest.raises(SystemExit) as exc_info,
+        ):
             main()
 
         assert exc_info.value.code == 0
@@ -202,16 +301,22 @@ class TestEvaluatorRegistration:
         assert mock_register.call_count == 3
 
         mock_register.assert_any_call(
-            "latency", display_name="Latency Check",
-            max_latency_ms=3000, level="trace",
+            "latency",
+            display_name="Latency Check",
+            max_latency_ms=3000,
+            level="trace",
         )
         mock_register.assert_any_call(
-            "latency", display_name="Agent Latency",
-            max_latency_ms=5000, level="agent",
+            "latency",
+            display_name="Agent Latency",
+            max_latency_ms=5000,
+            level="agent",
         )
         mock_register.assert_any_call(
-            "latency", display_name="Span Latency",
-            max_latency_ms=1000, level="span",
+            "latency",
+            display_name="Span Latency",
+            max_latency_ms=1000,
+            level="span",
         )
 
     @patch("main.register_builtin")
@@ -240,23 +345,35 @@ class TestEvaluatorRegistration:
 
         argv = [
             "main.py",
-            "--monitor-name", "test",
-            "--agent-id", "agent-1",
-            "--environment-id", "env-1",
-            "--evaluators", json.dumps(evaluators),
-            "--trace-start", "2026-01-15T10:00:00Z",
-            "--trace-end", "2026-01-15T11:00:00Z",
-            "--traces-api-endpoint", "http://traces:8080",
-            "--monitor-id", "550e8400-e29b-41d4-a716-446655440000",
-            "--run-id", "660e8400-e29b-41d4-a716-446655440000",
-            "--publisher-endpoint", "http://agent-manager:8081",
+            "--monitor-name",
+            "test",
+            "--agent-id",
+            "agent-1",
+            "--environment-id",
+            "env-1",
+            "--evaluators",
+            json.dumps(evaluators),
+            "--trace-start",
+            "2026-01-15T10:00:00Z",
+            "--trace-end",
+            "2026-01-15T11:00:00Z",
+            "--traces-api-endpoint",
+            "http://traces:8080",
+            "--monitor-id",
+            "550e8400-e29b-41d4-a716-446655440000",
+            "--run-id",
+            "660e8400-e29b-41d4-a716-446655440000",
+            "--publisher-endpoint",
+            "http://agent-manager:8081",
         ]
 
-        with patch.object(sys, "argv", argv), \
-             patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}), \
-             patch("main.TraceFetcher"), \
-             patch("main.Monitor", return_value=mock_monitor_instance), \
-             pytest.raises(SystemExit):
+        with (
+            patch.object(sys, "argv", argv),
+            patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}),
+            patch("main.TraceFetcher"),
+            patch("main.Monitor", return_value=mock_monitor_instance),
+            pytest.raises(SystemExit),
+        ):
             main()
 
         mock_register.assert_called_once_with(
@@ -291,10 +408,15 @@ class TestPublishScores:
         ts = datetime(2026, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
         scores = {
             "Latency Check": _make_evaluator_summary(
-                "Latency Check", "trace",
+                "Latency Check",
+                "trace",
                 scores=[
-                    _make_evaluator_score("trace-1", 0.95, timestamp=ts, explanation="Within limits"),
-                    _make_evaluator_score("trace-2", 0.30, timestamp=ts, explanation="Exceeded threshold"),
+                    _make_evaluator_score(
+                        "trace-1", 0.95, timestamp=ts, explanation="Within limits"
+                    ),
+                    _make_evaluator_score(
+                        "trace-2", 0.30, timestamp=ts, explanation="Exceeded threshold"
+                    ),
                 ],
                 aggregated_scores={"mean": 0.625, "pass_rate_0.5": 0.5},
             ),
@@ -303,8 +425,12 @@ class TestPublishScores:
         display_name_to_identifier = {"Latency Check": "latency"}
 
         result = publish_scores(
-            self.MONITOR_ID, self.RUN_ID, scores,
-            display_name_to_identifier, self.API_ENDPOINT, self.API_KEY,
+            self.MONITOR_ID,
+            self.RUN_ID,
+            scores,
+            display_name_to_identifier,
+            self.API_ENDPOINT,
+            self.API_KEY,
         )
         assert result is True
 
@@ -326,10 +452,13 @@ class TestPublishScores:
         assert "aggregatedScores" in payload
         agg = payload["aggregatedScores"]
         assert len(agg) == 1
-        assert agg[0]["identifier"] == "latency"        # required in Go
+        assert agg[0]["identifier"] == "latency"  # required in Go
         assert agg[0]["displayName"] == "Latency Check"  # required in Go
-        assert agg[0]["level"] == "trace"                 # required, oneof=trace agent span
-        assert agg[0]["aggregations"] == {"mean": 0.625, "pass_rate_0.5": 0.5}  # required
+        assert agg[0]["level"] == "trace"  # required, oneof=trace agent span
+        assert agg[0]["aggregations"] == {
+            "mean": 0.625,
+            "pass_rate_0.5": 0.5,
+        }  # required
         assert agg[0]["count"] == 2
         assert agg[0]["errorCount"] == 0
 
@@ -341,8 +470,8 @@ class TestPublishScores:
         # Each item must have required fields per Go schema
         for item in ind:
             assert "displayName" in item  # required
-            assert "level" in item        # required
-            assert "traceId" in item      # required
+            assert "level" in item  # required
+            assert "traceId" in item  # required
 
         assert ind[0]["displayName"] == "Latency Check"
         assert ind[0]["level"] == "trace"
@@ -360,18 +489,29 @@ class TestPublishScores:
 
         scores = {
             "Latency Check": _make_evaluator_summary(
-                "Latency Check", "trace",
+                "Latency Check",
+                "trace",
                 scores=[_make_evaluator_score("trace-1", 0.9, timestamp=ts)],
                 aggregated_scores={"mean": 0.9},
             ),
             "Agent Latency": _make_evaluator_summary(
-                "Agent Latency", "agent",
-                scores=[_make_evaluator_score("trace-1", 0.7, span_id="agent-span-1", timestamp=ts)],
+                "Agent Latency",
+                "agent",
+                scores=[
+                    _make_evaluator_score(
+                        "trace-1", 0.7, span_id="agent-span-1", timestamp=ts
+                    )
+                ],
                 aggregated_scores={"mean": 0.7},
             ),
             "Span Latency": _make_evaluator_summary(
-                "Span Latency", "span",
-                scores=[_make_evaluator_score("trace-1", 0.5, span_id="llm-span-1", timestamp=ts)],
+                "Span Latency",
+                "span",
+                scores=[
+                    _make_evaluator_score(
+                        "trace-1", 0.5, span_id="llm-span-1", timestamp=ts
+                    )
+                ],
                 aggregated_scores={"mean": 0.5},
             ),
         }
@@ -383,8 +523,12 @@ class TestPublishScores:
         }
 
         result = publish_scores(
-            self.MONITOR_ID, self.RUN_ID, scores,
-            display_name_to_identifier, self.API_ENDPOINT, self.API_KEY,
+            self.MONITOR_ID,
+            self.RUN_ID,
+            scores,
+            display_name_to_identifier,
+            self.API_ENDPOINT,
+            self.API_KEY,
         )
         assert result is True
 
@@ -403,7 +547,9 @@ class TestPublishScores:
         assert ind_levels["Span Latency"] == "span"
 
         # Verify span-level scores include spanId
-        span_scores = [i for i in payload["individualScores"] if i["displayName"] == "Span Latency"]
+        span_scores = [
+            i for i in payload["individualScores"] if i["displayName"] == "Span Latency"
+        ]
         assert span_scores[0]["spanId"] == "llm-span-1"
 
     @patch("main.requests.post")
@@ -416,9 +562,12 @@ class TestPublishScores:
 
         scores = {
             "Answer Relevancy": _make_evaluator_summary(
-                "Answer Relevancy", "trace",
+                "Answer Relevancy",
+                "trace",
                 scores=[
-                    _make_evaluator_score("trace-1", None, timestamp=ts, error="LLM call failed"),
+                    _make_evaluator_score(
+                        "trace-1", None, timestamp=ts, error="LLM call failed"
+                    ),
                 ],
                 aggregated_scores={},
             ),
@@ -427,8 +576,12 @@ class TestPublishScores:
         display_name_to_identifier = {"Answer Relevancy": "answer_relevancy"}
 
         publish_scores(
-            self.MONITOR_ID, self.RUN_ID, scores,
-            display_name_to_identifier, self.API_ENDPOINT, self.API_KEY,
+            self.MONITOR_ID,
+            self.RUN_ID,
+            scores,
+            display_name_to_identifier,
+            self.API_ENDPOINT,
+            self.API_KEY,
         )
 
         payload = mock_post.call_args[1]["json"]
@@ -451,15 +604,20 @@ class TestPublishScores:
 
         scores = {
             "Latency Check": _make_evaluator_summary(
-                "Latency Check", "trace",
+                "Latency Check",
+                "trace",
                 scores=[_make_evaluator_score("trace-1", 0.9, timestamp=ts)],
                 aggregated_scores={"mean": 0.9},
             ),
         }
 
         publish_scores(
-            self.MONITOR_ID, self.RUN_ID, scores,
-            {"Latency Check": "latency"}, self.API_ENDPOINT, self.API_KEY,
+            self.MONITOR_ID,
+            self.RUN_ID,
+            scores,
+            {"Latency Check": "latency"},
+            self.API_ENDPOINT,
+            self.API_KEY,
         )
 
         payload = mock_post.call_args[1]["json"]
@@ -471,8 +629,12 @@ class TestPublishScores:
     def test_empty_scores_returns_true(self):
         """No scores to publish should return True without making HTTP call."""
         result = publish_scores(
-            self.MONITOR_ID, self.RUN_ID, {},
-            {}, self.API_ENDPOINT, self.API_KEY,
+            self.MONITOR_ID,
+            self.RUN_ID,
+            {},
+            {},
+            self.API_ENDPOINT,
+            self.API_KEY,
         )
         assert result is True
 
@@ -480,23 +642,31 @@ class TestPublishScores:
     def test_http_failure_returns_false(self, mock_post):
         """HTTP error from agent-manager should return False."""
         import requests as req
+
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
         mock_post.return_value = mock_response
-        mock_post.return_value.raise_for_status.side_effect = req.exceptions.HTTPError(response=mock_response)
+        mock_post.return_value.raise_for_status.side_effect = req.exceptions.HTTPError(
+            response=mock_response
+        )
 
         scores = {
             "Latency Check": _make_evaluator_summary(
-                "Latency Check", "trace",
+                "Latency Check",
+                "trace",
                 scores=[_make_evaluator_score("trace-1", 0.9)],
                 aggregated_scores={"mean": 0.9},
             ),
         }
 
         result = publish_scores(
-            self.MONITOR_ID, self.RUN_ID, scores,
-            {"Latency Check": "latency"}, self.API_ENDPOINT, self.API_KEY,
+            self.MONITOR_ID,
+            self.RUN_ID,
+            scores,
+            {"Latency Check": "latency"},
+            self.API_ENDPOINT,
+            self.API_KEY,
         )
         assert result is False
 
@@ -508,15 +678,24 @@ class TestPublishScores:
 
         scores = {
             "Latency Check": _make_evaluator_summary(
-                "Latency Check", "trace",
-                scores=[_make_evaluator_score("trace-1", 0.8, span_id=None, explanation=None, timestamp=None)],
+                "Latency Check",
+                "trace",
+                scores=[
+                    _make_evaluator_score(
+                        "trace-1", 0.8, span_id=None, explanation=None, timestamp=None
+                    )
+                ],
                 aggregated_scores={"mean": 0.8},
             ),
         }
 
         publish_scores(
-            self.MONITOR_ID, self.RUN_ID, scores,
-            {"Latency Check": "latency"}, self.API_ENDPOINT, self.API_KEY,
+            self.MONITOR_ID,
+            self.RUN_ID,
+            scores,
+            {"Latency Check": "latency"},
+            self.API_ENDPOINT,
+            self.API_KEY,
         )
 
         payload = mock_post.call_args[1]["json"]
@@ -533,7 +712,8 @@ class TestPublishScores:
 
         scores = {
             "Unknown Evaluator": _make_evaluator_summary(
-                "Unknown Evaluator", "trace",
+                "Unknown Evaluator",
+                "trace",
                 scores=[_make_evaluator_score("trace-1", 0.5)],
                 aggregated_scores={"mean": 0.5},
             ),
@@ -541,8 +721,12 @@ class TestPublishScores:
 
         # Empty mapping - no identifier found
         publish_scores(
-            self.MONITOR_ID, self.RUN_ID, scores,
-            {}, self.API_ENDPOINT, self.API_KEY,
+            self.MONITOR_ID,
+            self.RUN_ID,
+            scores,
+            {},
+            self.API_ENDPOINT,
+            self.API_KEY,
         )
 
         payload = mock_post.call_args[1]["json"]
@@ -559,15 +743,24 @@ class TestMainIntegration:
 
     BASE_ARGV = [
         "main.py",
-        "--monitor-name", "test-monitor",
-        "--agent-id", "agent-uid-123",
-        "--environment-id", "env-uid-456",
-        "--trace-start", "2026-01-15T10:00:00Z",
-        "--trace-end", "2026-01-15T11:00:00Z",
-        "--traces-api-endpoint", "http://traces:8080",
-        "--monitor-id", "550e8400-e29b-41d4-a716-446655440000",
-        "--run-id", "660e8400-e29b-41d4-a716-446655440000",
-        "--publisher-endpoint", "http://agent-manager:8081",
+        "--monitor-name",
+        "test-monitor",
+        "--agent-id",
+        "agent-uid-123",
+        "--environment-id",
+        "env-uid-456",
+        "--trace-start",
+        "2026-01-15T10:00:00Z",
+        "--trace-end",
+        "2026-01-15T11:00:00Z",
+        "--traces-api-endpoint",
+        "http://traces:8080",
+        "--monitor-id",
+        "550e8400-e29b-41d4-a716-446655440000",
+        "--run-id",
+        "660e8400-e29b-41d4-a716-446655440000",
+        "--publisher-endpoint",
+        "http://agent-manager:8081",
     ]
 
     def _make_argv(self, evaluators):
@@ -579,8 +772,6 @@ class TestMainIntegration:
         """Full flow with all 8 realistic evaluators: register, run, publish."""
         from main import main
 
-        ts = datetime(2026, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
-
         # Build mock RunResult with scores at all three levels
         mock_run_result = MagicMock()
         mock_run_result.traces_evaluated = 5
@@ -588,9 +779,15 @@ class TestMainIntegration:
         mock_run_result.success = True
         mock_run_result.errors = []
         mock_run_result.scores = {
-            "Latency Check": _make_evaluator_summary("Latency Check", "trace", [], {"mean": 0.9}),
-            "Agent Latency": _make_evaluator_summary("Agent Latency", "agent", [], {"mean": 0.7}),
-            "Span Latency": _make_evaluator_summary("Span Latency", "span", [], {"mean": 0.5}),
+            "Latency Check": _make_evaluator_summary(
+                "Latency Check", "trace", [], {"mean": 0.9}
+            ),
+            "Agent Latency": _make_evaluator_summary(
+                "Agent Latency", "agent", [], {"mean": 0.7}
+            ),
+            "Span Latency": _make_evaluator_summary(
+                "Span Latency", "span", [], {"mean": 0.5}
+            ),
         }
 
         mock_monitor_instance = MagicMock()
@@ -598,11 +795,13 @@ class TestMainIntegration:
 
         argv = self._make_argv(REALISTIC_EVALUATORS)
 
-        with patch.object(sys, "argv", argv), \
-             patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}), \
-             patch("main.TraceFetcher") as mock_fetcher_cls, \
-             patch("main.Monitor", return_value=mock_monitor_instance), \
-             pytest.raises(SystemExit) as exc_info:
+        with (
+            patch.object(sys, "argv", argv),
+            patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}),
+            patch("main.TraceFetcher"),
+            patch("main.Monitor", return_value=mock_monitor_instance),
+            pytest.raises(SystemExit) as exc_info,
+        ):
             main()
 
         assert exc_info.value.code == 0
@@ -612,7 +811,9 @@ class TestMainIntegration:
 
         # Verify levels were passed for each level type
         register_calls = mock_register.call_args_list
-        levels_registered = [c.kwargs.get("level", c[1].get("level")) for c in register_calls]
+        levels_registered = [
+            c.kwargs.get("level", c[1].get("level")) for c in register_calls
+        ]
         assert levels_registered.count("trace") == 6
         assert levels_registered.count("agent") == 1
         assert levels_registered.count("span") == 1
@@ -624,12 +825,20 @@ class TestMainIntegration:
         """Should exit with code 1 when PUBLISHER_API_KEY is not set."""
         from main import main
 
-        evaluators = [{"identifier": "latency", "displayName": "Latency", "config": {"level": "trace"}}]
+        evaluators = [
+            {
+                "identifier": "latency",
+                "displayName": "Latency",
+                "config": {"level": "trace"},
+            }
+        ]
         argv = self._make_argv(evaluators)
 
-        with patch.object(sys, "argv", argv), \
-             patch.dict("os.environ", {}, clear=True), \
-             pytest.raises(SystemExit) as exc_info:
+        with (
+            patch.object(sys, "argv", argv),
+            patch.dict("os.environ", {}, clear=True),
+            pytest.raises(SystemExit) as exc_info,
+        ):
             main()
 
         assert exc_info.value.code == 1
@@ -640,9 +849,11 @@ class TestMainIntegration:
 
         argv = self.BASE_ARGV + ["--evaluators", "not-json"]
 
-        with patch.object(sys, "argv", argv), \
-             patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}), \
-             pytest.raises(SystemExit) as exc_info:
+        with (
+            patch.object(sys, "argv", argv),
+            patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}),
+            pytest.raises(SystemExit) as exc_info,
+        ):
             main()
 
         assert exc_info.value.code == 1
@@ -653,9 +864,11 @@ class TestMainIntegration:
 
         argv = self._make_argv([])
 
-        with patch.object(sys, "argv", argv), \
-             patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}), \
-             pytest.raises(SystemExit) as exc_info:
+        with (
+            patch.object(sys, "argv", argv),
+            patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}),
+            pytest.raises(SystemExit) as exc_info,
+        ):
             main()
 
         assert exc_info.value.code == 1
@@ -664,24 +877,42 @@ class TestMainIntegration:
         """Should exit with code 1 when --trace-start is not valid ISO 8601."""
         from main import main
 
-        evaluators = [{"identifier": "latency", "displayName": "Latency", "config": {"level": "trace"}}]
+        evaluators = [
+            {
+                "identifier": "latency",
+                "displayName": "Latency",
+                "config": {"level": "trace"},
+            }
+        ]
         argv = [
             "main.py",
-            "--monitor-name", "test",
-            "--agent-id", "agent-1",
-            "--environment-id", "env-1",
-            "--evaluators", json.dumps(evaluators),
-            "--trace-start", "bad-time",
-            "--trace-end", "2026-01-15T11:00:00Z",
-            "--traces-api-endpoint", "http://traces:8080",
-            "--monitor-id", "550e8400-e29b-41d4-a716-446655440000",
-            "--run-id", "660e8400-e29b-41d4-a716-446655440000",
-            "--publisher-endpoint", "http://agent-manager:8081",
+            "--monitor-name",
+            "test",
+            "--agent-id",
+            "agent-1",
+            "--environment-id",
+            "env-1",
+            "--evaluators",
+            json.dumps(evaluators),
+            "--trace-start",
+            "bad-time",
+            "--trace-end",
+            "2026-01-15T11:00:00Z",
+            "--traces-api-endpoint",
+            "http://traces:8080",
+            "--monitor-id",
+            "550e8400-e29b-41d4-a716-446655440000",
+            "--run-id",
+            "660e8400-e29b-41d4-a716-446655440000",
+            "--publisher-endpoint",
+            "http://agent-manager:8081",
         ]
 
-        with patch.object(sys, "argv", argv), \
-             patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}), \
-             pytest.raises(SystemExit) as exc_info:
+        with (
+            patch.object(sys, "argv", argv),
+            patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}),
+            pytest.raises(SystemExit) as exc_info,
+        ):
             main()
 
         assert exc_info.value.code == 1
@@ -693,9 +924,11 @@ class TestMainIntegration:
         evaluators = [{"displayName": "Latency", "config": {"level": "trace"}}]
         argv = self._make_argv(evaluators)
 
-        with patch.object(sys, "argv", argv), \
-             patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}), \
-             pytest.raises(SystemExit) as exc_info:
+        with (
+            patch.object(sys, "argv", argv),
+            patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}),
+            pytest.raises(SystemExit) as exc_info,
+        ):
             main()
 
         assert exc_info.value.code == 1
@@ -707,9 +940,11 @@ class TestMainIntegration:
         evaluators = [{"identifier": "latency", "config": {"level": "trace"}}]
         argv = self._make_argv(evaluators)
 
-        with patch.object(sys, "argv", argv), \
-             patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}), \
-             pytest.raises(SystemExit) as exc_info:
+        with (
+            patch.object(sys, "argv", argv),
+            patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}),
+            pytest.raises(SystemExit) as exc_info,
+        ):
             main()
 
         assert exc_info.value.code == 1
@@ -732,14 +967,22 @@ class TestMainIntegration:
         mock_monitor = MagicMock()
         mock_monitor.run.return_value = mock_run_result
 
-        evaluators = [{"identifier": "latency", "displayName": "Latency", "config": {"level": "trace"}}]
+        evaluators = [
+            {
+                "identifier": "latency",
+                "displayName": "Latency",
+                "config": {"level": "trace"},
+            }
+        ]
         argv = self._make_argv(evaluators)
 
-        with patch.object(sys, "argv", argv), \
-             patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}), \
-             patch("main.TraceFetcher"), \
-             patch("main.Monitor", return_value=mock_monitor), \
-             pytest.raises(SystemExit) as exc_info:
+        with (
+            patch.object(sys, "argv", argv),
+            patch.dict("os.environ", {"PUBLISHER_API_KEY": "test-key"}),
+            patch("main.TraceFetcher"),
+            patch("main.Monitor", return_value=mock_monitor),
+            pytest.raises(SystemExit) as exc_info,
+        ):
             main()
 
         assert exc_info.value.code == 1

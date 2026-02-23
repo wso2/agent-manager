@@ -52,7 +52,7 @@ type MonitorManagerService interface {
 	DeleteMonitor(ctx context.Context, orgName, monitorName string) error
 	StopMonitor(ctx context.Context, orgName, monitorName string) (*models.MonitorResponse, error)
 	StartMonitor(ctx context.Context, orgName, monitorName string) (*models.MonitorResponse, error)
-	ListMonitorRuns(ctx context.Context, orgName, monitorName string) (*models.MonitorRunsListResponse, error)
+	ListMonitorRuns(ctx context.Context, orgName, monitorName string, limit, offset int) (*models.MonitorRunsListResponse, error)
 	RerunMonitor(ctx context.Context, orgName, monitorName, runID string) (*models.MonitorRunResponse, error)
 	GetMonitorRunLogs(ctx context.Context, orgName, monitorName, runID string) (*models.LogsResponse, error)
 }
@@ -222,10 +222,20 @@ func (s *monitorManagerService) ListMonitors(ctx context.Context, orgName, proje
 		return nil, fmt.Errorf("failed to list monitors: %w", err)
 	}
 
+	// Batch-load latest runs for all monitors in one query to avoid N+1
+	monitorIDs := make([]uuid.UUID, len(monitors))
+	for i := range monitors {
+		monitorIDs[i] = monitors[i].ID
+	}
+	latestRunMap := s.getLatestRuns(ctx, monitorIDs)
+
 	responses := make([]models.MonitorResponse, 0, len(monitors))
 	for i := range monitors {
-		latestRun := s.getLatestRun(ctx, monitors[i].ID)
-		status := s.getMonitorStatus(ctx, monitors[i].ID, monitors[i].Type, monitors[i].NextRunTime)
+		var latestRun *models.MonitorRunResponse
+		if run, ok := latestRunMap[monitors[i].ID]; ok {
+			latestRun = run.ToResponse()
+		}
+		status := s.deriveMonitorStatus(monitors[i].Type, monitors[i].NextRunTime, latestRun)
 		responses = append(responses, *monitors[i].ToResponse(status, latestRun))
 	}
 
@@ -279,15 +289,6 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, moni
 		}
 		monitor.SamplingRate = *req.SamplingRate
 	}
-	if req.Suspended != nil {
-		// Handle suspended state update
-		if *req.Suspended {
-			// For future monitors, we could set next_run_time to NULL or far future
-			// For now, just log it - the scheduler will skip if needed
-			s.logger.Info("Monitor suspended", "name", monitorName)
-		}
-	}
-
 	if err := db.DB(ctx).Save(&monitor).Error; err != nil {
 		return nil, fmt.Errorf("failed to update monitor: %w", err)
 	}
@@ -428,8 +429,8 @@ func (s *monitorManagerService) StartMonitor(ctx context.Context, orgName, monit
 	return monitor.ToResponse(status, latestRun), nil
 }
 
-// ListMonitorRuns returns all runs for a specific monitor
-func (s *monitorManagerService) ListMonitorRuns(ctx context.Context, orgName, monitorName string) (*models.MonitorRunsListResponse, error) {
+// ListMonitorRuns returns paginated runs for a specific monitor
+func (s *monitorManagerService) ListMonitorRuns(ctx context.Context, orgName, monitorName string, limit, offset int) (*models.MonitorRunsListResponse, error) {
 	s.logger.Debug("Listing monitor runs", "orgName", orgName, "monitorName", monitorName)
 
 	var monitor models.Monitor
@@ -440,8 +441,18 @@ func (s *monitorManagerService) ListMonitorRuns(ctx context.Context, orgName, mo
 		return nil, fmt.Errorf("failed to get monitor: %w", err)
 	}
 
+	// Get total count
+	var total int64
+	if err := db.DB(ctx).Model(&models.MonitorRun{}).Where("monitor_id = ?", monitor.ID).Count(&total).Error; err != nil {
+		return nil, fmt.Errorf("failed to count monitor runs: %w", err)
+	}
+
 	var runs []models.MonitorRun
-	if err := db.DB(ctx).Where("monitor_id = ?", monitor.ID).Order("created_at DESC").Find(&runs).Error; err != nil {
+	query := db.DB(ctx).Where("monitor_id = ?", monitor.ID).Order("created_at DESC")
+	if limit > 0 {
+		query = query.Limit(limit).Offset(offset)
+	}
+	if err := query.Find(&runs).Error; err != nil {
 		return nil, fmt.Errorf("failed to list monitor runs: %w", err)
 	}
 
@@ -454,7 +465,7 @@ func (s *monitorManagerService) ListMonitorRuns(ctx context.Context, orgName, mo
 
 	return &models.MonitorRunsListResponse{
 		Runs:  responses,
-		Total: len(responses),
+		Total: int(total),
 	}, nil
 }
 
@@ -550,6 +561,32 @@ func (s *monitorManagerService) getLatestRun(ctx context.Context, monitorID uuid
 	return run.ToResponse()
 }
 
+// getLatestRuns batch-loads the latest run for each monitor in a single query.
+func (s *monitorManagerService) getLatestRuns(ctx context.Context, monitorIDs []uuid.UUID) map[uuid.UUID]models.MonitorRun {
+	result := make(map[uuid.UUID]models.MonitorRun)
+	if len(monitorIDs) == 0 {
+		return result
+	}
+
+	var runs []models.MonitorRun
+	// Use DISTINCT ON to get the latest run per monitor in one query
+	err := db.DB(ctx).Raw(`
+		SELECT DISTINCT ON (monitor_id) *
+		FROM monitor_runs
+		WHERE monitor_id IN ?
+		ORDER BY monitor_id, created_at DESC
+	`, monitorIDs).Scan(&runs).Error
+	if err != nil {
+		s.logger.Error("Failed to batch-load latest runs", "error", err)
+		return result
+	}
+
+	for _, run := range runs {
+		result[run.MonitorID] = run
+	}
+	return result
+}
+
 // getMonitorStatus determines the monitor status based on its type and latest run
 func (s *monitorManagerService) getMonitorStatus(ctx context.Context, monitorID uuid.UUID, monitorType string, nextRunTime *time.Time) models.MonitorStatus {
 	if monitorType == models.MonitorTypeFuture {
@@ -573,6 +610,31 @@ func (s *monitorManagerService) getMonitorStatus(ctx context.Context, monitorID 
 		return models.MonitorStatusFailed
 	case models.RunStatusPending, models.RunStatusRunning:
 		return models.MonitorStatusActive // In progress
+	default:
+		return models.MonitorStatusUnknown
+	}
+}
+
+// deriveMonitorStatus derives status from already-loaded data (no DB call)
+func (s *monitorManagerService) deriveMonitorStatus(monitorType string, nextRunTime *time.Time, latestRun *models.MonitorRunResponse) models.MonitorStatus {
+	if monitorType == models.MonitorTypeFuture {
+		if nextRunTime != nil {
+			return models.MonitorStatusActive
+		}
+		return models.MonitorStatusSuspended
+	}
+
+	if latestRun == nil {
+		return models.MonitorStatusUnknown
+	}
+
+	switch latestRun.Status {
+	case models.RunStatusSuccess:
+		return models.MonitorStatusActive
+	case models.RunStatusFailed:
+		return models.MonitorStatusFailed
+	case models.RunStatusPending, models.RunStatusRunning:
+		return models.MonitorStatusActive
 	default:
 		return models.MonitorStatusUnknown
 	}
@@ -798,20 +860,4 @@ func checkMinMax(prefix string, param models.EvaluatorConfigParam, num float64) 
 			prefix, param.Key, *param.Max, utils.ErrInvalidInput)
 	}
 	return nil
-}
-
-// parseEvaluators parses a comma-separated string of evaluators
-func parseEvaluators(evalStr string) []string {
-	if evalStr == "" {
-		return nil
-	}
-	parts := strings.Split(evalStr, ",")
-	result := make([]string, 0, len(parts))
-	for _, p := range parts {
-		trimmed := strings.TrimSpace(p)
-		if trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
 }

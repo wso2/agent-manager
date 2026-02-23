@@ -52,7 +52,7 @@ func (s *stubScoreRepo) GetEvaluatorsByRunID(_ uuid.UUID) ([]models.MonitorRunEv
 	return s.evaluators, nil
 }
 func (s *stubScoreRepo) BatchCreateScores(_ []models.Score) error { return nil }
-func (s *stubScoreRepo) DeleteScoresByRunEvaluatorAndTraces(_ uuid.UUID, _ []string) error {
+func (s *stubScoreRepo) DeleteStaleScores(_ uuid.UUID, _ []uuid.UUID, _ []string) error {
 	return nil
 }
 
@@ -243,15 +243,6 @@ func TestGetScoresTimeSeries_Validation(t *testing.T) {
 		{
 			name:       "endTime before startTime",
 			query:      "?startTime=" + validEnd + "&endTime=" + validStart + "&evaluator=latency",
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name: "duration less than 24 hours",
-			query: func() string {
-				s := now.Add(-12 * time.Hour).Format(time.RFC3339)
-				e := now.Format(time.RFC3339)
-				return "?startTime=" + s + "&endTime=" + e + "&evaluator=latency"
-			}(),
 			wantStatus: http.StatusBadRequest,
 		},
 		{

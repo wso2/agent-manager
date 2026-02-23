@@ -46,14 +46,22 @@ func (e *Entry) ID() uuid.UUID {
 	return uuid.NewSHA1(catalogNamespace, []byte(e.Identifier))
 }
 
+// entryIndex is a lazily-built map for O(1) identifier lookups.
+var entryIndex map[string]*Entry
+
+func buildIndex() {
+	entryIndex = make(map[string]*Entry, len(entries))
+	for _, e := range entries {
+		entryIndex[e.Identifier] = e
+	}
+}
+
 // Get returns a builtin evaluator by identifier, or nil if not found.
 func Get(identifier string) *Entry {
-	for _, e := range entries {
-		if e.Identifier == identifier {
-			return e
-		}
+	if entryIndex == nil {
+		buildIndex()
 	}
-	return nil
+	return entryIndex[identifier]
 }
 
 // List returns all builtin evaluators matching the given filters.

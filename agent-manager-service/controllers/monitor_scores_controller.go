@@ -22,6 +22,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
@@ -31,6 +33,7 @@ import (
 // MonitorScoresController defines the interface for monitor scores HTTP handlers
 type MonitorScoresController interface {
 	GetMonitorScores(w http.ResponseWriter, r *http.Request)
+	GetMonitorRunScores(w http.ResponseWriter, r *http.Request)
 	GetScoresTimeSeries(w http.ResponseWriter, r *http.Request)
 	GetTraceScores(w http.ResponseWriter, r *http.Request)
 }
@@ -132,6 +135,34 @@ func (c *monitorScoresController) GetMonitorScores(w http.ResponseWriter, r *htt
 	}
 }
 
+// GetMonitorRunScores handles GET .../monitors/{monitorName}/runs/{runId}/scores
+// Returns per-run aggregated scores from the MonitorRunEvaluator records
+func (c *monitorScoresController) GetMonitorRunScores(w http.ResponseWriter, r *http.Request) {
+	log := logger.GetLogger(r.Context())
+
+	monitorName := r.PathValue("monitorName")
+	runIDStr := r.PathValue("runId")
+
+	runID, err := uuid.Parse(runIDStr)
+	if err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid run ID")
+		return
+	}
+
+	result, err := c.scoresService.GetMonitorRunScores(runID, monitorName)
+	if err != nil {
+		log.Error("Failed to get monitor run scores", "runId", runIDStr, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get monitor run scores")
+		return
+	}
+
+	response := utils.ConvertToMonitorRunScoresResponse(result)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Error("Failed to encode response", "error", err)
+	}
+}
+
 // GetScoresTimeSeries handles GET .../monitors/{monitorName}/scores/timeseries
 // Returns time-bucketed scores for a specific evaluator
 func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *http.Request) {
@@ -156,18 +187,20 @@ func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *
 		return
 	}
 
-	duration := endTime.Sub(startTime) // Validate time range (min 24 hours, max 100 days for time series)
-	if duration < 24*time.Hour {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Time range must be at least 24 hours")
-		return
-	}
-
-	if duration > 100*24*time.Hour { // Support up to ~3 months of data for time series endpoint
+	duration := endTime.Sub(startTime)
+	if duration > 100*24*time.Hour {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Time range cannot exceed 100 days")
 		return
 	}
 
-	granularity := CalculateGranularity(duration)
+	// Use user-provided granularity if valid, otherwise auto-calculate
+	granularity := r.URL.Query().Get("granularity")
+	switch granularity {
+	case "hour", "day", "week":
+		// valid, use as-is
+	default:
+		granularity = CalculateGranularity(duration)
+	}
 
 	// Resolve monitor name to ID
 	monitorID, err := c.scoresService.GetMonitorID(orgName, projName, agentName, monitorName)

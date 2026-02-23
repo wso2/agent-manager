@@ -730,6 +730,34 @@ func ConvertToMonitorScoresResponse(response *models.MonitorScoresResponse) spec
 	}
 }
 
+// ConvertToMonitorRunScoresResponse converts a models.MonitorRunScoresResponse to spec.MonitorRunScoresResponse
+func ConvertToMonitorRunScoresResponse(response *models.MonitorRunScoresResponse) spec.MonitorRunScoresResponse {
+	if response == nil {
+		return spec.MonitorRunScoresResponse{
+			RunId:       "",
+			MonitorName: "",
+			Evaluators:  []spec.EvaluatorScoreSummary{},
+		}
+	}
+
+	evaluators := make([]spec.EvaluatorScoreSummary, len(response.Evaluators))
+	for i, eval := range response.Evaluators {
+		evaluators[i] = spec.EvaluatorScoreSummary{
+			EvaluatorName: eval.EvaluatorName,
+			Level:         eval.Level,
+			Count:         int32(eval.Count),
+			ErrorCount:    int32(eval.ErrorCount),
+			Aggregations:  eval.Aggregations,
+		}
+	}
+
+	return spec.MonitorRunScoresResponse{
+		RunId:       response.RunID,
+		MonitorName: response.MonitorName,
+		Evaluators:  evaluators,
+	}
+}
+
 // ConvertToTimeSeriesResponse converts a models.TimeSeriesResponse to spec.TimeSeriesResponse
 func ConvertToTimeSeriesResponse(response *models.TimeSeriesResponse) spec.TimeSeriesResponse {
 	if response == nil {

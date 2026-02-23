@@ -58,7 +58,7 @@ var migration005 = migration{
 			created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-			CONSTRAINT uq_monitor_name_org UNIQUE (name, org_name)
+			CONSTRAINT uq_monitor_name_org_project_agent UNIQUE (name, org_name, project_name, agent_name)
 		)`
 
 		createMonitorRunsTable := `
