@@ -40,7 +40,7 @@ Reference: https://deepeval.com/guides/guides-ai-agent-evaluation-metrics
 from __future__ import annotations
 
 import logging
-from typing import Optional, List, Any, TYPE_CHECKING
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 from amp_evaluation.evaluators.base import BaseEvaluator
 from amp_evaluation.evaluators.config import Param
@@ -123,7 +123,7 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
         actual_output = trace.output or ""
 
         # Build test case kwargs
-        kwargs = {
+        kwargs: Dict[str, Any] = {
             "input": input_text,
             "actual_output": actual_output,
         }
@@ -152,7 +152,7 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
 
         context = []
         for span in retriever_spans:
-            if hasattr(span, "output") and span.documents:
+            if span.documents:
                 if isinstance(span.documents, list):
                     context.extend([str(item) for item in span.documents])
                 else:
@@ -398,6 +398,8 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
         # Create metric with configuration
         metric_kwargs = {
             "threshold": self.threshold,
+            "evaluate_order": self.evaluate_order,
+            "exact_match": self.exact_match,
         }
 
         # Only add model if LLM-based evaluation is needed
@@ -425,12 +427,12 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
         # Extract tools called from trace
         tools_called = []
         for span in trace.get_tool_calls():
-            tool_call_kwargs = {"name": span.name}
-            if self.evaluate_input and hasattr(span, "input"):
-                tool_call_kwargs["input"] = span.input
-            if self.evaluate_output and hasattr(span, "output"):
-                tool_call_kwargs["output"] = span.output
-            tools_called.append(ToolCall(**tool_call_kwargs))
+            tc_kwargs: Dict[str, Any] = {"name": span.name}
+            if self.evaluate_input:
+                tc_kwargs["input"] = span.arguments
+            if self.evaluate_output:
+                tc_kwargs["output"] = span.result
+            tools_called.append(ToolCall(**tc_kwargs))
 
         # Build expected tools from task if available
         expected_tools = None
@@ -438,15 +440,15 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
             expected_tools = []
             for step in task.expected_trajectory:
                 # TrajectoryStep has: tool, args, expected_output
-                tool_call_kwargs = {"name": step.tool}
+                et_kwargs: Dict[str, Any] = {"name": step.tool}
                 if self.evaluate_input and step.args:
-                    tool_call_kwargs["input"] = step.args
+                    et_kwargs["input"] = step.args
                 if self.evaluate_output and step.expected_output:
-                    tool_call_kwargs["output"] = step.expected_output
-                expected_tools.append(ToolCall(**tool_call_kwargs))
+                    et_kwargs["output"] = step.expected_output
+                expected_tools.append(ToolCall(**et_kwargs))
 
         # Build kwargs for test case
-        kwargs = {
+        kwargs: Dict[str, Any] = {
             "input": trace.input or "",
             "actual_output": trace.output or "",
             "tools_called": tools_called,
@@ -515,10 +517,10 @@ class DeepEvalArgumentCorrectnessEvaluator(DeepEvalBaseEvaluator):
         # Extract tools called with input arguments
         tools_called = []
         for span in trace.get_tool_calls():
-            tool_call_kwargs = {"name": span.name}
+            tc_kwargs: Dict[str, Any] = {"name": span.name}
             if hasattr(span, "input") and span.input:
-                tool_call_kwargs["input"] = span.input
-            tools_called.append(ToolCall(**tool_call_kwargs))
+                tc_kwargs["input"] = span.input
+            tools_called.append(ToolCall(**tc_kwargs))
 
         return LLMTestCase(
             input=trace.input or "",
@@ -584,8 +586,20 @@ class DeepEvalTaskCompletionEvaluator(DeepEvalBaseEvaluator):
 
         metric = TaskCompletionMetric(**metric_kwargs)
 
-        # Build test case
+        # Build test case, using custom_task to override the input if provided
         test_case = self._build_deepeval_test_case(trace, task)
+        if self.custom_task:
+            try:
+                from deepeval.test_case import LLMTestCase
+            except ImportError:
+                raise ImportError("DeepEval is required. Install with: pip install deepeval")
+            test_case = LLMTestCase(
+                input=self.custom_task,
+                actual_output=test_case.actual_output,
+                expected_output=test_case.expected_output,
+                retrieval_context=test_case.retrieval_context,
+                tools_called=test_case.tools_called,
+            )
 
         # Measure with better error handling
         try:

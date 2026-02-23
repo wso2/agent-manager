@@ -20,7 +20,7 @@ bookings, search flights, check policies, etc.
 
 Demonstrates all evaluator types:
   - Function-based evaluators at trace level (tool-call-relevance, response-grounding, etc.)
-  - Function-based evaluators at span level (tool-success-rate, llm-response-quality)
+  - Function-based evaluators at trace level (tool-success-rate) and span level (llm-response-quality)
   - Class-based evaluator at agent level (agent-tool-efficiency)
   - Built-in evaluators registered in run_monitor.py (latency, hallucination, answer_relevancy)
 
@@ -38,7 +38,7 @@ from typing import Optional, Set
 
 from amp_evaluation import EvalResult, Task, evaluator, register_evaluator, EvaluationLevel
 from amp_evaluation.evaluators import BaseEvaluator, Param
-from amp_evaluation.trace import Trace, AgentTrace, LLMSpan, ToolSpan
+from amp_evaluation.trace import Trace, AgentTrace, LLMSpan
 from amp_evaluation.aggregators import AggregationType
 
 from dotenv import load_dotenv
@@ -493,42 +493,61 @@ def response_completeness(trace: Trace, task: Optional[Task] = None) -> EvalResu
     name="tool-success-rate",
     description="Did each tool execute without errors?",
     tags=["tool-use", "reliability"],
-    level="span",
+    level="trace",
     aggregations=[AggregationType.MEAN, AggregationType.MIN],
 )
-def tool_success_rate(span: ToolSpan, task: Optional[Task] = None) -> EvalResult:
+def tool_success_rate(trace: Trace, task: Optional[Task] = None) -> EvalResult:
     """
-    Evaluates each tool span individually for success/failure.
+    Evaluates all tool spans in the trace for success/failure.
 
     A failing tool often means the agent will hallucinate a response or
     give a generic error message. Monitors this to catch API outages,
     authentication issues, or bad input being passed to tools.
 
     Scoring:
-      - 1.0 = tool succeeded
-      - 0.0 = tool failed
+      - 1.0 = all tools succeeded
+      - 0.0 = one or more tools failed
     """
-    if span.metrics.error:
-        return EvalResult(
-            score=0.0,
-            passed=False,
-            explanation=f"Tool '{span.name}' failed: {span.metrics.error_message or 'unknown error'}",
-            details={
-                "tool": span.name,
-                "error": span.metrics.error_message,
-                "error_type": span.metrics.error_type,
-            },
-        )
+    tool_spans = trace.get_tool_calls()
+    if not tool_spans:
+        return EvalResult.skip("No tool calls found in trace")
 
+    results = []
+    for span in tool_spans:
+        if span.metrics.error:
+            results.append(
+                EvalResult(
+                    score=0.0,
+                    passed=False,
+                    explanation=f"Tool '{span.name}' failed: {span.metrics.error_message or 'unknown error'}",
+                    details={
+                        "tool": span.name,
+                        "error": span.metrics.error_message,
+                        "error_type": span.metrics.error_type,
+                    },
+                )
+            )
+        else:
+            results.append(
+                EvalResult(
+                    score=1.0,
+                    passed=True,
+                    explanation=f"Tool '{span.name}' succeeded",
+                    details={
+                        "tool": span.name,
+                        "duration_ms": span.metrics.duration_ms,
+                        "has_result": span.result is not None,
+                    },
+                )
+            )
+
+    avg_score = sum(r.score for r in results) / len(results)
+    all_passed = all(r.passed for r in results)
+    succeeded = sum(1 for r in results if r.passed)
     return EvalResult(
-        score=1.0,
-        passed=True,
-        explanation=f"Tool '{span.name}' succeeded",
-        details={
-            "tool": span.name,
-            "duration_ms": span.duration_ms,
-            "has_result": span.result is not None,
-        },
+        score=avg_score,
+        passed=all_passed,
+        explanation=f"{succeeded}/{len(results)} tools succeeded",
     )
 
 

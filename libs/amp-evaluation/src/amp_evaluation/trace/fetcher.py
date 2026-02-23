@@ -298,8 +298,8 @@ class TraceFetcher:
                     "endTime": end_time,
                     "componentUid": self.agent_uid,
                     "environmentUid": self.environment_uid,
-                    "limit": limit,
-                    "offset": offset,
+                    "limit": str(limit),
+                    "offset": str(offset),
                 },
                 timeout=self.timeout,
             )
@@ -455,14 +455,21 @@ class TraceLoader:
             self._traces = self._load_traces_from_file()
 
         # Apply filters
-        filtered_traces = self._traces[self._last_loaded_index :]
+        remaining = self._traces[self._last_loaded_index :]
 
         if start_time or end_time:
-            filtered_traces = [t for t in filtered_traces if self._matches_time_filter(t, start_time, end_time)]
+            filtered_traces = [t for t in remaining if self._matches_time_filter(t, start_time, end_time)]
+        else:
+            filtered_traces = remaining
 
         # Take batch
         batch = filtered_traces[:limit]
-        self._last_loaded_index += len(batch)
+        # Advance past ALL examined traces (not just those that passed the filter)
+        # so the next call doesn't re-scan or re-return already-seen entries.
+        if batch:
+            last_returned = batch[-1]
+            raw_index = self._traces.index(last_returned, self._last_loaded_index)
+            self._last_loaded_index = raw_index + 1
 
         # Parse to Trace objects
         return [_parse_trace(t) for t in batch]

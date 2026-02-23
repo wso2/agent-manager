@@ -485,7 +485,7 @@ func (s *monitorManagerService) RerunMonitor(ctx context.Context, orgName, monit
 		return nil, fmt.Errorf("failed to get monitor run: %w", err)
 	}
 
-	// Create new WorkflowRun with same time parameters and evaluators from monitor
+	// Create new WorkflowRun with same time parameters and evaluators from the original run
 	result, err := s.executor.ExecuteMonitorRun(ctx, ExecuteMonitorRunParams{
 		OrgName:    orgName,
 		Monitor:    &monitor,

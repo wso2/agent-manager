@@ -83,15 +83,9 @@ func (c *monitorController) CreateMonitor(w http.ResponseWriter, r *http.Request
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "At least one evaluator is required")
 		return
 	}
-	for i, eval := range req.Evaluators {
-		if eval.Identifier == "" {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].identifier is required", i))
-			return
-		}
-		if eval.DisplayName == "" {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].displayName is required", i))
-			return
-		}
+	if msg := validateEvaluatorInputs(req.Evaluators); msg != "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, msg)
+		return
 	}
 	if req.Type == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor type is required (future or past)")
@@ -230,15 +224,9 @@ func (c *monitorController) UpdateMonitor(w http.ResponseWriter, r *http.Request
 	}
 
 	// Validate evaluator fields if provided
-	for i, eval := range req.Evaluators {
-		if eval.Identifier == "" {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].identifier is required", i))
-			return
-		}
-		if eval.DisplayName == "" {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].displayName is required", i))
-			return
-		}
+	if msg := validateEvaluatorInputs(req.Evaluators); msg != "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, msg)
+		return
 	}
 
 	// Convert spec request to models request
@@ -432,6 +420,27 @@ func (c *monitorController) StartMonitor(w http.ResponseWriter, r *http.Request)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Error("Failed to encode response", "error", err)
 	}
+}
+
+// validateEvaluatorInputs returns the first validation error message,
+// or an empty string if all evaluators are valid.
+func validateEvaluatorInputs(evaluators []spec.MonitorEvaluator) string {
+	for i, eval := range evaluators {
+		if eval.Identifier == "" {
+			return fmt.Sprintf("evaluators[%d].identifier is required", i)
+		}
+		if eval.DisplayName == "" {
+			return fmt.Sprintf("evaluators[%d].displayName is required", i)
+		}
+		level, _ := eval.Config["level"].(string)
+		if level == "" {
+			return fmt.Sprintf("evaluators[%d].config.level is required", i)
+		}
+		if level != "trace" && level != "agent" && level != "span" {
+			return fmt.Sprintf("evaluators[%d].config.level must be one of: trace, agent, span", i)
+		}
+	}
+	return ""
 }
 
 // isValidDNSName checks if the name is valid for Kubernetes resources

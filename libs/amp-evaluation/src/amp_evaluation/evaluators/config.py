@@ -22,7 +22,7 @@ plus typed enums for evaluation levels.
 """
 
 import enum as _enum
-from typing import Any, Optional, List
+from typing import Any, Dict, Optional, List
 
 
 # ============================================================================
@@ -174,7 +174,7 @@ class Param:
             set: "array",
         }
 
-        schema = {
+        schema: Dict[str, Any] = {
             "key": self._attr_name,
             "required": self.required,
             "description": self.description,
