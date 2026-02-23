@@ -16,8 +16,9 @@
  * under the License.
  */
 
-import { Box, Form, Select, MenuItem, TextField } from "@wso2/oxygen-ui";
+import { Box, CircularProgress, Form, Select, MenuItem, TextField, useTheme } from "@wso2/oxygen-ui";
 import { useEffect, useMemo, useCallback } from "react";
+import { Check } from "@wso2/oxygen-ui-icons-react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
@@ -34,24 +35,25 @@ interface ProjectFormProps {
 
 export const ProjectForm = ({
   formData,
-  setFormData, 
+  setFormData,
   errors,
   validateField,
-  setFieldError, 
+  setFieldError,
   checkDirty,
 }: ProjectFormProps) => {
   const { orgId } = useParams<{ orgId: string }>();
+  const theme = useTheme();
 
   const handleFieldChange = useCallback((field: keyof AddProjectFormValues, value: string) => {
     const newData = { ...formData, [field]: value };
     setFormData(newData);
     checkDirty(newData);
-    
+
     const error = validateField(field, value);
     setFieldError(field, error);
   }, [formData, setFormData, checkDirty, validateField, setFieldError]);
 
-  const { mutate: generateName } = useGenerateResourceName({
+  const { mutate: generateName, isPending: isGeneratingName } = useGenerateResourceName({
     orgName: orgId,
   });
 
@@ -59,6 +61,10 @@ export const ProjectForm = ({
   const debouncedGenerateName = useMemo(
     () =>
       debounce((name: string) => {
+        if (name.length < 3) {
+          handleFieldChange("name", "");
+          return;
+        }
         generateName({
           displayName: name,
           resourceType: 'project',
@@ -111,6 +117,14 @@ export const ProjectForm = ({
               error={!!errors.displayName}
               helperText={errors.displayName}
               fullWidth
+              slotProps={{
+                input: {
+                  endAdornment: isGeneratingName ?
+                    <CircularProgress size={20} /> :
+                    (!!formData.name &&
+                      <Check size={20} color={theme.vars?.palette.success.main} />),
+                },
+              }}
             />
           </Form.ElementWrapper>
 

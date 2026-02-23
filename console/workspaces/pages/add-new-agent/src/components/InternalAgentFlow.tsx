@@ -80,9 +80,16 @@ export const InternalAgentFlow: React.FC = () => {
     );
   }, [navigate, orgId, projectId]);
 
+  const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] = useState<
+    typeof errors
+  >({});
+  
   const handleDeploy = useCallback(() => {
     if (!validateForm(formData)) {
+      setLastSubmittedValidationErrors(errors);
       return;
+    } else {
+      setLastSubmittedValidationErrors({});
     }
 
     const payload = buildAgentCreationPayload(formData, params);
@@ -104,11 +111,7 @@ export const InternalAgentFlow: React.FC = () => {
         console.error("Failed to create agent:", e);
       },
     });
-  }, [validateForm, formData, createAgent, navigate, params]);
-
-  const isValid = Object.keys(errors).length === 0 &&
-    formData.displayName.trim().length > 0 &&
-    formData.repositoryUrl.trim().length > 0;
+  }, [validateForm, formData, createAgent, navigate, params,  errors]);
 
   const hasAgents = Boolean(agents?.agents?.length && agents?.agents?.length > 0);
 
@@ -146,7 +149,7 @@ export const InternalAgentFlow: React.FC = () => {
         )}
 
         <CreateButtons
-          isValid={isValid}
+          lastSubmittedValidationErrors={lastSubmittedValidationErrors}
           isPending={isPending}
           onCancel={handleCancel}
           onSubmit={handleDeploy}

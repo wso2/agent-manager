@@ -16,12 +16,13 @@
  * under the License.
  */
 
-import { Form, TextField } from "@wso2/oxygen-ui";
+import { CircularProgress, Form, TextField, useTheme } from "@wso2/oxygen-ui";
 import { useCallback, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
 import { useGenerateResourceName } from "@agent-management-platform/api-client";
 import { ConnectAgentFormValues } from "../form/schema";
+import { Check } from "@wso2/oxygen-ui-icons-react";
 
 interface ExternalAgentFormProps {
   formData: ConnectAgentFormValues;
@@ -46,8 +47,8 @@ export const ExternalAgentForm = ({
   validateField,
 }: ExternalAgentFormProps) => {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
-  
-  const { mutate: generateName } = useGenerateResourceName({
+  const theme = useTheme();
+  const { mutate: generateName, isPending: isGeneratingName } = useGenerateResourceName({
     orgName: orgId,
   });
 
@@ -67,6 +68,10 @@ export const ExternalAgentForm = ({
   const debouncedGenerateName = useMemo(
     () =>
       debounce((name: string) => {
+        if(name.length < 3) {
+          handleFieldChange("name", "");
+          return;
+        }
         generateName({
           displayName: name,
           resourceType: 'agent',
@@ -116,6 +121,14 @@ export const ExternalAgentForm = ({
               error={!!errors.displayName}
               helperText={errors.displayName}
               fullWidth
+              slotProps={{
+                input: {
+                  endAdornment: isGeneratingName ?
+                    <CircularProgress size={20} /> :
+                    (!!formData.name &&
+                      <Check size={20} color={theme.vars?.palette.success.main} />),
+                },
+              }}
             />
           </Form.ElementWrapper>
           <Form.ElementWrapper label="Description (optional)" name="description">

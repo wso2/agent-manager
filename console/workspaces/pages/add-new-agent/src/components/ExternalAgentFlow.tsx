@@ -92,12 +92,19 @@ export const ExternalAgentFlow: React.FC = () => {
     [createAgent, navigate, params]
   );
 
+  const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] = useState<
+    typeof errors
+  >({});
+
   const handleConnect = useCallback(() => {
     if (!validateForm(formData)) {
+      setLastSubmittedValidationErrors(errors);
       return;
+    } else {
+      setLastSubmittedValidationErrors({});
     }
     onSubmit(formData);
-  }, [validateForm, formData, onSubmit]);
+  }, [validateForm, formData, onSubmit, errors]);
 
   const hasAgents = Boolean(agents?.agents?.length && agents?.agents?.length > 0);
 
@@ -114,9 +121,6 @@ export const ExternalAgentFlow: React.FC = () => {
     );
   }, [hasAgents, orgId, projectId]);
 
-  const isValid = Object.keys(errors).length === 0 &&
-    Boolean(formData.name) &&
-    Boolean(formData.displayName);
 
   return (
     <PageLayout
@@ -142,7 +146,7 @@ export const ExternalAgentFlow: React.FC = () => {
         )}
 
         <CreateButtons
-          isValid={isValid}
+          lastSubmittedValidationErrors={lastSubmittedValidationErrors}
           isPending={isPending}
           onCancel={handleCancel}
           onSubmit={handleConnect}
