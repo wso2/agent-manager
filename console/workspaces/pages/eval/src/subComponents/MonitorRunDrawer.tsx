@@ -26,7 +26,7 @@ import {
     Tabs,
     Typography,
 } from "@wso2/oxygen-ui";
-import { CheckCircle, Clock, Logs, Timer, Users } from "@wso2/oxygen-ui-icons-react";
+import { Logs, Timer, Users } from "@wso2/oxygen-ui-icons-react";
 import { DrawerContent, DrawerHeader, LogsPanel } from "@agent-management-platform/views";
 import { useMonitorRunLogs } from "@agent-management-platform/api-client";
 import { type MonitorRunResponse, type MonitorRunStatus } from "@agent-management-platform/types";
@@ -59,9 +59,7 @@ export function MonitorRunDrawer({
     projectName,
     agentName,
     monitorName,
-    monitorDisplayName,
     onClose,
-    formatDateTime,
     traceWindowLabel,
     durationLabel,
 }: MonitorRunDrawerProps) {
@@ -191,12 +189,6 @@ export function MonitorRunDrawer({
                                                     <Typography variant="subtitle2">
                                                         {ev.displayName ?? ev.identifier}
                                                     </Typography>
-                                                    <Chip
-                                                        size="small"
-                                                        variant="outlined"
-                                                        label={ev.level.charAt(0).toUpperCase() +
-                                                             ev.level.slice(1)}
-                                                    />
                                                 </Stack>
                                                 {ev.config &&
                                                 Object.keys(ev.config).length > 0 ? (

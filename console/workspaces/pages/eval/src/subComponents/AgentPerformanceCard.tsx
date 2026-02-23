@@ -43,7 +43,7 @@ const AgentPerformanceCard: React.FC<AgentPerformanceCardProps> =
                     <>
                         <Box mt={2}>
                             <RadarChart
-                                height={424}
+                                height={444}
                                 data={radarChartData}
                                 angleKey="metric"
                                 radars={radars}

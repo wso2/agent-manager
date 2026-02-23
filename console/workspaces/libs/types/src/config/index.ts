@@ -18,8 +18,7 @@
 
 import {AuthReactConfig} from '@asgardeo/auth-react'
 import { TraceListTimeRange } from '../api/traces';
-import { sub } from 'date-fns';
-import type { Duration } from 'date-fns';
+import { sub, Duration } from 'date-fns';
 export interface AppConfig {
   authConfig: AuthReactConfig;
   apiBaseUrl: string;

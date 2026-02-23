@@ -29,7 +29,8 @@ interface CreateMonitorFormProps {
     isTypeEditable?: boolean;
 }
 
-export function CreateMonitorForm({ formData, errors, onFieldChange, isTypeEditable = true }: CreateMonitorFormProps) {
+export function CreateMonitorForm({ formData, errors, onFieldChange,
+    isTypeEditable = true }: CreateMonitorFormProps) {
     const handleTypeChange = (nextType: MonitorType) => {
         if (!isTypeEditable || formData.type === nextType) {
             return;

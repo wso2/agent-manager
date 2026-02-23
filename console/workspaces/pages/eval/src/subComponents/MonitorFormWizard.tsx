@@ -21,7 +21,7 @@ import { Alert, Button, Stack } from "@wso2/oxygen-ui";
 import { ArrowLeft, ArrowRight } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { createMonitorSchema, type CreateMonitorFormValues } from "../form/schema";
-import type { EvaluationLevel, EvaluatorResponse } from "@agent-management-platform/types";
+import type { EvaluatorResponse } from "@agent-management-platform/types";
 import { CreateMonitorForm } from "./CreateMonitorForm";
 import { SelectPresetMonitors } from "./SelectPresetMonitors";
 
@@ -108,7 +108,6 @@ export function MonitorFormWizard({
                 : [...prev.evaluators, {
                     identifier: ev.identifier,
                     displayName: ev.displayName,
-                    level: (ev.level ?? "trace") as EvaluationLevel,
                 }];
 
             const next = { ...prev, evaluators: nextEvaluators } as CreateMonitorFormValues;
@@ -129,7 +128,6 @@ export function MonitorFormWizard({
                 : [...prev.evaluators, {
                     identifier: ev.identifier,
                     displayName: ev.displayName,
-                    level: (ev.level ?? "trace") as EvaluationLevel,
                     config,
                 }];
             const next = { ...prev, evaluators: nextEvaluators } as CreateMonitorFormValues;

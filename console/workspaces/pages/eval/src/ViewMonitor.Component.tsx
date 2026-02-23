@@ -78,132 +78,175 @@ export const ViewMonitorComponent: React.FC = () => {
     }), [monitorId, orgId, projectId, agentId]);
 
     const now = useMemo(() => new Date(), []);
-    const sevenDaysAgo  = useMemo(() => new Date(now.getTime() - 7  * 24 * 60 * 60 * 1000), [now]);
-    const thirtyDaysAgo = useMemo(() => new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000), [now]);
+    const defaultStartFallback = useMemo(
+        () => new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), [now]);
+    const baselineStartTime = useMemo(
+        () => new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000), [now]);
 
     const mainStartTime = useMemo(() => {
         const range = getTimeRange(timeRange);
-        return range?.startTime ?? sevenDaysAgo.toISOString();
-    }, [timeRange, sevenDaysAgo]);
+        return range?.startTime ?? defaultStartFallback.toISOString();
+    }, [timeRange, defaultStartFallback]);
 
     const { data: monitorData, refetch: refetchMonitor, isLoading: isMonitorLoading } =
         useGetMonitor(commonParams);
 
-    const { data: scores7d,  refetch: refetch7d,  isLoading: isScores7dLoading  } =
+    const { data: scoresMain,     refetch: refetchMain,     isLoading: isScoresMainLoading     } =
         useMonitorScores(commonParams, {
             startTime: mainStartTime,
             endTime:   now.toISOString(),
         });
 
-    const { data: scores30d, refetch: refetch30d, isLoading: isScores30dLoading } =
+    const { data: scoresBaseline, refetch: refetchBaseline, isLoading: isScoresBaselineLoading } =
         useMonitorScores(commonParams, {
-            startTime: thirtyDaysAgo.toISOString(),
+            startTime: baselineStartTime.toISOString(),
             endTime:   now.toISOString(),
         });
 
     const handleRefresh = () => {
         void refetchMonitor();
-        void refetch7d();
-        void refetch30d();
+        void refetchMain();
+        void refetchBaseline();
     };
 
-    const isLoading = isMonitorLoading || isScores7dLoading || isScores30dLoading;
+    const isLoading = isMonitorLoading || isScoresMainLoading || isScoresBaselineLoading;
 
     // ── raw evaluator arrays ─────────────────────────────────────────────────
-    const evaluators7d  = useMemo(() => scores7d?.evaluators  ?? [], [scores7d]);
-    const evaluators30d = useMemo(() => scores30d?.evaluators ?? [], [scores30d]);
+    const evaluators         = useMemo(() => scoresMain?.evaluators     ?? [], [scoresMain]);
+    const evaluatorsBaseline = useMemo(() => scoresBaseline?.evaluators ?? [], [scoresBaseline]);
 
     // ── EvaluationSummaryCard ────────────────────────────────────────────────
     const evaluatorSummary = useMemo<EvaluationSummaryItem[]>(() => {
-        const totalCount  = evaluators7d.reduce((s, e) => s + e.count,      0);
-        const totalErrors = evaluators7d.reduce((s, e) => s + e.errorCount, 0);
+        const totalCount  = evaluators.reduce((s, e) => s + e.count,      0);
+        const totalErrors = evaluators.reduce((s, e) => s + e.errorCount, 0);
         const failureRate = totalCount > 0 ? (totalErrors / totalCount) * 100 : 0;
 
-        const totalCount30  = evaluators30d.reduce((s, e) => s + e.count,      0);
-        const totalErrors30 = evaluators30d.reduce((s, e) => s + e.errorCount, 0);
-        const countTrend = totalCount30 > 0
-            ? Math.round(((totalCount - totalCount30) / totalCount30) * 100)
+        const totalCountBaseline  = evaluatorsBaseline.reduce((s, e) => s + e.count,      0);
+        const totalErrorsBaseline = evaluatorsBaseline.reduce((s, e) => s + e.errorCount, 0);
+
+        // Compare daily run rates so window-length differences don't skew the trend
+        const selectedDays = Math.max(
+            1,
+            (now.getTime() - new Date(mainStartTime).getTime()) / 86_400_000
+        );
+        const dailyRateCurrent  = totalCount / selectedDays;
+        const dailyRateBaseline = totalCountBaseline / 30;
+        const dailyRateTrend = dailyRateBaseline > 0
+            ? Math.round(((dailyRateCurrent - dailyRateBaseline) / dailyRateBaseline) * 100)
             : 0;
-        const errorTrend = totalErrors30 > 0
-            ? Math.round(((totalErrors - totalErrors30) / totalErrors30) * 100)
+
+        // Compare failure rates (errors/total) — window-length independent
+        const failureRateBaseline = totalCountBaseline > 0
+            ? (totalErrorsBaseline / totalCountBaseline) * 100
+            : 0;
+        const failureRateDelta = failureRateBaseline > 0
+            ? Math.round(failureRate - failureRateBaseline)
             : 0;
 
         return [
             {
                 label: "Traces Evaluated",
                 value: totalCount.toLocaleString(),
-                helper: totalCount30 > 0 ? `${countTrend >= 0 ? "↑" : "↓"} vs prev 30 days` : timeRangeLabel,
-                trend: countTrend,
+                helper: dailyRateBaseline > 0
+                    ? `${dailyRateTrend >= 0 ? "↑" : "↓"} vs 30-day avg (${Math.round(dailyRateBaseline)}/day)`
+                    : timeRangeLabel,
+                trend: dailyRateTrend,
             },
             {
                 label: "Eval Failures",
                 value: totalErrors.toLocaleString(),
-                helper: totalCount > 0 ? `${failureRate.toFixed(1)}% failure rate` : "No data",
-                trend: -errorTrend,
+                helper: totalCount > 0
+                    ? `${failureRate.toFixed(1)}% rate${
+                        failureRateBaseline > 0
+                            ? ` (30d avg: ${failureRateBaseline.toFixed(1)}%)`
+                            : ""
+                    }`
+                    : "No data",
+                trend: failureRateBaseline > 0 ? -failureRateDelta : 0,
             },
             {
                 label: "Evaluators Active",
-                value: String(evaluators7d.length),
+                value: String(evaluators.length),
                 helper: "configured evaluators",
                 trend: 0,
             },
         ];
-    }, [evaluators7d, evaluators30d, timeRangeLabel]);
+    }, [evaluators, evaluatorsBaseline, timeRangeLabel, mainStartTime, now]);
 
-    const averageScore7d = useMemo(() => {
-        const means = evaluators7d.map(getMean).filter((v): v is number => v !== null);
-        if (means.length === 0) return null;
-        return means.reduce((a, b) => a + b, 0) / means.length;
-    }, [evaluators7d]);
+    // Weighted average — weight each evaluator's mean by its trace count so
+    // high-volume evaluators contribute proportionally.
+    const averageScore = useMemo(() => {
+        let weightedSum = 0;
+        let totalWeight = 0;
+        for (const e of evaluators) {
+            const mean = getMean(e);
+            if (mean !== null && e.count > 0) {
+                weightedSum += mean * e.count;
+                totalWeight += e.count;
+            }
+        }
+        return totalWeight > 0 ? weightedSum / totalWeight : null;
+    }, [evaluators]);
 
-    const averageScore30d = useMemo(() => {
-        const means = evaluators30d.map(getMean).filter((v): v is number => v !== null);
-        if (means.length === 0) return null;
-        return means.reduce((a, b) => a + b, 0) / means.length;
-    }, [evaluators30d]);
+    const averageScoreBaseline = useMemo(() => {
+        let weightedSum = 0;
+        let totalWeight = 0;
+        for (const e of evaluatorsBaseline) {
+            const mean = getMean(e);
+            if (mean !== null && e.count > 0) {
+                weightedSum += mean * e.count;
+                totalWeight += e.count;
+            }
+        }
+        return totalWeight > 0 ? weightedSum / totalWeight : null;
+    }, [evaluatorsBaseline]);
 
     const evaluationSummaryAverage = useMemo(() => {
-        if (averageScore7d === null) return { value: "–", helper: "No data yet", progress: 0 };
-        const delta = averageScore30d !== null
-            ? ` (${averageScore7d >= averageScore30d ? "↑" : "↓"} vs 30-day avg ${(averageScore30d * 100).toFixed(1)}%)`
+        if (averageScore === null) return { value: "–", helper: "No data yet", progress: 0 };
+        // Note: baseline window (now-30d → now) overlaps the selected period,
+        // so the delta reflects trend within the rolling 30d, not a prior period.
+        const scorePct = averageScore * 100;
+        const baselinePct = averageScoreBaseline !== null ? averageScoreBaseline * 100 : null;
+        const delta = baselinePct !== null
+            ? ` (${scorePct >= baselinePct ? "↑" : "↓"} ${Math.abs(scorePct - baselinePct).toFixed(1)}pp vs 30d)`
             : "";
         return {
-            value: `${(averageScore7d * 100).toFixed(1)}%`,
+            value: `${scorePct.toFixed(1)}%`,
             helper: `${timeRangeLabel}${delta}`,
-            progress: Math.round(averageScore7d * 100),
+            progress: Math.round(scorePct),
         };
-    }, [averageScore7d, averageScore30d, timeRangeLabel]);
+    }, [averageScore, averageScoreBaseline, timeRangeLabel]);
 
     // ── PerformanceByEvaluatorCard ───────────────────────────────────────────
     const evaluatorNames = useMemo(
-        () => evaluators7d.map((e) => e.evaluatorName),
-        [evaluators7d]
+        () => evaluators.map((e) => e.evaluatorName),
+        [evaluators]
     );
 
     // ── AgentPerformanceCard (radar) ─────────────────────────────────────────
     const radarChartData = useMemo(() =>
-        evaluators7d.map((e) => ({ metric: e.evaluatorName, current: (getMean(e) ?? 0) * 100 })),
-    [evaluators7d]);
+        evaluators.map((e) => ({ metric: e.evaluatorName, current: (getMean(e) ?? 0) * 100 })),
+    [evaluators]);
 
     const radars = useMemo<RadarDefinition[]>(() => [
-        { dataKey: "current", name: "Current (7d)", fillOpacity: 0.2, strokeWidth: 2 },
-    ], []);
+        { dataKey: "current", name: `Current (${timeRangeLabel})`, fillOpacity: 0.2, strokeWidth: 2 },
+    ], [timeRangeLabel]);
 
     // ── TopDegradingMetricsCard (7d vs 30d) ─────────────────────────────────
     const topDegrading = useMemo<DegradingMetric[]>(() => {
-        const map30d = new Map(evaluators30d.map((e) => [e.evaluatorName, getMean(e)]));
-        return evaluators7d
+        const baselineMap = new Map(evaluatorsBaseline.map((e) => [e.evaluatorName, getMean(e)]));
+        return evaluators
             .map((e) => {
-                const m7  = getMean(e);
-                const m30 = map30d.get(e.evaluatorName) ?? null;
-                if (m7 === null || m30 === null) return null;
-                const delta = Math.round((m7 - m30) * 100);
-                return { label: e.evaluatorName, delta, range: `${(m30 * 100).toFixed(1)} → ${(m7 * 100).toFixed(1)}` };
+                const mCurrent  = getMean(e);
+                const mBaseline = baselineMap.get(e.evaluatorName) ?? null;
+                if (mCurrent === null || mBaseline === null) return null;
+                const delta = Math.round((mCurrent - mBaseline) * 100);
+                return { label: e.evaluatorName, delta, range: `${(mBaseline * 100).toFixed(1)} → ${(mCurrent * 100).toFixed(1)}` };
             })
             .filter((m): m is DegradingMetric => m !== null && m.delta < 0)
             .sort((a, b) => a.delta - b.delta)
             .slice(0, 5);
-    }, [evaluators7d, evaluators30d]);
+    }, [evaluators, evaluatorsBaseline]);
 
     return (
 

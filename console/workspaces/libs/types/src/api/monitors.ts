@@ -28,7 +28,6 @@ export type MonitorRunStatus = "pending" | "running" | "success" | "failed";
 export interface MonitorEvaluator {
   identifier: string;
   displayName: string;
-  level: EvaluationLevel;
   config?: Record<string, unknown>;
 }
 
