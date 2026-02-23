@@ -478,8 +478,9 @@ Evaluate and respond with a JSON object:
   "explanation": "<brief explanation of your evaluation>"
 }"""
 
-    # ─── User overrides this ─────────────────────────────────────────
+    # ─── User must override this ────────────────────────────────────
 
+    @abstractmethod
     def build_prompt(self, *args: Any, **kwargs: Any) -> str:
         """
         Override this method to write your evaluation prompt.
@@ -497,22 +498,7 @@ Evaluate and respond with a JSON object:
         Returns the prompt string. Output format is auto-appended.
         Do NOT include scoring instructions.
         """
-        trace: Trace = args[0] if args else kwargs["trace"]
-        task: Optional[Task] = args[1] if len(args) > 1 else kwargs.get("task")
-
-        prompt = f"""You are an expert evaluator assessing AI agent outputs.
-
-Input: {trace.input}
-Output: {trace.output}
-
-Evaluation Criteria: {self.criteria}"""
-
-        if task and task.expected_output:
-            prompt += f"\n\nExpected Output: {task.expected_output}"
-        if task and task.success_criteria:
-            prompt += f"\nSuccess Criteria: {task.success_criteria}"
-
-        return prompt
+        ...
 
     # ─── Level/mode detection — reuses the SAME helper functions ─────
 

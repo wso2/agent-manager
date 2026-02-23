@@ -306,7 +306,7 @@ def load_dataset_from_csv(csv_path: str, name: Optional[str] = None) -> Dataset:
         reader = csv.DictReader(f)
         for row in reader:
             task_id = row.get("id") or row.get("task_id")
-            if not task_id or "input" not in row:
+            if not task_id or "input" not in row or not row["input"]:
                 raise ValueError("CSV must have non-empty 'id' (or 'task_id') and 'input' columns")
 
             id_key = "id" if "id" in row else "task_id"

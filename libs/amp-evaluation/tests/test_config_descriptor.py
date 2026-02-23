@@ -343,6 +343,146 @@ class TestParamValidation:
         with pytest.raises(ValueError, match="must be one of"):
             TestEvaluator(model="invalid-model")
 
+    # --- None rejection for non-concrete types (Union, generic aliases) ---
+
+    def test_none_rejected_for_list_str_type(self):
+        """Test that None is rejected for List[str] (parameterized generic, not a concrete type)."""
+        from typing import List
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            keywords: List[str] = Param(description="Keywords list")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        with pytest.raises(TypeError, match="got None"):
+            TestEvaluator(keywords=None)
+
+    def test_none_rejected_for_non_optional_union(self):
+        """Test that None is rejected for Union[str, int] (union without None)."""
+        from typing import Union
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            value: Union[str, int] = Param(description="String or int value")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        with pytest.raises(TypeError, match="got None"):
+            TestEvaluator(value=None)
+
+    def test_none_rejected_for_pep604_union_without_none(self):
+        """Test that None is rejected for str | int (PEP 604 union without None)."""
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            value: str | int = Param(description="String or int value")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        with pytest.raises(TypeError, match="got None"):
+            TestEvaluator(value=None)
+
+    def test_none_allowed_for_pep604_optional(self):
+        """Test that None is allowed for str | None (PEP 604 optional)."""
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            label: str | None = Param(default=None, description="Optional label")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator()
+        assert evaluator.label is None
+
+        evaluator = TestEvaluator(label=None)
+        assert evaluator.label is None
+
+        evaluator = TestEvaluator(label="hello")
+        assert evaluator.label == "hello"
+
+    def test_none_allowed_for_pep604_complex_optional(self):
+        """Test that None is allowed for int | str | None (PEP 604 complex optional)."""
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            value: int | str | None = Param(default=None, description="Optional int or str")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator(value=None)
+        assert evaluator.value is None
+
+        evaluator = TestEvaluator(value=42)
+        assert evaluator.value == 42
+
+        evaluator = TestEvaluator(value="hello")
+        assert evaluator.value == "hello"
+
+    def test_none_rejected_for_dict_type(self):
+        """Test that None is rejected for Dict[str, Any] (parameterized generic)."""
+        from typing import Dict, Any
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            config: Dict[str, Any] = Param(description="Config dict")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        with pytest.raises(TypeError, match="got None"):
+            TestEvaluator(config=None)
+
+    def test_valid_value_for_non_optional_union(self):
+        """Test that valid values pass for Union[str, int] types."""
+        from typing import Union
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            value: Union[str, int] = Param(default="hello", description="String or int")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator(value="test")
+        assert evaluator.value == "test"
+
+        evaluator = TestEvaluator(value=42)
+        assert evaluator.value == 42
+
+    def test_collection_coercion_list_from_tuple(self):
+        """Test that tuple is coerced to list when type is list."""
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            items: list = Param(default=[], description="Items")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator(items=(1, 2, 3))
+        assert evaluator.items == [1, 2, 3]
+        assert isinstance(evaluator.items, list)
+
+    def test_collection_coercion_set_from_list(self):
+        """Test that list is coerced to set when type is set."""
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            tags: set = Param(default=set(), description="Tags")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator(tags=[1, 2, 3])
+        assert evaluator.tags == {1, 2, 3}
+        assert isinstance(evaluator.tags, set)
+
 
 # ============================================================================
 # TEST CONFIG SCHEMA GENERATION

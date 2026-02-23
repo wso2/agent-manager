@@ -19,11 +19,25 @@ Tests for base evaluator coverage - aiming for 90%+.
 """
 
 import pytest
+from typing import Optional
+
 from amp_evaluation.evaluators.base import BaseEvaluator, LLMAsJudgeEvaluator, FunctionEvaluator
 from amp_evaluation.evaluators.params import EvalMode
 from amp_evaluation.models import EvalResult
 from amp_evaluation.dataset import Task
 from amp_evaluation.trace import Trace, TraceMetrics, TokenUsage
+
+
+class _SimpleJudge(LLMAsJudgeEvaluator):
+    """Minimal concrete subclass for testing (build_prompt is abstract)."""
+
+    def build_prompt(self, trace: Trace, task: Optional[Task] = None) -> str:
+        prompt = f"Evaluate:\nInput: {trace.input}\nOutput: {trace.output}\nCriteria: {self.criteria}"
+        if task and task.expected_output:
+            prompt += f"\n\nExpected Output: {task.expected_output}"
+        if task and task.success_criteria:
+            prompt += f"\nSuccess Criteria: {task.success_criteria}"
+        return prompt
 
 
 def create_test_trajectory():
@@ -70,7 +84,7 @@ class TestLLMAsJudgeEvaluator:
 
     def test_default_initialization(self):
         """Test LLM evaluator with default Param values."""
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
 
         assert evaluator.model == "gpt-4o-mini"
         assert evaluator.criteria == "quality, accuracy, and helpfulness"
@@ -81,7 +95,7 @@ class TestLLMAsJudgeEvaluator:
 
     def test_custom_initialization(self):
         """Test LLM evaluator with custom Param overrides."""
-        evaluator = LLMAsJudgeEvaluator(model="gpt-4o", criteria="accuracy", temperature=0.3, threshold=0.7)
+        evaluator = _SimpleJudge(model="gpt-4o", criteria="accuracy", temperature=0.3, threshold=0.7)
 
         assert evaluator.model == "gpt-4o"
         assert evaluator.criteria == "accuracy"
@@ -90,7 +104,7 @@ class TestLLMAsJudgeEvaluator:
 
     def test_default_build_prompt_without_task(self):
         """Test default build_prompt includes trace input/output."""
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
         trace = create_test_trajectory()
 
         prompt = evaluator.build_prompt(trace)
@@ -100,7 +114,7 @@ class TestLLMAsJudgeEvaluator:
 
     def test_default_build_prompt_with_task_expected_output(self):
         """Test default build_prompt includes expected output from task."""
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
         trace = create_test_trajectory()
 
         task = Task(
@@ -116,7 +130,7 @@ class TestLLMAsJudgeEvaluator:
 
     def test_default_build_prompt_with_task_success_criteria(self):
         """Test default build_prompt includes success criteria from task."""
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
         trace = create_test_trajectory()
 
         task = Task(
@@ -148,7 +162,7 @@ class TestLLMAsJudgeEvaluator:
 
     def test_parse_and_validate_valid(self):
         """Test Pydantic validation of valid JSON."""
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
 
         result, error = evaluator._parse_and_validate('{"score": 0.8, "explanation": "Good"}')
         assert result is not None
@@ -158,7 +172,7 @@ class TestLLMAsJudgeEvaluator:
 
     def test_parse_and_validate_invalid_score(self):
         """Test Pydantic validation rejects out-of-range score."""
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
 
         result, error = evaluator._parse_and_validate('{"score": 5.0, "explanation": "Bad"}')
         assert result is None
@@ -166,7 +180,7 @@ class TestLLMAsJudgeEvaluator:
 
     def test_parse_and_validate_missing_score(self):
         """Test Pydantic validation rejects missing score."""
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
 
         result, error = evaluator._parse_and_validate('{"explanation": "No score"}')
         assert result is None
@@ -174,7 +188,7 @@ class TestLLMAsJudgeEvaluator:
 
     def test_parse_and_validate_invalid_json(self):
         """Test Pydantic validation rejects invalid JSON."""
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
 
         result, error = evaluator._parse_and_validate("not json at all")
         assert result is None
@@ -182,7 +196,7 @@ class TestLLMAsJudgeEvaluator:
 
     def test_threshold_pass_fail(self):
         """Test that threshold controls pass/fail."""
-        evaluator = LLMAsJudgeEvaluator(threshold=0.8)
+        evaluator = _SimpleJudge(threshold=0.8)
 
         result_pass, _ = evaluator._parse_and_validate('{"score": 0.9, "explanation": "Great"}')
         assert result_pass.passed is True

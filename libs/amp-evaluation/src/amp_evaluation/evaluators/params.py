@@ -175,9 +175,8 @@ class _ParamDescriptor:
         if value is None:
             if self._is_optional_type():
                 return value
-            if isinstance(self.type, type):
-                raise TypeError(f"Param '{self._attr_name}' expects {self.type.__name__}, got None")
-            return value
+            type_name = getattr(self.type, "__name__", str(self.type))
+            raise TypeError(f"Param '{self._attr_name}' expects {type_name}, got None")
 
         # Coerce str → Enum when type is an Enum subclass
         if isinstance(self.type, type) and issubclass(self.type, _enum.Enum):

@@ -296,9 +296,6 @@ class LLMResponseQuality(LLMAsJudgeEvaluator):
 Model: {llm.model}
 Response: {llm.response}
 Tool calls: {len(llm.tool_calls)}"""
-
-# Default — no subclassing needed
-judge = LLMAsJudgeEvaluator(name="quality-judge", model="gpt-4o")
 ```
 
 ### Decorator-Based (`@llm_judge`)
@@ -606,7 +603,7 @@ result.traces_evaluated     # Number of traces
 result.evaluators_run       # Number of evaluators
 result.scores               # Dict[str, EvaluatorSummary]
 result.errors               # List[str]
-result.success              # True if no errors
+result.success              # True if no errors and at least one trace evaluated
 result.duration_seconds     # Run duration
 
 # Per-evaluator results
@@ -707,7 +704,7 @@ Built-in aggregation types: `MEAN`, `MEDIAN`, `MIN`, `MAX`, `SUM`, `COUNT`, `STD
 
 ## Project Structure
 
-```
+```text
 amp-evaluation/
 ├── src/amp_evaluation/
 │   ├── __init__.py              # Public API (Tier 1 imports)
@@ -719,7 +716,7 @@ amp-evaluation/
 │   ├── evaluators/
 │   │   ├── __init__.py          # BaseEvaluator, LLMAsJudgeEvaluator, Param exports
 │   │   ├── base.py              # BaseEvaluator, LLMAsJudgeEvaluator, FunctionEvaluator, FunctionLLMJudge
-│   │   ├── config.py            # Param, EvaluationLevel, EvalMode
+│   │   ├── params.py            # Param, EvaluationLevel, EvalMode
 │   │   └── builtin/
 │   │       ├── __init__.py      # builtin(), list_builtin_evaluators(), catalog
 │   │       ├── standard.py      # Rule-based evaluators

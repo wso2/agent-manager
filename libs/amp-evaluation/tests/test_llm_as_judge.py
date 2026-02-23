@@ -76,6 +76,18 @@ def _mock_litellm_raw_response(content: str):
     return mock_response
 
 
+class _SimpleJudge(LLMAsJudgeEvaluator):
+    """Minimal concrete subclass for testing (build_prompt is abstract)."""
+
+    def build_prompt(self, trace: Trace, task: Optional[Task] = None) -> str:
+        prompt = f"Evaluate:\nInput: {trace.input}\nOutput: {trace.output}\nCriteria: {self.criteria}"
+        if task and task.expected_output:
+            prompt += f"\n\nExpected Output: {task.expected_output}"
+        if task and task.success_criteria:
+            prompt += f"\nSuccess Criteria: {task.success_criteria}"
+        return prompt
+
+
 # =============================================================================
 # LLMAsJudgeEvaluator init and params
 # =============================================================================
@@ -85,7 +97,7 @@ class TestLLMAsJudgeInit:
     """Test LLMAsJudgeEvaluator initialization and Param defaults."""
 
     def test_default_params(self):
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
         assert evaluator.model == "gpt-4o-mini"
         assert evaluator.criteria == "quality, accuracy, and helpfulness"
         assert evaluator.temperature == 0.0
@@ -94,7 +106,7 @@ class TestLLMAsJudgeInit:
         assert evaluator.max_retries == 2
 
     def test_custom_params(self):
-        evaluator = LLMAsJudgeEvaluator(
+        evaluator = _SimpleJudge(
             model="gpt-4o",
             criteria="accuracy",
             temperature=0.5,
@@ -110,7 +122,7 @@ class TestLLMAsJudgeInit:
         assert evaluator.max_retries == 3
 
     def test_default_build_prompt_content(self):
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
         trace = _make_trace()
         prompt = evaluator.build_prompt(trace)
         assert "What is AI?" in prompt
@@ -207,7 +219,7 @@ class TestPydanticOutputValidation:
     """Test JudgeOutput Pydantic validation."""
 
     def test_valid_json_parsed(self):
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
         result, error = evaluator._parse_and_validate('{"score": 0.8, "explanation": "Good"}')
         assert result is not None
         assert error is None
@@ -215,37 +227,37 @@ class TestPydanticOutputValidation:
         assert result.explanation == "Good"
 
     def test_missing_score_returns_error(self):
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
         result, error = evaluator._parse_and_validate('{"explanation": "no score"}')
         assert result is None
         assert error is not None
 
     def test_score_out_of_range_returns_error(self):
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
         result, error = evaluator._parse_and_validate('{"score": 5.0, "explanation": "too high"}')
         assert result is None
         assert error is not None
 
     def test_score_negative_returns_error(self):
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
         result, error = evaluator._parse_and_validate('{"score": -0.5, "explanation": "negative"}')
         assert result is None
         assert error is not None
 
     def test_invalid_json_returns_error(self):
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
         result, error = evaluator._parse_and_validate("not json")
         assert result is None
         assert error is not None
 
     def test_score_boundary_zero(self):
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
         result, _ = evaluator._parse_and_validate('{"score": 0.0}')
         assert result is not None
         assert result.score == 0.0
 
     def test_score_boundary_one(self):
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
         result, _ = evaluator._parse_and_validate('{"score": 1.0}')
         assert result is not None
         assert result.score == 1.0
@@ -263,7 +275,7 @@ class TestEndToEnd:
     def test_full_pipeline(self, mock_completion):
         mock_completion.return_value = _mock_litellm_response(0.85, "Well done")
 
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
         trace = _make_trace()
 
         result = evaluator.evaluate(trace)
@@ -278,7 +290,7 @@ class TestEndToEnd:
         """Verify prompt sent to LLM contains JSON format instructions."""
         mock_completion.return_value = _mock_litellm_response(0.9, "Great")
 
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
         trace = _make_trace()
         evaluator.evaluate(trace)
 
@@ -321,7 +333,7 @@ class TestEndToEnd:
             _mock_litellm_response(0.8, "Retry worked"),  # Valid
         ]
 
-        evaluator = LLMAsJudgeEvaluator()
+        evaluator = _SimpleJudge()
         trace = _make_trace()
 
         result = evaluator.evaluate(trace)
@@ -339,7 +351,7 @@ class TestEndToEnd:
         """Test error result when all retries fail."""
         mock_completion.return_value = _mock_litellm_raw_response('{"bad": "json"}')
 
-        evaluator = LLMAsJudgeEvaluator(max_retries=1)
+        evaluator = _SimpleJudge(max_retries=1)
         trace = _make_trace()
 
         result = evaluator.evaluate(trace)
@@ -354,7 +366,7 @@ class TestEndToEnd:
         """Test that custom model identifier is passed through."""
         mock_completion.return_value = _mock_litellm_response(0.7, "OK")
 
-        evaluator = LLMAsJudgeEvaluator(model="anthropic/claude-sonnet-4-20250514")
+        evaluator = _SimpleJudge(model="anthropic/claude-sonnet-4-20250514")
         trace = _make_trace()
         evaluator.evaluate(trace)
 
@@ -366,7 +378,7 @@ class TestEndToEnd:
         """Test that temperature and max_tokens are forwarded."""
         mock_completion.return_value = _mock_litellm_response(0.7, "OK")
 
-        evaluator = LLMAsJudgeEvaluator(temperature=0.5, max_tokens=2048)
+        evaluator = _SimpleJudge(temperature=0.5, max_tokens=2048)
         trace = _make_trace()
         evaluator.evaluate(trace)
 

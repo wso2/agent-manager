@@ -24,13 +24,14 @@ dependencies = [
 
 [project.optional-dependencies]
 deepeval = ["deepeval>=3.8.4"]
-litellm = ["litellm"]
+litellm = ["litellm>=1.81.14"]
 dev = [
   "pytest>=7.0",
   "pytest-cov>=4.0",
   "black>=23.0",
   "ruff>=0.1.0",
   "deepeval>=3.8.4",
+  "litellm>=1.81.14",
 ]
 
 [project.urls]

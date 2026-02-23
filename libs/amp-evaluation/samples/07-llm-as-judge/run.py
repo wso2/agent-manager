@@ -28,12 +28,12 @@ evaluators will report errors gracefully.
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
-
 from amp_evaluation import Monitor, discover_evaluators
 from amp_evaluation.trace import TraceLoader, parse_traces_for_evaluation
 
 import evaluators  # noqa: E402 — local evaluators module
+
+sys.path.insert(0, str(Path(__file__).parent))
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
@@ -67,7 +67,29 @@ def main():
         result = monitor.run(traces=traces)
         print(result.summary())
 
-        # 4. Show which evaluators had errors vs succeeded
+        # 4. Show individual scores and explanations per evaluator
+        print("\n" + "=" * 60)
+        print("Individual Scores & Explanations")
+        print("=" * 60)
+        for evaluator_name, summary in result.scores.items():
+            total = len(summary.individual_scores)
+            errors = sum(1 for s in summary.individual_scores if s.is_error)
+            passed = sum(1 for s in summary.individual_scores if not s.is_error and s.passed)
+            failed = total - errors - passed
+            print(f"\n--- {evaluator_name} (total={total}, passed={passed}, failed={failed}, errors={errors}) ---")
+            for score in summary.individual_scores:
+                if score.is_error:
+                    print(f"  [ERR ] trace={score.trace_id[:12]}...")
+                    if score.error:
+                        print(f"         {score.error}")
+                else:
+                    status = "PASS" if score.passed else "FAIL"
+                    print(f"  [{status}] trace={score.trace_id[:12]}... score={score.score:.2f}")
+                    if score.explanation:
+                        for line in score.explanation.strip().splitlines():
+                            print(f"         {line}")
+
+        # 5. Show which evaluators had errors vs succeeded
         if result.errors:
             print(f"\nNote: {len(result.errors)} errors occurred.")
             print("This is expected if LLM API keys are not configured.")
