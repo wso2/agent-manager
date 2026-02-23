@@ -47,8 +47,8 @@ agentManagerService:
     targetPort: 8080
     annotations: {}
 
-  internalService:
-    type: ClusterIP
+  gatewayMgtService:
+    type: LoadBalancer
     port: 9243
     targetPort: 9243
 

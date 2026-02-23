@@ -76,7 +76,7 @@ spec:
               containerPort: {{ .Values.agentManagerService.service.targetPort }}
               protocol: TCP
             - name: https
-              containerPort: {{ .Values.agentManagerService.internalService.targetPort }}
+              containerPort: {{ .Values.agentManagerService.gatewayMgtService.targetPort }}
               protocol: TCP
           env:
             - name: DB_HOST
