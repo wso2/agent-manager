@@ -46,15 +46,15 @@ const (
 // MonitorManagerService defines the interface for monitor operations
 type MonitorManagerService interface {
 	CreateMonitor(ctx context.Context, orgName string, req *models.CreateMonitorRequest) (*models.MonitorResponse, error)
-	GetMonitor(ctx context.Context, orgName, monitorName string) (*models.MonitorResponse, error)
+	GetMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) (*models.MonitorResponse, error)
 	ListMonitors(ctx context.Context, orgName, projectName, agentName string) (*models.MonitorListResponse, error)
-	UpdateMonitor(ctx context.Context, orgName, monitorName string, req *models.UpdateMonitorRequest) (*models.MonitorResponse, error)
-	DeleteMonitor(ctx context.Context, orgName, monitorName string) error
-	StopMonitor(ctx context.Context, orgName, monitorName string) (*models.MonitorResponse, error)
-	StartMonitor(ctx context.Context, orgName, monitorName string) (*models.MonitorResponse, error)
-	ListMonitorRuns(ctx context.Context, orgName, monitorName string, limit, offset int) (*models.MonitorRunsListResponse, error)
-	RerunMonitor(ctx context.Context, orgName, monitorName, runID string) (*models.MonitorRunResponse, error)
-	GetMonitorRunLogs(ctx context.Context, orgName, monitorName, runID string) (*models.LogsResponse, error)
+	UpdateMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string, req *models.UpdateMonitorRequest) (*models.MonitorResponse, error)
+	DeleteMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) error
+	StopMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) (*models.MonitorResponse, error)
+	StartMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) (*models.MonitorResponse, error)
+	ListMonitorRuns(ctx context.Context, orgName, projectName, agentName, monitorName string, limit, offset int) (*models.MonitorRunsListResponse, error)
+	RerunMonitor(ctx context.Context, orgName, projectName, agentName, monitorName, runID string) (*models.MonitorRunResponse, error)
+	GetMonitorRunLogs(ctx context.Context, orgName, projectName, agentName, monitorName, runID string) (*models.LogsResponse, error)
 }
 
 type monitorManagerService struct {
@@ -199,10 +199,10 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 }
 
 // GetMonitor retrieves a single monitor with DB config + live CR status
-func (s *monitorManagerService) GetMonitor(ctx context.Context, orgName, monitorName string) (*models.MonitorResponse, error) {
+func (s *monitorManagerService) GetMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) (*models.MonitorResponse, error) {
 	s.logger.Debug("Getting monitor", "orgName", orgName, "name", monitorName)
 
-	monitor, err := s.monitorRepo.GetMonitorByName(orgName, monitorName)
+	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMonitorNotFound
@@ -253,10 +253,10 @@ func (s *monitorManagerService) ListMonitors(ctx context.Context, orgName, proje
 }
 
 // UpdateMonitor applies partial updates to a monitor (DB + re-apply CR)
-func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, monitorName string, req *models.UpdateMonitorRequest) (*models.MonitorResponse, error) {
+func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string, req *models.UpdateMonitorRequest) (*models.MonitorResponse, error) {
 	s.logger.Info("Updating monitor", "orgName", orgName, "name", monitorName)
 
-	monitor, err := s.monitorRepo.GetMonitorByName(orgName, monitorName)
+	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMonitorNotFound
@@ -313,11 +313,11 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, moni
 }
 
 // DeleteMonitor removes a monitor from DB and attempts to clean up any WorkflowRun CRs
-func (s *monitorManagerService) DeleteMonitor(ctx context.Context, orgName, monitorName string) error {
+func (s *monitorManagerService) DeleteMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) error {
 	s.logger.Info("Deleting monitor", "orgName", orgName, "name", monitorName)
 
 	// Get monitor first to check type and get runs
-	monitor, err := s.monitorRepo.GetMonitorByName(orgName, monitorName)
+	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return utils.ErrMonitorNotFound
@@ -358,10 +358,10 @@ func (s *monitorManagerService) DeleteMonitor(ctx context.Context, orgName, moni
 }
 
 // StopMonitor stops a future monitor by setting next_run_time to NULL
-func (s *monitorManagerService) StopMonitor(ctx context.Context, orgName, monitorName string) (*models.MonitorResponse, error) {
+func (s *monitorManagerService) StopMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) (*models.MonitorResponse, error) {
 	s.logger.Info("Stopping monitor", "orgName", orgName, "name", monitorName)
 
-	monitor, err := s.monitorRepo.GetMonitorByName(orgName, monitorName)
+	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMonitorNotFound
@@ -385,7 +385,7 @@ func (s *monitorManagerService) StopMonitor(ctx context.Context, orgName, monito
 	}
 
 	// Refresh monitor from DB
-	monitor, err = s.monitorRepo.GetMonitorByName(orgName, monitorName)
+	monitor, err = s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to reload monitor: %w", err)
 	}
@@ -398,10 +398,10 @@ func (s *monitorManagerService) StopMonitor(ctx context.Context, orgName, monito
 }
 
 // StartMonitor starts a stopped future monitor by setting next_run_time to NOW()
-func (s *monitorManagerService) StartMonitor(ctx context.Context, orgName, monitorName string) (*models.MonitorResponse, error) {
+func (s *monitorManagerService) StartMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) (*models.MonitorResponse, error) {
 	s.logger.Info("Starting monitor", "orgName", orgName, "name", monitorName)
 
-	monitor, err := s.monitorRepo.GetMonitorByName(orgName, monitorName)
+	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMonitorNotFound
@@ -426,7 +426,7 @@ func (s *monitorManagerService) StartMonitor(ctx context.Context, orgName, monit
 	}
 
 	// Refresh monitor from DB
-	monitor, err = s.monitorRepo.GetMonitorByName(orgName, monitorName)
+	monitor, err = s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to reload monitor: %w", err)
 	}
@@ -439,10 +439,10 @@ func (s *monitorManagerService) StartMonitor(ctx context.Context, orgName, monit
 }
 
 // ListMonitorRuns returns paginated runs for a specific monitor
-func (s *monitorManagerService) ListMonitorRuns(ctx context.Context, orgName, monitorName string, limit, offset int) (*models.MonitorRunsListResponse, error) {
+func (s *monitorManagerService) ListMonitorRuns(ctx context.Context, orgName, projectName, agentName, monitorName string, limit, offset int) (*models.MonitorRunsListResponse, error) {
 	s.logger.Debug("Listing monitor runs", "orgName", orgName, "monitorName", monitorName)
 
-	monitor, err := s.monitorRepo.GetMonitorByName(orgName, monitorName)
+	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMonitorNotFound
@@ -475,7 +475,7 @@ func (s *monitorManagerService) ListMonitorRuns(ctx context.Context, orgName, mo
 }
 
 // RerunMonitor creates a new workflow execution with the same time parameters as an existing run
-func (s *monitorManagerService) RerunMonitor(ctx context.Context, orgName, monitorName, runID string) (*models.MonitorRunResponse, error) {
+func (s *monitorManagerService) RerunMonitor(ctx context.Context, orgName, projectName, agentName, monitorName, runID string) (*models.MonitorRunResponse, error) {
 	s.logger.Info("Rerunning monitor", "orgName", orgName, "monitorName", monitorName, "runID", runID)
 
 	runUUID, err := uuid.Parse(runID)
@@ -484,7 +484,7 @@ func (s *monitorManagerService) RerunMonitor(ctx context.Context, orgName, monit
 	}
 
 	// Get the monitor
-	monitor, err := s.monitorRepo.GetMonitorByName(orgName, monitorName)
+	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMonitorNotFound
@@ -521,7 +521,7 @@ func (s *monitorManagerService) RerunMonitor(ctx context.Context, orgName, monit
 }
 
 // GetMonitorRunLogs retrieves logs for a specific monitor run
-func (s *monitorManagerService) GetMonitorRunLogs(ctx context.Context, orgName, monitorName, runID string) (*models.LogsResponse, error) {
+func (s *monitorManagerService) GetMonitorRunLogs(ctx context.Context, orgName, projectName, agentName, monitorName, runID string) (*models.LogsResponse, error) {
 	s.logger.Info("Getting monitor run logs", "orgName", orgName, "monitorName", monitorName, "runID", runID)
 
 	runUUID, err := uuid.Parse(runID)
@@ -530,7 +530,7 @@ func (s *monitorManagerService) GetMonitorRunLogs(ctx context.Context, orgName, 
 	}
 
 	// Get the monitor
-	monitor, err := s.monitorRepo.GetMonitorByName(orgName, monitorName)
+	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMonitorNotFound

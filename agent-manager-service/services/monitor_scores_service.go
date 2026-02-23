@@ -319,12 +319,16 @@ func (s *MonitorScoresService) GetMonitorRunScores(
 
 	summaries := make([]models.EvaluatorScoreSummary, len(evaluators))
 	for i, eval := range evaluators {
+		aggs := eval.Aggregations
+		if aggs == nil {
+			aggs = make(map[string]interface{})
+		}
 		summaries[i] = models.EvaluatorScoreSummary{
 			EvaluatorName: eval.DisplayName,
 			Level:         eval.Level,
 			Count:         eval.Count,
 			ErrorCount:    eval.ErrorCount,
-			Aggregations:  eval.Aggregations,
+			Aggregations:  aggs,
 		}
 	}
 

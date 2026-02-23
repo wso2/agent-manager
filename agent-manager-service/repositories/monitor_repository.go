@@ -33,7 +33,7 @@ type MonitorRepository interface {
 
 	// Monitor CRUD
 	CreateMonitor(monitor *models.Monitor) error
-	GetMonitorByName(orgName, monitorName string) (*models.Monitor, error)
+	GetMonitorByName(orgName, projectName, agentName, monitorName string) (*models.Monitor, error)
 	GetMonitorByID(monitorID uuid.UUID) (*models.Monitor, error)
 	ListMonitorsByAgent(orgName, projectName, agentName string) ([]models.Monitor, error)
 	UpdateMonitor(monitor *models.Monitor) error
@@ -82,10 +82,11 @@ func (r *MonitorRepo) CreateMonitor(monitor *models.Monitor) error {
 	return r.db.Create(monitor).Error
 }
 
-// GetMonitorByName retrieves a monitor by name and org
-func (r *MonitorRepo) GetMonitorByName(orgName, monitorName string) (*models.Monitor, error) {
+// GetMonitorByName retrieves a monitor by its unique (org, project, agent, name) scope
+func (r *MonitorRepo) GetMonitorByName(orgName, projectName, agentName, monitorName string) (*models.Monitor, error) {
 	var monitor models.Monitor
-	if err := r.db.Where("name = ? AND org_name = ?", monitorName, orgName).First(&monitor).Error; err != nil {
+	if err := r.db.Where("name = ? AND org_name = ? AND project_name = ? AND agent_name = ?",
+		monitorName, orgName, projectName, agentName).First(&monitor).Error; err != nil {
 		return nil, err
 	}
 	return &monitor, nil
@@ -215,9 +216,11 @@ func (r *MonitorRepo) UpdateMonitorRun(run *models.MonitorRun, updates map[strin
 // ListPendingOrRunningRuns returns runs with pending or running status
 func (r *MonitorRepo) ListPendingOrRunningRuns(limit int) ([]models.MonitorRun, error) {
 	var runs []models.MonitorRun
-	err := r.db.Where("status IN ?", []string{models.RunStatusPending, models.RunStatusRunning}).
-		Order("created_at ASC").
-		Limit(limit).
-		Find(&runs).Error
+	query := r.db.Where("status IN ?", []string{models.RunStatusPending, models.RunStatusRunning}).
+		Order("created_at ASC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	err := query.Find(&runs).Error
 	return runs, err
 }
