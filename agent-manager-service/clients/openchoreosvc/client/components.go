@@ -798,31 +798,24 @@ func getInputInterfaceConfig(req CreateComponentRequest) (int32, string) {
 	return req.InputInterface.Port, req.InputInterface.BasePath
 }
 
-func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) error {
-	// Get the current traits for the component
+// listComponentTraits retrieves and parses the current traits for a component
+func (c *openChoreoClient) listComponentTraits(ctx context.Context, namespaceName, projectName, componentName string) ([]gen.ComponentTraitRequest, error) {
 	listResp, err := c.ocClient.ListComponentTraitsWithResponse(ctx, namespaceName, projectName, componentName)
 	if err != nil {
-		return fmt.Errorf("failed to list component traits: %w", err)
+		return nil, fmt.Errorf("failed to list component traits: %w", err)
 	}
 
 	if listResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(listResp.StatusCode(), listResp.Body, ErrorContext{
+		return nil, handleErrorResponse(listResp.StatusCode(), listResp.Body, ErrorContext{
 			NotFoundErr: utils.ErrAgentNotFound,
 		})
 	}
 
-	// Build the new traits list including the new trait
 	var traits []gen.ComponentTraitRequest
-
-	// Parse existing traits from the generic response
 	if listResp.JSON200 != nil && listResp.JSON200.Data != nil && listResp.JSON200.Data.Items != nil {
 		for _, item := range *listResp.JSON200.Data.Items {
 			name, _ := item["name"].(string)
 			instanceName, _ := item["instanceName"].(string)
-			if name == string(traitType) {
-				// Trait already exists, no need to add
-				return nil
-			}
 			trait := gen.ComponentTraitRequest{
 				Name:         name,
 				InstanceName: instanceName,
@@ -831,6 +824,22 @@ func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, proje
 				trait.Parameters = &params
 			}
 			traits = append(traits, trait)
+		}
+	}
+
+	return traits, nil
+}
+
+func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) error {
+	traits, err := c.listComponentTraits(ctx, namespaceName, projectName, componentName)
+	if err != nil {
+		return err
+	}
+
+	// Check if trait already exists
+	for _, trait := range traits {
+		if trait.Name == string(traitType) {
+			return nil
 		}
 	}
 
@@ -858,6 +867,64 @@ func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, proje
 	}
 
 	return nil
+}
+
+// DetachTrait removes a trait from a component
+func (c *openChoreoClient) DetachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) error {
+	traits, err := c.listComponentTraits(ctx, namespaceName, projectName, componentName)
+	if err != nil {
+		return err
+	}
+
+	// Build new traits list excluding the trait to detach
+	var updatedTraits []gen.ComponentTraitRequest
+	traitFound := false
+	for _, trait := range traits {
+		if trait.Name == string(traitType) {
+			traitFound = true
+			continue
+		}
+		updatedTraits = append(updatedTraits, trait)
+	}
+
+	if !traitFound {
+		return nil
+	}
+	traits = updatedTraits
+
+	// Update traits (with the trait removed)
+	updateReq := gen.UpdateComponentTraitsJSONRequestBody{
+		Traits: traits,
+	}
+
+	updateResp, err := c.ocClient.UpdateComponentTraitsWithResponse(ctx, namespaceName, projectName, componentName, updateReq)
+	if err != nil {
+		return fmt.Errorf("failed to update component traits: %w", err)
+	}
+
+	if updateResp.StatusCode() != http.StatusOK {
+		return handleErrorResponse(updateResp.StatusCode(), updateResp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	return nil
+}
+
+// HasTrait checks if a component has a specific trait attached
+func (c *openChoreoClient) HasTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType) (bool, error) {
+	traits, err := c.listComponentTraits(ctx, namespaceName, projectName, componentName)
+	if err != nil {
+		return false, err
+	}
+
+	for _, trait := range traits {
+		if trait.Name == string(traitType) {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // UpdateComponentEnvironmentVariables updates the environment variables for a component

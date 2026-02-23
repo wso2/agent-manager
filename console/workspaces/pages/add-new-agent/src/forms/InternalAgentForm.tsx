@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Alert, Collapse, Form, Stack, TextField, Typography } from "@wso2/oxygen-ui";
+import { Alert, Checkbox, Collapse, Form, FormControlLabel, Stack, TextField, Typography } from "@wso2/oxygen-ui";
 import { useEffect, useMemo, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
@@ -262,8 +262,58 @@ export const InternalAgentForm = ({
                   />
                 </Form.ElementWrapper>
               </Form.Stack>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.enableAutoInstrumentation ?? true}
+                    onChange={(e) => handleFieldChange('enableAutoInstrumentation', e.target.checked)}
+                  />
+                }
+                label="Enable auto instrumentation"
+              />
+              <Collapse in={formData.enableAutoInstrumentation !== false}>
+                <Typography variant="body2" color="text.secondary">
+                  Automatically adds OTEL tracing instrumentation to your agent for observability.
+                </Typography>
+              </Collapse>
+              <Collapse in={formData.enableAutoInstrumentation === false}>
+                <Alert severity="info" sx={{ mt: 1 }}>
+                  <Typography variant="subtitle2">
+                    Tracing Support for Python Agents
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    With auto-instrumentation disabled, you can still manually instrument your Python agent using{' '}
+                    your desired instrumentation library.
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    Environment variables provided:{' '}
+                    <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                      AMP_OTEL_ENDPOINT
+                    </Typography>
+                    {', '}
+                    <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                      AMP_AGENT_API_KEY
+                    </Typography>
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    Example configuration:
+                  </Typography>
+                  <Typography variant="body2" component="div" sx={{ mt: 0.5, ml: 1 }}>
+                    • OTLP exporter endpoint ={' '}
+                    <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                      AMP_OTEL_ENDPOINT
+                    </Typography>
+                  </Typography>
+                  <Typography variant="body2" component="div" sx={{ ml: 1 }}>
+                    • OTLP headers ={' '}
+                    <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                      {'{"x-amp-api-key": AMP_AGENT_API_KEY}'}
+                    </Typography>
+                  </Typography>
+                </Alert>
+              </Collapse>
             </Collapse>
-          
+
 
           <Collapse in={formData.language === "docker"}>
           <Stack  spacing={2}>
@@ -299,7 +349,7 @@ export const InternalAgentForm = ({
                 </Typography>
                 {' '}for zero-code tracing.
               </Typography>
-              <Typography variant="body2" gutterBottom>
+              <Typography variant="body2">
                 Environment variables provided:{' '}
                 <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
                   AMP_OTEL_ENDPOINT
@@ -307,6 +357,21 @@ export const InternalAgentForm = ({
                 {', '}
                 <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
                   AMP_AGENT_API_KEY
+                </Typography>
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                Example configuration:
+              </Typography>
+              <Typography variant="body2" component="div" sx={{ mt: 0.5, ml: 1 }}>
+                • OTLP exporter endpoint ={' '}
+                <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                  AMP_OTEL_ENDPOINT
+                </Typography>
+              </Typography>
+              <Typography variant="body2" component="div" sx={{ ml: 1 }}>
+                • OTLP headers ={' '}
+                <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                  {'{"x-amp-api-key": AMP_AGENT_API_KEY}'}
                 </Typography>
               </Typography>
             </Alert>

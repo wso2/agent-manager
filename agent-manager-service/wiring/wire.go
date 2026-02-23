@@ -135,7 +135,11 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideArtifactRepository,
 	ProvideScoreRepository,
 	ProvideCatalogRepository,
+<<<<<<< main
 	ProvideMonitorRepository,
+=======
+	ProvideAgentConfigRepository,
+>>>>>>> main
 )
 
 var websocketProviderSet = wire.NewSet(
@@ -208,8 +212,13 @@ func ProvideCatalogRepository(db *gorm.DB) repositories.CatalogRepository {
 	return repositories.NewCatalogRepo(db)
 }
 
+<<<<<<< main
 func ProvideMonitorRepository(db *gorm.DB) repositories.MonitorRepository {
 	return repositories.NewMonitorRepo(db)
+=======
+func ProvideAgentConfigRepository(db *gorm.DB) repositories.AgentConfigRepository {
+	return repositories.NewAgentConfigRepo(db)
+>>>>>>> main
 }
 
 // ProvideLLMTemplateSeeder creates a new LLM template seeder with empty templates

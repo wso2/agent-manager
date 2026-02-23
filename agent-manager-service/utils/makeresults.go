@@ -100,8 +100,18 @@ func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentR
 		},
 		InputInterface: convertToInputInterface(component.InputInterface),
 		Build:          convertToBuild(component.Build),
+		Configurations: convertToConfigurations(component.Configurations),
 	}
 	return response
+}
+
+func convertToConfigurations(configs *models.Configurations) *spec.Configurations {
+	if configs == nil {
+		return nil
+	}
+	return &spec.Configurations{
+		EnableAutoInstrumentation: configs.EnableAutoInstrumentation,
+	}
 }
 
 func convertToExternalAgentResponse(component *models.AgentResponse) spec.AgentResponse {
