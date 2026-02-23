@@ -134,6 +134,13 @@ type TimeSeriesPoint struct {
 	Aggregations map[string]interface{} `json:"aggregations"`
 }
 
+// MonitorRunScoresResponse is the response for GET .../runs/{runId}/scores
+type MonitorRunScoresResponse struct {
+	RunID       string                  `json:"runId"`
+	MonitorName string                  `json:"monitorName"`
+	Evaluators  []EvaluatorScoreSummary `json:"evaluators"`
+}
+
 // TraceScoresResponse is the response for GET /traces/{traceId}/scores
 type TraceScoresResponse struct {
 	TraceID  string              `json:"traceId"`

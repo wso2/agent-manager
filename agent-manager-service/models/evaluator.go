@@ -17,8 +17,6 @@
 package models
 
 import (
-	"time"
-
 	"github.com/google/uuid"
 )
 
@@ -46,6 +44,4 @@ type EvaluatorResponse struct {
 	Tags         []string               `json:"tags"`
 	IsBuiltin    bool                   `json:"isBuiltin"`
 	ConfigSchema []EvaluatorConfigParam `json:"configSchema"`
-	CreatedAt    time.Time              `json:"createdAt"`
-	UpdatedAt    time.Time              `json:"updatedAt"`
 }

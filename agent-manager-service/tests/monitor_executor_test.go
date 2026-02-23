@@ -30,6 +30,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 )
 
@@ -101,7 +102,7 @@ func TestExecuteMonitorRun_CRStructure(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default())
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()))
 
 	startTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	endTime := time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)
@@ -185,7 +186,7 @@ func TestExecuteMonitorRun_EvaluatorsJSON(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default())
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()))
 
 	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
@@ -278,7 +279,7 @@ func TestExecuteMonitorRun_DBRecordCreated(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default())
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()))
 
 	startTime := time.Now().Add(-2 * time.Hour).Truncate(time.Millisecond)
 	endTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
@@ -322,7 +323,7 @@ func TestExecuteMonitorRun_NilEvaluatorsReturnsError(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default())
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()))
 
 	_, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,

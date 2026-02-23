@@ -29,8 +29,8 @@ import (
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
@@ -46,15 +46,15 @@ const (
 // MonitorManagerService defines the interface for monitor operations
 type MonitorManagerService interface {
 	CreateMonitor(ctx context.Context, orgName string, req *models.CreateMonitorRequest) (*models.MonitorResponse, error)
-	GetMonitor(ctx context.Context, orgName, monitorName string) (*models.MonitorResponse, error)
+	GetMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) (*models.MonitorResponse, error)
 	ListMonitors(ctx context.Context, orgName, projectName, agentName string) (*models.MonitorListResponse, error)
-	UpdateMonitor(ctx context.Context, orgName, monitorName string, req *models.UpdateMonitorRequest) (*models.MonitorResponse, error)
-	DeleteMonitor(ctx context.Context, orgName, monitorName string) error
-	StopMonitor(ctx context.Context, orgName, monitorName string) (*models.MonitorResponse, error)
-	StartMonitor(ctx context.Context, orgName, monitorName string) (*models.MonitorResponse, error)
-	ListMonitorRuns(ctx context.Context, orgName, monitorName string) (*models.MonitorRunsListResponse, error)
-	RerunMonitor(ctx context.Context, orgName, monitorName, runID string) (*models.MonitorRunResponse, error)
-	GetMonitorRunLogs(ctx context.Context, orgName, monitorName, runID string) (*models.LogsResponse, error)
+	UpdateMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string, req *models.UpdateMonitorRequest) (*models.MonitorResponse, error)
+	DeleteMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) error
+	StopMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) (*models.MonitorResponse, error)
+	StartMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) (*models.MonitorResponse, error)
+	ListMonitorRuns(ctx context.Context, orgName, projectName, agentName, monitorName string, limit, offset int) (*models.MonitorRunsListResponse, error)
+	RerunMonitor(ctx context.Context, orgName, projectName, agentName, monitorName, runID string) (*models.MonitorRunResponse, error)
+	GetMonitorRunLogs(ctx context.Context, orgName, projectName, agentName, monitorName, runID string) (*models.LogsResponse, error)
 }
 
 type monitorManagerService struct {
@@ -63,6 +63,7 @@ type monitorManagerService struct {
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient
 	executor               MonitorExecutor
 	evaluatorService       EvaluatorManagerService
+	monitorRepo            repositories.MonitorRepository
 }
 
 // NewMonitorManagerService creates a new monitor manager service instance
@@ -72,6 +73,7 @@ func NewMonitorManagerService(
 	observabilitySvcClient observabilitysvc.ObservabilitySvcClient,
 	executor MonitorExecutor,
 	evaluatorService EvaluatorManagerService,
+	monitorRepo repositories.MonitorRepository,
 ) MonitorManagerService {
 	return &monitorManagerService{
 		logger:                 logger,
@@ -79,6 +81,7 @@ func NewMonitorManagerService(
 		observabilitySvcClient: observabilitySvcClient,
 		executor:               executor,
 		evaluatorService:       evaluatorService,
+		monitorRepo:            monitorRepo,
 	}
 }
 
@@ -155,7 +158,7 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 		SamplingRate:    samplingRate,
 	}
 
-	if err := db.DB(ctx).Create(monitor).Error; err != nil {
+	if err := s.monitorRepo.CreateMonitor(monitor); err != nil {
 		if strings.Contains(err.Error(), "duplicate key") {
 			return nil, utils.ErrMonitorAlreadyExists
 		}
@@ -180,7 +183,7 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 		})
 		if err != nil {
 			// Rollback DB entry on CR creation failure
-			if delErr := db.DB(ctx).Delete(monitor).Error; delErr != nil {
+			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
 				s.logger.Error("Failed to rollback monitor DB entry", "error", delErr)
 			}
 			return nil, err
@@ -196,19 +199,19 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 }
 
 // GetMonitor retrieves a single monitor with DB config + live CR status
-func (s *monitorManagerService) GetMonitor(ctx context.Context, orgName, monitorName string) (*models.MonitorResponse, error) {
+func (s *monitorManagerService) GetMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) (*models.MonitorResponse, error) {
 	s.logger.Debug("Getting monitor", "orgName", orgName, "name", monitorName)
 
-	var monitor models.Monitor
-	if err := db.DB(ctx).Where("name = ? AND org_name = ?", monitorName, orgName).First(&monitor).Error; err != nil {
+	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMonitorNotFound
 		}
 		return nil, fmt.Errorf("failed to get monitor: %w", err)
 	}
 
-	latestRun := s.getLatestRun(ctx, monitor.ID)
-	status := s.getMonitorStatus(ctx, monitor.ID, monitor.Type, monitor.NextRunTime)
+	latestRun := s.getLatestRun(monitor.ID)
+	status := s.getMonitorStatus(monitor.ID, monitor.Type, monitor.NextRunTime)
 
 	return monitor.ToResponse(status, latestRun), nil
 }
@@ -217,15 +220,29 @@ func (s *monitorManagerService) GetMonitor(ctx context.Context, orgName, monitor
 func (s *monitorManagerService) ListMonitors(ctx context.Context, orgName, projectName, agentName string) (*models.MonitorListResponse, error) {
 	s.logger.Debug("Listing monitors", "orgName", orgName, "projectName", projectName, "agentName", agentName)
 
-	var monitors []models.Monitor
-	if err := db.DB(ctx).Where("org_name = ? AND project_name = ? AND agent_name = ?", orgName, projectName, agentName).Order("created_at DESC").Find(&monitors).Error; err != nil {
+	monitors, err := s.monitorRepo.ListMonitorsByAgent(orgName, projectName, agentName)
+	if err != nil {
 		return nil, fmt.Errorf("failed to list monitors: %w", err)
+	}
+
+	// Batch-load latest runs for all monitors in one query to avoid N+1
+	monitorIDs := make([]uuid.UUID, len(monitors))
+	for i := range monitors {
+		monitorIDs[i] = monitors[i].ID
+	}
+	latestRunMap, err := s.monitorRepo.GetLatestMonitorRuns(monitorIDs)
+	if err != nil {
+		s.logger.Error("Failed to batch-load latest runs", "error", err)
+		latestRunMap = make(map[uuid.UUID]models.MonitorRun)
 	}
 
 	responses := make([]models.MonitorResponse, 0, len(monitors))
 	for i := range monitors {
-		latestRun := s.getLatestRun(ctx, monitors[i].ID)
-		status := s.getMonitorStatus(ctx, monitors[i].ID, monitors[i].Type, monitors[i].NextRunTime)
+		var latestRun *models.MonitorRunResponse
+		if run, ok := latestRunMap[monitors[i].ID]; ok {
+			latestRun = run.ToResponse()
+		}
+		status := s.deriveMonitorStatus(monitors[i].Type, monitors[i].NextRunTime, latestRun)
 		responses = append(responses, *monitors[i].ToResponse(status, latestRun))
 	}
 
@@ -236,11 +253,11 @@ func (s *monitorManagerService) ListMonitors(ctx context.Context, orgName, proje
 }
 
 // UpdateMonitor applies partial updates to a monitor (DB + re-apply CR)
-func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, monitorName string, req *models.UpdateMonitorRequest) (*models.MonitorResponse, error) {
+func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string, req *models.UpdateMonitorRequest) (*models.MonitorResponse, error) {
 	s.logger.Info("Updating monitor", "orgName", orgName, "name", monitorName)
 
-	var monitor models.Monitor
-	if err := db.DB(ctx).Where("name = ? AND org_name = ?", monitorName, orgName).First(&monitor).Error; err != nil {
+	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMonitorNotFound
 		}
@@ -279,16 +296,7 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, moni
 		}
 		monitor.SamplingRate = *req.SamplingRate
 	}
-	if req.Suspended != nil {
-		// Handle suspended state update
-		if *req.Suspended {
-			// For future monitors, we could set next_run_time to NULL or far future
-			// For now, just log it - the scheduler will skip if needed
-			s.logger.Info("Monitor suspended", "name", monitorName)
-		}
-	}
-
-	if err := db.DB(ctx).Save(&monitor).Error; err != nil {
+	if err := s.monitorRepo.UpdateMonitor(monitor); err != nil {
 		return nil, fmt.Errorf("failed to update monitor: %w", err)
 	}
 
@@ -297,20 +305,20 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, moni
 	// - Past monitors: one-off execution, CR already created
 	// Updated evaluators will be used in future runs via the evaluator snapshot mechanism
 
-	latestRun := s.getLatestRun(ctx, monitor.ID)
-	status := s.getMonitorStatus(ctx, monitor.ID, monitor.Type, monitor.NextRunTime)
+	latestRun := s.getLatestRun(monitor.ID)
+	status := s.getMonitorStatus(monitor.ID, monitor.Type, monitor.NextRunTime)
 
 	s.logger.Info("Monitor updated successfully", "name", monitorName)
 	return monitor.ToResponse(status, latestRun), nil
 }
 
 // DeleteMonitor removes a monitor from DB and attempts to clean up any WorkflowRun CRs
-func (s *monitorManagerService) DeleteMonitor(ctx context.Context, orgName, monitorName string) error {
+func (s *monitorManagerService) DeleteMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) error {
 	s.logger.Info("Deleting monitor", "orgName", orgName, "name", monitorName)
 
 	// Get monitor first to check type and get runs
-	var monitor models.Monitor
-	if err := db.DB(ctx).Where("name = ? AND org_name = ?", monitorName, orgName).First(&monitor).Error; err != nil {
+	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return utils.ErrMonitorNotFound
 		}
@@ -318,13 +326,13 @@ func (s *monitorManagerService) DeleteMonitor(ctx context.Context, orgName, moni
 	}
 
 	// Get all runs to delete their WorkflowRun CRs
-	var runs []models.MonitorRun
-	if err := db.DB(ctx).Where("monitor_id = ?", monitor.ID).Find(&runs).Error; err != nil {
+	runs, err := s.monitorRepo.GetMonitorRunsByMonitorID(monitor.ID)
+	if err != nil {
 		s.logger.Error("Failed to get monitor runs for cleanup", "error", err)
 	}
 
 	// Delete from DB (cascade will delete runs)
-	if err := db.DB(ctx).Delete(&monitor).Error; err != nil {
+	if err := s.monitorRepo.DeleteMonitor(monitor); err != nil {
 		return fmt.Errorf("failed to delete monitor from DB: %w", err)
 	}
 
@@ -350,11 +358,11 @@ func (s *monitorManagerService) DeleteMonitor(ctx context.Context, orgName, moni
 }
 
 // StopMonitor stops a future monitor by setting next_run_time to NULL
-func (s *monitorManagerService) StopMonitor(ctx context.Context, orgName, monitorName string) (*models.MonitorResponse, error) {
+func (s *monitorManagerService) StopMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) (*models.MonitorResponse, error) {
 	s.logger.Info("Stopping monitor", "orgName", orgName, "name", monitorName)
 
-	var monitor models.Monitor
-	if err := db.DB(ctx).Where("name = ? AND org_name = ?", monitorName, orgName).First(&monitor).Error; err != nil {
+	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMonitorNotFound
 		}
@@ -372,28 +380,29 @@ func (s *monitorManagerService) StopMonitor(ctx context.Context, orgName, monito
 	}
 
 	// Set next_run_time to NULL to suspend scheduling
-	if err := db.DB(ctx).Model(&monitor).Update("next_run_time", nil).Error; err != nil {
+	if err := s.monitorRepo.UpdateNextRunTime(monitor.ID, nil); err != nil {
 		return nil, fmt.Errorf("failed to stop monitor: %w", err)
 	}
 
 	// Refresh monitor from DB
-	if err := db.DB(ctx).Where("name = ? AND org_name = ?", monitorName, orgName).First(&monitor).Error; err != nil {
+	monitor, err = s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
+	if err != nil {
 		return nil, fmt.Errorf("failed to reload monitor: %w", err)
 	}
 
-	latestRun := s.getLatestRun(ctx, monitor.ID)
-	status := s.getMonitorStatus(ctx, monitor.ID, monitor.Type, monitor.NextRunTime)
+	latestRun := s.getLatestRun(monitor.ID)
+	status := s.getMonitorStatus(monitor.ID, monitor.Type, monitor.NextRunTime)
 
 	s.logger.Info("Monitor stopped successfully", "name", monitorName, "status", status)
 	return monitor.ToResponse(status, latestRun), nil
 }
 
 // StartMonitor starts a stopped future monitor by setting next_run_time to NOW()
-func (s *monitorManagerService) StartMonitor(ctx context.Context, orgName, monitorName string) (*models.MonitorResponse, error) {
+func (s *monitorManagerService) StartMonitor(ctx context.Context, orgName, projectName, agentName, monitorName string) (*models.MonitorResponse, error) {
 	s.logger.Info("Starting monitor", "orgName", orgName, "name", monitorName)
 
-	var monitor models.Monitor
-	if err := db.DB(ctx).Where("name = ? AND org_name = ?", monitorName, orgName).First(&monitor).Error; err != nil {
+	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMonitorNotFound
 		}
@@ -412,36 +421,43 @@ func (s *monitorManagerService) StartMonitor(ctx context.Context, orgName, monit
 
 	// Set next_run_time to NOW() to schedule immediately
 	now := time.Now()
-	if err := db.DB(ctx).Model(&monitor).Update("next_run_time", now).Error; err != nil {
+	if err := s.monitorRepo.UpdateNextRunTime(monitor.ID, &now); err != nil {
 		return nil, fmt.Errorf("failed to start monitor: %w", err)
 	}
 
 	// Refresh monitor from DB
-	if err := db.DB(ctx).Where("name = ? AND org_name = ?", monitorName, orgName).First(&monitor).Error; err != nil {
+	monitor, err = s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
+	if err != nil {
 		return nil, fmt.Errorf("failed to reload monitor: %w", err)
 	}
 
-	latestRun := s.getLatestRun(ctx, monitor.ID)
-	status := s.getMonitorStatus(ctx, monitor.ID, monitor.Type, monitor.NextRunTime)
+	latestRun := s.getLatestRun(monitor.ID)
+	status := s.getMonitorStatus(monitor.ID, monitor.Type, monitor.NextRunTime)
 
 	s.logger.Info("Monitor started successfully", "name", monitorName, "status", status, "nextRunTime", now)
 	return monitor.ToResponse(status, latestRun), nil
 }
 
-// ListMonitorRuns returns all runs for a specific monitor
-func (s *monitorManagerService) ListMonitorRuns(ctx context.Context, orgName, monitorName string) (*models.MonitorRunsListResponse, error) {
+// ListMonitorRuns returns paginated runs for a specific monitor
+func (s *monitorManagerService) ListMonitorRuns(ctx context.Context, orgName, projectName, agentName, monitorName string, limit, offset int) (*models.MonitorRunsListResponse, error) {
 	s.logger.Debug("Listing monitor runs", "orgName", orgName, "monitorName", monitorName)
 
-	var monitor models.Monitor
-	if err := db.DB(ctx).Where("name = ? AND org_name = ?", monitorName, orgName).First(&monitor).Error; err != nil {
+	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMonitorNotFound
 		}
 		return nil, fmt.Errorf("failed to get monitor: %w", err)
 	}
 
-	var runs []models.MonitorRun
-	if err := db.DB(ctx).Where("monitor_id = ?", monitor.ID).Order("created_at DESC").Find(&runs).Error; err != nil {
+	// Get total count
+	total, err := s.monitorRepo.CountMonitorRuns(monitor.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count monitor runs: %w", err)
+	}
+
+	runs, err := s.monitorRepo.ListMonitorRuns(monitor.ID, limit, offset)
+	if err != nil {
 		return nil, fmt.Errorf("failed to list monitor runs: %w", err)
 	}
 
@@ -454,12 +470,12 @@ func (s *monitorManagerService) ListMonitorRuns(ctx context.Context, orgName, mo
 
 	return &models.MonitorRunsListResponse{
 		Runs:  responses,
-		Total: len(responses),
+		Total: int(total),
 	}, nil
 }
 
 // RerunMonitor creates a new workflow execution with the same time parameters as an existing run
-func (s *monitorManagerService) RerunMonitor(ctx context.Context, orgName, monitorName, runID string) (*models.MonitorRunResponse, error) {
+func (s *monitorManagerService) RerunMonitor(ctx context.Context, orgName, projectName, agentName, monitorName, runID string) (*models.MonitorRunResponse, error) {
 	s.logger.Info("Rerunning monitor", "orgName", orgName, "monitorName", monitorName, "runID", runID)
 
 	runUUID, err := uuid.Parse(runID)
@@ -468,8 +484,8 @@ func (s *monitorManagerService) RerunMonitor(ctx context.Context, orgName, monit
 	}
 
 	// Get the monitor
-	var monitor models.Monitor
-	if err := db.DB(ctx).Where("name = ? AND org_name = ?", monitorName, orgName).First(&monitor).Error; err != nil {
+	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMonitorNotFound
 		}
@@ -477,8 +493,8 @@ func (s *monitorManagerService) RerunMonitor(ctx context.Context, orgName, monit
 	}
 
 	// Get the original run to extract time parameters
-	var originalRun models.MonitorRun
-	if err := db.DB(ctx).Where("id = ? AND monitor_id = ?", runUUID, monitor.ID).First(&originalRun).Error; err != nil {
+	originalRun, err := s.monitorRepo.GetMonitorRunByID(runUUID, monitor.ID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMonitorRunNotFound
 		}
@@ -488,7 +504,7 @@ func (s *monitorManagerService) RerunMonitor(ctx context.Context, orgName, monit
 	// Create new WorkflowRun with same time parameters and evaluators from the original run
 	result, err := s.executor.ExecuteMonitorRun(ctx, ExecuteMonitorRunParams{
 		OrgName:    orgName,
-		Monitor:    &monitor,
+		Monitor:    monitor,
 		StartTime:  originalRun.TraceStart,
 		EndTime:    originalRun.TraceEnd,
 		Evaluators: originalRun.Evaluators, // Use the same evaluators from original run
@@ -505,7 +521,7 @@ func (s *monitorManagerService) RerunMonitor(ctx context.Context, orgName, monit
 }
 
 // GetMonitorRunLogs retrieves logs for a specific monitor run
-func (s *monitorManagerService) GetMonitorRunLogs(ctx context.Context, orgName, monitorName, runID string) (*models.LogsResponse, error) {
+func (s *monitorManagerService) GetMonitorRunLogs(ctx context.Context, orgName, projectName, agentName, monitorName, runID string) (*models.LogsResponse, error) {
 	s.logger.Info("Getting monitor run logs", "orgName", orgName, "monitorName", monitorName, "runID", runID)
 
 	runUUID, err := uuid.Parse(runID)
@@ -514,8 +530,8 @@ func (s *monitorManagerService) GetMonitorRunLogs(ctx context.Context, orgName, 
 	}
 
 	// Get the monitor
-	var monitor models.Monitor
-	if err := db.DB(ctx).Where("name = ? AND org_name = ?", monitorName, orgName).First(&monitor).Error; err != nil {
+	monitor, err := s.monitorRepo.GetMonitorByName(orgName, projectName, agentName, monitorName)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMonitorNotFound
 		}
@@ -523,8 +539,8 @@ func (s *monitorManagerService) GetMonitorRunLogs(ctx context.Context, orgName, 
 	}
 
 	// Get the monitor run
-	var run models.MonitorRun
-	if err := db.DB(ctx).Where("id = ? AND monitor_id = ?", runUUID, monitor.ID).First(&run).Error; err != nil {
+	run, err := s.monitorRepo.GetMonitorRunByID(runUUID, monitor.ID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrMonitorRunNotFound
 		}
@@ -542,16 +558,16 @@ func (s *monitorManagerService) GetMonitorRunLogs(ctx context.Context, orgName, 
 }
 
 // getLatestRun fetches the most recent run for a monitor
-func (s *monitorManagerService) getLatestRun(ctx context.Context, monitorID uuid.UUID) *models.MonitorRunResponse {
-	var run models.MonitorRun
-	if err := db.DB(ctx).Where("monitor_id = ?", monitorID).Order("created_at DESC").First(&run).Error; err != nil {
+func (s *monitorManagerService) getLatestRun(monitorID uuid.UUID) *models.MonitorRunResponse {
+	run, err := s.monitorRepo.GetLatestMonitorRun(monitorID)
+	if err != nil {
 		return nil
 	}
 	return run.ToResponse()
 }
 
 // getMonitorStatus determines the monitor status based on its type and latest run
-func (s *monitorManagerService) getMonitorStatus(ctx context.Context, monitorID uuid.UUID, monitorType string, nextRunTime *time.Time) models.MonitorStatus {
+func (s *monitorManagerService) getMonitorStatus(monitorID uuid.UUID, monitorType string, nextRunTime *time.Time) models.MonitorStatus {
 	if monitorType == models.MonitorTypeFuture {
 		// Future monitors: check if scheduled
 		if nextRunTime != nil {
@@ -561,8 +577,8 @@ func (s *monitorManagerService) getMonitorStatus(ctx context.Context, monitorID 
 	}
 
 	// Past monitors: check latest run status
-	var run models.MonitorRun
-	if err := db.DB(ctx).Where("monitor_id = ?", monitorID).Order("created_at DESC").First(&run).Error; err != nil {
+	run, err := s.monitorRepo.GetLatestMonitorRun(monitorID)
+	if err != nil {
 		return models.MonitorStatusUnknown
 	}
 
@@ -573,6 +589,31 @@ func (s *monitorManagerService) getMonitorStatus(ctx context.Context, monitorID 
 		return models.MonitorStatusFailed
 	case models.RunStatusPending, models.RunStatusRunning:
 		return models.MonitorStatusActive // In progress
+	default:
+		return models.MonitorStatusUnknown
+	}
+}
+
+// deriveMonitorStatus derives status from already-loaded data (no DB call)
+func (s *monitorManagerService) deriveMonitorStatus(monitorType string, nextRunTime *time.Time, latestRun *models.MonitorRunResponse) models.MonitorStatus {
+	if monitorType == models.MonitorTypeFuture {
+		if nextRunTime != nil {
+			return models.MonitorStatusActive
+		}
+		return models.MonitorStatusSuspended
+	}
+
+	if latestRun == nil {
+		return models.MonitorStatusUnknown
+	}
+
+	switch latestRun.Status {
+	case models.RunStatusSuccess:
+		return models.MonitorStatusActive
+	case models.RunStatusFailed:
+		return models.MonitorStatusFailed
+	case models.RunStatusPending, models.RunStatusRunning:
+		return models.MonitorStatusActive
 	default:
 		return models.MonitorStatusUnknown
 	}
@@ -798,20 +839,4 @@ func checkMinMax(prefix string, param models.EvaluatorConfigParam, num float64) 
 			prefix, param.Key, *param.Max, utils.ErrInvalidInput)
 	}
 	return nil
-}
-
-// parseEvaluators parses a comma-separated string of evaluators
-func parseEvaluators(evalStr string) []string {
-	if evalStr == "" {
-		return nil
-	}
-	parts := strings.Split(evalStr, ",")
-	result := make([]string, 0, len(parts))
-	for _, p := range parts {
-		trimmed := strings.TrimSpace(p)
-		if trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
 }

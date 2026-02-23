@@ -82,9 +82,10 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	webSocketController := ProvideWebSocketController(manager, platformGatewayService, configConfig)
 	gatewayInternalAPIService := services.NewGatewayInternalAPIService(llmProviderRepository, llmProxyRepository, deploymentRepository, gatewayRepository, infraResourceManager)
 	gatewayInternalController := controllers.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService)
-	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger)
+	monitorRepository := ProvideMonitorRepository(db)
+	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger, monitorRepository)
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger)
-	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService)
+	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository)
 	monitorController := controllers.NewMonitorController(monitorManagerService)
 	scoreRepository := ProvideScoreRepository(db)
 	monitorScoresService := services.NewMonitorScoresService(scoreRepository, logger)
@@ -94,7 +95,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	catalogRepository := ProvideCatalogRepository(db)
 	catalogService := services.NewCatalogService(logger, catalogRepository, openChoreoClient)
 	catalogController := controllers.NewCatalogController(catalogService)
-	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, logger, monitorExecutor)
+	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, logger, monitorExecutor, monitorRepository)
 	llmTemplateSeeder := ProvideLLMTemplateSeeder(llmProviderTemplateRepository)
 	appParams := &AppParams{
 		AuthMiddleware:                   middleware,
@@ -176,9 +177,10 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	webSocketController := ProvideWebSocketController(manager, platformGatewayService, configConfig)
 	gatewayInternalAPIService := services.NewGatewayInternalAPIService(llmProviderRepository, llmProxyRepository, deploymentRepository, gatewayRepository, infraResourceManager)
 	gatewayInternalController := controllers.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService)
-	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger)
+	monitorRepository := ProvideMonitorRepository(db)
+	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger, monitorRepository)
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger)
-	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService)
+	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository)
 	monitorController := controllers.NewMonitorController(monitorManagerService)
 	scoreRepository := ProvideScoreRepository(db)
 	monitorScoresService := services.NewMonitorScoresService(scoreRepository, logger)
@@ -188,7 +190,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	catalogRepository := ProvideCatalogRepository(db)
 	catalogService := services.NewCatalogService(logger, catalogRepository, openChoreoClient)
 	catalogController := controllers.NewCatalogController(catalogService)
-	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, logger, monitorExecutor)
+	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, logger, monitorExecutor, monitorRepository)
 	llmTemplateSeeder := ProvideLLMTemplateSeeder(llmProviderTemplateRepository)
 	appParams := &AppParams{
 		AuthMiddleware:                   authMiddleware,
@@ -276,6 +278,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideArtifactRepository,
 	ProvideScoreRepository,
 	ProvideCatalogRepository,
+	ProvideMonitorRepository,
 	ProvideAgentConfigRepository,
 )
 
@@ -346,6 +349,10 @@ func ProvideScoreRepository(db *gorm.DB) repositories.ScoreRepository {
 
 func ProvideCatalogRepository(db *gorm.DB) repositories.CatalogRepository {
 	return repositories.NewCatalogRepo(db)
+}
+
+func ProvideMonitorRepository(db *gorm.DB) repositories.MonitorRepository {
+	return repositories.NewMonitorRepo(db)
 }
 
 func ProvideAgentConfigRepository(db *gorm.DB) repositories.AgentConfigRepository {

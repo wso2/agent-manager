@@ -81,7 +81,7 @@ func (s *MonitorScoresService) PublishScores(
 		}
 
 		// Reload evaluators to get the actual DB-generated IDs (upsert may keep existing IDs on conflict)
-		dbEvaluators, err := txRepo.GetEvaluatorsByRunID(runID)
+		dbEvaluators, err := txRepo.GetEvaluatorsByMonitorAndRunID(monitorID, runID)
 		if err != nil {
 			return fmt.Errorf("failed to reload run evaluators: %w", err)
 		}
@@ -89,6 +89,26 @@ func (s *MonitorScoresService) PublishScores(
 		evaluatorMap := make(map[string]uuid.UUID)
 		for _, re := range dbEvaluators {
 			evaluatorMap[re.DisplayName] = re.ID
+		}
+
+		// Collect current run evaluator IDs and trace IDs for stale score cleanup
+		currentRunEvaluatorIDs := make([]uuid.UUID, len(dbEvaluators))
+		for i, re := range dbEvaluators {
+			currentRunEvaluatorIDs[i] = re.ID
+		}
+
+		traceIDSet := make(map[string]struct{})
+		for _, item := range req.IndividualScores {
+			traceIDSet[item.TraceID] = struct{}{}
+		}
+		traceIDs := make([]string, 0, len(traceIDSet))
+		for tid := range traceIDSet {
+			traceIDs = append(traceIDs, tid)
+		}
+
+		// Delete stale scores from previous runs before inserting new ones
+		if err := txRepo.DeleteStaleScores(monitorID, currentRunEvaluatorIDs, traceIDs); err != nil {
+			return fmt.Errorf("failed to delete stale scores: %w", err)
 		}
 
 		// Build scores using the real DB IDs
@@ -283,6 +303,39 @@ func (s *MonitorScoresService) GetTraceScores(
 	return &models.TraceScoresResponse{
 		TraceID:  traceID,
 		Monitors: monitors,
+	}, nil
+}
+
+// GetMonitorRunScores returns per-run aggregated scores from the MonitorRunEvaluator records.
+func (s *MonitorScoresService) GetMonitorRunScores(
+	monitorID uuid.UUID,
+	runID uuid.UUID,
+	monitorName string,
+) (*models.MonitorRunScoresResponse, error) {
+	evaluators, err := s.repo.GetEvaluatorsByMonitorAndRunID(monitorID, runID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get run evaluators: %w", err)
+	}
+
+	summaries := make([]models.EvaluatorScoreSummary, len(evaluators))
+	for i, eval := range evaluators {
+		aggs := eval.Aggregations
+		if aggs == nil {
+			aggs = make(map[string]interface{})
+		}
+		summaries[i] = models.EvaluatorScoreSummary{
+			EvaluatorName: eval.DisplayName,
+			Level:         eval.Level,
+			Count:         eval.Count,
+			ErrorCount:    eval.ErrorCount,
+			Aggregations:  aggs,
+		}
+	}
+
+	return &models.MonitorRunScoresResponse{
+		RunID:       runID.String(),
+		MonitorName: monitorName,
+		Evaluators:  summaries,
 	}, nil
 }
 

@@ -135,6 +135,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideArtifactRepository,
 	ProvideScoreRepository,
 	ProvideCatalogRepository,
+	ProvideMonitorRepository,
 	ProvideAgentConfigRepository,
 )
 
@@ -206,6 +207,10 @@ func ProvideScoreRepository(db *gorm.DB) repositories.ScoreRepository {
 
 func ProvideCatalogRepository(db *gorm.DB) repositories.CatalogRepository {
 	return repositories.NewCatalogRepo(db)
+}
+
+func ProvideMonitorRepository(db *gorm.DB) repositories.MonitorRepository {
+	return repositories.NewMonitorRepo(db)
 }
 
 func ProvideAgentConfigRepository(db *gorm.DB) repositories.AgentConfigRepository {

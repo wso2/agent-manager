@@ -25,7 +25,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -66,7 +65,6 @@ func (m *MockEvaluatorService) GetEvaluator(ctx context.Context, orgID *uuid.UUI
 }
 
 func createMockEvaluators() []*models.EvaluatorResponse {
-	now := time.Now()
 	return []*models.EvaluatorResponse{
 		{
 			ID:          uuid.New(),
@@ -88,8 +86,6 @@ func createMockEvaluators() []*models.EvaluatorResponse {
 					Max:         floatPtr(1.0),
 				},
 			},
-			CreatedAt: now,
-			UpdatedAt: now,
 		},
 		{
 			ID:          uuid.New(),
@@ -111,8 +107,6 @@ func createMockEvaluators() []*models.EvaluatorResponse {
 					Max:         floatPtr(1.0),
 				},
 			},
-			CreatedAt: now,
-			UpdatedAt: now,
 		},
 		{
 			ID:          uuid.New(),
@@ -134,8 +128,6 @@ func createMockEvaluators() []*models.EvaluatorResponse {
 					Max:         floatPtr(1.0),
 				},
 			},
-			CreatedAt: now,
-			UpdatedAt: now,
 		},
 	}
 }
@@ -514,7 +506,6 @@ func TestGetEvaluator_ConfigSchemaConversion(t *testing.T) {
 	controller := controllers.NewEvaluatorController(mockService)
 
 	// Create evaluator with complex config schema
-	now := time.Now()
 	mockEvaluator := &models.EvaluatorResponse{
 		ID:          uuid.New(),
 		Identifier:  "test_evaluator",
@@ -549,8 +540,6 @@ func TestGetEvaluator_ConfigSchemaConversion(t *testing.T) {
 				EnumValues:  []string{"option1", "option2", "option3"},
 			},
 		},
-		CreatedAt: now,
-		UpdatedAt: now,
 	}
 
 	mockService.On("GetEvaluator", mock.Anything, (*uuid.UUID)(nil), "test_evaluator").

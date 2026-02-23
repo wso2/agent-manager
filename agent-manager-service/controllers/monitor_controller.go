@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -139,9 +140,11 @@ func (c *monitorController) GetMonitor(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 
-	monitor, err := c.monitorService.GetMonitor(ctx, orgName, monitorName)
+	monitor, err := c.monitorService.GetMonitor(ctx, orgName, projName, agentName, monitorName)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
@@ -192,9 +195,11 @@ func (c *monitorController) DeleteMonitor(w http.ResponseWriter, r *http.Request
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 
-	err := c.monitorService.DeleteMonitor(ctx, orgName, monitorName)
+	err := c.monitorService.DeleteMonitor(ctx, orgName, projName, agentName, monitorName)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
@@ -214,6 +219,8 @@ func (c *monitorController) UpdateMonitor(w http.ResponseWriter, r *http.Request
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 
 	var req spec.UpdateMonitorRequest
@@ -232,7 +239,7 @@ func (c *monitorController) UpdateMonitor(w http.ResponseWriter, r *http.Request
 	// Convert spec request to models request
 	modelReq := utils.ConvertToUpdateMonitorRequest(&req)
 
-	monitor, err := c.monitorService.UpdateMonitor(ctx, orgName, monitorName, modelReq)
+	monitor, err := c.monitorService.UpdateMonitor(ctx, orgName, projName, agentName, monitorName, modelReq)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
@@ -262,9 +269,28 @@ func (c *monitorController) ListMonitorRuns(w http.ResponseWriter, r *http.Reque
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 
-	result, err := c.monitorService.ListMonitorRuns(ctx, orgName, monitorName)
+	// Parse pagination params (default: limit=20, offset=0)
+	limit := 20
+	offset := 0
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+	if limit > 100 {
+		limit = 100 // max cap
+	}
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	result, err := c.monitorService.ListMonitorRuns(ctx, orgName, projName, agentName, monitorName, limit, offset)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
@@ -290,10 +316,12 @@ func (c *monitorController) RerunMonitor(w http.ResponseWriter, r *http.Request)
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 	runID := r.PathValue("runId")
 
-	result, err := c.monitorService.RerunMonitor(ctx, orgName, monitorName, runID)
+	result, err := c.monitorService.RerunMonitor(ctx, orgName, projName, agentName, monitorName, runID)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
@@ -328,10 +356,12 @@ func (c *monitorController) GetMonitorRunLogs(w http.ResponseWriter, r *http.Req
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 	runID := r.PathValue("runId")
 
-	result, err := c.monitorService.GetMonitorRunLogs(ctx, orgName, monitorName, runID)
+	result, err := c.monitorService.GetMonitorRunLogs(ctx, orgName, projName, agentName, monitorName, runID)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
@@ -356,9 +386,11 @@ func (c *monitorController) StopMonitor(w http.ResponseWriter, r *http.Request) 
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 
-	result, err := c.monitorService.StopMonitor(ctx, orgName, monitorName)
+	result, err := c.monitorService.StopMonitor(ctx, orgName, projName, agentName, monitorName)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
@@ -392,9 +424,11 @@ func (c *monitorController) StartMonitor(w http.ResponseWriter, r *http.Request)
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 
-	result, err := c.monitorService.StartMonitor(ctx, orgName, monitorName)
+	result, err := c.monitorService.StartMonitor(ctx, orgName, projName, agentName, monitorName)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")

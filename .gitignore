@@ -71,7 +71,9 @@ deployments/values/api-platform-operator-local-config.yaml
 mocks/
 libs/amp-evaluation/examples/
 temp/
+evaluation-job/tmp/
 
 .*_cache/
+__pycache__/
 .deepeval/
 .claude/
