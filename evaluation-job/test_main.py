@@ -644,8 +644,8 @@ class TestPublishScores:
         import requests as req
 
         mock_response = MagicMock()
-        mock_response.status_code = 500
-        mock_response.text = "Internal Server Error"
+        mock_response.status_code = 400
+        mock_response.text = "Bad Request"
         mock_post.return_value = mock_response
         mock_post.return_value.raise_for_status.side_effect = req.exceptions.HTTPError(
             response=mock_response

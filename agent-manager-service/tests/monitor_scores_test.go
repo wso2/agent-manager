@@ -51,6 +51,10 @@ func (s *stubScoreRepo) UpsertMonitorRunEvaluators(evals []models.MonitorRunEval
 func (s *stubScoreRepo) GetEvaluatorsByRunID(_ uuid.UUID) ([]models.MonitorRunEvaluator, error) {
 	return s.evaluators, nil
 }
+
+func (s *stubScoreRepo) GetEvaluatorsByMonitorAndRunID(_, _ uuid.UUID) ([]models.MonitorRunEvaluator, error) {
+	return s.evaluators, nil
+}
 func (s *stubScoreRepo) BatchCreateScores(_ []models.Score) error { return nil }
 func (s *stubScoreRepo) DeleteStaleScores(_ uuid.UUID, _ []uuid.UUID, _ []string) error {
 	return nil

@@ -35,6 +35,7 @@ type ScoreRepository interface {
 	// MonitorRunEvaluator operations
 	UpsertMonitorRunEvaluators(evaluators []models.MonitorRunEvaluator) error
 	GetEvaluatorsByRunID(runID uuid.UUID) ([]models.MonitorRunEvaluator, error)
+	GetEvaluatorsByMonitorAndRunID(monitorID, runID uuid.UUID) ([]models.MonitorRunEvaluator, error)
 
 	// Score publishing
 	BatchCreateScores(scores []models.Score) error
@@ -158,6 +159,13 @@ func (r *ScoreRepo) UpsertMonitorRunEvaluators(evaluators []models.MonitorRunEva
 func (r *ScoreRepo) GetEvaluatorsByRunID(runID uuid.UUID) ([]models.MonitorRunEvaluator, error) {
 	var evaluators []models.MonitorRunEvaluator
 	err := r.db.Where("monitor_run_id = ?", runID).Find(&evaluators).Error
+	return evaluators, err
+}
+
+// GetEvaluatorsByMonitorAndRunID fetches evaluators for a specific run scoped to a monitor
+func (r *ScoreRepo) GetEvaluatorsByMonitorAndRunID(monitorID, runID uuid.UUID) ([]models.MonitorRunEvaluator, error) {
+	var evaluators []models.MonitorRunEvaluator
+	err := r.db.Where("monitor_id = ? AND monitor_run_id = ?", monitorID, runID).Find(&evaluators).Error
 	return evaluators, err
 }
 

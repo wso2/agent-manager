@@ -140,6 +140,10 @@ func (c *monitorScoresController) GetMonitorScores(w http.ResponseWriter, r *htt
 func (c *monitorScoresController) GetMonitorRunScores(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 
+	// Extract path parameters
+	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 	runIDStr := r.PathValue("runId")
 
@@ -149,9 +153,21 @@ func (c *monitorScoresController) GetMonitorRunScores(w http.ResponseWriter, r *
 		return
 	}
 
-	result, err := c.scoresService.GetMonitorRunScores(runID, monitorName)
+	// Resolve monitor name to ID to enforce org/project/agent scoping
+	monitorID, err := c.scoresService.GetMonitorID(orgName, projName, agentName, monitorName)
 	if err != nil {
-		log.Error("Failed to get monitor run scores", "runId", runIDStr, "error", err)
+		if errors.Is(err, utils.ErrMonitorNotFound) {
+			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
+			return
+		}
+		log.Error("Failed to resolve monitor", "orgName", orgName, "projName", projName, "agentName", agentName, "monitorName", monitorName, "error", err)
+		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to resolve monitor")
+		return
+	}
+
+	result, err := c.scoresService.GetMonitorRunScores(monitorID, runID, monitorName)
+	if err != nil {
+		log.Error("Failed to get monitor run scores", "orgName", orgName, "projName", projName, "agentName", agentName, "monitorName", monitorName, "runId", runIDStr, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get monitor run scores")
 		return
 	}

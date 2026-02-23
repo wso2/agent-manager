@@ -308,10 +308,11 @@ func (s *MonitorScoresService) GetTraceScores(
 
 // GetMonitorRunScores returns per-run aggregated scores from the MonitorRunEvaluator records.
 func (s *MonitorScoresService) GetMonitorRunScores(
+	monitorID uuid.UUID,
 	runID uuid.UUID,
 	monitorName string,
 ) (*models.MonitorRunScoresResponse, error) {
-	evaluators, err := s.repo.GetEvaluatorsByRunID(runID)
+	evaluators, err := s.repo.GetEvaluatorsByMonitorAndRunID(monitorID, runID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get run evaluators: %w", err)
 	}
