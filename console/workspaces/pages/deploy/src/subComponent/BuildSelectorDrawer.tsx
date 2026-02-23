@@ -20,7 +20,12 @@ import { Box, Typography, Button, List, ListItem, ListItemButton, ListItemText }
 import { useCallback, useEffect, useState } from "react";
 import { Clock as AccessTime, GitCommit, Package, Check } from "@wso2/oxygen-ui-icons-react";
 import { DrawerWrapper, DrawerHeader, DrawerContent } from "@agent-management-platform/views";
-import { format } from "date-fns";
+import { format, isValid, parseISO } from "date-fns";
+
+const formatBuildDate = (value: string): string => {
+  const date = parseISO(value);
+  return isValid(date) ? format(date, "dd MMM yyyy HH:mm:ss") : "—";
+};
 
 export interface BuildSelectorDrawerProps {
   open: boolean;
@@ -108,10 +113,7 @@ export function BuildSelectorDrawer({
                             <Box display="flex" alignItems="center" gap={0.5}>
                               <AccessTime size={12} />
                               <Typography variant="caption">
-                                {format(
-                                  new Date(build.startedAt),
-                                  "dd MMM yyyy HH:mm:ss"
-                                )}
+                                {formatBuildDate(build.startedAt)}
                               </Typography>
                             </Box>
                           </Box>

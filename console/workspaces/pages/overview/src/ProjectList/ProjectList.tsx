@@ -46,7 +46,7 @@ import {
   Plus,
   RefreshCcw,
   Clock as TimerOutlined,
-  Trash2,
+  Trash2 as TrashOutline,
 } from "@wso2/oxygen-ui-icons-react";
 import { type MouseEvent, useCallback, useMemo, useState } from "react";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
@@ -124,7 +124,7 @@ function ProjectCard(props: {
                           color="error"
                           onClick={handleDeleteClick}
                         >
-                          <Trash2 size={16} />
+                          <TrashOutline size={16} />
                         </IconButton>
                       </Tooltip>
                     </Form.DisappearingCardButtonContent>
@@ -201,7 +201,7 @@ export function ProjectList() {
           });
         },
         confirmButtonColor: "error",
-        confirmButtonIcon: <Trash2 size={16} />,
+        confirmButtonIcon: <TrashOutline size={16} />,
         confirmButtonText: "Delete",
       });
     },

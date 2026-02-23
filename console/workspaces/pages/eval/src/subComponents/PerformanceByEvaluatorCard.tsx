@@ -1,3 +1,21 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 import React, { useMemo } from "react";
 import {
     Box, Button, Card, CardContent,
@@ -52,7 +70,11 @@ function EvaluatorSeriesFetcher({
     );
     React.useEffect(() => {
         onLoading(evaluatorName, isLoading);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        return () => {
+            // Remove from loadingSet on unmount so isFetching doesn't stick true
+            onLoading(evaluatorName, false);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isLoading]);
     React.useEffect(() => {
         if (!data) return;
@@ -63,7 +85,7 @@ function EvaluatorSeriesFetcher({
                 : 0,
         }));
         onData(evaluatorName, pts);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [data]);
     return null;
 }
@@ -96,14 +118,17 @@ const PerformanceByEvaluatorCard:
             Record<string, Array<{ timestamp: string; mean: number }>>
         >({});
 
-        /** Clear stale data whenever the time window or evaluator set changes */
-        React.useEffect(() => {
-            setSeriesMap({});
-        }, [startTime, endTime, evaluatorNames]);
+
 
         /** Track how many fetchers are still loading */
         const [loadingSet, setLoadingSet] = React.useState<Set<string>>(new Set());
         const isFetching = loadingSet.size > 0;
+
+        /** Clear stale data whenever the time window or evaluator set changes */
+        React.useEffect(() => {
+            setSeriesMap({});
+            setLoadingSet(new Set());
+        }, [startTime, endTime, evaluatorNames]);
 
         const handleLoading = React.useCallback(
             (name: string, loading: boolean) => {
@@ -164,7 +189,7 @@ const PerformanceByEvaluatorCard:
                 strokeWidth: 2,
                 dot: false,
             })),
-        [evaluatorNames]);
+            [evaluatorNames]);
 
         const visibleLines = useMemo(
             () => allLines.filter((l) => !hiddenSeries.has(l.dataKey)),

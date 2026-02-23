@@ -46,9 +46,7 @@ export interface MonitorRunDrawerProps {
     projectName: string;
     agentName: string;
     monitorName: string;
-    monitorDisplayName?: string;
     onClose: () => void;
-    formatDateTime: (value?: string) => string;
     traceWindowLabel: string;
     durationLabel: string;
 }
@@ -74,7 +72,7 @@ export function MonitorRunDrawer({
 
     const [activeTab, setActiveTab] = useState(0);
 
-    const logs = data?.logs.reverse() ?? [];
+    const logs = [...(data?.logs ?? [])].reverse();
     const logsEmptyState = {
         title: "No logs yet",
         description: "Run logs will appear once this monitor produces output.",
@@ -101,7 +99,7 @@ export function MonitorRunDrawer({
         <Stack direction="column" height="100%" maxWidth={900} width="100%">
             <DrawerHeader
                 icon={<Logs size={24} />}
-                title={"Run Details"}
+                title="Run Details"
                 onClose={onClose}
             />
             <DrawerContent>
@@ -129,11 +127,6 @@ export function MonitorRunDrawer({
                     {run.errorMessage && (
                         <Alert severity="warning">
                             {run.errorMessage}
-                        </Alert>
-                    )}
-                    {error && (
-                        <Alert severity="error">
-                            {error instanceof Error ? error.message : "Failed to load logs. Please try again."}
                         </Alert>
                     )}
                     <Box sx={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>

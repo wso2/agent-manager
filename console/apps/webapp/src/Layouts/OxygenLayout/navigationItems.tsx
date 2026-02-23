@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { BarChart3 as AutoGraphOutlined, Binoculars, Settings2 } from "@wso2/oxygen-ui-icons-react";
+import { BarChart3 as AutoGraphOutlined, Binoculars as ObservabilityOutline, Settings2 as EvaluationOutline } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
   matchPath,
@@ -55,7 +55,7 @@ export function useNavigationItems(): Array<
     useListEnvironments({
       orgName: orgId,
     });
-  const defaultEnv = envId ?? (environments && environments?.length > 0) ? environments?.[0]?.name : '';
+  const defaultEnv = envId ?? ((environments && environments.length > 0) ? environments[0]?.name : '');
   const { pathname } = useLocation();
 
   if (isLoadingAgent || (isLoadingEnvironments && agentId)) {
@@ -170,7 +170,7 @@ export function useNavigationItems(): Array<
       {
         title: "Observability",
         type: "section",
-        icon: <Binoculars />,
+        icon: <ObservabilityOutline />,
         items: [
           {
             label: tracesMetadata.title,
@@ -229,7 +229,7 @@ export function useNavigationItems(): Array<
       {
         title: "Evaluation",
         type: "section",
-        icon: <Settings2 />,
+        icon: <EvaluationOutline />,
         items: [
           {
             label: evalMetadata.pages.component.evalMonitors.title,

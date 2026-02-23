@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { PageLayout } from "@agent-management-platform/views";
 import { Grid, IconButton, InputAdornment, MenuItem, Select, Skeleton, Stack } from "@wso2/oxygen-ui";
 import { Clock, RefreshCcw } from "@wso2/oxygen-ui-icons-react";
@@ -77,7 +77,7 @@ export const ViewMonitorComponent: React.FC = () => {
         agentName: agentId ?? "",
     }), [monitorId, orgId, projectId, agentId]);
 
-    const now = useMemo(() => new Date(), []);
+    const [now, setNow] = useState(() => new Date());
     const defaultStartFallback = useMemo(
         () => new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), [now]);
     const baselineStartTime = useMemo(
@@ -104,6 +104,7 @@ export const ViewMonitorComponent: React.FC = () => {
         });
 
     const handleRefresh = () => {
+        setNow(new Date());
         void refetchMonitor();
         void refetchMain();
         void refetchBaseline();
@@ -274,9 +275,7 @@ export const ViewMonitorComponent: React.FC = () => {
                             )
                         }
                     >
-                        <MonitorRunList
-                            monitorDisplayName={monitorData?.displayName ?? monitorData?.name ?? monitorId ?? ""}
-                        />
+                        <MonitorRunList />
                     </PageLayout>
                 }
             />
