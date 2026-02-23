@@ -81,7 +81,7 @@ func (s *MonitorScoresService) PublishScores(
 		}
 
 		// Reload evaluators to get the actual DB-generated IDs (upsert may keep existing IDs on conflict)
-		dbEvaluators, err := txRepo.GetEvaluatorsByRunID(runID)
+		dbEvaluators, err := txRepo.GetEvaluatorsByMonitorAndRunID(monitorID, runID)
 		if err != nil {
 			return fmt.Errorf("failed to reload run evaluators: %w", err)
 		}
