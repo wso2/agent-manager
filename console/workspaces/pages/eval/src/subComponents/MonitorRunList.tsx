@@ -187,7 +187,7 @@ export default function MonitorRunList() {
             onSearchChange={setSearchValue}
             searchPlaceholder="Search runs..."
             actions={
-                <IconButton  color="primary" onClick={() => refetch()} disabled={isLoading}>
+                <IconButton color="primary" onClick={() => { if (!isRefetching) { refetch(); } }} disabled={isLoading || isRefetching}>
                     {isRefetching ? <CircularProgress size={20} /> : <RefreshCcw size={20} />}
                 </IconButton>
             }
