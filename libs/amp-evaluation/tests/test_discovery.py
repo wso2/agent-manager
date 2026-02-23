@@ -457,7 +457,7 @@ class TestEdgeCases:
                 with mock.patch("amp_evaluation.evaluators.builtin._get_evaluator_modules", return_value=["broken"]):
                     # Should not crash, should return None
                     result = _discover_builtin_class("broken")
-                    assert result is None  # Can't find it because it can't instantiate
+                    assert result is None  # Skipped because __module__ doesn't match the mock module
 
     def test_catalog_handles_metadata_errors(self):
         """Should skip evaluators with broken metadata."""

@@ -54,7 +54,7 @@ In the real agent approach, the framework automatically propagates `task_id` and
 
 ## Expected output (run_with_traces.py)
 
-```
+```text
 Loaded dataset: ... (N tasks)
   Task task_1: ...
 

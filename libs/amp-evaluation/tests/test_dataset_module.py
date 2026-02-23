@@ -348,7 +348,7 @@ class TestCSVLoading:
         csv_file = tmp_path / "bad.csv"
         csv_file.write_text("wrong_column\nvalue\n")
 
-        with pytest.raises(ValueError, match="must have 'id'.*and 'input' columns"):
+        with pytest.raises(ValueError, match="must have.*'id'.*and 'input' columns"):
             load_dataset_from_csv(str(csv_file))
 
     def test_csv_nonexistent_file(self):

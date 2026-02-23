@@ -130,7 +130,7 @@ class _ParamDescriptor:
         if default is not _NO_DEFAULT:
             self.required = required
         else:
-            self.required = True if not required else required
+            self.required = True  # No default → always required
 
     def __set_name__(self, owner: type, name: str):
         """Called when the descriptor is assigned to a class attribute."""
@@ -155,10 +155,15 @@ class _ParamDescriptor:
         obj.__dict__[self._attr_name] = value
 
     def _is_optional_type(self) -> bool:
-        """Check if the declared type allows None (e.g., Optional[T])."""
+        """Check if the declared type allows None (e.g., Optional[T] or T | None)."""
         origin = typing.get_origin(self.type)
         if origin is typing.Union:
             return type(None) in typing.get_args(self.type)
+        # Python 3.10+: X | None produces types.UnionType
+        import types as _types
+
+        if isinstance(self.type, _types.UnionType):
+            return type(None) in self.type.__args__
         return False
 
     def _validate(self, value):

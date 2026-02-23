@@ -607,7 +607,7 @@ class Trace:
         tool_span_ids = {s.span_id for s in self.spans if isinstance(s, ToolSpan)}
 
         if agent_span_id:
-            candidate_spans = self._get_children_of(agent_span_id)
+            candidate_spans = self._get_descendant_spans(agent_span_id)
         else:
             candidate_spans = self.spans
 

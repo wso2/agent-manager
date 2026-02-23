@@ -283,9 +283,9 @@ class TestSpanFiltering:
         trajectory_unfiltered = parse_trace_for_evaluation(lg_trace_copy, filter_infrastructure=False)
 
         # VERIFY: Both produce same semantic results
-        # (steps only contains semantic spans, so count should be same)
+        # (spans only contains semantic spans, so count should be same)
         assert len(trajectory_filtered.spans) == len(trajectory_unfiltered.spans), (
-            "Filtered and unfiltered should have same semantic step count"
+            "Filtered and unfiltered should have same semantic span count"
         )
 
         # VERIFY: Same semantic spans count (LLM, Tool, etc.)

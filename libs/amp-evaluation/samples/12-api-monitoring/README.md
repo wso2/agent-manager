@@ -85,7 +85,7 @@ python run.py --limit 50
 
 ## Expected output
 
-```
+```text
 Trace service: http://localhost:8001
 Agent UID:     my-agent
 Environment:   production

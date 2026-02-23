@@ -15,7 +15,7 @@ pip install amp-evaluation
 pip install litellm
 
 # For DeepEval evaluators
-pip install amp-evaluation[deepeval]
+pip install deepeval>=3.8.4
 ```
 
 ## Quick Start
@@ -255,7 +255,7 @@ class GroundingJudge(LLMAsJudgeEvaluator):
     model = "gpt-4o"
     criteria = "Is the response grounded in the tool results?"
 
-    def build_prompt(self, trace: Trace, task: Task = None) -> str:
+    def build_prompt(self, trace: Trace, task: Optional[Task] = None) -> str:
         tools = trace.get_tool_calls()
         tool_info = "\n".join(f"- {t.name}: {t.result}" for t in tools) if tools else "No tools called."
 
@@ -309,7 +309,7 @@ from amp_evaluation.trace import Trace, AgentTrace
 from amp_evaluation.dataset import Task
 
 @llm_judge
-def quality_judge(trace: Trace, task: Task = None) -> str:
+def quality_judge(trace: Trace, task: Optional[Task] = None) -> str:
     prompt = f"Evaluate: {trace.input} → {trace.output}"
     if task and task.expected_output:
         prompt += f"\nExpected: {task.expected_output}"

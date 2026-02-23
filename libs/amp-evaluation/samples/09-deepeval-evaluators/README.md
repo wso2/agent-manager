@@ -55,7 +55,7 @@ python run.py
 
 ## Expected output
 
-```
+```text
 Loading DeepEval evaluators...
   Loaded: deepeval/plan-quality
   Loaded: deepeval/plan-adherence

@@ -42,7 +42,9 @@ def monitor_friendly(trace: Trace) -> EvalResult:
 @evaluator("experiment-only", description="Only runs in experiment mode")
 def experiment_only(trace: Trace, task: Task) -> EvalResult:
     """Required task parameter - experiment only."""
-    match = (task.expected_output or "").lower() in (trace.output or "").lower()
+    if not task.expected_output:
+        return EvalResult(score=0.0, explanation="No expected output to compare")
+    match = task.expected_output.lower() in (trace.output or "").lower()
     return EvalResult(
         score=1.0 if match else 0.0,
         explanation="Match" if match else "No match",

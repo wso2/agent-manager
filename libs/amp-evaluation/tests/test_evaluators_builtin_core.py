@@ -100,7 +100,6 @@ def trajectory_with_tools():
         ),
         spans=[tool_span_1, tool_span_2],
     )
-    trajectory._tool_spans = [tool_span_1, tool_span_2]
     return trajectory
 
 

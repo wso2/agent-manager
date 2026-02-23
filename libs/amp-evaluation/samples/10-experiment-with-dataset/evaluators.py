@@ -61,8 +61,11 @@ def criteria_check(trace: Trace, task: Task) -> EvalResult:
 
     output = (trace.output or "").lower()
 
-    # Simple keyword-based criteria check
-    criteria_words = [w.strip().lower() for w in criteria.split(",") if w.strip()]
+    # Simple keyword-based criteria check — handle both str and list
+    if isinstance(criteria, list):
+        criteria_words = [w.strip().lower() for w in criteria if w.strip()]
+    else:
+        criteria_words = [w.strip().lower() for w in criteria.split(",") if w.strip()]
     if not criteria_words:
         return EvalResult.skip("No parseable criteria found")
 

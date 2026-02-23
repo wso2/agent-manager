@@ -45,7 +45,7 @@ python run.py
 
 ## Expected output
 
-```
+```text
 Loaded N traces
 
 Discovered evaluators: ['agent-error-check', 'llm-output-check', 'response-completeness']

@@ -208,9 +208,8 @@ class BaseEvaluator(ABC):
         if not self.name:
             self.name = self.__class__.__name__
 
-        # Ensure tags is a mutable list per instance
-        if not isinstance(self.tags, list):
-            self.tags = list(self.tags)
+        # Ensure tags is a fresh mutable list per instance (avoids shared-default mutation)
+        self.tags = list(self.tags) if self.tags else []
 
         self._aggregations: Optional[List] = None
 
@@ -661,9 +660,6 @@ class FunctionEvaluator(BaseEvaluator):
                     p.type = hints[param_name]
                 p._attr_name = param_name
                 self._param_descriptors[param_name] = p
-                # Use Param's default as config value
-                from .params import _NO_DEFAULT
-
                 if p.default is not _NO_DEFAULT:
                     self._config[param_name] = p.default
 

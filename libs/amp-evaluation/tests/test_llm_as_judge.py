@@ -23,6 +23,7 @@ All tests mock litellm.completion — no actual LLM calls.
 import json
 import sys
 import pytest
+from pydantic import ValidationError
 from unittest.mock import patch, MagicMock
 from typing import Optional
 
@@ -506,11 +507,11 @@ class TestJudgeOutput:
         assert output.explanation == ""
 
     def test_score_validation_too_high(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             JudgeOutput(score=1.5, explanation="Too high")
 
     def test_score_validation_too_low(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             JudgeOutput(score=-0.1, explanation="Too low")
 
     def test_json_round_trip(self):

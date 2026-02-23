@@ -119,7 +119,8 @@ def main():
         pass_rate = summary.pass_rate
         mean = summary.mean
         if pass_rate is not None:
-            print(f"  {name:25s} pass_rate={pass_rate:.1%}  mean={mean:.3f}")
+            mean_str = f"{mean:.3f}" if mean is not None else "N/A"
+            print(f"  {name:25s} pass_rate={pass_rate:.1%}  mean={mean_str}")
 
 
 if __name__ == "__main__":

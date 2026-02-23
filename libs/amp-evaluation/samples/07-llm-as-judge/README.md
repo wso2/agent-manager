@@ -70,6 +70,8 @@ class MyJudge(LLMAsJudgeEvaluator):
 
     def _call_llm_with_retry(self, prompt: str) -> EvalResult:
         # Use your own client (OpenAI, Anthropic, etc.)
+        response = your_llm_client.complete(prompt)  # replace with actual call
+        llm_response_text = response.choices[0].message.content
         result, error = self._parse_and_validate(llm_response_text)
         return result or EvalResult(score=0.0, explanation=error)
 ```
@@ -84,7 +86,7 @@ python run.py
 
 ## Expected output
 
-```
+```text
 Loaded N traces
 
 Discovered 5 evaluators:

@@ -74,9 +74,6 @@ class Aggregation:
         Aggregation(AggregationType.PASS_RATE, threshold=0.7)
         Aggregation(AggregationType.PASS_RATE, threshold=0.9)
 
-        # With custom registered function
-        Aggregation("weighted_average", weights=[0.5, 0.3, 0.2])
-
         # With inline custom function
         Aggregation(lambda scores: max(scores) - min(scores))  # range
     """

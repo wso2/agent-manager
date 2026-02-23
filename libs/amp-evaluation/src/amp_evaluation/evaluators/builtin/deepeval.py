@@ -127,7 +127,7 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
         }
 
         # Add expected output if available
-        if task and task.expected_output:
+        if task.expected_output:
             kwargs["expected_output"] = task.expected_output
 
         # Add retrieval context if available from tool spans
@@ -435,7 +435,7 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
 
         # Build expected tools from task if available
         expected_tools = None
-        if task and task.expected_trajectory:
+        if task.expected_trajectory:
             expected_tools = []
             for step in task.expected_trajectory:
                 # TrajectoryStep has: tool, args, expected_output
@@ -517,8 +517,8 @@ class DeepEvalArgumentCorrectnessEvaluator(DeepEvalBaseEvaluator):
         tools_called = []
         for span in trace.get_tool_calls():
             tc_kwargs: Dict[str, Any] = {"name": span.name}
-            if hasattr(span, "input") and span.input:
-                tc_kwargs["input"] = span.input
+            if hasattr(span, "arguments") and span.arguments:
+                tc_kwargs["input"] = span.arguments
             tools_called.append(ToolCall(**tc_kwargs))
 
         return LLMTestCase(

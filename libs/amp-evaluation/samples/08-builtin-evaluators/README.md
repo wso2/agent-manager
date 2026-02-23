@@ -79,7 +79,7 @@ python run.py
 
 ## Expected output
 
-```
+```text
 === All Built-in Evaluators ===
   - answer_length
   - answer_relevancy

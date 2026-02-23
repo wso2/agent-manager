@@ -25,11 +25,14 @@ Three functions:
 
 import importlib
 import inspect
+import logging
 from pathlib import Path
 from typing import Type, Optional, List
 
 from amp_evaluation.evaluators.base import BaseEvaluator
 from amp_evaluation.models import EvaluatorInfo
+
+logger = logging.getLogger(__name__)
 
 
 def _get_evaluator_modules() -> List[str]:
@@ -184,7 +187,8 @@ def builtin_evaluator_catalog(mode: Optional[str] = None) -> List[EvaluatorInfo]
                     info.module = module_name
 
                     evaluators.append(info)
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Skipping {class_name} in {module_name}: {e}")
                     continue
 
         except ImportError:

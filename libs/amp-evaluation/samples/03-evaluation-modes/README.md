@@ -34,13 +34,13 @@ python run_experiment.py
 ## Expected output
 
 **Monitor mode:**
-```
+```text
 Evaluators that ran: ['monitor-friendly', 'adaptive']
 Note: 'experiment-only' was skipped because Monitor mode has no tasks.
 ```
 
 **Experiment mode:**
-```
+```text
 Evaluators that ran: ['monitor-friendly', 'experiment-only', 'adaptive']
 Note: ALL evaluators ran, including 'experiment-only'.
 ```

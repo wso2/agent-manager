@@ -99,7 +99,7 @@ class AnswerRelevancyEvaluator(BaseEvaluator):
             return EvalResult.skip("No input text to compare")
 
         overlap = input_words.intersection(output_words)
-        overlap_ratio = len(overlap) / len(input_words) if input_words else 0
+        overlap_ratio = len(overlap) / len(input_words)
 
         passed = overlap_ratio >= self.min_overlap_ratio
         return EvalResult(
@@ -553,7 +553,7 @@ class HallucinationEvaluator(BaseEvaluator):
     description = "Detects potential hallucinations using keyword patterns"
     tags = ["standard", "rule-based", "quality", "safety"]
 
-    hallucination_keywords: list = Param(
+    hallucination_keywords: List[str] = Param(
         default=["I don't have access", "I cannot", "I'm not sure", "I don't know", "unclear", "uncertain"],
         description="Keywords that may indicate uncertainty or hallucination",
     )

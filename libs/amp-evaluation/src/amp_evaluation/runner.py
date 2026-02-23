@@ -211,6 +211,12 @@ class BaseRunner(ABC):
                     f"Supported modes: {supported}"
                 )
 
+        if not self._evaluators:
+            raise ValueError(
+                f"No evaluators support {self.eval_mode.value} mode. "
+                f"All {len(evaluators)} provided evaluator(s) were filtered out."
+            )
+
         # Store or create config (from environment)
         self.config = config if config is not None else Config()
 
@@ -408,6 +414,8 @@ class BaseRunner(ABC):
             aggregations = getattr(evaluator, "aggregations", None) if evaluator else None
 
             successful_scores = [s for s in all_scores if not s.is_error]
+            # Includes both explicit skips and evaluator errors — any evaluation
+            # where we couldn't compute a valid score.
             skipped_count = len(all_scores) - len(successful_scores)
 
             if skipped_count > 0:
@@ -530,6 +538,9 @@ class Experiment(BaseRunner):
             tasks_by_trace_id = None
             ds = dataset or self.dataset
             if ds is not None:
+                # Build task lookup keyed by task_id.
+                # When using pre-fetched traces, each trace.trace_id must match the
+                # corresponding task.task_id so _evaluate_traces can pair them.
                 tasks_by_trace_id = {task.task_id: task for task in ds.tasks}
 
             return self._evaluate_traces(

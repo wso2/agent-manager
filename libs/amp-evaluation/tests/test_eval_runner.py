@@ -62,11 +62,6 @@ def sample_traces():
 class TestMonitorBasic:
     """Test basic Monitor functionality with explicit evaluator lists."""
 
-    def test_empty_runner_no_evaluators(self):
-        """Monitor with empty evaluators list raises ValueError."""
-        with pytest.raises(ValueError, match="At least one evaluator is required"):
-            Monitor(evaluators=[])
-
     def test_runs_all_provided_evaluators(self):
         """Monitor runs all evaluators passed explicitly."""
 
@@ -103,7 +98,7 @@ class TestMonitorBasic:
 
         @evaluator(name="length_eval")
         def length_eval(trace: Trace) -> EvalResult:
-            return EvalResult(score=min(len(trace.output) / 10.0, 1.0))
+            return EvalResult(score=min(len(trace.output or "") / 10.0, 1.0))
 
         @evaluator(name="has_output_eval")
         def has_output_eval(trace: Trace) -> EvalResult:

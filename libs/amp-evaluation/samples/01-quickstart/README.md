@@ -19,7 +19,7 @@ python run.py
 
 ## Expected output
 
-```
+```text
 Loaded N traces
 
 Discovered evaluators: ['response-check']

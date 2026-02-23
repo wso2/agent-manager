@@ -76,7 +76,8 @@ def main():
     print(f"\nEvaluators that ran: {list(result.scores.keys())}")
     print()
     for name, summary in result.scores.items():
-        print(f"  {name}: count={summary.count}, mean={summary.mean:.2f}")
+        mean_str = f"{summary.mean:.2f}" if summary.mean is not None else "N/A"
+        print(f"  {name}: count={summary.count}, mean={mean_str}")
 
     print("\nNote: ALL evaluators ran, including 'experiment-only'.")
 
