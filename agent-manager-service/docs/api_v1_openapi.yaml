@@ -6068,13 +6068,13 @@ components:
           example:
             - identifier: "latency"
               displayName: "Latency Check"
-              level: "span"
               config:
+                level: "span"
                 max_latency_ms: 3000
             - identifier: "answer_relevancy"
               displayName: "Answer Relevancy"
-              level: "trace"
               config:
+                level: "trace"
                 min_overlap_ratio: 0.2
         type:
           type: string
@@ -6186,12 +6186,13 @@ components:
           example:
             - identifier: "latency"
               displayName: "Latency Check"
-              level: "span"
               config:
+                level: "span"
                 max_latency_ms: 3000
             - identifier: "answer_relevancy"
               displayName: "Answer Relevancy"
-              level: "trace"
+              config:
+                level: "trace"
         intervalMinutes:
           type: integer
           description: Interval in minutes (only for 'future' type)
@@ -6272,12 +6273,13 @@ components:
           example:
             - identifier: "latency"
               displayName: "Latency Check"
-              level: "span"
               config:
+                level: "span"
                 max_latency_ms: 3000
             - identifier: "answer_relevancy"
               displayName: "Answer Relevancy"
-              level: "trace"
+              config:
+                level: "trace"
         traceStart:
           type: string
           format: date-time
@@ -6329,7 +6331,6 @@ components:
       required:
         - identifier
         - displayName
-        - level
       properties:
         identifier:
           type: string
@@ -6343,19 +6344,12 @@ components:
           minLength: 1
         config:
           type: object
-          description: Optional evaluator-specific configuration parameters
+          description: Evaluator-specific configuration parameters (includes 'level' for evaluation granularity)
           additionalProperties: true
           example:
+            level: "trace"
             max_latency_ms: 3000
             use_task_constraint: false
-        level:
-          type: string
-          description: Evaluation level
-          enum:
-            - trace
-            - agent
-            - span
-          example: "trace"
 
     EvaluatorResponse:
       type: object
