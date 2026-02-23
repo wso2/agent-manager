@@ -91,10 +91,10 @@ func (s *LLMProviderTemplateService) Create(orgName, createdBy string, template 
 	// Fetch created template
 	created, err := s.templateRepo.GetByHandle(template.Handle, orgName)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.ErrLLMProviderTemplateNotFound
+		}
 		return nil, fmt.Errorf("failed to fetch created template: %w", err)
-	}
-	if created == nil {
-		return nil, utils.ErrLLMProviderTemplateNotFound
 	}
 
 	// Deserialize configuration
@@ -158,10 +158,10 @@ func (s *LLMProviderTemplateService) Get(orgName, templateID string) (*models.LL
 	// Then check user templates in database
 	template, err := s.templateRepo.GetByHandle(templateID, orgName)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.ErrLLMProviderTemplateNotFound
+		}
 		return nil, fmt.Errorf("failed to get template: %w", err)
-	}
-	if template == nil {
-		return nil, utils.ErrLLMProviderTemplateNotFound
 	}
 
 	// Deserialize configuration
@@ -212,10 +212,10 @@ func (s *LLMProviderTemplateService) Update(orgName, templateID string, updates 
 	// Fetch updated template
 	updated, err := s.templateRepo.GetByHandle(templateID, orgName)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.ErrLLMProviderTemplateNotFound
+		}
 		return nil, fmt.Errorf("failed to fetch updated template: %w", err)
-	}
-	if updated == nil {
-		return nil, utils.ErrLLMProviderTemplateNotFound
 	}
 
 	// Deserialize configuration

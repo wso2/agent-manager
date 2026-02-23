@@ -210,12 +210,6 @@ func loadBuiltInLLMTemplates(dependencies *wiring.AppParams) error {
 		return nil
 	}
 
-	// Mark all templates as system templates (immutable, global)
-	for _, t := range templates {
-		t.IsSystem = true
-		t.OrganizationName = "" // System templates are global (not org-specific)
-	}
-
 	// Load into in-memory store
 	dependencies.LLMTemplateStore.Load(templates)
 

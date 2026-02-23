@@ -22,8 +22,10 @@ import "github.com/wso2/ai-agent-management-platform/agent-manager-service/model
 // These templates are immutable and available globally across all organizations
 var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 	{
-		Handle: "openai",
-		Name:   "OpenAI",
+		Handle:           "openai",
+		Name:             "OpenAI",
+		IsSystem:         true,
+		OrganizationName: "",
 		Metadata: &models.LLMProviderTemplateMetadata{
 			EndpointURL: "https://api.openai.com",
 			Auth: &models.LLMProviderTemplateAuth{
@@ -60,8 +62,10 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		},
 	},
 	{
-		Handle: "anthropic",
-		Name:   "Anthropic",
+		Handle:           "anthropic",
+		Name:             "Anthropic",
+		IsSystem:         true,
+		OrganizationName: "",
 		Metadata: &models.LLMProviderTemplateMetadata{
 			EndpointURL: "https://api.anthropic.com",
 			Auth: &models.LLMProviderTemplateAuth{
@@ -93,8 +97,10 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		},
 	},
 	{
-		Handle: "awsbedrock",
-		Name:   "AWS Bedrock",
+		Handle:           "awsbedrock",
+		Name:             "AWS Bedrock",
+		IsSystem:         true,
+		OrganizationName: "",
 		Metadata: &models.LLMProviderTemplateMetadata{
 			LogoURL:        "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/aws.bedrock/icon.png",
 			OpenapiSpecURL: "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/aws.bedrock/openapi.yaml",
@@ -121,8 +127,10 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		},
 	},
 	{
-		Handle: "azure-openai",
-		Name:   "Azure OpenAI",
+		Handle:           "azure-openai",
+		Name:             "Azure OpenAI",
+		IsSystem:         true,
+		OrganizationName: "",
 		Metadata: &models.LLMProviderTemplateMetadata{
 			Auth: &models.LLMProviderTemplateAuth{
 				Type:   "apiKey",
@@ -157,8 +165,10 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		},
 	},
 	{
-		Handle: "azureai-foundry",
-		Name:   "Azure AI Foundry",
+		Handle:           "azureai-foundry",
+		Name:             "Azure AI Foundry",
+		IsSystem:         true,
+		OrganizationName: "",
 		Metadata: &models.LLMProviderTemplateMetadata{
 			Auth: &models.LLMProviderTemplateAuth{
 				Type:   "apiKey",
@@ -192,8 +202,10 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		},
 	},
 	{
-		Handle: "gemini",
-		Name:   "Gemini",
+		Handle:           "gemini",
+		Name:             "Gemini",
+		IsSystem:         true,
+		OrganizationName: "",
 		Metadata: &models.LLMProviderTemplateMetadata{
 			EndpointURL: "https://generativelanguage.googleapis.com",
 			Auth: &models.LLMProviderTemplateAuth{
@@ -227,8 +239,10 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		},
 	},
 	{
-		Handle: "mistralai",
-		Name:   "Mistral",
+		Handle:           "mistralai",
+		Name:             "Mistral",
+		IsSystem:         true,
+		OrganizationName: "",
 		Metadata: &models.LLMProviderTemplateMetadata{
 			EndpointURL: "https://api.mistral.ai",
 			Auth: &models.LLMProviderTemplateAuth{
