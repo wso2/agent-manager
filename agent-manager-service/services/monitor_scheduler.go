@@ -274,19 +274,11 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 	switch status {
 	case "Succeeded":
 		updates["status"] = models.RunStatusSuccess
-		now := time.Now()
-		updates["completed_at"] = now
-		if run.StartedAt == nil {
-			updates["started_at"] = now
-		}
+		updates["completed_at"] = time.Now()
 
 	case "Failed":
 		updates["status"] = models.RunStatusFailed
-		now := time.Now()
-		updates["completed_at"] = now
-		if run.StartedAt == nil {
-			updates["started_at"] = now
-		}
+		updates["completed_at"] = time.Now()
 		if errorMsg := s.extractErrorMessage(cr); errorMsg != "" {
 			updates["error_message"] = errorMsg
 		} else {
@@ -296,10 +288,6 @@ func (s *monitorSchedulerService) syncSingleRunStatus(ctx context.Context, run *
 	case "Running":
 		if run.Status != models.RunStatusRunning {
 			updates["status"] = models.RunStatusRunning
-			if run.StartedAt == nil {
-				now := time.Now()
-				updates["started_at"] = now
-			}
 		}
 
 	case "Pending":

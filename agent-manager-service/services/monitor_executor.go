@@ -114,6 +114,7 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 	}
 
 	// Create monitor_runs entry
+	now := time.Now()
 	run := &models.MonitorRun{
 		ID:         runID,
 		MonitorID:  params.Monitor.ID,
@@ -121,6 +122,7 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		Evaluators: evaluators,
 		TraceStart: params.StartTime,
 		TraceEnd:   params.EndTime,
+		StartedAt:  &now,
 		Status:     models.RunStatusPending,
 	}
 
