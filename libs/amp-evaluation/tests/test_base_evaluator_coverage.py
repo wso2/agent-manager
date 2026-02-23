@@ -19,7 +19,6 @@ Tests for base evaluator coverage - aiming for 90%+.
 """
 
 import pytest
-from typing import Optional
 from amp_evaluation.evaluators.base import BaseEvaluator, LLMAsJudgeEvaluator, FunctionEvaluator
 from amp_evaluation.evaluators.config import EvalMode
 from amp_evaluation.models import EvalResult
@@ -82,9 +81,7 @@ class TestLLMAsJudgeEvaluator:
 
     def test_custom_initialization(self):
         """Test LLM evaluator with custom Param overrides."""
-        evaluator = LLMAsJudgeEvaluator(
-            model="gpt-4o", criteria="accuracy", temperature=0.3, threshold=0.7
-        )
+        evaluator = LLMAsJudgeEvaluator(model="gpt-4o", criteria="accuracy", temperature=0.3, threshold=0.7)
 
         assert evaluator.model == "gpt-4o"
         assert evaluator.criteria == "accuracy"
@@ -179,7 +176,7 @@ class TestLLMAsJudgeEvaluator:
         """Test Pydantic validation rejects invalid JSON."""
         evaluator = LLMAsJudgeEvaluator()
 
-        result, error = evaluator._parse_and_validate('not json at all')
+        result, error = evaluator._parse_and_validate("not json at all")
         assert result is None
         assert error is not None
 

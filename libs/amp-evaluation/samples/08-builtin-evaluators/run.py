@@ -52,18 +52,19 @@ def load_sample_traces():
 # Part 1: List all available built-in evaluators
 # =========================================================================
 
+
 def show_builtin_names():
     print("=== All Built-in Evaluators ===")
     all_names = list_builtin_evaluators()
     for name in all_names:
         print(f"  - {name}")
 
-    print(f"\n=== Monitor-Compatible Built-ins ===")
+    print("\n=== Monitor-Compatible Built-ins ===")
     monitor_names = list_builtin_evaluators(mode="monitor")
     for name in monitor_names:
         print(f"  - {name}")
 
-    print(f"\n=== Experiment-Only Built-ins ===")
+    print("\n=== Experiment-Only Built-ins ===")
     experiment_names = list_builtin_evaluators(mode="experiment")
     experiment_only = [n for n in experiment_names if n not in list_builtin_evaluators(mode="monitor")]
     if experiment_only:
@@ -76,6 +77,7 @@ def show_builtin_names():
 # =========================================================================
 # Part 2: Catalog with full metadata
 # =========================================================================
+
 
 def show_catalog():
     print("\n=== Evaluator Catalog ===")
@@ -92,6 +94,7 @@ def show_catalog():
 # =========================================================================
 # Part 3: Create and run monitor-compatible built-ins
 # =========================================================================
+
 
 def run_monitor_evaluators():
     print("\n=== Running Monitor with Built-in Evaluators ===\n")
@@ -125,6 +128,7 @@ def run_monitor_evaluators():
 # =========================================================================
 # Main
 # =========================================================================
+
 
 def main():
     show_builtin_names()

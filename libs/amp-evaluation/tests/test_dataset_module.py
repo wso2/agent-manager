@@ -7,8 +7,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-
 from amp_evaluation.dataset import (
     Task,
     Dataset,
@@ -20,6 +18,8 @@ from amp_evaluation.dataset import (
     save_dataset_to_json,
 )
 from amp_evaluation.dataset.loader import parse_dataset_dict, parse_task_dict, _resolve_task_field
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
 class TestGenerateId:

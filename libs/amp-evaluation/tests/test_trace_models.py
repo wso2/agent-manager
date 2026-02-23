@@ -44,15 +44,9 @@ from amp_evaluation.trace.models import (
     # Typed messages
     SystemMessage,
     UserMessage,
-    AssistantMessage,
-    ToolMessage,
-    Message,
-    # Typed steps
     UserStep,
     LLMStep,
     ToolExecutionStep,
-    AgentStep,
-    # Step/tool helpers
     ToolCallInfo,
     ToolCall,
     RetrievedDoc,
@@ -609,10 +603,7 @@ class TestTrajectoryGetAgentSteps:
         steps = trajectory.get_agent_steps()
 
         # Retrieval is represented as a ToolExecutionStep with tool_name="retrieval"
-        retrieval_steps = [
-            s for s in steps
-            if isinstance(s, ToolExecutionStep) and s.tool_name == "retrieval"
-        ]
+        retrieval_steps = [s for s in steps if isinstance(s, ToolExecutionStep) and s.tool_name == "retrieval"]
         assert len(retrieval_steps) == 1
 
         # Check tool_input contains the query
@@ -681,11 +672,7 @@ class TestTrajectoryGetAgentSteps:
         worker_steps = trajectory.get_agent_steps(agent_span_id="agent-worker")
 
         # Should include the worker's LLM call
-        assert any(
-            s.content == "Done!"
-            for s in worker_steps
-            if isinstance(s, LLMStep)
-        )
+        assert any(s.content == "Done!" for s in worker_steps if isinstance(s, LLMStep))
 
 
 # ============================================================================

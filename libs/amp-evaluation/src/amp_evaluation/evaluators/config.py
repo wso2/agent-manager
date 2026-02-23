@@ -136,7 +136,7 @@ class Param:
         """Called when the descriptor is assigned to a class attribute."""
         self._attr_name = name
         # Infer type from class annotation
-        annotations = typing.get_type_hints(owner) if hasattr(owner, '__annotations__') else {}
+        annotations = typing.get_type_hints(owner) if hasattr(owner, "__annotations__") else {}
         if name in annotations:
             self.type = annotations[name]
 
@@ -171,9 +171,7 @@ class Param:
             if self._is_optional_type():
                 return value
             if isinstance(self.type, type):
-                raise TypeError(
-                    f"Param '{self._attr_name}' expects {self.type.__name__}, got None"
-                )
+                raise TypeError(f"Param '{self._attr_name}' expects {self.type.__name__}, got None")
             return value
 
         # Coerce str → Enum when type is an Enum subclass

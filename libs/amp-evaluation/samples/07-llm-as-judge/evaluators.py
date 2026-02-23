@@ -35,13 +35,14 @@ function for the decorator). The framework handles:
 from typing import Optional
 
 from amp_evaluation import LLMAsJudgeEvaluator, llm_judge, EvalResult
-from amp_evaluation.trace import Trace, AgentTrace, LLMSpan
+from amp_evaluation.trace import Trace, AgentTrace
 from amp_evaluation.dataset import Task
 
 
 # ---------------------------------------------------------------------------
 # 1. Class-based -- Trace-level judge
 # ---------------------------------------------------------------------------
+
 
 class ResponseQualityJudge(LLMAsJudgeEvaluator):
     """Uses an LLM to judge response quality."""
@@ -66,6 +67,7 @@ Criteria: {self.criteria}"""
 # 2. Class-based -- Agent-level judge
 # ---------------------------------------------------------------------------
 
+
 class AgentEfficiencyJudge(LLMAsJudgeEvaluator):
     """Uses an LLM to judge agent execution efficiency."""
 
@@ -77,13 +79,14 @@ class AgentEfficiencyJudge(LLMAsJudgeEvaluator):
 Input: {agent.input}
 Output: {agent.output}
 Steps taken: {len(agent.steps)}
-Tools available: {', '.join(agent.available_tools)}
+Tools available: {", ".join(agent.available_tools)}
 Had errors: {agent.has_errors}"""
 
 
 # ---------------------------------------------------------------------------
 # 3. @llm_judge decorator -- simple
 # ---------------------------------------------------------------------------
+
 
 @llm_judge
 def grounding_judge(trace: Trace) -> str:
@@ -101,6 +104,7 @@ Tool Results:
 # 4. @llm_judge decorator -- with config
 # ---------------------------------------------------------------------------
 
+
 @llm_judge(model="gpt-4o", criteria="factual accuracy")
 def accuracy_judge(trace: Trace, task: Optional[Task] = None) -> str:
     """Evaluate factual accuracy of the response."""
@@ -113,6 +117,7 @@ def accuracy_judge(trace: Trace, task: Optional[Task] = None) -> str:
 # ---------------------------------------------------------------------------
 # 5. Custom LLM client override
 # ---------------------------------------------------------------------------
+
 
 class CustomClientJudge(LLMAsJudgeEvaluator):
     """Demonstrates overriding _call_llm_with_retry() to use a custom LLM client."""

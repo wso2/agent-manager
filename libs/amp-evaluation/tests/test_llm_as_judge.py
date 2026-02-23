@@ -23,26 +23,24 @@ All tests mock litellm.completion — no actual LLM calls.
 import json
 import sys
 import pytest
-from unittest.mock import patch, MagicMock, PropertyMock
+from unittest.mock import patch, MagicMock
 from typing import Optional
 
 # Create a mock litellm module so we can patch it
 _mock_litellm = MagicMock()
 sys.modules.setdefault("litellm", _mock_litellm)
 
-from amp_evaluation.evaluators.base import (
+from amp_evaluation.evaluators.base import (  # noqa: E402
     LLMAsJudgeEvaluator,
     FunctionLLMJudge,
     JudgeOutput,
-    _detect_level_from_callable,
-    _detect_modes_from_callable,
 )
-from amp_evaluation.evaluators.config import EvalMode, EvaluationLevel
-from amp_evaluation.models import EvalResult
-from amp_evaluation.dataset import Task
-from amp_evaluation.trace import Trace, TraceMetrics, TokenUsage
-from amp_evaluation.trace.models import AgentTrace, LLMSpan
-from amp_evaluation.registry import llm_judge
+from amp_evaluation.evaluators.config import EvalMode, EvaluationLevel  # noqa: E402
+from amp_evaluation.models import EvalResult  # noqa: E402
+from amp_evaluation.dataset import Task  # noqa: E402
+from amp_evaluation.trace import Trace, TraceMetrics, TokenUsage  # noqa: E402
+from amp_evaluation.trace.models import AgentTrace, LLMSpan  # noqa: E402
+from amp_evaluation.registry import llm_judge  # noqa: E402
 
 
 def _make_trace(**overrides):
@@ -65,9 +63,7 @@ def _mock_litellm_response(score: float, explanation: str = "Good"):
     """Create a mock litellm completion response."""
     mock_response = MagicMock()
     mock_response.choices = [MagicMock()]
-    mock_response.choices[0].message.content = json.dumps(
-        {"score": score, "explanation": explanation}
-    )
+    mock_response.choices[0].message.content = json.dumps({"score": score, "explanation": explanation})
     return mock_response
 
 
@@ -211,9 +207,7 @@ class TestPydanticOutputValidation:
 
     def test_valid_json_parsed(self):
         evaluator = LLMAsJudgeEvaluator()
-        result, error = evaluator._parse_and_validate(
-            '{"score": 0.8, "explanation": "Good"}'
-        )
+        result, error = evaluator._parse_and_validate('{"score": 0.8, "explanation": "Good"}')
         assert result is not None
         assert error is None
         assert result.score == 0.8
@@ -227,17 +221,13 @@ class TestPydanticOutputValidation:
 
     def test_score_out_of_range_returns_error(self):
         evaluator = LLMAsJudgeEvaluator()
-        result, error = evaluator._parse_and_validate(
-            '{"score": 5.0, "explanation": "too high"}'
-        )
+        result, error = evaluator._parse_and_validate('{"score": 5.0, "explanation": "too high"}')
         assert result is None
         assert error is not None
 
     def test_score_negative_returns_error(self):
         evaluator = LLMAsJudgeEvaluator()
-        result, error = evaluator._parse_and_validate(
-            '{"score": -0.5, "explanation": "negative"}'
-        )
+        result, error = evaluator._parse_and_validate('{"score": -0.5, "explanation": "negative"}')
         assert result is None
         assert error is not None
 

@@ -44,7 +44,7 @@ from .config import Param, EvaluationLevel, EvalMode, _NO_DEFAULT
 
 if TYPE_CHECKING:
     from ..dataset import Task
-    from ..trace.models import Trace, AgentTrace, LLMSpan
+    from ..trace.models import Trace
 
 
 logger = logging.getLogger(__name__)
@@ -83,7 +83,7 @@ def _detect_level_from_callable(target, evaluator_name: str = "evaluator") -> Ev
         hints = {}
 
     sig = inspect.signature(target)
-    params = [p for p in sig.parameters.keys() if p != 'self']
+    params = [p for p in sig.parameters.keys() if p != "self"]
 
     if not params:
         raise TypeError(
@@ -100,7 +100,7 @@ def _detect_level_from_callable(target, evaluator_name: str = "evaluator") -> Ev
             f"(Trace, AgentTrace, or LLMSpan) to determine the evaluation level."
         )
 
-    type_name = getattr(first_hint, '__name__', str(first_hint))
+    type_name = getattr(first_hint, "__name__", str(first_hint))
     level = TYPE_TO_LEVEL.get(type_name)
 
     if level is None:
@@ -127,7 +127,7 @@ def _detect_modes_from_callable(target, skip_param_defaults: bool = False) -> Li
         List of supported EvalMode values
     """
     sig = inspect.signature(target)
-    params = [p for p in sig.parameters.values() if p.name != 'self']
+    params = [p for p in sig.parameters.values() if p.name != "self"]
 
     if skip_param_defaults:
         params = [p for p in params if not isinstance(p.default, Param)]
@@ -154,7 +154,7 @@ def _count_callable_params(target, skip_param_defaults: bool = False) -> int:
         Number of non-self params
     """
     sig = inspect.signature(target)
-    params = [p for p in sig.parameters.values() if p.name != 'self']
+    params = [p for p in sig.parameters.values() if p.name != "self"]
 
     if skip_param_defaults:
         params = [p for p in params if not isinstance(p.default, Param)]
@@ -254,10 +254,7 @@ class BaseEvaluator(ABC):
                     setattr(self, attr_name, attr.default)
 
         if missing_required:
-            raise TypeError(
-                f"Evaluator '{self.name}' missing required parameter(s): "
-                f"{', '.join(missing_required)}"
-            )
+            raise TypeError(f"Evaluator '{self.name}' missing required parameter(s): {', '.join(missing_required)}")
 
         unknown_kwargs = set(kwargs.keys()) - valid_config_names
         if unknown_kwargs:
@@ -365,7 +362,7 @@ class BaseEvaluator(ABC):
 
         results = []
         eval_level = self.level
-        param_count = self._method_param_counts.get('evaluate', 2)
+        param_count = self._method_param_counts.get("evaluate", 2)
 
         def _call_evaluate(input_data, task_arg):
             if param_count <= 1:
@@ -428,6 +425,7 @@ class BaseEvaluator(ABC):
 
 class JudgeOutput(BaseModel):
     """Pydantic model for LLM judge output validation."""
+
     score: float = Field(ge=0.0, le=1.0, description="Score between 0.0 and 1.0")
     explanation: str = Field(default="", description="Explanation of the score")
 
@@ -466,9 +464,7 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
 
     # Configurable via Param descriptors
     model: str = Param(default="gpt-4o-mini", description="LiteLLM model identifier")
-    criteria: str = Param(
-        default="quality, accuracy, and helpfulness", description="Evaluation criteria"
-    )
+    criteria: str = Param(default="quality, accuracy, and helpfulness", description="Evaluation criteria")
     temperature: float = Param(default=0.0, description="LLM temperature")
     max_tokens: int = Param(default=1024, description="Max tokens for LLM response")
     threshold: float = Param(default=0.5, description="Score threshold for pass/fail")
@@ -556,10 +552,7 @@ Evaluation Criteria: {self.criteria}"""
         try:
             from litellm import completion
         except ImportError:
-            raise ImportError(
-                "LiteLLM is required for LLM-as-judge evaluators. "
-                "Install with: pip install litellm"
-            )
+            raise ImportError("LiteLLM is required for LLM-as-judge evaluators. Install with: pip install litellm")
 
         last_error = None
         for attempt in range(self.max_retries + 1):
@@ -645,8 +638,8 @@ class FunctionEvaluator(BaseEvaluator):
         self.name = name or func.__name__
 
         # Copy metadata from function if present
-        if hasattr(func, '__doc__') and func.__doc__ and not self.description:
-            self.description = func.__doc__.strip().split('\n')[0]
+        if hasattr(func, "__doc__") and func.__doc__ and not self.description:
+            self.description = func.__doc__.strip().split("\n")[0]
 
     def _extract_function_params(self, func: Callable):
         """Extract Param descriptors from function signature defaults."""
@@ -667,6 +660,7 @@ class FunctionEvaluator(BaseEvaluator):
                 self._param_descriptors[param_name] = p
                 # Use Param's default as config value
                 from .config import _NO_DEFAULT
+
                 if p.default is not _NO_DEFAULT:
                     self._config[param_name] = p.default
 
@@ -692,10 +686,7 @@ class FunctionEvaluator(BaseEvaluator):
     def evaluate(self, trace_or_span, task=None) -> EvalResult:
         """Call the wrapped function with config values injected."""
         sig = inspect.signature(self.func)
-        non_config_params = [
-            p for p in sig.parameters.values()
-            if not isinstance(p.default, Param)
-        ]
+        non_config_params = [p for p in sig.parameters.values() if not isinstance(p.default, Param)]
 
         # Build kwargs: trace/span + optional task + config params
         call_kwargs = {}
@@ -731,10 +722,7 @@ class FunctionEvaluator(BaseEvaluator):
         # Validate config keys
         for key in kwargs:
             if key not in self._param_descriptors:
-                raise TypeError(
-                    f"Unknown config parameter '{key}'. "
-                    f"Available: {list(self._param_descriptors.keys())}"
-                )
+                raise TypeError(f"Unknown config parameter '{key}'. Available: {list(self._param_descriptors.keys())}")
             # Validate value
             self._param_descriptors[key]._validate(kwargs[key])
 
@@ -815,6 +803,5 @@ def _normalize_result(result) -> EvalResult:
         return EvalResult(score=float(result))
     else:
         raise TypeError(
-            f"Evaluator returned invalid type {type(result).__name__}.\n"
-            f"Expected: EvalResult | dict | float"
+            f"Evaluator returned invalid type {type(result).__name__}.\nExpected: EvalResult | dict | float"
         )

@@ -30,7 +30,7 @@ from typing import List, Optional, Set
 from amp_evaluation.evaluators.base import BaseEvaluator
 from amp_evaluation.evaluators.config import Param
 from amp_evaluation.models import EvalResult
-from amp_evaluation.trace.models import Trace, LLMSpan, AgentTrace
+from amp_evaluation.trace.models import Trace
 from amp_evaluation.dataset.models import Task
 
 
@@ -408,7 +408,7 @@ class StepSuccessRateEvaluator(BaseEvaluator):
         if not trace.spans:
             return EvalResult.skip("No spans to evaluate", details={"span_count": 0})
 
-        successful = sum(1 for span in trace.spans if not getattr(getattr(span, 'metrics', None), 'error', False))
+        successful = sum(1 for span in trace.spans if not getattr(getattr(span, "metrics", None), "error", False))
         total = len(trace.spans)
         success_rate = successful / total
 

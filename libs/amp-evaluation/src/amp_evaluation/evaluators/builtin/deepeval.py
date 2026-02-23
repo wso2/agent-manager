@@ -369,7 +369,9 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
     evaluate_output: bool = Param(default=False, description="If True, also check outputs match")
     evaluate_order: bool = Param(default=False, description="If True, enforce call sequence")
     exact_match: bool = Param(default=False, description="If True, require exact match of tools called vs expected")
-    available_tools: Optional[List[str]] = Param(default=None, description="List of available tool names for LLM-based evaluation")
+    available_tools: Optional[List[str]] = Param(
+        default=None, description="List of available tool names for LLM-based evaluation"
+    )
 
     def __init__(self, **kwargs):
         """
@@ -553,7 +555,9 @@ class DeepEvalTaskCompletionEvaluator(DeepEvalBaseEvaluator):
     version = "1.0"
 
     # Additional Param descriptor — type inferred from annotation
-    custom_task: Optional[str] = Param(default=None, description="Optional custom task description (overrides auto-inference)")
+    custom_task: Optional[str] = Param(
+        default=None, description="Optional custom task description (overrides auto-inference)"
+    )
 
     def __init__(self, **kwargs):
         """

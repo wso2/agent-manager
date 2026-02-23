@@ -78,7 +78,6 @@ def _ensure_requests_instrumented():
             logger.warning(f"Failed to instrument requests library: {e}")
 
 
-
 # ============================================================================
 # RUN RESULT
 # ============================================================================

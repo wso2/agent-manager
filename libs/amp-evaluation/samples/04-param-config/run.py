@@ -86,13 +86,15 @@ def main():
         print(f"    level: {info.level}")
         print(f"    modes: {info.modes}")
         if info.config_schema:
-            print(f"    config_schema:")
+            print("    config_schema:")
             for param in info.config_schema:
-                print(f"      - {param['key']}: {param['type']} "
-                      f"(default={param.get('default', 'N/A')}, "
-                      f"description=\"{param.get('description', '')}\")")
+                print(
+                    f"      - {param['key']}: {param['type']} "
+                    f"(default={param.get('default', 'N/A')}, "
+                    f'description="{param.get("description", "")}")'
+                )
         else:
-            print(f"    config_schema: (none)")
+            print("    config_schema: (none)")
 
 
 if __name__ == "__main__":

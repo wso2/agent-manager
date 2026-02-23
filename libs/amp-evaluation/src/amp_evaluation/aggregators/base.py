@@ -61,7 +61,6 @@ class AggregationType(Enum):
     PASS_RATE = "pass_rate"
 
 
-
 @dataclass
 class Aggregation:
     """

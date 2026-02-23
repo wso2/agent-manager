@@ -186,9 +186,7 @@ class TestBuiltinFactory:
 
     def test_builtin_tool_correctness_with_special_kwargs(self):
         """Should handle evaluators with special configuration params."""
-        evaluator = builtin(
-            "deepeval/tool-correctness", evaluate_input=True, evaluate_output=True, threshold=0.9
-        )
+        evaluator = builtin("deepeval/tool-correctness", evaluate_input=True, evaluate_output=True, threshold=0.9)
         assert evaluator.name == "deepeval/tool-correctness"
         assert evaluator.evaluate_input is True
         assert evaluator.evaluate_output is True

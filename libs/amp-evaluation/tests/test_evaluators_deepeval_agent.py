@@ -33,9 +33,6 @@ from unittest.mock import Mock, patch, MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-deepeval_available = importlib.util.find_spec("deepeval") is not None
-requires_deepeval = pytest.mark.skipif(not deepeval_available, reason="deepeval not installed")
-
 from amp_evaluation.evaluators.builtin.deepeval import (
     DeepEvalPlanQualityEvaluator,
     DeepEvalPlanAdherenceEvaluator,
@@ -51,6 +48,9 @@ from amp_evaluation.trace import (
     TokenUsage,
     ToolSpan,
 )
+
+deepeval_available = importlib.util.find_spec("deepeval") is not None
+requires_deepeval = pytest.mark.skipif(not deepeval_available, reason="deepeval not installed")
 
 
 # ============================================================================
