@@ -109,9 +109,9 @@ agentManagerService:
 
     # Key Manager configuration
     keyManager:
-      issuer: "Agent Management Platform Local"
-      audience: "localhost"
-      jwksUrl: ""
+      issuer: "thunder"
+      audience: "amp-console-client"
+      jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
       defaultIssuer: "Agent Management Platform Local"
 
     # On-premise deployment flag
@@ -244,14 +244,7 @@ dbMigration:
     limits:
       memory: 256Mi
       cpu: 200m
-
-  # Builtin evaluator generator configuration
-  evaluatorGenerator:
-    image:
-      repository: ghcr.io/wso2/amp-evaluation-monitor
-      tag: "0.0.0-dev"  # In prod: must match amp-evaluation SDK version
-      pullPolicy: IfNotPresent
-
+      
   backoffLimit: 3
   podSecurityContext: {}
   securityContext: {}
