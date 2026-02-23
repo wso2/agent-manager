@@ -230,56 +230,6 @@ func (s *agentManagerService) detachOTELInstrumentationTrait(ctx context.Context
 	return nil
 }
 
-// handleInstrumentationUpdate handles enabling/disabling instrumentation when deployment parameters are updated
-// It always injects tracing env vars and manages the OTEL instrumentation trait for Python buildpack builds
-func (s *agentManagerService) handleInstrumentationUpdate(ctx context.Context, orgName, projectName, agentName string, existingAgent *models.AgentResponse, req *spec.UpdateAgentBuildParametersRequest) error {
-	// Only handle instrumentation for API agents
-	if existingAgent.Type.Type != string(utils.AgentTypeAPI) {
-		return nil
-	}
-
-	// Check if this is a Python buildpack build
-	isPythonBuildpack := req.Build.BuildpackBuild != nil && req.Build.BuildpackBuild.Buildpack.Language == string(utils.LanguagePython)
-
-	// Determine if instrumentation should be enabled
-	var enableInstrumentation bool
-	if req.Configurations != nil && req.Configurations.EnableAutoInstrumentation != nil {
-		enableInstrumentation = *req.Configurations.EnableAutoInstrumentation
-	} else if !isPythonBuildpack {
-		enableInstrumentation = false
-	} else {
-		// No explicit config provided for Python buildpack - preserve current state
-		s.logger.Debug("EnableAutoInstrumentation not specified, preserving current state", "agentName", agentName)
-		return nil
-	}
-
-	// Inject tracing env vars (for both Python and Docker builds)
-	s.logger.Debug("Injecting tracing env vars", "agentName", agentName, "isPython", isPythonBuildpack)
-	if err := s.injectTracingEnvVarsByName(ctx, orgName, projectName, agentName); err != nil {
-		return fmt.Errorf("failed to inject tracing env vars: %w", err)
-	}
-
-	// Manage the instrumentation trait for Python buildpack only
-	// - Add trait if: Python buildpack AND instrumentation enabled
-	// - Remove trait otherwise
-	if isPythonBuildpack && enableInstrumentation {
-		s.logger.Info("Attaching instrumentation trait", "agentName", agentName)
-		if err := s.attachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); err != nil {
-			return fmt.Errorf("failed to attach instrumentation trait: %w", err)
-		}
-	} else {
-		s.logger.Info("Detaching instrumentation trait", "agentName", agentName, "isPython", isPythonBuildpack, "enabled", enableInstrumentation)
-		if err := s.detachOTELInstrumentationTrait(ctx, orgName, projectName, agentName); err != nil {
-			return fmt.Errorf("failed to detach instrumentation trait: %w", err)
-		}
-	}
-
-	// Persist updated instrumentation config to database
-	s.persistInstrumentationConfig(ctx, orgName, projectName, agentName, enableInstrumentation)
-
-	return nil
-}
-
 // persistInstrumentationConfig saves the instrumentation config to the database
 func (s *agentManagerService) persistInstrumentationConfig(ctx context.Context, orgName, projectName, agentName string, enableAutoInstrumentation bool) {
 	// Get the first/lowest environment
@@ -534,13 +484,12 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 			}
 		} else {
 			s.logger.Info("Auto instrumentation disabled by user", "agentName", req.Name)
-			// For Python buildpack agents, inject tracing env vars even when auto-instrumentation
-			// is disabled so the agent can reach the observability backend via the SDK manually,
-			// matching the behaviour of Docker-based agents.
-			if req.Build != nil && req.Build.BuildpackBuild != nil &&
-				req.Build.BuildpackBuild.Buildpack.Language == string(utils.LanguagePython) {
+			// Inject tracing env vars into the Component CR for all agent build types so the
+			// Workload generated at build time has AMP_OTEL_ENDPOINT and AMP_AGENT_API_KEY.
+			// This covers both Python buildpack and Docker agents with instrumentation disabled.
+			if req.Build != nil && (req.Build.BuildpackBuild != nil || req.Build.DockerBuild != nil) {
 				if err := s.injectTracingEnvVarsByName(ctx, orgName, projectName, req.Name); err != nil {
-					s.logger.Error("Failed to inject tracing env vars for disabled Python instrumentation", "agentName", req.Name, "error", err)
+					s.logger.Error("Failed to inject tracing env vars", "agentName", req.Name, "error", err)
 					// Rollback - delete the created agent
 					if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
 						s.logger.Error("Failed to rollback agent creation after env var injection failure", "agentName", req.Name, "error", errDeletion)
@@ -702,12 +651,6 @@ func (s *agentManagerService) UpdateAgentBuildParameters(ctx context.Context, or
 	if err := s.ocClient.UpdateComponentBuildParameters(ctx, orgName, projectName, agentName, updateReq); err != nil {
 		s.logger.Error("Failed to update agent build parameters in OpenChoreo", "agentName", agentName, "orgName", orgName, "projectName", projectName, "error", err)
 		return nil, fmt.Errorf("failed to update agent build parameters: %w", err)
-	}
-
-	// Handle instrumentation trait attachment/detachment based on enableAutoInstrumentation change
-	if err := s.handleInstrumentationUpdate(ctx, orgName, projectName, agentName, existingAgent, req); err != nil {
-		s.logger.Error("Failed to update instrumentation", "agentName", agentName, "error", err)
-		return nil, fmt.Errorf("failed to update instrumentation: %w", err)
 	}
 
 	// Fetch agent to return current state
@@ -1151,10 +1094,6 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		} else {
 			// Append tracing env vars to deploy request (they will overwrite if duplicates exist)
 			deployReq.Env = append(deployReq.Env, tracingEnvVars...)
-			// Also persist to Component CR for future reference
-			if injectErr := s.updateComponentEnvVars(ctx, orgName, projectName, agentName, tracingEnvVars); injectErr != nil {
-				s.logger.Warn("Failed to persist tracing env vars to component CR", "agentName", agentName, "error", injectErr)
-			}
 		}
 	}
 
