@@ -30,6 +30,7 @@ const AgentPerformanceCard: React.FC<AgentPerformanceCardProps> =
                         alignItems="center"
                         justifyContent="center"
                         py={6}
+                        height={440}
                         gap={1}
                     >
                         <Activity size={48} />
@@ -42,7 +43,7 @@ const AgentPerformanceCard: React.FC<AgentPerformanceCardProps> =
                     <>
                         <Box mt={2}>
                             <RadarChart
-                                height={385}
+                                height={424}
                                 data={radarChartData}
                                 angleKey="metric"
                                 radars={radars}

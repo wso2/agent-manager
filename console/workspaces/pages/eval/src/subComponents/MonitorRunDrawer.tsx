@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { useState } from "react";
 import {
     Alert,
     Box,
@@ -21,6 +22,8 @@ import {
     Grid,
     Stack,
     StatCard,
+    Tab,
+    Tabs,
     Typography,
 } from "@wso2/oxygen-ui";
 import { CheckCircle, Clock, Logs, Timer, Users } from "@wso2/oxygen-ui-icons-react";
@@ -71,7 +74,9 @@ export function MonitorRunDrawer({
         runId: run.id ?? "",
     });
 
-    const logs = data?.logs ?? [];
+    const [activeTab, setActiveTab] = useState(0);
+
+    const logs = data?.logs.reverse() ?? [];
     const logsEmptyState = {
         title: "No logs yet",
         description: "Run logs will appear once this monitor produces output.",
@@ -80,18 +85,6 @@ export function MonitorRunDrawer({
     const chipColor = RUN_STATUS_CHIP_COLOR_MAP[run.status] ?? "default";
     const evaluatorCount = run.evaluators?.length ?? 0;
     const statCards = [
-        {
-            label: "Started",
-            value: formatDateTime(run.startedAt) || "—",
-            icon: <Clock size={24} />,
-            iconColor: "info" as const,
-        },
-        {
-            label: "Completed",
-            value: formatDateTime(run.completedAt) || "—",
-            icon: <CheckCircle size={24} />,
-            iconColor: "success" as const,
-        },
         {
             label: "Duration",
             value: durationLabel || "—",
@@ -110,11 +103,11 @@ export function MonitorRunDrawer({
         <Stack direction="column" height="100%" maxWidth={900} width="100%">
             <DrawerHeader
                 icon={<Logs size={24} />}
-                title={monitorDisplayName ?? monitorName}
+                title={"Run Details"}
                 onClose={onClose}
             />
             <DrawerContent>
-                <Stack spacing={3} height="calc(100vh - 96px)">
+                <Stack spacing={2} height="calc(100vh - 96px)">
                     <Stack spacing={0.5} alignItems="center" direction="row">
                         <Typography variant="h6">{traceWindowLabel}&nbsp;</Typography>
                         <Box>
@@ -129,6 +122,7 @@ export function MonitorRunDrawer({
                                     label={card.label}
                                     value={card.value}
                                     icon={card.icon}
+                                    sx={{height:80}}
                                     iconColor={card.iconColor}
                                 />
                             </Grid>
@@ -144,15 +138,113 @@ export function MonitorRunDrawer({
                             {error instanceof Error ? error.message : "Failed to load logs. Please try again."}
                         </Alert>
                     )}
-                    <Box>
-                        <LogsPanel
-                            logs={logs}
-                            isLoading={isLoading}
-                            error={error}
-                            showSearch={false}
-                            maxHeight="calc(100vh - 350px)"
-                            emptyState={logsEmptyState}
-                        />
+                    <Box sx={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+                        <Tabs
+                            value={activeTab}
+                            onChange={(_, v) => setActiveTab(v as number)}
+                            sx={{ borderBottom: 1, borderColor: "divider", mb: 1 }}
+                        >
+                            <Tab label="Logs" />
+                            <Tab label="Evaluator Configs" />
+                        </Tabs>
+
+                        {activeTab === 0 && (
+                            <LogsPanel
+                                logs={logs}
+                                isLoading={isLoading}
+                                error={error}
+                                showSearch={false}
+                                maxHeight="calc(100vh - 300px)"
+                                emptyState={logsEmptyState}
+                            />
+                        )}
+
+                        {activeTab === 1 && (
+                            <Box sx={{ overflowY: "auto", maxHeight: "calc(100vh - 300px)" }}>
+                                {(run.evaluators ?? []).length === 0 ? (
+                                    <Stack alignItems="center" justifyContent="center" py={6} gap={1}>
+                                        <Typography variant="body2" fontWeight={500}>
+                                            No evaluators configured
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            This run has no evaluator configuration data.
+                                        </Typography>
+                                    </Stack>
+                                ) : (
+                                    <Stack spacing={2}>
+                                        {(run.evaluators ?? []).map((ev) => (
+                                            <Box
+                                                key={ev.identifier}
+                                                sx={{
+                                                    border: 1,
+                                                    borderColor: "divider",
+                                                    borderRadius: 2,
+                                                    p: 2,
+                                                }}
+                                            >
+                                                <Stack
+                                                    direction="row"
+                                                    alignItems="center"
+                                                    spacing={1}
+                                                    mb={1}
+                                                >
+                                                    <Typography variant="subtitle2">
+                                                        {ev.displayName ?? ev.identifier}
+                                                    </Typography>
+                                                    <Chip
+                                                        size="small"
+                                                        variant="outlined"
+                                                        label={ev.level.charAt(0).toUpperCase() +
+                                                             ev.level.slice(1)}
+                                                    />
+                                                </Stack>
+                                                {ev.config &&
+                                                Object.keys(ev.config).length > 0 ? (
+                                                    <Stack spacing={0.75}>
+                                                        {Object.entries(ev.config).map(
+                                                            ([k, v]) => (
+                                                                <Stack
+                                                                    key={k}
+                                                                    direction="row"
+                                                                    spacing={1}
+                                                                    alignItems="flex-start"
+                                                                >
+                                                                    <Typography
+                                                                        variant="caption"
+                                                                        color="text.secondary"
+                                                                        sx={{ minWidth: 120 }}
+                                                                    >
+                                                                        {k}
+                                                                    </Typography>
+                                                                    <Typography
+                                                                        variant="caption"
+                                                                        sx={{
+                                                                            fontFamily: "monospace",
+                                                                            wordBreak: "break-all",
+                                                                        }}
+                                                                    >
+                                                                        {typeof v === "object"
+                                                                            ? JSON.stringify(v)
+                                                                            : String(v)}
+                                                                    </Typography>
+                                                                </Stack>
+                                                            )
+                                                        )}
+                                                    </Stack>
+                                                ) : (
+                                                    <Typography
+                                                        variant="caption"
+                                                        color="text.secondary"
+                                                    >
+                                                        No configuration parameters.
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                        ))}
+                                    </Stack>
+                                )}
+                            </Box>
+                        )}
                     </Box>
                 </Stack>
             </DrawerContent >

@@ -31,7 +31,8 @@ interface MonitorStartStopButtonProps {
     agentId?: string;
 }
 
-export function MonitorStartStopButton({ monitorName, monitorType, monitorStatus, orgId, projectId, agentId }:
+export function MonitorStartStopButton({
+    monitorName, monitorType, monitorStatus, orgId, projectId, agentId }:
     MonitorStartStopButtonProps) {
     const { mutate: startMonitor, isPending: isStarting } = useStartMonitor();
     const { mutate: stopMonitor, isPending: isStopping } = useStopMonitor();
@@ -75,7 +76,7 @@ export function MonitorStartStopButton({ monitorName, monitorType, monitorStatus
         }
     }, [agentId, isActive, isDisabled, monitorName, orgId, projectId, startMonitor, stopMonitor]);
 
-    if (isPastMonitor){
+    if (isPastMonitor) {
         return (
             <Tooltip title="Past monitors cannot be started">
                 <span>
@@ -92,14 +93,14 @@ export function MonitorStartStopButton({ monitorName, monitorType, monitorStatus
                 <IconButton disabled={isDisabled} onClick={handleClick}>
                     <CircularProgress size={16} />
                 </IconButton>
-        </Tooltip>
+            </Tooltip>
         );
     }
     return (
         <Tooltip title={tooltipTitle}>
-                <IconButton disabled={isDisabled} onClick={handleClick}>
-                    {isActive ? <Pause size={16} /> : <Play size={16} />}
-                </IconButton>
+            <IconButton disabled={isDisabled} onClick={handleClick}>
+                {isActive ? <Pause size={16} /> : <Play size={16} />}
+            </IconButton>
         </Tooltip>
     );
 }

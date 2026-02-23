@@ -34,6 +34,7 @@ export function MonitorTable() {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const { addConfirmation } = useConfirmationDialog();
+
     const { agentId, orgId, projectId, envId } = useParams<{
         orgId: string;
         projectId: string;
@@ -78,8 +79,9 @@ export function MonitorTable() {
                 "-",
             dataSource: monitor.type === "future" ? "Continuous" : "Historical",
             evaluators:
-                monitor.evaluators?.map((evaluator) => evaluator.displayName ?? evaluator.identifier).filter(
-                    (name): name is string => Boolean(name)) ?? [],
+                monitor.evaluators?.map((evaluator) =>
+                    evaluator.displayName ?? evaluator.identifier).filter(
+                        (name): name is string => Boolean(name)) ?? [],
             type: monitor.type,
             status: monitor.status ?? "Unknown",
         }));

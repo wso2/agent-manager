@@ -24,6 +24,7 @@ interface PerformanceByEvaluatorCardProps {
     /** ISO end of the window */
     endTime: string;
     environmentId?: string;
+    timeRangeLabel?: string;
 }
 
 /** Inner component that calls the hook for a single evaluator */
@@ -33,6 +34,7 @@ function EvaluatorSeriesFetcher({
     startTime,
     endTime,
     onData,
+    onLoading,
 }: {
     commonParams: {
         orgName: string; projName: string;
@@ -42,11 +44,16 @@ function EvaluatorSeriesFetcher({
     startTime: string;
     endTime: string;
     onData: (name: string, points: Array<{ timestamp: string; mean: number }>) => void;
+    onLoading: (name: string, loading: boolean) => void;
 }) {
     const { data, isLoading } = useMonitorScoresTimeSeries(
         commonParams,
         { startTime, endTime, evaluator: evaluatorName, granularity: "hour" },
     );
+    React.useEffect(() => {
+        onLoading(evaluatorName, isLoading);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isLoading]);
     React.useEffect(() => {
         if (!data) return;
         const pts = data.points.map((p) => ({
@@ -58,7 +65,7 @@ function EvaluatorSeriesFetcher({
         onData(evaluatorName, pts);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [data]);
-    return isLoading ? <Skeleton variant="rounded" height={280} /> : null;
+    return null;
 }
 
 const PerformanceByEvaluatorCard:
@@ -67,6 +74,7 @@ const PerformanceByEvaluatorCard:
         startTime,
         endTime,
         environmentId,
+        timeRangeLabel,
     }) => {
         const { orgId, projectId, agentId, envId, monitorId } = useParams<{
             orgId: string; projectId: string;
@@ -92,6 +100,19 @@ const PerformanceByEvaluatorCard:
         React.useEffect(() => {
             setSeriesMap({});
         }, [startTime, endTime, evaluatorNames]);
+
+        /** Track how many fetchers are still loading */
+        const [loadingSet, setLoadingSet] = React.useState<Set<string>>(new Set());
+        const isFetching = loadingSet.size > 0;
+
+        const handleLoading = React.useCallback(
+            (name: string, loading: boolean) => {
+                setLoadingSet((prev) => {
+                    const next = new Set(prev);
+                    if (loading) { next.add(name); } else { next.delete(name); }
+                    return next;
+                });
+            }, []);
 
         const handleData = React.useCallback(
             (name: string, pts: Array<{ timestamp: string; mean: number }>) => {
@@ -162,7 +183,7 @@ const PerformanceByEvaluatorCard:
                                 Performance by Evaluator
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                                Score over time per evaluator (last 7 days)
+                                Score over time per evaluator ({timeRangeLabel ?? "Last 7 days"})
                             </Typography>
                         </Stack>
                         <Button
@@ -195,10 +216,13 @@ const PerformanceByEvaluatorCard:
                             startTime={startTime}
                             endTime={endTime}
                             onData={handleData}
+                            onLoading={handleLoading}
                         />
                     ))}
 
-                    {!hasData ? (
+                    {isFetching ? (
+                        <Skeleton variant="rounded" height={320} />
+                    ) : !hasData ? (
                         <Box
                             display="flex" flexDirection="column"
                             alignItems="center" justifyContent="center"

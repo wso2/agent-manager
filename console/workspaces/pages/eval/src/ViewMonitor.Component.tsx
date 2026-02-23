@@ -16,11 +16,11 @@
  * under the License.
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { PageLayout } from "@agent-management-platform/views";
-import { Button, Grid, IconButton, InputAdornment, MenuItem, Select, Skeleton, Stack } from "@wso2/oxygen-ui";
-import { Clock, Download, RefreshCcw } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, Route, Routes, useParams } from "react-router-dom";
+import { Grid, IconButton, InputAdornment, MenuItem, Select, Skeleton, Stack } from "@wso2/oxygen-ui";
+import { Clock, RefreshCcw } from "@wso2/oxygen-ui-icons-react";
+import { generatePath, Route, Routes, useParams, useSearchParams } from "react-router-dom";
 import {
     absoluteRouteMap,
     relativeRouteMap,
@@ -51,8 +51,25 @@ const getMean = (e: EvaluatorScoreSummary): number | null => {
 export const ViewMonitorComponent: React.FC = () => {
     const { orgId, projectId, agentId, envId, monitorId } = useParams();
 
-    const [timeRange, setTimeRange] = useState<TraceListTimeRange>(TraceListTimeRange.SEVEN_DAYS);
+    const [searchParams, setSearchParams] = useSearchParams();
 
+    const timeRange = useMemo(
+        () => (searchParams.get("timeRange") as TraceListTimeRange) || TraceListTimeRange.SEVEN_DAYS,
+        [searchParams]
+    );
+
+    const handleTimeRangeChange = React.useCallback(
+        (value: TraceListTimeRange) => {
+            const next = new URLSearchParams(searchParams);
+            next.set("timeRange", value);
+            setSearchParams(next, { replace: true });
+        },
+        [searchParams, setSearchParams]
+    );
+    const timeRangeLabel = useMemo(
+        () => MONITOR_TIME_RANGE_OPTIONS.find((o) => o.value === timeRange)?.label ?? "Selected period",
+        [timeRange]
+    );
     const commonParams = useMemo(() => ({
         monitorName: monitorId ?? "",
         orgName: orgId ?? "",
@@ -115,7 +132,7 @@ export const ViewMonitorComponent: React.FC = () => {
             {
                 label: "Traces Evaluated",
                 value: totalCount.toLocaleString(),
-                helper: totalCount30 > 0 ? `${countTrend >= 0 ? "↑" : "↓"} vs prev 30 days` : "Last 7 days",
+                helper: totalCount30 > 0 ? `${countTrend >= 0 ? "↑" : "↓"} vs prev 30 days` : timeRangeLabel,
                 trend: countTrend,
             },
             {
@@ -131,7 +148,7 @@ export const ViewMonitorComponent: React.FC = () => {
                 trend: 0,
             },
         ];
-    }, [evaluators7d, evaluators30d]);
+    }, [evaluators7d, evaluators30d, timeRangeLabel]);
 
     const averageScore7d = useMemo(() => {
         const means = evaluators7d.map(getMean).filter((v): v is number => v !== null);
@@ -148,14 +165,14 @@ export const ViewMonitorComponent: React.FC = () => {
     const evaluationSummaryAverage = useMemo(() => {
         if (averageScore7d === null) return { value: "–", helper: "No data yet", progress: 0 };
         const delta = averageScore30d !== null
-            ? ` (${averageScore7d >= averageScore30d ? "↑" : "↓"} vs 30-day avg ${(averageScore30d * 100).toFixed(1)})`
+            ? ` (${averageScore7d >= averageScore30d ? "↑" : "↓"} vs 30-day avg ${(averageScore30d * 100).toFixed(1)}%)`
             : "";
         return {
             value: `${(averageScore7d * 100).toFixed(1)}%`,
-            helper: `Last 7 days${delta}`,
+            helper: `${timeRangeLabel}${delta}`,
             progress: Math.round(averageScore7d * 100),
         };
-    }, [averageScore7d, averageScore30d]);
+    }, [averageScore7d, averageScore30d, timeRangeLabel]);
 
     // ── PerformanceByEvaluatorCard ───────────────────────────────────────────
     const evaluatorNames = useMemo(
@@ -240,7 +257,7 @@ export const ViewMonitorComponent: React.FC = () => {
                                 variant="outlined"
                                 value={timeRange}
                                 onChange={(e) =>
-                                    setTimeRange(e.target.value as TraceListTimeRange)
+                                    handleTimeRangeChange(e.target.value as TraceListTimeRange)
                                 }
                                 startAdornment={
                                     <InputAdornment position="start">
@@ -262,13 +279,6 @@ export const ViewMonitorComponent: React.FC = () => {
                             >
                                 <RefreshCcw size={16} />
                             </IconButton>
-                            <Button
-                                variant="contained"
-                                color="primary"
-                                startIcon={<Download size={16} />}
-                            >
-                                Export Summary
-                            </Button>
                         </Stack>
                     }
                 >
@@ -304,6 +314,7 @@ export const ViewMonitorComponent: React.FC = () => {
                                         averageScoreValue={evaluationSummaryAverage.value}
                                         averageScoreHelper={evaluationSummaryAverage.helper}
                                         averageScoreProgress={evaluationSummaryAverage.progress}
+                                        timeRangeLabel={timeRangeLabel}
                                     />
                                     <TopDegradingMetricsCard metrics={topDegrading} />
                                 </Stack>
@@ -314,6 +325,7 @@ export const ViewMonitorComponent: React.FC = () => {
                             startTime={mainStartTime}
                             endTime={now.toISOString()}
                             environmentId={monitorData?.environmentName}
+                            timeRangeLabel={timeRangeLabel}
                         />
                         </>
                         )}

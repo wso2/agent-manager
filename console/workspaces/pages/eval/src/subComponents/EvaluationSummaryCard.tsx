@@ -16,6 +16,7 @@ interface EvaluationSummaryCardProps {
     averageScoreValue: string;
     averageScoreHelper: string;
     averageScoreProgress: number;
+    timeRangeLabel?: string;
 }
 
 const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
@@ -23,6 +24,7 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
     averageScoreValue,
     averageScoreHelper,
     averageScoreProgress,
+    timeRangeLabel,
 }) => {
     const { orgId, projectId, agentId, monitorId } = useParams<{
         orgId: string;
@@ -35,7 +37,7 @@ const EvaluationSummaryCard: React.FC<EvaluationSummaryCardProps> = ({
         <Card variant="outlined">
             <CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
-                    <Typography variant="subtitle1">Evaluation Summary (Last 7 days)</Typography>
+                    <Typography variant="subtitle1">Evaluation Summary ({timeRangeLabel ?? "Last 7 days"})</Typography>
                     <Button
                         variant="text"
                         component={RouterLink}

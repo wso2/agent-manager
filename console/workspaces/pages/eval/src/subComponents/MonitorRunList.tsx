@@ -13,8 +13,8 @@ import {
     CircularProgress,
     IconButton,
 } from "@wso2/oxygen-ui";
-import { Activity, AlertTriangle, CheckCircle, CircleAlert, RefreshCcw } from "@wso2/oxygen-ui-icons-react";
-import { useListMonitorRuns } from "@agent-management-platform/api-client";
+import { Activity, AlertTriangle, CheckCircle, CircleAlert, RefreshCcw, Repeat } from "@wso2/oxygen-ui-icons-react";
+import { useListMonitorRuns, useRerunMonitor } from "@agent-management-platform/api-client";
 import { type MonitorRunResponse } from "@agent-management-platform/types";
 import { DrawerWrapper } from "@agent-management-platform/views";
 import { MonitorRunDrawer } from "./MonitorRunDrawer";
@@ -91,6 +91,7 @@ export default function MonitorRunList({ monitorDisplayName }: MonitorRunListPro
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const theme = useTheme();
     const [searchParams, setSearchParams] = useSearchParams();
+    const {mutate: rerunMonitor, isPending: isRerunning} = useRerunMonitor();
 
     const dateFormatter = useMemo(
         () =>
@@ -251,6 +252,7 @@ export default function MonitorRunList({ monitorDisplayName }: MonitorRunListPro
                             <ListingTable.Cell>Evaluators</ListingTable.Cell>
                             <ListingTable.Cell>Started</ListingTable.Cell>
                             <ListingTable.Cell align="right">Duration</ListingTable.Cell>
+                            <ListingTable.Cell align="center">Actions</ListingTable.Cell>
                         </ListingTable.Row>
                     </ListingTable.Head>
                     <ListingTable.Body>
@@ -297,6 +299,34 @@ export default function MonitorRunList({ monitorDisplayName }: MonitorRunListPro
                                     <ListingTable.Cell align="right">
                                         {formatDuration(run.startedAt, run.completedAt)}
                                     </ListingTable.Cell>
+                                    <ListingTable.Cell
+                                        align="center"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <Tooltip title="Re-run">
+                                            <span>
+                                                <IconButton
+                                                    size="small"
+                                                    disabled={
+                                                        isRerunning ||
+                                                        run.status === "running" ||
+                                                        run.status === "pending"
+                                                    }
+                                                    onClick={() =>
+                                                        rerunMonitor({
+                                                            monitorName: monitorId ?? "",
+                                                            orgName: orgId ?? "",
+                                                            projName: projectId ?? "",
+                                                            agentName: agentId ?? "",
+                                                            runId: run.id,
+                                                        })
+                                                    }
+                                                >
+                                                    <Repeat size={16} />
+                                                </IconButton>
+                                            </span>
+                                        </Tooltip>
+                                    </ListingTable.Cell>
                                 </ListingTable.Row>
                             );
                         })}
@@ -315,7 +345,7 @@ export default function MonitorRunList({ monitorDisplayName }: MonitorRunListPro
                     rowsPerPageOptions={[5, 10, 25]}
                 />
             </ListingTable.Container>
-            <DrawerWrapper open={drawerOpen} onClose={handleDrawerClose}>
+            <DrawerWrapper open={drawerOpen} onClose={handleDrawerClose} maxWidth={360}>
                 {selectedRun && (
                     <MonitorRunDrawer
                         run={selectedRun}
