@@ -15,13 +15,10 @@
 # under the License.
 
 # Production Dockerfile for AMP Evaluation Monitor Job
-# Installs amp-evaluation SDK from PyPI registry
-# Build context: evaluation-job directory
+# Builds amp-evaluation SDK directly from source in libs/amp-evaluation
+# Build context: project root
 
 FROM python:3.11-alpine
-
-# Build arg for SDK version - must be provided for production builds
-ARG AMP_EVALUATION_VERSION
 
 LABEL org.opencontainers.image.source="https://github.com/wso2/ai-agent-management-platform"
 LABEL org.opencontainers.image.description="AMP Evaluation Monitor - AI Agent evaluation job for monitoring workflows"
@@ -32,11 +29,14 @@ WORKDIR /app
 # Install system dependencies
 RUN apk add --no-cache git
 
-# Install amp-evaluation SDK from PyPI and additional dependencies
-RUN pip install --no-cache-dir amp-evaluation==${AMP_EVALUATION_VERSION} requests
+# Install amp-evaluation SDK from local source
+# This is temporary until amp-evaluation is published to PyPI. It allows us to use the latest code without needing a release.
+COPY libs/amp-evaluation/pyproject.toml libs/amp-evaluation/README.md ./sdk/
+COPY libs/amp-evaluation/src/ ./sdk/src/
+RUN pip install --no-cache-dir ./sdk requests
 
 # Copy the job entrypoint
-COPY main.py ./
+COPY evaluation-job/main.py ./
 
 # Create non-root user
 RUN adduser -D -u 1000 ampuser && \
