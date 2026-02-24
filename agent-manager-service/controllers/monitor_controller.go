@@ -466,13 +466,6 @@ func validateEvaluatorInputs(evaluators []spec.MonitorEvaluator) string {
 		if eval.DisplayName == "" {
 			return fmt.Sprintf("evaluators[%d].displayName is required", i)
 		}
-		level, _ := eval.Config["level"].(string)
-		if level == "" {
-			return fmt.Sprintf("evaluators[%d].config.level is required", i)
-		}
-		if level != "trace" && level != "agent" && level != "span" {
-			return fmt.Sprintf("evaluators[%d].config.level must be one of: trace, agent, span", i)
-		}
 	}
 	return ""
 }

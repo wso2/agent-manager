@@ -56,13 +56,6 @@ func (c *evaluatorController) ListEvaluators(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	// Extract org name from path
-	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
-
 	// Parse query parameters
 	limit, _ := strconv.ParseInt(r.URL.Query().Get("limit"), 10, 32)
 	if limit <= 0 {
@@ -134,13 +127,6 @@ func (c *evaluatorController) ListEvaluators(w http.ResponseWriter, r *http.Requ
 func (c *evaluatorController) GetEvaluator(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-
-	// Extract org name from path
-	orgName := r.PathValue("orgName")
-	if orgName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Organization name is required")
-		return
-	}
 
 	// Extract and URL-decode evaluator identifier
 	evaluatorID := r.PathValue("evaluatorId")

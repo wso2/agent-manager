@@ -9115,7 +9115,6 @@ components:
         - level
         - aggregations
         - count
-        - aggregations
       properties:
         identifier:
           type: string

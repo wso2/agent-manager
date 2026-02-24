@@ -61,6 +61,15 @@ type MonitorLLMProviderConfig struct {
 	Value  string `json:"value"`  // API key value
 }
 
+// redactLLMProviderConfigs returns a copy with secret values cleared.
+func redactLLMProviderConfigs(configs []MonitorLLMProviderConfig) []MonitorLLMProviderConfig {
+	redacted := make([]MonitorLLMProviderConfig, len(configs))
+	for i, c := range configs {
+		redacted[i] = MonitorLLMProviderConfig{EnvVar: c.EnvVar, Value: "****"}
+	}
+	return redacted
+}
+
 // Monitor is the GORM model for the monitors table
 type Monitor struct {
 	ID                 uuid.UUID                  `gorm:"column:id;primaryKey;type:uuid;default:gen_random_uuid()"`
@@ -100,7 +109,7 @@ func (m *Monitor) ToResponse(status MonitorStatus, latestRun *MonitorRunResponse
 		EnvironmentName:    m.EnvironmentName,
 		EnvironmentID:      m.EnvironmentID,
 		Evaluators:         m.Evaluators,
-		LLMProviderConfigs: m.LLMProviderConfigs,
+		LLMProviderConfigs: redactLLMProviderConfigs(m.LLMProviderConfigs),
 		IntervalMinutes:    m.IntervalMinutes,
 		NextRunTime:        m.NextRunTime,
 		TraceStart:         m.TraceStart,
@@ -133,15 +142,16 @@ func (MonitorRun) TableName() string { return "monitor_runs" }
 // ToResponse converts a MonitorRun DB record to MonitorRunResponse
 func (r *MonitorRun) ToResponse() *MonitorRunResponse {
 	return &MonitorRunResponse{
-		ID:           r.ID.String(),
-		MonitorName:  "",
-		Evaluators:   r.Evaluators,
-		TraceStart:   r.TraceStart,
-		TraceEnd:     r.TraceEnd,
-		StartedAt:    r.StartedAt,
-		CompletedAt:  r.CompletedAt,
-		Status:       r.Status,
-		ErrorMessage: r.ErrorMessage,
+		ID:                 r.ID.String(),
+		MonitorName:        "",
+		Evaluators:         r.Evaluators,
+		LLMProviderConfigs: redactLLMProviderConfigs(r.LLMProviderConfigs),
+		TraceStart:         r.TraceStart,
+		TraceEnd:           r.TraceEnd,
+		StartedAt:          r.StartedAt,
+		CompletedAt:        r.CompletedAt,
+		Status:             r.Status,
+		ErrorMessage:       r.ErrorMessage,
 	}
 }
 
@@ -207,15 +217,16 @@ type MonitorListResponse struct {
 
 // MonitorRunResponse represents a single monitor execution run
 type MonitorRunResponse struct {
-	ID           string             `json:"id"`
-	MonitorName  string             `json:"monitorName,omitempty"`
-	Evaluators   []MonitorEvaluator `json:"evaluators"`
-	TraceStart   time.Time          `json:"traceStart"`
-	TraceEnd     time.Time          `json:"traceEnd"`
-	StartedAt    *time.Time         `json:"startedAt,omitempty"`
-	CompletedAt  *time.Time         `json:"completedAt,omitempty"`
-	Status       string             `json:"status"`
-	ErrorMessage *string            `json:"errorMessage,omitempty"`
+	ID                 string                     `json:"id"`
+	MonitorName        string                     `json:"monitorName,omitempty"`
+	Evaluators         []MonitorEvaluator         `json:"evaluators"`
+	LLMProviderConfigs []MonitorLLMProviderConfig `json:"llmProviderConfigs,omitempty"`
+	TraceStart         time.Time                  `json:"traceStart"`
+	TraceEnd           time.Time                  `json:"traceEnd"`
+	StartedAt          *time.Time                 `json:"startedAt,omitempty"`
+	CompletedAt        *time.Time                 `json:"completedAt,omitempty"`
+	Status             string                     `json:"status"`
+	ErrorMessage       *string                    `json:"errorMessage,omitempty"`
 }
 
 // MonitorRunsListResponse is the API response for listing monitor runs

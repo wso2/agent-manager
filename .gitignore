@@ -34,6 +34,7 @@ replay_pid*
 go.work
 vendor/
 service/bin/
+agent-manager-service/agent-manager-service
 
 # IDEs
 .vscode/
