@@ -21,11 +21,14 @@ This module handles fetching traces from external trace service APIs.
 Uses OTEL/AMP attribute models that match the trace service API schema.
 These traces can then be parsed into Trajectory objects for evaluation.
 
-The models here are based on the OpenAPI spec (/traces/export endpoint):
-- Trace (FullTrace schema)
-- Span (Span schema)
-- TokenUsage (TokenUsage schema)
-- TraceStatus (TraceStatus schema)
+The OTEL models here are based on the OpenAPI spec (/traces/export endpoint):
+- OTELTrace (FullTrace schema)
+- OTELSpan (Span schema)
+- OTELTokenUsage (TokenUsage schema)
+- OTELTraceStatus (TraceStatus schema)
+
+Named with OTEL prefix to avoid collision with evaluation models
+(Trace, TokenUsage in trace/models.py).
 """
 
 from dataclasses import dataclass, field
@@ -69,6 +72,7 @@ def _parse_timestamp(raw_timestamp: Any) -> Optional[datetime]:
         except (ValueError, TypeError):
             pass
 
+    logger.warning(f"Could not parse timestamp: {raw_timestamp!r}")
     return None
 
 
@@ -78,7 +82,7 @@ def _parse_timestamp(raw_timestamp: Any) -> Optional[datetime]:
 
 
 @dataclass
-class TokenUsage:
+class OTELTokenUsage:
     """Token usage for LLM operations (from OpenAPI TokenUsage schema)."""
 
     inputTokens: int = 0
@@ -87,14 +91,14 @@ class TokenUsage:
 
 
 @dataclass
-class TraceStatus:
+class OTELTraceStatus:
     """Trace execution status (from OpenAPI TraceStatus schema)."""
 
     errorCount: int = 0
 
 
 @dataclass
-class Span:
+class OTELSpan:
     """
     A single span in the trace (from OpenAPI Span schema).
     Represents one operation from OTEL/AMP attributes.
@@ -120,7 +124,7 @@ class Span:
 
 
 @dataclass
-class Trace:
+class OTELTrace:
     """
     Complete trace from the trace service (from OpenAPI FullTrace schema).
     This is the raw OTEL/AMP attribute model returned by /traces/export.
@@ -132,12 +136,12 @@ class Trace:
     rootSpanName: str
     startTime: str  # ISO 8601 format
     endTime: str  # ISO 8601 format
-    spans: List[Span]
+    spans: List[OTELSpan]
     rootSpanKind: Optional[str] = None
     durationInNanos: Optional[int] = None
     spanCount: Optional[int] = None
-    tokenUsage: Optional[TokenUsage] = None
-    status: Optional[TraceStatus] = None
+    tokenUsage: Optional[OTELTokenUsage] = None
+    status: Optional[OTELTraceStatus] = None
     input: Optional[Any] = None  # oneOf: string, object, array
     output: Optional[Any] = None  # oneOf: string, object, array
     taskId: Optional[str] = None  # Task ID from baggage (for evaluation experiments)
@@ -161,27 +165,27 @@ class Trace:
 # ============================================================================
 
 
-def _parse_token_usage(data: Optional[Dict[str, Any]]) -> Optional[TokenUsage]:
+def _parse_token_usage(data: Optional[Dict[str, Any]]) -> Optional[OTELTokenUsage]:
     """Parse TokenUsage from API response."""
     if not data:
         return None
-    return TokenUsage(
+    return OTELTokenUsage(
         inputTokens=data.get("inputTokens", 0),
         outputTokens=data.get("outputTokens", 0),
         totalTokens=data.get("totalTokens", 0),
     )
 
 
-def _parse_trace_status(data: Optional[Dict[str, Any]]) -> Optional[TraceStatus]:
+def _parse_trace_status(data: Optional[Dict[str, Any]]) -> Optional[OTELTraceStatus]:
     """Parse TraceStatus from API response."""
     if not data:
         return None
-    return TraceStatus(errorCount=data.get("errorCount", 0))
+    return OTELTraceStatus(errorCount=data.get("errorCount", 0))
 
 
-def _parse_span(data: Dict[str, Any]) -> Span:
+def _parse_span(data: Dict[str, Any]) -> OTELSpan:
     """Parse Span from API response."""
-    return Span(
+    return OTELSpan(
         traceId=data["traceId"],
         spanId=data["spanId"],
         name=data["name"],
@@ -197,11 +201,11 @@ def _parse_span(data: Dict[str, Any]) -> Span:
     )
 
 
-def _parse_trace(data: Dict[str, Any]) -> Trace:
+def _parse_trace(data: Dict[str, Any]) -> OTELTrace:
     """Parse Trace from API response."""
     spans = [_parse_span(s) for s in data.get("spans", [])]
 
-    return Trace(
+    return OTELTrace(
         traceId=data["traceId"],
         rootSpanId=data["rootSpanId"],
         rootSpanName=data["rootSpanName"],
@@ -225,17 +229,6 @@ def _parse_trace(data: Dict[str, Any]) -> Trace:
 # ============================================================================
 
 
-@dataclass
-class TraceFetchConfig:
-    """Configuration for trace fetching."""
-
-    base_url: str
-    agent_uid: str
-    environment_uid: str
-    timeout: int = 30
-    batch_size: int = 100
-
-
 class TraceFetcher:
     """
     Fetches traces from the trace service API using the /traces/export endpoint.
@@ -255,7 +248,7 @@ class TraceFetcher:
         )
     """
 
-    def __init__(self, base_url: str, agent_uid: str, environment_uid: str, timeout: int = 30):
+    def __init__(self, base_url: str, agent_uid: str, environment_uid: str, api_key: str = "", timeout: int = 30):
         """
         Initialize trace fetcher.
 
@@ -263,6 +256,7 @@ class TraceFetcher:
             base_url: Base URL of the trace service (required)
             agent_uid: Agent unique identifier (required)
             environment_uid: Environment unique identifier (required)
+            api_key: API key for authentication (optional)
             timeout: Request timeout in seconds
         """
         if not base_url:
@@ -275,21 +269,21 @@ class TraceFetcher:
         self.base_url = base_url.rstrip("/")
         self.agent_uid = agent_uid
         self.environment_uid = environment_uid
+        self.api_key = api_key
         self.timeout = timeout
 
-    def fetch_traces(self, start_time: str, end_time: str, limit: int = 100, offset: int = 0) -> List[Trace]:
+    def fetch_traces(self, start_time: str, end_time: str) -> List[OTELTrace]:
         """
         Fetch traces from the trace service using /traces/export endpoint.
 
         Args:
             start_time: Start time in ISO 8601 format (e.g., "2025-12-16T06:58:02.433Z")
             end_time: End time in ISO 8601 format
-            limit: Maximum number of traces to fetch (max 1000)
-            offset: Number of traces to skip for pagination
 
         Returns:
             List of Trace objects with OTEL/AMP attributes
         """
+        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         try:
             response = requests.get(
                 f"{self.base_url}/api/v1/traces/export",
@@ -298,9 +292,8 @@ class TraceFetcher:
                     "endTime": end_time,
                     "componentUid": self.agent_uid,
                     "environmentUid": self.environment_uid,
-                    "limit": str(limit),
-                    "offset": str(offset),
                 },
+                headers=headers,
                 timeout=self.timeout,
             )
             response.raise_for_status()
@@ -314,7 +307,7 @@ class TraceFetcher:
             logger.error(f"Failed to fetch traces: {e}")
             return []
 
-    def fetch_trace_by_id(self, trace_id: str) -> Optional[Trace]:
+    def fetch_trace_by_id(self, trace_id: str) -> Optional[OTELTrace]:
         """
         Fetch a single trace by its ID using /trace endpoint.
 
@@ -324,10 +317,12 @@ class TraceFetcher:
         Returns:
             Trace object or None if not found
         """
+        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         try:
             response = requests.get(
                 f"{self.base_url}/api/v1/trace",
                 params={"traceId": trace_id, "componentUid": self.agent_uid, "environmentUid": self.environment_uid},
+                headers=headers,
                 timeout=self.timeout,
             )
             response.raise_for_status()
@@ -343,7 +338,7 @@ class TraceFetcher:
             # Find root span to get trace-level info
             root_span = next((s for s in spans if s.parentSpanId is None), spans[0])
 
-            return Trace(
+            return OTELTrace(
                 traceId=trace_id,
                 rootSpanId=root_span.spanId,
                 rootSpanName=root_span.name,
@@ -384,33 +379,21 @@ class TraceLoader:
     Loads traces from local JSON files.
 
     Usage:
-        loader = TraceLoader(
-            file_path="traces.json",
-            agent_uid="my-agent",
-            environment_uid="prod"
-        )
+        loader = TraceLoader(file_path="traces.json")
         traces = loader.load_batch(limit=50)
     """
 
-    def __init__(self, file_path: str, agent_uid: str, environment_uid: str):
+    def __init__(self, file_path: str):
         """
         Initialize trace loader.
 
         Args:
             file_path: Path to JSON file containing traces (required)
-            agent_uid: Agent identifier to filter by (required)
-            environment_uid: Environment identifier to filter by (required)
         """
         if not file_path:
             raise ValueError("file_path is required")
-        if not agent_uid:
-            raise ValueError("agent_uid is required")
-        if not environment_uid:
-            raise ValueError("environment_uid is required")
 
         self.file_path = Path(file_path)
-        self.agent_uid = agent_uid
-        self.environment_uid = environment_uid
         self._traces: Optional[List[Dict[str, Any]]] = None
         self._last_loaded_index = 0
 
@@ -439,7 +422,7 @@ class TraceLoader:
 
     def load_batch(
         self, limit: int = 100, start_time: Optional[str] = None, end_time: Optional[str] = None
-    ) -> List[Trace]:
+    ) -> List[OTELTrace]:
         """
         Load a batch of traces from the file.
 

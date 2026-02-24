@@ -32,7 +32,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from amp_evaluation.trace import (
     # Core trace
     TokenUsage,
-    Message,
     ToolCall,
     parse_trace_for_evaluation,
     parse_traces_for_evaluation,
@@ -40,16 +39,22 @@ from amp_evaluation.trace import (
 
 # OTEL models from fetcher (internal)
 from amp_evaluation.trace.fetcher import (
-    Trace as OTELTrace,
-    Span as OTELSpan,
-    TraceStatus as OTELTraceStatus,
+    OTELTrace,
+    OTELSpan,
+    OTELTraceStatus,
 )
 
 # Import span types and models for testing
 from amp_evaluation.trace.models import (
-    AgentStep,
-    ToolSpan,
     AgentSpan,
+    ToolSpan,
+    UserStep,
+    LLMStep,
+    ToolExecutionStep,
+    SystemMessage,
+    UserMessage,
+    AssistantMessage,
+    ToolMessage,
 )
 
 # Also import the internal parse function from fetcher to convert real OTEL JSON
@@ -173,9 +178,9 @@ class TestTraceParser:
 
         # Check messages
         assert len(llm_span.messages) == 2
-        assert llm_span.messages[0].role == "system"
+        assert isinstance(llm_span.messages[0], SystemMessage)
         assert llm_span.messages[0].content == "You are helpful."
-        assert llm_span.messages[1].role == "user"
+        assert isinstance(llm_span.messages[1], UserMessage)
 
         # Check token usage
         assert llm_span.metrics.token_usage.input_tokens == 10
@@ -485,14 +490,13 @@ class TestTrajectoryStructure:
         assert combined.total_tokens == 27
 
     def test_message_with_tool_calls(self):
-        """Test Message with tool calls."""
-        msg = Message(
-            role="assistant",
+        """Test AssistantMessage with tool calls."""
+        msg = AssistantMessage(
             content="I'll search for that.",
             tool_calls=[ToolCall(id="tc1", name="search", arguments={"query": "test"})],
         )
 
-        assert msg.role == "assistant"
+        assert isinstance(msg, AssistantMessage)
         assert len(msg.tool_calls) == 1
         assert msg.tool_calls[0].name == "search"
 
@@ -679,17 +683,18 @@ class TestRealOTELTraces:
         all_steps = trajectory.get_agent_steps()
         assert len(all_steps) > 0, "No steps reconstructed"
 
-        # VERIFY: System prompts extracted (one per agent)
-        system_steps = [s for s in all_steps if s.step_type == "system"]
-        assert len(system_steps) >= 3, "Should have system prompts for 3 agents"
+        # VERIFY: System prompts are stored in AgentSpan metadata (not as steps)
+        # System messages are no longer steps; they are in agent.system_prompt
+        for agent in agents:
+            assert agent.system_prompt, f"{agent.name} should have system_prompt set"
 
         # VERIFY: get_agent_steps(agent_span_id) for each agent
         for agent in agents:
             agent_steps = trajectory.get_agent_steps(agent_span_id=agent.span_id)
             assert len(agent_steps) > 0, f"No steps for {agent.name}"
 
-            # Should have assistant steps (from LLM calls)
-            assistant_steps = [s for s in agent_steps if s.step_type == "assistant"]
+            # Should have LLM steps (from LLM calls)
+            assistant_steps = [s for s in agent_steps if isinstance(s, LLMStep)]
             assert len(assistant_steps) > 0, f"No assistant steps for {agent.name}"
 
     def test_sequential_agents_are_not_nested(self, sample_traces):
@@ -733,7 +738,7 @@ class TestRealOTELTraces:
             # VERIFY: Messages from ampAttributes.input
             assert llm.messages, f"LLM {llm.span_id} has no messages"
             for msg in llm.messages:
-                assert msg.role in ["system", "user", "assistant", "tool"]
+                assert isinstance(msg, (SystemMessage, UserMessage, AssistantMessage, ToolMessage))
 
             # VERIFY: Model from ampAttributes.data.model
             if llm.model:
@@ -753,12 +758,12 @@ class TestRealOTELTraces:
         # VERIFY: get_agent_steps() reconstruction
         steps = trajectory.get_agent_steps()
 
-        # Should have assistant steps
-        assistant_steps = [s for s in steps if s.step_type == "assistant"]
+        # Should have LLM steps
+        assistant_steps = [s for s in steps if isinstance(s, LLMStep)]
         assert len(assistant_steps) > 0, "Should have assistant steps"
 
-        # Should have tool_result steps (tools were executed even if not in LLM tool_calls)
-        tool_result_steps = [s for s in steps if s.step_type == "tool_result"]
+        # Should have tool execution steps (tools were executed even if not in LLM tool_calls)
+        tool_result_steps = [s for s in steps if isinstance(s, ToolExecutionStep)]
         assert len(tool_result_steps) >= 5, "Should have tool results"
 
         # VERIFY: Tool errors in steps
@@ -840,7 +845,7 @@ class TestRealOTELTraces:
         trajectory = parse_trace_for_evaluation(trace)
 
         root_spans = trajectory._get_root_level_spans()
-        tool_span_ids = {s.span_id for s in trajectory.steps if isinstance(s, ToolSpan)}
+        tool_span_ids = {s.span_id for s in trajectory.spans if isinstance(s, ToolSpan)}
 
         # VERIFY: No root span has tool as parent
         for span in root_spans:
@@ -872,17 +877,16 @@ class TestRealOTELTraces:
             # Should not crash
             steps = trajectory.get_agent_steps()
 
-            # VERIFY: All steps are valid AgentSteps
+            # VERIFY: All steps are valid typed AgentStep variants
             assert isinstance(steps, list)
             for step in steps:
-                assert isinstance(step, AgentStep)
-                assert step.step_type in ["system", "user", "assistant", "tool_result", "retrieval"]
+                assert isinstance(step, (UserStep, LLMStep, ToolExecutionStep))
 
-                # VERIFY: Nested steps are also valid
-                if step.nested_steps:
-                    for nested in step.nested_steps:
-                        assert isinstance(nested, AgentStep)
-                        assert nested.step_type in ["system", "user", "assistant", "tool_result", "retrieval"]
+                # VERIFY: Nested traces on ToolExecutionStep are also valid
+                if isinstance(step, ToolExecutionStep) and step.nested_traces:
+                    for nested in step.nested_traces:
+                        # nested_traces contain LLMSpan or AgentTrace objects
+                        assert nested is not None
 
             # VERIFY: If multi-agent, test agent-specific extraction
             agents = trajectory.get_agents()

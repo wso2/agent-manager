@@ -20,7 +20,7 @@ Loads configuration from environment variables using Pydantic Settings.
 """
 
 from typing import Optional
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -38,50 +38,55 @@ class AgentConfig(BaseSettings):
     )
 
 
-class PlatformConfig(BaseSettings):
-    """Platform API configuration."""
+class TraceConfig(BaseSettings):
+    """
+    Trace source configuration.
 
-    api_url: str = Field(default="", description="Platform API base URL")
-    api_key: str = Field(default="", description="API key for authentication")
+    The trace source is auto-detected from which fields are set:
+      - api_url set  → TraceFetcher (live traces from platform API)
+      - file_path set → TraceLoader (traces from a local JSON file)
+      - neither       → error at runtime when a runner tries to fetch traces
+
+    Environment variables:
+      AMP_TRACE_API_URL   - Platform API base URL
+      AMP_TRACE_API_KEY   - API key for authentication (optional)
+      AMP_TRACE_FILE_PATH - Path to trace JSON file
+    """
+
+    api_url: str = Field(default="", description="Platform API base URL for fetching live traces")
+    api_key: str = Field(default="", description="API key for authentication (optional)")
+    file_path: Optional[str] = Field(default=None, description="Path to local trace JSON file")
 
     model_config = SettingsConfigDict(
-        env_prefix="AMP_",
+        env_prefix="AMP_TRACE_",
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
 
-class TraceLoaderConfig(BaseSettings):
-    """Trace loading configuration."""
+class LLMJudgeConfig(BaseSettings):
+    """
+    Global defaults for LLM-as-judge evaluators.
 
-    mode: str = Field(default="platform", description="Trace loading mode: 'platform' or 'file'")
-    trace_file_path: Optional[str] = Field(default=None, description="Path to trace file (for file mode)")
-    batch_size: int = Field(default=100, description="Batch size for fetching traces")
+    Sets the default LLM model used by all built-in LLM judge evaluators.
+    Individual evaluators can always override this via the model= kwarg:
 
-    model_config = SettingsConfigDict(
-        env_prefix="AMP_TRACE_LOADER_",
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
+        builtin("helpfulness", model="gpt-4o")  # overrides global default
+
+    Override priority (highest to lowest):
+        1. Per-evaluator kwarg:   builtin("safety", model="gpt-4o")
+        2. Environment variable:  AMP_LLM_JUDGE_DEFAULT_MODEL=gpt-4o
+        3. Framework default:     gpt-4o-mini
+    """
+
+    default_model: str = Field(
+        default="gpt-4o-mini",
+        description="Default LLM model for all LLM-as-judge evaluators (overridable per-evaluator)",
     )
 
-    @field_validator("mode")
-    @classmethod
-    def validate_mode(cls, v: str) -> str:
-        """Validate trace loader mode."""
-        if v not in ("platform", "file"):
-            raise ValueError(f"Invalid mode '{v}'. Must be 'platform' or 'file'")
-        return v
-
-
-class ResultsConfig(BaseSettings):
-    """Results publishing configuration."""
-
-    publish_to_platform: bool = Field(default=False, description="Whether to publish results to platform")
-
     model_config = SettingsConfigDict(
-        env_prefix="AMP_",
+        env_prefix="AMP_LLM_JUDGE_",
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
@@ -92,50 +97,14 @@ class Config(BaseSettings):
     """Complete configuration for the evaluation framework."""
 
     agent: AgentConfig = Field(default_factory=AgentConfig)
-    platform: PlatformConfig = Field(default_factory=PlatformConfig)
-    trace_loader: TraceLoaderConfig = Field(default_factory=TraceLoaderConfig)
-    results: ResultsConfig = Field(default_factory=ResultsConfig)
+    trace: TraceConfig = Field(default_factory=TraceConfig)
+    llm_judge: LLMJudgeConfig = Field(default_factory=LLMJudgeConfig)
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
-
-    @model_validator(mode="after")
-    def validate_config(self) -> "Config":
-        """
-        Validate configuration after all fields are loaded.
-
-        Note: This validation is lenient - it only validates when configuration
-        is actually needed. Tests and programmatic usage can skip validation
-        by providing parameters directly to runners.
-
-        Raises:
-            ValueError: If validation fails
-        """
-        errors: list[str] = []
-
-        # Platform config (if publishing results or using platform mode)
-        # Only validate if these features are enabled and no explicit overrides provided
-        if self.results.publish_to_platform or self.trace_loader.mode == "platform":
-            if not self.platform.api_url:
-                # This is a warning, not an error - allow tests to run without env vars
-                pass
-                # errors.append("AMP_API_URL is required when publishing results or using platform mode")
-
-        # Trace loader config
-        if self.trace_loader.mode == "file":
-            if not self.trace_loader.trace_file_path:
-                # Only warn, don't fail
-                pass
-                # errors.append("AMP_TRACE_LOADER_TRACE_FILE_PATH is required when mode is 'file'")
-
-        if errors:
-            error_msg = "Configuration validation failed:\n  - " + "\n  - ".join(errors)
-            raise ValueError(error_msg)
-
-        return self
 
 
 # Global config instance (lazy loaded)
@@ -161,7 +130,7 @@ def get_config() -> Config:
     return _config
 
 
-def reload_config():
+def reload_config() -> Config:
     """Reload configuration from environment variables."""
     global _config
     _config = Config()

@@ -14,25 +14,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""
+Core data models for the evaluation framework.
+
+This module defines the evaluation result and summary models:
+- EvalResult: Result returned by evaluators (score + pass/fail + explanation)
+- EvaluatorScore: Individual score for a single trace/evaluator pair
+- EvaluatorSummary: Aggregated results for one evaluator across all traces
+- EvaluatorInfo: Metadata describing an evaluator (name, tags, config schema)
+- DataNotAvailableError: Exception for missing evaluation data
+- Agent: Minimal agent info from config
+"""
+
 from __future__ import annotations
 
 
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-
-
-"""
-Core data models for the evaluation framework.
-
-This module defines all the fundamental concepts:
-- Task: A test case with inputs and success criteria
-- Dataset: Collection of tasks for evaluation
-- Trajectory: Step-by-step execution record from traces
-- EvalResult: Result from an evaluator
-- EvalContext: Context provided to evaluators during evaluation
-- Constraints: Performance constraints for evaluation
-"""
 
 # ============================================================================
 # EXCEPTIONS
@@ -62,27 +61,32 @@ class EvalResult:
     """
     Result returned by evaluators.
 
+    Score convention:
+      - Range:    0.0 to 1.0 (enforced — raises ValueError if violated)
+      - Polarity: 0.0 = worst outcome, 1.0 = best outcome (higher is always better)
+
     Two types of results:
       1. Success: Evaluation completed with a score
          EvalResult(score=0.8, explanation="Good response")
          EvalResult(score=0.0, passed=False, explanation="Failed quality check")
 
-      2. Error: Evaluation could not be performed
+      2. Skip: Evaluation could not be performed
          EvalResult.skip("Missing required data")
          EvalResult.skip("API key not configured")
 
-    Always check is_error before accessing score/passed on unknown results.
+    Always check is_skipped before accessing score/passed on unknown results.
 
     Design rationale:
-      - score=0.0 means "evaluated and failed"
-      - skip() means "could not evaluate at all"
+      - score=0.0 means "evaluated and failed" (bad outcome)
+      - score=1.0 means "evaluated and passed" (best outcome)
+      - skip() means "could not evaluate at all" (not a score)
     """
 
     _score: Optional[float] = field(default=None, init=False, repr=False)
     _passed: Optional[bool] = field(default=None, init=False, repr=False)
     explanation: str = ""
     details: Optional[Dict[str, Any]] = None
-    error: Optional[str] = field(default=None, init=False, repr=False)
+    skip_reason: Optional[str] = field(default=None, init=False, repr=False)
 
     def __init__(
         self,
@@ -111,12 +115,12 @@ class EvalResult:
         self._passed = passed if passed is not None else score >= 0.5
         self.explanation = explanation
         self.details = details
-        self.error = None
+        self.skip_reason = None
 
     @classmethod
     def skip(cls, reason: str, details: Optional[Dict[str, Any]] = None) -> "EvalResult":
         """
-        Create an error result when evaluation cannot be performed.
+        Create a skipped result when evaluation cannot be performed.
 
         Use this when:
         - Required data is missing
@@ -125,45 +129,45 @@ class EvalResult:
 
         Args:
             reason: Why the evaluation was skipped
-            details: Additional context about the error
+            details: Additional context about the skip
 
         Returns:
-            EvalResult with is_error=True
+            EvalResult with is_skipped=True
         """
         obj = object.__new__(cls)
         obj._score = None
         obj._passed = None
         obj.explanation = reason
         obj.details = details
-        obj.error = reason
+        obj.skip_reason = reason
         return obj
 
     @property
     def score(self) -> float:
-        """Get evaluation score. Raises AttributeError if this is an error result."""
+        """Get evaluation score. Raises AttributeError if this is a skipped result."""
         if self._score is None:
             raise AttributeError(
-                f"Cannot access score on an error result. Check is_error before accessing score. Error: {self.error}"
+                f"Cannot access score on a skipped result. Check is_skipped before accessing score. Reason: {self.skip_reason}"
             )
         return self._score
 
     @property
     def passed(self) -> bool:
-        """Get pass/fail status. Raises AttributeError if this is an error result."""
+        """Get pass/fail status. Raises AttributeError if this is a skipped result."""
         if self._passed is None:
             raise AttributeError(
-                f"Cannot access passed on an error result. Check is_error before accessing passed. Error: {self.error}"
+                f"Cannot access passed on a skipped result. Check is_skipped before accessing passed. Reason: {self.skip_reason}"
             )
         return self._passed
 
     @property
-    def is_error(self) -> bool:
-        """Check if this result represents an evaluation error."""
-        return self.error is not None
+    def is_skipped(self) -> bool:
+        """Check if this result was skipped (could not be evaluated)."""
+        return self.skip_reason is not None
 
     def __repr__(self) -> str:
-        if self.is_error:
-            return f"EvalResult(error={self.error!r})"
+        if self.is_skipped:
+            return f"EvalResult(skip_reason={self.skip_reason!r})"
         return f"EvalResult(score={self._score}, passed={self._passed}, explanation={self.explanation!r})"
 
 
@@ -174,6 +178,10 @@ class EvaluatorScore:
 
     This is the detailed record of how one trace was evaluated by one evaluator.
     Used in EvaluatorSummary.individual_scores for detailed analysis.
+
+    Score convention:
+      - Range:    0.0 to 1.0 (validated at EvalResult creation time)
+      - Polarity: 0.0 = worst outcome, 1.0 = best outcome (higher is always better)
     """
 
     trace_id: str
@@ -187,13 +195,13 @@ class EvaluatorScore:
     trial_id: Optional[str] = None
     # Extra data from evaluator
     metadata: Dict[str, Any] = field(default_factory=dict)
-    # Error tracking (if evaluator failed to run)
-    error: Optional[str] = None  # Set if evaluation failed with exception
+    # Skip tracking (if evaluator could not produce a score)
+    skip_reason: Optional[str] = None  # Set if evaluation was skipped (intentional or exception)
 
     @property
-    def is_error(self) -> bool:
-        """Check if this score represents an evaluation error."""
-        return self.error is not None
+    def is_skipped(self) -> bool:
+        """Check if this evaluation was skipped (could not produce a score)."""
+        return self.skip_reason is not None
 
 
 @dataclass
@@ -214,6 +222,7 @@ class EvaluatorSummary:
 
     evaluator_name: str
     count: int
+    skipped_count: int = 0  # Evaluations that could not produce a score (intentional or exception)
     aggregated_scores: Dict[str, float] = field(default_factory=dict)  # e.g., {"mean": 0.85, "pass_rate_0.5": 0.9}
     individual_scores: List[EvaluatorScore] = field(default_factory=list)
     level: str = "trace"  # Evaluation level: "trace", "agent", or "span"
@@ -280,10 +289,108 @@ class EvaluatorSummary:
         """
         return self.get_by_metadata("agent_name", agent_name)
 
+    def summary(self, verbosity: str = "default") -> str:
+        """Format this evaluator's results as a human-readable string.
+
+        Args:
+            verbosity: "compact", "default", or "detailed"
+        """
+        name = self.evaluator_name
+        mean_str = f"{self.mean:.4f}" if self.mean is not None else "N/A"
+        pass_rate = self.pass_rate
+        pass_rate_str = f"{pass_rate:.1%}" if pass_rate is not None else "N/A"
+        skipped_str = f", skipped={self.skipped_count}" if self.skipped_count > 0 else ""
+
+        if verbosity == "compact":
+            return f"  {name}: count={self.count}{skipped_str}, mean={mean_str}, pass_rate={pass_rate_str}"
+
+        # Default and detailed share the header block
+        lines = [f"  {name}:"]
+        lines.append(f"    level: {self.level}")
+        lines.append(f"    count: {self.count}")
+        if self.skipped_count > 0:
+            lines.append(f"    skipped: {self.skipped_count}")
+        for agg_name, value in self.aggregated_scores.items():
+            if isinstance(value, (int, float)):
+                lines.append(f"    {agg_name}: {value:.4f}")
+            else:
+                lines.append(f"    {agg_name}: {value}")
+
+        if verbosity == "detailed" and self.individual_scores:
+            lines.append(f"    individual scores ({len(self.individual_scores)}):")
+            for score in self.individual_scores:
+                trace_short = score.trace_id[:12] if len(score.trace_id) > 12 else score.trace_id
+                if score.is_skipped:
+                    lines.append(f"      [ SKIP] trace={trace_short}...")
+                    if score.skip_reason:
+                        lines.append(f"              {score.skip_reason}")
+                else:
+                    status = "PASS" if score.passed else "FAIL"
+                    lines.append(f"      [{status}] trace={trace_short}... score={score.score:.2f}")
+                    if score.explanation:
+                        for line in score.explanation.strip().splitlines():
+                            lines.append(f"              {line}")
+
+        return "\n".join(lines)
+
+
+# ============================================================================
+# LLM PROVIDER CATALOG MODELS
+# ============================================================================
+
+
+@dataclass
+class LLMConfigField:
+    """A configuration field required by an LLM provider.
+
+    field_type drives how the platform renders and handles the value:
+      "password"  -> secret (mask in UI, do not log, treat as credential)
+      "text"      -> plain text (e.g. api_base URL, api_version string)
+
+    Values come from litellm's provider_create_fields.json — no custom
+    secret detection logic needed.
+    """
+
+    key: str  # "api_key", "api_base"
+    label: str  # "API Key", "Base URL"
+    field_type: str  # "password" (secret) | "text" (plain)
+    required: bool
+    env_var: str  # e.g. "OPENAI_API_KEY" — env var platform sets on the job process
+    description: str = ""
+
+
+@dataclass
+class LLMProviderInfo:
+    """Metadata about a supported LLM provider."""
+
+    name: str  # "openai" — litellm provider identifier
+    display_name: str  # "OpenAI"
+    config_fields: List["LLMConfigField"]
+    models: List[str]  # curated popular model strings (litellm-compatible)
+
 
 # ============================================================================
 # AGENT MODEL (Minimal - loaded from config)
 # ============================================================================
+
+
+@dataclass
+class EvaluatorInfo:
+    """
+    Metadata describing an evaluator.
+
+    Returned by .info property and builtin_evaluator_catalog().
+    """
+
+    name: str
+    description: str
+    tags: List[str]
+    version: str
+    modes: List[str]
+    level: str = "trace"  # Single level: "trace", "agent", or "llm"
+    config_schema: List[Dict[str, Any]] = field(default_factory=list)
+    class_name: Optional[str] = None
+    module: Optional[str] = None
 
 
 @dataclass

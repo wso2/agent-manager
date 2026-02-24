@@ -18,10 +18,11 @@
 Parameter descriptor and evaluation level enums for evaluators.
 
 Provides declarative parameter definition with type validation, defaults, and constraints,
-plus typed enums for evaluation levels.
+plus typed enums for evaluation levels and eval modes.
 """
 
 import enum as _enum
+import typing
 from typing import Any, Dict, Optional, List
 
 
@@ -37,14 +38,38 @@ class EvaluationLevel(str, _enum.Enum):
     Inherits from str so enum values are string-compatible:
         EvaluationLevel.TRACE == "trace"  # True
 
-    Usage:
-        evaluator = LatencyEvaluator(level=EvaluationLevel.AGENT)
-        evaluator = LatencyEvaluator(level="agent")  # Also works - auto-coerced
+    The evaluation level is auto-detected from the evaluate() method's
+    first parameter type hint:
+        def evaluate(self, trace: Trace) -> EvalResult:        # trace level
+        def evaluate(self, agent_trace: AgentTrace) -> EvalResult:  # agent level
+        def evaluate(self, llm_span: LLMSpan) -> EvalResult:   # llm level
     """
 
     TRACE = "trace"
     AGENT = "agent"
-    SPAN = "span"
+    LLM = "llm"
+
+
+class EvalMode(str, _enum.Enum):
+    """
+    Supported evaluation modes for evaluators.
+
+    Determines in which type of evaluation run an evaluator can participate:
+    - EXPERIMENT: Dataset-based benchmarking with ground truth (task is available)
+    - MONITOR: Production traffic monitoring without ground truth (task is None)
+
+    Inherits from str so enum values are string-compatible:
+        EvalMode.EXPERIMENT == "experiment"  # True
+
+    Usage:
+        # Eval mode is auto-detected from the evaluate() method signature:
+        def evaluate(self, trace: Trace) -> EvalResult:              # both modes (no task needed)
+        def evaluate(self, trace: Trace, task: Task) -> EvalResult:  # experiment only (task required)
+        def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:  # both modes
+    """
+
+    EXPERIMENT = "experiment"
+    MONITOR = "monitor"
 
 
 # ============================================================================
@@ -55,28 +80,35 @@ class EvaluationLevel(str, _enum.Enum):
 _NO_DEFAULT = object()
 
 
-class Param:
+class _ParamDescriptor:
     """
     Descriptor for evaluator parameters.
 
     Provides:
-      - Type validation with Enum coercion (str → EvaluationLevel)
+      - Type validation (type inferred from class annotation or function hint)
       - Default values
       - Rich metadata (description, constraints)
       - Runtime introspection for schema generation
 
-    Usage:
+    Usage (class-based):
         class MyEvaluator(BaseEvaluator):
-            threshold = Param(float, default=0.7, description="Min score to pass")
-            model = Param(str, default="gpt-4o-mini", description="LLM model")
+            threshold: float = Param(default=0.7, description="Min score to pass")
+            model: str = Param(default="gpt-4o-mini", description="LLM model")
 
-            def evaluate(self, observation):
+            def evaluate(self, trace: Trace) -> EvalResult:
                 print(self.threshold)  # 0.7 or whatever was passed
+
+    Usage (function-based):
+        @evaluator("my-eval")
+        def my_eval(
+            trace: Trace,
+            threshold: float = Param(default=0.7, description="Pass threshold"),
+        ) -> EvalResult:
+            ...
     """
 
     def __init__(
         self,
-        type: type,
         default: Any = _NO_DEFAULT,
         description: str = "",
         required: bool = False,
@@ -84,7 +116,7 @@ class Param:
         max: Optional[float] = None,
         enum: Optional[List[str]] = None,
     ):
-        self.type = type
+        self.type: Optional[type] = None  # Inferred from annotation
         self.default = default
         self.description = description
         self.min = min
@@ -92,41 +124,61 @@ class Param:
         self.enum = enum
 
         # Descriptor internals
-        self._attr_name = None
+        self._attr_name: Optional[str] = None
 
         # Determine if required based on whether a default was provided
         if default is not _NO_DEFAULT:
-            # Has an explicit default (even if None) - not required unless explicitly set
             self.required = required
         else:
-            # No default provided - required unless explicitly set to False
-            self.required = True if not required else required
+            self.required = True  # No default → always required
 
-    def __set_name__(self, owner, name):
+    def __set_name__(self, owner: type, name: str):
         """Called when the descriptor is assigned to a class attribute."""
         self._attr_name = name
+        # Infer type from class annotation
+        annotations = typing.get_type_hints(owner) if hasattr(owner, "__annotations__") else {}
+        if name in annotations:
+            self.type = annotations[name]
 
-    def __get__(self, obj, objtype=None):
+    def __get__(self, obj: Any, objtype: Any = None) -> Any:
         """Get the param value from the instance, or the descriptor from the class."""
         if obj is None:
-            # Class-level access — return the descriptor itself
-            # This allows introspection: MyEvaluator.threshold.description
             return self
-        # Return the value if set, otherwise the default (even if None)
         if self._attr_name in obj.__dict__:
             return obj.__dict__[self._attr_name]
         return None if self.default is _NO_DEFAULT else self.default
 
-    def __set__(self, obj, value):
-        """Set and validate the param value."""
-        if value is not None:
+    def __set__(self, obj: Any, value: Any) -> None:
+        """Set and validate the param value. All values go through _validate."""
+        if self.type is not None:
             value = self._validate(value)
         obj.__dict__[self._attr_name] = value
 
+    def _is_optional_type(self) -> bool:
+        """Check if the declared type allows None (e.g., Optional[T] or T | None)."""
+        origin = typing.get_origin(self.type)
+        if origin is typing.Union:
+            return type(None) in typing.get_args(self.type)
+        # Python 3.10+: X | None produces types.UnionType
+        import types as _types
+
+        if isinstance(self.type, _types.UnionType):
+            return type(None) in self.type.__args__
+        return False
+
     def _validate(self, value):
         """Validate a param value against constraints. Returns the coerced value."""
-        # Coerce str → Enum when type is an Enum subclass (str(Enum) pattern).
-        # This allows users to pass "trace" instead of EvaluationLevel.TRACE.
+        if self.type is None:
+            return value
+
+        # None handling: allowed only for Optional types
+        if value is None:
+            if self._is_optional_type():
+                return value
+            type_name = getattr(self.type, "__name__", str(self.type))
+            raise TypeError(f"Param '{self._attr_name}' expects {type_name}, got None")
+
+        # Coerce str → Enum when type is an Enum subclass
         if isinstance(self.type, type) and issubclass(self.type, _enum.Enum):
             if not isinstance(value, self.type):
                 try:
@@ -134,7 +186,7 @@ class Param:
                 except ValueError:
                     valid = [e.value for e in self.type]
                     raise ValueError(f"Param '{self._attr_name}' must be one of {valid}, got '{value}'")
-            return value  # Skip remaining checks — enum validation is complete
+            return value
 
         # Type coercion for common cases
         if self.type is set and isinstance(value, (list, tuple)):
@@ -143,7 +195,7 @@ class Param:
             value = list(value)
 
         # Type check
-        if not isinstance(value, self.type):
+        if isinstance(self.type, type) and not isinstance(value, self.type):
             # Allow int for float
             if self.type is float and isinstance(value, int):
                 value = float(value)
@@ -181,17 +233,20 @@ class Param:
         }
 
         # Determine type string and enum_values
-        if isinstance(self.type, type) and issubclass(self.type, _enum.Enum):
+        if self.type is not None and isinstance(self.type, type) and issubclass(self.type, _enum.Enum):
             schema["type"] = "string"
             schema["enum_values"] = [e.value for e in self.type]
-        else:
+        elif self.type is not None:
             schema["type"] = type_map.get(self.type, "string")
+            if self.enum is not None:
+                schema["enum_values"] = self.enum
+        else:
+            schema["type"] = "string"
             if self.enum is not None:
                 schema["enum_values"] = self.enum
 
         # Only include default if one was explicitly provided
         if self.default is not _NO_DEFAULT:
-            # Serialize enum defaults to their string values
             default_val = self.default.value if isinstance(self.default, _enum.Enum) else self.default
             schema["default"] = default_val
         if self.min is not None:
@@ -200,3 +255,40 @@ class Param:
             schema["max"] = self.max
 
         return schema
+
+
+def Param(
+    default: Any = _NO_DEFAULT,
+    description: str = "",
+    required: bool = False,
+    min: Optional[float] = None,
+    max: Optional[float] = None,
+    enum: Optional[List[str]] = None,
+) -> Any:
+    """
+    Create a parameter descriptor for evaluator configuration.
+
+    Returns a descriptor that provides type validation, defaults, and metadata.
+
+    Usage (class-based)::
+
+        class MyEvaluator(BaseEvaluator):
+            threshold: float = Param(default=0.7, description="Min score to pass")
+
+    Usage (function-based)::
+
+        @evaluator("my-eval")
+        def my_eval(
+            trace: Trace,
+            threshold: float = Param(default=0.7, description="Pass threshold"),
+        ) -> EvalResult:
+            ...
+    """
+    return _ParamDescriptor(
+        default=default,
+        description=description,
+        required=required,
+        min=min,
+        max=max,
+        enum=enum,
+    )

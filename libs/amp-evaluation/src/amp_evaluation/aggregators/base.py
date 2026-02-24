@@ -61,69 +61,6 @@ class AggregationType(Enum):
     PASS_RATE = "pass_rate"
 
 
-# Registry for custom aggregators (by name)
-_custom_aggregators: Dict[str, Callable] = {}
-
-
-def aggregator(name: str):
-    """
-    Decorator to register a custom aggregation function.
-
-    Args:
-        name: Unique name for the aggregator
-
-    Example:
-        @aggregator("weighted_average")
-        def weighted_average(scores: List[float], weights: List[float] = None, **kwargs) -> float:
-            if weights:
-                return sum(s * w for s, w in zip(scores, weights)) / sum(weights)
-            return sum(scores) / len(scores)
-
-        # Now use it:
-        Aggregation("weighted_average", weights=[0.5, 0.3, 0.2])
-    """
-
-    def decorator(func: Callable[[List[float]], float]) -> Callable[[List[float]], float]:
-        _custom_aggregators[name] = func
-        return func
-
-    return decorator
-
-
-def register_aggregator(name: str, func: Callable[[List[float]], float]):
-    """
-    Register a custom aggregation function for reuse.
-
-    Args:
-        name: Unique name for the aggregator
-        func: Function that takes list of scores (and optional **kwargs) and returns float
-
-    Example:
-        def weighted_average(scores: List[float], weights: List[float] = None, **kwargs) -> float:
-            if weights:
-                return sum(s * w for s, w in zip(scores, weights)) / sum(weights)
-            return sum(scores) / len(scores)
-
-        register_aggregator("weighted_average", weighted_average)
-
-        # Now use it:
-        Aggregation("weighted_average", weights=[0.5, 0.3, 0.2])
-    """
-    _custom_aggregators[name] = func
-
-
-def get_aggregator(name: str) -> Optional[Callable]:
-    """Get a registered custom aggregator by name."""
-    return _custom_aggregators.get(name)
-
-
-def list_aggregators() -> List[str]:
-    """List all available aggregators (builtin + custom)."""
-    builtin = [t.value for t in AggregationType]
-    custom = list(_custom_aggregators.keys())
-    return builtin + custom
-
-
 @dataclass
 class Aggregation:
     """
@@ -136,9 +73,6 @@ class Aggregation:
         # With enum type
         Aggregation(AggregationType.PASS_RATE, threshold=0.7)
         Aggregation(AggregationType.PASS_RATE, threshold=0.9)
-
-        # With custom registered function
-        Aggregation("weighted_average", weights=[0.5, 0.3, 0.2])
 
         # With inline custom function
         Aggregation(lambda scores: max(scores) - min(scores))  # range
@@ -202,11 +136,8 @@ class Aggregation:
             for agg_type in AggregationType:
                 if agg_type.value == self.type:
                     return BUILTIN_AGGREGATORS[agg_type]
-            # Try custom registry
-            custom = get_aggregator(self.type)
-            if custom:
-                return custom
-            raise ValueError(f"Unknown aggregation type: '{self.type}'. Available: {list_aggregators()}")
+            valid_types = [t.value for t in AggregationType]
+            raise ValueError(f"Unknown aggregation type: '{self.type}'. Available: {valid_types}")
         else:
             raise TypeError(f"Invalid aggregation type: {type(self.type)}")
 

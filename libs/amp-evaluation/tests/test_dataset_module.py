@@ -1,7 +1,11 @@
 """Tests for dataset module (schema and loader)."""
 
 import json
+import sys
 import pytest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from amp_evaluation.dataset import (
     Task,
@@ -13,7 +17,9 @@ from amp_evaluation.dataset import (
     load_dataset_from_csv,
     save_dataset_to_json,
 )
-from amp_evaluation.dataset.loader import parse_dataset_dict, parse_task_dict
+from amp_evaluation.dataset.loader import parse_dataset_dict, parse_task_dict, _resolve_task_field
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
 class TestGenerateId:
@@ -342,7 +348,7 @@ class TestCSVLoading:
         csv_file = tmp_path / "bad.csv"
         csv_file.write_text("wrong_column\nvalue\n")
 
-        with pytest.raises(ValueError, match="must have 'id' and 'input' columns"):
+        with pytest.raises(ValueError, match="must have.*'id'.*and 'input' columns"):
             load_dataset_from_csv(str(csv_file))
 
     def test_csv_nonexistent_file(self):
@@ -404,3 +410,266 @@ class TestIntegration:
 
         assert "schema_version" in data
         assert data["schema_version"] == "1.0"
+
+
+# ============================================================================
+# REGRESSION TESTS: Bugs found during code review
+# ============================================================================
+
+
+class TestConstraintsValidation:
+    """Regression: Constraints must reject invalid values (negative, zero)."""
+
+    def test_rejects_negative_latency(self):
+        """Negative max_latency_ms should raise ValidationError."""
+        with pytest.raises(Exception):  # Pydantic ValidationError
+            Constraints(max_latency_ms=-1.0)
+
+    def test_rejects_zero_tokens(self):
+        """Zero max_tokens should raise ValidationError (minimum is 1)."""
+        with pytest.raises(Exception):
+            Constraints(max_tokens=0)
+
+    def test_rejects_zero_iterations(self):
+        """Zero max_iterations should raise ValidationError (minimum is 1)."""
+        with pytest.raises(Exception):
+            Constraints(max_iterations=0)
+
+    def test_rejects_negative_cost(self):
+        """Negative max_cost should raise ValidationError."""
+        with pytest.raises(Exception):
+            Constraints(max_cost=-0.5)
+
+    def test_accepts_zero_latency(self):
+        """Zero latency is valid (ge=0.0)."""
+        c = Constraints(max_latency_ms=0.0)
+        assert c.max_latency_ms == 0.0
+
+    def test_accepts_valid_values(self):
+        """All positive values should be accepted."""
+        c = Constraints(max_latency_ms=5000, max_tokens=100, max_iterations=3, max_cost=1.50)
+        assert c.max_latency_ms == 5000
+        assert c.max_tokens == 100
+        assert c.max_iterations == 3
+        assert c.max_cost == 1.50
+
+
+class TestSuccessCriteriaType:
+    """Regression: success_criteria must accept both str and List[str]."""
+
+    def test_accepts_string(self):
+        """Single string success_criteria."""
+        task = Task(task_id="t1", input="test", success_criteria="Must be accurate")
+        assert task.success_criteria == "Must be accurate"
+
+    def test_accepts_list(self):
+        """List of strings success_criteria (as in sample JSON)."""
+        criteria = ["Provides clear instructions", "Mentions email verification"]
+        task = Task(task_id="t1", input="test", success_criteria=criteria)
+        assert task.success_criteria == criteria
+        assert len(task.success_criteria) == 2
+
+    def test_accepts_none(self):
+        """None is valid (optional field)."""
+        task = Task(task_id="t1", input="test")
+        assert task.success_criteria is None
+
+
+class TestDifficultyValidation:
+    """Regression: difficulty must be one of the allowed Literal values."""
+
+    def test_accepts_valid_difficulties(self):
+        """All valid difficulty levels should be accepted."""
+        for level in ["easy", "medium", "hard", "expert"]:
+            task = Task(task_id="t1", input="test", difficulty=level)
+            assert task.difficulty == level
+
+    def test_rejects_invalid_difficulty(self):
+        """Invalid difficulty value should raise ValidationError."""
+        with pytest.raises(Exception):
+            Task(task_id="t1", input="test", difficulty="impossible")
+
+    def test_default_difficulty_is_medium(self):
+        """Default difficulty should be 'medium'."""
+        task = Task(task_id="t1", input="test")
+        assert task.difficulty == "medium"
+
+
+class TestDatasetIdPropagation:
+    """Regression: dataset_id must be propagated to all tasks after parsing."""
+
+    def test_dataset_id_propagated_in_json_loading(self):
+        """parse_dataset_dict must set dataset_id on all tasks."""
+        data = {
+            "id": "ds_test_123",
+            "name": "Test",
+            "tasks": [
+                {"id": "t1", "input": "Input 1"},
+                {"id": "t2", "input": "Input 2"},
+                {"id": "t3", "input": "Input 3"},
+            ],
+        }
+        dataset = parse_dataset_dict(data)
+
+        for task in dataset.tasks:
+            assert task.dataset_id == "ds_test_123", f"Task {task.task_id} missing dataset_id"
+
+    def test_dataset_id_propagated_in_csv_loading(self, tmp_path):
+        """CSV loader must also propagate dataset_id to tasks."""
+        csv_file = tmp_path / "test.csv"
+        csv_file.write_text("id,input\nt1,Input 1\nt2,Input 2\n")
+
+        dataset = load_dataset_from_csv(str(csv_file))
+
+        for task in dataset.tasks:
+            assert task.dataset_id == dataset.dataset_id
+
+
+class TestMissingInputValidation:
+    """Regression: parse_task_dict must raise ValueError when 'input' is missing."""
+
+    def test_missing_input_raises_value_error(self):
+        """Task without 'input' field should raise ValueError with clear message."""
+        with pytest.raises(ValueError, match="missing required 'input' field"):
+            parse_task_dict({"id": "bad_task", "expected_output": "something"})
+
+    def test_missing_input_includes_task_id(self):
+        """Error message should include the task_id for debugging."""
+        with pytest.raises(ValueError, match="bad_task_99"):
+            parse_task_dict({"task_id": "bad_task_99"})
+
+
+class TestDuplicateTaskIdDetection:
+    """Regression: parse_dataset_dict should warn on duplicate task IDs."""
+
+    def test_duplicate_task_ids_logged(self, caplog):
+        """Duplicate task_id should produce a warning log."""
+        import logging
+
+        data = {
+            "name": "Test",
+            "tasks": [
+                {"id": "dup_id", "input": "Input 1"},
+                {"id": "dup_id", "input": "Input 2"},
+            ],
+        }
+
+        with caplog.at_level(logging.WARNING):
+            dataset = parse_dataset_dict(data)
+
+        # Both tasks are still loaded (warning, not error)
+        assert len(dataset.tasks) == 2
+        # Warning was emitted
+        assert any("Duplicate task_id" in msg for msg in caplog.messages)
+
+    def test_unique_task_ids_no_warning(self, caplog):
+        """Unique task_ids should not produce warnings."""
+        import logging
+
+        data = {
+            "name": "Test",
+            "tasks": [
+                {"id": "t1", "input": "Input 1"},
+                {"id": "t2", "input": "Input 2"},
+            ],
+        }
+
+        with caplog.at_level(logging.WARNING):
+            parse_dataset_dict(data)
+
+        assert not any("Duplicate task_id" in msg for msg in caplog.messages)
+
+
+class TestResolveTaskField:
+    """Regression: classification fields must be read from top-level → metadata → custom."""
+
+    def test_top_level_takes_priority(self):
+        """Top-level field should win over metadata and custom."""
+        task_data = {
+            "difficulty": "hard",
+            "metadata": {"difficulty": "easy"},
+            "custom": {"difficulty": "medium"},
+        }
+        assert _resolve_task_field(task_data, "difficulty") == "hard"
+
+    def test_metadata_fallback(self):
+        """When not at top level, metadata value should be used."""
+        task_data = {
+            "metadata": {"difficulty": "easy"},
+            "custom": {"difficulty": "medium"},
+        }
+        assert _resolve_task_field(task_data, "difficulty") == "easy"
+
+    def test_custom_fallback(self):
+        """When not at top level or metadata, custom value should be used."""
+        task_data = {
+            "custom": {"difficulty": "expert"},
+        }
+        assert _resolve_task_field(task_data, "difficulty") == "expert"
+
+    def test_default_when_missing_everywhere(self):
+        """When field is missing everywhere, default should be returned."""
+        task_data = {"metadata": {}, "custom": {}}
+        assert _resolve_task_field(task_data, "difficulty", "medium") == "medium"
+
+    def test_difficulty_read_from_fixture(self):
+        """The real fixture file should have difficulty parsed correctly (top-level field)."""
+        dataset = load_dataset_from_json(str(FIXTURES_DIR / "sample_dataset.json"))
+        task_001 = next(t for t in dataset.tasks if t.task_id == "task_001")
+        # difficulty is at top level in fixture, should be parsed (not default 'medium')
+        assert task_001.difficulty == "easy"
+
+
+# ============================================================================
+# TESTS: LOADING FROM REAL FIXTURE FILES
+# ============================================================================
+
+
+class TestFixtureFileLoading:
+    """Test loading from the actual fixture files used by all samples."""
+
+    def test_load_sample_dataset_json(self):
+        """Load the real sample_dataset.json fixture and verify parsed correctly."""
+        dataset = load_dataset_from_json(str(FIXTURES_DIR / "sample_dataset.json"))
+
+        # Name resolved from metadata.name
+        assert dataset.name == "Customer Support Dataset"
+        assert len(dataset.tasks) == 5
+
+        # Task IDs come from task_id field (not id)
+        task_ids = [t.task_id for t in dataset.tasks]
+        assert "task_001" in task_ids
+        assert "task_002" in task_ids
+
+        # Constraints merged from dataset defaults + per-task overrides
+        task_001 = next(t for t in dataset.tasks if t.task_id == "task_001")
+        assert task_001.constraints is not None
+        # task_001 overrides max_latency_ms=3000, max_tokens=500 (both override defaults)
+        assert task_001.constraints.max_latency_ms == 3000
+        assert task_001.constraints.max_tokens == 500  # task-level override of default 1000
+
+        # task_003 has no per-task constraints → all from dataset defaults
+        task_003 = next(t for t in dataset.tasks if t.task_id == "task_003")
+        assert task_003.constraints is not None
+        assert task_003.constraints.max_latency_ms == 5000
+
+        # Expected trajectory is parsed
+        assert task_001.expected_trajectory is not None
+        assert len(task_001.expected_trajectory) == 2
+        assert task_001.expected_trajectory[0].tool == "search_knowledge_base"
+
+    def test_load_simple_dataset_csv(self):
+        """Load the real simple_dataset.csv fixture and verify parsed correctly."""
+        dataset = load_dataset_from_csv(str(FIXTURES_DIR / "simple_dataset.csv"), name="CSV Fixture")
+
+        assert dataset.name == "CSV Fixture"
+        assert len(dataset.tasks) == 5
+
+        # task_id column (not id) is used
+        task_ids = [t.task_id for t in dataset.tasks]
+        assert "csv_001" in task_ids
+        assert "csv_005" in task_ids
+
+        first_task = next(t for t in dataset.tasks if t.task_id == "csv_001")
+        assert "return policy" in first_task.input.lower()
+        assert first_task.expected_output is not None

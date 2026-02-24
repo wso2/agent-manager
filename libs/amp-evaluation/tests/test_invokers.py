@@ -131,8 +131,8 @@ class TestAgentInvoker:
         """Test creating a valid AgentInvoker subclass."""
 
         class ValidInvoker(AgentInvoker):
-            def invoke(self, input) -> InvokeResult:
-                return InvokeResult(input=input, output="test")
+            def invoke(self, task_input) -> InvokeResult:
+                return InvokeResult(input=task_input, output="test")
 
         invoker = ValidInvoker()
         result = invoker.invoke("test input")
@@ -148,9 +148,9 @@ class TestAgentInvoker:
             def __init__(self):
                 self.call_count = 0
 
-            def invoke(self, input) -> InvokeResult:
+            def invoke(self, task_input) -> InvokeResult:
                 self.call_count += 1
-                return InvokeResult(input=input, output=f"Response {self.call_count}")
+                return InvokeResult(input=task_input, output=f"Response {self.call_count}")
 
         invoker = SimpleInvoker()
         inputs = ["input 1", "input 2", "input 3"]
@@ -167,10 +167,10 @@ class TestAgentInvoker:
         """Test that invoke_batch handles errors in individual invocations."""
 
         class ErrorProneInvoker(AgentInvoker):
-            def invoke(self, input) -> InvokeResult:
-                if "error" in input:
+            def invoke(self, task_input) -> InvokeResult:
+                if "error" in task_input:
                     raise ValueError("Simulated error")
-                return InvokeResult(input=input, output="success")
+                return InvokeResult(input=task_input, output="success")
 
         invoker = ErrorProneInvoker()
         inputs = ["normal", "error case", "normal"]
