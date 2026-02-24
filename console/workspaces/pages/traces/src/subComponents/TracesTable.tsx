@@ -28,7 +28,7 @@ import { FadeIn } from "@agent-management-platform/views";
 const { DataGrid: DataGridComponent } = DataGrid;
 import { TraceOverview } from "@agent-management-platform/types";
 import { CheckCircle, Workflow, XCircle } from "@wso2/oxygen-ui-icons-react";
-import dayjs from "dayjs";
+import { format } from "date-fns";
 
 interface TracesTableProps {
   traces: TraceOverview[];
@@ -212,7 +212,7 @@ export function TracesTable({
                         maxWidth: "100%",
                       }}
                     >
-                      {dayjs(trace.startTime).format("YYYY-MM-DD HH:mm:ss")}
+                      {format(new Date(trace.startTime), "yyyy-MM-dd HH:mm:ss")}
                     </Typography>
                   </ListingTable.Cell>
                   <ListingTable.Cell

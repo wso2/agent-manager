@@ -401,6 +401,10 @@
       "projectFolder": "workspaces/pages/metrics"
     },
     {
+      "packageName": "@agent-management-platform/eval",
+      "projectFolder": "workspaces/pages/eval"
+    },
+    {
       "packageName": "@agent-management-platform/add-new-project",
       "projectFolder": "workspaces/pages/add-new-project"
     }

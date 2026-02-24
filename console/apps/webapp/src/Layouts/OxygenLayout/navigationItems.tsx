@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { BarChart3 as AutoGraphOutlined, Binoculars } from "@wso2/oxygen-ui-icons-react";
+import { BarChart3 as AutoGraphOutlined, Binoculars as ObservabilityOutline, Settings2 as EvaluationOutline } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
   matchPath,
@@ -35,6 +35,7 @@ import { metaData as tracesMetadata } from "@agent-management-platform/traces";
 import { metaData as logsMetadata } from "@agent-management-platform/logs";
 import { metaData as metricsMetadata } from "@agent-management-platform/metrics";
 import { metaData as deploymentMetadata } from "@agent-management-platform/deploy";
+import { metaData as evalMetadata } from "@agent-management-platform/eval";
 import type { NavigationItem, NavigationSection } from "./LeftNavigation";
 
 /**
@@ -54,7 +55,7 @@ export function useNavigationItems(): Array<
     useListEnvironments({
       orgName: orgId,
     });
-  const defaultEnv = envId ??(environments && environments?.length > 0 )? environments?.[0]?.name : '';
+  const defaultEnv = envId ?? ((environments && environments.length > 0) ? environments[0]?.name : '');
   const { pathname } = useLocation();
 
   if (isLoadingAgent || (isLoadingEnvironments && agentId)) {
@@ -71,7 +72,7 @@ export function useNavigationItems(): Array<
       {
         label: overviewMetadata.title,
         type: "item",
-        icon: <overviewMetadata.icon  size={20} />,
+        icon: <overviewMetadata.icon size={20} />,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents.path,
           pathname
@@ -89,7 +90,7 @@ export function useNavigationItems(): Array<
           {
             label: tracesMetadata.title,
             type: "item",
-            icon: <tracesMetadata.icon  size={20} />,
+            icon: <tracesMetadata.icon size={20} />,
             isActive: !!matchPath(
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.environment.children.observability.children.traces.wildPath,
@@ -111,7 +112,7 @@ export function useNavigationItems(): Array<
       {
         label: overviewMetadata.title,
         type: "item",
-        icon: <overviewMetadata.icon  size={20} />,
+        icon: <overviewMetadata.icon size={20} />,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents.path,
           pathname
@@ -124,7 +125,7 @@ export function useNavigationItems(): Array<
       {
         label: buildMetadata.title,
         type: "item",
-        icon: <buildMetadata.icon  size={20} />,
+        icon: <buildMetadata.icon size={20} />,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.build.wildPath,
@@ -139,7 +140,7 @@ export function useNavigationItems(): Array<
       {
         label: deploymentMetadata.title,
         type: "item",
-        icon: <deploymentMetadata.icon  size={20} />,
+        icon: <deploymentMetadata.icon size={20} />,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.deployment.wildPath,
@@ -154,7 +155,7 @@ export function useNavigationItems(): Array<
       {
         label: testMetadata.title,
         type: "item",
-        icon: <testMetadata.icon  size={20} />,
+        icon: <testMetadata.icon size={20} />,
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projects.children.agents
             .children.environment.children.tryOut.wildPath,
@@ -169,12 +170,12 @@ export function useNavigationItems(): Array<
       {
         title: "Observability",
         type: "section",
-        icon: <Binoculars  />,
+        icon: <ObservabilityOutline />,
         items: [
           {
             label: tracesMetadata.title,
             type: "item",
-            icon: <tracesMetadata.icon  size={20} />,
+            icon: <tracesMetadata.icon size={20} />,
             isActive: !!matchPath(
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.environment.children.observability.children.traces
@@ -191,7 +192,7 @@ export function useNavigationItems(): Array<
           {
             label: logsMetadata.title,
             type: "item",
-            icon: <logsMetadata.icon  size={20} />,
+            icon: <logsMetadata.icon size={20} />,
             isActive: !!matchPath(
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.environment.children.observability.children.logs
@@ -208,7 +209,7 @@ export function useNavigationItems(): Array<
           {
             label: metricsMetadata.title,
             type: "item",
-            icon: <metricsMetadata.icon  size={20} />,
+            icon: <metricsMetadata.icon size={20} />,
             isActive: !!matchPath(
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.environment.children.observability.children.metrics
@@ -223,7 +224,32 @@ export function useNavigationItems(): Array<
             ),
           },
         ],
+
       },
+      {
+        title: "Evaluation",
+        type: "section",
+        icon: <EvaluationOutline />,
+        items: [
+          {
+            label: evalMetadata.pages.component.evalMonitors.title,
+            type: "item",
+            icon: <evalMetadata.pages.component.evalMonitors.icon size={20} />,
+            isActive: !!matchPath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.evaluation.children.monitor
+                .wildPath,
+              pathname
+            ),
+            href: generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .children.evaluation.children.monitor
+                .path,
+              { orgId, projectId, agentId, envId: defaultEnv }
+            ),
+          },
+        ]
+      }
     ];
   }
   if (orgId && projectId) {
@@ -231,7 +257,7 @@ export function useNavigationItems(): Array<
       {
         label: "Agents",
         type: "item",
-        icon: <overviewMetadata.icon  size={20} />,
+        icon: <overviewMetadata.icon size={20} />,
         href: generatePath(
           absoluteRouteMap.children.org.children.projects.path,
           { orgId, projectId }
@@ -254,7 +280,7 @@ export function useNavigationItems(): Array<
       {
         label: "Projects",
         type: "item",
-        icon: <overviewMetadata.icon  size={20} />,
+        icon: <overviewMetadata.icon size={20} />,
         href: generatePath(absoluteRouteMap.children.org.path, { orgId }),
         isActive: !!matchPath(absoluteRouteMap.children.org.path, pathname),
       },

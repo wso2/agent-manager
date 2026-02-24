@@ -33,6 +33,10 @@ import {
   LazyTracesComponent,
   LazyLogsComponent,
   LazyMetricsComponent,
+  LazyEvalMonitorsComponent,
+  LazyCreateMonitorComponent,
+  LazyViewMonitorComponent,
+  LazyEditMonitorComponent,
 } from "../pages";
 import { LoadingFallback } from "../components/LoadingFallback";
 import { relativeRouteMap } from "@agent-management-platform/types";
@@ -102,6 +106,63 @@ export function RootRouter() {
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.monitor.path
+                  }
+                  element={<LazyEvalMonitorsComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.monitor.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.monitor.children.create.path
+                  }
+                  element={<LazyCreateMonitorComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.monitor.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.monitor.children.edit.path
+                  }
+                  element={<LazyEditMonitorComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.monitor.path +
+                    "/" +
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.evaluation
+                      .children.monitor.children.view.path +
+                    "/*"
+                  }
+                  element={<LazyViewMonitorComponent />}
+                />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
                       .agents.children.environment.path
                   }
                 >
@@ -116,8 +177,8 @@ export function RootRouter() {
                     path={
                       relativeRouteMap.children.org.children.projects.children
                         .agents.children.environment.children.observability.path +
-                        "/" +
-                        relativeRouteMap.children.org.children.projects.children
+                      "/" +
+                      relativeRouteMap.children.org.children.projects.children
                         .agents.children.environment.children.observability
                         .children.traces.path
                     }
@@ -127,8 +188,8 @@ export function RootRouter() {
                     path={
                       relativeRouteMap.children.org.children.projects.children
                         .agents.children.environment.children.observability.path +
-                        "/" +
-                        relativeRouteMap.children.org.children.projects.children
+                      "/" +
+                      relativeRouteMap.children.org.children.projects.children
                         .agents.children.environment.children.observability
                         .children.logs.path
                     }
@@ -145,6 +206,7 @@ export function RootRouter() {
                     }
                     element={<LazyMetricsComponent />}
                   />
+
                 </Route>
               </Route>
             </Route>

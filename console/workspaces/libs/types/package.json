@@ -25,7 +25,7 @@
   "dependencies": {
     "@asgardeo/auth-react": "3.0.0",
     "@agent-management-platform/eslint-config": "workspace:*",
-    "dayjs": "1.11.18",
+    "date-fns": "4.1.0",
     "zod": "4.3.6"
   }
 }

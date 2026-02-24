@@ -28,10 +28,6 @@ import {
   useTheme,
 } from "@wso2/oxygen-ui";
 import { Check, Clock, X, ChevronRight } from "@wso2/oxygen-ui-icons-react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-
-dayjs.extend(relativeTime);
 
 const getIcon = (step: BuildStep) => {
   switch (step.status) {

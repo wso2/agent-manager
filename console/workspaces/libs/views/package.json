@@ -45,7 +45,7 @@
     "react-markdown": "10.1.0",
     "react-intl": "7.1.11",
     "react-hook-form": "7.65.0",
-    "dayjs": "1.11.18",
+    "date-fns": "4.1.0",
     "@mui/material": "7.0.0",
     "@mui/icons-material": "7.0.0",
     "@emotion/react": "11.13.5",

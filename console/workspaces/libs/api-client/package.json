@@ -35,7 +35,7 @@
     "@agent-management-platform/eslint-config": "workspace:*",
     "@tanstack/react-query": "5.90.5",
     "clsx": "2.1.1",
-    "dayjs": "1.11.18",
+    "date-fns": "4.1.0",
     "lodash": "4.17.21",
     "zod": "4.3.6",
     "@agent-management-platform/auth": "workspace:*"

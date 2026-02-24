@@ -46,6 +46,7 @@ export function DrawerWrapper({
           "& .MuiDrawer-paper": {
             minWidth,
             maxWidth,
+            backgroundColor: theme.vars?.palette.background.default,
             px: 2,
             py: 1,
             overflow: "visible",

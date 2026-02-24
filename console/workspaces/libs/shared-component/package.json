@@ -49,7 +49,7 @@
     "@agent-management-platform/views": "workspace:*",
     "@agent-management-platform/api-client": "workspace:*",
     "@agent-management-platform/types": "workspace:*",
-    "dayjs": "1.11.18",
+    "date-fns": "4.1.0",
     "zod": "4.3.6",
     "react-syntax-highlighter": "15.6.1"
   },

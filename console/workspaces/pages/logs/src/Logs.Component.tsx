@@ -53,7 +53,7 @@ const TIME_RANGE_OPTIONS = [
   { value: TraceListTimeRange.THIRTY_DAYS, label: "30 Days" },
 ];
 
-const DEFAULT_PAGE_SIZE = 2000;
+const DEFAULT_PAGE_SIZE = 300;
 const DEBOUNCE_TIME = 2000;
 type SortOrder = "asc" | "desc";
 
