@@ -36,6 +36,7 @@ type Entry struct {
 	Version      string
 	Provider     string
 	ClassName    string
+	Level        string // "trace", "agent", or "llm"
 	Tags         []string
 	ConfigSchema []models.EvaluatorConfigParam
 }

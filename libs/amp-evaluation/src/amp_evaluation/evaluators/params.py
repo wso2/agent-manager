@@ -176,6 +176,51 @@ class _ParamDescriptor:
             return type(None) in self.type.__args__
         return False
 
+    def _resolve_base_type(self):
+        """
+        Resolve the concrete base type, unwrapping Optional and generic aliases.
+
+        Returns the original type unchanged for multi-arg unions (e.g., int | str | None)
+        since those can't be reduced to a single base type.
+
+        Examples:
+            Optional[List[str]] → list
+            Optional[Set[str]]  → set
+            List[str]           → list
+            Optional[str]       → str
+            int                 → int
+            int | str | None    → int | str | None  (unchanged)
+        """
+        tp = self.type
+        if tp is None:
+            return None
+
+        # Unwrap Optional[X] (Union[X, None]) → X (only when exactly one inner type)
+        origin = typing.get_origin(tp)
+        if origin is typing.Union:
+            args = [a for a in typing.get_args(tp) if a is not type(None)]
+            if len(args) == 1:
+                tp = args[0]
+            else:
+                return tp  # Multi-arg union, can't resolve to single base type
+
+        # Python 3.10+: X | None produces types.UnionType
+        import types as _types
+
+        if isinstance(tp, _types.UnionType):
+            args = [a for a in tp.__args__ if a is not type(None)]
+            if len(args) == 1:
+                tp = args[0]
+            else:
+                return tp  # Multi-arg union, can't resolve to single base type
+
+        # Resolve generic alias origin: List[str] → list, Set[str] → set
+        base = typing.get_origin(tp)
+        if base is not None:
+            return base
+
+        return tp
+
     def _validate(self, value):
         """Validate a param value against constraints. Returns the coerced value."""
         if self.type is None:
@@ -188,29 +233,33 @@ class _ParamDescriptor:
             type_name = getattr(self.type, "__name__", str(self.type))
             raise TypeError(f"Param '{self._attr_name}' expects {type_name}, got None")
 
+        # Resolve the base type (unwrap Optional, resolve generics)
+        base_type = self._resolve_base_type()
+
         # Coerce str → Enum when type is an Enum subclass
-        if isinstance(self.type, type) and issubclass(self.type, _enum.Enum):
-            if not isinstance(value, self.type):
+        if isinstance(base_type, type) and issubclass(base_type, _enum.Enum):
+            if not isinstance(value, base_type):
                 try:
-                    value = self.type(value)
+                    value = base_type(value)
                 except ValueError:
-                    valid = [e.value for e in self.type]
+                    valid = [e.value for e in base_type]
                     raise ValueError(f"Param '{self._attr_name}' must be one of {valid}, got '{value}'")
             return value
 
         # Type coercion for common cases
-        if self.type is set and isinstance(value, (list, tuple)):
+        if base_type is set and isinstance(value, (list, tuple)):
             value = set(value)
-        elif self.type is list and isinstance(value, (set, tuple)):
+        elif base_type is list and isinstance(value, (set, tuple)):
             value = list(value)
 
         # Type check
-        if isinstance(self.type, type) and not isinstance(value, self.type):
+        if isinstance(base_type, type) and not isinstance(value, base_type):
             # Allow int for float
-            if self.type is float and isinstance(value, int):
+            if base_type is float and isinstance(value, int):
                 value = float(value)
             else:
-                raise TypeError(f"Param '{self._attr_name}' expects {self.type.__name__}, got {type(value).__name__}")
+                type_name = getattr(base_type, "__name__", str(base_type))
+                raise TypeError(f"Param '{self._attr_name}' expects {type_name}, got {type(value).__name__}")
 
         # Range check
         if self.min is not None and value < self.min:
@@ -243,11 +292,12 @@ class _ParamDescriptor:
         }
 
         # Determine type string and enum_values
-        if self.type is not None and isinstance(self.type, type) and issubclass(self.type, _enum.Enum):
+        base_type = self._resolve_base_type()
+        if base_type is not None and isinstance(base_type, type) and issubclass(base_type, _enum.Enum):
             schema["type"] = "string"
-            schema["enum_values"] = [e.value for e in self.type]
-        elif self.type is not None:
-            schema["type"] = type_map.get(self.type, "string")
+            schema["enum_values"] = [e.value for e in base_type]
+        elif base_type is not None:
+            schema["type"] = type_map.get(base_type, "string")
             if self.enum is not None:
                 schema["enum_values"] = self.enum
         else:

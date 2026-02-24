@@ -45,7 +45,7 @@ from datetime import datetime
 from typing import Dict, List, Any
 
 import requests
-from amp_evaluation import Monitor, register_builtin
+from amp_evaluation import Monitor, builtin
 from amp_evaluation.models import EvaluatorSummary
 from amp_evaluation.trace import TraceFetcher
 
@@ -234,14 +234,16 @@ def publish_scores(
                 item["spanId"] = score.span_id
             if score.is_successful and score.score is not None:
                 item["score"] = score.score
+            elif score.skip_reason:
+                item["skipReason"] = score.skip_reason
+            else:
+                item["skipReason"] = "Evaluation did not produce a score"
             if score.explanation:
                 item["explanation"] = score.explanation
             if score.timestamp:
                 item["traceTimestamp"] = score.timestamp.isoformat()
             if score.metadata:
                 item["metadata"] = score.metadata
-            if score.skip_reason:
-                item["skipReason"] = score.skip_reason
 
             individual_scores.append(item)
 
@@ -380,10 +382,10 @@ def main():
                 config,
             )
 
-    # Register built-in evaluators with configurations
+    # Create built-in evaluator instances with configurations
     # Build identifier lookup for publish: display_name -> identifier
     display_name_to_identifier = {}
-    evaluator_names = []
+    evaluator_instances = []
     for evaluator in evaluators_config:
         identifier = evaluator.get("identifier")
         display_name = evaluator.get("displayName")
@@ -397,8 +399,9 @@ def main():
         config = evaluator.get("config", {})
 
         try:
-            register_builtin(identifier, display_name=display_name, **config)
-            evaluator_names.append(display_name)
+            instance = builtin(identifier, **config)
+            instance.name = display_name
+            evaluator_instances.append(instance)
             display_name_to_identifier[display_name] = identifier
         except (ValueError, ImportError) as e:
             logger.error("Failed to register evaluator '%s': %s", identifier, e)
@@ -416,8 +419,8 @@ def main():
         )
 
         monitor = Monitor(
+            evaluators=evaluator_instances,
             trace_fetcher=fetcher,
-            include=evaluator_names,  # Only run these registered evaluators
         )
 
         # Run evaluation

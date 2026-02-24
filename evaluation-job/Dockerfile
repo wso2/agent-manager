@@ -33,7 +33,7 @@ RUN apk add --no-cache git
 # This is temporary until amp-evaluation is published to PyPI. It allows us to use the latest code without needing a release.
 COPY libs/amp-evaluation/pyproject.toml libs/amp-evaluation/README.md ./sdk/
 COPY libs/amp-evaluation/src/ ./sdk/src/
-RUN pip install --no-cache-dir ./sdk requests
+RUN pip install --no-cache-dir ./sdk requests litellm==1.81.14
 
 # Copy the job entrypoint
 COPY evaluation-job/main.py ./

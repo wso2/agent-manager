@@ -33,7 +33,7 @@ var migration006 = migration{
 			-- Evaluator identity
 			evaluator_name    VARCHAR(255) NOT NULL,
 			display_name      VARCHAR(255) NOT NULL,
-			level             VARCHAR(10) NOT NULL CHECK (level IN ('trace', 'agent', 'span')),
+			level             VARCHAR(10) NOT NULL CHECK (level IN ('trace', 'agent', 'llm')),
 
 			-- Aggregated results (flexible)
 			aggregations      JSONB NOT NULL DEFAULT '{}',

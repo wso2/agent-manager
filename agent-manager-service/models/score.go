@@ -86,7 +86,7 @@ type PublishScoreItem struct {
 type PublishAggregateItem struct {
 	Identifier   string                 `json:"identifier" validate:"required"`
 	DisplayName  string                 `json:"displayName" validate:"required"`
-	Level        string                 `json:"level" validate:"required,oneof=trace agent span"`
+	Level        string                 `json:"level" validate:"required,oneof=trace agent llm"`
 	Aggregations map[string]interface{} `json:"aggregations" validate:"required"`
 	Count        int                    `json:"count"`
 	SkippedCount int                    `json:"skippedCount"`

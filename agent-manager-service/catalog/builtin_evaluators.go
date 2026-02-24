@@ -12,6 +12,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "standard",
 		ClassName:   "AnswerLengthEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "rule-based", "quality"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_length", Type: "integer", Description: "Maximum acceptable length", Required: false, Default: float64(10000), Min: floatPtr(1)},
@@ -25,6 +26,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "standard",
 		ClassName:   "IterationCountEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "rule-based", "efficiency"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_iterations", Type: "integer", Description: "Maximum allowed iterations", Required: false, Default: float64(10), Min: floatPtr(1)},
@@ -38,6 +40,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "standard",
 		ClassName:   "LatencyEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "rule-based", "efficiency"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_latency_ms", Type: "float", Description: "Maximum allowed latency in milliseconds", Required: false, Default: float64(30000.0), Min: floatPtr(0.0)},
@@ -51,11 +54,12 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "standard",
 		ClassName:   "ProhibitedContentEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "rule-based", "safety", "compliance"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "case_sensitive", Type: "boolean", Description: "Whether to use case-sensitive matching", Required: false, Default: false},
-			{Key: "prohibited_patterns", Type: "string", Description: "List of prohibited regex patterns", Required: false, Default: nil},
-			{Key: "prohibited_strings", Type: "string", Description: "List of prohibited strings", Required: false, Default: nil},
+			{Key: "prohibited_patterns", Type: "array", Description: "List of prohibited regex patterns", Required: false, Default: nil},
+			{Key: "prohibited_strings", Type: "array", Description: "List of prohibited strings", Required: false, Default: nil},
 			{Key: "use_context_prohibited", Type: "boolean", Description: "Whether to use task.prohibited_content", Required: false, Default: true},
 		},
 	},
@@ -66,11 +70,12 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "standard",
 		ClassName:   "RequiredContentEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "rule-based", "compliance"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "case_sensitive", Type: "boolean", Description: "Whether to use case-sensitive matching", Required: false, Default: false},
-			{Key: "required_patterns", Type: "string", Description: "List of required regex patterns", Required: false, Default: nil},
-			{Key: "required_strings", Type: "string", Description: "List of required strings", Required: false, Default: nil},
+			{Key: "required_patterns", Type: "array", Description: "List of required regex patterns", Required: false, Default: nil},
+			{Key: "required_strings", Type: "array", Description: "List of required strings", Required: false, Default: nil},
 		},
 	},
 	{
@@ -80,9 +85,10 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "standard",
 		ClassName:   "RequiredToolsEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "rule-based", "tool-use"},
 		ConfigSchema: []models.EvaluatorConfigParam{
-			{Key: "required_tools", Type: "string", Description: "Set of required tool names", Required: false, Default: nil},
+			{Key: "required_tools", Type: "array", Description: "Set of required tool names", Required: false, Default: nil},
 		},
 	},
 	{
@@ -92,6 +98,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "standard",
 		ClassName:   "StepSuccessRateEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "rule-based", "tool-use"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "min_success_rate", Type: "float", Description: "Minimum required success rate", Required: false, Default: float64(0.8), Min: floatPtr(0.0), Max: floatPtr(1.0)},
@@ -104,6 +111,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "standard",
 		ClassName:   "TokenEfficiencyEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "rule-based", "efficiency"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "max_tokens", Type: "integer", Description: "Maximum allowed tokens", Required: false, Default: float64(10000), Min: floatPtr(1)},
@@ -117,9 +125,10 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "standard",
 		ClassName:   "ToolSequenceEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "rule-based", "tool-use"},
 		ConfigSchema: []models.EvaluatorConfigParam{
-			{Key: "expected_sequence", Type: "string", Description: "List of tool names in expected order", Required: false, Default: nil},
+			{Key: "expected_sequence", Type: "array", Description: "List of tool names in expected order", Required: false, Default: nil},
 			{Key: "strict", Type: "boolean", Description: "If True, requires exact sequence. If False, allows extra tools", Required: false, Default: false},
 			{Key: "use_context_trajectory", Type: "boolean", Description: "If True, uses task.expected_trajectory", Required: false, Default: true},
 		},
@@ -131,6 +140,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "AccuracyEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "llm-judge", "correctness"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "criteria", Type: "string", Description: "Evaluation criteria", Required: false, Default: "quality, accuracy, and helpfulness"},
@@ -148,6 +158,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "ClarityEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "llm-judge", "quality"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "criteria", Type: "string", Description: "Evaluation criteria", Required: false, Default: "quality, accuracy, and helpfulness"},
@@ -165,6 +176,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "CoherenceEvaluator",
+		Level:       "llm",
 		Tags:        []string{"builtin", "llm-judge", "quality"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "criteria", Type: "string", Description: "Evaluation criteria", Required: false, Default: "quality, accuracy, and helpfulness"},
@@ -182,6 +194,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "CompletenessEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "llm-judge", "quality"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "criteria", Type: "string", Description: "Evaluation criteria", Required: false, Default: "quality, accuracy, and helpfulness"},
@@ -199,6 +212,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "ConcisenessEvaluator",
+		Level:       "llm",
 		Tags:        []string{"builtin", "llm-judge", "quality", "efficiency"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "criteria", Type: "string", Description: "Evaluation criteria", Required: false, Default: "quality, accuracy, and helpfulness"},
@@ -216,6 +230,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "ContextRelevanceEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "llm-judge", "relevance"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "criteria", Type: "string", Description: "Evaluation criteria", Required: false, Default: "quality, accuracy, and helpfulness"},
@@ -234,6 +249,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "ErrorRecoveryEvaluator",
+		Level:       "agent",
 		Tags:        []string{"builtin", "llm-judge", "reasoning"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "criteria", Type: "string", Description: "Evaluation criteria", Required: false, Default: "quality, accuracy, and helpfulness"},
@@ -252,6 +268,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "FaithfulnessEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "llm-judge", "correctness"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "criteria", Type: "string", Description: "Evaluation criteria", Required: false, Default: "quality, accuracy, and helpfulness"},
@@ -270,6 +287,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "GoalClarityEvaluator",
+		Level:       "agent",
 		Tags:        []string{"builtin", "llm-judge", "reasoning"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "criteria", Type: "string", Description: "Evaluation criteria", Required: false, Default: "quality, accuracy, and helpfulness"},
@@ -287,6 +305,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "HallucinationEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "llm-judge", "correctness", "safety"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "criteria", Type: "string", Description: "Evaluation criteria", Required: false, Default: "quality, accuracy, and helpfulness"},
@@ -304,6 +323,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "HelpfulnessEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "llm-judge", "quality"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "criteria", Type: "string", Description: "Evaluation criteria", Required: false, Default: "quality, accuracy, and helpfulness"},
@@ -321,6 +341,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "InstructionFollowingEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "llm-judge", "compliance"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "criteria", Type: "string", Description: "Evaluation criteria", Required: false, Default: "quality, accuracy, and helpfulness"},
@@ -339,6 +360,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "PathEfficiencyEvaluator",
+		Level:       "agent",
 		Tags:        []string{"builtin", "llm-judge", "efficiency"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "criteria", Type: "string", Description: "Evaluation criteria", Required: false, Default: "quality, accuracy, and helpfulness"},
@@ -356,6 +378,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "ReasoningQualityEvaluator",
+		Level:       "agent",
 		Tags:        []string{"builtin", "llm-judge", "reasoning"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "criteria", Type: "string", Description: "Evaluation criteria", Required: false, Default: "quality, accuracy, and helpfulness"},
@@ -373,6 +396,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "RelevanceEvaluator",
+		Level:       "trace",
 		Tags:        []string{"builtin", "llm-judge", "relevance"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "criteria", Type: "string", Description: "Evaluation criteria", Required: false, Default: "quality, accuracy, and helpfulness"},
@@ -390,6 +414,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "SafetyEvaluator",
+		Level:       "llm",
 		Tags:        []string{"builtin", "llm-judge", "safety"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "context", Type: "string", Description: "Optional context about the interaction type (e.g., 'customer support', 'medical advice', 'children's education')", Required: false, Default: ""},
@@ -408,6 +433,7 @@ var entries = []*Entry{
 		Version:     "1.0",
 		Provider:    "llm_judge",
 		ClassName:   "ToneEvaluator",
+		Level:       "llm",
 		Tags:        []string{"builtin", "llm-judge", "quality"},
 		ConfigSchema: []models.EvaluatorConfigParam{
 			{Key: "context", Type: "string", Description: "Optional context about the expected tone (e.g., 'customer support', 'technical documentation', 'casual chat')", Required: false, Default: ""},

@@ -175,6 +175,7 @@ for ev in evaluators:
     version = ev.version or "1.0"
     provider = ev.module or ""
     class_name = ev.class_name or ""
+    level = ev.level or "trace"
     tags = ev.tags or []
     config_schema = ev.config_schema or []
 
@@ -185,6 +186,7 @@ for ev in evaluators:
     lines.append(f"\t\tVersion:     {json.dumps(version)},")
     lines.append(f"\t\tProvider:    {json.dumps(provider)},")
     lines.append(f"\t\tClassName:   {json.dumps(class_name)},")
+    lines.append(f"\t\tLevel:       {json.dumps(level)},")
     lines.append(f"\t\tTags:        {go_strings(tags)},")
 
     if config_schema:

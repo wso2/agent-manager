@@ -50,7 +50,7 @@ func realEvaluators() []models.MonitorEvaluator {
 		}},
 		{Identifier: "answer_length", DisplayName: "Answer Length", Config: map[string]interface{}{"level": "trace", "max_length": float64(5000), "min_length": float64(10)}},
 		{Identifier: "latency", DisplayName: "Agent Latency", Config: map[string]interface{}{"level": "agent", "max_latency_ms": float64(5000), "use_task_constraint": true}},
-		{Identifier: "latency", DisplayName: "Span Latency", Config: map[string]interface{}{"level": "span", "max_latency_ms": float64(1000), "use_task_constraint": true}},
+		{Identifier: "latency", DisplayName: "Span Latency", Config: map[string]interface{}{"level": "llm", "max_latency_ms": float64(1000), "use_task_constraint": true}},
 	}
 }
 
@@ -228,7 +228,7 @@ func TestExecuteMonitorRun_EvaluatorsJSON(t *testing.T) {
 	}
 	assert.Equal(t, 6, levels["trace"])
 	assert.Equal(t, 1, levels["agent"])
-	assert.Equal(t, 1, levels["span"])
+	assert.Equal(t, 1, levels["llm"])
 
 	// Verify a specific evaluator with simple config
 	latencyCheck := evaluators[0]
@@ -261,7 +261,7 @@ func TestExecuteMonitorRun_EvaluatorsJSON(t *testing.T) {
 	spanLatency := evaluators[7]
 	assert.Equal(t, "latency", spanLatency.Identifier)
 	assert.Equal(t, "Span Latency", spanLatency.DisplayName)
-	assert.Equal(t, "span", spanLatency.Config["level"])
+	assert.Equal(t, "llm", spanLatency.Config["level"])
 	assert.Equal(t, float64(1000), spanLatency.Config["max_latency_ms"])
 }
 

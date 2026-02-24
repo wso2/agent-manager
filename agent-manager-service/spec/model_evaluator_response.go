@@ -31,6 +31,8 @@ type EvaluatorResponse struct {
 	Version string `json:"version"`
 	// SDK binding provider
 	Provider string `json:"provider"`
+	// Evaluation granularity level
+	Level string `json:"level"`
 	// Classification tags
 	Tags []string `json:"tags"`
 	// Whether this is a platform-provided builtin evaluator
@@ -43,7 +45,7 @@ type EvaluatorResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewEvaluatorResponse(id string, identifier string, displayName string, description string, version string, provider string, tags []string, isBuiltin bool, configSchema []EvaluatorConfigParam) *EvaluatorResponse {
+func NewEvaluatorResponse(id string, identifier string, displayName string, description string, version string, provider string, level string, tags []string, isBuiltin bool, configSchema []EvaluatorConfigParam) *EvaluatorResponse {
 	this := EvaluatorResponse{}
 	this.Id = id
 	this.Identifier = identifier
@@ -51,6 +53,7 @@ func NewEvaluatorResponse(id string, identifier string, displayName string, desc
 	this.Description = description
 	this.Version = version
 	this.Provider = provider
+	this.Level = level
 	this.Tags = tags
 	this.IsBuiltin = isBuiltin
 	this.ConfigSchema = configSchema
@@ -209,6 +212,30 @@ func (o *EvaluatorResponse) SetProvider(v string) {
 	o.Provider = v
 }
 
+// GetLevel returns the Level field value
+func (o *EvaluatorResponse) GetLevel() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Level
+}
+
+// GetLevelOk returns a tuple with the Level field value
+// and a boolean to check if the value has been set.
+func (o *EvaluatorResponse) GetLevelOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Level, true
+}
+
+// SetLevel sets field value
+func (o *EvaluatorResponse) SetLevel(v string) {
+	o.Level = v
+}
+
 // GetTags returns the Tags field value
 func (o *EvaluatorResponse) GetTags() []string {
 	if o == nil {
@@ -297,6 +324,7 @@ func (o EvaluatorResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["description"] = o.Description
 	toSerialize["version"] = o.Version
 	toSerialize["provider"] = o.Provider
+	toSerialize["level"] = o.Level
 	toSerialize["tags"] = o.Tags
 	toSerialize["isBuiltin"] = o.IsBuiltin
 	toSerialize["configSchema"] = o.ConfigSchema

@@ -35,7 +35,7 @@ COPY libs/amp-evaluation/src/ ./sdk/src/
 RUN pip install --no-cache-dir -e ./sdk
 
 # Install additional dependencies
-RUN pip install --no-cache-dir requests
+RUN pip install --no-cache-dir requests litellm==1.81.14
 
 # Copy the job entrypoint
 COPY evaluation-job/main.py ./

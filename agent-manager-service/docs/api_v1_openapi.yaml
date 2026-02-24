@@ -4787,7 +4787,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [trace, agent, span]
+            enum: [trace, agent, llm]
           description: Filter by evaluation level
       responses:
         "200":
@@ -6184,13 +6184,18 @@ components:
             - identifier: "latency"
               displayName: "Latency Check"
               config:
-                level: "span"
+                level: "llm"
                 max_latency_ms: 3000
             - identifier: "answer_relevancy"
               displayName: "Answer Relevancy"
               config:
                 level: "trace"
                 min_overlap_ratio: 0.2
+        llmProviderConfigs:
+          type: array
+          description: LLM provider credentials for LLM-judge evaluators
+          items:
+            $ref: "#/components/schemas/MonitorLLMProviderConfig"
         type:
           type: string
           description: Monitor type - 'future' for continuous monitoring, 'past' for one-time historical analysis
@@ -6233,6 +6238,11 @@ components:
           items:
             $ref: "#/components/schemas/MonitorEvaluator"
           minItems: 1
+        llmProviderConfigs:
+          type: array
+          description: LLM provider credentials for LLM-judge evaluators
+          items:
+            $ref: "#/components/schemas/MonitorLLMProviderConfig"
         intervalMinutes:
           type: integer
           description: Interval in minutes for continuous monitoring (only for 'future' type)
@@ -6302,12 +6312,17 @@ components:
             - identifier: "latency"
               displayName: "Latency Check"
               config:
-                level: "span"
+                level: "llm"
                 max_latency_ms: 3000
             - identifier: "answer_relevancy"
               displayName: "Answer Relevancy"
               config:
                 level: "trace"
+        llmProviderConfigs:
+          type: array
+          description: LLM provider credentials for LLM-judge evaluators
+          items:
+            $ref: "#/components/schemas/MonitorLLMProviderConfig"
         intervalMinutes:
           type: integer
           description: Interval in minutes (only for 'future' type)
@@ -6389,12 +6404,17 @@ components:
             - identifier: "latency"
               displayName: "Latency Check"
               config:
-                level: "span"
+                level: "llm"
                 max_latency_ms: 3000
             - identifier: "answer_relevancy"
               displayName: "Answer Relevancy"
               config:
                 level: "trace"
+        llmProviderConfigs:
+          type: array
+          description: LLM provider credentials for LLM-judge evaluators
+          items:
+            $ref: "#/components/schemas/MonitorLLMProviderConfig"
         traceStart:
           type: string
           format: date-time
@@ -6466,6 +6486,21 @@ components:
             max_latency_ms: 3000
             use_task_constraint: false
 
+    MonitorLLMProviderConfig:
+      type: object
+      required:
+        - envVar
+        - value
+      properties:
+        envVar:
+          type: string
+          description: Environment variable name for the LLM provider credential
+          example: "OPENAI_API_KEY"
+        value:
+          type: string
+          description: API key or credential value
+          example: "sk-..."
+
     EvaluatorResponse:
       type: object
       required:
@@ -6475,6 +6510,7 @@ components:
         - description
         - version
         - provider
+        - level
         - tags
         - isBuiltin
         - configSchema
@@ -6503,6 +6539,14 @@ components:
           type: string
           description: SDK binding provider
           example: "deepeval"
+        level:
+          type: string
+          description: Evaluation granularity level
+          enum:
+            - trace
+            - agent
+            - llm
+          example: "trace"
         tags:
           type: array
           items:
@@ -8772,7 +8816,7 @@ components:
           type: string
         level:
           type: string
-          enum: [trace, agent, span]
+          enum: [trace, agent, llm]
         traceId:
           type: string
         spanId:
@@ -8807,7 +8851,7 @@ components:
           type: string
         level:
           type: string
-          enum: [trace, agent, span]
+          enum: [trace, agent, llm]
         count:
           type: integer
         mean:
@@ -8893,7 +8937,7 @@ components:
           type: string
         level:
           type: string
-          enum: [trace, agent, span]
+          enum: [trace, agent, llm]
         scores:
           type: array
           items:
@@ -8977,7 +9021,7 @@ components:
           description: Display name of the evaluator
         level:
           type: string
-          enum: [trace, agent, span]
+          enum: [trace, agent, llm]
           description: Evaluation level
         count:
           type: integer
@@ -9040,7 +9084,7 @@ components:
           description: Display name of the evaluator
         level:
           type: string
-          enum: [trace, agent, span]
+          enum: [trace, agent, llm]
           description: Evaluation level
         scores:
           type: array
@@ -9085,7 +9129,7 @@ components:
           type: string
         level:
           type: string
-          enum: [trace, agent, span]
+          enum: [trace, agent, llm]
         traceId:
           type: string
         spanId:
@@ -9124,7 +9168,7 @@ components:
           description: User-facing evaluator name
         level:
           type: string
-          enum: [trace, agent, span]
+          enum: [trace, agent, llm]
         aggregations:
           type: object
           description: Flexible aggregation data (mean, pass_rate, custom metrics, etc.)

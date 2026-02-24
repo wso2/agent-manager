@@ -72,6 +72,7 @@ func createMockEvaluators() []*models.EvaluatorResponse {
 			Description: "Checks if the answer is relevant to the input query",
 			Version:     "1.0",
 			Provider:    "standard",
+			Level:       "trace",
 			Tags:        []string{},
 			IsBuiltin:   true,
 			ConfigSchema: []models.EvaluatorConfigParam{
@@ -93,6 +94,7 @@ func createMockEvaluators() []*models.EvaluatorResponse {
 			Description: "Evaluates whether the agent selects the correct tools",
 			Version:     "1.0",
 			Provider:    "deepeval",
+			Level:       "trace",
 			Tags:        []string{"deepeval", "llm-judge", "action", "correctness"},
 			IsBuiltin:   true,
 			ConfigSchema: []models.EvaluatorConfigParam{
@@ -114,6 +116,7 @@ func createMockEvaluators() []*models.EvaluatorResponse {
 			Description: "Evaluates whether the agent generates correct arguments for tool calls",
 			Version:     "1.0",
 			Provider:    "deepeval",
+			Level:       "agent",
 			Tags:        []string{"deepeval", "llm-judge", "action", "correctness"},
 			IsBuiltin:   true,
 			ConfigSchema: []models.EvaluatorConfigParam{
@@ -482,6 +485,7 @@ func TestGetEvaluator_ConfigSchemaConversion(t *testing.T) {
 		Description: "Test description",
 		Version:     "1.0",
 		Provider:    "standard",
+		Level:       "trace",
 		Tags:        []string{"test"},
 		IsBuiltin:   true,
 		ConfigSchema: []models.EvaluatorConfigParam{
@@ -584,6 +588,8 @@ func TestListEvaluators(t *testing.T) {
 			assert.NotEmpty(t, evaluator.Description)
 			assert.NotEmpty(t, evaluator.Version)
 			assert.NotEmpty(t, evaluator.Provider)
+			assert.NotEmpty(t, evaluator.Level)
+			assert.Contains(t, []string{"trace", "agent", "llm"}, evaluator.Level)
 			assert.True(t, evaluator.IsBuiltin)
 			assert.NotNil(t, evaluator.Tags)
 			assert.NotNil(t, evaluator.ConfigSchema)
@@ -852,6 +858,7 @@ func TestGetEvaluator(t *testing.T) {
 		assert.Equal(t, "latency", result.Identifier)
 		assert.Equal(t, "Latency", result.DisplayName)
 		assert.Equal(t, "standard", result.Provider)
+		assert.Equal(t, "trace", result.Level)
 		assert.True(t, result.IsBuiltin)
 		assert.NotEmpty(t, result.Id)
 		assert.NotEmpty(t, result.Version)

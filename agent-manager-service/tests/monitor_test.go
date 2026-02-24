@@ -1791,7 +1791,6 @@ func TestCreateMonitor_EvaluatorNotFound(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "not found")
 }
 
-
 // TestCreateMonitor_InvalidConfig_UnknownKey tests that an unknown config key returns 400
 func TestCreateMonitor_InvalidConfig_UnknownKey(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)

@@ -192,7 +192,7 @@ func TestGetMonitorScores_ValidLevel(t *testing.T) {
 	validEnd := now.Format(time.RFC3339)
 
 	// Valid level values must pass validation (will 404 from DB, not 400)
-	for _, level := range []string{"trace", "agent", "span"} {
+	for _, level := range []string{"trace", "agent", "llm"} {
 		t.Run("level="+level, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet,
 				base+"?startTime="+validStart+"&endTime="+validEnd+"&level="+level, nil)

@@ -9,7 +9,7 @@ var llmProviderEntries = []*LLMProviderEntry{
 		ConfigFields: []LLMConfigField{
 			{Key: "api_key", Label: "API Key", FieldType: "password", Required: true, EnvVar: "ANTHROPIC_API_KEY"},
 		},
-		Models: []string{"claude-opus-4-6", "claude-sonnet-4-6", "claude-opus-4-5", "claude-3-5-sonnet-20241022", "claude-haiku-4-5-20251001", "claude-3-5-haiku-20241022"},
+		Models: []string{"claude-opus-4-6", "claude-sonnet-4-6", "claude-opus-4-5", "claude-haiku-4-5-20251001"},
 	},
 	{
 		Name:        "gemini",
@@ -17,7 +17,7 @@ var llmProviderEntries = []*LLMProviderEntry{
 		ConfigFields: []LLMConfigField{
 			{Key: "api_key", Label: "API Key", FieldType: "password", Required: true, EnvVar: "GEMINI_API_KEY"},
 		},
-		Models: []string{"gemini/gemini-3-pro-preview", "gemini/gemini-2.5-pro", "gemini/gemini-3-flash-preview", "gemini/gemini-2.5-flash", "gemini/gemini-2.5-flash-lite", "gemini/gemini-2.0-flash"},
+		Models: []string{"gemini/gemini-3.1-pro", "gemini/gemini-3-pro-preview", "gemini/gemini-2.5-pro", "gemini/gemini-3-flash", "gemini/gemini-2.5-flash", "gemini/gemini-2.5-flash-lite"},
 	},
 	{
 		Name:        "groq",
@@ -25,7 +25,7 @@ var llmProviderEntries = []*LLMProviderEntry{
 		ConfigFields: []LLMConfigField{
 			{Key: "api_key", Label: "API Key", FieldType: "password", Required: true, EnvVar: "GROQ_API_KEY"},
 		},
-		Models: []string{"groq/meta-llama/llama-4-maverick-17b-128e-instruct", "groq/llama-3.3-70b-versatile", "groq/qwen/qwen3-32b", "groq/meta-llama/llama-4-scout-17b-16e-instruct", "groq/llama-3.1-8b-instant"},
+		Models: []string{"groq/meta-llama/llama-4-maverick-17b-128e-instruct", "groq/meta-llama/llama-4-scout-17b-16e-instruct", "groq/llama-3.3-70b-versatile", "groq/qwen/qwen-3-32b", "groq/llama-3.1-8b-instant"},
 	},
 	{
 		Name:        "mistral",
@@ -33,7 +33,7 @@ var llmProviderEntries = []*LLMProviderEntry{
 		ConfigFields: []LLMConfigField{
 			{Key: "api_key", Label: "API Key", FieldType: "password", Required: true, EnvVar: "MISTRAL_API_KEY"},
 		},
-		Models: []string{"mistral/mistral-large-3", "mistral/mistral-large-latest", "mistral/mistral-medium-latest", "mistral/mistral-small-latest", "mistral/open-mistral-nemo"},
+		Models: []string{"mistral/mistral-large-3", "mistral/mistral-large-latest", "mistral/mistral-medium-latest", "mistral/mistral-small-latest"},
 	},
 	{
 		Name:        "openai",
@@ -41,6 +41,6 @@ var llmProviderEntries = []*LLMProviderEntry{
 		ConfigFields: []LLMConfigField{
 			{Key: "api_key", Label: "OpenAI API Key", FieldType: "password", Required: true, EnvVar: "OPENAI_API_KEY"},
 		},
-		Models: []string{"gpt-5", "o3", "gpt-4.1", "gpt-4o", "gpt-4.1-mini", "o3-mini", "gpt-4.1-nano", "gpt-4o-mini"},
+		Models: []string{"gpt-5.2", "gpt-5.1", "gpt-5", "gpt-5-mini", "gpt-5-nano", "o3", "o3-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano"},
 	},
 }

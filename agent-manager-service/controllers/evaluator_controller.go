@@ -243,6 +243,7 @@ func convertToSpecEvaluatorResponse(evaluator *models.EvaluatorResponse) spec.Ev
 		Description:  evaluator.Description,
 		Version:      evaluator.Version,
 		Provider:     evaluator.Provider,
+		Level:        evaluator.Level,
 		Tags:         evaluator.Tags,
 		IsBuiltin:    evaluator.IsBuiltin,
 		ConfigSchema: configFields,
