@@ -639,8 +639,8 @@ EvalResult.skip("API key not configured")
 
 ```python
 result = my_evaluator.evaluate(trace)
-if result.is_error:
-    print(f"Skipped: {result.error}")
+if result.is_skipped:
+    print(f"Skipped: {result.skip_reason}")
 else:
     print(f"Score: {result.score}, Passed: {result.passed}")
 ```

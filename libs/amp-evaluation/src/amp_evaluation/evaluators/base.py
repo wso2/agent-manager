@@ -596,6 +596,7 @@ First provide your reasoning, then your score. Respond with a JSON object:
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
                 response_format={"type": "json_object"},
+                drop_params=True,
             )
 
             content = response.choices[0].message.content
@@ -720,10 +721,13 @@ class FunctionEvaluator(BaseEvaluator):
         if param_names:
             call_kwargs[param_names[0]] = trace_or_span
 
-        # Set task param if function accepts it
-        if len(non_config_params) > 1:
-            task_param_name = [p.name for p in non_config_params][1]
-            call_kwargs[task_param_name] = task
+        # Set task param if function accepts it and its annotation is Task-related
+        if len(non_config_params) > 1 and task is not None:
+            task_param = non_config_params[1]
+            annotation = task_param.annotation
+            hint_str = getattr(annotation, "__name__", str(annotation))
+            if "Task" in hint_str or annotation == inspect.Parameter.empty:
+                call_kwargs[task_param.name] = task
 
         # Inject config values
         for config_name, config_value in self._config.items():

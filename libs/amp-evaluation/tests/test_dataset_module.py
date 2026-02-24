@@ -544,7 +544,7 @@ class TestDuplicateTaskIdDetection:
     """Regression: parse_dataset_dict should warn on duplicate task IDs."""
 
     def test_duplicate_task_ids_logged(self, caplog):
-        """Duplicate task_id should produce a warning log."""
+        """Duplicate task_id should produce a warning and skip the duplicate."""
         import logging
 
         data = {
@@ -558,8 +558,9 @@ class TestDuplicateTaskIdDetection:
         with caplog.at_level(logging.WARNING):
             dataset = parse_dataset_dict(data)
 
-        # Both tasks are still loaded (warning, not error)
-        assert len(dataset.tasks) == 2
+        # Duplicate is skipped, only first task kept
+        assert len(dataset.tasks) == 1
+        assert dataset.tasks[0].input == "Input 1"
         # Warning was emitted
         assert any("Duplicate task_id" in msg for msg in caplog.messages)
 

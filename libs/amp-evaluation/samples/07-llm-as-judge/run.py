@@ -28,12 +28,12 @@ evaluators will report errors gracefully.
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+
 from amp_evaluation import Monitor, discover_evaluators
 from amp_evaluation.trace import TraceLoader
 
 import evaluators  # noqa: E402 — local evaluators module
-
-sys.path.insert(0, str(Path(__file__).parent))
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
