@@ -20,9 +20,6 @@ import (
 //			ApplyResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
 //				panic("mock out the ApplyResource method")
 //			},
-//			AttachExternalSecretTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, kvPath string, refreshInterval string) error {
-//				panic("mock out the AttachExternalSecretTrait method")
-//			},
 //			AttachTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType, agentApiKey ...string) error {
 //				panic("mock out the AttachTrait method")
 //			},
@@ -35,6 +32,9 @@ import (
 //			CreateProjectFunc: func(ctx context.Context, namespaceName string, req client.CreateProjectRequest) error {
 //				panic("mock out the CreateProject method")
 //			},
+//			CreateSecretReferenceFunc: func(ctx context.Context, req client.CreateSecretReferenceRequest) error {
+//				panic("mock out the CreateSecretReference method")
+//			},
 //			DeleteComponentFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) error {
 //				panic("mock out the DeleteComponent method")
 //			},
@@ -43,6 +43,9 @@ import (
 //			},
 //			DeleteResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
 //				panic("mock out the DeleteResource method")
+//			},
+//			DeleteSecretReferenceFunc: func(ctx context.Context, namespace string, name string) error {
+//				panic("mock out the DeleteSecretReference method")
 //			},
 //			DeployFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.DeployRequest) error {
 //				panic("mock out the Deploy method")
@@ -129,9 +132,6 @@ type OpenChoreoClientMock struct {
 	// ApplyResourceFunc mocks the ApplyResource method.
 	ApplyResourceFunc func(ctx context.Context, body map[string]interface{}) error
 
-	// AttachExternalSecretTraitFunc mocks the AttachExternalSecretTrait method.
-	AttachExternalSecretTraitFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, kvPath string, refreshInterval string) error
-
 	// AttachTraitFunc mocks the AttachTrait method.
 	AttachTraitFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType, agentApiKey ...string) error
 
@@ -144,6 +144,9 @@ type OpenChoreoClientMock struct {
 	// CreateProjectFunc mocks the CreateProject method.
 	CreateProjectFunc func(ctx context.Context, namespaceName string, req client.CreateProjectRequest) error
 
+	// CreateSecretReferenceFunc mocks the CreateSecretReference method.
+	CreateSecretReferenceFunc func(ctx context.Context, req client.CreateSecretReferenceRequest) error
+
 	// DeleteComponentFunc mocks the DeleteComponent method.
 	DeleteComponentFunc func(ctx context.Context, namespaceName string, projectName string, componentName string) error
 
@@ -152,6 +155,9 @@ type OpenChoreoClientMock struct {
 
 	// DeleteResourceFunc mocks the DeleteResource method.
 	DeleteResourceFunc func(ctx context.Context, body map[string]interface{}) error
+
+	// DeleteSecretReferenceFunc mocks the DeleteSecretReference method.
+	DeleteSecretReferenceFunc func(ctx context.Context, namespace string, name string) error
 
 	// DeployFunc mocks the Deploy method.
 	DeployFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, req client.DeployRequest) error
@@ -237,21 +243,6 @@ type OpenChoreoClientMock struct {
 			// Body is the body argument value.
 			Body map[string]interface{}
 		}
-		// AttachExternalSecretTrait holds details about calls to the AttachExternalSecretTrait method.
-		AttachExternalSecretTrait []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// NamespaceName is the namespaceName argument value.
-			NamespaceName string
-			// ProjectName is the projectName argument value.
-			ProjectName string
-			// ComponentName is the componentName argument value.
-			ComponentName string
-			// KvPath is the kvPath argument value.
-			KvPath string
-			// RefreshInterval is the refreshInterval argument value.
-			RefreshInterval string
-		}
 		// AttachTrait holds details about calls to the AttachTrait method.
 		AttachTrait []struct {
 			// Ctx is the ctx argument value.
@@ -300,6 +291,13 @@ type OpenChoreoClientMock struct {
 			// Req is the req argument value.
 			Req client.CreateProjectRequest
 		}
+		// CreateSecretReference holds details about calls to the CreateSecretReference method.
+		CreateSecretReference []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req client.CreateSecretReferenceRequest
+		}
 		// DeleteComponent holds details about calls to the DeleteComponent method.
 		DeleteComponent []struct {
 			// Ctx is the ctx argument value.
@@ -326,6 +324,15 @@ type OpenChoreoClientMock struct {
 			Ctx context.Context
 			// Body is the body argument value.
 			Body map[string]interface{}
+		}
+		// DeleteSecretReference holds details about calls to the DeleteSecretReference method.
+		DeleteSecretReference []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Namespace is the namespace argument value.
+			Namespace string
+			// Name is the name argument value.
+			Name string
 		}
 		// Deploy holds details about calls to the Deploy method.
 		Deploy []struct {
@@ -594,14 +601,15 @@ type OpenChoreoClientMock struct {
 		}
 	}
 	lockApplyResource                       sync.RWMutex
-	lockAttachExternalSecretTrait           sync.RWMutex
 	lockAttachTrait                         sync.RWMutex
 	lockComponentExists                     sync.RWMutex
 	lockCreateComponent                     sync.RWMutex
 	lockCreateProject                       sync.RWMutex
+	lockCreateSecretReference               sync.RWMutex
 	lockDeleteComponent                     sync.RWMutex
 	lockDeleteProject                       sync.RWMutex
 	lockDeleteResource                      sync.RWMutex
+	lockDeleteSecretReference               sync.RWMutex
 	lockDeploy                              sync.RWMutex
 	lockGetBuild                            sync.RWMutex
 	lockGetComponent                        sync.RWMutex
@@ -662,58 +670,6 @@ func (mock *OpenChoreoClientMock) ApplyResourceCalls() []struct {
 	mock.lockApplyResource.RLock()
 	calls = mock.calls.ApplyResource
 	mock.lockApplyResource.RUnlock()
-	return calls
-}
-
-// AttachExternalSecretTrait calls AttachExternalSecretTraitFunc.
-func (mock *OpenChoreoClientMock) AttachExternalSecretTrait(ctx context.Context, namespaceName string, projectName string, componentName string, kvPath string, refreshInterval string) error {
-	if mock.AttachExternalSecretTraitFunc == nil {
-		panic("OpenChoreoClientMock.AttachExternalSecretTraitFunc: method is nil but OpenChoreoClient.AttachExternalSecretTrait was just called")
-	}
-	callInfo := struct {
-		Ctx             context.Context
-		NamespaceName   string
-		ProjectName     string
-		ComponentName   string
-		KvPath          string
-		RefreshInterval string
-	}{
-		Ctx:             ctx,
-		NamespaceName:   namespaceName,
-		ProjectName:     projectName,
-		ComponentName:   componentName,
-		KvPath:          kvPath,
-		RefreshInterval: refreshInterval,
-	}
-	mock.lockAttachExternalSecretTrait.Lock()
-	mock.calls.AttachExternalSecretTrait = append(mock.calls.AttachExternalSecretTrait, callInfo)
-	mock.lockAttachExternalSecretTrait.Unlock()
-	return mock.AttachExternalSecretTraitFunc(ctx, namespaceName, projectName, componentName, kvPath, refreshInterval)
-}
-
-// AttachExternalSecretTraitCalls gets all the calls that were made to AttachExternalSecretTrait.
-// Check the length with:
-//
-//	len(mockedOpenChoreoClient.AttachExternalSecretTraitCalls())
-func (mock *OpenChoreoClientMock) AttachExternalSecretTraitCalls() []struct {
-	Ctx             context.Context
-	NamespaceName   string
-	ProjectName     string
-	ComponentName   string
-	KvPath          string
-	RefreshInterval string
-} {
-	var calls []struct {
-		Ctx             context.Context
-		NamespaceName   string
-		ProjectName     string
-		ComponentName   string
-		KvPath          string
-		RefreshInterval string
-	}
-	mock.lockAttachExternalSecretTrait.RLock()
-	calls = mock.calls.AttachExternalSecretTrait
-	mock.lockAttachExternalSecretTrait.RUnlock()
 	return calls
 }
 
@@ -901,6 +857,42 @@ func (mock *OpenChoreoClientMock) CreateProjectCalls() []struct {
 	return calls
 }
 
+// CreateSecretReference calls CreateSecretReferenceFunc.
+func (mock *OpenChoreoClientMock) CreateSecretReference(ctx context.Context, req client.CreateSecretReferenceRequest) error {
+	if mock.CreateSecretReferenceFunc == nil {
+		panic("OpenChoreoClientMock.CreateSecretReferenceFunc: method is nil but OpenChoreoClient.CreateSecretReference was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req client.CreateSecretReferenceRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockCreateSecretReference.Lock()
+	mock.calls.CreateSecretReference = append(mock.calls.CreateSecretReference, callInfo)
+	mock.lockCreateSecretReference.Unlock()
+	return mock.CreateSecretReferenceFunc(ctx, req)
+}
+
+// CreateSecretReferenceCalls gets all the calls that were made to CreateSecretReference.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.CreateSecretReferenceCalls())
+func (mock *OpenChoreoClientMock) CreateSecretReferenceCalls() []struct {
+	Ctx context.Context
+	Req client.CreateSecretReferenceRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req client.CreateSecretReferenceRequest
+	}
+	mock.lockCreateSecretReference.RLock()
+	calls = mock.calls.CreateSecretReference
+	mock.lockCreateSecretReference.RUnlock()
+	return calls
+}
+
 // DeleteComponent calls DeleteComponentFunc.
 func (mock *OpenChoreoClientMock) DeleteComponent(ctx context.Context, namespaceName string, projectName string, componentName string) error {
 	if mock.DeleteComponentFunc == nil {
@@ -1018,6 +1010,46 @@ func (mock *OpenChoreoClientMock) DeleteResourceCalls() []struct {
 	mock.lockDeleteResource.RLock()
 	calls = mock.calls.DeleteResource
 	mock.lockDeleteResource.RUnlock()
+	return calls
+}
+
+// DeleteSecretReference calls DeleteSecretReferenceFunc.
+func (mock *OpenChoreoClientMock) DeleteSecretReference(ctx context.Context, namespace string, name string) error {
+	if mock.DeleteSecretReferenceFunc == nil {
+		panic("OpenChoreoClientMock.DeleteSecretReferenceFunc: method is nil but OpenChoreoClient.DeleteSecretReference was just called")
+	}
+	callInfo := struct {
+		Ctx       context.Context
+		Namespace string
+		Name      string
+	}{
+		Ctx:       ctx,
+		Namespace: namespace,
+		Name:      name,
+	}
+	mock.lockDeleteSecretReference.Lock()
+	mock.calls.DeleteSecretReference = append(mock.calls.DeleteSecretReference, callInfo)
+	mock.lockDeleteSecretReference.Unlock()
+	return mock.DeleteSecretReferenceFunc(ctx, namespace, name)
+}
+
+// DeleteSecretReferenceCalls gets all the calls that were made to DeleteSecretReference.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.DeleteSecretReferenceCalls())
+func (mock *OpenChoreoClientMock) DeleteSecretReferenceCalls() []struct {
+	Ctx       context.Context
+	Namespace string
+	Name      string
+} {
+	var calls []struct {
+		Ctx       context.Context
+		Namespace string
+		Name      string
+	}
+	mock.lockDeleteSecretReference.RLock()
+	calls = mock.calls.DeleteSecretReference
+	mock.lockDeleteSecretReference.RUnlock()
 	return calls
 }
 

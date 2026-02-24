@@ -46,9 +46,13 @@ func (c *Client) PushSecret(ctx context.Context, key string, value []byte, metad
 		}
 	}
 
-	// Prepare secret data
-	secretData := map[string]interface{}{
-		"value": string(value),
+	// Prepare secret data - unmarshal JSON to store as flat key-value pairs
+	var secretData map[string]interface{}
+	if err := json.Unmarshal(value, &secretData); err != nil {
+		// If not valid JSON, store as single "value" key
+		secretData = map[string]interface{}{
+			"value": string(value),
+		}
 	}
 
 	// Handle KV v1 vs v2

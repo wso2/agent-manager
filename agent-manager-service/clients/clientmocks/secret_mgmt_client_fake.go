@@ -5,10 +5,13 @@ package clientmocks
 
 import (
 	"context"
-	"sync"
-
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
+	"sync"
 )
+
+// Ensure, that SecretManagementClientMock does implement secretmanagersvc.SecretManagementClient.
+// If this is not the case, regenerate this file with moq.
+var _ secretmanagersvc.SecretManagementClient = &SecretManagementClientMock{}
 
 // SecretManagementClientMock is a mock implementation of secretmanagersvc.SecretManagementClient.
 //
@@ -16,7 +19,7 @@ import (
 //
 //		// make and configure a mocked secretmanagersvc.SecretManagementClient
 //		mockedSecretManagementClient := &SecretManagementClientMock{
-//			CreateSecretFunc: func(ctx context.Context, orgName string, req secretmanagersvc.CreateSecretRequest) (*secretmanagersvc.SecretResponse, error) {
+//			CreateSecretFunc: func(ctx context.Context, req secretmanagersvc.CreateSecretRequest) (*secretmanagersvc.SecretResponse, error) {
 //				panic("mock out the CreateSecret method")
 //			},
 //			DeleteSecretFunc: func(ctx context.Context, orgName string, secretPath string) error {
@@ -39,7 +42,7 @@ import (
 //	}
 type SecretManagementClientMock struct {
 	// CreateSecretFunc mocks the CreateSecret method.
-	CreateSecretFunc func(ctx context.Context, orgName string, req secretmanagersvc.CreateSecretRequest) (*secretmanagersvc.SecretResponse, error)
+	CreateSecretFunc func(ctx context.Context, req secretmanagersvc.CreateSecretRequest) (*secretmanagersvc.SecretResponse, error)
 
 	// DeleteSecretFunc mocks the DeleteSecret method.
 	DeleteSecretFunc func(ctx context.Context, orgName string, secretPath string) error
@@ -59,8 +62,6 @@ type SecretManagementClientMock struct {
 		CreateSecret []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
 			// Req is the req argument value.
 			Req secretmanagersvc.CreateSecretRequest
 		}
@@ -111,23 +112,21 @@ type SecretManagementClientMock struct {
 }
 
 // CreateSecret calls CreateSecretFunc.
-func (mock *SecretManagementClientMock) CreateSecret(ctx context.Context, orgName string, req secretmanagersvc.CreateSecretRequest) (*secretmanagersvc.SecretResponse, error) {
+func (mock *SecretManagementClientMock) CreateSecret(ctx context.Context, req secretmanagersvc.CreateSecretRequest) (*secretmanagersvc.SecretResponse, error) {
 	if mock.CreateSecretFunc == nil {
 		panic("SecretManagementClientMock.CreateSecretFunc: method is nil but SecretManagementClient.CreateSecret was just called")
 	}
 	callInfo := struct {
-		Ctx     context.Context
-		OrgName string
-		Req     secretmanagersvc.CreateSecretRequest
+		Ctx context.Context
+		Req secretmanagersvc.CreateSecretRequest
 	}{
-		Ctx:     ctx,
-		OrgName: orgName,
-		Req:     req,
+		Ctx: ctx,
+		Req: req,
 	}
 	mock.lockCreateSecret.Lock()
 	mock.calls.CreateSecret = append(mock.calls.CreateSecret, callInfo)
 	mock.lockCreateSecret.Unlock()
-	return mock.CreateSecretFunc(ctx, orgName, req)
+	return mock.CreateSecretFunc(ctx, req)
 }
 
 // CreateSecretCalls gets all the calls that were made to CreateSecret.
@@ -135,14 +134,12 @@ func (mock *SecretManagementClientMock) CreateSecret(ctx context.Context, orgNam
 //
 //	len(mockedSecretManagementClient.CreateSecretCalls())
 func (mock *SecretManagementClientMock) CreateSecretCalls() []struct {
-	Ctx     context.Context
-	OrgName string
-	Req     secretmanagersvc.CreateSecretRequest
+	Ctx context.Context
+	Req secretmanagersvc.CreateSecretRequest
 } {
 	var calls []struct {
-		Ctx     context.Context
-		OrgName string
-		Req     secretmanagersvc.CreateSecretRequest
+		Ctx context.Context
+		Req secretmanagersvc.CreateSecretRequest
 	}
 	mock.lockCreateSecret.RLock()
 	calls = mock.calls.CreateSecret

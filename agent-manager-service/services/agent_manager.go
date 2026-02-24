@@ -119,53 +119,40 @@ func mapBuildConfig(specBuild *spec.Build) *client.BuildConfig {
 	return nil
 }
 
-// mapConfigurations converts spec.Configurations to client.Configurations
-// Note: This does NOT handle secrets - use processEnvVarsForCreate for that
-func mapConfigurations(specConfigs *spec.Configurations) *client.Configurations {
+// mapConfigurationsWithSecrets converts spec.Configurations to client.Configurations
+// handling secret env vars by using secretKeyRef pointing to the K8s Secret created by SecretReference
+func mapConfigurationsWithSecrets(specConfigs *spec.Configurations, componentName string) *client.Configurations {
 	if specConfigs == nil || len(specConfigs.Env) == 0 {
 		return nil
 	}
 
+	// K8s Secret name created by SecretReference
+	secretName := fmt.Sprintf("%s-secrets", componentName)
+
 	configs := &client.Configurations{
 		Env: make([]client.EnvVar, len(specConfigs.Env)),
 	}
+
 	for i, env := range specConfigs.Env {
-		configs.Env[i] = client.EnvVar{Key: env.Key, Value: env.GetValue()}
-	}
-	return configs
-}
-
-// mapConfigurationsWithSecrets converts spec.Configurations to client.Configurations
-// handling secret env vars by using secretKeyRef instead of plain values
-func mapConfigurationsWithSecrets(specConfigs *spec.Configurations, componentName string) (*client.Configurations, bool) {
-	
-	configs := &client.Configurations{
-		Env: make([]client.EnvVar, len(specConfigs.Env)),
-	}
-
-	hasSecrets := false
-	if len(specConfigs.Env) > 0 {
-		configs.Env = make([]client.EnvVar, len(specConfigs.Env))
-		for i, env := range specConfigs.Env {
-			if env.GetIsSecret() {
-				hasSecrets = true
-				// Use secretKeyRef for secret env vars
-				configs.Env[i] = client.EnvVar{
-					Key: env.Key,
-					ValueFrom: &client.EnvVarValueFrom{
-						SecretKeyRef: &client.SecretKeyRef{
-							Name: fmt.Sprintf("%s-secrets", componentName),
-							Key:  env.Key,
-						},
+		if env.GetIsSensitive() {
+			// Use secretKeyRef pointing to the K8s Secret
+			// Name = K8s Secret name (created by SecretReference)
+			// Key = key within the K8s Secret
+			configs.Env[i] = client.EnvVar{
+				Key: env.Key,
+				ValueFrom: &client.EnvVarValueFrom{
+					SecretKeyRef: &client.SecretKeyRef{
+						Name: secretName, // K8s Secret name (e.g., "component-secrets")
+						Key:  env.Key,    // Key within the secret
 					},
-				}
-			} else {
-				configs.Env[i] = client.EnvVar{Key: env.Key, Value: env.GetValue()}
+				},
 			}
+		} else {
+			configs.Env[i] = client.EnvVar{Key: env.Key, Value: env.GetValue()}
 		}
 	}
 
-	return configs, hasSecrets
+	return configs
 }
 
 // mapRepository converts spec.RepositoryConfig to client.RepositoryConfig
@@ -403,28 +390,31 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		return err
 	}
 
+	// Build KV path for secrets in OpenBao
+	kvPath := fmt.Sprintf("%s/%s/%s", orgName, projectName, req.Name)
+
 	// Check if there are secret env vars that need to be handled
 	hasSecrets := false
 	if req.Configurations != nil && len(req.Configurations.Env) > 0 {
 		for _, env := range req.Configurations.Env {
-			if env.GetIsSecret() {
+			if env.GetIsSensitive() {
 				hasSecrets = true
 				break
 			}
 		}
 	}
 
-	// Create component request
-	createAgentReq := s.toCreateAgentRequestWithSecrets(req, hasSecrets)
+	// Create component request (uses kvPath for secret references)
+	createAgentReq := s.toCreateAgentRequestWithSecrets(req, kvPath)
 	if err := s.ocClient.CreateComponent(ctx, orgName, projectName, createAgentReq); err != nil {
 		s.logger.Error("Failed to create agent component", "agentName", req.Name, "error", err)
 		return err
 	}
 
-	// Handle secrets: store in OpenBao and attach external-secret-trait
+	// Handle secrets: store in OpenBao and create SecretReference
 	if hasSecrets {
-		if err := s.processSecretsForCreate(ctx, orgName, projectName, req.Name, req.Configurations.Env); err != nil {
-			s.logger.Error("Failed to process secrets for agent", "agentName", req.Name, "error", err)
+		if err := s.saveSecretsAndCreateReference(ctx, orgName, projectName, req.Name, kvPath, req.Configurations.Env); err != nil {
+			s.logger.Error("Failed to save secrets and create SecretReference for agent", "agentName", req.Name, "error", err)
 			// Rollback - delete the created agent
 			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
 				s.logger.Error("Failed to rollback agent creation after secret processing failure", "agentName", req.Name, "error", errDeletion)
@@ -436,7 +426,6 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 	// For internal agents, enable instrumentation and trigger initial build
 	if req.Provisioning.Type == string(utils.InternalAgent) {
 		s.logger.Debug("Component created successfully", "agentName", req.Name)
-
 		if err := s.enableInstrumentation(ctx, orgName, projectName, req); err != nil {
 			s.logger.Error("Failed to enable instrumentation for agent", "agentName", req.Name, "error", err)
 			// Rollback - delete the created agent
@@ -485,7 +474,8 @@ func (s *agentManagerService) triggerInitialBuild(ctx context.Context, orgName, 
 }
 
 // toCreateAgentRequestWithSecrets creates a component request, handling secrets by using secretKeyRef
-func (s *agentManagerService) toCreateAgentRequestWithSecrets(req *spec.CreateAgentRequest, hasSecrets bool) client.CreateComponentRequest {
+// kvPath is the path in OpenBao where secrets are stored (e.g., "org/project/component")
+func (s *agentManagerService) toCreateAgentRequestWithSecrets(req *spec.CreateAgentRequest, kvPath string) client.CreateComponentRequest {
 	result := client.CreateComponentRequest{
 		Name:             req.Name,
 		DisplayName:      req.DisplayName,
@@ -499,13 +489,7 @@ func (s *agentManagerService) toCreateAgentRequestWithSecrets(req *spec.CreateAg
 		InputInterface: mapInputInterface(req.InputInterface),
 	}
 
-	// Handle configurations with or without secrets
-	if hasSecrets {
-		configs, _ := mapConfigurationsWithSecrets(req.Configurations, req.Name)
-		result.Configurations = configs
-	} else {
-		result.Configurations = mapConfigurations(req.Configurations)
-	}
+	result.Configurations = mapConfigurationsWithSecrets(req.Configurations, req.Name)
 
 	if req.Provisioning.Type == string(utils.InternalAgent) {
 		result.AgentType.SubType = utils.StrPointerAsStr(req.AgentType.SubType, "")
@@ -514,21 +498,26 @@ func (s *agentManagerService) toCreateAgentRequestWithSecrets(req *spec.CreateAg
 	return result
 }
 
-// processSecretsForCreate handles storing secrets in OpenBao and attaching the external-secret-trait
-func (s *agentManagerService) processSecretsForCreate(
+// saveSecretsAndCreateReference handles storing secrets in OpenBao and creating SecretReference CR
+func (s *agentManagerService) saveSecretsAndCreateReference(
 	ctx context.Context,
-	orgName, projectName, componentName string,
+	orgName string,
+	projectName string,
+	componentName string,
+	kvPath string,
 	envVars []spec.EnvironmentVariable,
 ) error {
 	if s.secretMgmtClient == nil {
-		return fmt.Errorf("secret management is not enabled but secret env vars were provided")
+		return fmt.Errorf("secret management is not initialized but secret env vars were provided")
 	}
 
-	// Collect secret data
+	// Collect secret data and keys
 	secretData := make(map[string]string)
+	secretKeys := make([]string, 0)
 	for _, env := range envVars {
-		if env.GetIsSecret() {
+		if env.GetIsSensitive() {
 			secretData[env.Key] = env.GetValue()
+			secretKeys = append(secretKeys, env.Key)
 		}
 	}
 
@@ -536,12 +525,9 @@ func (s *agentManagerService) processSecretsForCreate(
 		return nil
 	}
 
-	// Build the KV path: {orgName}/{projectName}/{componentName}
-	kvPath := fmt.Sprintf("%s/%s/%s", orgName, projectName, componentName)
-
-	// Store secrets in OpenBao via secretmanagersvc client
-	s.logger.Debug("Storing secrets in OpenBao during agent creation", "componentName", componentName, "kvPath", kvPath, "secretCount", len(secretData))
-	_, err := s.secretMgmtClient.CreateSecret(ctx, orgName, secretmanagersvc.CreateSecretRequest{
+	// Store secrets in KV via secretmanagersvc client
+	s.logger.Debug("Storing secrets in KV", "kvPath", kvPath, "secretCount", len(secretData))
+	_, err := s.secretMgmtClient.CreateSecret(ctx, secretmanagersvc.CreateSecretRequest{
 		Path: kvPath,
 		Data: secretData,
 	})
@@ -549,14 +535,22 @@ func (s *agentManagerService) processSecretsForCreate(
 		return fmt.Errorf("failed to store secrets in OpenBao: %w", err)
 	}
 
-	// Attach external-secret-trait to the component via OpenChoreo
-	s.logger.Debug("Attaching external-secret-trait to component during creation", "componentName", componentName, "kvPath", kvPath)
-	err = s.ocClient.AttachExternalSecretTrait(ctx, orgName, projectName, componentName, kvPath, "5m")
-	if err != nil {
-		return fmt.Errorf("failed to attach external-secret-trait: %w", err)
+	// Create SecretReference CR via OpenChoreo /apply API
+	secretRefName := fmt.Sprintf("%s-secrets", componentName)
+	s.logger.Debug("Creating SecretReference CR", "name", secretRefName, "namespace", orgName, "kvPath", kvPath)
+	if err := s.ocClient.CreateSecretReference(ctx, client.CreateSecretReferenceRequest{
+		Namespace:       orgName,
+		Name:            secretRefName,
+		ProjectName:     projectName,
+		ComponentName:   componentName,
+		KVPath:          kvPath,
+		SecretKeys:      secretKeys,
+		RefreshInterval: "1h", // Manual force-sync handles immediate updates
+	}); err != nil {
+		return fmt.Errorf("failed to create SecretReference: %w", err)
 	}
 
-	s.logger.Info("Secrets processed successfully during agent creation", "componentName", componentName, "secretCount", len(secretData))
+	s.logger.Info("Secrets stored and SecretReference created", "kvPath", kvPath, "secretCount", len(secretData))
 	return nil
 }
 
@@ -1108,10 +1102,14 @@ func findLowestEnvironment(promotionPaths []models.PromotionPath) string {
 }
 
 // processEnvVars handles environment variables, separating secrets from plain values.
-// For secret env vars (isSecret=true):
+// This function handles configuration updates including:
+//   - Adding new secret keys to KV and SecretReference
+//   - Updating existing secret values in KV
+//   - Removing keys that are no longer in the request from KV and SecretReference
+//
+// For sensitive env vars (isSensitive=true):
 //   - Stores the secret value in OpenBao via secretmanagersvc client
-//   - Attaches external-secret-trait to sync secrets to K8s
-//   - Returns env var with secretKeyRef pointing to the synced K8s secret
+//   - Returns env var with secretKeyRef (Name=K8s Secret name, Key=property)
 //
 // For plain env vars:
 //   - Returns env var with the value directly
@@ -1123,18 +1121,21 @@ func (s *agentManagerService) processEnvVars(
 	var result []client.EnvVar
 	secretData := make(map[string]string)
 
+	// Build KV path for secrets in OpenBao
+	kvPath := fmt.Sprintf("%s/%s/%s", orgName, projectName, componentName)
+	secretName := fmt.Sprintf("%s-secrets", componentName)
+
 	for _, env := range envVars {
-		if env.GetIsSecret() {
+		if env.GetIsSensitive() {
 			// Collect secrets to store in KV
 			secretData[env.Key] = env.GetValue()
-			// For secret env vars, we'll use valueFrom.secretKeyRef
-			// The secret will be created by ExternalSecret syncing from OpenBao
+			// For secret env vars, use secretKeyRef pointing to K8s Secret
 			result = append(result, client.EnvVar{
 				Key: env.Key,
 				ValueFrom: &client.EnvVarValueFrom{
 					SecretKeyRef: &client.SecretKeyRef{
-						Name: fmt.Sprintf("%s-secrets", componentName),
-						Key:  env.Key,
+						Name: secretName, // K8s Secret name (e.g., "component-secrets")
+						Key:  env.Key,    // Key within the secret
 					},
 				},
 			})
@@ -1147,43 +1148,136 @@ func (s *agentManagerService) processEnvVars(
 		}
 	}
 
-	// If there are secrets, store them in OpenBao and attach the external-secret-trait
-	if len(secretData) > 0 {
-		if s.secretMgmtClient == nil {
-			return nil, fmt.Errorf("secret management is not enabled but secret env vars were provided")
-		}
-
-		// Build the KV path: {orgName}/{projectName}/{componentName}
-		kvPath := fmt.Sprintf("%s/%s/%s", orgName, projectName, componentName)
-
-		// Store secrets in OpenBao via secretmanagersvc client
-		s.logger.Debug("Storing secrets in OpenBao", "componentName", componentName, "kvPath", kvPath, "secretCount", len(secretData))
-		_, err := s.secretMgmtClient.CreateSecret(ctx, orgName, secretmanagersvc.CreateSecretRequest{
-			Path: kvPath,
-			Data: secretData,
-		})
-		if err != nil {
-			// If secret already exists, try to update it
-			_, updateErr := s.secretMgmtClient.UpdateSecret(ctx, orgName, kvPath, secretmanagersvc.UpdateSecretRequest{
-				Data: secretData,
-			})
-			if updateErr != nil {
-				return nil, fmt.Errorf("failed to store secrets in OpenBao: %w", err)
-			}
-		}
-
-		// Attach external-secret-trait to the component via OpenChoreo
-		// This will create an ExternalSecret CR that syncs secrets from OpenBao to K8s
-		s.logger.Debug("Attaching external-secret-trait to component", "componentName", componentName, "kvPath", kvPath)
-		err = s.ocClient.AttachExternalSecretTrait(ctx, orgName, projectName, componentName, kvPath, "5m")
-		if err != nil {
-			return nil, fmt.Errorf("failed to attach external-secret-trait: %w", err)
-		}
-
-		s.logger.Info("Secret env vars processed successfully", "componentName", componentName, "secretCount", len(secretData))
+	// Handle secrets: update KV store and SecretReference
+	if err := s.syncSecrets(ctx, orgName, projectName, componentName, kvPath, secretData); err != nil {
+		return nil, err
 	}
 
 	return result, nil
+}
+
+// syncSecrets synchronizes secrets between the request and OpenBao/SecretReference.
+// It handles:
+//   - Creating new secrets when none exist
+//   - Updating secrets with new data (adds/updates keys)
+//   - Removing keys that are no longer present
+//   - Deleting SecretReference if all secrets are removed
+func (s *agentManagerService) syncSecrets(
+	ctx context.Context,
+	orgName, projectName, componentName, kvPath string,
+	newSecretData map[string]string,
+) error {
+	secretRefName := fmt.Sprintf("%s-secrets", componentName)
+
+	// Case 1: No secrets in current request
+	if len(newSecretData) == 0 {
+		// Check if there were existing secrets that need to be cleaned up
+		if s.secretMgmtClient != nil {
+			existingSecrets, err := s.secretMgmtClient.GetSecret(ctx, orgName, kvPath)
+			if err == nil && existingSecrets != nil && len(existingSecrets.Data) > 0 {
+				// Delete the secrets from KV
+				s.logger.Debug("Removing all secrets from KV", "kvPath", kvPath)
+				if err := s.secretMgmtClient.DeleteSecret(ctx, orgName, kvPath); err != nil {
+					s.logger.Warn("Failed to delete secrets from KV", "kvPath", kvPath, "error", err)
+					// Continue - not a fatal error
+				}
+				// Delete the SecretReference CR
+				s.logger.Debug("Deleting SecretReference", "name", secretRefName, "namespace", orgName)
+				if err := s.ocClient.DeleteSecretReference(ctx, orgName, secretRefName); err != nil {
+					s.logger.Warn("Failed to delete SecretReference", "name", secretRefName, "error", err)
+					// Continue - not a fatal error, may not exist
+				}
+				s.logger.Info("Cleaned up secrets and SecretReference", "kvPath", kvPath, "secretRefName", secretRefName)
+			}
+		}
+		return nil
+	}
+
+	// Case 2: Have secrets to store/update
+	if s.secretMgmtClient == nil {
+		return fmt.Errorf("secret management is not enabled but secret env vars were provided")
+	}
+
+	// Try to get existing secrets to determine if this is create or update
+	existingSecrets, err := s.secretMgmtClient.GetSecret(ctx, orgName, kvPath)
+	hasExistingSecrets := err == nil && existingSecrets != nil && len(existingSecrets.Data) > 0
+
+	if hasExistingSecrets {
+		// Log what's changing for debugging
+		s.logSecretChanges(existingSecrets.Data, newSecretData)
+
+		// Update: Replace KV data with new secret data
+		// This handles adds, updates, and removes in one operation
+		s.logger.Debug("Updating secrets in KV", "kvPath", kvPath, "secretCount", len(newSecretData))
+		_, err = s.secretMgmtClient.UpdateSecret(ctx, orgName, kvPath, secretmanagersvc.UpdateSecretRequest{
+			Data: newSecretData,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to update secrets in OpenBao: %w", err)
+		}
+	} else {
+		// Create: First time storing secrets
+		s.logger.Debug("Creating secrets in KV", "kvPath", kvPath, "secretCount", len(newSecretData))
+		_, err = s.secretMgmtClient.CreateSecret(ctx, secretmanagersvc.CreateSecretRequest{
+			Path: kvPath,
+			Data: newSecretData,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create secrets in OpenBao: %w", err)
+		}
+	}
+
+	// Update SecretReference CR via OpenChoreo /apply API
+	// This ensures the K8s Secret will be updated with the correct keys
+	secretKeys := make([]string, 0, len(newSecretData))
+	for key := range newSecretData {
+		secretKeys = append(secretKeys, key)
+	}
+
+	s.logger.Debug("Updating SecretReference CR", "name", secretRefName, "namespace", orgName, "kvPath", kvPath, "keyCount", len(secretKeys))
+	if err := s.ocClient.CreateSecretReference(ctx, client.CreateSecretReferenceRequest{
+		Namespace:       orgName,
+		Name:            secretRefName,
+		ProjectName:     projectName,
+		ComponentName:   componentName,
+		KVPath:          kvPath,
+		SecretKeys:      secretKeys,
+		RefreshInterval: "1h", // Manual force-sync handles immediate updates
+	}); err != nil {
+		return fmt.Errorf("failed to update SecretReference: %w", err)
+	}
+
+	s.logger.Info("Secrets synchronized successfully", "componentName", componentName, "kvPath", kvPath, "secretCount", len(newSecretData))
+	return nil
+}
+
+// logSecretChanges logs the differences between existing and new secrets for debugging
+func (s *agentManagerService) logSecretChanges(existing, new map[string]string) {
+	var added, updated, removed []string
+
+	// Find added and updated keys
+	for key := range new {
+		if _, exists := existing[key]; exists {
+			updated = append(updated, key)
+		} else {
+			added = append(added, key)
+		}
+	}
+
+	// Find removed keys
+	for key := range existing {
+		if _, exists := new[key]; !exists {
+			removed = append(removed, key)
+		}
+	}
+
+	if len(added) > 0 || len(updated) > 0 || len(removed) > 0 {
+		s.logger.Debug("Secret changes detected",
+			"added", added,
+			"updated", updated,
+			"removed", removed,
+		)
+	}
 }
 
 func (s *agentManagerService) ListAgentBuilds(ctx context.Context, orgName string, projectName string, agentName string, limit int32, offset int32) ([]*models.BuildResponse, int32, error) {

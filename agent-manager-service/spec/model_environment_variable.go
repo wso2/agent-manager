@@ -22,21 +22,21 @@ type EnvironmentVariable struct {
 	// Environment variable name
 	Key string `json:"key"`
 	// Value (plain text or secret value for input; omitted for secrets in responses)
-	Value *string `json:"value,omitempty"`
+	Value string `json:"value"`
 	// If true, value is stored in KV and synced via ExternalSecret
-	IsSecret  *bool                         `json:"isSecret,omitempty"`
-	SecretRef *EnvironmentVariableSecretRef `json:"secretRef,omitempty"`
+	IsSensitive *bool `json:"isSensitive,omitempty"`
 }
 
 // NewEnvironmentVariable instantiates a new EnvironmentVariable object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewEnvironmentVariable(key string) *EnvironmentVariable {
+func NewEnvironmentVariable(key string, value string) *EnvironmentVariable {
 	this := EnvironmentVariable{}
 	this.Key = key
-	var isSecret bool = false
-	this.IsSecret = &isSecret
+	this.Value = value
+	var isSensitive bool = false
+	this.IsSensitive = &isSensitive
 	return &this
 }
 
@@ -45,8 +45,8 @@ func NewEnvironmentVariable(key string) *EnvironmentVariable {
 // but it doesn't guarantee that properties required by API are set
 func NewEnvironmentVariableWithDefaults() *EnvironmentVariable {
 	this := EnvironmentVariable{}
-	var isSecret bool = false
-	this.IsSecret = &isSecret
+	var isSensitive bool = false
+	this.IsSensitive = &isSensitive
 	return &this
 }
 
@@ -74,100 +74,60 @@ func (o *EnvironmentVariable) SetKey(v string) {
 	o.Key = v
 }
 
-// GetValue returns the Value field value if set, zero value otherwise.
+// GetValue returns the Value field value
 func (o *EnvironmentVariable) GetValue() string {
-	if o == nil || IsNil(o.Value) {
+	if o == nil {
 		var ret string
 		return ret
 	}
-	return *o.Value
+
+	return o.Value
 }
 
-// GetValueOk returns a tuple with the Value field value if set, nil otherwise
+// GetValueOk returns a tuple with the Value field value
 // and a boolean to check if the value has been set.
 func (o *EnvironmentVariable) GetValueOk() (*string, bool) {
-	if o == nil || IsNil(o.Value) {
+	if o == nil {
 		return nil, false
 	}
-	return o.Value, true
+	return &o.Value, true
 }
 
-// HasValue returns a boolean if a field has been set.
-func (o *EnvironmentVariable) HasValue() bool {
-	if o != nil && !IsNil(o.Value) {
-		return true
-	}
-
-	return false
-}
-
-// SetValue gets a reference to the given string and assigns it to the Value field.
+// SetValue sets field value
 func (o *EnvironmentVariable) SetValue(v string) {
-	o.Value = &v
+	o.Value = v
 }
 
-// GetIsSecret returns the IsSecret field value if set, zero value otherwise.
-func (o *EnvironmentVariable) GetIsSecret() bool {
-	if o == nil || IsNil(o.IsSecret) {
+// GetIsSensitive returns the IsSensitive field value if set, zero value otherwise.
+func (o *EnvironmentVariable) GetIsSensitive() bool {
+	if o == nil || IsNil(o.IsSensitive) {
 		var ret bool
 		return ret
 	}
-	return *o.IsSecret
+	return *o.IsSensitive
 }
 
-// GetIsSecretOk returns a tuple with the IsSecret field value if set, nil otherwise
+// GetIsSensitiveOk returns a tuple with the IsSensitive field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *EnvironmentVariable) GetIsSecretOk() (*bool, bool) {
-	if o == nil || IsNil(o.IsSecret) {
+func (o *EnvironmentVariable) GetIsSensitiveOk() (*bool, bool) {
+	if o == nil || IsNil(o.IsSensitive) {
 		return nil, false
 	}
-	return o.IsSecret, true
+	return o.IsSensitive, true
 }
 
-// HasIsSecret returns a boolean if a field has been set.
-func (o *EnvironmentVariable) HasIsSecret() bool {
-	if o != nil && !IsNil(o.IsSecret) {
+// HasIsSensitive returns a boolean if a field has been set.
+func (o *EnvironmentVariable) HasIsSensitive() bool {
+	if o != nil && !IsNil(o.IsSensitive) {
 		return true
 	}
 
 	return false
 }
 
-// SetIsSecret gets a reference to the given bool and assigns it to the IsSecret field.
-func (o *EnvironmentVariable) SetIsSecret(v bool) {
-	o.IsSecret = &v
-}
-
-// GetSecretRef returns the SecretRef field value if set, zero value otherwise.
-func (o *EnvironmentVariable) GetSecretRef() EnvironmentVariableSecretRef {
-	if o == nil || IsNil(o.SecretRef) {
-		var ret EnvironmentVariableSecretRef
-		return ret
-	}
-	return *o.SecretRef
-}
-
-// GetSecretRefOk returns a tuple with the SecretRef field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *EnvironmentVariable) GetSecretRefOk() (*EnvironmentVariableSecretRef, bool) {
-	if o == nil || IsNil(o.SecretRef) {
-		return nil, false
-	}
-	return o.SecretRef, true
-}
-
-// HasSecretRef returns a boolean if a field has been set.
-func (o *EnvironmentVariable) HasSecretRef() bool {
-	if o != nil && !IsNil(o.SecretRef) {
-		return true
-	}
-
-	return false
-}
-
-// SetSecretRef gets a reference to the given EnvironmentVariableSecretRef and assigns it to the SecretRef field.
-func (o *EnvironmentVariable) SetSecretRef(v EnvironmentVariableSecretRef) {
-	o.SecretRef = &v
+// SetIsSensitive gets a reference to the given bool and assigns it to the IsSensitive field.
+func (o *EnvironmentVariable) SetIsSensitive(v bool) {
+	o.IsSensitive = &v
 }
 
 func (o EnvironmentVariable) MarshalJSON() ([]byte, error) {
@@ -181,14 +141,9 @@ func (o EnvironmentVariable) MarshalJSON() ([]byte, error) {
 func (o EnvironmentVariable) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["key"] = o.Key
-	if !IsNil(o.Value) {
-		toSerialize["value"] = o.Value
-	}
-	if !IsNil(o.IsSecret) {
-		toSerialize["isSecret"] = o.IsSecret
-	}
-	if !IsNil(o.SecretRef) {
-		toSerialize["secretRef"] = o.SecretRef
+	toSerialize["value"] = o.Value
+	if !IsNil(o.IsSensitive) {
+		toSerialize["isSensitive"] = o.IsSensitive
 	}
 	return toSerialize, nil
 }

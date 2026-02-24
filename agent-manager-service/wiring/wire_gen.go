@@ -7,12 +7,7 @@
 package wiring
 
 import (
-	"log/slog"
-	"time"
-
 	"github.com/google/wire"
-	"gorm.io/gorm"
-
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/observabilitysvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
@@ -23,6 +18,9 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/websocket"
+	"gorm.io/gorm"
+	"log/slog"
+	"time"
 )
 
 // Injectors from wire.go:
@@ -40,7 +38,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	if err != nil {
 		return nil, err
 	}
-	secretManagementClient, err := ProvideSecretManagementClient(configConfig, authProvider)
+	secretManagementClient, err := ProvideSecretManagementClient(configConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -233,8 +231,7 @@ var configProviderSet = wire.NewSet(
 )
 
 var clientProviderSet = wire.NewSet(
-	ProvideObservabilitySvcClient, traceobserversvc.NewTraceObserverClient, ProvideOCAuthProvider,
-	ProvideOCClient,
+	ProvideObservabilitySvcClient, traceobserversvc.NewTraceObserverClient, ProvideOCClient,
 	ProvideSecretManagementClient,
 )
 
@@ -271,14 +268,21 @@ func ProvideObservabilitySvcClient(cfg config.Config, authProvider client.AuthPr
 }
 
 // ProvideSecretManagementClient creates the secret management service client
-// Returns nil if secret management is disabled
-func ProvideSecretManagementClient(cfg config.Config, authProvider client.AuthProvider) (secretmanagersvc.SecretManagementClient, error) {
-	if !cfg.SecretManagement.Enable || cfg.SecretManagement.URL == "" {
+// Returns nil if provider or OpenBao URL is not configured
+func ProvideSecretManagementClient(cfg config.Config) (secretmanagersvc.SecretManagementClient, error) {
+	if cfg.SecretManager.Provider == "" {
 		return nil, nil
 	}
-	return secretmanagersvc.NewSecretManagementClient(&secretmanagersvc.Config{
-		BaseURL:      cfg.SecretManagement.URL,
-		AuthProvider: authProvider,
+	return secretmanagersvc.NewSecretManagementClient(&secretmanagersvc.StoreConfig{
+		Provider: cfg.SecretManager.Provider,
+		OpenBao: &secretmanagersvc.OpenBaoConfig{
+			Server:  cfg.OpenBao.URL,
+			Path:    cfg.OpenBao.Path,
+			Version: cfg.OpenBao.Version,
+			Auth: &secretmanagersvc.OpenBaoAuth{
+				Token: cfg.OpenBao.Token,
+			},
+		},
 	})
 }
 

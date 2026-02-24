@@ -685,8 +685,9 @@ func (c *agentController) GetAgentConfigurations(w http.ResponseWriter, r *http.
 	configurationItems := make([]spec.ConfigurationItem, len(configurations))
 	for i, config := range configurations {
 		configurationItems[i] = spec.ConfigurationItem{
-			Key:   config.Key,
-			Value: config.Value,
+			Key:         config.Key,
+			Value:       config.Value,
+			IsSensitive: config.IsSensitive,
 		}
 	}
 

@@ -188,6 +188,19 @@ func loadEnvs() {
 	// LLM Provider Template configuration
 	config.LLMTemplateDefinitionsPath = r.readOptionalString("LLM_TEMPLATE_DEFINITIONS_PATH", "./resources/default-llm-provider-templates")
 
+	// Secret Manager configuration
+	config.SecretManager = SecretManagerConfig{
+		Provider: r.readOptionalString("SECRET_MANAGER_PROVIDER", "openbao"),
+	}
+
+	// OpenBao KV store configuration
+	config.OpenBao = OpenBaoConfig{
+		URL:     r.readOptionalString("OPENBAO_URL", ""),
+		Token:   r.readOptionalString("OPENBAO_TOKEN", ""),
+		Path:    r.readOptionalString("OPENBAO_PATH", "secret"),
+		Version: r.readOptionalString("OPENBAO_VERSION", "v2"),
+	}
+
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)
 

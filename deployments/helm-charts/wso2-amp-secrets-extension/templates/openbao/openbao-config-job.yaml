@@ -23,7 +23,7 @@ spec:
           image: quay.io/openbao/openbao:{{ .Values.openbao.server.image.tag }}
           env:
             - name: BAO_ADDR
-              value: "http://openbao.{{ .Release.Namespace }}.svc:8200"
+              value: "http://amp-secrets-openbao.{{ .Release.Namespace }}.svc:8200"
             - name: BAO_TOKEN
               value: {{ .Values.openbao.server.dev.devRootToken | quote }}
             - name: NAMESPACE

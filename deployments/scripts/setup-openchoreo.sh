@@ -125,7 +125,7 @@ $(echo "$CA_CERT" | sed 's/^/        /')
     organizationVirtualHost: "openchoreoapis.internal"
     publicVirtualHost: "localhost"
   secretStoreRef:
-    name: default
+    name: amp-openbao-store
 EOF
     echo "✅ Data Plane registered successfully"
 else
@@ -223,7 +223,7 @@ echo "   Setting up OpenBao for data plane secret management..."
 helm dependency update "${SCRIPT_DIR}/../helm-charts/wso2-amp-secrets-extension"
 helm upgrade --install amp-secrets "${SCRIPT_DIR}/../helm-charts/wso2-amp-secrets-extension" --namespace amp-secrets --create-namespace
 echo "⏳ Waiting for OpenBao to be ready..."
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=openbao -n amp-secrets --timeout=120s || echo "⚠️  OpenBao pods may still be starting"
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=amp-secrets-openbao -n amp-secrets --timeout=120s || echo "⚠️  OpenBao pods may still be starting"
 echo "✅ Secrets Extension installed/upgraded successfully"
 echo ""
 

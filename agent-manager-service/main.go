@@ -36,6 +36,9 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/server"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 
+	// Register secret management providers
+	_ "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc/providers/openbao"
+
 	"go.uber.org/automaxprocs/maxprocs"
 
 	dbmigrations "github.com/wso2/ai-agent-management-platform/agent-manager-service/db_migrations"

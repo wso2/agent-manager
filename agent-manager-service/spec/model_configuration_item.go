@@ -23,6 +23,8 @@ type ConfigurationItem struct {
 	Key string `json:"key"`
 	// Configuration value
 	Value string `json:"value"`
+	// Whether this configuration value is sensitive (e.g., a secret)
+	IsSensitive bool `json:"isSensitive,omitempty"`
 }
 
 // NewConfigurationItem instantiates a new ConfigurationItem object
@@ -104,6 +106,9 @@ func (o ConfigurationItem) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["key"] = o.Key
 	toSerialize["value"] = o.Value
+	if o.IsSensitive {
+		toSerialize["isSensitive"] = o.IsSensitive
+	}
 	return toSerialize, nil
 }
 

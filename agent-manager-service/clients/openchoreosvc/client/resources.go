@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
 )
@@ -69,4 +70,68 @@ func (c *openChoreoClient) DeleteResource(ctx context.Context, body map[string]i
 	}
 
 	return nil
+}
+
+// CreateSecretReference creates a SecretReference CR to sync secrets from OpenBao to K8s.
+// It adds a force-sync annotation with a timestamp to trigger immediate reconciliation
+// by the external-secrets operator.
+func (c *openChoreoClient) CreateSecretReference(ctx context.Context, req CreateSecretReferenceRequest) error {
+	// Build data array with secretKey and remoteRef for each key
+	data := make([]map[string]interface{}, 0, len(req.SecretKeys))
+	for _, key := range req.SecretKeys {
+		data = append(data, map[string]interface{}{
+			"secretKey": key,
+			"remoteRef": map[string]interface{}{
+				"key":      req.KVPath,
+				"property": key,
+			},
+		})
+	}
+
+	// Set default refresh interval if not provided
+	refreshInterval := req.RefreshInterval
+	if refreshInterval == "" {
+		refreshInterval = "1h"
+	}
+
+	// Build the SecretReference CR with force-sync annotation for immediate reconciliation
+	secretRefCR := map[string]interface{}{
+		"apiVersion": "openchoreo.dev/v1alpha1",
+		"kind":       "SecretReference",
+		"metadata": map[string]interface{}{
+			"name":      req.Name,
+			"namespace": req.Namespace,
+			"annotations": map[string]interface{}{
+				// Force-sync annotation triggers immediate reconciliation
+				// Changing this value causes external-secrets to re-sync immediately
+				"force-sync": fmt.Sprintf("%d", timeNow().UnixNano()),
+			},
+		},
+		"spec": map[string]interface{}{
+			"template": map[string]interface{}{
+				"type": "Opaque",
+			},
+			"data":            data,
+			"refreshInterval": refreshInterval,
+		},
+	}
+
+	return c.ApplyResource(ctx, secretRefCR)
+}
+
+// timeNow is a variable to allow mocking in tests
+var timeNow = time.Now
+
+// DeleteSecretReference deletes a SecretReference CR
+func (c *openChoreoClient) DeleteSecretReference(ctx context.Context, namespace, name string) error {
+	secretRefCR := map[string]interface{}{
+		"apiVersion": "openchoreo.dev/v1alpha1",
+		"kind":       "SecretReference",
+		"metadata": map[string]interface{}{
+			"name":      name,
+			"namespace": namespace,
+		},
+	}
+
+	return c.DeleteResource(ctx, secretRefCR)
 }

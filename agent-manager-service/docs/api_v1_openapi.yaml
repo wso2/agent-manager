@@ -5552,6 +5552,7 @@ components:
       type: object
       required:
         - key
+        - value
       properties:
         key:
           type: string
@@ -5559,20 +5560,10 @@ components:
         value:
           type: string
           description: Value (plain text or secret value for input; omitted for secrets in responses)
-        isSecret:
+        isSensitive:
           type: boolean
           default: false
           description: If true, value is stored in KV and synced via ExternalSecret
-        secretRef:
-          type: object
-          description: Reference to K8s secret (only present in responses for secret env vars)
-          properties:
-            secretName:
-              type: string
-              description: Name of the K8s secret
-            secretKey:
-              type: string
-              description: Key within the K8s secret
     InputInterface:
       type: object
       description: Endpoint configurations
@@ -5907,6 +5898,10 @@ components:
         value:
           type: string
           description: Configuration value
+        isSensitive:
+          type: boolean
+          description: Whether this configuration value is sensitive (e.g., a secret)
+          default: false
       required:
         - key
         - value

@@ -8,8 +8,8 @@ kubectl:
 # OpenBao Configuration
 openbao:
   enabled: true
-  fullnameOverride: openbao
-  nameOverride: openbao
+  fullnameOverride: amp-secrets-openbao
+  nameOverride: amp-secrets-openbao
 
   server:
     image:

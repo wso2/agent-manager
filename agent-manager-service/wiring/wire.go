@@ -126,14 +126,21 @@ func ProvideObservabilitySvcClient(cfg config.Config, authProvider occlient.Auth
 }
 
 // ProvideSecretManagementClient creates the secret management service client
-// Returns nil if secret management is disabled
-func ProvideSecretManagementClient(cfg config.Config, authProvider occlient.AuthProvider) (secretmanagersvc.SecretManagementClient, error) {
-	if !cfg.SecretManagement.Enable || cfg.SecretManagement.URL == "" {
+// Returns nil if provider or OpenBao URL is not configured
+func ProvideSecretManagementClient(cfg config.Config) (secretmanagersvc.SecretManagementClient, error) {
+	if cfg.SecretManager.Provider == "" {
 		return nil, nil
 	}
-	return secretmanagersvc.NewSecretManagementClient(&secretmanagersvc.Config{
-		BaseURL:      cfg.SecretManagement.URL,
-		AuthProvider: authProvider,
+	return secretmanagersvc.NewSecretManagementClient(&secretmanagersvc.StoreConfig{
+		Provider: cfg.SecretManager.Provider,
+		OpenBao: &secretmanagersvc.OpenBaoConfig{
+			Server:  cfg.OpenBao.URL,
+			Path:    cfg.OpenBao.Path,
+			Version: cfg.OpenBao.Version,
+			Auth: &secretmanagersvc.OpenBaoAuth{
+				Token: cfg.OpenBao.Token,
+			},
+		},
 	})
 }
 

@@ -4,20 +4,20 @@ WSO2 AMP Secrets Extension has been installed!
 OpenBao is deployed in namespace: {{ .Release.Namespace }}
 
 To verify OpenBao is running:
-  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name=openbao
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name=amp-secrets-openbao
 
 To verify ClusterSecretStore:
   kubectl get clustersecretstores {{ .Values.secretStore.name }}
 
 To test secret operations:
-  kubectl exec -it openbao-0 -n {{ .Release.Namespace }} -- bao kv put secret/test foo=bar
-  kubectl exec -it openbao-0 -n {{ .Release.Namespace }} -- bao kv get secret/test
+  kubectl exec -it amp-secrets-openbao-0 -n {{ .Release.Namespace }} -- bao kv put secret/test foo=bar
+  kubectl exec -it amp-secrets-openbao-0 -n {{ .Release.Namespace }} -- bao kv get secret/test
 
 To verify auth configuration:
-  kubectl exec -it openbao-0 -n {{ .Release.Namespace }} -- bao auth list
-  kubectl exec -it openbao-0 -n {{ .Release.Namespace }} -- bao policy list
+  kubectl exec -it amp-secrets-openbao-0 -n {{ .Release.Namespace }} -- bao auth list
+  kubectl exec -it amp-secrets-openbao-0 -n {{ .Release.Namespace }} -- bao policy list
 
-OpenBao Address: http://openbao.{{ .Release.Namespace }}.svc:8200
+OpenBao Address: http://amp-secrets-openbao.{{ .Release.Namespace }}.svc:8200
 ClusterSecretStore Name: {{ .Values.secretStore.name }}
 
 {{- if .Values.openbao.server.dev.enabled }}

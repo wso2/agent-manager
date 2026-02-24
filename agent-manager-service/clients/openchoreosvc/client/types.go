@@ -197,3 +197,14 @@ type workflowEndpoint struct {
 	Type           string `json:"type"`
 	SchemaFilePath string `json:"schemaFilePath,omitempty"`
 }
+
+// CreateSecretReferenceRequest contains data for creating a SecretReference CR
+type CreateSecretReferenceRequest struct {
+	Namespace       string            // Namespace where SecretReference will be created
+	Name            string            // Name of the SecretReference
+	ProjectName     string            // Project name for labels
+	ComponentName   string            // Component name for labels
+	KVPath          string            // Path in OpenBao KV store
+	SecretKeys      []string          // Keys to extract from KV path
+	RefreshInterval string            // How often to refresh (e.g., "1h", "15s")
+}

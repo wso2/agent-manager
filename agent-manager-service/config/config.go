@@ -76,6 +76,30 @@ type Config struct {
 
 	// LLM Provider Template configuration
 	LLMTemplateDefinitionsPath string
+
+	// Secret Manager configuration
+	SecretManager SecretManagerConfig
+
+	// OpenBao KV store configuration
+	OpenBao OpenBaoConfig
+}
+
+// SecretManagerConfig holds secret manager client configuration
+type SecretManagerConfig struct {
+	// Provider is the secret store provider name (e.g., "openbao", "vault")
+	Provider string
+}
+
+// OpenBaoConfig holds OpenBao KV store configuration
+type OpenBaoConfig struct {
+	// URL is the OpenBao server URL (e.g., http://amp-secrets-openbao.amp-secrets.svc:8200)
+	URL string
+	// Token is the authentication token
+	Token string
+	// Path is the KV secrets engine mount path (default: "secret")
+	Path string
+	// Version is the KV engine version (default: "v2")
+	Version string
 }
 
 // OpenChoreoConfig holds OpenChoreo API configuration
@@ -197,14 +221,6 @@ type PublicKeysConfig struct {
 type APIPlatformConfig struct {
 	BaseURL string // Base URL for API Platform
 	Enable  bool
-}
-
-// SecretManagementConfig holds Secret Management Service configuration
-type SecretManagementConfig struct {
-	// URL is the Secret Management Service base URL
-	URL string
-	// Enable flag to enable/disable secret management integration
-	Enable bool
 }
 
 // InternalServerConfig holds configuration for the internal HTTPS server

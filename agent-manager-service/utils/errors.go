@@ -23,6 +23,7 @@ var (
 	ErrProjectNotFound            = errors.New("project not found")
 	ErrAgentAlreadyExists         = errors.New("agent already exists")
 	ErrAgentNotFound              = errors.New("agent not found")
+	ErrTraitNotFound              = errors.New("trait not found")
 	ErrOrganizationNotFound       = errors.New("organization not found")
 	ErrBuildNotFound              = errors.New("build not found")
 	ErrEnvironmentNotFound        = errors.New("environment not found")

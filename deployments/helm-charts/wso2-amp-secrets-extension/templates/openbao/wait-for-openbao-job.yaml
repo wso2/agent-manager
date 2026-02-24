@@ -29,7 +29,7 @@ spec:
               echo "Waiting for OpenBao pods to be ready..."
               kubectl wait --namespace {{ .Release.Namespace }} \
                 --for=condition=Ready pods \
-                -l app.kubernetes.io/name=openbao,component=server \
+                -l app.kubernetes.io/name=amp-secrets-openbao,component=server \
                 --timeout=900s
               echo "OpenBao is ready!"
 {{- end }}

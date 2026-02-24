@@ -20,9 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path"
-
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 )
 
 // CreateSecretRequest represents a request to create a secret.
@@ -47,20 +44,12 @@ type SecretResponse struct {
 	Data map[string]string `json:"data,omitempty"`
 }
 
-// Config holds the configuration for the secret management client.
-type Config struct {
-	// BaseURL is the OpenBao server URL.
-	BaseURL string
-	// AuthProvider provides authentication tokens.
-	AuthProvider client.AuthProvider
-}
-
 // SecretManagementClient defines the interface for secret management operations.
 //
 //go:generate moq -out ../clientmocks/secret_mgmt_client_fake.go -pkg clientmocks . SecretManagementClient
 type SecretManagementClient interface {
 	// CreateSecret creates a new secret at the specified path.
-	CreateSecret(ctx context.Context, orgName string, req CreateSecretRequest) (*SecretResponse, error)
+	CreateSecret(ctx context.Context, req CreateSecretRequest) (*SecretResponse, error)
 
 	// UpdateSecret updates an existing secret.
 	UpdateSecret(ctx context.Context, orgName string, secretPath string, req UpdateSecretRequest) (*SecretResponse, error)
@@ -82,33 +71,20 @@ type secretManagementClient struct {
 }
 
 // NewSecretManagementClient creates a new SecretManagementClient.
-// Returns nil if cfg is nil (disabled mode).
-func NewSecretManagementClient(cfg *Config) (SecretManagementClient, error) {
-	if cfg == nil || cfg.BaseURL == "" {
+// Returns nil if cfg is nil or provider is empty (disabled mode).
+func NewSecretManagementClient(cfg *StoreConfig) (SecretManagementClient, error) {
+	if cfg == nil || cfg.Provider == "" {
 		return nil, nil
 	}
 
-	// Get the OpenBao provider
-	provider, ok := GetProvider("openbao")
+	// Get the provider
+	provider, ok := GetProvider(cfg.Provider)
 	if !ok {
-		return nil, fmt.Errorf("openbao provider not registered")
-	}
-
-	// Create store config
-	storeConfig := &StoreConfig{
-		Provider: "openbao",
-		OpenBao: &OpenBaoConfig{
-			Server:  cfg.BaseURL,
-			Path:    "secret",
-			Version: "v2",
-			Auth: &OpenBaoAuth{
-				Token: "root", // TODO: Use proper auth from AuthProvider
-			},
-		},
+		return nil, fmt.Errorf("provider %q not registered", cfg.Provider)
 	}
 
 	// Create the low-level client
-	lowLevelClient, err := provider.NewClient(context.Background(), storeConfig)
+	lowLevelClient, err := provider.NewClient(context.Background(), cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create secrets client: %w", err)
 	}
@@ -120,9 +96,7 @@ func NewSecretManagementClient(cfg *Config) (SecretManagementClient, error) {
 }
 
 // CreateSecret creates a new secret at the specified path.
-func (c *secretManagementClient) CreateSecret(ctx context.Context, orgName string, req CreateSecretRequest) (*SecretResponse, error) {
-	fullPath := c.buildPath(orgName, req.Path)
-
+func (c *secretManagementClient) CreateSecret(ctx context.Context, req CreateSecretRequest) (*SecretResponse, error) {
 	// Convert map to JSON bytes
 	data, err := json.Marshal(req.Data)
 	if err != nil {
@@ -133,19 +107,17 @@ func (c *secretManagementClient) CreateSecret(ctx context.Context, orgName strin
 	metadata := &SecretMetadata{
 		ManagedBy: c.managedBy,
 	}
-	if err := c.lowLevelClient.PushSecret(ctx, fullPath, data, metadata); err != nil {
+	if err := c.lowLevelClient.PushSecret(ctx, req.Path, data, metadata); err != nil {
 		return nil, fmt.Errorf("failed to create secret: %w", err)
 	}
 
 	return &SecretResponse{
-		Path: fullPath,
+		Path: req.Path,
 	}, nil
 }
 
 // UpdateSecret updates an existing secret.
 func (c *secretManagementClient) UpdateSecret(ctx context.Context, orgName string, secretPath string, req UpdateSecretRequest) (*SecretResponse, error) {
-	fullPath := c.buildPath(orgName, secretPath)
-
 	// Convert map to JSON bytes
 	data, err := json.Marshal(req.Data)
 	if err != nil {
@@ -156,20 +128,18 @@ func (c *secretManagementClient) UpdateSecret(ctx context.Context, orgName strin
 	metadata := &SecretMetadata{
 		ManagedBy: c.managedBy,
 	}
-	if err := c.lowLevelClient.PushSecret(ctx, fullPath, data, metadata); err != nil {
+	if err := c.lowLevelClient.PushSecret(ctx, secretPath, data, metadata); err != nil {
 		return nil, fmt.Errorf("failed to update secret: %w", err)
 	}
 
 	return &SecretResponse{
-		Path: fullPath,
+		Path: secretPath,
 	}, nil
 }
 
 // GetSecret retrieves a secret by path.
 func (c *secretManagementClient) GetSecret(ctx context.Context, orgName string, secretPath string) (*SecretResponse, error) {
-	fullPath := c.buildPath(orgName, secretPath)
-
-	data, err := c.lowLevelClient.GetSecret(ctx, fullPath)
+	data, err := c.lowLevelClient.GetSecret(ctx, secretPath)
 	if err != nil {
 		return nil, err
 	}
@@ -181,22 +151,19 @@ func (c *secretManagementClient) GetSecret(ctx context.Context, orgName string, 
 	}
 
 	return &SecretResponse{
-		Path: fullPath,
+		Path: secretPath,
 		Data: secretData,
 	}, nil
 }
 
 // DeleteSecret deletes a secret by path.
 func (c *secretManagementClient) DeleteSecret(ctx context.Context, orgName string, secretPath string) error {
-	fullPath := c.buildPath(orgName, secretPath)
-	return c.lowLevelClient.DeleteSecret(ctx, fullPath)
+	return c.lowLevelClient.DeleteSecret(ctx, secretPath)
 }
 
 // ListSecrets lists all secrets under a path prefix.
 func (c *secretManagementClient) ListSecrets(ctx context.Context, orgName string, pathPrefix string) ([]SecretMetadata, error) {
-	fullPath := c.buildPath(orgName, pathPrefix)
-
-	secrets, err := c.lowLevelClient.GetAllSecrets(ctx, fullPath)
+	secrets, err := c.lowLevelClient.GetAllSecrets(ctx, pathPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -210,9 +177,4 @@ func (c *secretManagementClient) ListSecrets(ctx context.Context, orgName string
 	}
 
 	return metadata, nil
-}
-
-// buildPath constructs the full secret path.
-func (c *secretManagementClient) buildPath(orgName string, secretPath string) string {
-	return path.Join(orgName, secretPath)
 }

@@ -872,97 +872,6 @@ func (c *openChoreoClient) AttachTrait(ctx context.Context, namespaceName, proje
 	return nil
 }
 
-// AttachExternalSecretTrait attaches the external-secret-trait to a component for syncing secrets from OpenBao
-func (c *openChoreoClient) AttachExternalSecretTrait(ctx context.Context, namespaceName, projectName, componentName, kvPath string, refreshInterval string) error {
-	// Get the current traits for the component
-	listResp, err := c.ocClient.ListComponentTraitsWithResponse(ctx, namespaceName, projectName, componentName)
-	if err != nil {
-		return fmt.Errorf("failed to list component traits: %w", err)
-	}
-
-	if listResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(listResp.StatusCode(), listResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
-		})
-	}
-
-	// Build the new traits list including existing traits
-	var traits []gen.ComponentTraitRequest
-	instanceName := fmt.Sprintf("%s-secrets", componentName)
-
-	// Parse existing traits from the generic response
-	if listResp.JSON200 != nil && listResp.JSON200.Data != nil && listResp.JSON200.Data.Items != nil {
-		for _, item := range *listResp.JSON200.Data.Items {
-			name, _ := item["name"].(string)
-			existingInstanceName, _ := item["instanceName"].(string)
-			// Check if external-secret-trait already exists with same instance name
-			if name == string(TraitExternalSecret) && existingInstanceName == instanceName {
-				// Trait already exists, update its parameters
-				params := map[string]interface{}{
-					"kvPath":          kvPath,
-					"refreshInterval": refreshInterval,
-				}
-				trait := gen.ComponentTraitRequest{
-					Name:         name,
-					InstanceName: existingInstanceName,
-					Parameters:   &params,
-				}
-				traits = append(traits, trait)
-				continue
-			}
-			trait := gen.ComponentTraitRequest{
-				Name:         name,
-				InstanceName: existingInstanceName,
-			}
-			if params, ok := item["parameters"].(map[string]interface{}); ok {
-				trait.Parameters = &params
-			}
-			traits = append(traits, trait)
-		}
-	}
-
-	// Check if we already added the trait (update case)
-	traitExists := false
-	for _, t := range traits {
-		if t.Name == string(TraitExternalSecret) && t.InstanceName == instanceName {
-			traitExists = true
-			break
-		}
-	}
-
-	// Add the new trait if it doesn't exist
-	if !traitExists {
-		params := map[string]interface{}{
-			"kvPath":          kvPath,
-			"refreshInterval": refreshInterval,
-		}
-		newTrait := gen.ComponentTraitRequest{
-			Name:         string(TraitExternalSecret),
-			InstanceName: instanceName,
-			Parameters:   &params,
-		}
-		traits = append(traits, newTrait)
-	}
-
-	// Update traits
-	updateReq := gen.UpdateComponentTraitsJSONRequestBody{
-		Traits: traits,
-	}
-
-	updateResp, err := c.ocClient.UpdateComponentTraitsWithResponse(ctx, namespaceName, projectName, componentName, updateReq)
-	if err != nil {
-		return fmt.Errorf("failed to update component traits: %w", err)
-	}
-
-	if updateResp.StatusCode() != http.StatusOK {
-		return handleErrorResponse(updateResp.StatusCode(), updateResp.Body, ErrorContext{
-			NotFoundErr: utils.ErrAgentNotFound,
-		})
-	}
-
-	return nil
-}
-
 // UpdateComponentEnvironmentVariables updates the environment variables for a component
 func (c *openChoreoClient) UpdateComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error {
 	// Fetch the full component CR with server-managed fields removed
@@ -1109,30 +1018,14 @@ func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespa
 }
 
 func getInstrumentationImage(languageVersion, packageVersion string) (string, error) {
+	return "ghcr.io/hanzjk/otel-instrumentation-setup:v1.0.1@sha256:c4d5a81d1112f5ea8bbbc1a9e3e3fd46c4a10b9c88c4d513677c364e4e63a7e4", nil
+	
 	parts := strings.Split(languageVersion, ".")
 	if len(parts) < 2 {
 		return "", fmt.Errorf("invalid languageVersion format: expected 'major.minor' but got '%s'", languageVersion)
 	}
 	pythonMajorMinor := parts[0] + "." + parts[1]
 	return fmt.Sprintf("%s/%s:%s-python%s", InstrumentationImageRegistry, InstrumentationImageName, packageVersion, pythonMajorMinor), nil
-}
-
-func findLowestEnvironment(promotionPaths []models.PromotionPath) string {
-	if len(promotionPaths) == 0 {
-		return ""
-	}
-	targets := make(map[string]bool)
-	for _, path := range promotionPaths {
-		for _, target := range path.TargetEnvironmentRefs {
-			targets[target.Name] = true
-		}
-	}
-	for _, path := range promotionPaths {
-		if !targets[path.SourceEnvironmentRef] {
-			return path.SourceEnvironmentRef
-		}
-	}
-	return ""
 }
 
 func (c *openChoreoClient) GetComponentEndpoints(ctx context.Context, namespaceName, projectName, componentName, environment string) (map[string]models.EndpointsResponse, error) {
@@ -1213,14 +1106,25 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 	}
 
 	// Create a map to store environment variables (for easy merging)
-	envVarMap := make(map[string]string)
+	// Value is stored as a struct to track sensitivity
+	type envVarEntry struct {
+		Value       string
+		IsSensitive bool
+	}
+	envVarMap := make(map[string]envVarEntry)
 
 	// Extract base environment variables from workload
 	if workloadResp.JSON200 != nil && workloadResp.JSON200.Data != nil && workloadResp.JSON200.Data.Containers != nil {
 		if mainContainer, ok := (*workloadResp.JSON200.Data.Containers)[MainContainerName]; ok {
 			if mainContainer.Env != nil {
 				for _, env := range *mainContainer.Env {
-					envVarMap[env.Key] = utils.StrPointerAsStr(env.Value, "")
+					if env.ValueFrom != nil && env.ValueFrom.SecretRef != nil {
+						// Secret env var - mark as sensitive, don't expose value
+						envVarMap[env.Key] = envVarEntry{Value: "", IsSensitive: true}
+					} else {
+						// Plain env var
+						envVarMap[env.Key] = envVarEntry{Value: utils.StrPointerAsStr(env.Value, ""), IsSensitive: false}
+					}
 				}
 			}
 		}
@@ -1242,7 +1146,13 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 					if mainContainer, ok := (*binding.WorkloadOverrides.Containers)[MainContainerName]; ok {
 						if mainContainer.Env != nil {
 							for _, env := range *mainContainer.Env {
-								envVarMap[env.Key] = utils.StrPointerAsStr(env.Value, "")
+								if env.ValueFrom != nil && env.ValueFrom.SecretRef != nil {
+									// Secret env var - mark as sensitive
+									envVarMap[env.Key] = envVarEntry{Value: "", IsSensitive: true}
+								} else {
+									// Plain env var
+									envVarMap[env.Key] = envVarEntry{Value: utils.StrPointerAsStr(env.Value, ""), IsSensitive: false}
+								}
 							}
 						}
 					}
@@ -1254,10 +1164,11 @@ func (c *openChoreoClient) GetComponentConfigurations(ctx context.Context, names
 
 	// Convert map back to slice
 	var envVars []models.EnvVars
-	for key, value := range envVarMap {
+	for key, entry := range envVarMap {
 		envVars = append(envVars, models.EnvVars{
-			Key:   key,
-			Value: value,
+			Key:         key,
+			Value:       entry.Value,
+			IsSensitive: entry.IsSensitive,
 		})
 	}
 

@@ -61,7 +61,6 @@ type OpenChoreoClient interface {
 	ListComponents(ctx context.Context, namespaceName, projectName string) ([]*models.AgentResponse, error)
 	ComponentExists(ctx context.Context, namespaceName, projectName, componentName string, verifyProject bool) (bool, error)
 	AttachTrait(ctx context.Context, namespaceName, projectName, componentName string, traitType TraitType, agentApiKey ...string) error
-	AttachExternalSecretTrait(ctx context.Context, namespaceName, projectName, componentName, kvPath string, refreshInterval string) error
 	UpdateComponentEnvironmentVariables(ctx context.Context, namespaceName, projectName, componentName string, envVars []EnvVar) error
 	GetComponentEndpoints(ctx context.Context, namespaceName, projectName, componentName, environment string) (map[string]models.EndpointsResponse, error)
 	GetComponentConfigurations(ctx context.Context, namespaceName, projectName, componentName, environment string) ([]models.EnvVars, error)
@@ -89,6 +88,10 @@ type OpenChoreoClient interface {
 	ApplyResource(ctx context.Context, body map[string]interface{}) error
 	GetResource(ctx context.Context, namespaceName, kind, name string) (map[string]interface{}, error)
 	DeleteResource(ctx context.Context, body map[string]interface{}) error
+
+	// Secret Reference Operations
+	CreateSecretReference(ctx context.Context, req CreateSecretReferenceRequest) error
+	DeleteSecretReference(ctx context.Context, namespace, name string) error
 }
 
 type openChoreoClient struct {
