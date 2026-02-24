@@ -162,6 +162,26 @@ def _count_callable_params(target, skip_param_defaults: bool = False) -> int:
     return len(params)
 
 
+def validate_unique_evaluator_names(evaluators: List) -> None:
+    """
+    Raise ValueError if any evaluators share the same name.
+
+    Use this at collection points (catalog discovery, module scanning,
+    runner initialization) to catch duplicate names before they cause
+    silent overwrites.
+    """
+    seen: Dict[str, Any] = {}
+    for ev in evaluators:
+        name = getattr(ev, "name", None)
+        if name is None:
+            continue
+        if name in seen:
+            raise ValueError(
+                f"Duplicate evaluator name '{name}': {type(ev).__name__} conflicts with {type(seen[name]).__name__}"
+            )
+        seen[name] = ev
+
+
 # ============================================================================
 # BASE EVALUATOR
 # ============================================================================
@@ -178,6 +198,13 @@ class BaseEvaluator(ABC):
     - trace:  evaluate(self, trace: Trace) -> called once per trace
     - agent:  evaluate(self, agent_trace: AgentTrace) -> called once per agent
     - llm:    evaluate(self, llm_span: LLMSpan) -> called once per LLM call
+
+    Score convention (mandatory for all evaluators):
+    - Range:    0.0 to 1.0 (enforced by EvalResult — raises ValueError if violated)
+    - Polarity: 0.0 = worst outcome, 1.0 = best outcome (higher is always better)
+
+    This polarity must hold for every evaluator, including inverted-sounding
+    ones like hallucination (0.0 = many hallucinations) and safety (0.0 = unsafe).
 
     Class Attributes for Metadata:
         name: Unique evaluator name (defaults to class name)
@@ -231,7 +258,7 @@ class BaseEvaluator(ABC):
         Initialize Param descriptors from kwargs and validate required params.
 
         Allows evaluators to be instantiated with:
-            evaluator = MyEvaluator(threshold=0.8, model="gpt-4")
+            evaluator = MyEvaluator(model="gpt-4")
 
         Raises TypeError if any required Param (defined without a default) is
         not provided — catching configuration errors at init time rather than
@@ -461,21 +488,31 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
             return f"Is this grounded? {trace.output}"
     """
 
+    def __init__(self, **kwargs):
+        model_explicitly_set = "model" in kwargs
+        super().__init__(**kwargs)
+        if not model_explicitly_set:
+            try:
+                from ..config import get_config
+
+                self.model = get_config().llm_judge.default_model
+            except Exception:
+                pass  # Keep Param default (gpt-4o-mini)
+
     # Configurable via Param descriptors
-    model: str = Param(default="gpt-4o-mini", description="LiteLLM model identifier")
+    model: str = Param(default="gpt-4o-mini", description="LLM model identifier")
     criteria: str = Param(default="quality, accuracy, and helpfulness", description="Evaluation criteria")
     temperature: float = Param(default=0.0, description="LLM temperature")
     max_tokens: int = Param(default=1024, description="Max tokens for LLM response")
-    threshold: float = Param(default=0.5, description="Score threshold for pass/fail")
     max_retries: int = Param(default=2, description="Max retries on invalid LLM output")
 
     # Output format instructions — auto-appended to the user's prompt
     _OUTPUT_INSTRUCTIONS = """
 
-Evaluate and respond with a JSON object:
+First provide your reasoning, then your score. Respond with a JSON object:
 {
-  "score": <float between 0.0 and 1.0>,
-  "explanation": "<brief explanation of your evaluation>"
+  "explanation": "<your step-by-step analysis>",
+  "score": <float between 0.0 and 1.0, where 0.0 is the worst possible and 1.0 is the best possible>
 }"""
 
     # ─── User must override this ────────────────────────────────────
@@ -516,8 +553,10 @@ Evaluate and respond with a JSON object:
 
     # ─── Internal pipeline: evaluate → build_prompt → LLM → validate ─
 
-    def evaluate(self, trace_or_span, task=None) -> EvalResult:
+    def evaluate(self, *args: Any, **kwargs: Any) -> EvalResult:
         """Internal: calls build_prompt() -> LLM -> validate -> EvalResult."""
+        trace_or_span = args[0] if args else None
+        task = args[1] if len(args) > 1 else kwargs.get("task")
         # 1. Dispatch to build_prompt() (respects signature param count)
         prompt = self._dispatch_build_prompt(trace_or_span, task)
 
@@ -585,7 +624,7 @@ Evaluate and respond with a JSON object:
 
         return EvalResult(
             score=output.score,
-            passed=output.score >= self.threshold,
+            passed=output.score >= 0.5,
             explanation=output.explanation,
             details={"model": self.model, "criteria": self.criteria},
         ), None

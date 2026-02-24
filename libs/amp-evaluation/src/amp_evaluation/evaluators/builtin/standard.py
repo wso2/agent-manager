@@ -46,8 +46,8 @@ class AnswerLengthEvaluator(BaseEvaluator):
     """Evaluates if the answer length is within acceptable bounds."""
 
     name = "answer_length"
-    description = "Validates that output character length falls within configured bounds"
-    tags = ["standard", "rule-based", "final-response", "compliance"]
+    description = "Checks output character length falls within configured min/max bounds. Scores 1.0 if within range, 0.0 otherwise."
+    tags = ["builtin", "rule-based", "quality"]
 
     min_length: int = Param(default=1, min=0, description="Minimum acceptable length")
     max_length: int = Param(default=10000, min=1, description="Maximum acceptable length")
@@ -79,43 +79,12 @@ class AnswerLengthEvaluator(BaseEvaluator):
         )
 
 
-class AnswerRelevancyEvaluator(BaseEvaluator):
-    """Evaluates if the answer is relevant to the input query."""
-
-    name = "answer_relevancy"
-    description = "Measures relevancy between input and output using word overlap analysis"
-    tags = ["standard", "rule-based", "final-response", "relevancy"]
-
-    min_overlap_ratio: float = Param(default=0.1, min=0.0, max=1.0, description="Minimum word overlap ratio")
-
-    def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
-        input_text = trace.input.lower() if trace.input else ""
-        output_text = trace.output.lower() if trace.output else ""
-
-        input_words = set(input_text.split())
-        output_words = set(output_text.split())
-
-        if not input_words:
-            return EvalResult.skip("No input text to compare")
-
-        overlap = input_words.intersection(output_words)
-        overlap_ratio = len(overlap) / len(input_words)
-
-        passed = overlap_ratio >= self.min_overlap_ratio
-        return EvalResult(
-            score=overlap_ratio,
-            passed=passed,
-            explanation=f"Word overlap ratio: {overlap_ratio:.2f}",
-            details={"overlap_ratio": overlap_ratio, "overlapping_words": list(overlap)[:10]},
-        )
-
-
 class RequiredContentEvaluator(BaseEvaluator):
     """Evaluates if the output contains all required content."""
 
     name = "required_content"
-    description = "Ensures output contains all required strings and regex pattern matches"
-    tags = ["standard", "rule-based", "final-response", "completeness"]
+    description = "Checks output contains all required strings and regex patterns. Score = proportion of required items found."
+    tags = ["builtin", "rule-based", "compliance"]
 
     required_strings: Optional[List[str]] = Param(default=None, description="List of required strings")
     required_patterns: Optional[List[str]] = Param(default=None, description="List of required regex patterns")
@@ -165,8 +134,8 @@ class ProhibitedContentEvaluator(BaseEvaluator):
     """Evaluates if the output avoids prohibited content."""
 
     name = "prohibited_content"
-    description = "Detects presence of prohibited strings and regex patterns in output"
-    tags = ["standard", "rule-based", "final-response", "safety"]
+    description = "Flags output containing any prohibited strings or patterns. Scores 0.0 if any match found, 1.0 if clean. Also reads task.prohibited_content when available."
+    tags = ["builtin", "rule-based", "safety", "compliance"]
 
     prohibited_strings: Optional[List[str]] = Param(default=None, description="List of prohibited strings")
     prohibited_patterns: Optional[List[str]] = Param(default=None, description="List of prohibited regex patterns")
@@ -215,8 +184,8 @@ class ExactMatchEvaluator(BaseEvaluator):
     """Evaluates if the output exactly matches the reference output."""
 
     name = "exact_match"
-    description = "Validates output exactly matches the expected output (ground truth)"
-    tags = ["standard", "rule-based", "final-response", "accuracy"]
+    description = "Compares output against expected output for exact string match. Experiment-only. Scores 1.0 or 0.0."
+    tags = ["builtin", "rule-based", "correctness"]
 
     case_sensitive: bool = Param(default=True, description="Whether to use case-sensitive matching")
     strip_whitespace: bool = Param(default=True, description="Whether to strip whitespace before comparing")
@@ -261,8 +230,8 @@ class ContainsMatchEvaluator(BaseEvaluator):
     """Evaluates if the output contains the reference output."""
 
     name = "contains_match"
-    description = "Validates that expected output substring is present in actual output"
-    tags = ["standard", "rule-based", "final-response", "accuracy"]
+    description = "Checks whether expected output appears as a substring in actual output. Experiment-only. Scores 1.0 or 0.0."
+    tags = ["builtin", "rule-based", "correctness"]
 
     case_sensitive: bool = Param(default=False, description="Whether to use case-sensitive matching")
 
@@ -298,8 +267,8 @@ class ToolSequenceEvaluator(BaseEvaluator):
     """Evaluates if tools were called in the expected sequence."""
 
     name = "tool_sequence"
-    description = "Validates that tools were invoked in the expected sequential order"
-    tags = ["standard", "rule-based", "trajectory", "correctness"]
+    description = "Verifies tools were invoked in the expected order. In non-strict mode, allows extra tools between expected ones. Score = proportion of sequence matched."
+    tags = ["builtin", "rule-based", "tool-use"]
 
     expected_sequence: Optional[List[str]] = Param(default=None, description="List of tool names in expected order")
     strict: bool = Param(default=False, description="If True, requires exact sequence. If False, allows extra tools")
@@ -348,8 +317,8 @@ class RequiredToolsEvaluator(BaseEvaluator):
     """Evaluates if all required tools were used."""
 
     name = "required_tools"
-    description = "Ensures all required tools were invoked at least once during execution"
-    tags = ["standard", "rule-based", "trajectory", "completeness"]
+    description = "Confirms all required tools were invoked at least once. Score = proportion of required tools found."
+    tags = ["builtin", "rule-based", "tool-use"]
 
     required_tools: Optional[Set[str]] = Param(default=None, description="Set of required tool names")
 
@@ -399,8 +368,8 @@ class StepSuccessRateEvaluator(BaseEvaluator):
     """Evaluates the success rate of trace spans."""
 
     name = "step_success_rate"
-    description = "Measures the percentage of execution spans completed without errors"
-    tags = ["standard", "rule-based", "trajectory", "reliability"]
+    description = "Measures the ratio of execution spans completed without errors. Score = successful spans / total spans."
+    tags = ["builtin", "rule-based", "tool-use"]
 
     min_success_rate: float = Param(default=0.8, min=0.0, max=1.0, description="Minimum required success rate")
 
@@ -431,8 +400,8 @@ class LatencyEvaluator(BaseEvaluator):
     """Evaluates if execution completed within latency constraints (trace-level)."""
 
     name = "latency"
-    description = "Validates execution time meets configured latency constraints"
-    tags = ["standard", "rule-based", "performance", "efficiency"]
+    description = "Checks total execution time against a configurable limit. Scores 1.0 within limit, degrades linearly above it."
+    tags = ["builtin", "rule-based", "efficiency"]
 
     max_latency_ms: float = Param(default=30000.0, min=0.0, description="Maximum allowed latency in milliseconds")
     use_task_constraint: bool = Param(default=True, description="Whether to use task.constraints.max_latency_ms")
@@ -473,8 +442,8 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
     """Evaluates if token usage is within constraints."""
 
     name = "token_efficiency"
-    description = "Validates total token consumption stays within configured usage limits"
-    tags = ["standard", "rule-based", "performance", "efficiency"]
+    description = "Checks total token usage against a configurable limit. Scores 1.0 within limit, degrades linearly above it."
+    tags = ["builtin", "rule-based", "efficiency"]
 
     max_tokens: int = Param(default=10000, min=1, description="Maximum allowed tokens")
     use_context_constraint: bool = Param(default=True, description="Whether to use task.constraints.max_tokens")
@@ -506,8 +475,8 @@ class IterationCountEvaluator(BaseEvaluator):
     """Evaluates if the agent completed within iteration constraints."""
 
     name = "iteration_count"
-    description = "Validates agent completes task within maximum iteration count limit"
-    tags = ["standard", "rule-based", "performance", "efficiency"]
+    description = "Checks total span count against a configurable max. Scores 1.0 within limit, degrades linearly above it."
+    tags = ["builtin", "rule-based", "efficiency"]
 
     max_iterations: int = Param(default=10, min=1, description="Maximum allowed iterations")
     use_context_constraint: bool = Param(default=True, description="Whether to use task.constraints.max_iterations")
@@ -536,56 +505,3 @@ class IterationCountEvaluator(BaseEvaluator):
         )
 
 
-# =============================================================================
-# Quality Evaluators
-# =============================================================================
-
-
-class HallucinationEvaluator(BaseEvaluator):
-    """
-    Detects potential hallucinations in AI outputs using keyword-based heuristics (trace-level).
-
-    This is a simple heuristic evaluator. For production use, consider
-    LLM-as-judge evaluators for more sophisticated hallucination detection.
-    """
-
-    name = "hallucination"
-    description = "Detects potential hallucinations using keyword patterns"
-    tags = ["standard", "rule-based", "quality", "safety"]
-
-    hallucination_keywords: List[str] = Param(
-        default=["I don't have access", "I cannot", "I'm not sure", "I don't know", "unclear", "uncertain"],
-        description="Keywords that may indicate uncertainty or hallucination",
-    )
-    case_sensitive: bool = Param(default=False, description="Whether keyword matching is case-sensitive")
-
-    def _check_for_hallucination(self, text: str) -> tuple:
-        if not text:
-            return 1.0, True, "No output to check"
-
-        search_text = text if self.case_sensitive else text.lower()
-        keywords = (
-            self.hallucination_keywords if self.case_sensitive else [k.lower() for k in self.hallucination_keywords]
-        )
-
-        found_keywords = []
-        for keyword in keywords:
-            if keyword in search_text:
-                found_keywords.append(keyword)
-
-        if found_keywords:
-            score = max(0.0, 1.0 - (len(found_keywords) * 0.3))
-            return score, False, f"Found hallucination indicators: {', '.join(found_keywords)}"
-        else:
-            return 1.0, True, "No hallucination indicators detected"
-
-    def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
-        output = trace.output or ""
-        score, passed, explanation = self._check_for_hallucination(output)
-
-        return EvalResult(
-            score=score,
-            passed=passed,
-            explanation=f"Trace: {explanation}",
-            details={"output_length": len(output), "checked_keywords": self.hallucination_keywords},
-        )
