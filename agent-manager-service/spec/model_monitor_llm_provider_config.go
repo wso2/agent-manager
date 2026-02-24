@@ -19,6 +19,8 @@ var _ MappedNullable = &MonitorLLMProviderConfig{}
 
 // MonitorLLMProviderConfig struct for MonitorLLMProviderConfig
 type MonitorLLMProviderConfig struct {
+	// Name of the LLM provider from the catalog
+	ProviderName string `json:"providerName"`
 	// Environment variable name for the LLM provider credential
 	EnvVar string `json:"envVar"`
 	// API key or credential value
@@ -29,8 +31,9 @@ type MonitorLLMProviderConfig struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewMonitorLLMProviderConfig(envVar string, value string) *MonitorLLMProviderConfig {
+func NewMonitorLLMProviderConfig(providerName string, envVar string, value string) *MonitorLLMProviderConfig {
 	this := MonitorLLMProviderConfig{}
+	this.ProviderName = providerName
 	this.EnvVar = envVar
 	this.Value = value
 	return &this
@@ -42,6 +45,30 @@ func NewMonitorLLMProviderConfig(envVar string, value string) *MonitorLLMProvide
 func NewMonitorLLMProviderConfigWithDefaults() *MonitorLLMProviderConfig {
 	this := MonitorLLMProviderConfig{}
 	return &this
+}
+
+// GetProviderName returns the ProviderName field value
+func (o *MonitorLLMProviderConfig) GetProviderName() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.ProviderName
+}
+
+// GetProviderNameOk returns a tuple with the ProviderName field value
+// and a boolean to check if the value has been set.
+func (o *MonitorLLMProviderConfig) GetProviderNameOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.ProviderName, true
+}
+
+// SetProviderName sets field value
+func (o *MonitorLLMProviderConfig) SetProviderName(v string) {
+	o.ProviderName = v
 }
 
 // GetEnvVar returns the EnvVar field value
@@ -102,6 +129,7 @@ func (o MonitorLLMProviderConfig) MarshalJSON() ([]byte, error) {
 
 func (o MonitorLLMProviderConfig) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
+	toSerialize["providerName"] = o.ProviderName
 	toSerialize["envVar"] = o.EnvVar
 	toSerialize["value"] = o.Value
 	return toSerialize, nil

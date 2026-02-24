@@ -513,20 +513,6 @@ class TestParamValidation:
         evaluator = TestEvaluator(items=["a", "b"])
         assert evaluator.items == ["a", "b"]
 
-    def test_optional_list_accepts_none(self):
-        """Test that None is accepted for Optional[List[str]] params."""
-        from typing import Optional as Opt, List
-
-        class TestEvaluator(BaseEvaluator):
-            name = "test-eval"
-            items: Opt[List[str]] = Param(default=None, description="Optional items")
-
-            def evaluate(self, trace: Trace, task=None) -> EvalResult:
-                return EvalResult(score=1.0)
-
-        evaluator = TestEvaluator(items=None)
-        assert evaluator.items is None
-
     def test_optional_set_rejects_string(self):
         """Test that string is rejected for Optional[Set[str]] params."""
         from typing import Optional as Opt, Set

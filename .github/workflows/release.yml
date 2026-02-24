@@ -341,13 +341,14 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push amp-evaluation-monitor
-        uses: docker/build-push-action@v6
+        uses: ./.github/actions/build-docker-image
         with:
-          context: .
-          file: ./evaluation-job/Dockerfile
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-evaluation-monitor:v${{ inputs.target-release }}
+          service-dir: evaluation-job
+          image-name: amp-evaluation-monitor
+          registry: ${{ env.REGISTRY }}
+          registry-org: ${{ env.REGISTRY_ORG }}
+          tag: v${{ inputs.target-release }}
+          context: .  # Root context required: Dockerfile copies from both libs/amp-evaluation/ and evaluation-job/
 
   package-charts:
     name: Package ${{ matrix.chart.name }}

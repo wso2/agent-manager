@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/catalog"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -61,6 +62,14 @@ func (m *MockEvaluatorService) GetEvaluator(ctx context.Context, orgID *uuid.UUI
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*models.EvaluatorResponse), args.Error(1)
+}
+
+func (m *MockEvaluatorService) GetLLMProvider(ctx context.Context, name string) (*catalog.LLMProviderEntry, error) {
+	args := m.Called(ctx, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*catalog.LLMProviderEntry), args.Error(1)
 }
 
 func createMockEvaluators() []*models.EvaluatorResponse {

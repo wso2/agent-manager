@@ -63,8 +63,9 @@ func convertSpecLLMProviderConfigsToModels(configs []spec.MonitorLLMProviderConf
 	result := make([]models.MonitorLLMProviderConfig, len(configs))
 	for i, c := range configs {
 		result[i] = models.MonitorLLMProviderConfig{
-			EnvVar: c.EnvVar,
-			Value:  c.Value,
+			ProviderName: c.ProviderName,
+			EnvVar:       c.EnvVar,
+			Value:        c.Value,
 		}
 	}
 	return result
@@ -78,8 +79,9 @@ func convertModelsLLMProviderConfigsToSpec(configs []models.MonitorLLMProviderCo
 	result := make([]spec.MonitorLLMProviderConfig, len(configs))
 	for i, c := range configs {
 		result[i] = spec.MonitorLLMProviderConfig{
-			EnvVar: c.EnvVar,
-			Value:  c.Value,
+			ProviderName: c.ProviderName,
+			EnvVar:       c.EnvVar,
+			Value:        c.Value,
 		}
 	}
 	return result

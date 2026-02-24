@@ -185,6 +185,12 @@ func loadEnvs() {
 		RateLimitPerMin:   int(r.readOptionalInt64("WEBSOCKET_RATE_LIMIT_PER_MIN", 10)),
 	}
 
+	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key)
+	config.EncryptionKey = r.readRequiredString("ENCRYPTION_KEY")
+	if len(config.EncryptionKey) != 64 {
+		r.errors = append(r.errors, fmt.Errorf("ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)"))
+	}
+
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)
 

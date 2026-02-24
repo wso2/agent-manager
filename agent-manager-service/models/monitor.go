@@ -57,15 +57,16 @@ type MonitorEvaluator struct {
 // The platform sets EnvVar=Value on the evaluation job process at runtime;
 // LiteLLM reads these natively — no changes to evaluator code needed.
 type MonitorLLMProviderConfig struct {
-	EnvVar string `json:"envVar"` // e.g. "OPENAI_API_KEY" — from catalog LLMConfigField.EnvVar
-	Value  string `json:"value"`  // API key value
+	ProviderName string `json:"providerName"` // e.g. "openai" — from catalog LLMProviderEntry.Name
+	EnvVar       string `json:"envVar"`       // e.g. "OPENAI_API_KEY" — from catalog LLMConfigField.EnvVar
+	Value        string `json:"value"`        // API key value
 }
 
 // redactLLMProviderConfigs returns a copy with secret values cleared.
 func redactLLMProviderConfigs(configs []MonitorLLMProviderConfig) []MonitorLLMProviderConfig {
 	redacted := make([]MonitorLLMProviderConfig, len(configs))
 	for i, c := range configs {
-		redacted[i] = MonitorLLMProviderConfig{EnvVar: c.EnvVar, Value: "****"}
+		redacted[i] = MonitorLLMProviderConfig{ProviderName: c.ProviderName, EnvVar: c.EnvVar, Value: "****"}
 	}
 	return redacted
 }

@@ -6489,9 +6489,14 @@ components:
     MonitorLLMProviderConfig:
       type: object
       required:
+        - providerName
         - envVar
         - value
       properties:
+        providerName:
+          type: string
+          description: Name of the LLM provider from the catalog
+          example: "openai"
         envVar:
           type: string
           description: Environment variable name for the LLM provider credential

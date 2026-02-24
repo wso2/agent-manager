@@ -32,7 +32,14 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
+
+// testEncryptionKey returns a deterministic 32-byte AES-256 key for tests.
+func testEncryptionKey() []byte {
+	key, _ := utils.GenerateEncryptionKey()
+	return key
+}
 
 // realEvaluators returns a realistic set of evaluators spanning all levels (trace, agent, span)
 // with varied config shapes, including arrays and nested booleans.
@@ -102,7 +109,7 @@ func TestExecuteMonitorRun_CRStructure(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey())
 
 	startTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	endTime := time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)
@@ -186,7 +193,7 @@ func TestExecuteMonitorRun_EvaluatorsJSON(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey())
 
 	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
@@ -279,7 +286,7 @@ func TestExecuteMonitorRun_DBRecordCreated(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey())
 
 	startTime := time.Now().Add(-2 * time.Hour).Truncate(time.Millisecond)
 	endTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
@@ -311,6 +318,97 @@ func TestExecuteMonitorRun_DBRecordCreated(t *testing.T) {
 	assert.Equal(t, "Span Latency", run.Evaluators[7].DisplayName)
 }
 
+// TestExecuteMonitorRun_LLMConfigsDecryptedInCR verifies that LLM provider configs
+// are decrypted to plaintext in the WorkflowRun CR (for eval job env vars) while
+// the monitor_runs DB record keeps them encrypted.
+func TestExecuteMonitorRun_LLMConfigsDecryptedInCR(t *testing.T) {
+	encKey := testEncryptionKey()
+
+	// Seed a monitor with encrypted LLM configs (simulating what the service layer does)
+	gdb := db.DB(context.Background())
+	plaintextConfigs := []models.MonitorLLMProviderConfig{
+		{ProviderName: "openai", EnvVar: "OPENAI_API_KEY", Value: "sk-plaintext-key-for-cr"},
+		{ProviderName: "anthropic", EnvVar: "ANTHROPIC_API_KEY", Value: "ant-plaintext-key-for-cr"},
+	}
+	encryptedConfigs, err := utils.EncryptLLMProviderConfigs(plaintextConfigs, encKey)
+	require.NoError(t, err)
+
+	monitor := &models.Monitor{
+		ID:                 uuid.New(),
+		Name:               "llm-cr-test-" + uuid.New().String()[:8],
+		DisplayName:        "LLM CR Test Monitor",
+		Type:               models.MonitorTypePast,
+		OrgName:            "test-org",
+		ProjectName:        "test-project",
+		AgentName:          "test-agent",
+		AgentID:            "agent-uuid-123",
+		EnvironmentName:    "default",
+		EnvironmentID:      "env-uuid-456",
+		Evaluators:         realEvaluators(),
+		LLMProviderConfigs: encryptedConfigs,
+		SamplingRate:       1.0,
+	}
+	require.NoError(t, gdb.Create(monitor).Error)
+	monitor.Evaluators = realEvaluators()
+
+	t.Cleanup(func() {
+		gdb.Where("monitor_id = ?", monitor.ID).Delete(&models.MonitorRun{})
+		gdb.Delete(monitor)
+	})
+
+	var capturedCR map[string]interface{}
+	mockClient := &clientmocks.OpenChoreoClientMock{
+		ApplyResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
+			capturedCR = body
+			return nil
+		},
+		DeleteResourceFunc: func(ctx context.Context, body map[string]interface{}) error {
+			return nil
+		},
+	}
+
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), encKey)
+
+	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
+		OrgName:    monitor.OrgName,
+		Monitor:    monitor,
+		StartTime:  time.Now().Add(-1 * time.Hour),
+		EndTime:    time.Now(),
+		Evaluators: monitor.Evaluators,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, capturedCR)
+
+	// 1. Verify the CR contains decrypted (plaintext) LLM configs
+	spec := capturedCR["spec"].(map[string]interface{})
+	workflow := spec["workflow"].(map[string]interface{})
+	params := workflow["parameters"].(map[string]interface{})
+	evalParams := params["evaluation"].(map[string]interface{})
+
+	llmConfigsStr, ok := evalParams["llmProviderConfigs"].(string)
+	require.True(t, ok, "llmProviderConfigs should be a JSON string in CR")
+
+	var crConfigs []models.MonitorLLMProviderConfig
+	require.NoError(t, json.Unmarshal([]byte(llmConfigsStr), &crConfigs))
+	require.Len(t, crConfigs, 2)
+
+	assert.Equal(t, "sk-plaintext-key-for-cr", crConfigs[0].Value, "CR should have decrypted plaintext value")
+	assert.Equal(t, "OPENAI_API_KEY", crConfigs[0].EnvVar)
+	assert.Equal(t, "openai", crConfigs[0].ProviderName)
+	assert.Equal(t, "ant-plaintext-key-for-cr", crConfigs[1].Value, "CR should have decrypted plaintext value")
+
+	// 2. Verify the monitor_runs DB record keeps configs encrypted (same as parent monitor)
+	var run models.MonitorRun
+	require.NoError(t, gdb.Where("id = ?", result.Run.ID).First(&run).Error)
+
+	require.Len(t, run.LLMProviderConfigs, 2)
+	for _, cfg := range run.LLMProviderConfigs {
+		assert.NotEqual(t, "sk-plaintext-key-for-cr", cfg.Value, "monitor_runs should not store plaintext")
+		assert.NotEqual(t, "ant-plaintext-key-for-cr", cfg.Value, "monitor_runs should not store plaintext")
+	}
+}
+
 // TestExecuteMonitorRun_NilEvaluatorsReturnsError verifies that calling ExecuteMonitorRun
 // with nil evaluators returns an error immediately.
 func TestExecuteMonitorRun_NilEvaluatorsReturnsError(t *testing.T) {
@@ -323,7 +421,7 @@ func TestExecuteMonitorRun_NilEvaluatorsReturnsError(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()))
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey())
 
 	_, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,

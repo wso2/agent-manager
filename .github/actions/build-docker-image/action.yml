@@ -18,6 +18,10 @@ inputs:
   tag:
     description: 'Image tag (usually release tag)'
     required: true
+  context:
+    description: 'Docker build context path (defaults to ./<service-dir>). Override to "." for builds that need the project root.'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -25,7 +29,7 @@ runs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
-        context: ./${{ inputs.service-dir }}
+        context: ${{ inputs.context != '' && inputs.context || format('./{0}', inputs.service-dir) }}
         file: ./${{ inputs.service-dir }}/Dockerfile
         push: true
         platforms: linux/amd64,linux/arm64
