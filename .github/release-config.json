@@ -32,6 +32,7 @@
     "wso2-amp-build-extension",
     "wso2-amp-observability-extension",
     "wso2-amp-platform-resources-extension",
-    "wso2-amp-thunder-extension"
+    "wso2-amp-thunder-extension",
+    "wso2-amp-evaluation-extension"
   ]
 }

@@ -483,6 +483,94 @@ class TestParamValidation:
         assert evaluator.tags == {1, 2, 3}
         assert isinstance(evaluator.tags, set)
 
+    # --- Optional[List] and Optional[Set] validation ---
+
+    def test_optional_list_rejects_string(self):
+        """Test that string is rejected for Optional[List[str]] params."""
+        from typing import Optional as Opt, List
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            items: Opt[List[str]] = Param(default=None, description="Optional items")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        with pytest.raises(TypeError, match="expects list, got str"):
+            TestEvaluator(items="not_a_list")
+
+    def test_optional_list_accepts_list(self):
+        """Test that list is accepted for Optional[List[str]] params."""
+        from typing import Optional as Opt, List
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            items: Opt[List[str]] = Param(default=None, description="Optional items")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator(items=["a", "b"])
+        assert evaluator.items == ["a", "b"]
+
+    def test_optional_list_accepts_none(self):
+        """Test that None is accepted for Optional[List[str]] params."""
+        from typing import Optional as Opt, List
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            items: Opt[List[str]] = Param(default=None, description="Optional items")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator(items=None)
+        assert evaluator.items is None
+
+    def test_optional_set_rejects_string(self):
+        """Test that string is rejected for Optional[Set[str]] params."""
+        from typing import Optional as Opt, Set
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            tags: Opt[Set[str]] = Param(default=None, description="Optional tags")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        with pytest.raises(TypeError, match="expects set, got str"):
+            TestEvaluator(tags="not_a_set")
+
+    def test_optional_set_coerces_list_to_set(self):
+        """Test that list is coerced to set for Optional[Set[str]] params."""
+        from typing import Optional as Opt, Set
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            tags: Opt[Set[str]] = Param(default=None, description="Optional tags")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator(tags=["a", "b", "c"])
+        assert evaluator.tags == {"a", "b", "c"}
+        assert isinstance(evaluator.tags, set)
+
+    def test_optional_list_coerces_tuple_to_list(self):
+        """Test that tuple is coerced to list for Optional[List[str]] params."""
+        from typing import Optional as Opt, List
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            items: Opt[List[str]] = Param(default=None, description="Optional items")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator(items=("a", "b"))
+        assert evaluator.items == ["a", "b"]
+        assert isinstance(evaluator.items, list)
+
 
 # ============================================================================
 # TEST CONFIG SCHEMA GENERATION
@@ -563,6 +651,58 @@ class TestConfigSchema:
 
         api_key_config = next(c for c in config_schema if c["key"] == "api_key")
         assert api_key_config["required"]
+
+    def test_schema_optional_list_reports_array(self):
+        """Test that Optional[List[str]] reports type as 'array', not 'string'."""
+        from typing import Optional, List
+
+        class TestEvaluator(BaseEvaluator):
+            items: Optional[List[str]] = Param(default=None, description="Optional list")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        schema = TestEvaluator.items.to_schema()
+        assert schema["type"] == "array"
+
+    def test_schema_optional_set_reports_array(self):
+        """Test that Optional[Set[str]] reports type as 'array', not 'string'."""
+        from typing import Optional, Set
+
+        class TestEvaluator(BaseEvaluator):
+            tags: Optional[Set[str]] = Param(default=None, description="Optional set")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        schema = TestEvaluator.tags.to_schema()
+        assert schema["type"] == "array"
+
+    def test_schema_optional_str_reports_string(self):
+        """Test that Optional[str] still reports type as 'string'."""
+        from typing import Optional
+
+        class TestEvaluator(BaseEvaluator):
+            label: Optional[str] = Param(default=None, description="Optional label")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        schema = TestEvaluator.label.to_schema()
+        assert schema["type"] == "string"
+
+    def test_schema_builtin_prohibited_content_params(self):
+        """Test that ProhibitedContentEvaluator reports correct schema types."""
+        from amp_evaluation.evaluators.builtin.standard import ProhibitedContentEvaluator
+
+        evaluator = ProhibitedContentEvaluator()
+        config_schema = evaluator.info.config_schema
+
+        strings_schema = next(c for c in config_schema if c["key"] == "prohibited_strings")
+        assert strings_schema["type"] == "array"
+
+        patterns_schema = next(c for c in config_schema if c["key"] == "prohibited_patterns")
+        assert patterns_schema["type"] == "array"
 
 
 # ============================================================================

@@ -116,14 +116,15 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 	// Create monitor_runs entry
 	now := time.Now()
 	run := &models.MonitorRun{
-		ID:         runID,
-		MonitorID:  params.Monitor.ID,
-		Name:       workflowRunName,
-		Evaluators: evaluators,
-		TraceStart: params.StartTime,
-		TraceEnd:   params.EndTime,
-		StartedAt:  &now,
-		Status:     models.RunStatusPending,
+		ID:                 runID,
+		MonitorID:          params.Monitor.ID,
+		Name:               workflowRunName,
+		Evaluators:         evaluators,
+		LLMProviderConfigs: params.Monitor.LLMProviderConfigs,
+		TraceStart:         params.StartTime,
+		TraceEnd:           params.EndTime,
+		StartedAt:          &now,
+		Status:             models.RunStatusPending,
 	}
 
 	if err := e.monitorRepo.CreateMonitorRun(run); err != nil {
@@ -178,6 +179,11 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 		return nil, err
 	}
 
+	llmProviderConfigsJSON, err := serializeLLMProviderConfigs(monitor.LLMProviderConfigs)
+	if err != nil {
+		return nil, err
+	}
+
 	return map[string]interface{}{
 		"apiVersion": workflowRunAPIVersion,
 		"kind":       resourceKindWorkflowRun,
@@ -207,10 +213,11 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 						"id": monitor.EnvironmentID,
 					},
 					"evaluation": map[string]interface{}{
-						"evaluators":   evaluatorsJSON,
-						"samplingRate": monitor.SamplingRate,
-						"traceStart":   startTime.Format(time.RFC3339),
-						"traceEnd":     endTime.Format(time.RFC3339),
+						"evaluators":         evaluatorsJSON,
+						"llmProviderConfigs": llmProviderConfigsJSON,
+						"samplingRate":       monitor.SamplingRate,
+						"traceStart":         startTime.Format(time.RFC3339),
+						"traceEnd":           endTime.Format(time.RFC3339),
 					},
 					"publishing": map[string]interface{}{
 						"monitorId": monitor.ID.String(),
@@ -244,4 +251,16 @@ func serializeEvaluators(evaluators []models.MonitorEvaluator) (string, error) {
 		return "", fmt.Errorf("failed to serialize evaluators: %w", err)
 	}
 	return string(evaluatorsJSON), nil
+}
+
+// serializeLLMProviderConfigs converts LLM provider configs to a JSON string for the workflow parameter.
+func serializeLLMProviderConfigs(configs []models.MonitorLLMProviderConfig) (string, error) {
+	if len(configs) == 0 {
+		return "[]", nil
+	}
+	data, err := json.Marshal(configs)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize llm provider configs: %w", err)
+	}
+	return string(data), nil
 }

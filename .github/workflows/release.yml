@@ -316,10 +316,43 @@ jobs:
           build-args: |
             PYTHON_VERSION=${{ matrix.python-version }}
 
+  build-evaluation-job-image:
+    name: Build amp-evaluation-job
+    needs: prepare-release
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: amp/v${{ inputs.target-release }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push amp-evaluation-monitor
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./evaluation-job/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-evaluation-monitor:v${{ inputs.target-release }}
+
   package-charts:
     name: Package ${{ matrix.chart.name }}
     needs:
-      [load-config, build-images, build-python-instrumentation-provider-images]
+      [load-config, build-images, build-python-instrumentation-provider-images, build-evaluation-job-image]
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     permissions:
@@ -357,6 +390,7 @@ jobs:
         prepare-release,
         build-images,
         build-python-instrumentation-provider-images,
+        build-evaluation-job-image,
         package-charts,
       ]
     if: ${{ !contains(inputs.target-release, '-rc') }}
@@ -395,11 +429,13 @@ jobs:
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-traces-observer:v${{ inputs.target-release }}`
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-python-instrumentation-provider:v${{ inputs.target-release }}`
             - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-quick-start:v${{ inputs.target-release }}`
+            - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-evaluation-monitor:v${{ inputs.target-release }}`
             
             ### Helm Charts
             - `${{ env.HELM_REGISTRY }}/wso2-agent-manager:${{ inputs.target-release }}`
             - `${{ env.HELM_REGISTRY }}/wso2-amp-build-extension:${{ inputs.target-release }}`
             - `${{ env.HELM_REGISTRY }}/wso2-amp-observability-extension:${{ inputs.target-release }}`
+            - `${{ env.HELM_REGISTRY }}/wso2-amp-evaluation-extension:${{ inputs.target-release }}`
 
           draft: true
         env:

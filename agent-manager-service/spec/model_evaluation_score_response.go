@@ -29,7 +29,8 @@ type EvaluationScoreResponse struct {
 	Explanation    *string                `json:"explanation,omitempty"`
 	TraceTimestamp *time.Time             `json:"traceTimestamp,omitempty"`
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
-	Error          *string                `json:"error,omitempty"`
+	// Reason the evaluator skipped this trace (missing data, exception, etc.)
+	SkipReason NullableString `json:"skipReason,omitempty"`
 }
 
 // NewEvaluationScoreResponse instantiates a new EvaluationScoreResponse object
@@ -320,36 +321,47 @@ func (o *EvaluationScoreResponse) SetMetadata(v map[string]interface{}) {
 	o.Metadata = v
 }
 
-// GetError returns the Error field value if set, zero value otherwise.
-func (o *EvaluationScoreResponse) GetError() string {
-	if o == nil || IsNil(o.Error) {
+// GetSkipReason returns the SkipReason field value if set, zero value otherwise (both if not set or set to explicit null).
+func (o *EvaluationScoreResponse) GetSkipReason() string {
+	if o == nil || IsNil(o.SkipReason.Get()) {
 		var ret string
 		return ret
 	}
-	return *o.Error
+	return *o.SkipReason.Get()
 }
 
-// GetErrorOk returns a tuple with the Error field value if set, nil otherwise
+// GetSkipReasonOk returns a tuple with the SkipReason field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *EvaluationScoreResponse) GetErrorOk() (*string, bool) {
-	if o == nil || IsNil(o.Error) {
+// NOTE: If the value is an explicit nil, `nil, true` will be returned
+func (o *EvaluationScoreResponse) GetSkipReasonOk() (*string, bool) {
+	if o == nil {
 		return nil, false
 	}
-	return o.Error, true
+	return o.SkipReason.Get(), o.SkipReason.IsSet()
 }
 
-// HasError returns a boolean if a field has been set.
-func (o *EvaluationScoreResponse) HasError() bool {
-	if o != nil && !IsNil(o.Error) {
+// HasSkipReason returns a boolean if a field has been set.
+func (o *EvaluationScoreResponse) HasSkipReason() bool {
+	if o != nil && o.SkipReason.IsSet() {
 		return true
 	}
 
 	return false
 }
 
-// SetError gets a reference to the given string and assigns it to the Error field.
-func (o *EvaluationScoreResponse) SetError(v string) {
-	o.Error = &v
+// SetSkipReason gets a reference to the given NullableString and assigns it to the SkipReason field.
+func (o *EvaluationScoreResponse) SetSkipReason(v string) {
+	o.SkipReason.Set(&v)
+}
+
+// SetSkipReasonNil sets the value for SkipReason to be an explicit nil
+func (o *EvaluationScoreResponse) SetSkipReasonNil() {
+	o.SkipReason.Set(nil)
+}
+
+// UnsetSkipReason ensures that no value is present for SkipReason, not even an explicit nil
+func (o *EvaluationScoreResponse) UnsetSkipReason() {
+	o.SkipReason.Unset()
 }
 
 func (o EvaluationScoreResponse) MarshalJSON() ([]byte, error) {
@@ -381,8 +393,8 @@ func (o EvaluationScoreResponse) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Metadata) {
 		toSerialize["metadata"] = o.Metadata
 	}
-	if !IsNil(o.Error) {
-		toSerialize["error"] = o.Error
+	if o.SkipReason.IsSet() {
+		toSerialize["skipReason"] = o.SkipReason.Get()
 	}
 	return toSerialize, nil
 }

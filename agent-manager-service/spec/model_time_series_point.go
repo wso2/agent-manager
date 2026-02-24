@@ -24,8 +24,8 @@ type TimeSeriesPoint struct {
 	Timestamp time.Time `json:"timestamp"`
 	// Total number of scores in this bucket
 	Count int32 `json:"count"`
-	// Number of scores with errors in this bucket
-	ErrorCount int32 `json:"errorCount"`
+	// Number of evaluations skipped in this bucket
+	SkippedCount int32 `json:"skippedCount"`
 	// Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
 	Aggregations map[string]interface{} `json:"aggregations"`
 }
@@ -34,11 +34,11 @@ type TimeSeriesPoint struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewTimeSeriesPoint(timestamp time.Time, count int32, errorCount int32, aggregations map[string]interface{}) *TimeSeriesPoint {
+func NewTimeSeriesPoint(timestamp time.Time, count int32, skippedCount int32, aggregations map[string]interface{}) *TimeSeriesPoint {
 	this := TimeSeriesPoint{}
 	this.Timestamp = timestamp
 	this.Count = count
-	this.ErrorCount = errorCount
+	this.SkippedCount = skippedCount
 	this.Aggregations = aggregations
 	return &this
 }
@@ -99,28 +99,28 @@ func (o *TimeSeriesPoint) SetCount(v int32) {
 	o.Count = v
 }
 
-// GetErrorCount returns the ErrorCount field value
-func (o *TimeSeriesPoint) GetErrorCount() int32 {
+// GetSkippedCount returns the SkippedCount field value
+func (o *TimeSeriesPoint) GetSkippedCount() int32 {
 	if o == nil {
 		var ret int32
 		return ret
 	}
 
-	return o.ErrorCount
+	return o.SkippedCount
 }
 
-// GetErrorCountOk returns a tuple with the ErrorCount field value
+// GetSkippedCountOk returns a tuple with the SkippedCount field value
 // and a boolean to check if the value has been set.
-func (o *TimeSeriesPoint) GetErrorCountOk() (*int32, bool) {
+func (o *TimeSeriesPoint) GetSkippedCountOk() (*int32, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.ErrorCount, true
+	return &o.SkippedCount, true
 }
 
-// SetErrorCount sets field value
-func (o *TimeSeriesPoint) SetErrorCount(v int32) {
-	o.ErrorCount = v
+// SetSkippedCount sets field value
+func (o *TimeSeriesPoint) SetSkippedCount(v int32) {
+	o.SkippedCount = v
 }
 
 // GetAggregations returns the Aggregations field value
@@ -159,7 +159,7 @@ func (o TimeSeriesPoint) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["timestamp"] = o.Timestamp
 	toSerialize["count"] = o.Count
-	toSerialize["errorCount"] = o.ErrorCount
+	toSerialize["skippedCount"] = o.SkippedCount
 	toSerialize["aggregations"] = o.Aggregations
 	return toSerialize, nil
 }

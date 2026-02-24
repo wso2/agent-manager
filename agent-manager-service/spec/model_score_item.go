@@ -27,8 +27,8 @@ type ScoreItem struct {
 	Explanation NullableString `json:"explanation,omitempty"`
 	// Additional metadata
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
-	// Error message if evaluation failed
-	Error NullableString `json:"error,omitempty"`
+	// Reason the evaluator skipped this trace
+	SkipReason NullableString `json:"skipReason,omitempty"`
 }
 
 // NewScoreItem instantiates a new ScoreItem object
@@ -209,47 +209,47 @@ func (o *ScoreItem) SetMetadata(v map[string]interface{}) {
 	o.Metadata = v
 }
 
-// GetError returns the Error field value if set, zero value otherwise (both if not set or set to explicit null).
-func (o *ScoreItem) GetError() string {
-	if o == nil || IsNil(o.Error.Get()) {
+// GetSkipReason returns the SkipReason field value if set, zero value otherwise (both if not set or set to explicit null).
+func (o *ScoreItem) GetSkipReason() string {
+	if o == nil || IsNil(o.SkipReason.Get()) {
 		var ret string
 		return ret
 	}
-	return *o.Error.Get()
+	return *o.SkipReason.Get()
 }
 
-// GetErrorOk returns a tuple with the Error field value if set, nil otherwise
+// GetSkipReasonOk returns a tuple with the SkipReason field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 // NOTE: If the value is an explicit nil, `nil, true` will be returned
-func (o *ScoreItem) GetErrorOk() (*string, bool) {
+func (o *ScoreItem) GetSkipReasonOk() (*string, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return o.Error.Get(), o.Error.IsSet()
+	return o.SkipReason.Get(), o.SkipReason.IsSet()
 }
 
-// HasError returns a boolean if a field has been set.
-func (o *ScoreItem) HasError() bool {
-	if o != nil && o.Error.IsSet() {
+// HasSkipReason returns a boolean if a field has been set.
+func (o *ScoreItem) HasSkipReason() bool {
+	if o != nil && o.SkipReason.IsSet() {
 		return true
 	}
 
 	return false
 }
 
-// SetError gets a reference to the given NullableString and assigns it to the Error field.
-func (o *ScoreItem) SetError(v string) {
-	o.Error.Set(&v)
+// SetSkipReason gets a reference to the given NullableString and assigns it to the SkipReason field.
+func (o *ScoreItem) SetSkipReason(v string) {
+	o.SkipReason.Set(&v)
 }
 
-// SetErrorNil sets the value for Error to be an explicit nil
-func (o *ScoreItem) SetErrorNil() {
-	o.Error.Set(nil)
+// SetSkipReasonNil sets the value for SkipReason to be an explicit nil
+func (o *ScoreItem) SetSkipReasonNil() {
+	o.SkipReason.Set(nil)
 }
 
-// UnsetError ensures that no value is present for Error, not even an explicit nil
-func (o *ScoreItem) UnsetError() {
-	o.Error.Unset()
+// UnsetSkipReason ensures that no value is present for SkipReason, not even an explicit nil
+func (o *ScoreItem) UnsetSkipReason() {
+	o.SkipReason.Unset()
 }
 
 func (o ScoreItem) MarshalJSON() ([]byte, error) {
@@ -274,8 +274,8 @@ func (o ScoreItem) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Metadata) {
 		toSerialize["metadata"] = o.Metadata
 	}
-	if o.Error.IsSet() {
-		toSerialize["error"] = o.Error.Get()
+	if o.SkipReason.IsSet() {
+		toSerialize["skipReason"] = o.SkipReason.Get()
 	}
 	return toSerialize, nil
 }

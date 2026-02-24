@@ -140,22 +140,23 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 
 	// Save to DB
 	monitor := &models.Monitor{
-		ID:              uuid.New(),
-		Name:            req.Name,
-		DisplayName:     req.DisplayName,
-		Type:            req.Type,
-		OrgName:         orgName,
-		ProjectName:     req.ProjectName,
-		AgentName:       req.AgentName,
-		AgentID:         agent.UUID,
-		EnvironmentName: env.Name,
-		EnvironmentID:   env.UUID,
-		Evaluators:      req.Evaluators,
-		IntervalMinutes: intervalMinutes,
-		NextRunTime:     nextRunTime,
-		TraceStart:      req.TraceStart,
-		TraceEnd:        req.TraceEnd,
-		SamplingRate:    samplingRate,
+		ID:                 uuid.New(),
+		Name:               req.Name,
+		DisplayName:        req.DisplayName,
+		Type:               req.Type,
+		OrgName:            orgName,
+		ProjectName:        req.ProjectName,
+		AgentName:          req.AgentName,
+		AgentID:            agent.UUID,
+		EnvironmentName:    env.Name,
+		EnvironmentID:      env.UUID,
+		Evaluators:         req.Evaluators,
+		LLMProviderConfigs: req.LLMProviderConfigs,
+		IntervalMinutes:    intervalMinutes,
+		NextRunTime:        nextRunTime,
+		TraceStart:         req.TraceStart,
+		TraceEnd:           req.TraceEnd,
+		SamplingRate:       samplingRate,
 	}
 
 	if err := s.monitorRepo.CreateMonitor(monitor); err != nil {
@@ -277,6 +278,9 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 	}
 	if req.Evaluators != nil {
 		monitor.Evaluators = *req.Evaluators
+	}
+	if req.LLMProviderConfigs != nil {
+		monitor.LLMProviderConfigs = *req.LLMProviderConfigs
 	}
 	if req.IntervalMinutes != nil {
 		if *req.IntervalMinutes < models.MinIntervalMinutes {

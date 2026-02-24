@@ -114,6 +114,7 @@ func catalogEntryToResponse(e *catalog.Entry) *models.EvaluatorResponse {
 		Description:  e.Description,
 		Version:      e.Version,
 		Provider:     e.Provider,
+		Level:        e.Level,
 		Tags:         e.Tags,
 		IsBuiltin:    true,
 		ConfigSchema: e.ConfigSchema,

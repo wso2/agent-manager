@@ -42,6 +42,9 @@ var migration005 = migration{
 			-- Evaluator config
 			evaluators            JSONB NOT NULL DEFAULT '[]',
 
+			-- LLM provider credentials (env var → value pairs injected into eval job)
+			llm_provider_configs  JSONB NOT NULL DEFAULT '[]',
+
 			-- Scheduling (future monitors only, NULL for past monitors)
 			interval_minutes      INT,
 			next_run_time         TIMESTAMPTZ,
@@ -71,6 +74,9 @@ var migration005 = migration{
 
 			-- Evaluator snapshot (preserves which evaluators were used for this run)
 			evaluators            JSONB NOT NULL DEFAULT '[]',
+
+			-- LLM provider credentials snapshot
+			llm_provider_configs  JSONB NOT NULL DEFAULT '[]',
 
 			-- Trace time window (the range of data this run evaluates)
 			trace_start            TIMESTAMPTZ NOT NULL,

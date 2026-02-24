@@ -24,6 +24,7 @@ spec:
         id: "string | description=\"Environment unique identifier\""
       evaluation:
         evaluators: "string | description=\"Comma-separated evaluator names (e.g., latency,hallucination)\""
+        llmProviderConfigs: "string | default=\"[]\" description=\"JSON array of LLM provider credentials (envVar/value pairs)\""
         samplingRate: "number | default=1.0 description=\"Sampling rate for traces (0.0-1.0)\""
         traceStart: "string | description=\"Start time for trace evaluation (ISO 8601 format, calculated by scheduler)\""
         traceEnd: "string | description=\"End time for trace evaluation (ISO 8601 format, calculated by scheduler)\""
@@ -61,6 +62,8 @@ spec:
             value: ${parameters.evaluation.samplingRate}
           - name: trace-start
             value: ${parameters.evaluation.traceStart}
+          - name: llm-provider-configs
+            value: ${parameters.evaluation.llmProviderConfigs}
           - name: trace-end
             value: ${parameters.evaluation.traceEnd}
           - name: traces-api-endpoint

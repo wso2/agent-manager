@@ -64,16 +64,16 @@ type ScoreFilters struct {
 type EvaluatorAggregation struct {
 	EvaluatorName string   `gorm:"column:display_name"`
 	Level         string   `gorm:"column:level"`
-	SuccessCount  int      `gorm:"column:success_count"`
-	ErrorCount    int      `gorm:"column:error_count"`
+	TotalCount    int      `gorm:"column:total_count"`
+	SkippedCount  int      `gorm:"column:skipped_count"`
 	MeanScore     *float64 `gorm:"column:mean_score"` // NULL if no successful scores
 }
 
 // TimeBucketAggregation is the result of aggregated scores per time bucket (from SQL GROUP BY)
 type TimeBucketAggregation struct {
 	TimeBucket   time.Time `gorm:"column:time_bucket"`
-	SuccessCount int       `gorm:"column:success_count"`
-	ErrorCount   int       `gorm:"column:error_count"`
+	TotalCount   int       `gorm:"column:total_count"`
+	SkippedCount int       `gorm:"column:skipped_count"`
 	MeanScore    *float64  `gorm:"column:mean_score"` // NULL if no successful scores
 }
 
@@ -89,7 +89,7 @@ type ScoreWithEvaluator struct {
 	Explanation    *string                `gorm:"column:explanation"`
 	TraceTimestamp time.Time              `gorm:"column:trace_timestamp"`
 	Metadata       map[string]interface{} `gorm:"column:metadata;type:jsonb;serializer:json"`
-	Error          *string                `gorm:"column:error"`
+	SkipReason     *string                `gorm:"column:skip_reason"`
 	CreatedAt      time.Time              `gorm:"column:created_at"`
 	// Evaluator info from join
 	EvaluatorName string `gorm:"column:display_name"`
@@ -108,7 +108,7 @@ type ScoreWithMonitor struct {
 	Explanation    *string                `gorm:"column:explanation"`
 	TraceTimestamp time.Time              `gorm:"column:trace_timestamp"`
 	Metadata       map[string]interface{} `gorm:"column:metadata;type:jsonb;serializer:json"`
-	Error          *string                `gorm:"column:error"`
+	SkipReason     *string                `gorm:"column:skip_reason"`
 	CreatedAt      time.Time              `gorm:"column:created_at"`
 	// Evaluator and monitor info from join
 	EvaluatorName string    `gorm:"column:display_name"`
@@ -149,7 +149,7 @@ func (r *ScoreRepo) UpsertMonitorRunEvaluators(evaluators []models.MonitorRunEva
 	return r.db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "monitor_run_id"}, {Name: "display_name"}},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"monitor_id", "evaluator_name", "level", "aggregations", "count", "error_count",
+			"monitor_id", "evaluator_name", "level", "aggregations", "count", "skipped_count",
 		}),
 	}).Create(&evaluators).Error
 }
@@ -175,7 +175,7 @@ func (r *ScoreRepo) BatchCreateScores(scores []models.Score) error {
 			{Name: "span_id"},
 		},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"score", "explanation", "trace_timestamp", "metadata", "error",
+			"score", "explanation", "trace_timestamp", "metadata", "skip_reason",
 		}),
 	}).CreateInBatches(scores, 100).Error
 }
@@ -259,9 +259,9 @@ func (r *ScoreRepo) GetMonitorScoresAggregated(
 		Select(`
 			mre.display_name,
 			mre.level,
-			COUNT(CASE WHEN s.error IS NULL THEN 1 END) as success_count,
-			COUNT(CASE WHEN s.error IS NOT NULL THEN 1 END) as error_count,
-			AVG(CASE WHEN s.error IS NULL THEN s.score END) as mean_score
+			COUNT(*) as total_count,
+			COUNT(CASE WHEN s.skip_reason IS NOT NULL THEN 1 END) as skipped_count,
+			AVG(CASE WHEN s.skip_reason IS NULL THEN s.score END) as mean_score
 		`).
 		Joins("JOIN monitor_run_evaluators mre ON s.run_evaluator_id = mre.id").
 		Where("s.monitor_id = ?", monitorID).
@@ -305,9 +305,9 @@ func (r *ScoreRepo) GetEvaluatorTimeSeriesAggregated(
 	query := r.db.Table("scores s").
 		Select(`
 			date_trunc(?, s.trace_timestamp) as time_bucket,
-			COUNT(CASE WHEN s.error IS NULL THEN 1 END) as success_count,
-			COUNT(CASE WHEN s.error IS NOT NULL THEN 1 END) as error_count,
-			AVG(CASE WHEN s.error IS NULL THEN s.score END) as mean_score
+			COUNT(*) as total_count,
+			COUNT(CASE WHEN s.skip_reason IS NOT NULL THEN 1 END) as skipped_count,
+			AVG(CASE WHEN s.skip_reason IS NULL THEN s.score END) as mean_score
 		`, truncArg).
 		Joins("JOIN monitor_run_evaluators mre ON s.run_evaluator_id = mre.id").
 		Where("s.monitor_id = ?", monitorID).
