@@ -31,7 +31,7 @@ class TestEvalResultSuccess:
         assert result.score == 0.8
         assert result.passed is True  # >= 0.5
         assert result.is_skipped is False
-        assert result.explanation == ""
+        assert result.explanation is None
 
     def test_create_with_score_and_explanation(self):
         """Test creating result with score and explanation."""
@@ -94,7 +94,7 @@ class TestEvalResultError:
         result = EvalResult.skip("Missing API key")
         assert result.is_skipped is True
         assert result.skip_reason == "Missing API key"
-        assert result.explanation == "Missing API key"
+        assert result.explanation is None  # explanation is for scores, not skips
 
     def test_skip_with_details(self):
         """Test creating skip result with details."""
@@ -117,10 +117,11 @@ class TestEvalResultError:
         with pytest.raises(AttributeError, match="Cannot access passed on a skipped result"):
             _ = result.passed
 
-    def test_skip_explanation_accessible(self):
-        """Test that explanation is accessible on error results."""
+    def test_skip_explanation_is_empty(self):
+        """Test that explanation is empty on skipped results (skip_reason holds the reason)."""
         result = EvalResult.skip("Test error")
-        assert result.explanation == "Test error"
+        assert result.explanation is None
+        assert result.skip_reason == "Test error"
 
 
 class TestEvalResultRepr:
@@ -211,11 +212,13 @@ class TestEvaluatorScoreValidation:
         assert score.score == 1.0
 
     def test_skipped_record(self):
-        """Skipped evaluations use score=0.0 placeholder and skip_reason."""
-        score = EvaluatorScore(trace_id="t1", score=0.0, passed=False, skip_reason="LLM call failed")
+        """Skipped evaluations have score=None and skip_reason set."""
+        score = EvaluatorScore(trace_id="t1", skip_reason="LLM call failed")
         assert score.is_skipped
+        assert not score.is_successful
         assert score.skip_reason == "LLM call failed"
-        assert score.score == 0.0
+        assert score.score is None
+        assert score.passed is None
 
     def test_non_skipped_record(self):
         score = EvaluatorScore(trace_id="t1", score=0.8, passed=True)

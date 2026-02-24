@@ -327,11 +327,8 @@ class BaseRunner(ABC):
                     if eval_result.is_skipped:
                         score = EvaluatorScore(
                             trace_id=trace.trace_id,
-                            score=0.0,
-                            passed=False,
                             span_id=span_id,
                             timestamp=trace.timestamp,
-                            explanation=eval_result.explanation,
                             task_id=task.task_id if task else None,
                             trial_id=trial_id,
                             metadata=details,
@@ -357,10 +354,7 @@ class BaseRunner(ABC):
             except Exception as e:
                 skipped_score = EvaluatorScore(
                     trace_id=trace.trace_id,
-                    score=0.0,
-                    passed=False,
                     timestamp=trace.timestamp,
-                    explanation=f"Evaluator raised exception: {str(e)}",
                     task_id=task.task_id if task else None,
                     trial_id=trial_id,
                     metadata={},
@@ -435,7 +429,7 @@ class BaseRunner(ABC):
                 )
 
             agg_list = normalize_aggregations(aggregations)
-            score_values = [s.score for s in successful_scores]
+            score_values: List[float] = [s.score for s in successful_scores if s.score is not None]
 
             aggregated_scores = {}
             for agg in agg_list:

@@ -84,14 +84,14 @@ class EvalResult:
 
     _score: Optional[float] = field(default=None, init=False, repr=False)
     _passed: Optional[bool] = field(default=None, init=False, repr=False)
-    explanation: str = ""
+    explanation: Optional[str] = None
     details: Optional[Dict[str, Any]] = None
     skip_reason: Optional[str] = field(default=None, init=False, repr=False)
 
     def __init__(
         self,
         score: float,  # REQUIRED: must be 0.0-1.0
-        explanation: str = "",
+        explanation: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
         passed: Optional[bool] = None,
     ):
@@ -137,7 +137,7 @@ class EvalResult:
         obj = object.__new__(cls)
         obj._score = None
         obj._passed = None
-        obj.explanation = reason
+        obj.explanation = None
         obj.details = details
         obj.skip_reason = reason
         return obj
@@ -179,29 +179,50 @@ class EvaluatorScore:
     This is the detailed record of how one trace was evaluated by one evaluator.
     Used in EvaluatorSummary.individual_scores for detailed analysis.
 
-    Score convention:
+    Two levels of failure in the evaluation pipeline:
+      1. Run/trace level — trace can't be fetched/parsed, runner failure
+         → stored in RunResult.errors (logged, not persisted to DB)
+      2. Evaluator level — evaluator can't produce a score for this trace
+         → stored here as a "skip" with skip_reason explaining why
+
+    A skip means "the evaluator could not evaluate this trace." The reason may
+    be benign ("missing expected output") or an error ("LLM call timed out").
+    Either way, no score was produced.
+
+    States:
+      - Successful: score and passed are set, skip_reason is None
+      - Skipped:    score and passed are None, skip_reason explains why
+
+    Score convention (when successful):
       - Range:    0.0 to 1.0 (validated at EvalResult creation time)
       - Polarity: 0.0 = worst outcome, 1.0 = best outcome (higher is always better)
     """
 
+    # Trace-level identifiers
     trace_id: str
-    score: float
-    passed: bool
     span_id: Optional[str] = None  # Set for agent/span level evaluations
     timestamp: Optional[datetime] = None  # Trace timestamp (when trace occurred)
-    explanation: Optional[str] = None
+    # Evaluation results
+    score: Optional[float] = None  # None when skipped
+    passed: Optional[bool] = None  # None when skipped
+    explanation: Optional[str] = None  # Why this score was assigned (only for successful evaluations)
     # Experiment-specific (optional)
     task_id: Optional[str] = None
     trial_id: Optional[str] = None
     # Extra data from evaluator
     metadata: Dict[str, Any] = field(default_factory=dict)
     # Skip tracking (if evaluator could not produce a score)
-    skip_reason: Optional[str] = None  # Set if evaluation was skipped (intentional or exception)
+    skip_reason: Optional[str] = None  # Why evaluation was skipped (missing data, exception, etc.)
 
     @property
     def is_skipped(self) -> bool:
         """Check if this evaluation was skipped (could not produce a score)."""
         return self.skip_reason is not None
+
+    @property
+    def is_successful(self) -> bool:
+        """Check if this evaluation completed successfully with a score."""
+        return not self.is_skipped
 
 
 @dataclass
@@ -248,6 +269,21 @@ class EvaluatorSummary:
         if rate is not None:
             return rate
         return self.aggregated_scores.get("pass_rate_0.5")
+
+    @property
+    def error_count(self) -> int:
+        """Alias for skipped_count (matches Go-side naming convention)."""
+        return self.skipped_count
+
+    @property
+    def successful_scores(self) -> List[EvaluatorScore]:
+        """Get only successful evaluation scores (excludes skipped)."""
+        return [s for s in self.individual_scores if s.is_successful]
+
+    @property
+    def skipped_scores(self) -> List[EvaluatorScore]:
+        """Get only skipped evaluation scores."""
+        return [s for s in self.individual_scores if s.is_skipped]
 
     def get_by_trace(self, trace_id: str) -> List[EvaluatorScore]:
         """

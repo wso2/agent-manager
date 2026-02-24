@@ -259,7 +259,7 @@ class TestRunResultSummary:
                 individual_scores=[
                     EvaluatorScore(trace_id="abc123def456gh", score=1.0, passed=True, explanation="No hallucination"),
                     EvaluatorScore(trace_id="xyz789ghi012jk", score=0.5, passed=True),
-                    EvaluatorScore(trace_id="mno345pqr678st", score=0.0, passed=False, skip_reason="Missing data"),
+                    EvaluatorScore(trace_id="mno345pqr678st", skip_reason="Missing data"),
                 ],
                 level="agent",
             ),

@@ -225,7 +225,7 @@ class TestDeepEvalPlanQualityEvaluator:
 
             assert result.is_skipped
             assert result.skip_reason is not None
-            assert "not installed" in result.explanation.lower()
+            assert "not installed" in result.skip_reason.lower()
 
 
 @requires_deepeval
@@ -595,5 +595,5 @@ class TestDeepEvalEvaluatorsIntegration:
 
         assert result.is_skipped
         assert result.skip_reason is not None
-        assert "failed" in result.explanation.lower()
+        assert "failed" in result.skip_reason.lower()
         assert "error" in result.details
