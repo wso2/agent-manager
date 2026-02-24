@@ -195,7 +195,7 @@ func loadEnvs() {
 
 	// OpenBao KV store configuration
 	config.OpenBao = OpenBaoConfig{
-		URL:     r.readOptionalString("OPENBAO_URL", ""),
+		URL:     r.readOptionalString("OPENBAO_URL", "http://localhost:8200"),
 		Token:   r.readOptionalString("OPENBAO_TOKEN", ""),
 		Path:    r.readOptionalString("OPENBAO_PATH", "secret"),
 		Version: r.readOptionalString("OPENBAO_VERSION", "v2"),

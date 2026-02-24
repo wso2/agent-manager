@@ -101,11 +101,6 @@ func (c *openChoreoClient) CreateSecretReference(ctx context.Context, req Create
 		"metadata": map[string]interface{}{
 			"name":      req.Name,
 			"namespace": req.Namespace,
-			"annotations": map[string]interface{}{
-				// Force-sync annotation triggers immediate reconciliation
-				// Changing this value causes external-secrets to re-sync immediately
-				"force-sync": fmt.Sprintf("%d", timeNow().UnixNano()),
-			},
 		},
 		"spec": map[string]interface{}{
 			"template": map[string]interface{}{

@@ -25,7 +25,6 @@ package client
 const (
 	TraitOTELInstrumentation TraitType = "python-otel-instrumentation-trait"
 	TraitAPIManagement       TraitType = "api-configuration"
-	TraitExternalSecret      TraitType = "external-secret-trait"
 )
 
 // -----------------------------------------------------------------------------
