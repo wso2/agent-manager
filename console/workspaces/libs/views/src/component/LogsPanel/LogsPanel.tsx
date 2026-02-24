@@ -273,11 +273,17 @@ export function LogsPanel({
                     </Stack>
                 )}
                 {!isLoading && isNoLogs && (
-                    <ListingTable.EmptyState
-                        illustration={resolvedEmptyState.illustration}
-                        title={resolvedEmptyState.title}
-                        description={resolvedEmptyState.description}
-                    />
+                    <Box sx={{
+                        height: "100%", display: "flex",
+                        justifyContent: "center", alignItems: "center"
+                    }} >
+                        <ListingTable.EmptyState
+                            illustration={resolvedEmptyState.illustration}
+                            title={resolvedEmptyState.title}
+                            description={resolvedEmptyState.description}
+
+                        />
+                    </Box>
                 )}
                 {showPanel && (
                     <Box ref={scrollContainerRef} sx={{ flex: 1, overflow: "auto" }}>
