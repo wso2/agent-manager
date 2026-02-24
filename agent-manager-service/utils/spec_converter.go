@@ -461,8 +461,9 @@ func ConvertSpecToModelUpstreamConfig(config spec.UpstreamConfig) models.Upstrea
 		}
 		if config.Main.Auth != nil {
 			main.Auth = &models.UpstreamAuth{
-				Type:  &config.Main.Auth.Type,
-				Value: config.Main.Auth.Value,
+				Type:   &config.Main.Auth.Type,
+				Value:  config.Main.Auth.Value,
+				Header: config.Main.Auth.Header,
 			}
 		}
 		modelConfig.Main = &main
@@ -475,8 +476,9 @@ func ConvertSpecToModelUpstreamConfig(config spec.UpstreamConfig) models.Upstrea
 		}
 		if config.Sandbox.Auth != nil {
 			sandbox.Auth = &models.UpstreamAuth{
-				Type:  &config.Sandbox.Auth.Type,
-				Value: config.Sandbox.Auth.Value,
+				Type:   &config.Sandbox.Auth.Type,
+				Value:  config.Sandbox.Auth.Value,
+				Header: config.Main.Auth.Header,
 			}
 		}
 		modelConfig.Sandbox = &sandbox

@@ -21,8 +21,8 @@ import (
 )
 
 // Create agent configuration tables
-var migration011 = migration{
-	ID: 11,
+var migration008 = migration{
+	ID: 8,
 	Migrate: func(db *gorm.DB) error {
 		// Agent Configurations table
 		createAgentConfigurationsTable := `
@@ -77,15 +77,19 @@ var migration011 = migration{
 			// agent_configurations indexes
 			`CREATE INDEX IF NOT EXISTS idx_agent_config_agent ON agent_configurations(agent_id)`,
 			`CREATE INDEX IF NOT EXISTS idx_agent_config_org_project ON agent_configurations(organization_name, project_name)`,
+			`CREATE INDEX IF NOT EXISTS idx_agent_config_org_agent ON agent_configurations(organization_name, agent_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_agent_config_type ON agent_configurations(type)`,
 
 			// env_agent_model_mapping indexes
 			`CREATE INDEX IF NOT EXISTS idx_env_mapping_config ON env_agent_model_mapping(config_uuid)`,
 			`CREATE INDEX IF NOT EXISTS idx_env_mapping_environment ON env_agent_model_mapping(environment_uuid)`,
 			`CREATE INDEX IF NOT EXISTS idx_env_mapping_proxy ON env_agent_model_mapping(llm_proxy_uuid)`,
+			`CREATE INDEX IF NOT EXISTS idx_env_mapping_config_env ON env_agent_model_mapping(config_uuid, environment_uuid)`,
 
 			// agent_env_config_variables_mapping indexes
 			`CREATE INDEX IF NOT EXISTS idx_env_var_config ON agent_env_config_variables_mapping(config_uuid)`,
 			`CREATE INDEX IF NOT EXISTS idx_env_var_environment ON agent_env_config_variables_mapping(environment_uuid)`,
+			`CREATE INDEX IF NOT EXISTS idx_env_var_config_env ON agent_env_config_variables_mapping(config_uuid, environment_uuid)`,
 		}
 
 		// Create comments

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"log/slog"
 
 	"github.com/google/uuid"
@@ -34,7 +35,7 @@ const (
 	deploymentLimitBuffer = 5
 	maxDeploymentsPerAPI  = 20
 	apiVersionLLMProvider = "gateway.api-platform.wso2.com/v1alpha1"
-	kindLLMProvider       = "LLMProvider"
+	kindLLMProvider       = "LlmProvider"
 )
 
 // LLMProviderDeploymentService handles LLM deployment business logic
@@ -78,11 +79,18 @@ type LLMProviderDeploymentSpec struct {
 	Context       string                        `yaml:"context,omitempty" json:"context,omitempty"`
 	VHost         string                        `yaml:"vhost,omitempty" json:"vhost,omitempty"`
 	Template      string                        `yaml:"template" json:"template"`
-	Upstream      models.UpstreamConfig         `yaml:"upstream" json:"upstream"`
+	Upstream      GatewayUpstream               `yaml:"upstream" json:"upstream"`
 	AccessControl *models.LLMAccessControl      `yaml:"accessControl,omitempty" json:"accessControl,omitempty"`
 	RateLimiting  *models.LLMRateLimitingConfig `yaml:"rateLimiting,omitempty" json:"rateLimiting,omitempty"`
 	Policies      []models.LLMPolicy            `yaml:"policies,omitempty" json:"policies,omitempty"`
 	Security      *models.SecurityConfig        `yaml:"security,omitempty" json:"security,omitempty"`
+}
+
+// GatewayUpstream represents the flat upstream structure expected by the gateway
+type GatewayUpstream struct {
+	URL  string               `yaml:"url,omitempty" json:"url,omitempty"`
+	Ref  string               `yaml:"ref,omitempty" json:"ref,omitempty"`
+	Auth *models.UpstreamAuth `yaml:"auth,omitempty" json:"auth,omitempty"`
 }
 
 // DeployLLMProvider deploys an LLM provider to a gateway
@@ -472,6 +480,26 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 		vhostValue = *provider.Configuration.VHost
 	}
 
+	// Transform upstream from nested (main/sandbox) to flat structure expected by gateway
+	var gatewayUpstream GatewayUpstream
+	if provider.Configuration.Upstream.Main != nil {
+		gatewayUpstream.URL = provider.Configuration.Upstream.Main.URL
+		gatewayUpstream.Ref = provider.Configuration.Upstream.Main.Ref
+		gatewayUpstream.Auth = provider.Configuration.Upstream.Main.Auth
+	}
+
+	// Ensure access control has a valid mode with default
+	accessControl := provider.Configuration.AccessControl
+	if accessControl == nil {
+		// Set default to deny_all if not provided
+		accessControl = &models.LLMAccessControl{
+			Mode: "deny_all",
+		}
+	} else if accessControl.Mode != "allow_all" && accessControl.Mode != "deny_all" {
+		// Fix invalid mode to default
+		accessControl.Mode = "deny_all"
+	}
+
 	// Build deployment YAML
 	deploymentYAML := LLMProviderDeploymentYAML{
 		ApiVersion: apiVersionLLMProvider,
@@ -485,8 +513,8 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 			Context:       contextValue,
 			VHost:         vhostValue,
 			Template:      templateHandle,
-			Upstream:      *provider.Configuration.Upstream,
-			AccessControl: provider.Configuration.AccessControl,
+			Upstream:      gatewayUpstream,
+			AccessControl: accessControl,
 			RateLimiting:  provider.Configuration.RateLimiting,
 			Policies:      provider.Configuration.Policies,
 			Security:      provider.Configuration.Security,
@@ -498,6 +526,8 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal to YAML: %w", err)
 	}
+
+	log.Println(string(yamlBytes))
 
 	return string(yamlBytes), nil
 }

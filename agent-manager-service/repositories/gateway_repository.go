@@ -68,6 +68,7 @@ type GatewayRepository interface {
 	DeleteEnvironmentMapping(gatewayID, environmentID string) error
 	GetEnvironmentMappingsByGatewayID(gatewayID string) ([]models.GatewayEnvironmentMapping, error)
 	GetEnvironmentMappingsByGatewayIDs(gatewayIDs []string) (map[string][]models.GatewayEnvironmentMapping, error)
+	GetEnvironmentMappingsByEnvironmentID(environmentID string) ([]models.GatewayEnvironmentMapping, error)
 	EnvironmentMappingExists(gatewayID, environmentID string) (bool, error)
 }
 
@@ -414,6 +415,13 @@ func (r *GatewayRepo) GetEnvironmentMappingsByGatewayIDs(gatewayIDs []string) (m
 	}
 
 	return result, nil
+}
+
+// GetEnvironmentMappingsByEnvironmentID retrieves all gateway mappings for an environment
+func (r *GatewayRepo) GetEnvironmentMappingsByEnvironmentID(environmentID string) ([]models.GatewayEnvironmentMapping, error) {
+	var mappings []models.GatewayEnvironmentMapping
+	err := r.db.Where("environment_uuid = ?", environmentID).Find(&mappings).Error
+	return mappings, err
 }
 
 // EnvironmentMappingExists checks if a mapping exists between a gateway and an environment

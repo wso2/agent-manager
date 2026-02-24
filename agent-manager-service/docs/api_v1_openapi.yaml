@@ -2699,6 +2699,296 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs:
+    post:
+      summary: Create agent model configuration
+      description: Creates a new model configuration for an agent with environment-specific mappings
+      operationId: createAgentModelConfig
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAgentModelConfigRequest"
+      responses:
+        "201":
+          description: Agent model configuration created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentModelConfigResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: User authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Agent configuration already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      summary: List agent model configurations
+      description: Lists all model configurations for an agent with pagination
+      operationId: listAgentModelConfigs
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Maximum number of results to return
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Number of results to skip
+      responses:
+        "200":
+          description: List of agent model configurations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentModelConfigListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}:
+    get:
+      summary: Get agent model configuration
+      description: Retrieves a specific model configuration by ID
+      operationId: getAgentModelConfig
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
+        - name: configId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Configuration UUID
+      responses:
+        "200":
+          description: Agent model configuration details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentModelConfigResponse"
+        "400":
+          description: Invalid configuration ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Configuration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      summary: Update agent model configuration
+      description: Updates an existing model configuration
+      operationId: updateAgentModelConfig
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
+        - name: configId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Configuration UUID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAgentModelConfigRequest"
+      responses:
+        "200":
+          description: Agent model configuration updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentModelConfigResponse"
+        "400":
+          description: Invalid request or configuration ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Configuration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete agent model configuration
+      description: Deletes a model configuration
+      operationId: deleteAgentModelConfig
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent name
+        - name: configId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Configuration UUID
+      responses:
+        "204":
+          description: Agent model configuration deleted successfully
+        "400":
+          description: Invalid configuration ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Configuration not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/external/jwks.json:
     servers:
       - url: /
@@ -9201,6 +9491,307 @@ components:
     # ============================================
     # CATALOG SCHEMAS
     # ============================================
+
+    CreateAgentModelConfigRequest:
+      type: object
+      required:
+        - name
+        - type
+        - envMappings
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          description: Name of the model configuration
+          example: "primary-llm-config"
+        description:
+          type: string
+          description: Optional description of the configuration
+          example: "Primary LLM configuration for production"
+        type:
+          type: string
+          enum: [llm, mcp, other]
+          description: Type of configuration
+          example: "llm"
+        envMappings:
+          type: object
+          description: Map of environment names to their model configurations
+          additionalProperties:
+            $ref: "#/components/schemas/EnvModelConfigRequest"
+          minProperties: 1
+          example:
+            development:
+              providerUuid: "550e8400-e29b-41d4-a716-446655440000"
+              configuration:
+                policies:
+                  - name: "retry"
+                    enabled: true
+            production:
+              providerUuid: "660e8400-e29b-41d4-a716-446655440001"
+              configuration:
+                policies:
+                  - name: "cache"
+                    enabled: true
+
+    EnvModelConfigRequest:
+      type: object
+      required:
+        - providerUuid
+      properties:
+        providerUuid:
+          type: string
+          format: uuid
+          description: UUID of the LLM provider for this environment
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        configuration:
+          $ref: "#/components/schemas/EnvProviderConfiguration"
+
+    EnvProviderConfiguration:
+      type: object
+      properties:
+        policies:
+          type: array
+          description: Provider-specific policy configurations
+          items:
+            type: object
+            additionalProperties: true
+          example:
+            - name: "retry"
+              enabled: true
+              maxRetries: 3
+            - name: "cache"
+              enabled: false
+
+    UpdateAgentModelConfigRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          description: Updated name of the model configuration
+          example: "updated-llm-config"
+        description:
+          type: string
+          description: Updated description
+          example: "Updated LLM configuration"
+        envMappings:
+          type: object
+          description: Updated map of environment names to their model configurations
+          additionalProperties:
+            $ref: "#/components/schemas/EnvModelConfigRequest"
+          example:
+            development:
+              providerUuid: "550e8400-e29b-41d4-a716-446655440000"
+
+    AgentModelConfigResponse:
+      type: object
+      required:
+        - uuid
+        - name
+        - agentId
+        - type
+        - organizationName
+        - projectName
+        - envModelConfig
+        - environmentVariables
+        - createdAt
+        - updatedAt
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Unique identifier for the configuration
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        name:
+          type: string
+          description: Name of the configuration
+          example: "primary-llm-config"
+        description:
+          type: string
+          description: Description of the configuration
+          example: "Primary LLM configuration for production"
+        agentId:
+          type: string
+          description: Agent identifier
+          example: "customer-support-agent"
+        type:
+          type: string
+          description: Type of configuration
+          example: "llm"
+        organizationName:
+          type: string
+          description: Organization name
+          example: "acme-corp"
+        projectName:
+          type: string
+          description: Project name
+          example: "support-project"
+        envModelConfig:
+          type: object
+          description: Environment-specific model configurations
+          additionalProperties:
+            $ref: "#/components/schemas/EnvModelConfigResponse"
+          example:
+            development:
+              environmentUuid: "770e8400-e29b-41d4-a716-446655440000"
+              environmentName: "development"
+              llmProxy:
+                proxyUuid: "880e8400-e29b-41d4-a716-446655440000"
+                proxyName: "openai-gpt4"
+                context: "/v1/chat/completions"
+                status: "active"
+        environmentVariables:
+          type: array
+          description: Environment variables configured for the agent
+          items:
+            $ref: "#/components/schemas/EnvironmentVariableConfig"
+          example:
+            - name: "OPENAI_API_KEY"
+            - name: "MODEL_ENDPOINT"
+        createdAt:
+          type: string
+          format: date-time
+          description: Configuration creation timestamp
+          example: "2026-02-20T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Configuration last updated timestamp
+          example: "2026-02-20T15:45:00Z"
+
+    EnvModelConfigResponse:
+      type: object
+      required:
+        - environmentUuid
+        - environmentName
+      properties:
+        environmentUuid:
+          type: string
+          format: uuid
+          description: UUID of the environment
+          example: "770e8400-e29b-41d4-a716-446655440000"
+        environmentName:
+          type: string
+          description: Name of the environment
+          example: "development"
+        llmProxy:
+          $ref: "#/components/schemas/LLMProxyInfo"
+
+    LLMProxyInfo:
+      type: object
+      required:
+        - proxyUuid
+        - proxyName
+        - context
+        - status
+      properties:
+        proxyUuid:
+          type: string
+          format: uuid
+          description: UUID of the LLM proxy
+          example: "880e8400-e29b-41d4-a716-446655440000"
+        proxyName:
+          type: string
+          description: Name of the LLM proxy
+          example: "openai-gpt4"
+        context:
+          type: string
+          description: API context path
+          example: "/v1/chat/completions"
+        status:
+          type: string
+          description: Status of the proxy
+          example: "active"
+
+    EnvironmentVariableConfig:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Environment variable name
+          example: "OPENAI_API_KEY"
+
+    AgentModelConfigListResponse:
+      type: object
+      required:
+        - configs
+        - pagination
+      properties:
+        configs:
+          type: array
+          description: List of agent model configurations
+          items:
+            $ref: "#/components/schemas/AgentModelConfigListItem"
+        pagination:
+          $ref: "#/components/schemas/PaginationInfo"
+
+    AgentModelConfigListItem:
+      type: object
+      required:
+        - uuid
+        - name
+        - agentId
+        - type
+        - organizationName
+        - projectName
+        - createdAt
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Configuration UUID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        name:
+          type: string
+          description: Configuration name
+          example: "primary-llm-config"
+        description:
+          type: string
+          description: Configuration description
+          example: "Primary LLM configuration"
+        agentId:
+          type: string
+          description: Agent identifier
+          example: "customer-support-agent"
+        type:
+          type: string
+          description: Configuration type
+          example: "llm"
+        organizationName:
+          type: string
+          description: Organization name
+          example: "acme-corp"
+        projectName:
+          type: string
+          description: Project name
+          example: "support-project"
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2026-02-20T10:30:00Z"
+
+    PaginationInfo:
+      type: object
+      required:
+        - count
+        - offset
+        - limit
+      properties:
+        count:
+          type: integer
+          description: Number of items in current response
+          example: 10
+        offset:
+          type: integer
+          description: Number of items skipped
+          example: 0
+        limit:
+          type: integer
+          description: Maximum number of items per page
+          example: 20
 
     CatalogEntry:
       type: object

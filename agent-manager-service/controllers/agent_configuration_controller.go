@@ -26,6 +26,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/spec"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
@@ -57,16 +58,30 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 	projectName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
 
-	// TODO: Extract user from context (createdBy)
-	createdBy := "system" // Placeholder
+	// Extract and validate user from request header
+	userID := r.Header.Get("x-user-id")
+	if userID == "" {
+		log.Warn("CreateAgentModelConfig: missing user ID in request header")
+		utils.WriteErrorResponse(w, http.StatusUnauthorized, "User authentication required")
+		return
+	}
+	if err := utils.ValidateUserID(userID); err != nil {
+		log.Warn("CreateAgentModelConfig: invalid user ID format", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid user ID format")
+		return
+	}
+	createdBy := userID
 
 	// Bind request body
-	var req models.CreateAgentModelConfigRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var specReq spec.CreateAgentModelConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		log.Error("CreateAgentModelConfig: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
+
+	// Convert spec request to models request
+	req := convertCreateAgentModelConfigRequest(specReq)
 
 	// Call service
 	response, err := c.agentConfigService.Create(ctx, orgName, projectName, agentName, req, createdBy)
@@ -81,6 +96,12 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 		case errors.Is(err, utils.ErrInvalidInput):
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 			return
+		case errors.Is(err, utils.ErrUnauthorized):
+			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Unauthorized access")
+			return
+		case errors.Is(err, utils.ErrForbidden):
+			utils.WriteErrorResponse(w, http.StatusForbidden, "Forbidden")
+			return
 		default:
 			log.Error("CreateAgentModelConfig: failed to create configuration", "error", err)
 			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create agent model configuration")
@@ -88,7 +109,9 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 		}
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusCreated, response)
+	// Convert response to spec model
+	specResponse := convertAgentModelConfigResponse(*response)
+	utils.WriteSuccessResponse(w, http.StatusCreated, specResponse)
 }
 
 // GetAgentModelConfig handles GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}
@@ -117,7 +140,9 @@ func (c *agentConfigurationController) GetAgentModelConfig(w http.ResponseWriter
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	// Convert response to spec model
+	specResponse := convertAgentModelConfigResponse(*response)
+	utils.WriteSuccessResponse(w, http.StatusOK, specResponse)
 }
 
 // ListAgentModelConfigs handles GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs
@@ -136,7 +161,9 @@ func (c *agentConfigurationController) ListAgentModelConfigs(w http.ResponseWrit
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	// Convert response to spec model
+	specResponse := convertAgentModelConfigListResponse(*response)
+	utils.WriteSuccessResponse(w, http.StatusOK, specResponse)
 }
 
 // UpdateAgentModelConfig handles PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}
@@ -154,12 +181,15 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 		return
 	}
 
-	var req models.UpdateAgentModelConfigRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var specReq spec.UpdateAgentModelConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		log.Error("UpdateAgentModelConfig: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
+
+	// Convert spec request to models request
+	req := convertUpdateAgentModelConfigRequest(specReq)
 
 	response, err := c.agentConfigService.Update(ctx, configUUID, orgName, req)
 	if err != nil {
@@ -172,7 +202,9 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	// Convert response to spec model
+	specResponse := convertAgentModelConfigResponse(*response)
+	utils.WriteSuccessResponse(w, http.StatusOK, specResponse)
 }
 
 // DeleteAgentModelConfig handles DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}
@@ -201,4 +233,140 @@ func (c *agentConfigurationController) DeleteAgentModelConfig(w http.ResponseWri
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// Converter functions between spec and models
+
+func convertCreateAgentModelConfigRequest(specReq spec.CreateAgentModelConfigRequest) models.CreateAgentModelConfigRequest {
+	envMappings := make(map[string]models.EnvModelConfigRequest)
+	for envName, envConfig := range specReq.EnvMappings {
+		providerUUID, _ := uuid.Parse(envConfig.ProviderUuid) // UUID validation happens at service layer
+		envMappings[envName] = models.EnvModelConfigRequest{
+			ProviderUUID: providerUUID,
+			Configuration: models.EnvProviderConfiguration{
+				Policies: convertPolicies(envConfig.Configuration),
+			},
+		}
+	}
+
+	return models.CreateAgentModelConfigRequest{
+		Name:        specReq.Name,
+		Description: getString(specReq.Description),
+		Type:        specReq.Type,
+		EnvMappings: envMappings,
+	}
+}
+
+func convertUpdateAgentModelConfigRequest(specReq spec.UpdateAgentModelConfigRequest) models.UpdateAgentModelConfigRequest {
+	req := models.UpdateAgentModelConfigRequest{}
+
+	if specReq.Name != nil {
+		req.Name = *specReq.Name
+	}
+	if specReq.Description != nil {
+		req.Description = *specReq.Description
+	}
+	if specReq.EnvMappings != nil {
+		envMappings := make(map[string]models.EnvModelConfigRequest)
+		for envName, envConfig := range *specReq.EnvMappings {
+			providerUUID, _ := uuid.Parse(envConfig.ProviderUuid) // UUID validation happens at service layer
+			envMappings[envName] = models.EnvModelConfigRequest{
+				ProviderUUID: providerUUID,
+				Configuration: models.EnvProviderConfiguration{
+					Policies: convertPolicies(envConfig.Configuration),
+				},
+			}
+		}
+		req.EnvMappings = envMappings
+	}
+
+	return req
+}
+
+func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) spec.AgentModelConfigResponse {
+	envModelConfig := make(map[string]spec.EnvModelConfigResponse)
+	for envName, envConfig := range modelResp.EnvModelConfig {
+		specEnvConfig := spec.EnvModelConfigResponse{
+			EnvironmentUuid: envConfig.EnvironmentUUID,
+			EnvironmentName: envConfig.EnvironmentName,
+		}
+		if envConfig.LLMProxy != nil {
+			specEnvConfig.LlmProxy = &spec.LLMProxyInfo{
+				ProxyUuid: envConfig.LLMProxy.ProxyUUID,
+				ProxyName: envConfig.LLMProxy.ProxyName,
+				Context:   envConfig.LLMProxy.Context,
+				Status:    envConfig.LLMProxy.Status,
+			}
+		}
+		envModelConfig[envName] = specEnvConfig
+	}
+
+	envVars := make([]spec.EnvironmentVariableConfig, len(modelResp.EnvironmentVariables))
+	for i, envVar := range modelResp.EnvironmentVariables {
+		envVars[i] = spec.EnvironmentVariableConfig{
+			Name: envVar.Name,
+		}
+	}
+
+	return spec.AgentModelConfigResponse{
+		Uuid:                 modelResp.UUID,
+		Name:                 modelResp.Name,
+		Description:          getStringPtr(modelResp.Description),
+		AgentId:              modelResp.AgentID,
+		Type:                 modelResp.Type,
+		OrganizationName:     modelResp.OrganizationName,
+		ProjectName:          modelResp.ProjectName,
+		EnvModelConfig:       envModelConfig,
+		EnvironmentVariables: envVars,
+		CreatedAt:            modelResp.CreatedAt,
+		UpdatedAt:            modelResp.UpdatedAt,
+	}
+}
+
+func convertAgentModelConfigListResponse(modelResp models.AgentModelConfigListResponse) spec.AgentModelConfigListResponse {
+	configs := make([]spec.AgentModelConfigListItem, len(modelResp.Configs))
+	for i, config := range modelResp.Configs {
+		configs[i] = spec.AgentModelConfigListItem{
+			Uuid:             config.UUID,
+			Name:             config.Name,
+			Description:      getStringPtr(config.Description),
+			AgentId:          config.AgentID,
+			Type:             config.Type,
+			OrganizationName: config.OrganizationName,
+			ProjectName:      config.ProjectName,
+			CreatedAt:        config.CreatedAt,
+		}
+	}
+
+	return spec.AgentModelConfigListResponse{
+		Configs: configs,
+		Pagination: spec.PaginationInfo{
+			Count:  int32(modelResp.Pagination.Count),
+			Offset: int32(modelResp.Pagination.Offset),
+			Limit:  int32(modelResp.Pagination.Limit),
+		},
+	}
+}
+
+// Helper functions
+
+func convertPolicies(specConfig *spec.EnvProviderConfiguration) []map[string]interface{} {
+	if specConfig == nil {
+		return nil
+	}
+	return specConfig.Policies
+}
+
+func getString(ptr *string) string {
+	if ptr == nil {
+		return ""
+	}
+	return *ptr
+}
+
+func getStringPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

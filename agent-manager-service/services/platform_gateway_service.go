@@ -143,7 +143,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 		return nil, fmt.Errorf("failed to check gateway name uniqueness: %w", err)
 	}
 	if existing != nil {
-		return nil, fmt.Errorf("gateway with name '%s' already exists in this organization", name)
+		return nil, utils.ErrGatewayAlreadyExists
 	}
 
 	// 4. Generate UUID for gateway

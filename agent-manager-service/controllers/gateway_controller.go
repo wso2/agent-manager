@@ -128,6 +128,30 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Validate environments if present
+	if len(req.EnvironmentIds) > 0 {
+		envs, err := c.ocClient.ListEnvironments(ctx, orgName)
+		if err != nil {
+			log.Error("environment validation failed: failed to list environments")
+			utils.WriteErrorResponse(w, http.StatusInternalServerError, "environment validation error")
+			return
+		}
+		if len(envs) == 0 {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "no environments registered")
+		}
+		envMap := make(map[string]string)
+		for _, env := range envs {
+			envMap[env.UUID] = env.Name
+		}
+		for _, envId := range req.EnvironmentIds {
+			if _, ok := envMap[envId]; !ok {
+				log.Error("environment with id " + envId + " not found")
+				utils.WriteErrorResponse(w, http.StatusBadRequest, "environment validation failed")
+				return
+			}
+		}
+	}
+
 	// Create gateway using local service
 	description := "" // Description not in spec, use empty string
 	functionalityType := string(req.GatewayType)

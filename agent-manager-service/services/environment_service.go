@@ -25,7 +25,6 @@ import (
 	"github.com/google/uuid"
 
 	occlient "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
@@ -178,12 +177,10 @@ func (s *environmentService) GetEnvironmentGateways(ctx context.Context, orgName
 		return nil, fmt.Errorf("invalid environment UUID: %w", err)
 	}
 
-	// Get gateway-environment mappings from DB
-	var mappings []models.GatewayEnvironmentMapping
-	err = db.DB(ctx).
-		Where("environment_uuid = ?", envUUID).
-		Find(&mappings).Error
+	// Get gateway-environment mappings from repository
+	mappings, err := s.gatewayRepo.GetEnvironmentMappingsByEnvironmentID(envUUID.String())
 	if err != nil {
+		s.logger.Error("Failed to get gateway mappings from repository", "environmentID", envUUID.String(), "error", err)
 		return nil, fmt.Errorf("failed to get gateway mappings: %w", err)
 	}
 
