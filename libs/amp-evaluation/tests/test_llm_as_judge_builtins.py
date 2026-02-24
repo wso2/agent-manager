@@ -23,9 +23,10 @@ span-dependent behavior (skip vs zero), global config, and builtin() discovery.
 """
 
 import sys
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Ensure litellm is mocked before imports
 _mock_litellm = MagicMock()
@@ -33,48 +34,48 @@ sys.modules.setdefault("litellm", _mock_litellm)
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from amp_evaluation.evaluators.params import EvaluationLevel, EvalMode
-from amp_evaluation.evaluators.base import LLMAsJudgeEvaluator
-from amp_evaluation.evaluators.builtin import builtin, list_builtin_evaluators
-from amp_evaluation.models import EvalResult
-from amp_evaluation.trace.models import (
-    Trace,
-    AgentTrace,
-    LLMSpan,
-    ToolSpan,
-    RetrieverSpan,
-    RetrievedDoc,
-    AgentSpan,
-    TraceMetrics,
-    TokenUsage,
-    SpanMetrics,
-    LLMMetrics,
-    RetrieverMetrics,
-    AgentMetrics,
-    SystemMessage,
-    UserMessage,
-    AssistantMessage,
-)
-from amp_evaluation.dataset.models import Task
-from amp_evaluation.evaluators.builtin.llm_judge import (
-    HelpfulnessEvaluator,
-    ClarityEvaluator,
+from amp_evaluation.dataset.models import Task  # noqa: E402
+from amp_evaluation.evaluators.base import LLMAsJudgeEvaluator  # noqa: E402
+from amp_evaluation.evaluators.builtin import builtin, list_builtin_evaluators  # noqa: E402
+from amp_evaluation.evaluators.builtin.llm_judge import (  # noqa: E402
     AccuracyEvaluator,
+    ClarityEvaluator,
     CoherenceEvaluator,
     CompletenessEvaluator,
     ConcisenessEvaluator,
-    FaithfulnessEvaluator,
     ContextRelevanceEvaluator,
-    SafetyEvaluator,
-    ToneEvaluator,
-    InstructionFollowingEvaluator,
-    RelevanceEvaluator,
-    SemanticSimilarityEvaluator,
-    HallucinationEvaluator,
-    GoalClarityEvaluator,
-    ReasoningQualityEvaluator,
-    PathEfficiencyEvaluator,
     ErrorRecoveryEvaluator,
+    FaithfulnessEvaluator,
+    GoalClarityEvaluator,
+    HallucinationEvaluator,
+    HelpfulnessEvaluator,
+    InstructionFollowingEvaluator,
+    PathEfficiencyEvaluator,
+    ReasoningQualityEvaluator,
+    RelevanceEvaluator,
+    SafetyEvaluator,
+    SemanticSimilarityEvaluator,
+    ToneEvaluator,
+)
+from amp_evaluation.evaluators.params import EvaluationLevel, EvalMode  # noqa: E402
+from amp_evaluation.models import EvalResult  # noqa: E402
+from amp_evaluation.trace.models import (  # noqa: E402
+    AgentMetrics,
+    AgentSpan,
+    AgentTrace,
+    AssistantMessage,
+    LLMMetrics,
+    LLMSpan,
+    RetrievedDoc,
+    RetrieverMetrics,
+    RetrieverSpan,
+    SpanMetrics,
+    SystemMessage,
+    TokenUsage,
+    ToolSpan,
+    Trace,
+    TraceMetrics,
+    UserMessage,
 )
 
 
@@ -1154,7 +1155,6 @@ class TestTagTaxonomy:
         trace = _make_trace()
         llm_span = _make_llm_span()
         agent_trace = _make_agent_trace()
-        task = Task(task_id="t1", name="test", description="test", input="test", expected_output="expected")
 
         for cls, arg in [
             (HelpfulnessEvaluator, trace),
@@ -1312,7 +1312,7 @@ class TestScoreRangeAndPolarity:
             ev = cls()
             prompt = ev.build_prompt(arg).lower()
             # Find the line containing "0.0" in the rubric
-            rubric_lines = [l for l in prompt.split("\n") if "0.0" in l and "=" in l]
+            rubric_lines = [line for line in prompt.split("\n") if "0.0" in line and "=" in line]
             assert rubric_lines, f"{ev.name}: no '0.0 =' line found in prompt rubric"
             rubric_0 = " ".join(rubric_lines).lower()
             assert any(w in rubric_0 for w in bad_words), (
@@ -1364,7 +1364,7 @@ class TestScoreRangeAndPolarity:
         ]:
             ev = cls()
             prompt = ev.build_prompt(arg).lower()
-            rubric_lines = [l for l in prompt.split("\n") if "1.0" in l and "=" in l]
+            rubric_lines = [line for line in prompt.split("\n") if "1.0" in line and "=" in line]
             assert rubric_lines, f"{ev.name}: no '1.0 =' line found in prompt rubric"
             rubric_1 = " ".join(rubric_lines).lower()
             assert any(w in rubric_1 for w in good_words), (

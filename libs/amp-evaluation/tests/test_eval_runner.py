@@ -30,6 +30,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from amp_evaluation import evaluator, EvalResult
+from amp_evaluation.models import EvaluatorSummary, EvaluatorScore
 from amp_evaluation.runner import Monitor, RunResult
 from amp_evaluation.evaluators.params import EvalMode
 from amp_evaluation.trace import Trace, TraceLoader, parse_traces_for_evaluation
@@ -229,9 +230,6 @@ class TestRunResultSuccess:
 # ============================================================================
 
 
-from amp_evaluation.models import EvaluatorSummary, EvaluatorScore
-
-
 class TestRunResultSummary:
     """Test RunResult.summary() verbosity levels."""
 
@@ -303,7 +301,7 @@ class TestRunResultSummary:
 
     def test_compact_one_line_per_evaluator(self, run_result_with_scores):
         output = run_result_with_scores.summary(verbosity="compact")
-        lines = [l for l in output.strip().split("\n") if l.strip() and l.strip() != "Scores:"]
+        lines = [line for line in output.strip().split("\n") if line.strip() and line.strip() != "Scores:"]
         assert len(lines) == 2  # One per evaluator
         assert "count=3" in lines[0]
         assert "mean=" in lines[0]
