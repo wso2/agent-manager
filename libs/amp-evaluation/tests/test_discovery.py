@@ -477,10 +477,8 @@ class TestIntegrationScenarios:
         """All standard evaluators should be discoverable via _discover_builtin_class."""
         expected_names = [
             "answer_length",
-            "answer_relevancy",
             "contains_match",
             "exact_match",
-            "hallucination",
             "iteration_count",
             "latency",
             "prohibited_content",

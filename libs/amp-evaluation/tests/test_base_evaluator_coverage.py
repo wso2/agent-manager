@@ -90,17 +90,15 @@ class TestLLMAsJudgeEvaluator:
         assert evaluator.criteria == "quality, accuracy, and helpfulness"
         assert evaluator.temperature == 0.0
         assert evaluator.max_tokens == 1024
-        assert evaluator.threshold == 0.5
         assert evaluator.max_retries == 2
 
     def test_custom_initialization(self):
         """Test LLM evaluator with custom Param overrides."""
-        evaluator = _SimpleJudge(model="gpt-4o", criteria="accuracy", temperature=0.3, threshold=0.7)
+        evaluator = _SimpleJudge(model="gpt-4o", criteria="accuracy", temperature=0.3)
 
         assert evaluator.model == "gpt-4o"
         assert evaluator.criteria == "accuracy"
         assert evaluator.temperature == 0.3
-        assert evaluator.threshold == 0.7
 
     def test_default_build_prompt_without_task(self):
         """Test default build_prompt includes trace input/output."""
@@ -195,13 +193,13 @@ class TestLLMAsJudgeEvaluator:
         assert error is not None
 
     def test_threshold_pass_fail(self):
-        """Test that threshold controls pass/fail."""
-        evaluator = _SimpleJudge(threshold=0.8)
+        """Test that score >= 0.5 passes and score < 0.5 fails."""
+        evaluator = _SimpleJudge()
 
         result_pass, _ = evaluator._parse_and_validate('{"score": 0.9, "explanation": "Great"}')
         assert result_pass.passed is True
 
-        result_fail, _ = evaluator._parse_and_validate('{"score": 0.5, "explanation": "OK"}')
+        result_fail, _ = evaluator._parse_and_validate('{"score": 0.4, "explanation": "OK"}')
         assert result_fail.passed is False
 
 

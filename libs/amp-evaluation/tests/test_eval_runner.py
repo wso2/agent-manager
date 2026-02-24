@@ -45,11 +45,7 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 @pytest.fixture
 def sample_traces():
     """Load real traces from fixture file."""
-    loader = TraceLoader(
-        file_path=str(FIXTURES_DIR / "sample_traces.json"),
-        agent_uid="sample-agent",
-        environment_uid="test",
-    )
+    loader = TraceLoader(file_path=str(FIXTURES_DIR / "sample_traces.json"))
     otel_traces = loader.load_batch(limit=5)
     return parse_traces_for_evaluation(otel_traces)
 
@@ -226,6 +222,179 @@ class TestRunResultSuccess:
             errors=["Something went wrong"],
         )
         assert result.success is False
+
+
+# ============================================================================
+# TESTS: SUMMARY VERBOSITY
+# ============================================================================
+
+
+from amp_evaluation.models import EvaluatorSummary, EvaluatorScore
+
+
+class TestRunResultSummary:
+    """Test RunResult.summary() verbosity levels."""
+
+    @pytest.fixture
+    def run_result_with_scores(self):
+        from datetime import datetime, timedelta
+
+        started = datetime(2026, 1, 15, 10, 0, 0)
+        scores = {
+            "latency": EvaluatorSummary(
+                evaluator_name="latency",
+                count=3,
+                skipped_count=0,
+                aggregated_scores={"mean": 0.85, "pass_rate": 0.667},
+                individual_scores=[
+                    EvaluatorScore(trace_id="abc123def456gh", score=0.9, passed=True, explanation="Fast response"),
+                    EvaluatorScore(trace_id="xyz789ghi012jk", score=0.8, passed=True, explanation="OK latency"),
+                    EvaluatorScore(trace_id="mno345pqr678st", score=0.3, passed=False, explanation="Slow response"),
+                ],
+                level="trace",
+            ),
+            "hallucination": EvaluatorSummary(
+                evaluator_name="hallucination",
+                count=2,
+                skipped_count=1,
+                aggregated_scores={"mean": 0.75, "pass_rate": 0.5},
+                individual_scores=[
+                    EvaluatorScore(trace_id="abc123def456gh", score=1.0, passed=True, explanation="No hallucination"),
+                    EvaluatorScore(trace_id="xyz789ghi012jk", score=0.5, passed=True),
+                    EvaluatorScore(trace_id="mno345pqr678st", score=0.0, passed=False, skip_reason="Missing data"),
+                ],
+                level="agent",
+            ),
+        }
+
+        return RunResult(
+            run_id="test-run-001",
+            eval_mode=EvalMode.MONITOR,
+            started_at=started,
+            completed_at=started + timedelta(seconds=5.2),
+            traces_evaluated=3,
+            evaluators_run=2,
+            scores=scores,
+            errors=["Error evaluating trace xyz: timeout"],
+        )
+
+    def test_default_backward_compatible(self, run_result_with_scores):
+        """summary() with no args still works."""
+        output = run_result_with_scores.summary()
+        assert "test-run-001" in output
+        assert "Traces evaluated: 3" in output
+        assert "latency" in output
+        assert "hallucination" in output
+
+    def test_default_includes_level(self, run_result_with_scores):
+        output = run_result_with_scores.summary()
+        assert "level: trace" in output
+        assert "level: agent" in output
+
+    def test_default_includes_aggregated_scores(self, run_result_with_scores):
+        output = run_result_with_scores.summary()
+        assert "mean:" in output
+        assert "pass_rate:" in output
+
+    def test_compact_no_header(self, run_result_with_scores):
+        output = run_result_with_scores.summary(verbosity="compact")
+        assert "Evaluation Run:" not in output
+        assert "Traces evaluated:" not in output
+
+    def test_compact_one_line_per_evaluator(self, run_result_with_scores):
+        output = run_result_with_scores.summary(verbosity="compact")
+        lines = [l for l in output.strip().split("\n") if l.strip() and l.strip() != "Scores:"]
+        assert len(lines) == 2  # One per evaluator
+        assert "count=3" in lines[0]
+        assert "mean=" in lines[0]
+        assert "pass_rate=" in lines[0]
+
+    def test_compact_omits_errors(self, run_result_with_scores):
+        output = run_result_with_scores.summary(verbosity="compact")
+        assert "timeout" not in output
+
+    def test_detailed_shows_individual_scores(self, run_result_with_scores):
+        output = run_result_with_scores.summary(verbosity="detailed")
+        assert "[PASS]" in output
+        assert "[FAIL]" in output
+        assert "abc123def456" in output
+        assert "Fast response" in output
+
+    def test_detailed_shows_skip_reason(self, run_result_with_scores):
+        output = run_result_with_scores.summary(verbosity="detailed")
+        assert "Missing data" in output
+        assert "SKIP" in output
+
+    def test_detailed_shows_explanations(self, run_result_with_scores):
+        output = run_result_with_scores.summary(verbosity="detailed")
+        assert "No hallucination" in output
+        assert "Slow response" in output
+
+    def test_default_shows_errors(self, run_result_with_scores):
+        output = run_result_with_scores.summary()
+        assert "timeout" in output
+
+    def test_print_summary(self, run_result_with_scores, capsys):
+        run_result_with_scores.print_summary(verbosity="compact")
+        captured = capsys.readouterr()
+        assert "latency" in captured.out
+        assert "hallucination" in captured.out
+
+
+class TestEvaluatorSummarySummary:
+    """Test EvaluatorSummary.summary() method."""
+
+    def test_compact_single_line(self):
+        summary = EvaluatorSummary(
+            evaluator_name="latency",
+            count=10,
+            skipped_count=2,
+            aggregated_scores={"mean": 0.85, "pass_rate": 0.8},
+            level="trace",
+        )
+        output = summary.summary(verbosity="compact")
+        assert output.count("\n") == 0
+        assert "count=10" in output
+        assert "skipped=2" in output
+        assert "mean=" in output
+        assert "pass_rate=" in output
+
+    def test_compact_no_skipped_when_zero(self):
+        summary = EvaluatorSummary(
+            evaluator_name="test",
+            count=5,
+            skipped_count=0,
+            aggregated_scores={"mean": 0.9},
+            level="trace",
+        )
+        output = summary.summary(verbosity="compact")
+        assert "skipped" not in output
+
+    def test_default_includes_level(self):
+        summary = EvaluatorSummary(
+            evaluator_name="test_eval",
+            count=5,
+            aggregated_scores={"mean": 0.9},
+            level="agent",
+        )
+        output = summary.summary(verbosity="default")
+        assert "level: agent" in output
+
+    def test_detailed_includes_individual_scores(self):
+        summary = EvaluatorSummary(
+            evaluator_name="test_eval",
+            count=2,
+            aggregated_scores={"mean": 0.7},
+            individual_scores=[
+                EvaluatorScore(trace_id="trace_001abcdef", score=0.9, passed=True, explanation="Good"),
+                EvaluatorScore(trace_id="trace_002defghi", score=0.5, passed=True),
+            ],
+            level="trace",
+        )
+        output = summary.summary(verbosity="detailed")
+        assert "[PASS]" in output
+        assert "trace_001abc" in output
+        assert "Good" in output
 
 
 if __name__ == "__main__":

@@ -97,9 +97,7 @@ def _make_trace(
         input=input,
         output=output,
         spans=spans or [],
-        metrics=TraceMetrics(
-            token_usage=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30)
-        ),
+        metrics=TraceMetrics(token_usage=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30)),
     )
 
 
@@ -285,40 +283,49 @@ class TestDiscovery:
 class TestTraceLevel:
     """Tests for trace-level evaluators: helpfulness, clarity, accuracy, completeness, relevance, etc."""
 
-    @pytest.mark.parametrize("cls,name", [
-        (HelpfulnessEvaluator, "helpfulness"),
-        (ClarityEvaluator, "clarity"),
-        (AccuracyEvaluator, "accuracy"),
-        (CompletenessEvaluator, "completeness"),
-        (RelevanceEvaluator, "relevance"),
-        (HallucinationEvaluator, "hallucination"),
-    ])
+    @pytest.mark.parametrize(
+        "cls,name",
+        [
+            (HelpfulnessEvaluator, "helpfulness"),
+            (ClarityEvaluator, "clarity"),
+            (AccuracyEvaluator, "accuracy"),
+            (CompletenessEvaluator, "completeness"),
+            (RelevanceEvaluator, "relevance"),
+            (HallucinationEvaluator, "hallucination"),
+        ],
+    )
     def test_name_and_level(self, cls, name):
         ev = cls()
         assert ev.name == name
         assert ev.level == EvaluationLevel.TRACE
 
-    @pytest.mark.parametrize("cls", [
-        HelpfulnessEvaluator,
-        ClarityEvaluator,
-        AccuracyEvaluator,
-        CompletenessEvaluator,
-        RelevanceEvaluator,
-        HallucinationEvaluator,
-    ])
+    @pytest.mark.parametrize(
+        "cls",
+        [
+            HelpfulnessEvaluator,
+            ClarityEvaluator,
+            AccuracyEvaluator,
+            CompletenessEvaluator,
+            RelevanceEvaluator,
+            HallucinationEvaluator,
+        ],
+    )
     def test_supports_both_modes(self, cls):
         ev = cls()
         assert EvalMode.MONITOR in ev._supported_eval_modes
         assert EvalMode.EXPERIMENT in ev._supported_eval_modes
 
-    @pytest.mark.parametrize("cls", [
-        HelpfulnessEvaluator,
-        ClarityEvaluator,
-        AccuracyEvaluator,
-        CompletenessEvaluator,
-        RelevanceEvaluator,
-        HallucinationEvaluator,
-    ])
+    @pytest.mark.parametrize(
+        "cls",
+        [
+            HelpfulnessEvaluator,
+            ClarityEvaluator,
+            AccuracyEvaluator,
+            CompletenessEvaluator,
+            RelevanceEvaluator,
+            HallucinationEvaluator,
+        ],
+    )
     def test_evaluate_returns_eval_result(self, cls):
         ev = _mock_llm(cls())
         trace = _make_trace()
@@ -359,13 +366,9 @@ class TestTraceLevel:
         prompt = ev.build_prompt(trace, task)
         assert "Must cover all 3 points" in prompt
 
-    def test_threshold_param_accepted(self):
-        ev = HelpfulnessEvaluator(threshold=0.8)
-        assert ev.threshold == 0.8
-
-    def test_builtin_factory_with_threshold(self):
-        ev = builtin("helpfulness", threshold=0.9)
-        assert ev.threshold == 0.9
+    def test_builtin_factory_with_model_override(self):
+        ev = builtin("helpfulness", model="gpt-4o")
+        assert ev.model == "gpt-4o"
 
 
 # ============================================================================
@@ -376,34 +379,43 @@ class TestTraceLevel:
 class TestLLMSpanLevel:
     """Tests for LLM-span-level evaluators: coherence, conciseness, safety, tone."""
 
-    @pytest.mark.parametrize("cls,name", [
-        (CoherenceEvaluator, "coherence"),
-        (ConcisenessEvaluator, "conciseness"),
-        (SafetyEvaluator, "safety"),
-        (ToneEvaluator, "tone"),
-    ])
+    @pytest.mark.parametrize(
+        "cls,name",
+        [
+            (CoherenceEvaluator, "coherence"),
+            (ConcisenessEvaluator, "conciseness"),
+            (SafetyEvaluator, "safety"),
+            (ToneEvaluator, "tone"),
+        ],
+    )
     def test_name_and_level(self, cls, name):
         ev = cls()
         assert ev.name == name
         assert ev.level == EvaluationLevel.LLM
 
-    @pytest.mark.parametrize("cls", [
-        CoherenceEvaluator,
-        ConcisenessEvaluator,
-        SafetyEvaluator,
-        ToneEvaluator,
-    ])
+    @pytest.mark.parametrize(
+        "cls",
+        [
+            CoherenceEvaluator,
+            ConcisenessEvaluator,
+            SafetyEvaluator,
+            ToneEvaluator,
+        ],
+    )
     def test_supports_both_modes(self, cls):
         ev = cls()
         assert EvalMode.MONITOR in ev._supported_eval_modes
         assert EvalMode.EXPERIMENT in ev._supported_eval_modes
 
-    @pytest.mark.parametrize("cls", [
-        CoherenceEvaluator,
-        ConcisenessEvaluator,
-        SafetyEvaluator,
-        ToneEvaluator,
-    ])
+    @pytest.mark.parametrize(
+        "cls",
+        [
+            CoherenceEvaluator,
+            ConcisenessEvaluator,
+            SafetyEvaluator,
+            ToneEvaluator,
+        ],
+    )
     def test_evaluate_returns_result(self, cls):
         ev = _mock_llm(cls())
         llm_span = _make_llm_span()
@@ -422,10 +434,6 @@ class TestLLMSpanLevel:
         llm_span = _make_llm_span(response="Well, you see, actually...")
         prompt = ev.build_prompt(llm_span)
         assert "Well, you see, actually..." in prompt
-
-    def test_safety_threshold_default_is_higher(self):
-        ev = SafetyEvaluator()
-        assert ev.threshold == 0.7  # Safety requires higher confidence
 
     def test_safety_context_param_accepted(self):
         ev = SafetyEvaluator(context="customer support")
@@ -693,10 +701,6 @@ class TestSemanticSimilarity:
         result = ev.evaluate(trace, task)
         assert result.score == 0.9
 
-    def test_higher_threshold_default(self):
-        ev = SemanticSimilarityEvaluator()
-        assert ev.threshold == 0.7  # Higher bar for exact similarity
-
     def test_prompt_contains_expected_output(self):
         ev = SemanticSimilarityEvaluator()
         trace = _make_trace()
@@ -747,10 +751,6 @@ class TestHallucination:
         trace = _make_trace_with_tool()
         prompt = ev.build_prompt(trace)
         assert "evidence" in prompt.lower()
-
-    def test_higher_threshold_default(self):
-        ev = HallucinationEvaluator()
-        assert ev.threshold == 0.7
 
     def test_tags_include_correctness_and_safety(self):
         ev = HallucinationEvaluator()
@@ -966,6 +966,7 @@ class TestGlobalModelConfig:
         try:
             # Set a custom global config
             from amp_evaluation.config import Config, LLMJudgeConfig
+
             custom_llm_judge = LLMJudgeConfig(default_model="claude-opus-4-6")
             # Create a Config with the custom llm_judge config
             cfg._config = Config(llm_judge=custom_llm_judge)
@@ -983,6 +984,7 @@ class TestGlobalModelConfig:
         original_config = cfg._config
         try:
             from amp_evaluation.config import Config, LLMJudgeConfig
+
             cfg._config = Config(llm_judge=LLMJudgeConfig(default_model="gpt-4o"))
 
             ev = HelpfulnessEvaluator(model="gpt-4o-mini")
@@ -994,10 +996,6 @@ class TestGlobalModelConfig:
         ev = builtin("coherence", model="gpt-4o")
         assert ev.model == "gpt-4o"
 
-    def test_builtin_factory_threshold_override(self):
-        ev = builtin("safety", threshold=0.9)
-        assert ev.threshold == 0.9
-
 
 # ============================================================================
 # SECTION 9: PARAM VALIDATION
@@ -1006,14 +1004,6 @@ class TestGlobalModelConfig:
 
 class TestParamValidation:
     """Test that Param constraints are enforced on invalid inputs."""
-
-    def test_threshold_too_high_raises(self):
-        with pytest.raises(Exception):
-            HelpfulnessEvaluator(threshold=1.5)
-
-    def test_threshold_too_low_raises(self):
-        with pytest.raises(Exception):
-            HelpfulnessEvaluator(threshold=-0.1)
 
     def test_on_missing_context_invalid_value_raises(self):
         with pytest.raises(Exception):
@@ -1117,13 +1107,24 @@ class TestTagTaxonomy:
     """Test that all evaluators follow the tagging taxonomy."""
 
     ALL_LLM_JUDGE_CLASSES = [
-        HelpfulnessEvaluator, ClarityEvaluator, AccuracyEvaluator,
-        CoherenceEvaluator, CompletenessEvaluator, ConcisenessEvaluator,
-        FaithfulnessEvaluator, ContextRelevanceEvaluator,
-        SafetyEvaluator, ToneEvaluator, InstructionFollowingEvaluator,
-        RelevanceEvaluator, SemanticSimilarityEvaluator, HallucinationEvaluator,
-        GoalClarityEvaluator, ReasoningQualityEvaluator,
-        PathEfficiencyEvaluator, ErrorRecoveryEvaluator,
+        HelpfulnessEvaluator,
+        ClarityEvaluator,
+        AccuracyEvaluator,
+        CoherenceEvaluator,
+        CompletenessEvaluator,
+        ConcisenessEvaluator,
+        FaithfulnessEvaluator,
+        ContextRelevanceEvaluator,
+        SafetyEvaluator,
+        ToneEvaluator,
+        InstructionFollowingEvaluator,
+        RelevanceEvaluator,
+        SemanticSimilarityEvaluator,
+        HallucinationEvaluator,
+        GoalClarityEvaluator,
+        ReasoningQualityEvaluator,
+        PathEfficiencyEvaluator,
+        ErrorRecoveryEvaluator,
     ]
 
     def test_all_evaluators_have_builtin_tag(self):
@@ -1213,12 +1214,14 @@ class TestNameUniqueness:
 
     def test_validate_unique_evaluator_names_passes_on_unique(self):
         from amp_evaluation.evaluators.base import validate_unique_evaluator_names
+
         evaluators = [HelpfulnessEvaluator(), SafetyEvaluator(), CoherenceEvaluator()]
         # Should not raise
         validate_unique_evaluator_names(evaluators)
 
     def test_validate_unique_evaluator_names_raises_on_duplicates(self):
         from amp_evaluation.evaluators.base import validate_unique_evaluator_names
+
         evaluators = [HelpfulnessEvaluator(), HelpfulnessEvaluator()]
         with pytest.raises(ValueError, match="Duplicate evaluator name"):
             validate_unique_evaluator_names(evaluators)
@@ -1235,6 +1238,7 @@ class TestScoreRangeAndPolarity:
     def test_output_instructions_state_worst_best_polarity(self):
         """_OUTPUT_INSTRUCTIONS must remind the LLM that 0.0 is worst and 1.0 is best."""
         from amp_evaluation.evaluators.base import LLMAsJudgeEvaluator
+
         instructions = LLMAsJudgeEvaluator._OUTPUT_INSTRUCTIONS
         assert "0.0" in instructions
         assert "1.0" in instructions
@@ -1262,10 +1266,33 @@ class TestScoreRangeAndPolarity:
         llm_span = _make_llm_span()
         agent_trace = _make_agent_trace()
 
-        bad_words = ["worst", "bad", "fail", "poor", "unsafe", "hallucin", "no ", "none",
-                     "incoher", "incomprehensible", "verbose", "padd", "irrelevant", "ignor",
-                     "mismatch", "fabricat", "not helpful", "not help", "wrong", "entirely",
-                     "significant", "random", "illogical", "stuck", "disorganized"]
+        bad_words = [
+            "worst",
+            "bad",
+            "fail",
+            "poor",
+            "unsafe",
+            "hallucin",
+            "no ",
+            "none",
+            "incoher",
+            "incomprehensible",
+            "verbose",
+            "padd",
+            "irrelevant",
+            "ignor",
+            "mismatch",
+            "fabricat",
+            "not helpful",
+            "not help",
+            "wrong",
+            "entirely",
+            "significant",
+            "random",
+            "illogical",
+            "stuck",
+            "disorganized",
+        ]
 
         for cls, arg in [
             (HelpfulnessEvaluator, trace),
@@ -1298,10 +1325,27 @@ class TestScoreRangeAndPolarity:
         llm_span = _make_llm_span()
         agent_trace = _make_agent_trace()
 
-        good_words = ["best", "excellent", "perfect", "fully", "complete", "safe",
-                      "no hallucin", "no detectable", "coherent", "concise", "clear",
-                      "optimal", "accurate", "helpful", "every", "all ", "grounded",
-                      "well-suited", "appropriately"]
+        good_words = [
+            "best",
+            "excellent",
+            "perfect",
+            "fully",
+            "complete",
+            "safe",
+            "no hallucin",
+            "no detectable",
+            "coherent",
+            "concise",
+            "clear",
+            "optimal",
+            "accurate",
+            "helpful",
+            "every",
+            "all ",
+            "grounded",
+            "well-suited",
+            "appropriately",
+        ]
 
         for cls, arg in [
             (HelpfulnessEvaluator, trace),

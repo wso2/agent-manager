@@ -29,7 +29,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from amp_evaluation.evaluators.builtin.standard import (
     AnswerLengthEvaluator,
-    AnswerRelevancyEvaluator,
     RequiredContentEvaluator,
     ProhibitedContentEvaluator,
     ExactMatchEvaluator,
@@ -166,35 +165,6 @@ class TestAnswerLengthEvaluator:
         result = evaluator.evaluate(trajectory)
 
         assert result.score == 0.0
-        assert result.passed is False
-
-
-class TestAnswerRelevancyEvaluator:
-    """Test AnswerRelevancyEvaluator."""
-
-    def test_high_relevancy(self, basic_trajectory):
-        """Test when answer has high word overlap with input."""
-        evaluator = AnswerRelevancyEvaluator(min_overlap_ratio=0.1)
-        result = evaluator.evaluate(basic_trajectory)
-
-        assert result.score > 0.0
-        assert result.passed is True
-
-    def test_low_relevancy(self):
-        """Test when answer has low word overlap with input."""
-        trajectory = Trace(
-            trace_id="test",
-            input="What is the capital of France?",
-            output="Bananas are yellow.",
-            timestamp=datetime.now(),
-            metrics=TraceMetrics(),
-            spans=[],
-        )
-
-        evaluator = AnswerRelevancyEvaluator(min_overlap_ratio=0.5)
-        result = evaluator.evaluate(trajectory)
-
-        assert result.score < 0.5
         assert result.passed is False
 
 

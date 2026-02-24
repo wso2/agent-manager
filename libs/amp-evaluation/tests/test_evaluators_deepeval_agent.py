@@ -223,8 +223,8 @@ class TestDeepEvalPlanQualityEvaluator:
             evaluator = DeepEvalPlanQualityEvaluator()
             result = evaluator.evaluate(basic_trajectory, basic_task)
 
-            assert result.is_error
-            assert result.error is not None
+            assert result.is_skipped
+            assert result.skip_reason is not None
             assert "not installed" in result.explanation.lower()
 
 
@@ -593,7 +593,7 @@ class TestDeepEvalEvaluatorsIntegration:
         evaluator = DeepEvalPlanQualityEvaluator()
         result = evaluator.evaluate(basic_trajectory, basic_task)
 
-        assert result.is_error
-        assert result.error is not None
+        assert result.is_skipped
+        assert result.skip_reason is not None
         assert "failed" in result.explanation.lower()
         assert "error" in result.details
