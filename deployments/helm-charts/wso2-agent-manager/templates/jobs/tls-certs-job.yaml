@@ -1,0 +1,121 @@
+{{- if and .Values.agentManagerService.enabled .Values.tlsCertsGeneration.enabled (not .Values.agentManagerService.certificates.certificatesSecret) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "agent-management-platform.agentManagerService.fullname" . }}-tls-certs
+  labels:
+    {{- include "agent-management-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tls-cert-generator
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.tlsCertsGeneration.backoffLimit | default 3 }}
+  template:
+    metadata:
+      name: {{ include "agent-management-platform.agentManagerService.fullname" . }}-tls-certs
+      labels:
+        {{- include "agent-management-platform.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: tls-cert-generator
+    spec:
+      restartPolicy: Never
+      {{- if .Values.tlsCertsGeneration.podSecurityContext }}
+      securityContext:
+        {{- toYaml .Values.tlsCertsGeneration.podSecurityContext | nindent 8 }}
+      {{- else }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      {{- end }}
+      serviceAccountName: {{ include "agent-management-platform.serviceAccountName" . }}
+      containers:
+        - name: generate-tls-certs
+          image: alpine:3.21
+          {{- if .Values.tlsCertsGeneration.securityContext }}
+          securityContext:
+            {{- toYaml .Values.tlsCertsGeneration.securityContext | nindent 12 }}
+          {{- else }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: false
+          {{- end }}
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+
+              # Install openssl and kubectl
+              apk add --no-cache openssl kubectl
+
+              # Check if secret already exists
+              if kubectl get secret {{ include "agent-management-platform.tlsCertsSecretName" . }} -n {{ .Release.Namespace }} 2>/dev/null; then
+                echo "TLS certificates secret already exists, skipping generation"
+                exit 0
+              fi
+
+              echo "Generating self-signed TLS certificate for agent-manager-service..."
+
+              # Configuration
+              VALIDITY_DAYS=365
+              ORGANIZATION="Agent Manager Dev"
+              COUNTRY="US"
+
+              # Build Subject Alternative Names
+              SAN_DNS="DNS:localhost,DNS:amp-api.{{ .Release.Namespace }}.svc.cluster.local,DNS:amp-api.{{ .Release.Namespace }}.svc,DNS:amp-api"
+              SAN_IP="IP:127.0.0.1,IP:::1"
+              SUBJECT_ALT_NAME="${SAN_DNS},${SAN_IP}"
+
+              echo "  Organization: ${ORGANIZATION}"
+              echo "  Validity: ${VALIDITY_DAYS} days"
+              echo "  Subject Alternative Names: ${SUBJECT_ALT_NAME}"
+
+              # Generate private key
+              echo "Generating private key..."
+              openssl genrsa -out /tmp/key.pem 2048
+
+              # Generate self-signed certificate
+              echo "Generating certificate..."
+              openssl req -new -x509 -sha256 \
+                  -key /tmp/key.pem \
+                  -out /tmp/cert.pem \
+                  -days "${VALIDITY_DAYS}" \
+                  -subj "/C=${COUNTRY}/O=${ORGANIZATION}" \
+                  -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+                  -addext "extendedKeyUsage=serverAuth" \
+                  -addext "subjectAltName=${SUBJECT_ALT_NAME}"
+
+              echo "✓ Certificate generated successfully"
+
+              # Create Kubernetes secret
+              echo "Creating Kubernetes secret..."
+              kubectl create secret generic {{ include "agent-management-platform.tlsCertsSecretName" . }} \
+                --from-file=cert.pem=/tmp/cert.pem \
+                --from-file=key.pem=/tmp/key.pem \
+                -n {{ .Release.Namespace }}
+
+              echo "✓ TLS certificates secret created: {{ include "agent-management-platform.tlsCertsSecretName" . }}"
+
+              # Clean up sensitive files from memory
+              rm -f /tmp/key.pem /tmp/cert.pem
+
+              echo "✓ Certificate generation complete"
+          {{- with .Values.tlsCertsGeneration.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+{{- end }}

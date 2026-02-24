@@ -24,8 +24,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -33,8 +31,8 @@ import (
 	ocauth "github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/auth"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/config"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/resources"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/server"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 
 	"go.uber.org/automaxprocs/maxprocs"
 
@@ -119,10 +117,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Load and seed LLM provider templates for all organizations
-	if err := loadAndSeedLLMTemplates(cfg, dependencies); err != nil {
-		slog.Warn("Failed to load and seed LLM provider templates", "error", err)
-		// Don't exit on error - templates can be created manually
+	// Load built-in LLM provider templates into memory
+	if err := loadBuiltInLLMTemplates(dependencies); err != nil {
+		slog.Error("Failed to load built-in LLM provider templates", "error", err)
+		// Don't exit - templates can still be created via API
 	}
 
 	// Create main API server handler
@@ -202,60 +200,19 @@ func main() {
 	slog.Info("All servers shut down successfully")
 }
 
-// loadAndSeedLLMTemplates loads template files and seeds them for all organizations from OpenChoreo
-func loadAndSeedLLMTemplates(cfg *config.Config, dependencies *wiring.AppParams) error {
-	// Load default templates from directory
-	templatePath := strings.TrimSpace(cfg.LLMTemplateDefinitionsPath)
-	defaultTemplates, err := utils.LoadLLMProviderTemplatesFromDirectory(templatePath)
-	if err != nil {
-		cleanPath := filepath.Clean(templatePath)
-		fallbackPath := ""
-		if cleanPath != "" && cleanPath != "." && cleanPath != "src" && !filepath.IsAbs(cleanPath) && !strings.HasPrefix(cleanPath, "src"+string(os.PathSeparator)) {
-			fallbackPath = filepath.Join("src", cleanPath)
-		}
-		if fallbackPath != "" {
-			if templates, fallbackErr := utils.LoadLLMProviderTemplatesFromDirectory(fallbackPath); fallbackErr == nil {
-				defaultTemplates = templates
-				templatePath = fallbackPath
-				err = nil
-			} else {
-				slog.Warn("Failed to load default LLM provider templates from fallback path", "path", fallbackPath, "error", fallbackErr)
-			}
-		}
-		if err != nil {
-			return fmt.Errorf("failed to load LLM provider templates from %s: %w", templatePath, err)
-		}
-	}
+// loadBuiltInLLMTemplates loads built-in LLM provider templates into in-memory store
+func loadBuiltInLLMTemplates(dependencies *wiring.AppParams) error {
+	// Get built-in templates from Go structs
+	templates := resources.BuiltInLLMProviderTemplates
 
-	if len(defaultTemplates) == 0 {
-		slog.Info("No LLM provider templates found to seed")
+	if len(templates) == 0 {
+		slog.Warn("No built-in LLM templates defined")
 		return nil
 	}
 
-	slog.Info("Loaded LLM provider templates", "count", len(defaultTemplates), "path", templatePath)
+	// Load into in-memory store
+	dependencies.LLMTemplateStore.Load(templates)
 
-	// Set templates in the seeder
-	dependencies.LLMTemplateSeeder.SetTemplates(defaultTemplates)
-
-	// Fetch organizations from OpenChoreo and seed templates
-	ctx := context.Background()
-	orgs, err := dependencies.OpenChoreoClient.ListOrganizations(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list organizations from OpenChoreo for LLM template seeding: %w", err)
-	}
-
-	seededCount := 0
-	for _, org := range orgs {
-		if org == nil || org.Name == "" {
-			continue
-		}
-		if err := dependencies.LLMTemplateSeeder.SeedForOrg(org.Name); err != nil {
-			slog.Warn("Failed to seed LLM templates for organization", "orgName", org.Name, "error", err)
-		} else {
-			seededCount++
-		}
-	}
-
-	slog.Info("Seeded LLM provider templates", "templateCount", len(defaultTemplates), "organizationCount", seededCount)
+	slog.Info("Loaded built-in LLM provider templates into memory", "count", len(templates))
 	return nil
 }

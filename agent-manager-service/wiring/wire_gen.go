@@ -61,11 +61,12 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	platformGatewayService := services.NewPlatformGatewayService(gatewayRepository)
 	gatewayController := controllers.NewGatewayController(platformGatewayService, openChoreoClient)
 	llmProviderTemplateRepository := ProvideLLMProviderTemplateRepository(db)
-	llmProviderTemplateService := services.NewLLMProviderTemplateService(llmProviderTemplateRepository)
+	llmTemplateStore := services.NewLLMTemplateStore()
+	llmProviderTemplateService := services.NewLLMProviderTemplateService(llmProviderTemplateRepository, llmTemplateStore)
 	llmProviderRepository := ProvideLLMProviderRepository(db)
 	llmProxyRepository := ProvideLLMProxyRepository(db)
 	artifactRepository := ProvideArtifactRepository(db)
-	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmProxyRepository, artifactRepository)
+	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmTemplateStore, llmProxyRepository, artifactRepository)
 	llmProxyService := services.NewLLMProxyService(llmProxyRepository, llmProviderRepository)
 	deploymentRepository := ProvideDeploymentRepository(db)
 	manager := ProvideWebSocketManager(configConfig)
@@ -96,7 +97,6 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	catalogService := services.NewCatalogService(logger, catalogRepository, openChoreoClient)
 	catalogController := controllers.NewCatalogController(catalogService)
 	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, logger, monitorExecutor, monitorRepository)
-	llmTemplateSeeder := ProvideLLMTemplateSeeder(llmProviderTemplateRepository)
 	appParams := &AppParams{
 		AuthMiddleware:                   middleware,
 		Logger:                           logger,
@@ -120,7 +120,7 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 		EvaluatorController:              evaluatorController,
 		CatalogController:                catalogController,
 		MonitorScheduler:                 monitorSchedulerService,
-		LLMTemplateSeeder:                llmTemplateSeeder,
+		LLMTemplateStore:                 llmTemplateStore,
 		OpenChoreoClient:                 openChoreoClient,
 		WebSocketManager:                 manager,
 		DB:                               db,
@@ -156,11 +156,12 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	platformGatewayService := services.NewPlatformGatewayService(gatewayRepository)
 	gatewayController := controllers.NewGatewayController(platformGatewayService, openChoreoClient)
 	llmProviderTemplateRepository := ProvideLLMProviderTemplateRepository(db)
-	llmProviderTemplateService := services.NewLLMProviderTemplateService(llmProviderTemplateRepository)
+	llmTemplateStore := services.NewLLMTemplateStore()
+	llmProviderTemplateService := services.NewLLMProviderTemplateService(llmProviderTemplateRepository, llmTemplateStore)
 	llmProviderRepository := ProvideLLMProviderRepository(db)
 	llmProxyRepository := ProvideLLMProxyRepository(db)
 	artifactRepository := ProvideArtifactRepository(db)
-	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmProxyRepository, artifactRepository)
+	llmProviderService := services.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmTemplateStore, llmProxyRepository, artifactRepository)
 	llmProxyService := services.NewLLMProxyService(llmProxyRepository, llmProviderRepository)
 	deploymentRepository := ProvideDeploymentRepository(db)
 	manager := ProvideWebSocketManager(configConfig)
@@ -191,7 +192,6 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	catalogService := services.NewCatalogService(logger, catalogRepository, openChoreoClient)
 	catalogController := controllers.NewCatalogController(catalogService)
 	monitorSchedulerService := services.NewMonitorSchedulerService(openChoreoClient, logger, monitorExecutor, monitorRepository)
-	llmTemplateSeeder := ProvideLLMTemplateSeeder(llmProviderTemplateRepository)
 	appParams := &AppParams{
 		AuthMiddleware:                   authMiddleware,
 		Logger:                           logger,
@@ -215,7 +215,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		EvaluatorController:              evaluatorController,
 		CatalogController:                catalogController,
 		MonitorScheduler:                 monitorSchedulerService,
-		LLMTemplateSeeder:                llmTemplateSeeder,
+		LLMTemplateStore:                 llmTemplateStore,
 		OpenChoreoClient:                 openChoreoClient,
 		WebSocketManager:                 manager,
 		DB:                               db,
@@ -234,7 +234,7 @@ var clientProviderSet = wire.NewSet(
 	ProvideObservabilitySvcClient, traceobserversvc.NewTraceObserverClient, ProvideOCClient,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, services.NewMonitorSchedulerService, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewLLMProxyDeploymentService, services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, ProvideLLMTemplateSeeder)
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewObservabilityManager, services.NewAgentTokenManagerService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, services.NewMonitorSchedulerService, services.NewEvaluatorManagerService, services.NewEnvironmentService, services.NewPlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewLLMProxyDeploymentService, services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewLLMTemplateStore)
 
 var controllerProviderSet = wire.NewSet(controllers.NewAgentController, controllers.NewInfraResourceController, controllers.NewObservabilityController, controllers.NewAgentTokenController, controllers.NewRepositoryController, controllers.NewEnvironmentController, controllers.NewGatewayController, controllers.NewLLMController, controllers.NewLLMDeploymentController, controllers.NewLLMProviderAPIKeyController, controllers.NewLLMProxyAPIKeyController, controllers.NewLLMProxyDeploymentController, ProvideWebSocketController, controllers.NewGatewayInternalController, controllers.NewMonitorController, controllers.NewMonitorScoresController, controllers.NewMonitorScoresPublisherController, controllers.NewEvaluatorController, controllers.NewCatalogController)
 
@@ -357,11 +357,4 @@ func ProvideMonitorRepository(db *gorm.DB) repositories.MonitorRepository {
 
 func ProvideAgentConfigRepository(db *gorm.DB) repositories.AgentConfigRepository {
 	return repositories.NewAgentConfigRepo(db)
-}
-
-// ProvideLLMTemplateSeeder creates a new LLM template seeder with empty templates
-// Templates will be loaded at startup in main.go
-func ProvideLLMTemplateSeeder(templateRepo repositories.LLMProviderTemplateRepository) *services.LLMTemplateSeeder {
-
-	return services.NewLLMTemplateSeeder(templateRepo, nil)
 }

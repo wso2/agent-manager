@@ -70,7 +70,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewGatewayInternalAPIService,
 	services.NewMonitorScoresService,
 	services.NewCatalogService,
-	ProvideLLMTemplateSeeder,
+	services.NewLLMTemplateStore,
 )
 
 var controllerProviderSet = wire.NewSet(
@@ -215,13 +215,6 @@ func ProvideMonitorRepository(db *gorm.DB) repositories.MonitorRepository {
 
 func ProvideAgentConfigRepository(db *gorm.DB) repositories.AgentConfigRepository {
 	return repositories.NewAgentConfigRepo(db)
-}
-
-// ProvideLLMTemplateSeeder creates a new LLM template seeder with empty templates
-// Templates will be loaded at startup in main.go
-func ProvideLLMTemplateSeeder(templateRepo repositories.LLMProviderTemplateRepository) *services.LLMTemplateSeeder {
-	// Create seeder with empty templates - actual templates loaded in main.go
-	return services.NewLLMTemplateSeeder(templateRepo, nil)
 }
 
 // InitializeAppParams wires up all application dependencies

@@ -34,10 +34,11 @@ var migration004 = migration{
 				description TEXT,
 				created_by VARCHAR(255),
 				configuration TEXT NOT NULL,
+				is_system BOOLEAN NOT NULL DEFAULT false,
 				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 				updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-				CONSTRAINT uq_llm_template_handle_org UNIQUE(organization_name, handle)
+				CONSTRAINT uq_llm_template_handle_org_system UNIQUE(organization_name, handle, is_system)
 			);
 
 			-- LLM Providers table
@@ -45,16 +46,14 @@ var migration004 = migration{
 				uuid UUID PRIMARY KEY,
 				description TEXT,
 				created_by VARCHAR(255),
-				template_uuid UUID NOT NULL,
+				template_handle VARCHAR(255) NOT NULL,
 				openapi_spec TEXT,
 				model_list TEXT,
 				status VARCHAR(20) NOT NULL DEFAULT 'CREATED',
 				configuration JSONB NOT NULL,
 
 				CONSTRAINT fk_llm_provider_artifact FOREIGN KEY (uuid)
-					REFERENCES artifacts(uuid) ON DELETE CASCADE,
-				CONSTRAINT fk_llm_provider_template FOREIGN KEY (template_uuid)
-					REFERENCES llm_provider_templates(uuid) ON DELETE RESTRICT
+					REFERENCES artifacts(uuid) ON DELETE CASCADE
 			);
 
 			-- LLM Proxies table
@@ -76,7 +75,8 @@ var migration004 = migration{
 
 			-- Indexes for performance
 			CREATE INDEX idx_llm_provider_templates_org ON llm_provider_templates(organization_name);
-			CREATE INDEX idx_llm_providers_template ON llm_providers(template_uuid);
+			CREATE INDEX idx_llm_provider_templates_is_system ON llm_provider_templates(is_system);
+			CREATE INDEX idx_llm_providers_template_handle ON llm_providers(template_handle);
 			CREATE INDEX idx_llm_proxies_project ON llm_proxies(project_uuid);
 			CREATE INDEX idx_llm_proxies_provider ON llm_proxies(provider_uuid);
 		`

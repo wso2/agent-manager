@@ -185,9 +185,6 @@ func loadEnvs() {
 		RateLimitPerMin:   int(r.readOptionalInt64("WEBSOCKET_RATE_LIMIT_PER_MIN", 10)),
 	}
 
-	// LLM Provider Template configuration
-	config.LLMTemplateDefinitionsPath = r.readOptionalString("LLM_TEMPLATE_DEFINITIONS_PATH", "./resources/default-llm-provider-templates")
-
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)
 

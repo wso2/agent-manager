@@ -123,6 +123,9 @@ func (c *llmController) CreateLLMProviderTemplate(w http.ResponseWriter, r *http
 	created, err := c.templateService.Create(orgName, "system", template)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrSystemTemplateOverride):
+			utils.WriteErrorResponse(w, http.StatusConflict, "Cannot use handle of built-in template")
+			return
 		case errors.Is(err, utils.ErrLLMProviderTemplateExists):
 			utils.WriteErrorResponse(w, http.StatusConflict, "LLM provider template already exists")
 			return
@@ -241,6 +244,9 @@ func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http
 	updated, err := c.templateService.Update(orgName, templateID, modelTemplate)
 	if err != nil {
 		switch {
+		case errors.Is(err, utils.ErrSystemTemplateImmutable):
+			utils.WriteErrorResponse(w, http.StatusForbidden, "System templates cannot be modified")
+			return
 		case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider template not found")
 			return
@@ -267,6 +273,9 @@ func (c *llmController) DeleteLLMProviderTemplate(w http.ResponseWriter, r *http
 
 	if err := c.templateService.Delete(orgName, templateID); err != nil {
 		switch {
+		case errors.Is(err, utils.ErrSystemTemplateImmutable):
+			utils.WriteErrorResponse(w, http.StatusForbidden, "System templates cannot be deleted")
+			return
 		case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider template not found")
 			return
@@ -300,7 +309,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	log.Info("CreateLLMProvider: request decoded", "orgName", orgName, "templateUUID", req.TemplateUuid,
+	log.Info("CreateLLMProvider: request decoded", "orgName", orgName, "templateHandle", req.TemplateHandle,
 		"configName", ptrToStringLog(req.Configuration.Name),
 		"configVersion", ptrToStringLog(req.Configuration.Version),
 		"configTemplate", ptrToStringLog(req.Configuration.Template),
@@ -311,7 +320,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 	log.Info("CreateLLMProvider: calling service layer", "orgName", orgName, "orgName", orgName,
 		"providerName", provider.Configuration.Name,
 		"providerVersion", provider.Configuration.Version,
-		"templateUUID", provider.TemplateUUID)
+		"templateHandle", provider.TemplateHandle)
 
 	var created *models.LLMProvider
 
@@ -326,7 +335,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 				utils.WriteErrorResponse(w, http.StatusConflict, "LLM provider already exists")
 				return
 			case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
-				log.Error("CreateLLMProvider: template not found", "orgName", orgName, "templateUUID", req.TemplateUuid, "error", err)
+				log.Error("CreateLLMProvider: template not found", "orgName", orgName, "templateHandle", req.TemplateHandle, "error", err)
 				utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
 				return
 			case errors.Is(err, utils.ErrInvalidInput):
@@ -363,7 +372,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 				utils.WriteErrorResponse(w, http.StatusConflict, "LLM provider already exists")
 				return
 			case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
-				log.Error("CreateLLMProvider: template not found", "orgName", orgName, "templateUUID", req.TemplateUuid, "error", err)
+				log.Error("CreateLLMProvider: template not found", "orgName", orgName, "templateHandle", req.TemplateHandle, "error", err)
 				utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
 				return
 			case errors.Is(err, utils.ErrInvalidInput):
@@ -502,7 +511,7 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	}
 
 	log.Info("UpdateLLMProvider: request decoded", "orgName", orgName, "providerID", providerID,
-		"templateUUID", ptrToStringLog(req.TemplateUuid),
+		"templateHandle", ptrToStringLog(req.TemplateHandle),
 		"gatewayCount", len(req.Gateways))
 	if req.Configuration != nil {
 		log.Info("UpdateLLMProvider: config details",
@@ -512,11 +521,11 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 
 	// Convert spec request to model - create minimal provider with only updatable fields
 	providerReq := &spec.CreateLLMProviderRequest{
-		TemplateUuid:  utils.GetOrDefault(req.TemplateUuid, ""),
-		Description:   req.Description,
-		Openapi:       req.Openapi,
-		ModelList:     req.ModelList,
-		Configuration: utils.GetOrDefaultConfig(req.Configuration),
+		TemplateHandle: utils.GetOrDefault(req.TemplateHandle, ""),
+		Description:    req.Description,
+		Openapi:        req.Openapi,
+		ModelList:      req.ModelList,
+		Configuration:  utils.GetOrDefaultConfig(req.Configuration),
 	}
 	provider := utils.ConvertSpecToModelLLMProvider(providerReq, orgName)
 
