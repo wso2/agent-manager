@@ -32,9 +32,6 @@ const baseAgentFields = {
   name: z
     .string()
     .trim()
-    .min(1, 'Name is required')
-    .regex(/^[a-z0-9-]+$/, 'Name must be lowercase letters, numbers, and hyphens only (no spaces)')
-    .min(3, 'Name must be at least 3 characters')
     .max(50, 'Name must be at most 50 characters'),
   description: z.string().trim().optional(),
 };

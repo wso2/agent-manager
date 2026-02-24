@@ -16,11 +16,11 @@
  * under the License.
  */
 
-import { Box, Button} from "@wso2/oxygen-ui";
+import { Alert, Box, Button, Collapse } from "@wso2/oxygen-ui";
 import { Rocket as RocketOutlined, Link } from "@wso2/oxygen-ui-icons-react";
 
 interface SummaryPanelProps {
-    isValid: boolean;
+    lastSubmittedValidationErrors: Record<string, string>;
     isPending: boolean;
     onCancel: () => void;
     onSubmit: () => void;
@@ -28,11 +28,22 @@ interface SummaryPanelProps {
 }
 
 export const CreateButtons = (
-    { isValid, isPending, onCancel, onSubmit, mode = 'deploy' }: SummaryPanelProps
+    { lastSubmittedValidationErrors, isPending, onCancel, onSubmit, mode = 'deploy' }: SummaryPanelProps
 ) => {
-    const isConnectMode = mode === 'connect';    
+    const isConnectMode = mode === 'connect';
+
+    const errorsList = Object.values(lastSubmittedValidationErrors);
+    const hasErrors = errorsList.length > 0;
+
     return (
-        <Box display="flex" flexDirection="column" gap={1}>
+        <Box display="flex" flexDirection="column" gap={3}>
+            <Collapse in={hasErrors} timeout="auto" unmountOnExit>
+                <Alert severity="error">
+                    {errorsList.map((error, index) => (
+                        <Box key={index}>{error}</Box>
+                    ))}
+                </Alert>
+            </Collapse>
             <Box display="flex" flexDirection="row" gap={1} alignItems="center">
                 <Button variant="outlined" color="primary" size='medium' onClick={onCancel}>
                     Cancel
@@ -41,11 +52,11 @@ export const CreateButtons = (
                     variant="contained"
                     color="primary"
                     size='medium'
-                    startIcon={isConnectMode ? 
-                    <Link size={16} /> : 
-                    <RocketOutlined size={16} />}
+                    startIcon={isConnectMode ?
+                        <Link size={16} /> :
+                        <RocketOutlined size={16} />}
                     onClick={onSubmit}
-                    disabled={!isValid || isPending}
+                    disabled={isPending}
                 >
                     {isConnectMode ? 'Register' : 'Deploy'}
                 </Button>

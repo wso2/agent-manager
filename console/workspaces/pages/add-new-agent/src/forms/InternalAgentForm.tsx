@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Alert, Checkbox, Collapse, Form, FormControlLabel, Stack, TextField, Typography } from "@wso2/oxygen-ui";
+import { Alert, Checkbox, Collapse, Form, FormControlLabel, Stack, TextField, Typography, useTheme, CircularProgress} from "@wso2/oxygen-ui";
 import { useEffect, useMemo, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
@@ -25,6 +25,7 @@ import { InputInterface } from "../components/InputInterface";
 import { EnvironmentVariable } from "../components/EnvironmentVariable";
 import type { CreateAgentFormValues } from "../form/schema";
 import { BuildpackIcon } from "@agent-management-platform/views";
+import { Check } from "@wso2/oxygen-ui-icons-react";
 
 interface InternalAgentFormProps {
   formData: CreateAgentFormValues;
@@ -52,10 +53,11 @@ export const InternalAgentForm = ({
   setFieldError,
   validateField,
 }: InternalAgentFormProps) => {
-  const { projectId } = useParams<{ orgId: string; projectId: string }>();
+  const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
+  const theme = useTheme();
 
-  const { mutate: generateName } = useGenerateResourceName({
-    orgName: useParams<{ orgId: string }>().orgId,
+  const { mutate: generateName, isPending: isGeneratingName } = useGenerateResourceName({
+    orgName: orgId,
   });
 
   const handleFieldChange = useCallback(
@@ -64,7 +66,7 @@ export const InternalAgentForm = ({
         const newData = { ...prevData, [field]: value };
         const error = validateField(field, value, newData);
         setFieldError(field, error);
-        
+
         // When language changes, clear errors for conditional fields
         if (field === 'language') {
           if (value === 'python') {
@@ -84,7 +86,7 @@ export const InternalAgentForm = ({
             setFieldError('dockerfilePath', dockerfilePathError);
           }
         }
-        
+
         return newData;
       });
     },
@@ -95,6 +97,10 @@ export const InternalAgentForm = ({
   const debouncedGenerateName = useMemo(
     () =>
       debounce((name: string) => {
+        if (name.length < 3) {
+          handleFieldChange("name", "");
+          return;
+        }
         generateName({
           displayName: name,
           resourceType: 'agent',
@@ -146,6 +152,14 @@ export const InternalAgentForm = ({
                 "A name for your agent"
               }
               fullWidth
+              slotProps={{
+                input: {
+                  endAdornment: isGeneratingName ?
+                    <CircularProgress size={20} /> :
+                    (!!formData.name &&
+                      <Check size={20} color={theme.vars?.palette.success.main} />),
+                },
+              }}
             />
           </Form.ElementWrapper>
           <Form.ElementWrapper label="Description (optional)" name="description">
@@ -220,7 +234,7 @@ export const InternalAgentForm = ({
                     selected={isSelected}
                   >
                     <Form.CardHeader title={<Form.Stack direction="row" spacing={2} justifyContent="center" alignItems="center">
-                      <BuildpackIcon  language={type.value} />
+                      <BuildpackIcon language={type.value} />
                       <Form.Body>{type.label}</Form.Body>
                     </Form.Stack>} />
                   </Form.CardButton>
@@ -315,68 +329,69 @@ export const InternalAgentForm = ({
             </Collapse>
 
 
+
           <Collapse in={formData.language === "docker"}>
-          <Stack  spacing={2}>
-            <Form.Stack direction="row" spacing={2}>
-              <Form.ElementWrapper label="Dockerfile Path" name="dockerfilePath">
-                <TextField
-                  id="dockerfilePath"
-                  placeholder="e.g., ./Dockerfile"
-                  value={formData.dockerfilePath || ''}
-                  onChange={(e) => handleFieldChange('dockerfilePath', e.target.value)}
-                  error={!!errors.dockerfilePath}
-                  helperText={
-                    errors.dockerfilePath ||
-                    "Path to Dockerfile in your repository"
-                  }
-                  fullWidth
-                />
-              </Form.ElementWrapper>
-            </Form.Stack>
-            <Alert severity="info">
-              <Typography variant="subtitle2" gutterBottom>
-                Tracing Support for Docker-Based Agents
-              </Typography>
-              <Typography variant="body2" paragraph>
-                Docker-based agents require OTEL instrumentation to export traces. 
-                For Python, use{' '}
-                <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
-                  pip install amp-instrumentation
+            <Stack spacing={2}>
+              <Form.Stack direction="row" spacing={2}>
+                <Form.ElementWrapper label="Dockerfile Path" name="dockerfilePath">
+                  <TextField
+                    id="dockerfilePath"
+                    placeholder="e.g., ./Dockerfile"
+                    value={formData.dockerfilePath || ''}
+                    onChange={(e) => handleFieldChange('dockerfilePath', e.target.value)}
+                    error={!!errors.dockerfilePath}
+                    helperText={
+                      errors.dockerfilePath ||
+                      "Path to Dockerfile in your repository"
+                    }
+                    fullWidth
+                  />
+                </Form.ElementWrapper>
+              </Form.Stack>
+              <Alert severity="info">
+                <Typography variant="subtitle2" gutterBottom>
+                  Tracing Support for Docker-Based Agents
                 </Typography>
-                {' '}and run with{' '}
-                <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
-                  amp-instrument python your_script.py
+                <Typography variant="body2" paragraph>
+                  Docker-based agents require OTEL instrumentation to export traces.
+                  For Python, use{' '}
+                  <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                    pip install amp-instrumentation
+                  </Typography>
+                  {' '}and run with{' '}
+                  <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                    amp-instrument python your_script.py
+                  </Typography>
+                  {' '}for zero-code tracing.
                 </Typography>
-                {' '}for zero-code tracing.
-              </Typography>
-              <Typography variant="body2">
-                Environment variables provided:{' '}
-                <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
-                  AMP_OTEL_ENDPOINT
+                <Typography variant="body2" gutterBottom>
+                  Environment variables provided:{' '}
+                  <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                    AMP_OTEL_ENDPOINT
+                  </Typography>
+                  {', '}
+                  <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                    AMP_AGENT_API_KEY
+                  </Typography>
                 </Typography>
-                {', '}
-                <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
-                  AMP_AGENT_API_KEY
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  Example configuration:
                 </Typography>
-              </Typography>
-              <Typography variant="body2" sx={{ mt: 1 }}>
-                Example configuration:
-              </Typography>
-              <Typography variant="body2" component="div" sx={{ mt: 0.5, ml: 1 }}>
-                • OTLP exporter endpoint ={' '}
-                <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
-                  AMP_OTEL_ENDPOINT
+                <Typography variant="body2" component="div" sx={{ mt: 0.5, ml: 1 }}>
+                  • OTLP exporter endpoint ={' '}
+                  <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                    AMP_OTEL_ENDPOINT
+                  </Typography>
                 </Typography>
-              </Typography>
-              <Typography variant="body2" component="div" sx={{ ml: 1 }}>
-                • OTLP headers ={' '}
-                <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
-                  {'{"x-amp-api-key": AMP_AGENT_API_KEY}'}
+                <Typography variant="body2" component="div" sx={{ ml: 1 }}>
+                  • OTLP headers ={' '}
+                  <Typography component="code" sx={{ bgcolor: 'action.hover', px: 0.5, borderRadius: 0.5 }}>
+                    {'{"x-amp-api-key": AMP_AGENT_API_KEY}'}
+                  </Typography>
                 </Typography>
-              </Typography>
-            </Alert>
-          </Stack>
-          </Collapse> 
+              </Alert>
+            </Stack>
+          </Collapse>
 
         </Form.Stack>
       </Form.Section>

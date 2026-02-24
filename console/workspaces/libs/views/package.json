@@ -56,7 +56,6 @@
     "@mui/x-data-grid": "8.16.0",
     "@mui/x-date-pickers": "8.16.0",
     "@mui/x-tree-view": "8.14.0",
-    "date-fns": "4.1.0",
     "lucide-react": "0.545.0",
     "zod": "4.3.6"
   },

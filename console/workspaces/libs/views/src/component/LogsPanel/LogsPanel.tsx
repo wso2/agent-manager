@@ -53,8 +53,9 @@ export interface LogsPanelProps {
     hasMoreDown?: boolean;
     isLoadingUp?: boolean;
     isLoadingDown?: boolean;
-    onLoadUp?: () => void;
-    onLoadDown?: () => void;
+    onLoadUp?: (beforeTimestamp: string) => void;
+    onLoadDown?: (afterTimestamp: string) => void;
+    sortOrder?: "asc" | "desc";
     onSearch?: (search: string) => void;
     search?: string;
     showSearch?: boolean;
@@ -175,7 +176,7 @@ const LogEntryItem = ({ entry }: LogEntryItemProps) => {
                             }}
                         >
                             {(!hasDetails || !expanded) && `${entry.log.slice(0, 100)}${hasDetails ? "..." : ""}`}
-                            <Collapse in={hasDetails && expanded} timeout="auto" unmountOnExit>
+                            <Collapse in={hasDetails && expanded} onClick={(e) => e.stopPropagation()} timeout="auto" unmountOnExit>
                                 <Typography variant="caption" sx={{ fontFamily: "monospace" }}>
                                     {entry.log}
                                 </Typography>
@@ -205,6 +206,26 @@ const defaultEmptyState = {
     illustration: <FileText size={64} />,
 };
 
+const LABEL_LOAD_OLDER = "Load older logs";
+const LABEL_LOAD_NEWER = "Load newer logs";
+const LABEL_LOADING_OLDER = "Loading older logs...";
+const LABEL_LOADING_NEWER = "Loading newer logs...";
+
+const LOG_LOAD_LABELS = {
+    asc: {
+        up: LABEL_LOAD_NEWER,
+        upLoading: LABEL_LOADING_NEWER,
+        down: LABEL_LOAD_OLDER,
+        downLoading: LABEL_LOADING_OLDER,
+    },
+    desc: {
+        up: LABEL_LOAD_OLDER,
+        upLoading: LABEL_LOADING_OLDER,
+        down: LABEL_LOAD_NEWER,
+        downLoading: LABEL_LOADING_NEWER,
+    },
+} as const;
+
 export function LogsPanel({
     logs,
     isLoading,
@@ -213,6 +234,7 @@ export function LogsPanel({
     isLoadingDown,
     onLoadUp,
     onLoadDown,
+    sortOrder = "desc",
     onSearch,
     search,
     showSearch = Boolean(onSearch),
@@ -231,6 +253,13 @@ export function LogsPanel({
     const reversedLogs = useMemo(() => (logs ? [...logs].reverse() : []), [logs]);
     const isNoLogs = !isLoading && (logs?.length ?? 0) === 0;
     const showPanel = reversedLogs.length > 0 && !isLoading;
+
+    const {
+        up: upLabel,
+        upLoading: upLoadingLabel,
+        down: downLabel,
+        downLoading: downLoadingLabel
+    } = LOG_LOAD_LABELS[sortOrder];
 
     if (error) {
         return (
@@ -273,11 +302,17 @@ export function LogsPanel({
                     </Stack>
                 )}
                 {!isLoading && isNoLogs && (
-                    <ListingTable.EmptyState
-                        illustration={resolvedEmptyState.illustration}
-                        title={resolvedEmptyState.title}
-                        description={resolvedEmptyState.description}
-                    />
+                    <Box sx={{
+                        height: "100%", display: "flex",
+                        justifyContent: "center", alignItems: "center"
+                    }} >
+                        <ListingTable.EmptyState
+                            illustration={resolvedEmptyState.illustration}
+                            title={resolvedEmptyState.title}
+                            description={resolvedEmptyState.description}
+
+                        />
+                    </Box>
                 )}
                 {showPanel && (
                     <Box ref={scrollContainerRef} sx={{ flex: 1, overflow: "auto" }}>
@@ -287,12 +322,15 @@ export function LogsPanel({
                                     variant="text"
                                     size="small"
                                     fullWidth
-                                    onClick={onLoadUp}
+                                    onClick={() => {
+                                        const oldestTimestamp = reversedLogs[0]?.timestamp;
+                                        if (oldestTimestamp) onLoadUp(oldestTimestamp);
+                                    }}
                                     disabled={isLoadingUp}
                                     startIcon={isLoadingUp ?
                                         <CircularProgress size={16} /> : <ArrowUp size={16} />}
                                 >
-                                    {isLoadingUp ? "Loading more logs..." : "Load more logs"}
+                                    {isLoadingUp ? upLoadingLabel : upLabel}
                                 </Button>
                             </Box>
                         )}
@@ -305,12 +343,16 @@ export function LogsPanel({
                                     variant="text"
                                     size="small"
                                     fullWidth
-                                    onClick={onLoadDown}
+                                    onClick={() => {
+                                        const newestTimestamp = reversedLogs[reversedLogs.length
+                                            - 1]?.timestamp;
+                                        if (newestTimestamp) onLoadDown(newestTimestamp);
+                                    }}
                                     disabled={isLoadingDown}
                                     startIcon={isLoadingDown ?
                                         <CircularProgress size={16} /> : <ArrowDown size={16} />}
                                 >
-                                    {isLoadingDown ? "Loading more logs..." : "Load more logs"}
+                                    {isLoadingDown ? downLoadingLabel : downLabel}
                                 </Button>
                             </Box>
                         )}

@@ -17,14 +17,13 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { PageLayout } from "@agent-management-platform/views";
+import { LogsPanel, PageLayout } from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
   TraceListTimeRange,
 } from "@agent-management-platform/types";
 import { debounce } from "lodash";
 import { useAgentRuntimeLogs } from "@agent-management-platform/api-client";
-import { LogsView } from "./components/LogsView/LogsView";
 import {
   CircularProgress,
   IconButton,
@@ -206,7 +205,7 @@ export const LogsComponent: React.FC = () => {
         </Stack>
       }
     >
-      <LogsView
+      <LogsPanel
         logs={logs}
         isLoading={isLoading}
         error={error}
@@ -216,6 +215,7 @@ export const LogsComponent: React.FC = () => {
         isLoadingDown={isLoadingDown}
         onLoadUp={loadUp}
         onLoadDown={loadDown}
+        sortOrder={sortOrder}
         onSearch={handleSearch}
         search={search}
       />
