@@ -176,7 +176,7 @@ const LogEntryItem = ({ entry }: LogEntryItemProps) => {
                             }}
                         >
                             {(!hasDetails || !expanded) && `${entry.log.slice(0, 100)}${hasDetails ? "..." : ""}`}
-                            <Collapse in={hasDetails && expanded} timeout="auto" unmountOnExit>
+                            <Collapse in={hasDetails && expanded} onClick={(e) => e.stopPropagation()} timeout="auto" unmountOnExit>
                                 <Typography variant="caption" sx={{ fontFamily: "monospace" }}>
                                     {entry.log}
                                 </Typography>
@@ -206,6 +206,26 @@ const defaultEmptyState = {
     illustration: <FileText size={64} />,
 };
 
+const LABEL_LOAD_OLDER = "Load older logs";
+const LABEL_LOAD_NEWER = "Load newer logs";
+const LABEL_LOADING_OLDER = "Loading older logs...";
+const LABEL_LOADING_NEWER = "Loading newer logs...";
+
+const LOG_LOAD_LABELS = {
+    asc: {
+        up: LABEL_LOAD_NEWER,
+        upLoading: LABEL_LOADING_NEWER,
+        down: LABEL_LOAD_OLDER,
+        downLoading: LABEL_LOADING_OLDER,
+    },
+    desc: {
+        up: LABEL_LOAD_OLDER,
+        upLoading: LABEL_LOADING_OLDER,
+        down: LABEL_LOAD_NEWER,
+        downLoading: LABEL_LOADING_NEWER,
+    },
+} as const;
+
 export function LogsPanel({
     logs,
     isLoading,
@@ -234,14 +254,12 @@ export function LogsPanel({
     const isNoLogs = !isLoading && (logs?.length ?? 0) === 0;
     const showPanel = reversedLogs.length > 0 && !isLoading;
 
-    // When desc: API returns newest→oldest, reversed = oldest(top)→newest(bottom)
-    //   up = older, down = newer
-    // When asc: API returns oldest→newest, reversed = newest(top)→oldest(bottom)
-    //   up = newer, down = older
-    const upLabel = sortOrder === "asc" ? "Load newer logs" : "Load older logs";
-    const upLoadingLabel = sortOrder === "asc" ? "Loading newer logs..." : "Loading older logs...";
-    const downLabel = sortOrder === "asc" ? "Load older logs" : "Load newer logs";
-    const downLoadingLabel = sortOrder === "asc" ? "Loading older logs..." : "Loading newer logs...";
+    const {
+        up: upLabel,
+        upLoading: upLoadingLabel,
+        down: downLabel,
+        downLoading: downLoadingLabel
+    } = LOG_LOAD_LABELS[sortOrder];
 
     if (error) {
         return (
