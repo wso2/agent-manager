@@ -64,6 +64,7 @@ jobs:
           JWT_SIGNING_PRIVATE_KEY_PATH=$(pwd)/keys/private.pem
           JWT_SIGNING_PUBLIC_KEYS_CONFIG=$(pwd)/keys/public-keys-config.json
           OPEN_CHOREO_BASE_URL=http://api.openchoreo.localhost:8080/api/v1
+          ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           EOF
 
       - name: Wait for PostgreSQL
