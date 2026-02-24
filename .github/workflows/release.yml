@@ -359,6 +359,7 @@ jobs:
         build-python-instrumentation-provider-images,
         package-charts,
       ]
+    if: ${{ !contains(inputs.target-release, '-rc') }}
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     permissions:

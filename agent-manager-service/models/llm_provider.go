@@ -22,14 +22,14 @@ import (
 
 // LLMProvider represents an LLM provider entity
 type LLMProvider struct {
-	UUID          uuid.UUID         `gorm:"column:uuid;primaryKey" json:"uuid"`
-	Description   string            `gorm:"column:description" json:"description,omitempty"`
-	CreatedBy     string            `gorm:"column:created_by" json:"createdBy,omitempty"`
-	TemplateUUID  uuid.UUID         `gorm:"column:template_uuid" json:"templateUuid"`
-	OpenAPISpec   string            `gorm:"column:openapi_spec;type:text" json:"openapi,omitempty"`
-	ModelList     string            `gorm:"column:model_list;type:text" json:"-"` // TEXT field stores model list
-	Status        string            `gorm:"column:status" json:"status"`
-	Configuration LLMProviderConfig `gorm:"column:configuration;type:jsonb;serializer:json" json:"configuration"`
+	UUID           uuid.UUID         `gorm:"column:uuid;primaryKey" json:"uuid"`
+	Description    string            `gorm:"column:description" json:"description,omitempty"`
+	CreatedBy      string            `gorm:"column:created_by" json:"createdBy,omitempty"`
+	TemplateHandle string            `gorm:"column:template_handle" json:"templateHandle"`
+	OpenAPISpec    string            `gorm:"column:openapi_spec;type:text" json:"openapi,omitempty"`
+	ModelList      string            `gorm:"column:model_list;type:text" json:"-"` // TEXT field stores model list
+	Status         string            `gorm:"column:status" json:"status"`
+	Configuration  LLMProviderConfig `gorm:"column:configuration;type:jsonb;serializer:json" json:"configuration"`
 
 	// Relations - populated via joins
 	Artifact       *Artifact          `gorm:"foreignKey:UUID;references:UUID" json:"artifact,omitempty"`

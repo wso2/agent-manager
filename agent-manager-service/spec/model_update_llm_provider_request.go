@@ -21,8 +21,8 @@ var _ MappedNullable = &UpdateLLMProviderRequest{}
 type UpdateLLMProviderRequest struct {
 	// Updated description
 	Description *string `json:"description,omitempty"`
-	// Updated template UUID
-	TemplateUuid *string `json:"templateUuid,omitempty"`
+	// Updated template handle
+	TemplateHandle *string `json:"templateHandle,omitempty"`
 	// Updated OpenAPI specification
 	Openapi *string `json:"openapi,omitempty"`
 	// Updated model list
@@ -80,36 +80,36 @@ func (o *UpdateLLMProviderRequest) SetDescription(v string) {
 	o.Description = &v
 }
 
-// GetTemplateUuid returns the TemplateUuid field value if set, zero value otherwise.
-func (o *UpdateLLMProviderRequest) GetTemplateUuid() string {
-	if o == nil || IsNil(o.TemplateUuid) {
+// GetTemplateHandle returns the TemplateHandle field value if set, zero value otherwise.
+func (o *UpdateLLMProviderRequest) GetTemplateHandle() string {
+	if o == nil || IsNil(o.TemplateHandle) {
 		var ret string
 		return ret
 	}
-	return *o.TemplateUuid
+	return *o.TemplateHandle
 }
 
-// GetTemplateUuidOk returns a tuple with the TemplateUuid field value if set, nil otherwise
+// GetTemplateHandleOk returns a tuple with the TemplateHandle field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *UpdateLLMProviderRequest) GetTemplateUuidOk() (*string, bool) {
-	if o == nil || IsNil(o.TemplateUuid) {
+func (o *UpdateLLMProviderRequest) GetTemplateHandleOk() (*string, bool) {
+	if o == nil || IsNil(o.TemplateHandle) {
 		return nil, false
 	}
-	return o.TemplateUuid, true
+	return o.TemplateHandle, true
 }
 
-// HasTemplateUuid returns a boolean if a field has been set.
-func (o *UpdateLLMProviderRequest) HasTemplateUuid() bool {
-	if o != nil && !IsNil(o.TemplateUuid) {
+// HasTemplateHandle returns a boolean if a field has been set.
+func (o *UpdateLLMProviderRequest) HasTemplateHandle() bool {
+	if o != nil && !IsNil(o.TemplateHandle) {
 		return true
 	}
 
 	return false
 }
 
-// SetTemplateUuid gets a reference to the given string and assigns it to the TemplateUuid field.
-func (o *UpdateLLMProviderRequest) SetTemplateUuid(v string) {
-	o.TemplateUuid = &v
+// SetTemplateHandle gets a reference to the given string and assigns it to the TemplateHandle field.
+func (o *UpdateLLMProviderRequest) SetTemplateHandle(v string) {
+	o.TemplateHandle = &v
 }
 
 // GetOpenapi returns the Openapi field value if set, zero value otherwise.
@@ -253,8 +253,8 @@ func (o UpdateLLMProviderRequest) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Description) {
 		toSerialize["description"] = o.Description
 	}
-	if !IsNil(o.TemplateUuid) {
-		toSerialize["templateUuid"] = o.TemplateUuid
+	if !IsNil(o.TemplateHandle) {
+		toSerialize["templateHandle"] = o.TemplateHandle
 	}
 	if !IsNil(o.Openapi) {
 		toSerialize["openapi"] = o.Openapi

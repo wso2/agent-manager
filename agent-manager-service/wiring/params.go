@@ -61,7 +61,7 @@ type AppParams struct {
 	MonitorScheduler                 services.MonitorSchedulerService
 
 	// Services
-	LLMTemplateSeeder *services.LLMTemplateSeeder
+	LLMTemplateStore *services.LLMTemplateStore
 
 	// Clients
 	OpenChoreoClient occlient.OpenChoreoClient

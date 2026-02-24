@@ -22,6 +22,7 @@ import { type AgentPathParams, type EnvironmentVariable, type EndpointSchema, ty
 export interface DeployAgentRequest {
   imageId: string;
   env?: EnvironmentVariable[];
+  enableAutoInstrumentation?: boolean;
 }
 
 // Responses

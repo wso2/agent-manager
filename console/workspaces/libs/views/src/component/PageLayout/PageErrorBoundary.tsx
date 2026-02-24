@@ -16,7 +16,8 @@
  * under the License.
  */
 
-import { Box, Button, PageContent, Stack } from '@wso2/oxygen-ui';
+import { Button, Card, CardContent, PageContent, Stack, Typography } from '@wso2/oxygen-ui';
+import { Bug, RefreshCcw } from '@wso2/oxygen-ui-icons-react';
 import { Component, ErrorInfo, ReactNode } from 'react';
 
 export interface PageErrorBoundaryProps {
@@ -50,48 +51,31 @@ export class PageErrorBoundary extends Component<
     this.setState({ hasError: false });
   };
 
-  private handleReload = () => {
-    if (typeof window !== 'undefined') {
-      window.location.reload();
-    }
-  };
 
   render() {
     if (this.state.hasError) {
       return (
         <PageContent fullWidth={this.props.fullWidth}>
-          <Box
-            role="alert"
-            sx={{
-              borderRadius: 2,
-              border: '1px solid',
-              borderColor: 'divider',
-              p: 4,
-              display: 'flex',
-              justifyContent: 'center',
-              bgcolor: 'background.paper',
-              minHeight: 240,
-            }}
-          >
-            <Stack spacing={2} alignItems="center" textAlign="center">
-              <Box component="h3" sx={{ m: 0, fontSize: 20 }}>
-                {this.props.title
-                  ? `${this.props.title} is unavailable`
-                  : 'Something went wrong'}
-              </Box>
-              <Box component="p" sx={{ m: 0, color: 'text.secondary', maxWidth: 420 }}>
-                We could not render this page. Try again or reload to continue.
-              </Box>
-              <Stack direction="row" spacing={1}>
-                <Button variant="contained" onClick={this.handleRetry}>
-                  Try again
-                </Button>
-                <Button variant="outlined" onClick={this.handleReload}>
-                  Reload
-                </Button>
+          <Card>
+            <CardContent>
+              <Stack spacing={3} alignItems="center" textAlign="center" py={4}>
+                <Bug size={42} />
+                <Stack spacing={0.5} alignItems="center">
+                  <Typography variant="h6" fontWeight={600}>
+                    Something went wrong
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" maxWidth={420}>
+                    We could not render this page due to some unexpected reason.
+                  </Typography>
+                </Stack>
+                <Stack direction="row" spacing={1}>
+                  <Button startIcon={<RefreshCcw size={16} />} variant="contained" onClick={this.handleRetry}>
+                    Retry
+                  </Button>
+                </Stack>
               </Stack>
-            </Stack>
-          </Box>
+            </CardContent>
+          </Card>
         </PageContent>
       );
     }

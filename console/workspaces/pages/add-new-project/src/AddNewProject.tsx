@@ -37,10 +37,10 @@ export const AddNewProject: React.FC = () => {
     deploymentPipeline: 'default',
   });
 
-  const { 
-    errors, 
-    validateField, 
-    validateForm, 
+  const {
+    errors,
+    validateField,
+    validateForm,
     clearErrors,
     setFieldError,
   } = useFormValidation<AddProjectFormValues>(addProjectSchema);
@@ -60,9 +60,16 @@ export const AddNewProject: React.FC = () => {
     ));
   }, [navigate, orgId]);
 
+  const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] = useState<
+    typeof errors
+  >({});
+
   const handleCreateProject = useCallback(() => {
     if (!validateForm(formData)) {
+      setLastSubmittedValidationErrors(errors);
       return;
+    } else {
+      setLastSubmittedValidationErrors({});
     }
 
     createProject({
@@ -87,15 +94,8 @@ export const AddNewProject: React.FC = () => {
         console.error('Failed to create project:', e);
       }
     });
-  }, [formData, validateForm, createProject, navigate, params.orgName, resetDirty, clearErrors]);
-
-  const isValid = useMemo(() => {
-    return (
-      formData.displayName.trim().length >= 3 && 
-      formData.name.trim().length >= 3 &&
-      Object.keys(errors).length === 0
-    );
-  }, [formData.displayName, formData.name, errors]);
+  }, [formData, validateForm, createProject,
+    navigate, params.orgName, resetDirty, clearErrors, errors]);
 
   return (
     <PageLayout
@@ -123,7 +123,7 @@ export const AddNewProject: React.FC = () => {
           </Alert>
         )}
         <CreateButtons
-          isValid={isValid}
+          lastSubmittedValidationErrors={lastSubmittedValidationErrors}
           isPending={isPending}
           onCancel={handleCancel}
           onSubmit={handleCreateProject}

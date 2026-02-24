@@ -113,15 +113,14 @@ export function useAgentRuntimeLogs(
   }, [queryResult.data?.logs, pageSize]);
 
   // Load older logs (scroll up)
-  const loadUp = useCallback(async () => {
-    if (isLoadingUp || !allLogs.length) return;
+  const loadUp = useCallback(async (beforeTimestamp: string) => {
+    if (isLoadingUp) return;
 
     setIsLoadingUp(true);
     try {
-      const firstLog = allLogs[0];
       const fetchBody: LogFilterRequest = {
         ...calculatedBody,
-        endTime: firstLog.timestamp, // Fetch logs before the first log
+        endTime: beforeTimestamp, // Fetch logs before the oldest visible log
         limit: pageSize,
         sortOrder: body.sortOrder || "desc",
       };
@@ -150,7 +149,6 @@ export function useAgentRuntimeLogs(
     }
   }, [
     isLoadingUp,
-    allLogs,
     calculatedBody,
     pageSize,
     body.sortOrder,
@@ -159,15 +157,14 @@ export function useAgentRuntimeLogs(
   ]);
 
   // Load newer logs (scroll down)
-  const loadDown = useCallback(async () => {
-    if (isLoadingDown || !allLogs.length) return;
+  const loadDown = useCallback(async (afterTimestamp: string) => {
+    if (isLoadingDown) return;
 
     setIsLoadingDown(true);
     try {
-      const lastLog = allLogs[allLogs.length - 1];
       const fetchBody: LogFilterRequest = {
         ...calculatedBody,
-        startTime: lastLog.timestamp, // Fetch logs after the last log
+        startTime: afterTimestamp, // Fetch logs after the newest visible log
         limit: pageSize,
         sortOrder: body.sortOrder || "desc",
       };
@@ -196,7 +193,6 @@ export function useAgentRuntimeLogs(
     }
   }, [
     isLoadingDown,
-    allLogs,
     calculatedBody,
     pageSize,
     body.sortOrder,

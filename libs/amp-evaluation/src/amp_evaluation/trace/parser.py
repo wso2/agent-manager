@@ -24,6 +24,7 @@ The parser accepts Trace objects from the fetcher (OTEL/AMP attribute model)
 and converts them to Trace (evaluation-optimized model).
 """
 
+from dataclasses import replace as dataclass_replace
 from typing import Dict, Any, List, Optional
 import logging
 import uuid
@@ -40,11 +41,14 @@ from .models import (
     ToolMetrics,
     RetrieverMetrics,
     AgentMetrics,
-    Message,
+    SystemMessage,
+    UserMessage,
+    AssistantMessage,
+    ToolMessage,
     ToolCall,
     RetrievedDoc,
 )
-from .fetcher import Trace as OTELTrace, Span as OTELSpan
+from .fetcher import OTELTrace, OTELSpan
 
 
 logger = logging.getLogger(__name__)
@@ -153,16 +157,14 @@ def filter_infrastructure_spans(spans: List[OTELSpan], create_synthetic_root: bo
         if kind in SEMANTIC_KINDS:
             # Remap parent
             old_parent = span.parentSpanId
-            new_parent = remap_map.get(old_parent, old_parent)
+            new_parent = remap_map.get(old_parent or "", old_parent)
 
             if new_parent is None and len(orphans) > 1:
                 # Orphan, connect to synthetic root
                 new_parent = synthetic_root.spanId if synthetic_root else None
 
-            # Create new span with remapped parent
-            # Note: We need to modify the parentSpanId attribute
-            span.parentSpanId = new_parent
-            filtered_spans.append(span)
+            # Create a copy of the span with the remapped parent to avoid mutating the original
+            filtered_spans.append(dataclass_replace(span, parentSpanId=new_parent))
 
     # Phase 6: Validate
     _validate_trace_structure(filtered_spans)
@@ -348,7 +350,7 @@ def parse_trace_for_evaluation(trace: OTELTrace, filter_infrastructure: bool = T
 
     # Create Trace
     return Trace(
-        trace_id=trace_id, input=trace_input, output=trace_output, steps=steps, metrics=metrics, timestamp=timestamp
+        trace_id=trace_id, input=trace_input, output=trace_output, spans=steps, metrics=metrics, timestamp=timestamp
     )
 
 
@@ -626,9 +628,9 @@ def _parse_token_usage(data: Dict[str, Any]) -> TokenUsage:
     )
 
 
-def _parse_messages(raw_input: Any) -> List[Message]:
-    """Parse messages from LLM input."""
-    messages = []
+def _parse_messages(raw_input: Any) -> list:
+    """Parse messages from LLM input into typed message instances."""
+    messages: list = []
 
     if not raw_input:
         return messages
@@ -636,14 +638,31 @@ def _parse_messages(raw_input: Any) -> List[Message]:
     if isinstance(raw_input, list):
         for item in raw_input:
             if isinstance(item, dict):
-                msg = Message(
-                    role=item.get("role", "user"),
-                    content=item.get("content", ""),
-                    tool_calls=_parse_tool_calls(item.get("tool_calls", [])),
-                )
-                messages.append(msg)
+                role = item.get("role", "user")
+                content = item.get("content", "")
+                if role == "system":
+                    messages.append(SystemMessage(content=content))
+                elif role == "user":
+                    messages.append(UserMessage(content=content))
+                elif role == "assistant":
+                    messages.append(
+                        AssistantMessage(
+                            content=content,
+                            tool_calls=_parse_tool_calls(item.get("tool_calls", [])),
+                        )
+                    )
+                elif role == "tool":
+                    messages.append(
+                        ToolMessage(
+                            content=content,
+                            tool_call_id=item.get("tool_call_id", ""),
+                        )
+                    )
+                else:
+                    # Unknown role, default to user message
+                    messages.append(UserMessage(content=content))
     elif isinstance(raw_input, str):
-        messages.append(Message(role="user", content=raw_input))
+        messages.append(UserMessage(content=raw_input))
 
     return messages
 
@@ -704,7 +723,7 @@ def _parse_llm_response(raw_output: Any) -> str:
 
 def _parse_retrieved_docs(raw_output: Any) -> List[RetrievedDoc]:
     """Parse retrieved documents from retriever output."""
-    docs = []
+    docs: List[RetrievedDoc] = []
 
     if not raw_output:
         return docs
@@ -715,7 +734,7 @@ def _parse_retrieved_docs(raw_output: Any) -> List[RetrievedDoc]:
                 docs.append(
                     RetrievedDoc(
                         id=item.get("id", ""),
-                        content=item.get("content", item.get("text", "")),
+                        content=item.get("content") or item.get("text") or "",
                         score=item.get("score", 0.0),
                         metadata=item.get("metadata", {}),
                     )

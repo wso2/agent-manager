@@ -19,18 +19,18 @@ var _ MappedNullable = &PublishScoresRequest{}
 
 // PublishScoresRequest struct for PublishScoresRequest
 type PublishScoresRequest struct {
-	Scores     []PublishScoreItem     `json:"scores"`
-	Aggregates []PublishAggregateItem `json:"aggregates"`
+	IndividualScores []PublishScoreItem     `json:"individualScores"`
+	AggregatedScores []PublishAggregateItem `json:"aggregatedScores"`
 }
 
 // NewPublishScoresRequest instantiates a new PublishScoresRequest object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewPublishScoresRequest(scores []PublishScoreItem, aggregates []PublishAggregateItem) *PublishScoresRequest {
+func NewPublishScoresRequest(individualScores []PublishScoreItem, aggregatedScores []PublishAggregateItem) *PublishScoresRequest {
 	this := PublishScoresRequest{}
-	this.Scores = scores
-	this.Aggregates = aggregates
+	this.IndividualScores = individualScores
+	this.AggregatedScores = aggregatedScores
 	return &this
 }
 
@@ -42,52 +42,52 @@ func NewPublishScoresRequestWithDefaults() *PublishScoresRequest {
 	return &this
 }
 
-// GetScores returns the Scores field value
-func (o *PublishScoresRequest) GetScores() []PublishScoreItem {
+// GetIndividualScores returns the IndividualScores field value
+func (o *PublishScoresRequest) GetIndividualScores() []PublishScoreItem {
 	if o == nil {
 		var ret []PublishScoreItem
 		return ret
 	}
 
-	return o.Scores
+	return o.IndividualScores
 }
 
-// GetScoresOk returns a tuple with the Scores field value
+// GetIndividualScoresOk returns a tuple with the IndividualScores field value
 // and a boolean to check if the value has been set.
-func (o *PublishScoresRequest) GetScoresOk() ([]PublishScoreItem, bool) {
+func (o *PublishScoresRequest) GetIndividualScoresOk() ([]PublishScoreItem, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return o.Scores, true
+	return o.IndividualScores, true
 }
 
-// SetScores sets field value
-func (o *PublishScoresRequest) SetScores(v []PublishScoreItem) {
-	o.Scores = v
+// SetIndividualScores sets field value
+func (o *PublishScoresRequest) SetIndividualScores(v []PublishScoreItem) {
+	o.IndividualScores = v
 }
 
-// GetAggregates returns the Aggregates field value
-func (o *PublishScoresRequest) GetAggregates() []PublishAggregateItem {
+// GetAggregatedScores returns the AggregatedScores field value
+func (o *PublishScoresRequest) GetAggregatedScores() []PublishAggregateItem {
 	if o == nil {
 		var ret []PublishAggregateItem
 		return ret
 	}
 
-	return o.Aggregates
+	return o.AggregatedScores
 }
 
-// GetAggregatesOk returns a tuple with the Aggregates field value
+// GetAggregatedScoresOk returns a tuple with the AggregatedScores field value
 // and a boolean to check if the value has been set.
-func (o *PublishScoresRequest) GetAggregatesOk() ([]PublishAggregateItem, bool) {
+func (o *PublishScoresRequest) GetAggregatedScoresOk() ([]PublishAggregateItem, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return o.Aggregates, true
+	return o.AggregatedScores, true
 }
 
-// SetAggregates sets field value
-func (o *PublishScoresRequest) SetAggregates(v []PublishAggregateItem) {
-	o.Aggregates = v
+// SetAggregatedScores sets field value
+func (o *PublishScoresRequest) SetAggregatedScores(v []PublishAggregateItem) {
+	o.AggregatedScores = v
 }
 
 func (o PublishScoresRequest) MarshalJSON() ([]byte, error) {
@@ -100,8 +100,8 @@ func (o PublishScoresRequest) MarshalJSON() ([]byte, error) {
 
 func (o PublishScoresRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["scores"] = o.Scores
-	toSerialize["aggregates"] = o.Aggregates
+	toSerialize["individualScores"] = o.IndividualScores
+	toSerialize["aggregatedScores"] = o.AggregatedScores
 	return toSerialize, nil
 }
 

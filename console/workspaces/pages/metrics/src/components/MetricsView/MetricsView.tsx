@@ -17,7 +17,7 @@
  */
 
 import React, { useMemo } from "react";
-import dayjs from "dayjs";
+import { format } from "date-fns";
 import { NoDataFound } from "@agent-management-platform/views";
 import {
   Alert,
@@ -59,7 +59,7 @@ const buildSeriesData = (series: SeriesDefinition[]) => {
     points?.forEach((point) => {
       const existing = map.get(point.time) ?? {
         time: point.time,
-        label: dayjs(point.time).format("MM/DD HH:mm"),
+        label: format(new Date(point.time), "MM/dd HH:mm"),
       };
       map.set(point.time, {
         ...existing,

@@ -21,7 +21,6 @@ import { Box, Typography, Button, Skeleton } from "@wso2/oxygen-ui";
 import { Clock as AccessTime, Settings } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
-import dayjs from "dayjs";
 import {
   useGetAgent,
   useListEnvironments,
@@ -29,6 +28,7 @@ import {
 import { EnvironmentCard } from "@agent-management-platform/shared-component";
 import { InstrumentationDrawer } from "./InstrumentationDrawer";
 import { NoDataFound } from "@agent-management-platform/views";
+import { formatDistanceToNow } from "date-fns";
 
 export const ExternalAgentOverview = () => {
   const { agentId, orgId, projectId } = useParams();
@@ -63,6 +63,9 @@ export const ExternalAgentOverview = () => {
     }
   }, [sortedEnvironmentList, selectedEnvironmentId]);
 
+  const createdAtText = agent?.createdAt
+    ? formatDistanceToNow(new Date(agent.createdAt), { addSuffix: true })
+    : "—";
 
   const agentInstrumentationUrl = globalConfig.instrumentationUrl || "http://localhost:22893/otel";
   const apiKey = "ey***";
@@ -86,9 +89,7 @@ export const ExternalAgentOverview = () => {
           <Box display="flex" flexDirection="row" gap={1} alignItems="center">
             <Typography variant="body2">Created</Typography>
             <AccessTime size={14} />
-            <Typography variant="body2">
-              {agent?.createdAt ? dayjs(agent.createdAt).fromNow() : "—"}
-            </Typography>
+            <Typography variant="body2">{createdAtText}</Typography>
           </Box>
         </Box>
         {isEnvironmentsLoading && (

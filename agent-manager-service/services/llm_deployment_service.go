@@ -452,18 +452,14 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 		return "", utils.ErrInvalidInput
 	}
 
-	// Get template handle
-	if provider.TemplateUUID == uuid.Nil {
+	// Validate template handle exists
+	if provider.TemplateHandle == "" {
 		return "", utils.ErrLLMProviderTemplateNotFound
 	}
 
-	template, err := s.templateRepo.GetByUUID(provider.TemplateUUID.String(), orgName)
-	if err != nil {
-		return "", fmt.Errorf("failed to get template: %w", err)
-	}
-	if template == nil {
-		return "", utils.ErrLLMProviderTemplateNotFound
-	}
+	// Template handle is already stored in provider.TemplateHandle
+	// No need to fetch the template itself - handle is sufficient for gateway config
+	templateHandle := provider.TemplateHandle
 
 	// Set default context if not provided
 	contextValue := "/"
@@ -488,7 +484,7 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 			Version:       provider.Configuration.Version,
 			Context:       contextValue,
 			VHost:         vhostValue,
-			Template:      template.Handle,
+			Template:      templateHandle,
 			Upstream:      *provider.Configuration.Upstream,
 			AccessControl: provider.Configuration.AccessControl,
 			RateLimiting:  provider.Configuration.RateLimiting,

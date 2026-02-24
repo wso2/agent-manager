@@ -33,8 +33,8 @@ RUN apk add --no-cache ca-certificates tzdata bash openssl
 # Create a non-root user/group (UID:GID = 1000:1000)
 RUN addgroup -g 1000 app && adduser -D -u 1000 -G app app
 
-# Create directory for schema files and keys
-RUN mkdir -p /app/clients/openchoreosvc/client /app/keys && chown -R 1000:1000 /app
+# Create directory for schema files, keys, certificates and resources
+RUN mkdir -p /app/clients/openchoreosvc/client /app/keys /app/data/certs && chown -R 1000:1000 /app
 
 # Copy binary with ownership set
 COPY --from=builder --chown=1000:1000 /go/bin/agent-manager-service /go/bin/agent-manager-service

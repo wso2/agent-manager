@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -83,23 +84,9 @@ func (c *monitorController) CreateMonitor(w http.ResponseWriter, r *http.Request
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "At least one evaluator is required")
 		return
 	}
-	for i, eval := range req.Evaluators {
-		if eval.Identifier == "" {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].identifier is required", i))
-			return
-		}
-		if eval.DisplayName == "" {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].displayName is required", i))
-			return
-		}
-		if eval.Level == "" {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].level is required", i))
-			return
-		}
-		if eval.Level != "trace" && eval.Level != "agent" && eval.Level != "span" {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].level must be one of: trace, agent, span", i))
-			return
-		}
+	if msg := validateEvaluatorInputs(req.Evaluators); msg != "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, msg)
+		return
 	}
 	if req.Type == "" {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Monitor type is required (future or past)")
@@ -153,9 +140,11 @@ func (c *monitorController) GetMonitor(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 
-	monitor, err := c.monitorService.GetMonitor(ctx, orgName, monitorName)
+	monitor, err := c.monitorService.GetMonitor(ctx, orgName, projName, agentName, monitorName)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
@@ -206,9 +195,11 @@ func (c *monitorController) DeleteMonitor(w http.ResponseWriter, r *http.Request
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 
-	err := c.monitorService.DeleteMonitor(ctx, orgName, monitorName)
+	err := c.monitorService.DeleteMonitor(ctx, orgName, projName, agentName, monitorName)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
@@ -228,6 +219,8 @@ func (c *monitorController) UpdateMonitor(w http.ResponseWriter, r *http.Request
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 
 	var req spec.UpdateMonitorRequest
@@ -238,29 +231,15 @@ func (c *monitorController) UpdateMonitor(w http.ResponseWriter, r *http.Request
 	}
 
 	// Validate evaluator fields if provided
-	for i, eval := range req.Evaluators {
-		if eval.Identifier == "" {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].identifier is required", i))
-			return
-		}
-		if eval.DisplayName == "" {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].displayName is required", i))
-			return
-		}
-		if eval.Level == "" {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].level is required", i))
-			return
-		}
-		if eval.Level != "trace" && eval.Level != "agent" && eval.Level != "span" {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("evaluators[%d].level must be one of: trace, agent, span", i))
-			return
-		}
+	if msg := validateEvaluatorInputs(req.Evaluators); msg != "" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, msg)
+		return
 	}
 
 	// Convert spec request to models request
 	modelReq := utils.ConvertToUpdateMonitorRequest(&req)
 
-	monitor, err := c.monitorService.UpdateMonitor(ctx, orgName, monitorName, modelReq)
+	monitor, err := c.monitorService.UpdateMonitor(ctx, orgName, projName, agentName, monitorName, modelReq)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
@@ -290,9 +269,28 @@ func (c *monitorController) ListMonitorRuns(w http.ResponseWriter, r *http.Reque
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 
-	result, err := c.monitorService.ListMonitorRuns(ctx, orgName, monitorName)
+	// Parse pagination params (default: limit=20, offset=0)
+	limit := 20
+	offset := 0
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+	if limit > 100 {
+		limit = 100 // max cap
+	}
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	result, err := c.monitorService.ListMonitorRuns(ctx, orgName, projName, agentName, monitorName, limit, offset)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
@@ -318,10 +316,12 @@ func (c *monitorController) RerunMonitor(w http.ResponseWriter, r *http.Request)
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 	runID := r.PathValue("runId")
 
-	result, err := c.monitorService.RerunMonitor(ctx, orgName, monitorName, runID)
+	result, err := c.monitorService.RerunMonitor(ctx, orgName, projName, agentName, monitorName, runID)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
@@ -356,10 +356,12 @@ func (c *monitorController) GetMonitorRunLogs(w http.ResponseWriter, r *http.Req
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 	runID := r.PathValue("runId")
 
-	result, err := c.monitorService.GetMonitorRunLogs(ctx, orgName, monitorName, runID)
+	result, err := c.monitorService.GetMonitorRunLogs(ctx, orgName, projName, agentName, monitorName, runID)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
@@ -384,9 +386,11 @@ func (c *monitorController) StopMonitor(w http.ResponseWriter, r *http.Request) 
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 
-	result, err := c.monitorService.StopMonitor(ctx, orgName, monitorName)
+	result, err := c.monitorService.StopMonitor(ctx, orgName, projName, agentName, monitorName)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
@@ -420,9 +424,11 @@ func (c *monitorController) StartMonitor(w http.ResponseWriter, r *http.Request)
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue("orgName")
+	projName := r.PathValue("projName")
+	agentName := r.PathValue("agentName")
 	monitorName := r.PathValue("monitorName")
 
-	result, err := c.monitorService.StartMonitor(ctx, orgName, monitorName)
+	result, err := c.monitorService.StartMonitor(ctx, orgName, projName, agentName, monitorName)
 	if err != nil {
 		if errors.Is(err, utils.ErrMonitorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
@@ -448,6 +454,27 @@ func (c *monitorController) StartMonitor(w http.ResponseWriter, r *http.Request)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Error("Failed to encode response", "error", err)
 	}
+}
+
+// validateEvaluatorInputs returns the first validation error message,
+// or an empty string if all evaluators are valid.
+func validateEvaluatorInputs(evaluators []spec.MonitorEvaluator) string {
+	for i, eval := range evaluators {
+		if eval.Identifier == "" {
+			return fmt.Sprintf("evaluators[%d].identifier is required", i)
+		}
+		if eval.DisplayName == "" {
+			return fmt.Sprintf("evaluators[%d].displayName is required", i)
+		}
+		level, _ := eval.Config["level"].(string)
+		if level == "" {
+			return fmt.Sprintf("evaluators[%d].config.level is required", i)
+		}
+		if level != "trace" && level != "agent" && level != "span" {
+			return fmt.Sprintf("evaluators[%d].config.level must be one of: trace, agent, span", i)
+		}
+	}
+	return ""
 }
 
 // isValidDNSName checks if the name is valid for Kubernetes resources

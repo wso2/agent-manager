@@ -30,6 +30,7 @@ import {
   ProjectResponse,
 } from "@agent-management-platform/types";
 import {
+  Avatar,
   Box,
   Button,
   CircularProgress,
@@ -40,19 +41,16 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import {
   Package,
   Plus,
   RefreshCcw,
   Clock as TimerOutlined,
-  Trash2,
+  Trash2 as TrashOutline,
 } from "@wso2/oxygen-ui-icons-react";
 import { type MouseEvent, useCallback, useMemo, useState } from "react";
 import { useConfirmationDialog } from "@agent-management-platform/shared-component";
-
-dayjs.extend(relativeTime);
+import { formatDistanceToNow } from "date-fns";
 
 const projectGridTemplate = {
   xs: "repeat(1, minmax(0, 1fr))",
@@ -79,10 +77,6 @@ function ProjectCard(props: {
     ? project.description
     : "No description provided";
 
-  const pipelineLabel = project.deploymentPipeline?.trim()
-    ? project.deploymentPipeline
-    : "Unknown";
-
   const handleDeleteClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
@@ -92,74 +86,68 @@ function ProjectCard(props: {
     [handleDeleteProject, project]
   );
 
+  const createdAtText = project.createdAt
+    ? formatDistanceToNow(new Date(project.createdAt), { addSuffix: true })
+    : "—";
+
   return (
     <Link to={projectPath} style={{ textDecoration: "none" }}>
       <Form.CardButton
-        // ={Link}
-        
-        // to={projectPath}
         sx={{ width: "100%", textAlign: "left", textDecoration: "none" }}
       >
-        <Form.CardHeader
-          title={
-            <Form.Stack direction="row" spacing={1.5} alignItems="center">
-              <Package size={40} />
-              <Form.Stack
-                direction="column"
-                spacing={0.5}
-                flex={1}
-                minWidth={0}
-              >
-                <Form.Stack direction="row" spacing={1} alignItems="center">
-                  <Typography
-                    variant="h5"
-                    noWrap
-                    textOverflow="ellipsis"
-                    sx={{ maxWidth: "90%" }}
-                  >
-                    {project.displayName}
-                  </Typography>
-                  <Form.DisappearingCardButtonContent>
-                    <Tooltip title="Delete project">
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={handleDeleteClick}
-                      >
-                        <Trash2 size={16} />
-                      </IconButton>
-                    </Tooltip>
-                  </Form.DisappearingCardButtonContent>
-                </Form.Stack>
-                <Typography variant="caption" color="textPrimary">
-                  Pipeline&nbsp;
-                  <Typography
-                    component="span"
-                    variant="caption"
-                    color="textSecondary"
-                  >
-                    {pipelineLabel}
-                  </Typography>
-                </Typography>
-              </Form.Stack>
-            </Form.Stack>
-          }
-        />
         <Form.CardContent>
-          <Typography variant="caption" color="textSecondary">
-            {projectDescription}
-          </Typography>
-        </Form.CardContent>
-        <Form.CardActions sx={{ justifyContent: "space-between", flexWrap: "wrap" }}>
+          <Form.CardHeader
+            title={
+              <Form.Stack direction="row" spacing={1.5} alignItems="center">
+                <Avatar sx={{ bgcolor: "primary.main", color: "primary.contrastText", height: 42, width: 42 }}>
+                  <Package size={24} />
+                </Avatar>
+                <Form.Stack
+                  direction="column"
+                  spacing={0.5}
+                  flex={1}
+                  minWidth={0}
+                >
+                  <Form.Stack direction="row" spacing={1} alignItems="center">
+                    <Typography
+                      variant="h5"
+                      noWrap
+                      textOverflow="ellipsis"
+                      sx={{ maxWidth: "90%" }}
+                    >
+                      {project.displayName}
+                    </Typography>
+                    <Form.DisappearingCardButtonContent>
+                      <Tooltip title="Delete project">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={handleDeleteClick}
+                        >
+                          <TrashOutline size={16} />
+                        </IconButton>
+                      </Tooltip>
+                    </Form.DisappearingCardButtonContent>
+                  </Form.Stack>
+                  <Typography variant="caption" color="textPrimary">
+                    {projectDescription}
+                  </Typography>
+                </Form.Stack>
+              </Form.Stack>
+            }
+          />
+                <Form.CardActions sx={{flexWrap: "wrap" }}>
           <Typography
             variant="caption"
             color="textSecondary"
             sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
           >
             <TimerOutlined size={16} opacity={0.5} />
-            {dayjs(project.createdAt).fromNow()}
+            {createdAtText}
           </Typography>
         </Form.CardActions>
+        </Form.CardContent>
+  
       </Form.CardButton>
     </Link>
   );
@@ -213,7 +201,7 @@ export function ProjectList() {
           });
         },
         confirmButtonColor: "error",
-        confirmButtonIcon: <Trash2 size={16} />,
+        confirmButtonIcon: <TrashOutline size={16} />,
         confirmButtonText: "Delete",
       });
     },

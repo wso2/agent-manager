@@ -4808,6 +4808,71 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/scores:
+    get:
+      summary: Get per-run aggregated scores
+      description: Returns aggregated evaluation scores for a specific monitor run
+      operationId: getMonitorRunScores
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: agentName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: monitorName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Monitor run UUID
+      responses:
+        "200":
+          description: Per-run aggregated scores
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonitorRunScoresResponse"
+        "400":
+          description: Invalid run ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/scores/timeseries:
     get:
@@ -4882,6 +4947,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/traces/{traceId}/scores:
     get:
@@ -4924,6 +4995,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Trace not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
           content:
             application/json:
               schema:
@@ -5164,6 +5241,8 @@ components:
           $ref: "#/components/schemas/Build"
         inputInterface:
           $ref: "#/components/schemas/InputInterface"
+        configurations:
+          $ref: "#/components/schemas/Configurations"
 
     UpdateAgentResourceConfigsRequest:
       type: object
@@ -5538,6 +5617,10 @@ components:
           description: Environment variables
           items:
             $ref: "#/components/schemas/EnvironmentVariable"
+        enableAutoInstrumentation:
+          type: boolean
+          description: Enable auto instrumentation for observability
+          default: true
       required:
         - imageId
     Configurations:
@@ -5548,6 +5631,10 @@ components:
           description: Environment variables
           items:
             $ref: "#/components/schemas/EnvironmentVariable"
+        enableAutoInstrumentation:
+          type: boolean
+          description: Enable automatic OTEL instrumentation for the agent
+          default: true
     EnvironmentVariable:
       type: object
       required:
@@ -6078,13 +6165,13 @@ components:
           example:
             - identifier: "latency"
               displayName: "Latency Check"
-              level: "span"
               config:
+                level: "span"
                 max_latency_ms: 3000
             - identifier: "answer_relevancy"
               displayName: "Answer Relevancy"
-              level: "trace"
               config:
+                level: "trace"
                 min_overlap_ratio: 0.2
         type:
           type: string
@@ -6196,12 +6283,13 @@ components:
           example:
             - identifier: "latency"
               displayName: "Latency Check"
-              level: "span"
               config:
+                level: "span"
                 max_latency_ms: 3000
             - identifier: "answer_relevancy"
               displayName: "Answer Relevancy"
-              level: "trace"
+              config:
+                level: "trace"
         intervalMinutes:
           type: integer
           description: Interval in minutes (only for 'future' type)
@@ -6231,8 +6319,8 @@ components:
         status:
           type: string
           description: Current monitor status
-          enum: [active, suspended, failed, unknown]
-          example: "active"
+          enum: [Active, Suspended, Failed, Unknown]
+          example: "Active"
         latestRun:
           $ref: "#/components/schemas/MonitorRunResponse"
         createdAt:
@@ -6282,12 +6370,13 @@ components:
           example:
             - identifier: "latency"
               displayName: "Latency Check"
-              level: "span"
               config:
+                level: "span"
                 max_latency_ms: 3000
             - identifier: "answer_relevancy"
               displayName: "Answer Relevancy"
-              level: "trace"
+              config:
+                level: "trace"
         traceStart:
           type: string
           format: date-time
@@ -6339,7 +6428,6 @@ components:
       required:
         - identifier
         - displayName
-        - level
       properties:
         identifier:
           type: string
@@ -6353,19 +6441,12 @@ components:
           minLength: 1
         config:
           type: object
-          description: Optional evaluator-specific configuration parameters
+          description: Evaluator-specific configuration parameters (includes 'level' for evaluation granularity)
           additionalProperties: true
           example:
+            level: "trace"
             max_latency_ms: 3000
             use_task_constraint: false
-        level:
-          type: string
-          description: Evaluation level
-          enum:
-            - trace
-            - agent
-            - span
-          example: "trace"
 
     EvaluatorResponse:
       type: object
@@ -6379,8 +6460,6 @@ components:
         - tags
         - isBuiltin
         - configSchema
-        - createdAt
-        - updatedAt
       properties:
         id:
           type: string
@@ -6421,16 +6500,6 @@ components:
           items:
             $ref: "#/components/schemas/EvaluatorConfigParam"
           description: Configuration schema for the evaluator
-        createdAt:
-          type: string
-          format: date-time
-          description: Creation timestamp
-          example: "2026-01-01T00:00:00Z"
-        updatedAt:
-          type: string
-          format: date-time
-          description: Last update timestamp
-          example: "2026-01-01T00:00:00Z"
 
     EvaluatorConfigParam:
       type: object
@@ -7897,18 +7966,17 @@ components:
     CreateLLMProviderRequest:
       type: object
       required:
-        - templateUuid
+        - templateHandle
         - configuration
       properties:
         description:
           type: string
           description: Description of the LLM provider
           example: OpenAI GPT-4 provider for production
-        templateUuid:
+        templateHandle:
           type: string
-          format: uuid
-          description: UUID of the provider template to use
-          example: 550e8400-e29b-41d4-a716-446655440000
+          description: handle of the template being used
+          example: openai
         openapi:
           type: string
           description: Custom OpenAPI specification (overrides template)
@@ -7932,10 +8000,9 @@ components:
         description:
           type: string
           description: Updated description
-        templateUuid:
+        templateHandle:
           type: string
-          format: uuid
-          description: Updated template UUID
+          description: Updated template handle
         openapi:
           type: string
           description: Updated OpenAPI specification
@@ -7969,7 +8036,7 @@ components:
       type: object
       required:
         - uuid
-        - templateUuid
+        - templateHandle
         - status
         - configuration
       properties:
@@ -7983,10 +8050,9 @@ components:
         createdBy:
           type: string
           description: User who created the provider
-        templateUuid:
+        templateHandle:
           type: string
-          format: uuid
-          description: Template UUID
+          description: Template handle
         openapi:
           type: string
           description: OpenAPI specification
@@ -8758,6 +8824,25 @@ components:
           items:
             $ref: "#/components/schemas/EvaluatorScoreSummary"
 
+    MonitorRunScoresResponse:
+      type: object
+      required:
+        - runId
+        - monitorName
+        - evaluators
+      properties:
+        runId:
+          type: string
+          format: uuid
+          description: Monitor run UUID
+        monitorName:
+          type: string
+          description: Name of the monitor
+        evaluators:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluatorScoreSummary"
+
     TimeRange:
       type: object
       required:
@@ -8922,6 +9007,7 @@ components:
         - identifier
         - displayName
         - level
+        - aggregations
         - count
       properties:
         identifier:
@@ -8933,26 +9019,26 @@ components:
         level:
           type: string
           enum: [trace, agent, span]
+        aggregations:
+          type: object
+          additionalProperties: true
+          description: Flexible aggregation results (e.g., mean, pass_rate)
         count:
           type: integer
-        mean:
-          type: number
-          format: double
-        passRate:
-          type: number
-          format: double
+        errorCount:
+          type: integer
 
     PublishScoresRequest:
       type: object
       required:
-        - scores
-        - aggregates
+        - individualScores
+        - aggregatedScores
       properties:
-        scores:
+        individualScores:
           type: array
           items:
             $ref: "#/components/schemas/PublishScoreItem"
-        aggregates:
+        aggregatedScores:
           type: array
           items:
             $ref: "#/components/schemas/PublishAggregateItem"

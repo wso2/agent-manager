@@ -27,7 +27,7 @@ from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from amp_evaluation.evaluators.config import Param
+from amp_evaluation.evaluators.params import Param, _ParamDescriptor
 from amp_evaluation.evaluators.base import BaseEvaluator
 from amp_evaluation.models import EvalResult
 from amp_evaluation.trace import Trace, TraceMetrics, TokenUsage
@@ -45,9 +45,9 @@ class TestConfigDescriptor:
         """Test Config descriptor with default value."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Param(float, default=0.7, description="Test threshold")
+            threshold: float = Param(default=0.7, description="Test threshold")
 
-            def _trace_evaluation(self, trace, task=None):
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=self.threshold)
 
         evaluator = TestEvaluator()
@@ -57,9 +57,9 @@ class TestConfigDescriptor:
         """Test setting Config value via __init__ kwargs."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Param(float, default=0.7, description="Test threshold")
+            threshold: float = Param(default=0.7, description="Test threshold")
 
-            def _trace_evaluation(self, trace, task=None):
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=self.threshold)
 
         evaluator = TestEvaluator(threshold=0.9)
@@ -69,9 +69,9 @@ class TestConfigDescriptor:
         """Test setting Config value directly on instance."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Param(float, default=0.7, description="Test threshold")
+            threshold: float = Param(default=0.7, description="Test threshold")
 
-            def _trace_evaluation(self, trace, task=None):
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=self.threshold)
 
         evaluator = TestEvaluator()
@@ -82,74 +82,230 @@ class TestConfigDescriptor:
         """Test accessing Config descriptor at class level."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Param(float, default=0.7, description="Test threshold")
+            threshold: float = Param(default=0.7, description="Test threshold")
 
-            def _trace_evaluation(self, trace, task=None):
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=self.threshold)
 
         # Class-level access returns the descriptor itself
-        assert isinstance(TestEvaluator.threshold, Param)
+        assert isinstance(TestEvaluator.threshold, _ParamDescriptor)
         assert TestEvaluator.threshold.description == "Test threshold"
 
 
 # ============================================================================
-# TEST CONFIG VALIDATION
+# TEST PARAM VALIDATION
 # ============================================================================
 
 
-class TestConfigValidation:
-    """Test Config validation constraints."""
+class TestParamValidation:
+    """Test all Param validation scenarios: type, required, defaults, None, min/max, enum."""
 
-    def test_type_validation_success(self):
+    # --- Type validation ---
+
+    def test_type_check_correct_type(self):
         """Test type validation passes for correct type."""
 
         class TestEvaluator(BaseEvaluator):
-            count = Param(int, default=5, description="Count")
+            count: int = Param(default=5, description="Count")
 
-            def _trace_evaluation(self, trace, task=None):
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=1.0)
 
         evaluator = TestEvaluator(count=10)
         assert evaluator.count == 10
 
-    def test_type_validation_failure(self):
+    def test_type_check_wrong_type(self):
         """Test type validation fails for wrong type."""
 
         class TestEvaluator(BaseEvaluator):
-            count = Param(int, default=5, description="Count")
+            count: int = Param(default=5, description="Count")
 
-            def _trace_evaluation(self, trace, task=None):
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=1.0)
 
         with pytest.raises(TypeError, match="expects int"):
             TestEvaluator(count="not an int")
 
-    def test_type_validation_int_to_float(self):
-        """Test int is accepted for float type."""
+    def test_type_check_int_to_float_coercion(self):
+        """Test int is accepted and coerced for float type."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Param(float, default=0.7, description="Threshold")
+            threshold: float = Param(default=0.7, description="Threshold")
 
-            def _trace_evaluation(self, trace, task=None):
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=1.0)
 
         evaluator = TestEvaluator(threshold=1)  # int
-        assert evaluator.threshold == 1  # Accepted
+        assert evaluator.threshold == 1.0
+
+    def test_type_check_none_rejected_for_concrete_type(self):
+        """Test that None is rejected for non-Optional typed params."""
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            count: int = Param(default=5, description="Count")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        with pytest.raises(TypeError, match="expects int, got None"):
+            TestEvaluator(count=None)
+
+    def test_type_check_none_allowed_for_optional_type(self):
+        """Test that None is allowed for Optional typed params."""
+        from typing import Optional as Opt, List
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            items: Opt[List[str]] = Param(default=None, description="Optional items")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator()
+        assert evaluator.items is None
+
+        evaluator = TestEvaluator(items=None)
+        assert evaluator.items is None
+
+    # --- Required validation ---
+
+    def test_required_no_default_fails_at_init(self):
+        """Test that param with no default is required and fails at init if missing."""
+
+        class StrictEvaluator(BaseEvaluator):
+            name = "strict-eval"
+            threshold: float = Param(description="Required threshold")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=self.threshold)
+
+        with pytest.raises(TypeError, match="missing required parameter"):
+            StrictEvaluator()
+
+        # Providing the required param succeeds
+        evaluator = StrictEvaluator(threshold=0.8)
+        assert evaluator.threshold == 0.8
+
+    def test_required_flag_on_descriptor(self):
+        """Test that no-default param is marked required on the descriptor."""
+
+        class TestEvaluator(BaseEvaluator):
+            required_field: str = Param(description="Required field")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        assert TestEvaluator.required_field.required
+
+    def test_explicit_required_with_default(self):
+        """Test that explicit required=True works even with a default."""
+
+        class TestEvaluator(BaseEvaluator):
+            field: str = Param(default="value", required=True, description="Required despite default")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        assert TestEvaluator.field.required
+        evaluator = TestEvaluator()
+        assert evaluator.field == "value"
+
+    # --- Default validation ---
+
+    def test_default_value_applied(self):
+        """Test that default value is used when param not provided."""
+
+        class TestEvaluator(BaseEvaluator):
+            threshold: float = Param(default=0.7, description="Threshold")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=self.threshold)
+
+        evaluator = TestEvaluator()
+        assert evaluator.threshold == 0.7
+
+    def test_default_none_with_optional_type(self):
+        """Test that default=None works with Optional type annotation."""
+        from typing import Optional as Opt
+
+        class TestEvaluator(BaseEvaluator):
+            optional_field: Opt[str] = Param(default=None, description="Optional with None default")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator()
+        assert evaluator.optional_field is None
+        assert not TestEvaluator.optional_field.required
+
+    def test_default_empty_string_not_required(self):
+        """Test that default='' makes field not required."""
+
+        class TestEvaluator(BaseEvaluator):
+            optional_str: str = Param(default="", description="Optional with empty string")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator()
+        assert evaluator.optional_str == ""
+        assert not TestEvaluator.optional_str.required
+
+    def test_default_zero_not_required(self):
+        """Test that default=0 makes field not required."""
+
+        class TestEvaluator(BaseEvaluator):
+            count: int = Param(default=0, description="Count with 0 default")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator()
+        assert evaluator.count == 0
+        assert not TestEvaluator.count.required
+
+    def test_default_false_not_required(self):
+        """Test that default=False makes field not required."""
+
+        class TestEvaluator(BaseEvaluator):
+            enabled: bool = Param(default=False, description="Enabled with False default")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator()
+        assert evaluator.enabled is False
+        assert not TestEvaluator.enabled.required
+
+    def test_default_validated_through_set(self):
+        """Test that default values are validated through __set__ at init."""
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            threshold: float = Param(default=0.5, min=0.0, max=1.0, description="Threshold")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=self.threshold)
+
+        # Default 0.5 is within [0.0, 1.0] → succeeds
+        evaluator = TestEvaluator()
+        assert evaluator.threshold == 0.5
+
+    # --- Min/Max validation ---
 
     def test_min_constraint(self):
         """Test min constraint validation."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Param(float, default=0.7, min=0.0, max=1.0, description="Threshold")
+            threshold: float = Param(default=0.7, min=0.0, max=1.0, description="Threshold")
 
-            def _trace_evaluation(self, trace, task=None):
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=1.0)
 
-        # Valid value
         evaluator = TestEvaluator(threshold=0.5)
         assert evaluator.threshold == 0.5
 
-        # Invalid value - too low
         with pytest.raises(ValueError, match="must be >= 0.0"):
             TestEvaluator(threshold=-0.1)
 
@@ -157,37 +313,175 @@ class TestConfigValidation:
         """Test max constraint validation."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Param(float, default=0.7, min=0.0, max=1.0, description="Threshold")
+            threshold: float = Param(default=0.7, min=0.0, max=1.0, description="Threshold")
 
-            def _trace_evaluation(self, trace, task=None):
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=1.0)
 
-        # Valid value
         evaluator = TestEvaluator(threshold=0.9)
         assert evaluator.threshold == 0.9
 
-        # Invalid value - too high
         with pytest.raises(ValueError, match="must be <= 1.0"):
             TestEvaluator(threshold=1.5)
+
+    # --- Enum validation ---
 
     def test_enum_constraint(self):
         """Test enum constraint validation."""
 
         class TestEvaluator(BaseEvaluator):
-            model = Param(
-                str, default="gpt-4o-mini", enum=["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"], description="Model name"
+            model: str = Param(
+                default="gpt-4o-mini", enum=["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"], description="Model name"
             )
 
-            def _trace_evaluation(self, trace, task=None):
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=1.0)
 
-        # Valid value
         evaluator = TestEvaluator(model="gpt-4o")
         assert evaluator.model == "gpt-4o"
 
-        # Invalid value - not in enum
         with pytest.raises(ValueError, match="must be one of"):
             TestEvaluator(model="invalid-model")
+
+    # --- None rejection for non-concrete types (Union, generic aliases) ---
+
+    def test_none_rejected_for_list_str_type(self):
+        """Test that None is rejected for List[str] (parameterized generic, not a concrete type)."""
+        from typing import List
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            keywords: List[str] = Param(description="Keywords list")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        with pytest.raises(TypeError, match="got None"):
+            TestEvaluator(keywords=None)
+
+    def test_none_rejected_for_non_optional_union(self):
+        """Test that None is rejected for Union[str, int] (union without None)."""
+        from typing import Union
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            value: Union[str, int] = Param(description="String or int value")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        with pytest.raises(TypeError, match="got None"):
+            TestEvaluator(value=None)
+
+    def test_none_rejected_for_pep604_union_without_none(self):
+        """Test that None is rejected for str | int (PEP 604 union without None)."""
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            value: str | int = Param(description="String or int value")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        with pytest.raises(TypeError, match="got None"):
+            TestEvaluator(value=None)
+
+    def test_none_allowed_for_pep604_optional(self):
+        """Test that None is allowed for str | None (PEP 604 optional)."""
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            label: str | None = Param(default=None, description="Optional label")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator()
+        assert evaluator.label is None
+
+        evaluator = TestEvaluator(label=None)
+        assert evaluator.label is None
+
+        evaluator = TestEvaluator(label="hello")
+        assert evaluator.label == "hello"
+
+    def test_none_allowed_for_pep604_complex_optional(self):
+        """Test that None is allowed for int | str | None (PEP 604 complex optional)."""
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            value: int | str | None = Param(default=None, description="Optional int or str")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator(value=None)
+        assert evaluator.value is None
+
+        evaluator = TestEvaluator(value=42)
+        assert evaluator.value == 42
+
+        evaluator = TestEvaluator(value="hello")
+        assert evaluator.value == "hello"
+
+    def test_none_rejected_for_dict_type(self):
+        """Test that None is rejected for Dict[str, Any] (parameterized generic)."""
+        from typing import Dict, Any
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            config: Dict[str, Any] = Param(description="Config dict")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        with pytest.raises(TypeError, match="got None"):
+            TestEvaluator(config=None)
+
+    def test_valid_value_for_non_optional_union(self):
+        """Test that valid values pass for Union[str, int] types."""
+        from typing import Union
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            value: Union[str, int] = Param(default="hello", description="String or int")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator(value="test")
+        assert evaluator.value == "test"
+
+        evaluator = TestEvaluator(value=42)
+        assert evaluator.value == 42
+
+    def test_collection_coercion_list_from_tuple(self):
+        """Test that tuple is coerced to list when type is list."""
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            items: list = Param(default=[], description="Items")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator(items=(1, 2, 3))
+        assert evaluator.items == [1, 2, 3]
+        assert isinstance(evaluator.items, list)
+
+    def test_collection_coercion_set_from_list(self):
+        """Test that list is coerced to set when type is set."""
+
+        class TestEvaluator(BaseEvaluator):
+            name = "test-eval"
+            tags: set = Param(default=set(), description="Tags")
+
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
+
+        evaluator = TestEvaluator(tags=[1, 2, 3])
+        assert evaluator.tags == {1, 2, 3}
+        assert isinstance(evaluator.tags, set)
 
 
 # ============================================================================
@@ -202,20 +496,20 @@ class TestConfigSchema:
         """Test basic schema generation from Config descriptors."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Param(float, default=0.7, description="Test threshold")
-            model = Param(str, default="gpt-4o-mini", description="Model name")
+            threshold: float = Param(default=0.7, description="Test threshold")
+            model: str = Param(default="gpt-4o-mini", description="Model name")
 
-            def _trace_evaluation(self, trace, task=None):
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=1.0)
 
         evaluator = TestEvaluator()
-        metadata = evaluator.get_metadata()
+        metadata = evaluator.info
 
-        assert "config_schema" in metadata
-        config_schema = metadata["config_schema"]
+        assert metadata.config_schema is not None
+        config_schema = metadata.config_schema
 
-        # Should have 3 config fields (threshold, model + inherited level)
-        assert len(config_schema) == 3
+        # Should have 2 config fields (threshold, model) - no inherited level
+        assert len(config_schema) == 2
 
         # Check threshold config
         threshold_config = next(c for c in config_schema if c["key"] == "threshold")
@@ -234,15 +528,15 @@ class TestConfigSchema:
         """Test schema generation includes constraints."""
 
         class TestEvaluator(BaseEvaluator):
-            threshold = Param(float, default=0.7, min=0.0, max=1.0, description="Threshold with constraints")
-            model = Param(str, default="gpt-4o-mini", enum=["gpt-4o", "gpt-4o-mini"], description="Model with enum")
+            threshold: float = Param(default=0.7, min=0.0, max=1.0, description="Threshold with constraints")
+            model: str = Param(default="gpt-4o-mini", enum=["gpt-4o", "gpt-4o-mini"], description="Model with enum")
 
-            def _trace_evaluation(self, trace, task=None):
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=1.0)
 
         evaluator = TestEvaluator()
-        metadata = evaluator.get_metadata()
-        config_schema = metadata["config_schema"]
+        metadata = evaluator.info
+        config_schema = metadata.config_schema
 
         # Check threshold constraints
         threshold_config = next(c for c in config_schema if c["key"] == "threshold")
@@ -257,14 +551,15 @@ class TestConfigSchema:
         """Test schema generation for required fields."""
 
         class TestEvaluator(BaseEvaluator):
-            api_key = Param(str, required=True, description="Required API key")
+            api_key: str = Param(required=True, description="Required API key")
 
-            def _trace_evaluation(self, trace, task=None):
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=1.0)
 
-        evaluator = TestEvaluator()
-        metadata = evaluator.get_metadata()
-        config_schema = metadata["config_schema"]
+        # Must provide required param
+        evaluator = TestEvaluator(api_key="test-key")
+        metadata = evaluator.info
+        config_schema = metadata.config_schema
 
         api_key_config = next(c for c in config_schema if c["key"] == "api_key")
         assert api_key_config["required"]
@@ -300,7 +595,7 @@ class TestBuiltinEvaluatorConfig:
 
         evaluator = AnswerLengthEvaluator(min_length=10, max_length=50)
 
-        # Create test observation
+        # Create test trace
         trajectory = Trace(
             trace_id="test-1",
             input="Test",
@@ -310,10 +605,10 @@ class TestBuiltinEvaluatorConfig:
                 total_duration_ms=100.0,
                 token_usage=TokenUsage(input_tokens=10, output_tokens=5, total_tokens=15),
             ),
-            steps=[],
+            spans=[],
         )
 
-        result = evaluator.evaluate(trajectory)[0]
+        result = evaluator.evaluate(trajectory)
         assert result.passed
         assert result.score == 1.0
 
@@ -322,13 +617,13 @@ class TestBuiltinEvaluatorConfig:
         from amp_evaluation.evaluators.builtin.standard import AnswerLengthEvaluator
 
         evaluator = AnswerLengthEvaluator()
-        metadata = evaluator.get_metadata()
+        metadata = evaluator.info
 
-        assert metadata["name"] == "answer_length"
-        assert "config_schema" in metadata
+        assert metadata.name == "answer_length"
+        assert metadata.config_schema is not None
 
-        config_schema = metadata["config_schema"]
-        assert len(config_schema) == 3  # min_length, max_length + inherited level
+        config_schema = metadata.config_schema
+        assert len(config_schema) == 2  # min_length, max_length (no inherited level)
 
         # Check min_length config
         min_config = next(c for c in config_schema if c["key"] == "min_length")
@@ -355,12 +650,12 @@ class TestMultipleConfigs:
         """Test evaluator with multiple Config descriptors."""
 
         class ComplexEvaluator(BaseEvaluator):
-            threshold = Param(float, default=0.7, min=0.0, max=1.0, description="Score threshold")
-            model = Param(str, default="gpt-4o-mini", description="LLM model")
-            max_retries = Param(int, default=3, min=1, max=10, description="Max retries")
-            strict_mode = Param(bool, default=False, description="Enable strict mode")
+            threshold: float = Param(default=0.7, min=0.0, max=1.0, description="Score threshold")
+            model: str = Param(default="gpt-4o-mini", description="LLM model")
+            max_retries: int = Param(default=3, min=1, max=10, description="Max retries")
+            strict_mode: bool = Param(default=False, description="Enable strict mode")
 
-            def _trace_evaluation(self, trace, task=None):
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=self.threshold)
 
         # Test defaults
@@ -392,38 +687,18 @@ class TestMultipleConfigs:
 class TestConfigEnforcement:
     """Test that built-in evaluators are enforced to use Config descriptors."""
 
-    def test_builtin_evaluator_without_config_fails(self):
-        """Test that built-in evaluators with __init__ params but no Config descriptors fail."""
-
-        # Create a mock built-in evaluator (simulate it being in the builtin package)
-        class BadBuiltinEvaluator(BaseEvaluator):
-            """Simulates a built-in evaluator that doesn't use Config."""
-
-            def __init__(self, threshold: float = 0.7):
-                # This should fail validation because threshold is not a Config descriptor
-                super().__init__()
-
-            def _trace_evaluation(self, trace, task=None):
-                return EvalResult(score=1.0)
-
-        # Manually set the module to simulate a built-in evaluator
-        BadBuiltinEvaluator.__module__ = "amp_evaluation.evaluators.builtin.test"
-
-        with pytest.raises(ValueError, match="has __init__ parameters.*that are not defined as Param descriptors"):
-            BadBuiltinEvaluator(threshold=0.8)
-
     def test_builtin_evaluator_with_config_passes(self):
         """Test that built-in evaluators with Config descriptors pass validation."""
 
         class GoodBuiltinEvaluator(BaseEvaluator):
             """Simulates a properly configured built-in evaluator."""
 
-            threshold = Param(float, default=0.7, description="Threshold")
+            threshold: float = Param(default=0.7, description="Threshold")
 
             def __init__(self, **kwargs):
                 super().__init__(**kwargs)
 
-            def _trace_evaluation(self, trace, task=None):
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=1.0)
 
         # Manually set the module to simulate a built-in evaluator
@@ -443,7 +718,7 @@ class TestConfigEnforcement:
                 super().__init__(**kwargs)
                 self.threshold = threshold
 
-            def _trace_evaluation(self, trace, task=None):
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=self.threshold)
 
         # User evaluators (not in builtin package) should not be validated
@@ -461,89 +736,27 @@ class TestConfigEnforcement:
         assert evaluator.max_length == 500
 
         # Should have Config descriptors
-        assert isinstance(AnswerLengthEvaluator.min_length, Param)
-        assert isinstance(AnswerLengthEvaluator.max_length, Param)
+        assert isinstance(AnswerLengthEvaluator.min_length, _ParamDescriptor)
+        assert isinstance(AnswerLengthEvaluator.max_length, _ParamDescriptor)
 
 
 # ============================================================================
-# TEST SENTINEL VALUE FOR NONE DEFAULTS
+# TEST PARAM SCHEMA WITH DEFAULTS
 # ============================================================================
 
 
-class TestConfigNoneDefaults:
-    """Test Config descriptor handling of None and falsy defaults."""
-
-    def test_default_none_is_not_required(self):
-        """Test that default=None makes field not required."""
-
-        class TestEvaluator(BaseEvaluator):
-            optional_field = Param(str, default=None, description="Optional with None default")
-
-            def _trace_evaluation(self, trace, task=None):
-                return EvalResult.skip("")
-
-        evaluator = TestEvaluator()
-        assert evaluator.optional_field is None
-        assert not TestEvaluator.optional_field.required
-
-    def test_no_default_is_required(self):
-        """Test that no default makes field required."""
-
-        class TestEvaluator(BaseEvaluator):
-            required_field = Param(str, description="Required field")
-
-            def _trace_evaluation(self, trace, task=None):
-                return EvalResult.skip("")
-
-        assert TestEvaluator.required_field.required
-
-    def test_empty_string_default_is_not_required(self):
-        """Test that default='' (empty string) makes field not required."""
-
-        class TestEvaluator(BaseEvaluator):
-            optional_str = Param(str, default="", description="Optional with empty string")
-
-            def _trace_evaluation(self, trace, task=None):
-                return EvalResult.skip("")
-
-        evaluator = TestEvaluator()
-        assert evaluator.optional_str == ""
-        assert not TestEvaluator.optional_str.required
-
-    def test_zero_default_is_not_required(self):
-        """Test that default=0 makes field not required."""
-
-        class TestEvaluator(BaseEvaluator):
-            count = Param(int, default=0, description="Count with 0 default")
-
-            def _trace_evaluation(self, trace, task=None):
-                return EvalResult.skip("")
-
-        evaluator = TestEvaluator()
-        assert evaluator.count == 0
-        assert not TestEvaluator.count.required
-
-    def test_false_default_is_not_required(self):
-        """Test that default=False makes field not required."""
-
-        class TestEvaluator(BaseEvaluator):
-            enabled = Param(bool, default=False, description="Enabled with False default")
-
-            def _trace_evaluation(self, trace, task=None):
-                return EvalResult.skip("")
-
-        evaluator = TestEvaluator()
-        assert evaluator.enabled is False
-        assert not TestEvaluator.enabled.required
+class TestParamSchemaDefaults:
+    """Test schema generation for default/required fields."""
 
     def test_schema_includes_none_default(self):
         """Test that schema generation includes default=None."""
+        from typing import Optional
 
         class TestEvaluator(BaseEvaluator):
-            optional_field = Param(str, default=None, description="Optional with None default")
+            optional_field: Optional[str] = Param(default=None, description="Optional with None default")
 
-            def _trace_evaluation(self, trace, task=None):
-                return EvalResult.skip("")
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
 
         schema = TestEvaluator.optional_field.to_schema()
         assert "default" in schema
@@ -554,24 +767,11 @@ class TestConfigNoneDefaults:
         """Test that schema generation excludes default when not provided."""
 
         class TestEvaluator(BaseEvaluator):
-            required_field = Param(str, description="Required field")
+            required_field: str = Param(description="Required field")
 
-            def _trace_evaluation(self, trace, task=None):
-                return EvalResult.skip("")
+            def evaluate(self, trace: Trace, task=None) -> EvalResult:
+                return EvalResult(score=1.0)
 
         schema = TestEvaluator.required_field.to_schema()
         assert "default" not in schema
         assert schema["required"]
-
-    def test_explicit_required_overrides_default(self):
-        """Test that explicit required=True works even with a default."""
-
-        class TestEvaluator(BaseEvaluator):
-            field = Param(str, default="value", required=True, description="Required despite default")
-
-            def _trace_evaluation(self, trace, task=None):
-                return EvalResult.skip("")
-
-        assert TestEvaluator.field.required
-        evaluator = TestEvaluator()
-        assert evaluator.field == "value"

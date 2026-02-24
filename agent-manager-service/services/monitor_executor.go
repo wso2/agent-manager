@@ -26,8 +26,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 )
 
 // MonitorExecutor handles workflow execution for monitors
@@ -56,18 +56,21 @@ type ExecuteMonitorRunResult struct {
 }
 
 type monitorExecutor struct {
-	ocClient client.OpenChoreoClient
-	logger   *slog.Logger
+	ocClient    client.OpenChoreoClient
+	logger      *slog.Logger
+	monitorRepo repositories.MonitorRepository
 }
 
 // NewMonitorExecutor creates a new monitor executor instance
 func NewMonitorExecutor(
 	ocClient client.OpenChoreoClient,
 	logger *slog.Logger,
+	monitorRepo repositories.MonitorRepository,
 ) MonitorExecutor {
 	return &monitorExecutor{
-		ocClient: ocClient,
-		logger:   logger,
+		ocClient:    ocClient,
+		logger:      logger,
+		monitorRepo: monitorRepo,
 	}
 }
 
@@ -111,6 +114,7 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 	}
 
 	// Create monitor_runs entry
+	now := time.Now()
 	run := &models.MonitorRun{
 		ID:         runID,
 		MonitorID:  params.Monitor.ID,
@@ -118,10 +122,11 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		Evaluators: evaluators,
 		TraceStart: params.StartTime,
 		TraceEnd:   params.EndTime,
+		StartedAt:  &now,
 		Status:     models.RunStatusPending,
 	}
 
-	if err := db.DB(ctx).Create(run).Error; err != nil {
+	if err := e.monitorRepo.CreateMonitorRun(run); err != nil {
 		e.logger.Error("Failed to create monitor_runs entry", "error", err, "workflowRunName", workflowRunName)
 		// Best-effort cleanup of orphaned WorkflowRun CR
 		deleteCR := map[string]interface{}{
@@ -151,9 +156,7 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 
 // UpdateNextRunTime updates the next_run_time for a future monitor
 func (e *monitorExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.UUID, nextRunTime time.Time) error {
-	if err := db.DB(ctx).Model(&models.Monitor{}).
-		Where("id = ?", monitorID).
-		Update("next_run_time", nextRunTime).Error; err != nil {
+	if err := e.monitorRepo.UpdateNextRunTime(monitorID, &nextRunTime); err != nil {
 		return fmt.Errorf("failed to update next_run_time: %w", err)
 	}
 
@@ -220,8 +223,6 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 }
 
 // serializeEvaluators converts evaluators to a JSON string for the evaluation job workflow parameter.
-// It merges the top-level Level field into each evaluator's Config map because the amp-evaluation
-// SDK expects "level" as a regular config kwarg (it's a Param on BaseEvaluator).
 func serializeEvaluators(evaluators []models.MonitorEvaluator) (string, error) {
 	type evalJobEvaluator struct {
 		Identifier  string                 `json:"identifier"`
@@ -231,16 +232,10 @@ func serializeEvaluators(evaluators []models.MonitorEvaluator) (string, error) {
 
 	jobEvaluators := make([]evalJobEvaluator, len(evaluators))
 	for i, eval := range evaluators {
-		config := make(map[string]interface{}, len(eval.Config)+1)
-		for k, v := range eval.Config {
-			config[k] = v
-		}
-		config["level"] = eval.Level
-
 		jobEvaluators[i] = evalJobEvaluator{
 			Identifier:  eval.Identifier,
 			DisplayName: eval.DisplayName,
-			Config:      config,
+			Config:      eval.Config,
 		}
 	}
 

@@ -30,7 +30,7 @@ TEST_DB_NAME="${DB_NAME}"
 # Set up log file early so ALL output (including migration failures) is captured
 mkdir -p localdata
 LOG_FILE="$PROJECT_ROOT/localdata/test_output_isolated.log"
-> "$LOG_FILE"
+: > "$LOG_FILE"
 
 # Tee all subsequent stdout/stderr to the log file while still showing on terminal
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -75,11 +75,6 @@ echo ""
 # Step 2: Generate RSA keys if needed
 echo "Step 2: Checking RSA keys"
 bash scripts/gen_keys.sh
-echo ""
-
-# Step 2.5: Generate builtin evaluators
-echo "Step 2.5: Generating builtin evaluators"
-bash scripts/generate-builtin-evaluators.sh --dev --output data/builtin_evaluators.json
 echo ""
 
 # Step 3: Run migrations

@@ -15,473 +15,349 @@
 # under the License.
 
 """
-Tests for registry coverage - aiming for 90%+.
+Tests for the evaluator decorator, FunctionEvaluator config, discovery,
+built-in evaluator factory/catalog, and mode auto-detection.
 """
 
 import pytest
-from amp_evaluation.registry import get_registry
+import types
+import sys
+from pathlib import Path
+from typing import Optional
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+from amp_evaluation.registry import evaluator, discover_evaluators
 from amp_evaluation.evaluators.base import BaseEvaluator
-from amp_evaluation.models import EvalResult
+from amp_evaluation.evaluators.params import EvaluationLevel, Param, EvalMode
+from amp_evaluation.models import EvalResult, EvaluatorInfo
+from amp_evaluation.trace import Trace
+from amp_evaluation.trace.models import AgentTrace, LLMSpan
+from amp_evaluation.dataset import Task
+from amp_evaluation.evaluators.builtin import builtin, list_builtin_evaluators, builtin_evaluator_catalog
 
 
-@pytest.fixture
-def clean_registry():
-    """Clean registry for each test."""
-    registry = get_registry()
-    original = registry._evaluators.copy()
-    registry._evaluators.clear()
-    yield registry
-    registry._evaluators.clear()
-    registry._evaluators.update(original)
+# =============================================================================
+# 1. TestEvaluatorDecoratorCoverage
+# =============================================================================
 
 
-class TestRegistryOverwrite:
-    """Test registry overwrite warning."""
+class TestEvaluatorDecoratorCoverage:
+    """Tests for the @evaluator decorator behaviour."""
 
-    def test_overwrite_warning(self, clean_registry, caplog):
-        """Test that overwriting an evaluator logs a warning."""
-        registry = clean_registry
+    def test_decorator_returns_base_evaluator_instance(self):
+        """The @evaluator decorator must return a BaseEvaluator instance."""
 
-        class TestEval(BaseEvaluator):
-            name = "my-eval"
+        @evaluator("dec-instance-check")
+        def my_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
 
-            def _trace_evaluation(self, trace, task=None):
-                return EvalResult(score=1.0)
+        assert isinstance(my_eval, BaseEvaluator)
 
-        # Register first time
-        registry.register_evaluator(TestEval())
+    def test_decorator_auto_detects_trace_level(self):
+        """Level should be TRACE when the first param is typed as Trace."""
 
-        # Register again - should warn
-        import logging
+        @evaluator("trace-level-check")
+        def my_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
 
-        with caplog.at_level(logging.WARNING):
-            registry.register_evaluator(TestEval())
+        assert my_eval.level == EvaluationLevel.TRACE
 
-        assert "Overwriting existing evaluator 'my-eval'" in caplog.text
+    def test_decorator_auto_detects_agent_level(self):
+        """Level should be AGENT when the first param is typed as AgentTrace."""
 
+        @evaluator("agent-level-check")
+        def my_eval(agent_trace: AgentTrace) -> EvalResult:
+            return EvalResult(score=1.0)
 
-class TestRegistryBuiltin:
-    """Test built-in evaluator registration."""
+        assert my_eval.level == EvaluationLevel.AGENT
 
-    def test_register_builtin_success(self, clean_registry):
-        """Test registering a valid built-in evaluator."""
-        registry = clean_registry
+    def test_decorator_auto_detects_llm_level(self):
+        """Level should be LLM when the first param is typed as LLMSpan."""
 
-        # Register a DeepEval evaluator
-        registry.register_builtin("deepeval/plan-quality")
+        @evaluator("llm-level-check")
+        def my_eval(llm_span: LLMSpan) -> EvalResult:
+            return EvalResult(score=1.0)
 
-        # Should be in list
-        assert "deepeval/plan-quality" in registry.list_evaluators()
+        assert my_eval.level == EvaluationLevel.LLM
 
-    def test_register_builtin_invalid_name(self, clean_registry):
-        """Test registering invalid built-in raises ValueError."""
-        registry = clean_registry
+    def test_decorator_missing_type_hint_raises(self):
+        """A TypeError must be raised when the first param has no type hint."""
 
-        with pytest.raises(ValueError, match="is not a built-in evaluator"):
-            registry.register_builtin("nonexistent-builtin")
+        @evaluator("no-hint")
+        def my_eval(trace) -> EvalResult:
+            return EvalResult(score=1.0)
 
-    def test_get_unregistered_builtin_raises_error(self, clean_registry):
-        """Test that unregistered builtins raise an error."""
-        registry = clean_registry
+        with pytest.raises(TypeError, match="must have a type hint"):
+            _ = my_eval.level
 
-        # Don't register, just try to get - should fail
-        with pytest.raises(ValueError, match="not found"):
-            registry.get("deepeval/plan-quality")
+    def test_decorator_unsupported_type_hint_raises(self):
+        """A TypeError must be raised for an unsupported first-param type."""
 
-        # Should NOT be in list_evaluators (not registered)
-        assert "deepeval/plan-quality" not in registry.list_evaluators()
+        @evaluator("bad-hint")
+        def my_eval(data: str) -> EvalResult:
+            return EvalResult(score=1.0)
 
+        with pytest.raises(TypeError, match="unsupported type"):
+            _ = my_eval.level
 
-class TestRegistryMetadata:
-    """Test metadata retrieval for classes vs instances."""
+    def test_decorator_with_metadata(self):
+        """All metadata fields (description, tags, version) should be set."""
 
-    def test_get_metadata_for_class_registration(self, clean_registry):
-        """Test getting metadata when registered as class (converted to instance)."""
-        registry = clean_registry
-
-        class MyEval(BaseEvaluator):
-            name = "class-eval"
-            description = "A class evaluator"
-            tags = ["test"]
-
-            def _trace_evaluation(self, trace, task=None):
-                return EvalResult(score=1.0)
-
-        # Register as instance (registry only accepts instances)
-        registry.register_evaluator(MyEval())
-
-        metadata = registry.get_metadata("class-eval")
-
-        assert metadata["name"] == "class-eval"
-        assert metadata["description"] == "A class evaluator"
-        assert "test" in metadata["tags"]
-
-    def test_get_metadata_for_instance_registration(self, clean_registry):
-        """Test getting metadata when registered as instance."""
-        registry = clean_registry
-
-        class MyEval(BaseEvaluator):
-            name = "instance-eval"
-            description = "An instance evaluator"
-
-            def _trace_evaluation(self, trace, task=None):
-                return EvalResult(score=1.0)
-
-        # Register as INSTANCE
-        instance = MyEval()
-        registry.register_evaluator(instance)
-
-        metadata = registry.get_metadata("instance-eval")
-
-        assert metadata["name"] == "instance-eval"
-        assert metadata["description"] == "An instance evaluator"
-
-    def test_get_metadata_nonexistent_raises_error(self, clean_registry):
-        """Test get_metadata for nonexistent evaluator raises error."""
-        registry = clean_registry
-
-        with pytest.raises(ValueError, match="Evaluator 'does-not-exist' not found"):
-            registry.get_metadata("does-not-exist")
-
-
-class TestRegistryFiltering:
-    """Test list_by_tag and list_by_type."""
-
-    def test_list_by_tag(self, clean_registry):
-        """Test filtering evaluators by tag."""
-        registry = clean_registry
-
-        class Eval1(BaseEvaluator):
-            name = "eval1"
-            tags = ["quality", "test"]
-
-            def _trace_evaluation(self, trace, task=None):
-                return EvalResult(score=1.0)
-
-        class Eval2(BaseEvaluator):
-            name = "eval2"
-            tags = ["performance"]
-
-            def _trace_evaluation(self, trace, task=None):
-                return EvalResult(score=1.0)
-
-        registry.register_evaluator(Eval1())
-        registry.register_evaluator(Eval2())
-
-        quality_evals = registry.list_by_tag("quality")
-
-        assert "eval1" in quality_evals
-        assert "eval2" not in quality_evals
-
-    def test_list_by_tag_no_matches(self, clean_registry):
-        """Test list_by_tag with no matches returns empty."""
-        registry = clean_registry
-
-        class Eval1(BaseEvaluator):
-            name = "eval1"
-            tags = ["other"]
-
-            def _trace_evaluation(self, trace, task=None):
-                return EvalResult(score=1.0)
-
-        registry.register_evaluator(Eval1())
-
-        result = registry.list_by_tag("nonexistent")
-        assert result == []
-
-
-class TestRegistryDecorator:
-    """Test the register() decorator."""
-
-    def test_register_decorator_on_class(self, clean_registry):
-        """Test using @register decorator on a class."""
-        registry = clean_registry
-
-        @registry.register(name="decorated", tags=["test"])
-        class DecoratedEval(BaseEvaluator):
-            def _trace_evaluation(self, trace, task=None):
-                return EvalResult(score=1.0)
-
-        # Should be retrievable
-        retrieved = registry.get("decorated")
-        # The instance name comes from class name by default
-        assert retrieved.name in ["decorated", "DecoratedEval"]
-
-        # Check metadata
-        metadata = registry.get_metadata("decorated")
-        # Name in metadata should match registration
-        assert "name" in metadata
-        assert "test" in metadata.get("tags", [])
-
-    def test_register_decorator_on_function_with_metadata(self, clean_registry):
-        """Test using @register decorator on a function with metadata."""
-        registry = clean_registry
-
-        @registry.register(
-            name="func-eval",
-            description="A function evaluator",
-            tags=["custom", "test"],
+        @evaluator(
+            "meta-eval",
+            description="A meta evaluator",
+            tags=["quality", "test"],
             version="2.0",
         )
-        def my_evaluator(trajectory, task=None):
-            return EvalResult(score=0.9)
+        def my_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
 
-        # Should be registered
-        assert "func-eval" in registry.list_evaluators()
+        assert my_eval.name == "meta-eval"
+        assert my_eval.description == "A meta evaluator"
+        assert my_eval.tags == ["quality", "test"]
+        assert my_eval.version == "2.0"
 
-        # Check metadata
-        metadata = registry.get_metadata("func-eval")
-        assert metadata["description"] == "A function evaluator"
-        assert "custom" in metadata["tags"]
-        assert metadata["version"] == "2.0"
 
-    def test_register_decorator_on_invalid_class(self, clean_registry):
-        """Test that decorator raises error for non-BaseEvaluator class."""
-        registry = clean_registry
+# =============================================================================
+# 2. TestFunctionEvaluatorConfig
+# =============================================================================
 
-        with pytest.raises(TypeError) as exc_info:
 
-            @registry.register(name="invalid")
-            class NotAnEvaluator:
-                pass
+class TestFunctionEvaluatorConfig:
+    """Tests for FunctionEvaluator config (with_config, Param defaults, schema)."""
 
-        assert "must inherit from BaseEvaluator" in str(exc_info.value)
+    def test_with_config_creates_copy(self):
+        """with_config() should return a new instance without mutating the original."""
 
-    def test_register_decorator_with_metadata_overrides(self, clean_registry):
-        """Test that decorator can override instance metadata."""
-        registry = clean_registry
+        @evaluator("cfg-copy")
+        def my_eval(
+            trace: Trace,
+            threshold: float = Param(default=0.7, description="Threshold", min=0, max=1),
+        ) -> EvalResult:
+            return EvalResult(score=1.0)
 
-        @registry.register(
-            name="override-test",
-            description="Overridden description",
-            tags=["override"],
-            version="3.0",
-            aggregations=["mean", "max"],
-        )
-        class OriginalEval(BaseEvaluator):
-            description = "Original"
-            tags = ["original"]
-            version = "1.0"
+        copy = my_eval.with_config(threshold=0.9)
 
-            def _trace_evaluation(self, trace, task=None):
+        # Must be a new instance
+        assert copy is not my_eval
+
+        # Original unchanged
+        assert my_eval._config["threshold"] == 0.7
+
+        # Copy has new value
+        assert copy._config["threshold"] == 0.9
+
+    def test_with_config_invalid_key_raises(self):
+        """with_config() should raise TypeError for an unknown config key."""
+
+        @evaluator("cfg-bad-key")
+        def my_eval(
+            trace: Trace,
+            threshold: float = Param(default=0.7, description="Threshold"),
+        ) -> EvalResult:
+            return EvalResult(score=1.0)
+
+        with pytest.raises(TypeError, match="Unknown config parameter"):
+            my_eval.with_config(nonexistent_key=42)
+
+    def test_function_param_default_values(self):
+        """Param defaults should be correctly stored in _config."""
+
+        @evaluator("cfg-defaults")
+        def my_eval(
+            trace: Trace,
+            threshold: float = Param(default=0.5, description="Score threshold"),
+            max_length: int = Param(default=1000, description="Max length"),
+        ) -> EvalResult:
+            return EvalResult(score=1.0)
+
+        assert my_eval._config["threshold"] == 0.5
+        assert my_eval._config["max_length"] == 1000
+
+    def test_function_param_schema_extraction(self):
+        """info.config_schema should contain entries for each Param."""
+
+        @evaluator("cfg-schema")
+        def my_eval(
+            trace: Trace,
+            threshold: float = Param(default=0.7, description="Threshold", min=0, max=1),
+            model: str = Param(default="gpt-4", description="Model name"),
+        ) -> EvalResult:
+            return EvalResult(score=1.0)
+
+        schema = my_eval.info.config_schema
+        keys = [entry["key"] for entry in schema]
+
+        assert "threshold" in keys
+        assert "model" in keys
+
+        # Verify threshold entry details
+        threshold_entry = next(e for e in schema if e["key"] == "threshold")
+        assert threshold_entry["description"] == "Threshold"
+        assert threshold_entry["min"] == 0
+        assert threshold_entry["max"] == 1
+        assert threshold_entry["default"] == 0.7
+
+
+# =============================================================================
+# 3. TestDiscoverEvaluatorsCoverage
+# =============================================================================
+
+
+class TestDiscoverEvaluatorsCoverage:
+    """Tests for discover_evaluators() scanning a module."""
+
+    def test_discover_finds_function_evaluators(self):
+        """discover_evaluators should find @evaluator-decorated functions."""
+        mod = types.ModuleType("fake_mod_func")
+
+        @evaluator("disc-func")
+        def disc_eval(trace: Trace) -> EvalResult:
+            return EvalResult(score=1.0)
+
+        mod.disc_eval = disc_eval
+        sys.modules["fake_mod_func"] = mod
+
+        try:
+            found = discover_evaluators(mod)
+            names = [e.name for e in found]
+            assert "disc-func" in names
+        finally:
+            del sys.modules["fake_mod_func"]
+
+    def test_discover_finds_class_evaluators(self):
+        """discover_evaluators should find BaseEvaluator *instances*."""
+        mod = types.ModuleType("fake_mod_cls")
+
+        class MyClassEval(BaseEvaluator):
+            name = "disc-class"
+
+            def evaluate(self, trace: Trace) -> EvalResult:
                 return EvalResult(score=1.0)
 
-        # Get the registered instance and verify metadata was overridden
-        instance = registry.get("override-test")
-        assert instance.description == "Overridden description"
-        assert instance.tags == ["override"]
-        assert instance.version == "3.0"
-        assert instance.aggregations == ["mean", "max"]
+        instance = MyClassEval()
+        mod.my_instance = instance
+        sys.modules["fake_mod_cls"] = mod
 
-    def test_register_decorator_on_function_with_aggregations(self, clean_registry):
-        """Test decorator on function with aggregations."""
-        registry = clean_registry
+        try:
+            found = discover_evaluators(mod)
+            names = [e.name for e in found]
+            assert "disc-class" in names
+        finally:
+            del sys.modules["fake_mod_cls"]
 
-        @registry.register(name="func-agg", aggregations=["mean", "p95"])
-        def custom_eval(trajectory, task=None):
-            return {"score": 0.8}
+    def test_discover_ignores_classes_not_instances(self):
+        """discover_evaluators should NOT pick up classes, only instances."""
+        mod = types.ModuleType("fake_mod_no_inst")
 
-        retrieved = registry.get("func-agg")
-        assert retrieved.aggregations == ["mean", "p95"]
+        class UninstantiatedEval(BaseEvaluator):
+            name = "should-not-find"
 
-
-class TestRegistryErrorCases:
-    """Test error handling in registry."""
-
-    def test_get_nonexistent_evaluator(self, clean_registry):
-        """Test error when getting non-existent evaluator."""
-        registry = clean_registry
-
-        with pytest.raises(ValueError) as exc_info:
-            registry.get("does-not-exist")
-
-        assert "not found" in str(exc_info.value)
-        assert "Registered evaluators" in str(exc_info.value)
-
-    def test_register_builtin_import_error(self, clean_registry):
-        """Test ValueError when builtin evaluator is not found."""
-        registry = clean_registry
-
-        # Mock to simulate evaluator not being discovered
-        from unittest.mock import patch
-
-        with pytest.raises(ValueError) as exc_info:
-            with patch("amp_evaluation.evaluators.builtin.discover_evaluator", return_value=None):
-                registry.register_builtin("deepeval/plan-quality")
-
-        assert "is not a built-in evaluator" in str(exc_info.value)
-
-
-class TestValidationErrors:
-    """Test validation error cases."""
-
-    def test_validate_function_no_parameters(self, clean_registry):
-        """Test error when function has no parameters."""
-        registry = clean_registry
-
-        with pytest.raises(TypeError) as exc_info:
-
-            @registry.register(name="no-params")
-            def bad_func():
+            def evaluate(self, trace: Trace) -> EvalResult:
                 return EvalResult(score=1.0)
 
-        assert "must accept at least one parameter" in str(exc_info.value)
+        # Attach the class itself, not an instance
+        mod.UninstantiatedEval = UninstantiatedEval
+        sys.modules["fake_mod_no_inst"] = mod
 
-    def test_validate_function_too_many_parameters(self, clean_registry):
-        """Test error when function has too many parameters."""
-        registry = clean_registry
-
-        with pytest.raises(TypeError) as exc_info:
-
-            @registry.register(name="too-many")
-            def bad_func(observation, task, extra, another):
-                return EvalResult(score=1.0)
-
-        assert "accepts 4 parameters" in str(exc_info.value)
-        assert "should accept 1-2" in str(exc_info.value)
-
-    def test_normalize_result_dict_without_score(self, clean_registry):
-        """Test error when function returns dict without score."""
-        registry = clean_registry
-
-        @registry.register(name="bad-dict")
-        def bad_func(observation, task=None):
-            return {"explanation": "missing score"}
-
-        evaluator = registry.get("bad-dict")
-
-        # Create trace
-        from amp_evaluation.trace import Trace, TraceMetrics, TokenUsage
-
-        trace = Trace(
-            trace_id="test",
-            input="test",
-            output="test",
-            metrics=TraceMetrics(
-                total_duration_ms=100.0,
-                token_usage=TokenUsage(input_tokens=10, output_tokens=10, total_tokens=20),
-            ),
-            steps=[],
-        )
-
-        with pytest.raises(ValueError) as exc_info:
-            evaluator.evaluate(trace)
-
-        assert "without 'score' field" in str(exc_info.value)
-
-    def test_normalize_result_invalid_type(self, clean_registry):
-        """Test error when function returns invalid type."""
-        registry = clean_registry
-
-        @registry.register(name="bad-type")
-        def bad_func(observation, task=None):
-            return "not a valid result"
-
-        evaluator = registry.get("bad-type")
-
-        # Create trace
-        from amp_evaluation.trace import Trace, TraceMetrics, TokenUsage
-
-        trace = Trace(
-            trace_id="test",
-            input="test",
-            output="test",
-            metrics=TraceMetrics(
-                total_duration_ms=100.0,
-                token_usage=TokenUsage(input_tokens=10, output_tokens=10, total_tokens=20),
-            ),
-            steps=[],
-        )
-
-        with pytest.raises(TypeError) as exc_info:
-            evaluator.evaluate(trace)
-
-        assert "returned invalid type" in str(exc_info.value)
-        assert "str" in str(exc_info.value)
+        try:
+            found = discover_evaluators(mod)
+            names = [e.name for e in found]
+            assert "should-not-find" not in names
+        finally:
+            del sys.modules["fake_mod_no_inst"]
 
 
-class TestGlobalAPIFunctions:
-    """Test global-level API functions."""
+# =============================================================================
+# 4. TestBuiltinEvaluators
+# =============================================================================
 
-    def test_global_evaluator_decorator(self):
-        """Test global evaluator() decorator."""
-        from amp_evaluation import evaluator
 
-        @evaluator(name="global-test", tags=["global"])
-        def custom_eval(trajectory, task=None):
-            return EvalResult(score=0.95)
+class TestBuiltinEvaluators:
+    """Tests for the built-in evaluator factory, listing, and catalog."""
 
-        # Should be in global registry
-        from amp_evaluation import get_evaluator
+    def test_builtin_factory_creates_evaluator(self):
+        """builtin('latency') should return a BaseEvaluator instance."""
+        ev = builtin("latency")
+        assert isinstance(ev, BaseEvaluator)
+        assert ev.name == "latency"
 
-        retrieved = get_evaluator("global-test")
-        assert retrieved.name == "global-test"
+    def test_builtin_with_config(self):
+        """builtin('latency', max_latency_ms=5000) should apply config."""
+        ev = builtin("latency", max_latency_ms=5000)
+        assert isinstance(ev, BaseEvaluator)
+        assert ev.max_latency_ms == 5000
 
-    def test_global_list_evaluators(self):
-        """Test global list_evaluators() function."""
-        from amp_evaluation import list_evaluators, evaluator
+    def test_builtin_unknown_raises_value_error(self):
+        """builtin() should raise ValueError for an unknown evaluator name."""
+        with pytest.raises(ValueError, match="Unknown built-in evaluator"):
+            builtin("this-evaluator-does-not-exist-xyz")
 
-        initial_count = len(list_evaluators())
+    def test_list_builtin_returns_strings(self):
+        """list_builtin_evaluators() should return a list of strings."""
+        names = list_builtin_evaluators()
+        assert isinstance(names, list)
+        assert len(names) > 0
+        assert all(isinstance(n, str) for n in names)
 
-        @evaluator(name="list-test")
-        def custom_eval(trajectory, task=None):
+    def test_builtin_catalog_returns_evaluator_info(self):
+        """builtin_evaluator_catalog() should return a list of EvaluatorInfo."""
+        catalog = builtin_evaluator_catalog()
+        assert isinstance(catalog, list)
+        assert len(catalog) > 0
+        assert all(isinstance(info, EvaluatorInfo) for info in catalog)
+
+    def test_builtin_catalog_filter_by_mode(self):
+        """Passing mode= should filter the catalog to matching evaluators."""
+        all_catalog = builtin_evaluator_catalog()
+        monitor_catalog = builtin_evaluator_catalog(mode="monitor")
+
+        # Monitor-filtered should be a (non-strict) subset
+        assert len(monitor_catalog) <= len(all_catalog)
+
+        # Every returned entry must support "monitor"
+        for info in monitor_catalog:
+            assert "monitor" in info.modes
+
+
+# =============================================================================
+# 5. TestModeAutoDetection
+# =============================================================================
+
+
+class TestModeAutoDetection:
+    """Tests for automatic eval-mode detection from function signatures."""
+
+    def test_no_task_param_both_modes(self):
+        """An evaluator without a task param should support both modes."""
+
+        @evaluator("both-no-task")
+        def my_eval(trace: Trace) -> EvalResult:
             return EvalResult(score=1.0)
 
-        # Should appear in list
-        evaluators = list_evaluators()
-        assert len(evaluators) > initial_count
-        assert "list-test" in evaluators
+        modes = my_eval.info.modes
+        assert EvalMode.EXPERIMENT.value in modes
+        assert EvalMode.MONITOR.value in modes
 
-    def test_global_get_evaluator_metadata(self):
-        """Test global get_evaluator_metadata() function."""
-        from amp_evaluation import get_evaluator_metadata, evaluator
+    def test_required_task_experiment_only(self):
+        """An evaluator with a required task param should be experiment-only."""
 
-        @evaluator(name="meta-test", description="Test metadata", version="5.0")
-        def custom_eval(trajectory, task=None):
+        @evaluator("exp-only")
+        def my_eval(trace: Trace, task: Task) -> EvalResult:
             return EvalResult(score=1.0)
 
-        metadata = get_evaluator_metadata("meta-test")
-        assert metadata["description"] == "Test metadata"
-        assert metadata["version"] == "5.0"
+        modes = my_eval.info.modes
+        assert EvalMode.EXPERIMENT.value in modes
+        assert EvalMode.MONITOR.value not in modes
 
-    def test_global_list_by_tag(self):
-        """Test global list_by_tag() function."""
-        from amp_evaluation import list_by_tag, evaluator
+    def test_optional_task_both_modes(self):
+        """An evaluator with an optional task param should support both modes."""
 
-        @evaluator(name="tag-test-1", tags=["global-tag"])
-        def eval1(observation, task=None):
+        @evaluator("both-opt-task")
+        def my_eval(trace: Trace, task: Optional[Task] = None) -> EvalResult:
             return EvalResult(score=1.0)
 
-        @evaluator(name="tag-test-2", tags=["global-tag"])
-        def eval2(observation, task=None):
-            return EvalResult(score=1.0)
-
-        tagged = list_by_tag("global-tag")
-        assert "tag-test-1" in tagged
-        assert "tag-test-2" in tagged
-
-    def test_global_register_builtin(self):
-        """Test global register_builtin() function."""
-        from amp_evaluation import register_builtin, list_evaluators
-
-        initial = list_evaluators()
-
-        # Register a builtin that hasn't been loaded yet
-        # Use a standard evaluator that might not be in the registry yet
-        register_builtin("answer_length")
-
-        # Should now appear in list (or already be there from auto-discovery)
-        current = list_evaluators()
-        assert "answer_length" in current
-        # The list should not shrink
-        assert len(current) >= len(initial)
-
-    def test_global_list_builtin_evaluators(self):
-        """Test global list_builtin_evaluators() function."""
-        from amp_evaluation import list_builtin_evaluators
-
-        builtins = list_builtin_evaluators()
-        assert isinstance(builtins, list)
-        assert len(builtins) > 0
-        # Should have deepeval evaluators
-        assert any("deepeval" in name for name in builtins)
+        modes = my_eval.info.modes
+        assert EvalMode.EXPERIMENT.value in modes
+        assert EvalMode.MONITOR.value in modes

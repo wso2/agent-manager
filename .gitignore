@@ -69,9 +69,11 @@ charts/
 deployments/values/api-platform-operator-local-config.yaml
 
 mocks/
-libs/amp-evaluation/examples/
+libs/amp-evaluation/samples-old/
 temp/
+evaluation-job/tmp/
 
 .*_cache/
+__pycache__/
 .deepeval/
 .claude/

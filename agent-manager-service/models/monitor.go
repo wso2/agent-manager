@@ -51,7 +51,6 @@ type MonitorEvaluator struct {
 	Identifier  string                 `json:"identifier" validate:"required,min=1"`
 	DisplayName string                 `json:"displayName" validate:"required,min=1"`
 	Config      map[string]interface{} `json:"config,omitempty"`
-	Level       string                 `json:"level" validate:"required,oneof=trace agent span"`
 }
 
 // Monitor is the GORM model for the monitors table
@@ -161,7 +160,6 @@ type UpdateMonitorRequest struct {
 	TraceStart      *time.Time          `json:"traceStart,omitempty"`
 	TraceEnd        *time.Time          `json:"traceEnd,omitempty"`
 	SamplingRate    *float64            `json:"samplingRate,omitempty" validate:"omitempty,gt=0,lte=1"`
-	Suspended       *bool               `json:"suspended,omitempty"`
 }
 
 // MonitorResponse is the API response for a monitor

@@ -17,6 +17,10 @@ ports:
   - port: 9000:9000
     nodeFilters:
       - loadbalancer
+  # AMP Internal API Endpoint (LoadBalancer service on port 9243)
+  - port: 9243:9243
+    nodeFilters:
+      - loadbalancer
   # AMP Traces Observer (NodePort service on port 9098)
   - port: 9098:9098
     nodeFilters:

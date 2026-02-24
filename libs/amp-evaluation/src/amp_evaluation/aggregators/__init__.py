@@ -21,15 +21,13 @@ Public API:
     >>> from amp_evaluation.aggregators import (
     ...     AggregationType,     # Enum: MEAN, MEDIAN, P95, PASS_RATE, etc.
     ...     Aggregation,         # Aggregation config with parameters
-    ...     aggregator,          # @aggregator decorator
     ... )
 """
 
 # Base classes and types
-from .base import Aggregation, AggregationType, aggregator
+from .base import Aggregation, AggregationType
 
 __all__ = [
     "AggregationType",
     "Aggregation",
-    "aggregator",
 ]

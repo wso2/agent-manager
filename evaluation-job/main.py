@@ -38,7 +38,9 @@ import argparse
 import json
 import logging
 import os
+import signal
 import sys
+import time
 from datetime import datetime
 from typing import Dict, List, Any
 
@@ -48,6 +50,19 @@ from amp_evaluation.models import EvaluatorSummary
 from amp_evaluation.trace import TraceFetcher
 
 logger = logging.getLogger(__name__)
+
+# Maximum number of retries for publishing scores
+PUBLISH_MAX_RETRIES = 3
+PUBLISH_INITIAL_BACKOFF = 2  # seconds
+
+
+def handle_sigterm(signum, frame):
+    """Handle SIGTERM for graceful shutdown in Kubernetes."""
+    logger.info("Received SIGTERM, shutting down gracefully")
+    sys.exit(0)
+
+
+signal.signal(signal.SIGTERM, handle_sigterm)
 
 
 class JsonFormatter(logging.Formatter):
@@ -242,33 +257,47 @@ def publish_scores(
         "Content-Type": "application/json",
     }
 
-    try:
-        logger.info(
-            "Publishing scores monitor_id=%s run_id=%s evaluators=%d individual_scores=%d",
-            monitor_id,
-            run_id,
-            len(scores),
-            len(individual_scores),
-        )
+    logger.info(
+        "Publishing scores monitor_id=%s run_id=%s evaluators=%d individual_scores=%d",
+        monitor_id,
+        run_id,
+        len(scores),
+        len(individual_scores),
+    )
 
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
-        response.raise_for_status()
+    for attempt in range(PUBLISH_MAX_RETRIES):
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            response.raise_for_status()
 
-        logger.info("Successfully published scores to agent-manager")
-        return True
+            logger.info("Successfully published scores to agent-manager")
+            return True
 
-    except requests.exceptions.RequestException as e:
-        logger.error("Failed to publish scores: %s", e)
-        if hasattr(e, "response") and e.response is not None:
-            logger.error("Response status: %d", e.response.status_code)
-            logger.error("Response body: %s", e.response.text[:500])
-        return False
+        except requests.exceptions.RequestException as e:
+            logger.error(
+                "Failed to publish scores (attempt %d/%d): %s",
+                attempt + 1,
+                PUBLISH_MAX_RETRIES,
+                e,
+            )
+            if hasattr(e, "response") and e.response is not None:
+                logger.error("Response status: %d", e.response.status_code)
+                logger.error("Response body: %s", e.response.text[:500])
+                # Don't retry on 4xx client errors
+                if 400 <= e.response.status_code < 500:
+                    return False
+            if attempt < PUBLISH_MAX_RETRIES - 1:
+                backoff = PUBLISH_INITIAL_BACKOFF * (2**attempt)
+                logger.info("Retrying in %d seconds...", backoff)
+                time.sleep(backoff)
+
+    return False
 
 
 def main():
     """Main entry point for monitor job."""
-    args = parse_args()
     configure_logging()
+    args = parse_args()
 
     # Read API key from environment variable (injected via Kubernetes Secret)
     publisher_api_key = os.environ.get("PUBLISHER_API_KEY")
@@ -431,9 +460,7 @@ def main():
         )
 
         if not publish_success:
-            logger.error(
-                "Failed to publish scores - evaluation results not persisted"
-            )
+            logger.error("Failed to publish scores - evaluation results not persisted")
             sys.exit(1)
 
         # Exit with appropriate code

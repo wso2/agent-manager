@@ -30,6 +30,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/db"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
 )
 
@@ -37,18 +38,19 @@ import (
 // with varied config shapes, including arrays and nested booleans.
 func realEvaluators() []models.MonitorEvaluator {
 	return []models.MonitorEvaluator{
-		{Identifier: "latency", DisplayName: "Latency Check", Level: "trace", Config: map[string]interface{}{"max_latency_ms": float64(3000), "use_task_constraint": false}},
-		{Identifier: "iteration_count", DisplayName: "Iteration Count", Level: "trace", Config: map[string]interface{}{"max_iterations": float64(5), "use_context_constraint": false}},
-		{Identifier: "token_efficiency", DisplayName: "Token Efficiency", Level: "trace", Config: map[string]interface{}{"max_tokens": float64(4000), "use_context_constraint": false}},
-		{Identifier: "answer_relevancy", DisplayName: "Answer Relevancy", Level: "trace", Config: map[string]interface{}{"min_overlap_ratio": 0.2}},
-		{Identifier: "prohibited_content", DisplayName: "Prohibited Content", Level: "trace", Config: map[string]interface{}{
+		{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{"level": "trace", "max_latency_ms": float64(3000), "use_task_constraint": false}},
+		{Identifier: "iteration_count", DisplayName: "Iteration Count", Config: map[string]interface{}{"level": "trace", "max_iterations": float64(5), "use_context_constraint": false}},
+		{Identifier: "token_efficiency", DisplayName: "Token Efficiency", Config: map[string]interface{}{"level": "trace", "max_tokens": float64(4000), "use_context_constraint": false}},
+		{Identifier: "answer_relevancy", DisplayName: "Answer Relevancy", Config: map[string]interface{}{"level": "trace", "min_overlap_ratio": 0.2}},
+		{Identifier: "prohibited_content", DisplayName: "Prohibited Content", Config: map[string]interface{}{
+			"level":                  "trace",
 			"case_sensitive":         false,
 			"prohibited_strings":     []interface{}{"internal error", "stack trace", "debug:", "hotels"},
 			"use_context_prohibited": false,
 		}},
-		{Identifier: "answer_length", DisplayName: "Answer Length", Level: "trace", Config: map[string]interface{}{"max_length": float64(5000), "min_length": float64(10)}},
-		{Identifier: "latency", DisplayName: "Agent Latency", Level: "agent", Config: map[string]interface{}{"max_latency_ms": float64(5000), "use_task_constraint": true}},
-		{Identifier: "latency", DisplayName: "Span Latency", Level: "span", Config: map[string]interface{}{"max_latency_ms": float64(1000), "use_task_constraint": true}},
+		{Identifier: "answer_length", DisplayName: "Answer Length", Config: map[string]interface{}{"level": "trace", "max_length": float64(5000), "min_length": float64(10)}},
+		{Identifier: "latency", DisplayName: "Agent Latency", Config: map[string]interface{}{"level": "agent", "max_latency_ms": float64(5000), "use_task_constraint": true}},
+		{Identifier: "latency", DisplayName: "Span Latency", Config: map[string]interface{}{"level": "span", "max_latency_ms": float64(1000), "use_task_constraint": true}},
 	}
 }
 
@@ -100,7 +102,7 @@ func TestExecuteMonitorRun_CRStructure(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default())
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()))
 
 	startTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	endTime := time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)
@@ -184,7 +186,7 @@ func TestExecuteMonitorRun_EvaluatorsJSON(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default())
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()))
 
 	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
@@ -277,7 +279,7 @@ func TestExecuteMonitorRun_DBRecordCreated(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default())
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()))
 
 	startTime := time.Now().Add(-2 * time.Hour).Truncate(time.Millisecond)
 	endTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
@@ -321,7 +323,7 @@ func TestExecuteMonitorRun_NilEvaluatorsReturnsError(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default())
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()))
 
 	_, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,

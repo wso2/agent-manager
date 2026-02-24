@@ -34,11 +34,11 @@ type ScoreRepository interface {
 
 	// MonitorRunEvaluator operations
 	UpsertMonitorRunEvaluators(evaluators []models.MonitorRunEvaluator) error
-	GetEvaluatorsByRunID(runID uuid.UUID) ([]models.MonitorRunEvaluator, error)
+	GetEvaluatorsByMonitorAndRunID(monitorID, runID uuid.UUID) ([]models.MonitorRunEvaluator, error)
 
 	// Score publishing
 	BatchCreateScores(scores []models.Score) error
-	DeleteScoresByRunEvaluatorAndTraces(runEvaluatorID uuid.UUID, traceIDs []string) error
+	DeleteStaleScores(monitorID uuid.UUID, currentRunEvaluatorIDs []uuid.UUID, traceIDs []string) error
 
 	// Monitor-level queries (time-based)
 	GetScoresByMonitorAndTimeRange(monitorID uuid.UUID, startTime, endTime time.Time, filters ScoreFilters) ([]ScoreWithEvaluator, error)
@@ -154,10 +154,10 @@ func (r *ScoreRepo) UpsertMonitorRunEvaluators(evaluators []models.MonitorRunEva
 	}).Create(&evaluators).Error
 }
 
-// GetEvaluatorsByRunID fetches all evaluators for a specific run
-func (r *ScoreRepo) GetEvaluatorsByRunID(runID uuid.UUID) ([]models.MonitorRunEvaluator, error) {
+// GetEvaluatorsByMonitorAndRunID fetches evaluators for a specific run scoped to a monitor
+func (r *ScoreRepo) GetEvaluatorsByMonitorAndRunID(monitorID, runID uuid.UUID) ([]models.MonitorRunEvaluator, error) {
 	var evaluators []models.MonitorRunEvaluator
-	err := r.db.Where("monitor_run_id = ?", runID).Find(&evaluators).Error
+	err := r.db.Where("monitor_id = ? AND monitor_run_id = ?", monitorID, runID).Find(&evaluators).Error
 	return evaluators, err
 }
 
@@ -180,13 +180,16 @@ func (r *ScoreRepo) BatchCreateScores(scores []models.Score) error {
 	}).CreateInBatches(scores, 100).Error
 }
 
-// DeleteScoresByRunEvaluatorAndTraces deletes scores for specific traces (used for selective rerun)
-func (r *ScoreRepo) DeleteScoresByRunEvaluatorAndTraces(runEvaluatorID uuid.UUID, traceIDs []string) error {
-	if len(traceIDs) == 0 {
+// DeleteStaleScores removes scores from previous runs for the same monitor and traces,
+// keeping only scores belonging to the current run's evaluators.
+// This is called during publish to ensure reruns replace old scores.
+func (r *ScoreRepo) DeleteStaleScores(monitorID uuid.UUID, currentRunEvaluatorIDs []uuid.UUID, traceIDs []string) error {
+	if len(currentRunEvaluatorIDs) == 0 || len(traceIDs) == 0 {
 		return nil
 	}
 
-	return r.db.Where("run_evaluator_id = ? AND trace_id IN ?", runEvaluatorID, traceIDs).
+	return r.db.Where("monitor_id = ? AND trace_id IN ? AND run_evaluator_id NOT IN ?",
+		monitorID, traceIDs, currentRunEvaluatorIDs).
 		Delete(&models.Score{}).Error
 }
 
