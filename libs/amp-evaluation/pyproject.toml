@@ -20,15 +20,18 @@ dependencies = [
   "opentelemetry-instrumentation-requests>=0.41b0",
   "pydantic>=2.0.0",
   "pydantic-settings>=2.0.0",
-  "deepeval>=3.8.4"
 ]
 
 [project.optional-dependencies]
+deepeval = ["deepeval>=3.8.4"]
+litellm = ["litellm>=1.81.14"]
 dev = [
   "pytest>=7.0",
   "pytest-cov>=4.0",
   "black>=23.0",
   "ruff>=0.1.0",
+  "deepeval>=3.8.4",
+  "litellm>=1.81.14",
 ]
 
 [project.urls]
@@ -48,6 +51,13 @@ target-version = ['py39', 'py310', 'py311']
 [tool.ruff]
 line-length = 120
 target-version = "py39"
+
+[tool.mypy]
+exclude = ["samples/"]
+
+[[tool.mypy.overrides]]
+module = ["deepeval.*", "litellm.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 addopts = "-v --cov=amp_evaluation --cov-report=term-missing"

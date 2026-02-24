@@ -15,39 +15,59 @@
 # under the License.
 
 """
-Built-in evaluators discovery and lazy loading.
+Built-in evaluators: factory, discovery, and catalog.
 
-Automatic discovery of all evaluator modules:
-- Scans all .py files in amp_evaluation.evaluators package (not builtin/)
-- Discovers evaluators based on metadata.name field
-- No hardcoded module mappings needed
+Three functions:
+- builtin(name, **config): Factory to get a configured built-in evaluator
+- list_builtin_evaluators(mode=None): Get names of all built-in evaluators
+- builtin_evaluator_catalog(mode=None): Get full metadata for all built-ins
 
-Example:
-    discover_evaluator("latency")  # Auto-finds LatencyEvaluator in standard.py
-    discover_evaluator("deepeval/plan-quality")  # Auto-finds in deepeval.py
+18 LLM-as-judge evaluators (single criterion per evaluator, 5-point rubrics):
+  TRACE (10): helpfulness, clarity, accuracy, completeness, faithfulness,
+              context_relevance, instruction_following, relevance,
+              semantic_similarity, hallucination
+  LLM (4):   coherence, conciseness, safety, tone
+  AGENT (4):  goal_clarity, reasoning_quality, path_efficiency, error_recovery
+
+Tagging Taxonomy
+================
+Every built-in evaluator has tags in this order: [origin, method, aspect(s), framework?]
+
+- origin:    "builtin" for all built-in evaluators
+- method:    "llm-judge" (uses LLM for evaluation) or "rule-based" (deterministic)
+- aspect:    quality dimension measured. Use 1-2 from this list:
+             correctness, relevance, quality, safety, efficiency,
+             compliance, reasoning, tool-use
+             Use 2 aspect tags when an evaluator spans two dimensions
+             (e.g., conciseness -> quality + efficiency).
+- framework: "deepeval" only for deepeval wrapper evaluators
+
+When adding new evaluators, follow these tagging rules:
+1. Always start with "builtin"
+2. Choose "llm-judge" or "rule-based" based on implementation
+3. Pick the best-fitting aspect tag(s) from the list above
+4. Only add "deepeval" if wrapping a DeepEval metric
 """
 
 import importlib
 import inspect
+import json
+import logging
 from pathlib import Path
-from typing import Type, Optional, List, Dict, Any
+from typing import Dict, Type, Optional, List
 
-from amp_evaluation.evaluators.base import BaseEvaluator
+from amp_evaluation.evaluators.base import BaseEvaluator, validate_unique_evaluator_names
+from amp_evaluation.models import EvaluatorInfo, LLMConfigField, LLMProviderInfo
+
+logger = logging.getLogger(__name__)
 
 
 def _get_evaluator_modules() -> List[str]:
-    """
-    Automatically discover all evaluator modules in the builtin/ directory.
-
-    Returns:
-        List of module names (e.g., ["standard", "deepeval"])
-    """
-    # Get the builtin directory (current directory)
+    """Discover all evaluator modules in the builtin/ directory."""
     builtin_dir = Path(__file__).parent
 
     modules = []
     for file in builtin_dir.glob("*.py"):
-        # Skip __init__.py and private files
         if file.stem in ("__init__",) or file.stem.startswith("_"):
             continue
         modules.append(file.stem)
@@ -55,152 +75,47 @@ def _get_evaluator_modules() -> List[str]:
     return modules
 
 
-def discover_evaluator(name: str) -> Optional[Type[BaseEvaluator]]:
+def _discover_builtin_class(name: str) -> Optional[Type[BaseEvaluator]]:
     """
-    Discover and return evaluator class by name through automatic module scanning.
+    Internal helper to find a built-in evaluator class by name.
 
-    This function automatically discovers evaluators by:
-    1. Scanning all Python modules in the evaluators/ directory
-    2. For each module, finding classes that inherit from BaseEvaluator
-    3. Matching the requested name against the evaluator's default instance name
-
-    No hardcoded mappings needed - just add a new .py file and it's discovered!
-
-    Args:
-        name: Evaluator name from metadata (e.g., "latency", "deepeval/plan-quality")
-
-    Returns:
-        Evaluator class or None if not found
-
-    Examples:
-        >>> cls = discover_evaluator("latency")
-        >>> cls.__name__
-        'LatencyEvaluator'
-
-        >>> cls = discover_evaluator("deepeval/plan-quality")
-        >>> cls.__name__
-        'DeepEvalPlanQualityEvaluator'
+    Scans all modules in the builtin/ directory for evaluator classes
+    and matches by the class's `name` attribute.
     """
-    # Get all evaluator modules
     modules = _get_evaluator_modules()
 
-    # Search through each module
     for module_name in modules:
         try:
             module = importlib.import_module(f"amp_evaluation.evaluators.builtin.{module_name}")
 
-            # Look for evaluator classes in this module
             for class_name, obj in inspect.getmembers(module, inspect.isclass):
-                # Skip non-evaluators and base classes
                 if not issubclass(obj, BaseEvaluator) or obj is BaseEvaluator:
                     continue
 
-                # Skip abstract base classes (those that end with "Base" or have abstract methods)
                 if class_name.endswith("Base") or class_name.endswith("BaseEvaluator"):
                     continue
 
-                # Skip classes with abstract methods
-                abstract_methods: frozenset[str] = getattr(obj, "__abstractmethods__", frozenset())
+                abstract_methods: frozenset = getattr(obj, "__abstractmethods__", frozenset())
                 if abstract_methods:
                     continue
 
-                # Skip classes imported from other modules
                 if obj.__module__ != module.__name__:
                     continue
 
-                # Instantiate to check the default name
-                try:
-                    instance = obj()
-                    if instance.name == name:
-                        return obj
-                except Exception:
-                    # Skip evaluators that can't be instantiated with defaults
-                    continue
+                # Check the class's name attribute directly
+                class_eval_name = getattr(obj, "name", "")
+                if class_eval_name == name:
+                    return obj
 
         except ImportError:
-            # Module has missing dependencies, skip it
             continue
 
     return None
 
 
-def list_builtin_evaluators() -> List[Dict[str, Any]]:
+def builtin(name: str, **kwargs) -> BaseEvaluator:
     """
-    List all available built-in evaluators by scanning all modules.
-
-    Automatically discovers evaluators from all .py files in the builtin/ directory.
-
-    Returns:
-        List of dicts with evaluator definition:
-        - name, description, tags, version, config_schema (top level)
-        - metadata: {class_name, module} (implementation details)
-    """
-    evaluators = []
-    modules = _get_evaluator_modules()
-
-    for module_name in modules:
-        try:
-            module = importlib.import_module(f"amp_evaluation.evaluators.builtin.{module_name}")
-
-            for class_name, obj in inspect.getmembers(module, inspect.isclass):
-                # Skip non-evaluators and base classes
-                if not issubclass(obj, BaseEvaluator) or obj is BaseEvaluator:
-                    continue
-
-                # Skip abstract base classes (those that end with "Base" or have abstract methods)
-                if class_name.endswith("Base") or class_name.endswith("BaseEvaluator"):
-                    continue
-
-                # Skip classes with abstract methods
-                abstract_methods: frozenset[str] = getattr(obj, "__abstractmethods__", frozenset())
-                if abstract_methods:
-                    continue
-
-                # Skip classes imported from other modules
-                if obj.__module__ != module.__name__:
-                    continue
-
-                # Instantiate to get metadata
-                try:
-                    instance = obj()
-                    metadata = instance.get_metadata()
-
-                    # Ensure module name is in tags for filtering
-                    tags = metadata.get("tags", [])
-                    if module_name not in tags:
-                        tags = [module_name] + tags
-
-                    # Restructure: top-level functional details, metadata has implementation details
-                    evaluators.append(
-                        {
-                            "name": metadata.get("name", instance.name),
-                            "description": metadata.get("description", ""),
-                            "tags": tags,
-                            "version": metadata.get("version", "1.0"),
-                            "config_schema": metadata.get("config_schema", []),
-                            "metadata": {
-                                "class_name": class_name,
-                                "module": module_name,
-                            },
-                        }
-                    )
-                except Exception:
-                    # Skip evaluators that can't be instantiated with defaults
-                    continue
-
-        except ImportError:
-            # Module has missing dependencies, skip it
-            continue
-
-    return evaluators
-
-
-def get_builtin_evaluator(name: str, **kwargs) -> BaseEvaluator:
-    """
-    Get a built-in evaluator instance by name with optional configuration.
-
-    This is the recommended way to instantiate built-in evaluators by name
-    instead of importing them directly.
+    Factory to get a configured built-in evaluator by name.
 
     Args:
         name: Built-in evaluator name (e.g., "latency", "deepeval/plan-quality")
@@ -210,32 +125,227 @@ def get_builtin_evaluator(name: str, **kwargs) -> BaseEvaluator:
         Configured evaluator instance
 
     Raises:
-        ValueError: If the evaluator is not a known built-in
-        ImportError: If the evaluator's dependencies are not installed
+        ValueError: If the evaluator name is not found
         TypeError: If invalid kwargs passed to constructor
 
-    Examples:
-        >>> # Default configuration
-        >>> evaluator = get_builtin_evaluator("latency")
-
-        >>> # Custom configuration
-        >>> evaluator = get_builtin_evaluator("latency", max_latency_ms=500)
-        >>> evaluator = get_builtin_evaluator("deepeval/tool-correctness",
-        ...                                   threshold=0.8, evaluate_input=True)
+    Example:
+        latency = builtin("latency", max_latency_ms=5000)
+        hallucination = builtin("hallucination")
+        safety = builtin("safety", context="customer support")
     """
-    evaluator_class = discover_evaluator(name)
+    evaluator_class = _discover_builtin_class(name)
     if evaluator_class is None:
-        available = [ev["name"] for ev in list_builtin_evaluators()]
-        raise ValueError(f"'{name}' is not a built-in evaluator.\nAvailable built-in evaluators: {available}")
+        available = list_builtin_evaluators()
+        raise ValueError(f"Unknown built-in evaluator '{name}'.\nAvailable: {available}")
 
     try:
         instance = evaluator_class(**kwargs)
-        # Set name if not already set by the class
-        if instance.name == instance.__class__.__name__:
-            instance.name = name
         return instance
     except TypeError as e:
         raise TypeError(f"Invalid configuration for evaluator '{name}': {e}") from e
 
 
-__all__ = ["discover_evaluator", "list_builtin_evaluators", "get_builtin_evaluator"]
+def list_builtin_evaluators(mode: Optional[str] = None) -> List[str]:
+    """
+    List names of all available built-in evaluators.
+
+    Args:
+        mode: Optional filter — "experiment" or "monitor".
+              If provided, only evaluators supporting that mode are returned.
+
+    Returns:
+        List of evaluator name strings.
+
+    Example:
+        all_names = list_builtin_evaluators()
+        monitor_names = list_builtin_evaluators(mode="monitor")
+    """
+    catalog = builtin_evaluator_catalog(mode=mode)
+    return [info.name for info in catalog]
+
+
+def builtin_evaluator_catalog(mode: Optional[str] = None) -> List[EvaluatorInfo]:
+    """
+    Get full metadata for all built-in evaluators.
+
+    Returns EvaluatorInfo with complete metadata, config schemas, level, modes.
+
+    Args:
+        mode: Optional filter — "experiment" or "monitor".
+
+    Returns:
+        List of EvaluatorInfo objects.
+
+    Example:
+        catalog = builtin_evaluator_catalog()
+        for info in catalog:
+            print(info.name, info.level, info.config_schema)
+    """
+    evaluators: List[EvaluatorInfo] = []
+    instances: List[BaseEvaluator] = []
+    modules = _get_evaluator_modules()
+
+    for module_name in modules:
+        try:
+            module = importlib.import_module(f"amp_evaluation.evaluators.builtin.{module_name}")
+
+            for class_name, obj in inspect.getmembers(module, inspect.isclass):
+                if not issubclass(obj, BaseEvaluator) or obj is BaseEvaluator:
+                    continue
+
+                if class_name.endswith("Base") or class_name.endswith("BaseEvaluator"):
+                    continue
+
+                abstract_methods: frozenset = getattr(obj, "__abstractmethods__", frozenset())
+                if abstract_methods:
+                    continue
+
+                if obj.__module__ != module.__name__:
+                    continue
+
+                try:
+                    instance = obj()
+                    info = instance.info
+
+                    info.class_name = class_name
+                    info.module = module_name
+
+                    instances.append(instance)
+                    evaluators.append(info)
+                except Exception as e:
+                    logger.debug(f"Skipping {class_name} in {module_name}: {e}")
+                    continue
+
+        except ImportError:
+            continue
+
+    # Validate no duplicate names across all builtin modules
+    try:
+        validate_unique_evaluator_names(instances)
+    except ValueError as e:
+        logger.error(f"Built-in evaluator name conflict: {e}")
+        raise
+
+    if mode:
+        evaluators = [ev for ev in evaluators if mode in ev.modes]
+
+    return evaluators
+
+
+# ── LLM Provider Catalog ─────────────────────────────────────────────────────
+
+# Providers we support for LLM-as-judge evaluation.
+# Models are curated text models only (no audio/realtime/vision-specific).
+# Ordered powerful → lightweight. All strings are litellm-compatible model identifiers.
+# Last updated: 2026-02. Review periodically when major model releases are announced.
+_PROVIDER_MODELS: Dict[str, List[str]] = {
+    "openai": [
+        "gpt-5.2",
+        "gpt-5.1",
+        "gpt-5",
+        "gpt-5-mini",
+        "gpt-5-nano",
+        "o3",
+        "o3-mini",
+        "gpt-4.1",
+        "gpt-4.1-mini",
+        "gpt-4.1-nano",
+    ],
+    "anthropic": [
+        "claude-opus-4-6",
+        "claude-sonnet-4-6",
+        "claude-opus-4-5",
+        "claude-haiku-4-5-20251001",
+    ],
+    "gemini": [
+        "gemini/gemini-3.1-pro",
+        "gemini/gemini-3-pro-preview",
+        "gemini/gemini-2.5-pro",
+        "gemini/gemini-3-flash",
+        "gemini/gemini-2.5-flash",
+        "gemini/gemini-2.5-flash-lite",
+    ],
+    "groq": [
+        "groq/meta-llama/llama-4-maverick-17b-128e-instruct",
+        "groq/meta-llama/llama-4-scout-17b-16e-instruct",
+        "groq/llama-3.3-70b-versatile",
+        "groq/qwen/qwen-3-32b",
+        "groq/llama-3.1-8b-instant",
+    ],
+    "mistral": [
+        "mistral/mistral-large-3",
+        "mistral/mistral-large-latest",
+        "mistral/mistral-medium-latest",
+        "mistral/mistral-small-latest",
+    ],
+}
+
+
+def get_llm_provider_catalog() -> List[LLMProviderInfo]:
+    """
+    Returns supported LLM providers with credential requirements and available models.
+
+    Credential field definitions are read from litellm's provider_create_fields.json
+    (shipped with the litellm package). The env_var on each LLMConfigField is the
+    environment variable the platform must set on the evaluation job process — litellm
+    reads these natively, so no changes to evaluator code are needed.
+
+    Returns:
+        List of LLMProviderInfo, one per supported provider.
+
+    Example:
+        catalog = get_llm_provider_catalog()
+        for provider in catalog:
+            for field in provider.config_fields:
+                # platform injects: os.environ[field.env_var] = user_input
+                print(f"{provider.display_name}: set {field.env_var}")
+            print(f"  Models: {provider.models}")
+    """
+    import litellm
+
+    # NOTE: This depends on litellm's internal file structure. If it breaks
+    # after a litellm update, the try/except below will return an empty list.
+    fields_path = Path(litellm.__file__).parent / "proxy" / "public_endpoints" / "provider_create_fields.json"
+    try:
+        raw: list = json.loads(fields_path.read_text())
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logger.warning("Could not load litellm provider_create_fields.json: %s", e)
+        return []
+
+    seen: set = set()
+    result: List[LLMProviderInfo] = []
+    for entry in raw:
+        provider = entry.get("litellm_provider", "")
+        if provider not in _PROVIDER_MODELS:
+            continue
+        if provider in seen:
+            continue  # deduplicate — keep first (canonical) entry per provider
+        seen.add(provider)
+
+        # Derive env var using litellm's own convention: {PROVIDER}_API_KEY
+        env_var = f"{provider.upper()}_API_KEY"
+        config_fields = [
+            LLMConfigField(
+                key=f["key"],
+                label=f.get("label", f["key"]),
+                field_type=f.get("field_type", "text"),
+                required=f.get("required", False),
+                env_var=env_var,
+            )
+            for f in entry.get("credential_fields", [])
+            if f.get("key") == "api_key"
+        ]
+        if config_fields:
+            result.append(
+                LLMProviderInfo(
+                    name=provider,
+                    display_name=entry.get("provider_display_name", provider),
+                    config_fields=config_fields,
+                    models=_PROVIDER_MODELS.get(provider, []),
+                )
+            )
+
+    return result
+
+
+__all__ = ["builtin", "list_builtin_evaluators", "builtin_evaluator_catalog", "get_llm_provider_catalog"]

@@ -41,11 +41,14 @@ from .models import (
     ToolMetrics,
     RetrieverMetrics,
     AgentMetrics,
-    Message,
+    SystemMessage,
+    UserMessage,
+    AssistantMessage,
+    ToolMessage,
     ToolCall,
     RetrievedDoc,
 )
-from .fetcher import Trace as OTELTrace, Span as OTELSpan
+from .fetcher import OTELTrace, OTELSpan
 
 
 logger = logging.getLogger(__name__)
@@ -347,7 +350,7 @@ def parse_trace_for_evaluation(trace: OTELTrace, filter_infrastructure: bool = T
 
     # Create Trace
     return Trace(
-        trace_id=trace_id, input=trace_input, output=trace_output, steps=steps, metrics=metrics, timestamp=timestamp
+        trace_id=trace_id, input=trace_input, output=trace_output, spans=steps, metrics=metrics, timestamp=timestamp
     )
 
 
@@ -625,9 +628,9 @@ def _parse_token_usage(data: Dict[str, Any]) -> TokenUsage:
     )
 
 
-def _parse_messages(raw_input: Any) -> List[Message]:
-    """Parse messages from LLM input."""
-    messages: List[Message] = []
+def _parse_messages(raw_input: Any) -> list:
+    """Parse messages from LLM input into typed message instances."""
+    messages: list = []
 
     if not raw_input:
         return messages
@@ -635,14 +638,31 @@ def _parse_messages(raw_input: Any) -> List[Message]:
     if isinstance(raw_input, list):
         for item in raw_input:
             if isinstance(item, dict):
-                msg = Message(
-                    role=item.get("role", "user"),
-                    content=item.get("content", ""),
-                    tool_calls=_parse_tool_calls(item.get("tool_calls", [])),
-                )
-                messages.append(msg)
+                role = item.get("role", "user")
+                content = item.get("content", "")
+                if role == "system":
+                    messages.append(SystemMessage(content=content))
+                elif role == "user":
+                    messages.append(UserMessage(content=content))
+                elif role == "assistant":
+                    messages.append(
+                        AssistantMessage(
+                            content=content,
+                            tool_calls=_parse_tool_calls(item.get("tool_calls", [])),
+                        )
+                    )
+                elif role == "tool":
+                    messages.append(
+                        ToolMessage(
+                            content=content,
+                            tool_call_id=item.get("tool_call_id", ""),
+                        )
+                    )
+                else:
+                    # Unknown role, default to user message
+                    messages.append(UserMessage(content=content))
     elif isinstance(raw_input, str):
-        messages.append(Message(role="user", content=raw_input))
+        messages.append(UserMessage(content=raw_input))
 
     return messages
 

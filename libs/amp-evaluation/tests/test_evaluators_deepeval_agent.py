@@ -24,6 +24,7 @@ Uses real DeepEval library with mocked metric.measure() to verify:
 3. Integration with actual DeepEval data structures
 """
 
+import importlib.util
 import pytest
 import sys
 from pathlib import Path
@@ -40,13 +41,16 @@ from amp_evaluation.evaluators.builtin.deepeval import (
     DeepEvalTaskCompletionEvaluator,
     DeepEvalStepEfficiencyEvaluator,
 )
-from amp_evaluation.dataset import Task
+from amp_evaluation.dataset import Task, TrajectoryStep
 from amp_evaluation.trace import (
     Trace,
     TraceMetrics,
     TokenUsage,
     ToolSpan,
 )
+
+deepeval_available = importlib.util.find_spec("deepeval") is not None
+requires_deepeval = pytest.mark.skipif(not deepeval_available, reason="deepeval not installed")
 
 
 # ============================================================================
@@ -66,7 +70,7 @@ def basic_trajectory():
             total_duration_ms=2500.0,
             token_usage=TokenUsage(input_tokens=120, output_tokens=80, total_tokens=200),
         ),
-        steps=[],
+        spans=[],
     )
     return trajectory
 
@@ -96,9 +100,8 @@ def trajectory_with_tools():
             total_duration_ms=2500.0,
             token_usage=TokenUsage(input_tokens=150, output_tokens=100, total_tokens=250),
         ),
-        steps=[tool_span_1, tool_span_2],
+        spans=[tool_span_1, tool_span_2],
     )
-    trajectory._tool_spans = [tool_span_1, tool_span_2]
     return trajectory
 
 
@@ -112,8 +115,8 @@ def basic_task():
         input="Book the cheapest flight from NYC to Paris",
         expected_output="Flight booked successfully",
         expected_trajectory=[
-            {"type": "tool", "name": "search_flights"},
-            {"type": "tool", "name": "book_flight"},
+            TrajectoryStep(tool="search_flights"),
+            TrajectoryStep(tool="book_flight"),
         ],
     )
 
@@ -144,6 +147,7 @@ def mock_metric_measure(metric_instance, score, reason):
 # ============================================================================
 
 
+@requires_deepeval
 class TestDeepEvalPlanQualityEvaluator:
     """Test DeepEvalPlanQualityEvaluator."""
 
@@ -156,7 +160,7 @@ class TestDeepEvalPlanQualityEvaluator:
         assert evaluator.strict_mode is True
         assert evaluator.name == "deepeval/plan-quality"
 
-    def test_plan_quality_evaluation_success(self, basic_trajectory):
+    def test_plan_quality_evaluation_success(self, basic_trajectory, basic_task):
         """Test successful plan quality evaluation with real DeepEval integration."""
         from deepeval.metrics import PlanQualityMetric
 
@@ -174,7 +178,7 @@ class TestDeepEvalPlanQualityEvaluator:
 
             # Evaluate
             evaluator = DeepEvalPlanQualityEvaluator(threshold=0.7)
-            result = evaluator.evaluate(basic_trajectory)[0]
+            result = evaluator.evaluate(basic_trajectory, basic_task)
 
             # Verify results
             assert result.score == 0.85
@@ -194,7 +198,7 @@ class TestDeepEvalPlanQualityEvaluator:
             assert test_case_arg.input == basic_trajectory.input
             assert test_case_arg.actual_output == basic_trajectory.output
 
-    def test_plan_quality_evaluation_failure(self, basic_trajectory):
+    def test_plan_quality_evaluation_failure(self, basic_trajectory, basic_task):
         """Test failed plan quality evaluation."""
         from deepeval.metrics import PlanQualityMetric
 
@@ -205,25 +209,26 @@ class TestDeepEvalPlanQualityEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalPlanQualityEvaluator(threshold=0.7)
-            result = evaluator.evaluate(basic_trajectory)[0]
+            result = evaluator.evaluate(basic_trajectory, basic_task)
 
             assert result.score == 0.3
             assert result.passed is False
             assert "incomplete" in result.explanation
 
-    def test_deepeval_not_installed(self, basic_trajectory):
+    def test_deepeval_not_installed(self, basic_trajectory, basic_task):
         """Test behavior when DeepEval metric import fails."""
         with patch("amp_evaluation.evaluators.builtin.deepeval._get_deepeval_metric_class") as mock_get:
             mock_get.side_effect = ImportError("DeepEval not found")
 
             evaluator = DeepEvalPlanQualityEvaluator()
-            result = evaluator.evaluate(basic_trajectory)[0]
+            result = evaluator.evaluate(basic_trajectory, basic_task)
 
-            assert result.is_error
-            assert result.error is not None
-            assert "not installed" in result.explanation.lower()
+            assert result.is_skipped
+            assert result.skip_reason is not None
+            assert "not installed" in result.skip_reason.lower()
 
 
+@requires_deepeval
 class TestDeepEvalPlanAdherenceEvaluator:
     """Test DeepEvalPlanAdherenceEvaluator."""
 
@@ -234,7 +239,7 @@ class TestDeepEvalPlanAdherenceEvaluator:
         assert evaluator.threshold == 0.75
         assert evaluator.name == "deepeval/plan-adherence"
 
-    def test_plan_adherence_high_score(self, basic_trajectory):
+    def test_plan_adherence_high_score(self, basic_trajectory, basic_task):
         """Test when agent follows its plan well."""
         from deepeval.metrics import PlanAdherenceMetric
 
@@ -245,12 +250,12 @@ class TestDeepEvalPlanAdherenceEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalPlanAdherenceEvaluator(threshold=0.7)
-            result = evaluator.evaluate(basic_trajectory)[0]
+            result = evaluator.evaluate(basic_trajectory, basic_task)
 
             assert result.score == 0.9
             assert result.passed is True
 
-    def test_plan_adherence_low_score(self, basic_trajectory):
+    def test_plan_adherence_low_score(self, basic_trajectory, basic_task):
         """Test when agent deviates from plan."""
         from deepeval.metrics import PlanAdherenceMetric
 
@@ -261,7 +266,7 @@ class TestDeepEvalPlanAdherenceEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalPlanAdherenceEvaluator(threshold=0.7)
-            result = evaluator.evaluate(basic_trajectory)[0]
+            result = evaluator.evaluate(basic_trajectory, basic_task)
 
             assert result.score == 0.4
             assert result.passed is False
@@ -272,6 +277,7 @@ class TestDeepEvalPlanAdherenceEvaluator:
 # ============================================================================
 
 
+@requires_deepeval
 class TestDeepEvalToolCorrectnessEvaluator:
     """Test DeepEvalToolCorrectnessEvaluator."""
 
@@ -290,7 +296,7 @@ class TestDeepEvalToolCorrectnessEvaluator:
         assert evaluator.evaluate_order is True
         assert evaluator.name == "deepeval/tool-correctness"
 
-    def test_correct_tools_selected(self, trajectory_with_tools):
+    def test_correct_tools_selected(self, trajectory_with_tools, basic_task):
         """Test when correct tools are selected."""
         from deepeval.metrics import ToolCorrectnessMetric
 
@@ -301,12 +307,12 @@ class TestDeepEvalToolCorrectnessEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalToolCorrectnessEvaluator(threshold=0.7)
-            result = evaluator.evaluate(trajectory_with_tools)[0]
+            result = evaluator.evaluate(trajectory_with_tools, basic_task)
 
             assert result.score == 1.0
             assert result.passed is True
 
-    def test_incorrect_tools_selected(self, trajectory_with_tools):
+    def test_incorrect_tools_selected(self, trajectory_with_tools, basic_task):
         """Test when incorrect tools are selected."""
         from deepeval.metrics import ToolCorrectnessMetric
 
@@ -317,12 +323,12 @@ class TestDeepEvalToolCorrectnessEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalToolCorrectnessEvaluator(threshold=0.7)
-            result = evaluator.evaluate(trajectory_with_tools)[0]
+            result = evaluator.evaluate(trajectory_with_tools, basic_task)
 
             assert result.score == 0.5
             assert result.passed is False
 
-    def test_with_available_tools_list(self, trajectory_with_tools):
+    def test_with_available_tools_list(self, trajectory_with_tools, basic_task):
         """Test evaluation with available tools list."""
         from deepeval.metrics import ToolCorrectnessMetric
 
@@ -333,14 +339,15 @@ class TestDeepEvalToolCorrectnessEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalToolCorrectnessEvaluator(
-                available_tools=["search_flights", "book_flight", "cancel_flight"]
+                available_tools=["search_flights", "book_flight", "cancel_flight"],
             )
-            result = evaluator.evaluate(trajectory_with_tools)[0]
+            result = evaluator.evaluate(trajectory_with_tools, basic_task)
 
             assert result.score == 0.9
             assert result.passed is True
 
 
+@requires_deepeval
 class TestDeepEvalArgumentCorrectnessEvaluator:
     """Test DeepEvalArgumentCorrectnessEvaluator."""
 
@@ -352,7 +359,7 @@ class TestDeepEvalArgumentCorrectnessEvaluator:
         assert evaluator.model == "gpt-4o-mini"
         assert evaluator.name == "deepeval/argument-correctness"
 
-    def test_correct_arguments(self, trajectory_with_tools):
+    def test_correct_arguments(self, trajectory_with_tools, basic_task):
         """Test when correct arguments are provided."""
         from deepeval.metrics import ArgumentCorrectnessMetric
 
@@ -363,12 +370,12 @@ class TestDeepEvalArgumentCorrectnessEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalArgumentCorrectnessEvaluator(threshold=0.7)
-            result = evaluator.evaluate(trajectory_with_tools)[0]
+            result = evaluator.evaluate(trajectory_with_tools, basic_task)
 
             assert result.score == 1.0
             assert result.passed is True
 
-    def test_incorrect_arguments(self, trajectory_with_tools):
+    def test_incorrect_arguments(self, trajectory_with_tools, basic_task):
         """Test when incorrect arguments are provided."""
         from deepeval.metrics import ArgumentCorrectnessMetric
 
@@ -379,7 +386,7 @@ class TestDeepEvalArgumentCorrectnessEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalArgumentCorrectnessEvaluator(threshold=0.7)
-            result = evaluator.evaluate(trajectory_with_tools)[0]
+            result = evaluator.evaluate(trajectory_with_tools, basic_task)
 
             assert result.score == 0.4
             assert result.passed is False
@@ -390,6 +397,7 @@ class TestDeepEvalArgumentCorrectnessEvaluator:
 # ============================================================================
 
 
+@requires_deepeval
 class TestDeepEvalTaskCompletionEvaluator:
     """Test DeepEvalTaskCompletionEvaluator."""
 
@@ -401,7 +409,7 @@ class TestDeepEvalTaskCompletionEvaluator:
         assert evaluator.custom_task == "Complete the booking"
         assert evaluator.name == "deepeval/task-completion"
 
-    def test_task_completed(self, basic_trajectory):
+    def test_task_completed(self, basic_trajectory, basic_task):
         """Test when task is completed successfully."""
         from deepeval.metrics import TaskCompletionMetric
 
@@ -412,12 +420,12 @@ class TestDeepEvalTaskCompletionEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalTaskCompletionEvaluator(threshold=0.7)
-            result = evaluator.evaluate(basic_trajectory)[0]
+            result = evaluator.evaluate(basic_trajectory, basic_task)
 
             assert result.score == 1.0
             assert result.passed is True
 
-    def test_task_partially_completed(self, basic_trajectory):
+    def test_task_partially_completed(self, basic_trajectory, basic_task):
         """Test when task is only partially completed."""
         from deepeval.metrics import TaskCompletionMetric
 
@@ -428,12 +436,12 @@ class TestDeepEvalTaskCompletionEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalTaskCompletionEvaluator(threshold=0.7)
-            result = evaluator.evaluate(basic_trajectory)[0]
+            result = evaluator.evaluate(basic_trajectory, basic_task)
 
             assert result.score == 0.6
             assert result.passed is False
 
-    def test_task_failed(self, basic_trajectory):
+    def test_task_failed(self, basic_trajectory, basic_task):
         """Test when task completely failed."""
         from deepeval.metrics import TaskCompletionMetric
 
@@ -444,12 +452,13 @@ class TestDeepEvalTaskCompletionEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalTaskCompletionEvaluator(threshold=0.7)
-            result = evaluator.evaluate(basic_trajectory)[0]
+            result = evaluator.evaluate(basic_trajectory, basic_task)
 
             assert result.score == 0.0
             assert result.passed is False
 
 
+@requires_deepeval
 class TestDeepEvalStepEfficiencyEvaluator:
     """Test DeepEvalStepEfficiencyEvaluator."""
 
@@ -460,7 +469,7 @@ class TestDeepEvalStepEfficiencyEvaluator:
         assert evaluator.threshold == 0.75
         assert evaluator.name == "deepeval/step-efficiency"
 
-    def test_efficient_execution(self, trajectory_with_tools):
+    def test_efficient_execution(self, trajectory_with_tools, basic_task):
         """Test when execution is efficient (no redundant steps)."""
         from deepeval.metrics import StepEfficiencyMetric
 
@@ -471,12 +480,12 @@ class TestDeepEvalStepEfficiencyEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalStepEfficiencyEvaluator(threshold=0.7)
-            result = evaluator.evaluate(trajectory_with_tools)[0]
+            result = evaluator.evaluate(trajectory_with_tools, basic_task)
 
             assert result.score == 0.95
             assert result.passed is True
 
-    def test_inefficient_execution(self, trajectory_with_tools):
+    def test_inefficient_execution(self, trajectory_with_tools, basic_task):
         """Test when execution has redundant steps."""
         from deepeval.metrics import StepEfficiencyMetric
 
@@ -487,7 +496,7 @@ class TestDeepEvalStepEfficiencyEvaluator:
             MockMetric.return_value = metric_instance
 
             evaluator = DeepEvalStepEfficiencyEvaluator(threshold=0.7)
-            result = evaluator.evaluate(trajectory_with_tools)[0]
+            result = evaluator.evaluate(trajectory_with_tools, basic_task)
 
             assert result.score == 0.5
             assert result.passed is False
@@ -514,8 +523,8 @@ class TestDeepEvalEvaluatorsIntegration:
 
         for cls in evaluator_classes:
             instance = cls()
-            metadata = instance.get_metadata()
-            tags = metadata.get("tags", [])
+            info = instance.info
+            tags = info.tags
 
             assert "deepeval" in tags, f"{cls.__name__} missing 'deepeval' tag"
             assert "llm-judge" in tags, f"{cls.__name__} missing 'llm-judge' tag"
@@ -540,7 +549,7 @@ class TestDeepEvalEvaluatorsIntegration:
 
     def test_evaluators_can_be_loaded_on_demand(self):
         """Test that builtins can be retrieved on-demand without explicit registration."""
-        from amp_evaluation.evaluators.builtin import get_builtin_evaluator
+        from amp_evaluation.evaluators.builtin import builtin
 
         expected_evaluators = [
             "deepeval/plan-quality",
@@ -552,27 +561,13 @@ class TestDeepEvalEvaluatorsIntegration:
         ]
 
         for name in expected_evaluators:
-            evaluator = get_builtin_evaluator(name)
+            evaluator = builtin(name)
             assert evaluator is not None, f"Could not load {name}"
             assert evaluator.name == name
 
-    def test_evaluators_can_be_explicitly_registered(self):
-        """Test that evaluators can be explicitly registered for listing/filtering."""
-        from amp_evaluation import register_builtin, list_evaluators, list_by_tag
-
-        # Register one evaluator explicitly
-        register_builtin("deepeval/plan-quality")
-
-        # Now it should appear in list_evaluators()
-        all_evaluators = list_evaluators()
-        assert "deepeval/plan-quality" in all_evaluators
-
-        # And in tag-based filtering
-        deepeval_evaluators = list_by_tag("deepeval")
-        assert "deepeval/plan-quality" in deepeval_evaluators
-
+    @requires_deepeval
     @patch("amp_evaluation.evaluators.builtin.deepeval._get_deepeval_metric_class")
-    def test_evaluator_handles_none_score(self, mock_get_class, basic_trajectory):
+    def test_evaluator_handles_none_score(self, mock_get_class, basic_trajectory, basic_task):
         """Test that evaluators handle malformed DeepEval responses gracefully."""
         # Create metric that returns None score
         metric_instance = MagicMock()
@@ -584,21 +579,21 @@ class TestDeepEvalEvaluatorsIntegration:
         mock_get_class.return_value = mock_metric_class
 
         evaluator = DeepEvalTaskCompletionEvaluator()
-        result = evaluator.evaluate(basic_trajectory)[0]
+        result = evaluator.evaluate(basic_trajectory, basic_task)
 
         # Should handle None score gracefully (convert to 0.0)
         assert result.score == 0.0
         assert result.passed is False
 
     @patch("amp_evaluation.evaluators.builtin.deepeval._get_deepeval_metric_class")
-    def test_evaluator_handles_exceptions(self, mock_get_class, basic_trajectory):
+    def test_evaluator_handles_exceptions(self, mock_get_class, basic_trajectory, basic_task):
         """Test that evaluators handle exceptions gracefully."""
         mock_get_class.side_effect = Exception("Unexpected error")
 
         evaluator = DeepEvalPlanQualityEvaluator()
-        result = evaluator.evaluate(basic_trajectory)[0]
+        result = evaluator.evaluate(basic_trajectory, basic_task)
 
-        assert result.is_error
-        assert result.error is not None
-        assert "failed" in result.explanation.lower()
+        assert result.is_skipped
+        assert result.skip_reason is not None
+        assert "failed" in result.skip_reason.lower()
         assert "error" in result.details

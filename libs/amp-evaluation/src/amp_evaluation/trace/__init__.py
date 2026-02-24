@@ -34,9 +34,18 @@ from .models import (
     Message,
     ToolCall,
     RetrievedDoc,
+    # Typed messages
+    SystemMessage,
+    UserMessage,
+    AssistantMessage,
+    ToolMessage,
     # Reconstructed step types
     AgentStep,
     ToolCallInfo,
+    # Typed steps
+    UserStep,
+    LLMStep,
+    ToolExecutionStep,
 )
 
 # Parser
@@ -66,9 +75,18 @@ __all__ = [
     "Message",
     "ToolCall",
     "RetrievedDoc",
+    # Typed messages
+    "SystemMessage",
+    "UserMessage",
+    "AssistantMessage",
+    "ToolMessage",
     # Reconstructed step types
     "AgentStep",
     "ToolCallInfo",
+    # Typed steps
+    "UserStep",
+    "LLMStep",
+    "ToolExecutionStep",
     # Parser functions
     "parse_trace_for_evaluation",
     "parse_traces_for_evaluation",

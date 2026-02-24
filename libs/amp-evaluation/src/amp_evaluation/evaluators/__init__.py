@@ -21,7 +21,7 @@ Import Strategy:
 ----------------
 
 1. Base classes and parameter descriptors (always available, no dependencies):
-   >>> from amp_evaluation.evaluators import BaseEvaluator, Param
+   >>> from amp_evaluation.evaluators import BaseEvaluator, LLMAsJudgeEvaluator, Param
 
 2. Standard evaluators (no external dependencies):
    >>> from amp_evaluation.evaluators.builtin.standard import LatencyEvaluator, TokenEfficiencyEvaluator
@@ -29,23 +29,36 @@ Import Strategy:
 3. DeepEval evaluators (requires deepeval package):
    >>> from amp_evaluation.evaluators.builtin.deepeval import DeepEvalPlanQualityEvaluator
 
-4. Registry-based access (lazy loading, recommended):
-   >>> from amp_evaluation import get_evaluator
-   >>> evaluator = get_evaluator("deepeval/plan-quality")
+4. Built-in evaluator factory (recommended):
+   >>> from amp_evaluation import builtin
+   >>> evaluator = builtin("latency", max_latency_ms=5000)
 
 The base classes are always imported. Built-in evaluators are in the builtin/
-subpackage and are auto-discovered via the registry for lazy loading.
+subpackage.
 """
 
 # Base classes - always available
-from .base import BaseEvaluator, LLMAsJudgeEvaluator, FunctionEvaluator
-from .config import Param
+from .base import (
+    BaseEvaluator,
+    LLMAsJudgeEvaluator,
+    FunctionEvaluator,
+    FunctionLLMJudge,
+    JudgeOutput,
+    validate_unique_evaluator_names,
+)
+from .params import Param, EvalMode
 
 __all__ = [
     # Base classes
     "BaseEvaluator",
     "LLMAsJudgeEvaluator",
     "FunctionEvaluator",
+    "FunctionLLMJudge",
+    "JudgeOutput",
     # Parameter descriptor
     "Param",
+    # Enums
+    "EvalMode",
+    # Validation
+    "validate_unique_evaluator_names",
 ]

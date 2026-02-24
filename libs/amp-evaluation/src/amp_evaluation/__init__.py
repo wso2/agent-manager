@@ -21,23 +21,25 @@ Import Structure:
 -----------------
 
 Tier 1 - Main module (amp_evaluation):
-    Core types, runners, decorators, and registry functions.
+    Core types, runners, decorators, base classes, and discovery utilities.
     Everything a typical user needs in a single import.
 
     >>> from amp_evaluation import (
     ...     Experiment, Monitor,                    # Runners
-    ...     evaluator, aggregator,                  # Decorators
-    ...     EvalResult, Task, Dataset,               # Core types
-    ...     register_builtin, list_evaluators,       # Registry
-    ...     HttpAgentInvoker,                        # Invocation
-    ...     Config,                                  # Configuration
-    ...     EvaluationLevel,                         # Evaluation levels
+    ...     evaluator, llm_judge,                   # Decorators
+    ...     BaseEvaluator, LLMAsJudgeEvaluator,     # Base classes
+    ...     EvalResult, Task, Dataset,              # Core types
+    ...     Param,                                  # Parameter descriptor
+    ...     builtin, builtin_evaluator_catalog,     # Built-in evaluators
+    ...     discover_evaluators,                    # Module scanning
+    ...     HttpAgentInvoker,                       # Invocation
+    ...     Config,                                 # Configuration
+    ...     EvaluationLevel,                        # Evaluation levels
     ... )
 
 Tier 2 - Submodules for domain-specific types:
 
-    >>> from amp_evaluation.evaluators import BaseEvaluator, Param
-    >>> from amp_evaluation.trace import Trajectory, TraceFetcher, LLMSpan
+    >>> from amp_evaluation.trace import Trace, TraceFetcher, LLMSpan, AgentTrace
     >>> from amp_evaluation.aggregators import AggregationType, Aggregation
     >>> from amp_evaluation.dataset import generate_id
 
@@ -54,8 +56,11 @@ __version__ = "0.0.0-dev"
 # ============================================================================
 from .models import (
     EvalResult,
+    EvaluatorInfo,
     EvaluatorScore,
     EvaluatorSummary,
+    LLMConfigField,
+    LLMProviderInfo,
     # Internal but still importable from .models directly
     DataNotAvailableError as DataNotAvailableError,
     Agent as Agent,
@@ -83,7 +88,6 @@ from .runner import (
     RunResult,
     # Internal but still importable from .runner directly
     BaseRunner as BaseRunner,
-    RunType as RunType,
 )
 
 # ============================================================================
@@ -93,7 +97,7 @@ from .config import (
     Config,
     # Internal but still importable from .config directly
     AgentConfig as AgentConfig,
-    PlatformConfig as PlatformConfig,
+    TraceConfig as TraceConfig,
     get_config as get_config,
     reload_config as reload_config,
 )
@@ -104,36 +108,30 @@ from .config import (
 from .invokers import AgentInvoker, InvokeResult, HttpAgentInvoker
 
 # ============================================================================
-# EVALUATION LEVELS
+# EVALUATION LEVELS AND MODES
 # ============================================================================
-from .evaluators.config import EvaluationLevel
+from .evaluators.params import EvaluationLevel, EvalMode, Param
 
 # ============================================================================
-# CONVENIENCE DECORATORS (allowed in main module for ergonomics)
+# BASE CLASSES
 # ============================================================================
-from .registry import evaluator
-from .aggregators.base import aggregator
+from .evaluators.base import BaseEvaluator, LLMAsJudgeEvaluator
 
 # ============================================================================
-# REGISTRY FUNCTIONS
+# DECORATORS
 # ============================================================================
-from .registry import (
-    register_builtin,
-    register_evaluator,
-    get_evaluator,
-    list_evaluators,
-    list_by_tag,
-    # Internal but still importable from .registry directly
-    get_evaluator_metadata as get_evaluator_metadata,
-    get_registry as get_registry,
-    EvaluatorRegistry as EvaluatorRegistry,
-    list_builtin_evaluators as list_builtin_evaluators,
+from .registry import evaluator, llm_judge
+
+# ============================================================================
+# DISCOVERY AND BUILT-IN EVALUATORS
+# ============================================================================
+from .registry import discover_evaluators
+from .evaluators.builtin import (
+    builtin,
+    list_builtin_evaluators,
+    builtin_evaluator_catalog,
+    get_llm_provider_catalog,
 )
-
-# ============================================================================
-# AUTO-REGISTER BUILT-IN EVALUATORS
-# ============================================================================
-from . import evaluators as _evaluators  # noqa: F401
 
 
 __all__ = [
@@ -149,11 +147,21 @@ __all__ = [
     # Decorators (main extension points)
     # -------------------------------------------------------------------------
     "evaluator",
-    "aggregator",
+    "llm_judge",
+    # -------------------------------------------------------------------------
+    # Base classes
+    # -------------------------------------------------------------------------
+    "BaseEvaluator",
+    "LLMAsJudgeEvaluator",
+    # -------------------------------------------------------------------------
+    # Parameter descriptor
+    # -------------------------------------------------------------------------
+    "Param",
     # -------------------------------------------------------------------------
     # Core types
     # -------------------------------------------------------------------------
     "EvalResult",
+    "EvaluatorInfo",
     "EvaluatorScore",
     "EvaluatorSummary",
     "Task",
@@ -173,19 +181,25 @@ __all__ = [
     "load_dataset_from_csv",
     "save_dataset_to_json",
     # -------------------------------------------------------------------------
-    # Registry operations
+    # Discovery and built-in evaluators
     # -------------------------------------------------------------------------
-    "register_builtin",
-    "register_evaluator",
-    "list_evaluators",
-    "get_evaluator",
-    "list_by_tag",
+    "builtin",
+    "list_builtin_evaluators",
+    "builtin_evaluator_catalog",
+    "get_llm_provider_catalog",
+    "discover_evaluators",
+    # -------------------------------------------------------------------------
+    # LLM provider catalog types
+    # -------------------------------------------------------------------------
+    "LLMConfigField",
+    "LLMProviderInfo",
     # -------------------------------------------------------------------------
     # Configuration
     # -------------------------------------------------------------------------
     "Config",
     # -------------------------------------------------------------------------
-    # Evaluation levels
+    # Evaluation levels and modes
     # -------------------------------------------------------------------------
     "EvaluationLevel",
+    "EvalMode",
 ]
