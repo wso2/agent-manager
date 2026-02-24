@@ -94,11 +94,11 @@ func (s *LLMProxyAPIKeyService) CreateAPIKey(
 
 	// Create API key event
 	event := &models.APIKeyCreatedEvent{
-		APIID:       proxyID,
+		APIID:       proxy.Handle,
 		Name:        keyName,
 		DisplayName: displayName,
 		APIKey:      apiKey,
-		Operations:  []string{"*"}, // All operations
+		Operations:  "[\"*\"]", // All operations
 		ExpiresAt:   req.ExpiresAt,
 	}
 

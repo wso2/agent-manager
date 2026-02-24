@@ -58,7 +58,7 @@ type APIKeyCreatedEvent struct {
 	APIKey string `json:"apiKey"`
 
 	// Operations specifies which operations this key can access
-	Operations []string `json:"operations"`
+	Operations string `json:"operations"`
 
 	// ExpiresAt is the optional expiration time in ISO 8601 format
 	ExpiresAt *string `json:"expiresAt,omitempty"`

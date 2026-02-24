@@ -112,13 +112,13 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 	}
 
 	// Check for duplicate configuration for this agent
-	existingConfig, err := s.agentConfigRepo.GetByAgentID(ctx, agentID, orgName)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("failed to check existing config: %w", err)
-	}
-	if existingConfig != nil && existingConfig.UUID != uuid.Nil {
-		return nil, utils.ErrAgentConfigAlreadyExists
-	}
+	// existingConfig, err := s.agentConfigRepo.GetByAgentID(ctx, agentID, orgName)
+	// if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	// 	return nil, fmt.Errorf("failed to check existing config: %w", err)
+	// }
+	// if existingConfig != nil && existingConfig.UUID != uuid.Nil {
+	// 	return nil, utils.ErrAgentConfigAlreadyExists
+	// }
 
 	// Validate all providers exist and are in catalog
 	for envName, envMapping := range req.EnvMappings {
@@ -202,7 +202,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			// Deploy proxy
 			deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
 				Name:      fmt.Sprintf("%s-%s-deployment", config.Name, env.Name),
-				Base:      envName,
+				Base:      "current",
 				GatewayID: gateway.UUID.String(),
 			}, orgName)
 			if err != nil {
@@ -861,6 +861,11 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 	context := fmt.Sprintf("/%s", strings.ToLower(strings.ReplaceAll(config.Name, " ", "-")))
 	vhost := gateway.Vhost
 
+	project, err := s.ocClient.GetProject(ctx, config.OrganizationName, config.ProjectName)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get project from openchoreo: %w", err)
+	}
+
 	// Get provider details
 	provider, err := s.llmProviderRepo.GetByUUID(envMapping.ProviderUUID.String(), config.OrganizationName)
 	if err != nil {
@@ -887,6 +892,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 	// Build proxy configuration
 	proxyConfig := &models.LLMProxy{
 		Description: fmt.Sprintf("LLM proxy for agent %s", config.AgentID),
+		ProjectUUID: uuid.MustParse(project.UUID),
 		Configuration: models.LLMProxyConfig{
 			Name:     proxyName,
 			Version:  models.DefaultProxyVersion,

@@ -94,11 +94,11 @@ func (s *LLMProviderAPIKeyService) CreateAPIKey(
 
 	// Create API key event
 	event := &models.APIKeyCreatedEvent{
-		APIID:       providerID,
+		APIID:       provider.Artifact.Name,
 		Name:        keyName,
 		DisplayName: displayName,
 		APIKey:      apiKey,
-		Operations:  []string{"*"}, // All operations
+		Operations:  "[\"*\"]", // All operations
 		ExpiresAt:   req.ExpiresAt,
 	}
 
