@@ -94,7 +94,6 @@ class Aggregation:
         Examples:
             - "mean"
             - "pass_rate_threshold_0.7"
-            - "weighted_average_weights_[0.5,0.3,0.2]"
         """
         # Get base name
         if isinstance(self.type, AggregationType):

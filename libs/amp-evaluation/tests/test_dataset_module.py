@@ -4,6 +4,7 @@ import json
 import sys
 import pytest
 from pathlib import Path
+from pydantic import ValidationError
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
@@ -422,22 +423,22 @@ class TestConstraintsValidation:
 
     def test_rejects_negative_latency(self):
         """Negative max_latency_ms should raise ValidationError."""
-        with pytest.raises(Exception):  # Pydantic ValidationError
+        with pytest.raises(ValidationError):
             Constraints(max_latency_ms=-1.0)
 
     def test_rejects_zero_tokens(self):
         """Zero max_tokens should raise ValidationError (minimum is 1)."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             Constraints(max_tokens=0)
 
     def test_rejects_zero_iterations(self):
         """Zero max_iterations should raise ValidationError (minimum is 1)."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             Constraints(max_iterations=0)
 
     def test_rejects_negative_cost(self):
         """Negative max_cost should raise ValidationError."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             Constraints(max_cost=-0.5)
 
     def test_accepts_zero_latency(self):
@@ -486,7 +487,7 @@ class TestDifficultyValidation:
 
     def test_rejects_invalid_difficulty(self):
         """Invalid difficulty value should raise ValidationError."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             Task(task_id="t1", input="test", difficulty="impossible")
 
     def test_default_difficulty_is_medium(self):
@@ -543,7 +544,7 @@ class TestDuplicateTaskIdDetection:
     """Regression: parse_dataset_dict should warn on duplicate task IDs."""
 
     def test_duplicate_task_ids_logged(self, caplog):
-        """Duplicate task_id should produce a warning log."""
+        """Duplicate task_id should produce a warning and skip the duplicate."""
         import logging
 
         data = {
@@ -557,8 +558,9 @@ class TestDuplicateTaskIdDetection:
         with caplog.at_level(logging.WARNING):
             dataset = parse_dataset_dict(data)
 
-        # Both tasks are still loaded (warning, not error)
-        assert len(dataset.tasks) == 2
+        # Duplicate is skipped, only first task kept
+        assert len(dataset.tasks) == 1
+        assert dataset.tasks[0].input == "Input 1"
         # Warning was emitted
         assert any("Duplicate task_id" in msg for msg in caplog.messages)
 

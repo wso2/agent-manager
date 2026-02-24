@@ -750,9 +750,10 @@ class TestParamSchemaDefaults:
 
     def test_schema_includes_none_default(self):
         """Test that schema generation includes default=None."""
+        from typing import Optional
 
         class TestEvaluator(BaseEvaluator):
-            optional_field: str = Param(default=None, description="Optional with None default")
+            optional_field: Optional[str] = Param(default=None, description="Optional with None default")
 
             def evaluate(self, trace: Trace, task=None) -> EvalResult:
                 return EvalResult(score=1.0)

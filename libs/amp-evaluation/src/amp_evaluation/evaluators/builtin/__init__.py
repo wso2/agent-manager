@@ -237,38 +237,39 @@ def builtin_evaluator_catalog(mode: Optional[str] = None) -> List[EvaluatorInfo]
 # Providers we support for LLM-as-judge evaluation.
 # Models are curated text models only (no audio/realtime/vision-specific).
 # Ordered powerful → lightweight. All strings are litellm-compatible model identifiers.
+# Last updated: 2026-02. Review periodically when major model releases are announced.
 _PROVIDER_MODELS: Dict[str, List[str]] = {
     "openai": [
+        "gpt-5.2",
+        "gpt-5.1",
         "gpt-5",
+        "gpt-5-mini",
+        "gpt-5-nano",
         "o3",
-        "gpt-4.1",
-        "gpt-4o",
-        "gpt-4.1-mini",
         "o3-mini",
+        "gpt-4.1",
+        "gpt-4.1-mini",
         "gpt-4.1-nano",
-        "gpt-4o-mini",
     ],
     "anthropic": [
         "claude-opus-4-6",
         "claude-sonnet-4-6",
         "claude-opus-4-5",
-        "claude-3-5-sonnet-20241022",
         "claude-haiku-4-5-20251001",
-        "claude-3-5-haiku-20241022",
     ],
     "gemini": [
+        "gemini/gemini-3.1-pro",
         "gemini/gemini-3-pro-preview",
         "gemini/gemini-2.5-pro",
-        "gemini/gemini-3-flash-preview",
+        "gemini/gemini-3-flash",
         "gemini/gemini-2.5-flash",
         "gemini/gemini-2.5-flash-lite",
-        "gemini/gemini-2.0-flash",
     ],
     "groq": [
         "groq/meta-llama/llama-4-maverick-17b-128e-instruct",
-        "groq/llama-3.3-70b-versatile",
-        "groq/qwen/qwen3-32b",
         "groq/meta-llama/llama-4-scout-17b-16e-instruct",
+        "groq/llama-3.3-70b-versatile",
+        "groq/qwen/qwen-3-32b",
         "groq/llama-3.1-8b-instant",
     ],
     "mistral": [
@@ -276,7 +277,6 @@ _PROVIDER_MODELS: Dict[str, List[str]] = {
         "mistral/mistral-large-latest",
         "mistral/mistral-medium-latest",
         "mistral/mistral-small-latest",
-        "mistral/open-mistral-nemo",
     ],
 }
 
@@ -303,6 +303,8 @@ def get_llm_provider_catalog() -> List[LLMProviderInfo]:
     """
     import litellm
 
+    # NOTE: This depends on litellm's internal file structure. If it breaks
+    # after a litellm update, the try/except below will return an empty list.
     fields_path = Path(litellm.__file__).parent / "proxy" / "public_endpoints" / "provider_create_fields.json"
     try:
         raw: list = json.loads(fields_path.read_text())

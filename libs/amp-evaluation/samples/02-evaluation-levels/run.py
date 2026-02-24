@@ -44,7 +44,7 @@ def main():
     # 2. Run Monitor — traces are fetched and parsed internally
     loader = TraceLoader(file_path=str(DATA_DIR / "sample_traces.json"))
     monitor = Monitor(evaluators=evals, trace_fetcher=loader)
-    result = monitor.run(limit=10)
+    result = monitor.run()
 
     # 4. Print per-evaluator results — note the DIFFERENT call counts
     result.print_summary()

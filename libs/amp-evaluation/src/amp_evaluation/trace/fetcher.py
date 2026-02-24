@@ -305,7 +305,7 @@ class TraceFetcher:
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to fetch traces: {e}")
-            return []
+            raise
 
     def fetch_trace_by_id(self, trace_id: str) -> Optional[OTELTrace]:
         """
@@ -380,7 +380,7 @@ class TraceLoader:
 
     Usage:
         loader = TraceLoader(file_path="traces.json")
-        traces = loader.load_batch(limit=50)
+        traces = loader.load_traces()
     """
 
     def __init__(self, file_path: str):
@@ -420,14 +420,11 @@ class TraceLoader:
             logger.error(f"Failed to parse JSON from {self.file_path}: {e}")
             return []
 
-    def load_batch(
-        self, limit: int = 100, start_time: Optional[str] = None, end_time: Optional[str] = None
-    ) -> List[OTELTrace]:
+    def load_traces(self, start_time: Optional[str] = None, end_time: Optional[str] = None) -> List[OTELTrace]:
         """
-        Load a batch of traces from the file.
+        Load traces from the file.
 
         Args:
-            limit: Maximum number of traces to load
             start_time: Optional start time filter (ISO 8601)
             end_time: Optional end time filter (ISO 8601)
 
@@ -441,12 +438,9 @@ class TraceLoader:
         remaining = self._traces[self._last_loaded_index :]
 
         if start_time or end_time:
-            filtered_traces = [t for t in remaining if self._matches_time_filter(t, start_time, end_time)]
+            batch = [t for t in remaining if self._matches_time_filter(t, start_time, end_time)]
         else:
-            filtered_traces = remaining
-
-        # Take batch
-        batch = filtered_traces[:limit]
+            batch = remaining
         # Advance past ALL examined traces (not just those that passed the filter)
         # so the next call doesn't re-scan or re-return already-seen entries.
         if batch:

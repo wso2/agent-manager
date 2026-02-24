@@ -6,7 +6,7 @@ Demonstrates the `TraceFetcher` API for fetching and evaluating production trace
 
 - Using `TraceFetcher` to fetch traces from a real trace service API
 - Health check before fetching
-- CLI arguments for time range and limit
+- CLI arguments for time range
 - Environment variable configuration
 - Parsing OTEL traces into evaluation-ready format with `parse_traces_for_evaluation()`
 - Combining custom evaluators with built-in evaluators
@@ -29,7 +29,6 @@ if fetcher.health_check():
     otel_traces = fetcher.fetch_traces(
         start_time="2025-01-01T00:00:00Z",
         end_time="2025-01-02T00:00:00Z",
-        limit=100,
     )
 
     # Parse into evaluation-ready Trace objects
@@ -40,7 +39,6 @@ The `TraceFetcher` calls the `/api/v1/traces/export` endpoint with parameters:
 - `startTime` / `endTime`: ISO 8601 time range
 - `componentUid`: Agent identifier
 - `environmentUid`: Environment identifier
-- `limit` / `offset`: Pagination
 
 ## Prerequisites
 
@@ -65,14 +63,11 @@ The `TraceFetcher` calls the `/api/v1/traces/export` endpoint with parameters:
 ```bash
 pip install amp-evaluation
 
-# Default: last 24 hours, up to 100 traces
+# Default: last 24 hours
 python run.py
 
 # Custom time range
 python run.py --start 2025-01-01T00:00:00Z --end 2025-01-02T00:00:00Z
-
-# Custom limit
-python run.py --limit 50
 ```
 
 ## CLI arguments
@@ -81,7 +76,6 @@ python run.py --limit 50
 |---|---|---|
 | `--start` | 24 hours ago | Start time in ISO 8601 format |
 | `--end` | Now | End time in ISO 8601 format |
-| `--limit` | 100 | Maximum number of traces to fetch |
 
 ## Expected output
 
@@ -90,7 +84,7 @@ Trace service: http://localhost:8001
 Agent UID:     my-agent
 Environment:   production
 
-Fetching traces from ... to ... (limit: 100)...
+Fetching traces from ... to ...
 Fetched and parsed N traces
 Evaluators: ['response-quality', 'error-free', 'latency', 'hallucination']
 

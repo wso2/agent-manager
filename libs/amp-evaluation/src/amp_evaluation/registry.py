@@ -81,13 +81,13 @@ def evaluator(
 
     def decorator(func):
         func_eval = FunctionEvaluator(func, name=name)
-        if description:
+        if description is not None:
             func_eval.description = description
-        if tags:
+        if tags is not None:
             func_eval.tags = tags
-        if version:
+        if version is not None:
             func_eval.version = version
-        if aggregations:
+        if aggregations is not None:
             func_eval.aggregations = aggregations
         return func_eval
 

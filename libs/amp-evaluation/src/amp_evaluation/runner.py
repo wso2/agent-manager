@@ -34,7 +34,7 @@ Two evaluation scenarios:
 Both runners require evaluators to be passed directly:
     evaluators = [latency, hallucination, builtin("answer_relevancy")]
     monitor = Monitor(evaluators=evaluators)
-    result = monitor.run(limit=1000)
+    result = monitor.run()
 """
 
 from typing import List, Dict, Literal, Optional, Any, Union, TYPE_CHECKING
@@ -290,7 +290,7 @@ class BaseRunner(ABC):
         fetcher = self._get_fetcher()
 
         if isinstance(fetcher, TraceLoader):
-            return fetcher.load_batch(start_time=start_time, end_time=end_time)
+            return fetcher.load_traces(start_time=start_time, end_time=end_time)
         else:
             return fetcher.fetch_traces(start_time=start_time, end_time=end_time)
 
@@ -327,11 +327,8 @@ class BaseRunner(ABC):
                     if eval_result.is_skipped:
                         score = EvaluatorScore(
                             trace_id=trace.trace_id,
-                            score=0.0,
-                            passed=False,
                             span_id=span_id,
                             timestamp=trace.timestamp,
-                            explanation=eval_result.explanation,
                             task_id=task.task_id if task else None,
                             trial_id=trial_id,
                             metadata=details,
@@ -357,10 +354,7 @@ class BaseRunner(ABC):
             except Exception as e:
                 skipped_score = EvaluatorScore(
                     trace_id=trace.trace_id,
-                    score=0.0,
-                    passed=False,
                     timestamp=trace.timestamp,
-                    explanation=f"Evaluator raised exception: {str(e)}",
                     task_id=task.task_id if task else None,
                     trial_id=trial_id,
                     metadata={},
@@ -431,11 +425,11 @@ class BaseRunner(ABC):
 
             if skipped_count > 0:
                 logger.warning(
-                    f"Evaluator '{evaluator_name}' skipped {skipped_count} out of {len(all_scores)} evaluations"
+                    f"Evaluator '{evaluator_name}' failed or skipped {skipped_count} out of {len(all_scores)} evaluations"
                 )
 
             agg_list = normalize_aggregations(aggregations)
-            score_values = [s.score for s in successful_scores]
+            score_values: List[float] = [s.score for s in successful_scores if s.score is not None]
 
             aggregated_scores = {}
             for agg in agg_list:
@@ -586,7 +580,7 @@ class Experiment(BaseRunner):
                 if tr.trial_id:
                     trial_info_by_trace[result.trajectory.trace_id] = tr.trial_id
             elif result.error:
-                pass
+                pass  # already captured in invoke_errors; skip adding a null trajectory
             else:
                 errors.append(f"Task {tr.task.task_id}: No trajectory available")
 
@@ -756,7 +750,7 @@ class Monitor(BaseRunner):
         monitor = Monitor(
             evaluators=[latency, hallucination],
         )
-        result = monitor.run(limit=1000)
+        result = monitor.run()
     """
 
     def __init__(
@@ -779,7 +773,6 @@ class Monitor(BaseRunner):
         self,
         start_time: Optional[str] = None,
         end_time: Optional[str] = None,
-        limit: Optional[int] = None,
         traces: Optional[List[Trace]] = None,
         **kwargs: Any,
     ) -> RunResult:
@@ -798,8 +791,6 @@ class Monitor(BaseRunner):
                     start_time=start_time or "",
                     end_time=end_time or "",
                 )
-                if limit is not None:
-                    fetched = fetched[:limit]
                 for trace in fetched:
                     try:
                         eval_traces.append(parse_trace_for_evaluation(trace))

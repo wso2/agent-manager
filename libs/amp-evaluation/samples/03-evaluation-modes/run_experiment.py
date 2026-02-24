@@ -36,7 +36,7 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 
 def load_sample_traces():
     loader = TraceLoader(file_path=str(DATA_DIR / "sample_traces.json"))
-    otel_traces = loader.load_batch(limit=10)
+    otel_traces = loader.load_traces()
     return parse_traces_for_evaluation(otel_traces)
 
 
@@ -50,7 +50,7 @@ def main():
     evals = discover_evaluators(evaluators)
     print(f"Discovered evaluators: {[e.name for e in evals]}")
     for ev in evals:
-        modes = [m.value for m in ev._supported_eval_modes]
+        modes = [m.value for m in ev.info.modes]
         print(f"  {ev.name:25s} modes={modes}")
     print()
 

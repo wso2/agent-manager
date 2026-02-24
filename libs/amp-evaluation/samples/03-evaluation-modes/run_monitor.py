@@ -37,17 +37,16 @@ def main():
     evals = discover_evaluators(evaluators)
     print(f"Discovered evaluators: {[e.name for e in evals]}")
     for ev in evals:
-        modes = [m.value for m in ev._supported_eval_modes]
-        print(f"  {ev.name:25s} modes={modes}")
+        print(f"  {ev.name:25s} modes={ev.info.modes}")
     print()
 
     # 2. Run Monitor — experiment-only evaluators are skipped automatically
     print("Running Monitor mode...")
     loader = TraceLoader(file_path=str(DATA_DIR / "sample_traces.json"))
     monitor = Monitor(evaluators=evals, trace_fetcher=loader)
-    result = monitor.run(limit=10)
+    result = monitor.run()
 
-    # 4. Print results — experiment-only evaluator should NOT appear
+    # 3. Print results — experiment-only evaluator should NOT appear
     result.print_summary(verbosity="compact")
 
     print("\nNote: 'experiment-only' was skipped because Monitor mode has no tasks.")

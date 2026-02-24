@@ -417,9 +417,8 @@ class LatencyEvaluator(BaseEvaluator):
     def _get_max_latency(self, task: Optional[Task]) -> float:
         max_latency = self.max_latency_ms
         if self.use_task_constraint and task and task.constraints:
-            constraints = task.constraints
-            if constraints and constraints.max_latency_ms is not None:
-                max_latency = constraints.max_latency_ms
+            if task.constraints.max_latency_ms is not None:
+                max_latency = task.constraints.max_latency_ms
         return max_latency
 
     def _calculate_score(self, actual_latency: float, max_latency: float) -> tuple:
@@ -461,9 +460,8 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
     def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         max_tokens = self.max_tokens
         if self.use_context_constraint and task and task.constraints:
-            constraints = task.constraints
-            if constraints and constraints.max_tokens is not None:
-                max_tokens = constraints.max_tokens
+            if task.constraints.max_tokens is not None:
+                max_tokens = task.constraints.max_tokens
 
         actual_tokens = trace.metrics.token_usage.total_tokens if trace.metrics.token_usage else 0
         passed = actual_tokens <= max_tokens
@@ -496,9 +494,8 @@ class IterationCountEvaluator(BaseEvaluator):
     def evaluate(self, trace: Trace, task: Optional[Task] = None) -> EvalResult:
         max_iterations = self.max_iterations
         if self.use_context_constraint and task and task.constraints:
-            constraints = task.constraints
-            if constraints and constraints.max_iterations is not None:
-                max_iterations = constraints.max_iterations
+            if task.constraints.max_iterations is not None:
+                max_iterations = task.constraints.max_iterations
 
         actual_iterations = len(trace.spans)
 

@@ -136,7 +136,10 @@ class _ParamDescriptor:
         """Called when the descriptor is assigned to a class attribute."""
         self._attr_name = name
         # Infer type from class annotation
-        annotations = typing.get_type_hints(owner) if hasattr(owner, "__annotations__") else {}
+        try:
+            annotations = typing.get_type_hints(owner) if hasattr(owner, "__annotations__") else {}
+        except Exception:
+            annotations = getattr(owner, "__annotations__", {})
         if name in annotations:
             self.type = annotations[name]
 
@@ -146,7 +149,14 @@ class _ParamDescriptor:
             return self
         if self._attr_name in obj.__dict__:
             return obj.__dict__[self._attr_name]
-        return None if self.default is _NO_DEFAULT else self.default
+        if self.default is _NO_DEFAULT:
+            raise AttributeError(f"Required parameter '{self._attr_name}' has not been set on {type(obj).__name__}")
+        # Copy mutable defaults so instances don't share state
+        if isinstance(self.default, (list, dict, set)):
+            copy = type(self.default)(self.default)  # type: ignore[arg-type]
+            obj.__dict__[self._attr_name] = copy
+            return copy
+        return self.default
 
     def __set__(self, obj: Any, value: Any) -> None:
         """Set and validate the param value. All values go through _validate."""

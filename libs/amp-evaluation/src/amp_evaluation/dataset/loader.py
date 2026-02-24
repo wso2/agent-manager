@@ -169,7 +169,8 @@ def parse_dataset_dict(data: Dict[str, Any]) -> Dataset:
     for task_data in data.get("tasks", []):
         task = parse_task_dict(task_data, defaults)
         if task.task_id in seen_task_ids:
-            logger.warning(f"Duplicate task_id '{task.task_id}' found in dataset")
+            logger.warning(f"Duplicate task_id '{task.task_id}' found in dataset — skipping")
+            continue
         seen_task_ids.add(task.task_id)
         tasks.append(task)
 
@@ -251,7 +252,7 @@ def parse_task_dict(task_data: Dict[str, Any], defaults: Optional[DatasetDefault
     tags = _resolve_task_field(task_data, "tags", [])
 
     task = Task(
-        task_id=task_data.get("id") or task_data.get("task_id") or generate_id("task_"),
+        task_id=(task_data.get("id") or "").strip() or (task_data.get("task_id") or "").strip() or generate_id("task_"),
         name=task_data.get("name", ""),
         description=task_data.get("description", ""),
         input=task_data["input"],

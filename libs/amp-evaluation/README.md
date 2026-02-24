@@ -566,7 +566,6 @@ monitor = Monitor(
 result = monitor.run(
     start_time="2026-01-01T00:00:00Z",
     end_time="2026-01-02T00:00:00Z",
-    limit=1000,
 )
 
 # Or pass traces directly
@@ -640,8 +639,8 @@ EvalResult.skip("API key not configured")
 
 ```python
 result = my_evaluator.evaluate(trace)
-if result.is_error:
-    print(f"Skipped: {result.error}")
+if result.is_skipped:
+    print(f"Skipped: {result.skip_reason}")
 else:
     print(f"Score: {result.score}, Passed: {result.passed}")
 ```

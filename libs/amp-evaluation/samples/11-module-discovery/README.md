@@ -51,7 +51,7 @@ python run.py
 
 ## Expected output
 
-```
+```text
 Discovered 3 evaluators:
 
   - has-tools            level=trace  modes=['experiment', 'monitor']

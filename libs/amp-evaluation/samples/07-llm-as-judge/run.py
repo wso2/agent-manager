@@ -28,12 +28,12 @@ evaluators will report errors gracefully.
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+
 from amp_evaluation import Monitor, discover_evaluators
 from amp_evaluation.trace import TraceLoader
 
 import evaluators  # noqa: E402 — local evaluators module
-
-sys.path.insert(0, str(Path(__file__).parent))
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
@@ -51,12 +51,12 @@ def main():
     loader = TraceLoader(file_path=str(DATA_DIR / "sample_traces.json"))
     monitor = Monitor(evaluators=evals, trace_fetcher=loader)
     try:
-        result = monitor.run(limit=10)
+        result = monitor.run()
 
-        # 4. Show detailed results with individual scores and explanations
+        # 3. Show detailed results with individual scores and explanations
         result.print_summary(verbosity="detailed")
 
-        # 5. Show runner-level errors if any
+        # 4. Show runner-level errors if any
         if result.errors:
             print(f"\nNote: {len(result.errors)} runner errors occurred.")
             print("This is expected if LLM API keys are not configured.")

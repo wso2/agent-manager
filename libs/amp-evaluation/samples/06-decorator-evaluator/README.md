@@ -41,7 +41,7 @@ python run.py
 
 ## Expected output
 
-```
+```text
 Discovered evaluators: ['error-free', 'has-output', 'tool-usage']
   error-free: Checks trace has no errors (level=trace, tags=['reliability'])
   has-output: Checks if agent produced output (level=trace, tags=['basic'])
