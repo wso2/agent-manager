@@ -26,7 +26,7 @@ from typing import Optional, List
 import types
 import logging
 
-from .evaluators.base import BaseEvaluator, FunctionEvaluator, FunctionLLMJudge
+from .evaluators.base import BaseEvaluator, FunctionEvaluator, FunctionLLMJudge, validate_unique_evaluator_names
 
 
 logger = logging.getLogger(__name__)
@@ -158,5 +158,7 @@ def discover_evaluators(module: types.ModuleType) -> List[BaseEvaluator]:
         obj = getattr(module, attr_name, None)
         if isinstance(obj, BaseEvaluator):
             found.append(obj)
+
+    validate_unique_evaluator_names(found)
 
     return found

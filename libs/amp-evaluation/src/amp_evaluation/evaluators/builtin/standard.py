@@ -83,7 +83,9 @@ class RequiredContentEvaluator(BaseEvaluator):
     """Evaluates if the output contains all required content."""
 
     name = "required_content"
-    description = "Checks output contains all required strings and regex patterns. Score = proportion of required items found."
+    description = (
+        "Checks output contains all required strings and regex patterns. Score = proportion of required items found."
+    )
     tags = ["builtin", "rule-based", "compliance"]
 
     required_strings: Optional[List[str]] = Param(default=None, description="List of required strings")
@@ -230,7 +232,9 @@ class ContainsMatchEvaluator(BaseEvaluator):
     """Evaluates if the output contains the reference output."""
 
     name = "contains_match"
-    description = "Checks whether expected output appears as a substring in actual output. Experiment-only. Scores 1.0 or 0.0."
+    description = (
+        "Checks whether expected output appears as a substring in actual output. Experiment-only. Scores 1.0 or 0.0."
+    )
     tags = ["builtin", "rule-based", "correctness"]
 
     case_sensitive: bool = Param(default=False, description="Whether to use case-sensitive matching")
@@ -368,7 +372,9 @@ class StepSuccessRateEvaluator(BaseEvaluator):
     """Evaluates the success rate of trace spans."""
 
     name = "step_success_rate"
-    description = "Measures the ratio of execution spans completed without errors. Score = successful spans / total spans."
+    description = (
+        "Measures the ratio of execution spans completed without errors. Score = successful spans / total spans."
+    )
     tags = ["builtin", "rule-based", "tool-use"]
 
     min_success_rate: float = Param(default=0.8, min=0.0, max=1.0, description="Minimum required success rate")
@@ -400,7 +406,9 @@ class LatencyEvaluator(BaseEvaluator):
     """Evaluates if execution completed within latency constraints (trace-level)."""
 
     name = "latency"
-    description = "Checks total execution time against a configurable limit. Scores 1.0 within limit, degrades linearly above it."
+    description = (
+        "Checks total execution time against a configurable limit. Scores 1.0 within limit, degrades linearly above it."
+    )
     tags = ["builtin", "rule-based", "efficiency"]
 
     max_latency_ms: float = Param(default=30000.0, min=0.0, description="Maximum allowed latency in milliseconds")
@@ -442,7 +450,9 @@ class TokenEfficiencyEvaluator(BaseEvaluator):
     """Evaluates if token usage is within constraints."""
 
     name = "token_efficiency"
-    description = "Checks total token usage against a configurable limit. Scores 1.0 within limit, degrades linearly above it."
+    description = (
+        "Checks total token usage against a configurable limit. Scores 1.0 within limit, degrades linearly above it."
+    )
     tags = ["builtin", "rule-based", "efficiency"]
 
     max_tokens: int = Param(default=10000, min=1, description="Maximum allowed tokens")
@@ -475,7 +485,9 @@ class IterationCountEvaluator(BaseEvaluator):
     """Evaluates if the agent completed within iteration constraints."""
 
     name = "iteration_count"
-    description = "Checks total span count against a configurable max. Scores 1.0 within limit, degrades linearly above it."
+    description = (
+        "Checks total span count against a configurable max. Scores 1.0 within limit, degrades linearly above it."
+    )
     tags = ["builtin", "rule-based", "efficiency"]
 
     max_iterations: int = Param(default=10, min=1, description="Maximum allowed iterations")
@@ -503,5 +515,3 @@ class IterationCountEvaluator(BaseEvaluator):
             explanation=f"Iterations: {actual_iterations} (max: {max_iterations})",
             details={"actual_iterations": actual_iterations, "max_iterations": max_iterations},
         )
-
-

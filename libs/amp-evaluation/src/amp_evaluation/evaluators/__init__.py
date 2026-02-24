@@ -38,7 +38,14 @@ subpackage.
 """
 
 # Base classes - always available
-from .base import BaseEvaluator, LLMAsJudgeEvaluator, FunctionEvaluator, FunctionLLMJudge, JudgeOutput
+from .base import (
+    BaseEvaluator,
+    LLMAsJudgeEvaluator,
+    FunctionEvaluator,
+    FunctionLLMJudge,
+    JudgeOutput,
+    validate_unique_evaluator_names,
+)
 from .params import Param, EvalMode
 
 __all__ = [
@@ -52,4 +59,6 @@ __all__ = [
     "Param",
     # Enums
     "EvalMode",
+    # Validation
+    "validate_unique_evaluator_names",
 ]

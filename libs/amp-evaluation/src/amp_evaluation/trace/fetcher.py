@@ -229,17 +229,6 @@ def _parse_trace(data: Dict[str, Any]) -> OTELTrace:
 # ============================================================================
 
 
-@dataclass
-class TraceFetchConfig:
-    """Configuration for trace fetching."""
-
-    base_url: str
-    agent_uid: str
-    environment_uid: str
-    timeout: int = 30
-    batch_size: int = 100
-
-
 class TraceFetcher:
     """
     Fetches traces from the trace service API using the /traces/export endpoint.
@@ -259,7 +248,7 @@ class TraceFetcher:
         )
     """
 
-    def __init__(self, base_url: str, agent_uid: str, environment_uid: str, timeout: int = 30):
+    def __init__(self, base_url: str, agent_uid: str, environment_uid: str, api_key: str = "", timeout: int = 30):
         """
         Initialize trace fetcher.
 
@@ -267,6 +256,7 @@ class TraceFetcher:
             base_url: Base URL of the trace service (required)
             agent_uid: Agent unique identifier (required)
             environment_uid: Environment unique identifier (required)
+            api_key: API key for authentication (optional)
             timeout: Request timeout in seconds
         """
         if not base_url:
@@ -279,21 +269,21 @@ class TraceFetcher:
         self.base_url = base_url.rstrip("/")
         self.agent_uid = agent_uid
         self.environment_uid = environment_uid
+        self.api_key = api_key
         self.timeout = timeout
 
-    def fetch_traces(self, start_time: str, end_time: str, limit: int = 100, offset: int = 0) -> List[OTELTrace]:
+    def fetch_traces(self, start_time: str, end_time: str) -> List[OTELTrace]:
         """
         Fetch traces from the trace service using /traces/export endpoint.
 
         Args:
             start_time: Start time in ISO 8601 format (e.g., "2025-12-16T06:58:02.433Z")
             end_time: End time in ISO 8601 format
-            limit: Maximum number of traces to fetch (max 1000)
-            offset: Number of traces to skip for pagination
 
         Returns:
             List of Trace objects with OTEL/AMP attributes
         """
+        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         try:
             response = requests.get(
                 f"{self.base_url}/api/v1/traces/export",
@@ -302,9 +292,8 @@ class TraceFetcher:
                     "endTime": end_time,
                     "componentUid": self.agent_uid,
                     "environmentUid": self.environment_uid,
-                    "limit": str(limit),
-                    "offset": str(offset),
                 },
+                headers=headers,
                 timeout=self.timeout,
             )
             response.raise_for_status()
@@ -328,10 +317,12 @@ class TraceFetcher:
         Returns:
             Trace object or None if not found
         """
+        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         try:
             response = requests.get(
                 f"{self.base_url}/api/v1/trace",
                 params={"traceId": trace_id, "componentUid": self.agent_uid, "environmentUid": self.environment_uid},
+                headers=headers,
                 timeout=self.timeout,
             )
             response.raise_for_status()
@@ -388,33 +379,21 @@ class TraceLoader:
     Loads traces from local JSON files.
 
     Usage:
-        loader = TraceLoader(
-            file_path="traces.json",
-            agent_uid="my-agent",
-            environment_uid="prod"
-        )
+        loader = TraceLoader(file_path="traces.json")
         traces = loader.load_batch(limit=50)
     """
 
-    def __init__(self, file_path: str, agent_uid: str, environment_uid: str):
+    def __init__(self, file_path: str):
         """
         Initialize trace loader.
 
         Args:
             file_path: Path to JSON file containing traces (required)
-            agent_uid: Agent identifier to filter by (required)
-            environment_uid: Environment identifier to filter by (required)
         """
         if not file_path:
             raise ValueError("file_path is required")
-        if not agent_uid:
-            raise ValueError("agent_uid is required")
-        if not environment_uid:
-            raise ValueError("environment_uid is required")
 
         self.file_path = Path(file_path)
-        self.agent_uid = agent_uid
-        self.environment_uid = environment_uid
         self._traces: Optional[List[Dict[str, Any]]] = None
         self._last_loaded_index = 0
 

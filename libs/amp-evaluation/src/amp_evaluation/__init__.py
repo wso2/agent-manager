@@ -59,6 +59,8 @@ from .models import (
     EvaluatorInfo,
     EvaluatorScore,
     EvaluatorSummary,
+    LLMConfigField,
+    LLMProviderInfo,
     # Internal but still importable from .models directly
     DataNotAvailableError as DataNotAvailableError,
     Agent as Agent,
@@ -95,7 +97,7 @@ from .config import (
     Config,
     # Internal but still importable from .config directly
     AgentConfig as AgentConfig,
-    PlatformConfig as PlatformConfig,
+    TraceConfig as TraceConfig,
     get_config as get_config,
     reload_config as reload_config,
 )
@@ -128,6 +130,7 @@ from .evaluators.builtin import (
     builtin,
     list_builtin_evaluators,
     builtin_evaluator_catalog,
+    get_llm_provider_catalog,
 )
 
 
@@ -183,7 +186,13 @@ __all__ = [
     "builtin",
     "list_builtin_evaluators",
     "builtin_evaluator_catalog",
+    "get_llm_provider_catalog",
     "discover_evaluators",
+    # -------------------------------------------------------------------------
+    # LLM provider catalog types
+    # -------------------------------------------------------------------------
+    "LLMConfigField",
+    "LLMProviderInfo",
     # -------------------------------------------------------------------------
     # Configuration
     # -------------------------------------------------------------------------

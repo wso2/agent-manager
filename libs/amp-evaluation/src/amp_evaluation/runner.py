@@ -37,7 +37,7 @@ Both runners require evaluators to be passed directly:
     result = monitor.run(limit=1000)
 """
 
-from typing import List, Dict, Optional, Any, Union, TYPE_CHECKING
+from typing import List, Dict, Literal, Optional, Any, Union, TYPE_CHECKING
 from dataclasses import dataclass, field
 from datetime import datetime
 from abc import ABC, abstractmethod
@@ -45,7 +45,7 @@ import logging
 
 from .trace import Trace, parse_trace_for_evaluation, TraceFetcher, TraceLoader
 from .trace.fetcher import OTELTrace
-from .evaluators.base import BaseEvaluator
+from .evaluators.base import BaseEvaluator, validate_unique_evaluator_names
 from .evaluators.params import EvalMode
 from .models import EvaluatorSummary, EvaluatorScore
 from .dataset.models import Task, Dataset
@@ -121,42 +121,55 @@ class RunResult:
         """A run is successful only if traces were evaluated and no errors occurred."""
         return len(self.errors) == 0 and self.traces_evaluated > 0
 
-    def summary(self) -> str:
-        """Get a human-readable summary."""
-        lines = [
-            f"Evaluation Run: {self.run_id} ({self.eval_mode})",
-            f"  Started: {self.started_at.isoformat()}",
-            f"  Duration: {self.duration_seconds:.2f}s",
-        ]
+    def summary(
+        self,
+        *,
+        verbosity: Literal["compact", "default", "detailed"] = "default",
+    ) -> str:
+        """Get a human-readable summary of the evaluation run.
 
-        if self.agent_uid:
-            lines.append(f"  Agent: {self.agent_uid}")
-        if self.environment_uid:
-            lines.append(f"  Environment: {self.environment_uid}")
-        if self.dataset_id:
-            lines.append(f"  Dataset: {self.dataset_id}")
+        Args:
+            verbosity: Level of detail in the output.
+                - "compact": One line per evaluator (count, mean, pass_rate)
+                - "default": Run metadata + per-evaluator aggregated scores with level
+                - "detailed": Default + individual scores with PASS/FAIL/SKIP and explanations
+        """
+        lines: List[str] = []
 
-        lines.extend(
-            [
-                "",
-                f"Traces evaluated: {self.traces_evaluated}",
-                f"Evaluators run: {self.evaluators_run}",
-                f"Errors: {len(self.errors)}",
-                "",
-                "Scores:",
-            ]
-        )
+        # Header (skip for compact)
+        if verbosity != "compact":
+            lines.extend(
+                [
+                    f"Evaluation Run: {self.run_id} ({self.eval_mode})",
+                    f"  Started: {self.started_at.isoformat()}",
+                    f"  Duration: {self.duration_seconds:.2f}s",
+                ]
+            )
 
-        for name, summary in self.scores.items():
-            lines.append(f"  {name}:")
-            for agg_name, value in summary.aggregated_scores.items():
-                if isinstance(value, (int, float)):
-                    lines.append(f"    {agg_name}: {value:.4f}")
-                else:
-                    lines.append(f"    {agg_name}: {value}")
-            lines.append(f"    count: {summary.count}")
+            if self.agent_uid:
+                lines.append(f"  Agent: {self.agent_uid}")
+            if self.environment_uid:
+                lines.append(f"  Environment: {self.environment_uid}")
+            if self.dataset_id:
+                lines.append(f"  Dataset: {self.dataset_id}")
 
-        if self.errors:
+            lines.extend(
+                [
+                    "",
+                    f"Traces evaluated: {self.traces_evaluated}",
+                    f"Evaluators run: {self.evaluators_run}",
+                    f"Errors: {len(self.errors)}",
+                    "",
+                ]
+            )
+
+        # Scores — delegate to EvaluatorSummary.summary()
+        lines.append("Scores:")
+        for evaluator_summary in self.scores.values():
+            lines.append(evaluator_summary.summary(verbosity=verbosity))
+
+        # Errors (skip for compact)
+        if verbosity != "compact" and self.errors:
             lines.append("")
             lines.append(f"Errors ({len(self.errors)}):")
             for error in self.errors[:5]:
@@ -165,6 +178,18 @@ class RunResult:
                 lines.append(f"  ... and {len(self.errors) - 5} more")
 
         return "\n".join(lines)
+
+    def print_summary(
+        self,
+        *,
+        verbosity: Literal["compact", "default", "detailed"] = "default",
+    ) -> None:
+        """Print a human-readable summary to stdout.
+
+        Args:
+            verbosity: Level of detail. See summary() for options.
+        """
+        print(self.summary(verbosity=verbosity))
 
 
 # ============================================================================
@@ -184,7 +209,6 @@ class BaseRunner(ABC):
         evaluators: List[BaseEvaluator],
         config: Optional[Config] = None,
         trace_fetcher: Optional[Union[TraceFetcher, TraceLoader]] = None,
-        trace_service_url: Optional[str] = None,
     ):
         """
         Initialize runner with evaluators.
@@ -192,8 +216,7 @@ class BaseRunner(ABC):
         Args:
             evaluators: List of evaluator instances to run (REQUIRED)
             config: Config object (loads from env if None)
-            trace_fetcher: Optional TraceFetcher or TraceLoader instance
-            trace_service_url: Optional trace service URL (overrides config)
+            trace_fetcher: Optional pre-built TraceFetcher or TraceLoader instance
         """
         if not evaluators:
             raise ValueError("At least one evaluator is required. Pass evaluators=[...] to the runner.")
@@ -217,12 +240,14 @@ class BaseRunner(ABC):
                 f"All {len(evaluators)} provided evaluator(s) were filtered out."
             )
 
+        # Validate no duplicate evaluator names
+        validate_unique_evaluator_names(self._evaluators)
+
         # Store or create config (from environment)
         self.config = config if config is not None else Config()
 
         # Trace fetcher (lazy initialization)
         self._trace_fetcher = trace_fetcher
-        self._trace_service_url = trace_service_url
         self._fetcher_instance: Optional[Any] = None
 
     def _get_fetcher(self) -> Any:
@@ -231,55 +256,43 @@ class BaseRunner(ABC):
 
         Priority:
             1. Explicit trace_fetcher passed to __init__
-            2. Explicit trace_service_url passed to __init__
-            3. Create from config (file mode or platform mode)
+            2. config.trace.api_url set → TraceFetcher (live traces)
+            3. config.trace.file_path set → TraceLoader (local file)
         """
         if self._fetcher_instance is not None:
             return self._fetcher_instance
 
         if self._trace_fetcher:
             self._fetcher_instance = self._trace_fetcher
-        elif self._trace_service_url:
+        elif self.config.trace.api_url:
+            logger.info(f"Using TraceFetcher with API: {self.config.trace.api_url}")
             self._fetcher_instance = TraceFetcher(
-                base_url=self._trace_service_url,
+                base_url=self.config.trace.api_url,
+                api_key=self.config.trace.api_key,
                 agent_uid=self.config.agent.agent_uid,
                 environment_uid=self.config.agent.environment_uid,
             )
+        elif self.config.trace.file_path:
+            logger.info(f"Using TraceLoader with file: {self.config.trace.file_path}")
+            self._fetcher_instance = TraceLoader(file_path=self.config.trace.file_path)
         else:
-            trace_config = self.config.trace_loader
-
-            if trace_config.mode == "file" and trace_config.trace_file_path:
-                logger.info(f"Using TraceLoader with file: {trace_config.trace_file_path}")
-                self._fetcher_instance = TraceLoader(
-                    file_path=trace_config.trace_file_path,
-                    agent_uid=self.config.agent.agent_uid,
-                    environment_uid=self.config.agent.environment_uid,
-                )
-            elif self.config.platform.api_url:
-                logger.info(f"Using TraceFetcher with platform API: {self.config.platform.api_url}")
-                self._fetcher_instance = TraceFetcher(
-                    base_url=self.config.platform.api_url,
-                    agent_uid=self.config.agent.agent_uid,
-                    environment_uid=self.config.agent.environment_uid,
-                )
-            else:
-                raise ValueError(
-                    "Cannot create trace fetcher. Either:\n"
-                    "  1. Pass trace_fetcher or trace_service_url to runner __init__,\n"
-                    "  2. Set AMP_API_URL environment variable (for platform mode), or\n"
-                    "  3. Set AMP_TRACE_LOADER_MODE=file and AMP_TRACE_LOADER_TRACE_FILE_PATH=/path/to/traces.json"
-                )
+            raise ValueError(
+                "No trace source configured. Either:\n"
+                "  1. Pass trace_fetcher= to runner constructor, or\n"
+                "  2. Set AMP_TRACE_API_URL (live traces from platform), or\n"
+                "  3. Set AMP_TRACE_FILE_PATH (local trace JSON file)"
+            )
 
         return self._fetcher_instance
 
-    def _fetch_traces(self, start_time: str, end_time: str, limit: int = 100, offset: int = 0) -> List[OTELTrace]:
+    def _fetch_traces(self, start_time: str, end_time: str) -> List[OTELTrace]:
         """Unified interface to fetch traces."""
         fetcher = self._get_fetcher()
 
         if isinstance(fetcher, TraceLoader):
-            return fetcher.load_batch(limit=limit, start_time=start_time, end_time=end_time)
+            return fetcher.load_batch(start_time=start_time, end_time=end_time)
         else:
-            return fetcher.fetch_traces(start_time=start_time, end_time=end_time, limit=limit, offset=offset)
+            return fetcher.fetch_traces(start_time=start_time, end_time=end_time)
 
     @property
     def evaluator_names(self) -> List[str]:
@@ -311,7 +324,7 @@ class BaseRunner(ABC):
                     details = eval_result.details or {}
                     span_id = details.get("span_id")
 
-                    if eval_result.is_error:
+                    if eval_result.is_skipped:
                         score = EvaluatorScore(
                             trace_id=trace.trace_id,
                             score=0.0,
@@ -322,7 +335,7 @@ class BaseRunner(ABC):
                             task_id=task.task_id if task else None,
                             trial_id=trial_id,
                             metadata=details,
-                            error=eval_result.error,
+                            skip_reason=eval_result.skip_reason,
                         )
                     else:
                         score = EvaluatorScore(
@@ -335,14 +348,14 @@ class BaseRunner(ABC):
                             task_id=task.task_id if task else None,
                             trial_id=trial_id,
                             metadata=details,
-                            error=None,
+                            skip_reason=None,
                         )
                     evaluator_scores.append(score)
 
                 scores[evaluator.name] = evaluator_scores
 
             except Exception as e:
-                error_score = EvaluatorScore(
+                skipped_score = EvaluatorScore(
                     trace_id=trace.trace_id,
                     score=0.0,
                     passed=False,
@@ -351,9 +364,9 @@ class BaseRunner(ABC):
                     task_id=task.task_id if task else None,
                     trial_id=trial_id,
                     metadata={},
-                    error=str(e),
+                    skip_reason=str(e),
                 )
-                scores[evaluator.name] = [error_score]
+                scores[evaluator.name] = [skipped_score]
 
         return scores
 
@@ -413,9 +426,7 @@ class BaseRunner(ABC):
             evaluator = evaluator_by_name.get(evaluator_name)
             aggregations = getattr(evaluator, "aggregations", None) if evaluator else None
 
-            successful_scores = [s for s in all_scores if not s.is_error]
-            # Includes both explicit skips and evaluator errors — any evaluation
-            # where we couldn't compute a valid score.
+            successful_scores = [s for s in all_scores if not s.is_skipped]
             skipped_count = len(all_scores) - len(successful_scores)
 
             if skipped_count > 0:
@@ -444,6 +455,7 @@ class BaseRunner(ABC):
             summary = EvaluatorSummary(
                 evaluator_name=evaluator_name,
                 count=len(all_scores),
+                skipped_count=skipped_count,
                 aggregated_scores=aggregated_scores,
                 individual_scores=all_scores,
                 level=level,
@@ -492,13 +504,11 @@ class Experiment(BaseRunner):
         trace_fetch_wait_seconds: float = 60.0,
         config: Optional[Config] = None,
         trace_fetcher: Optional[Union[TraceFetcher, TraceLoader]] = None,
-        trace_service_url: Optional[str] = None,
     ):
         super().__init__(
             evaluators=evaluators,
             config=config,
             trace_fetcher=trace_fetcher,
-            trace_service_url=trace_service_url,
         )
 
         self.invoker = invoker
@@ -678,18 +688,13 @@ class Experiment(BaseRunner):
                 time.sleep(self.trace_fetch_wait_seconds)
 
             expected_count = len(dataset.tasks) * self.trials_per_task
-            fetch_limit = max(expected_count * 2, 100)
 
             fetched_traces = self._fetch_traces(
                 start_time=fetch_start.isoformat(),
                 end_time=fetch_end.isoformat(),
-                limit=fetch_limit,
             )
 
-            logger.info(
-                f"Fetched {len(fetched_traces)} traces from trace service "
-                f"(expected: {expected_count}, limit: {fetch_limit})"
-            )
+            logger.info(f"Fetched {len(fetched_traces)} traces from trace service (expected: {expected_count})")
 
             trace_by_baggage: Dict[tuple, Any] = {}
             for trace in fetched_traces:
@@ -750,7 +755,6 @@ class Monitor(BaseRunner):
     Example:
         monitor = Monitor(
             evaluators=[latency, hallucination],
-            trace_service_url="http://traces-api:8001",
         )
         result = monitor.run(limit=1000)
     """
@@ -760,13 +764,11 @@ class Monitor(BaseRunner):
         evaluators: List[BaseEvaluator],
         config: Optional[Config] = None,
         trace_fetcher: Optional[Union[TraceFetcher, TraceLoader]] = None,
-        trace_service_url: Optional[str] = None,
     ):
         super().__init__(
             evaluators=evaluators,
             config=config,
             trace_fetcher=trace_fetcher,
-            trace_service_url=trace_service_url,
         )
 
     @property
@@ -795,8 +797,9 @@ class Monitor(BaseRunner):
                 fetched = self._fetch_traces(
                     start_time=start_time or "",
                     end_time=end_time or "",
-                    limit=limit or 100,
                 )
+                if limit is not None:
+                    fetched = fetched[:limit]
                 for trace in fetched:
                     try:
                         eval_traces.append(parse_trace_for_evaluation(trace))
