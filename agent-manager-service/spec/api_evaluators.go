@@ -35,7 +35,7 @@ func (r ApiListEvaluatorLLMProvidersRequest) Execute() (*EvaluatorLLMProviderLis
 /*
 ListEvaluatorLLMProviders List supported LLM providers for evaluators
 
-Returns the static catalog of LLM providers supported by built-in evaluators, including credential requirements and available models. The env_var field on each config field indicates the environment variable the platform must set on the evaluation job process.
+Returns the static catalog of LLM providers supported by built-in evaluators, including credential requirements and available models. The envVar field on each config field indicates the environment variable the platform must set on the evaluation job process.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name

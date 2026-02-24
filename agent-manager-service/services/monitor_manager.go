@@ -674,8 +674,15 @@ func (s *monitorManagerService) validateCreateRequest(req *models.CreateMonitorR
 // For each entry, the provider is looked up by name and the env var is checked against
 // that provider's config fields.
 func (s *monitorManagerService) validateLLMProviderConfigs(ctx context.Context, configs []models.MonitorLLMProviderConfig) error {
+	seenEnvVars := map[string]int{}
 	for i, c := range configs {
 		prefix := fmt.Sprintf("llmProviderConfigs[%d]", i)
+
+		if prev, ok := seenEnvVars[c.EnvVar]; ok {
+			return fmt.Errorf("%s: duplicate env var %q (also used by llmProviderConfigs[%d]): %w",
+				prefix, c.EnvVar, prev, utils.ErrInvalidInput)
+		}
+		seenEnvVars[c.EnvVar] = i
 
 		provider, err := s.evaluatorService.GetLLMProvider(ctx, c.ProviderName)
 		if err != nil {

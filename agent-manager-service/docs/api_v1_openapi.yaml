@@ -5035,7 +5035,7 @@ paths:
   /orgs/{orgName}/evaluators/llm-providers:
     get:
       summary: List supported LLM providers for evaluators
-      description: Returns the static catalog of LLM providers supported by built-in evaluators, including credential requirements and available models. The env_var field on each config field indicates the environment variable the platform must set on the evaluation job process.
+      description: Returns the static catalog of LLM providers supported by built-in evaluators, including credential requirements and available models. The envVar field on each config field indicates the environment variable the platform must set on the evaluation job process.
       operationId: listEvaluatorLLMProviders
       tags:
         - Evaluators

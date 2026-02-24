@@ -114,7 +114,7 @@ func (s *evaluatorManagerService) GetLLMProvider(_ context.Context, name string)
 	p := catalog.GetProvider(name)
 	if p == nil {
 		s.logger.Warn("LLM provider not found", "name", name)
-		return nil, fmt.Errorf("LLM provider %q not found in catalog: %w", name, utils.ErrInvalidInput)
+		return nil, fmt.Errorf("LLM provider %q not found in catalog: %w", name, utils.ErrEvaluatorNotFound)
 	}
 
 	s.logger.Info("Retrieved LLM provider successfully", "name", name)

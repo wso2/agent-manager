@@ -35,13 +35,15 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
-// testEncryptionKey returns a deterministic 32-byte AES-256 key for tests.
-func testEncryptionKey() []byte {
-	key, _ := utils.GenerateEncryptionKey()
+// testEncryptionKey returns a 32-byte AES-256 key for tests.
+func testEncryptionKey(t *testing.T) []byte {
+	t.Helper()
+	key, err := utils.GenerateEncryptionKey()
+	require.NoError(t, err)
 	return key
 }
 
-// realEvaluators returns a realistic set of evaluators spanning all levels (trace, agent, span)
+// realEvaluators returns a realistic set of evaluators spanning all levels (trace, agent, llm)
 // with varied config shapes, including arrays and nested booleans.
 func realEvaluators() []models.MonitorEvaluator {
 	return []models.MonitorEvaluator{
@@ -109,7 +111,7 @@ func TestExecuteMonitorRun_CRStructure(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey())
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey(t))
 
 	startTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	endTime := time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)
@@ -193,7 +195,7 @@ func TestExecuteMonitorRun_EvaluatorsJSON(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey())
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey(t))
 
 	result, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,
@@ -286,7 +288,7 @@ func TestExecuteMonitorRun_DBRecordCreated(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey())
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey(t))
 
 	startTime := time.Now().Add(-2 * time.Hour).Truncate(time.Millisecond)
 	endTime := time.Now().Add(-1 * time.Hour).Truncate(time.Millisecond)
@@ -322,7 +324,7 @@ func TestExecuteMonitorRun_DBRecordCreated(t *testing.T) {
 // are decrypted to plaintext in the WorkflowRun CR (for eval job env vars) while
 // the monitor_runs DB record keeps them encrypted.
 func TestExecuteMonitorRun_LLMConfigsDecryptedInCR(t *testing.T) {
-	encKey := testEncryptionKey()
+	encKey := testEncryptionKey(t)
 
 	// Seed a monitor with encrypted LLM configs (simulating what the service layer does)
 	gdb := db.DB(context.Background())
@@ -421,7 +423,7 @@ func TestExecuteMonitorRun_NilEvaluatorsReturnsError(t *testing.T) {
 		},
 	}
 
-	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey())
+	executor := services.NewMonitorExecutor(mockClient, slog.Default(), repositories.NewMonitorRepo(db.GetDB()), testEncryptionKey(t))
 
 	_, err := executor.ExecuteMonitorRun(context.Background(), services.ExecuteMonitorRunParams{
 		OrgName:    monitor.OrgName,

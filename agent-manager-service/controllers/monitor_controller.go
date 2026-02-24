@@ -115,7 +115,7 @@ func (c *monitorController) CreateMonitor(w http.ResponseWriter, r *http.Request
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		}
-		if errors.Is(err, utils.ErrInvalidInput) {
+		if errors.Is(err, utils.ErrInvalidInput) || errors.Is(err, utils.ErrEvaluatorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -245,7 +245,7 @@ func (c *monitorController) UpdateMonitor(w http.ResponseWriter, r *http.Request
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Monitor not found")
 			return
 		}
-		if errors.Is(err, utils.ErrInvalidInput) {
+		if errors.Is(err, utils.ErrInvalidInput) || errors.Is(err, utils.ErrEvaluatorNotFound) {
 			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
 		}

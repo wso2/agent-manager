@@ -125,8 +125,8 @@ def _make_evaluator_score(
     s.explanation = explanation
     s.timestamp = timestamp
     s.metadata = metadata or {}
-    s.error = error
-    s.is_error = error is not None
+    s.skip_reason = error
+    s.is_successful = error is None and score is not None
     return s
 
 
@@ -138,6 +138,7 @@ def _make_evaluator_summary(evaluator_name, level, scores, aggregated_scores):
     summary.individual_scores = scores
     summary.aggregated_scores = aggregated_scores
     summary.count = len(scores)
+    summary.skipped_count = sum(1 for s in scores if s.skip_reason is not None)
     return summary
 
 
@@ -456,7 +457,7 @@ class TestPublishScores:
             "pass_rate_0.5": 0.5,
         }  # required
         assert agg[0]["count"] == 2
-        assert agg[0]["errorCount"] == 0
+        assert agg[0]["skippedCount"] == 0
 
         # --- individualScores: matches PublishScoreItem ---
         assert "individualScores" in payload
@@ -584,11 +585,11 @@ class TestPublishScores:
         ind = payload["individualScores"]
         assert len(ind) == 1
         assert "score" not in ind[0]
-        assert ind[0]["error"] == "LLM call failed"
+        assert ind[0]["skipReason"] == "LLM call failed"
 
-        # Aggregated should reflect error count
+        # Aggregated should reflect skipped count
         agg = payload["aggregatedScores"]
-        assert agg[0]["errorCount"] == 1
+        assert agg[0]["skippedCount"] == 1
 
     @patch("main.requests.post")
     def test_timestamp_serialized_as_iso8601(self, mock_post):
@@ -807,9 +808,7 @@ class TestMainIntegration:
 
         # Verify levels were passed for each level type
         builtin_calls = mock_builtin.call_args_list
-        levels_passed = [
-            c.kwargs.get("level") for c in builtin_calls
-        ]
+        levels_passed = [c.kwargs.get("level") for c in builtin_calls]
         assert levels_passed.count("trace") == 6
         assert levels_passed.count("agent") == 1
         assert levels_passed.count("llm") == 1

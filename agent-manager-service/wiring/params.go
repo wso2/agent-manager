@@ -99,5 +99,8 @@ func ProvideEncryptionKey(cfg config.Config) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode ENCRYPTION_KEY: %w", err)
 	}
+	if len(key) != 32 {
+		return nil, fmt.Errorf("ENCRYPTION_KEY must decode to exactly 32 bytes (got %d)", len(key))
+	}
 	return key, nil
 }
