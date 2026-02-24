@@ -1085,8 +1085,6 @@ func (c *openChoreoClient) buildOTELTraitParameters(ctx context.Context, namespa
 }
 
 func getInstrumentationImage(languageVersion, packageVersion string) (string, error) {
-	return "ghcr.io/hanzjk/otel-instrumentation-setup:v1.0.1@sha256:c4d5a81d1112f5ea8bbbc1a9e3e3fd46c4a10b9c88c4d513677c364e4e63a7e4", nil
-	
 	parts := strings.Split(languageVersion, ".")
 	if len(parts) < 2 {
 		return "", fmt.Errorf("invalid languageVersion format: expected 'major.minor' but got '%s'", languageVersion)

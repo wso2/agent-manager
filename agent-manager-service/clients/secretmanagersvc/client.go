@@ -71,10 +71,10 @@ type secretManagementClient struct {
 }
 
 // NewSecretManagementClient creates a new SecretManagementClient.
-// Returns nil if cfg is nil or provider is empty (disabled mode).
+// Returns ErrSecretManagementDisabled if cfg is nil or provider is empty.
 func NewSecretManagementClient(cfg *StoreConfig) (SecretManagementClient, error) {
 	if cfg == nil || cfg.Provider == "" {
-		return nil, nil
+		return nil, fmt.Errorf("failed to create secret management client")
 	}
 
 	// Get the provider

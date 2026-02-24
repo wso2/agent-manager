@@ -1,3 +1,19 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
 package openbao
 
 import (
@@ -37,12 +53,15 @@ func (c *Client) PushSecret(ctx context.Context, key string, value []byte, metad
 	// If secret exists, verify it's managed by us
 	if secretExists {
 		existingMetadata, err := c.readMetadata(ctx, key)
-		if err != nil {
+		if err != nil && !errors.Is(err, secretmanagersvc.ErrMetadataNotFound) {
 			return err
 		}
-		manager, ok := existingMetadata["managed-by"]
-		if ok && manager != ManagedByValue {
-			return secretmanagersvc.ErrNotManaged
+		// If metadata not found, treat as unmanaged and allow the update
+		if existingMetadata != nil {
+			manager, ok := existingMetadata["managed-by"]
+			if ok && manager != ManagedByValue {
+				return secretmanagersvc.ErrNotManaged
+			}
 		}
 	}
 
@@ -101,10 +120,10 @@ func (c *Client) DeleteSecret(ctx context.Context, key string) error {
 		return err
 	}
 
-	// Verify ownership
+	// Verify ownership - if we can't read metadata, assume it's not managed
 	metadata, err := c.readMetadata(ctx, key)
 	if err != nil {
-		return nil // If we can't read metadata, assume it's not managed
+		return nil //nolint:nilerr // Intentional: if we can't read metadata, assume secret is not managed by us
 	}
 
 	manager, ok := metadata["managed-by"]
@@ -254,7 +273,7 @@ func (c *Client) readMetadata(ctx context.Context, key string) (map[string]strin
 			}
 			return result, nil
 		}
-		return nil, nil
+		return nil, secretmanagersvc.ErrMetadataNotFound
 	}
 
 	// For v2, read from metadata endpoint
@@ -265,7 +284,7 @@ func (c *Client) readMetadata(ctx context.Context, key string) (map[string]strin
 	}
 
 	if secret == nil || secret.Data == nil {
-		return nil, nil
+		return nil, secretmanagersvc.ErrMetadataNotFound
 	}
 
 	if customMeta, ok := secret.Data["custom_metadata"].(map[string]interface{}); ok {
@@ -278,7 +297,7 @@ func (c *Client) readMetadata(ctx context.Context, key string) (map[string]strin
 		return result, nil
 	}
 
-	return nil, nil
+	return nil, secretmanagersvc.ErrMetadataNotFound
 }
 
 // buildPath constructs the path for reading/writing secrets.

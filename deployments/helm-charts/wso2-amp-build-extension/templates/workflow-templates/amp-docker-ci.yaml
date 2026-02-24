@@ -175,7 +175,7 @@ spec:
         volumeMounts:
           - mountPath: /mnt/vol
             name: workspace
-    - name: W
+    - name: generate-workload-cr
       inputs:
         parameters:
           - name: image
