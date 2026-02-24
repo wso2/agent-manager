@@ -530,7 +530,7 @@ class TestFaithfulness:
         assert "claim" in prompt.lower()
 
     def test_on_missing_context_param_validation(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             FaithfulnessEvaluator(on_missing_context="invalid_value")
 
 
@@ -934,7 +934,7 @@ class TestErrorRecovery:
         assert ev.level == EvaluationLevel.AGENT
 
     def test_on_missing_context_param_validation(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             ErrorRecoveryEvaluator(on_missing_context="invalid_value")
 
 
@@ -1007,7 +1007,7 @@ class TestParamValidation:
     """Test that Param constraints are enforced on invalid inputs."""
 
     def test_on_missing_context_invalid_value_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             FaithfulnessEvaluator(on_missing_context="ignore")
 
     def test_unknown_param_raises(self):

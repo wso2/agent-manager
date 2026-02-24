@@ -136,7 +136,10 @@ class _ParamDescriptor:
         """Called when the descriptor is assigned to a class attribute."""
         self._attr_name = name
         # Infer type from class annotation
-        annotations = typing.get_type_hints(owner) if hasattr(owner, "__annotations__") else {}
+        try:
+            annotations = typing.get_type_hints(owner) if hasattr(owner, "__annotations__") else {}
+        except Exception:
+            annotations = getattr(owner, "__annotations__", {})
         if name in annotations:
             self.type = annotations[name]
 

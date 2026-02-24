@@ -566,7 +566,6 @@ monitor = Monitor(
 result = monitor.run(
     start_time="2026-01-01T00:00:00Z",
     end_time="2026-01-02T00:00:00Z",
-    limit=1000,
 )
 
 # Or pass traces directly

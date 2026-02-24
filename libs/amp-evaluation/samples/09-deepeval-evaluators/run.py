@@ -39,7 +39,7 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 
 def load_sample_traces():
     loader = TraceLoader(file_path=str(DATA_DIR / "sample_traces.json"))
-    otel_traces = loader.load_batch(limit=10)
+    otel_traces = loader.load_traces()
     return parse_traces_for_evaluation(otel_traces)
 
 

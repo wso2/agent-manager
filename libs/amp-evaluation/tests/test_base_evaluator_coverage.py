@@ -298,13 +298,13 @@ class TestSignatureDrivenModeDetection:
     def test_one_param_evaluator_supports_both_modes(self):
         """Evaluator with (self, trace: Trace) supports both experiment and monitor."""
 
-        class MonitorOnlyEval(BaseEvaluator):
-            name = "monitor-only"
+        class BothModesEval(BaseEvaluator):
+            name = "both-modes"
 
             def evaluate(self, trace: Trace):
                 return EvalResult(score=1.0)
 
-        evaluator = MonitorOnlyEval()
+        evaluator = BothModesEval()
         assert EvalMode.EXPERIMENT in evaluator._supported_eval_modes
         assert EvalMode.MONITOR in evaluator._supported_eval_modes
 

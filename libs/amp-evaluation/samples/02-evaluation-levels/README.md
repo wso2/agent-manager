@@ -27,7 +27,7 @@ python run.py
 
 ## Expected output
 
-```
+```text
   trace-level-check           level=trace
   agent-level-check           level=agent
   llm-level-check             level=llm

@@ -251,7 +251,7 @@ def parse_task_dict(task_data: Dict[str, Any], defaults: Optional[DatasetDefault
     tags = _resolve_task_field(task_data, "tags", [])
 
     task = Task(
-        task_id=task_data.get("id") or task_data.get("task_id") or generate_id("task_"),
+        task_id=(task_data.get("id") or "").strip() or (task_data.get("task_id") or "").strip() or generate_id("task_"),
         name=task_data.get("name", ""),
         description=task_data.get("description", ""),
         input=task_data["input"],

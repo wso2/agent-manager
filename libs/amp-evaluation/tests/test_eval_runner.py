@@ -47,7 +47,7 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 def sample_traces():
     """Load real traces from fixture file."""
     loader = TraceLoader(file_path=str(FIXTURES_DIR / "sample_traces.json"))
-    otel_traces = loader.load_batch(limit=5)
+    otel_traces = loader.load_traces()
     return parse_traces_for_evaluation(otel_traces)
 
 

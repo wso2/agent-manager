@@ -127,7 +127,7 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
         }
 
         # Add expected output if available
-        if task.expected_output:
+        if task.expected_output is not None:
             kwargs["expected_output"] = task.expected_output
 
         # Add retrieval context if available from tool spans
@@ -148,13 +148,10 @@ class DeepEvalBaseEvaluator(BaseEvaluator):
         if not retriever_spans:
             return None
 
-        context = []
+        context: list[str] = []
         for span in retriever_spans:
             if span.documents:
-                if isinstance(span.documents, list):
-                    context.extend([str(item) for item in span.documents])
-                else:
-                    context.append(str(span.documents))
+                context.extend(doc.content for doc in span.documents if doc.content)
 
         return context if context else None
 
@@ -399,6 +396,7 @@ class DeepEvalToolCorrectnessEvaluator(DeepEvalBaseEvaluator):
             "threshold": self.threshold,
             "evaluate_order": self.evaluate_order,
             "exact_match": self.exact_match,
+            "strict_mode": self.strict_mode,
         }
 
         # Only add model if LLM-based evaluation is needed

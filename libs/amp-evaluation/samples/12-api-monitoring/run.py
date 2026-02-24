@@ -28,7 +28,6 @@ Prerequisites:
 Usage:
     python run.py
     python run.py --start 2025-01-01T00:00:00Z --end 2025-01-02T00:00:00Z
-    python run.py --limit 50
 """
 
 import os
@@ -51,7 +50,6 @@ def main():
     parser = argparse.ArgumentParser(description="Monitor production traces")
     parser.add_argument("--start", help="Start time (ISO 8601)")
     parser.add_argument("--end", help="End time (ISO 8601)")
-    parser.add_argument("--limit", type=int, default=100, help="Max traces to fetch")
     args = parser.parse_args()
 
     # Configure from environment variables
@@ -82,7 +80,7 @@ def main():
         print("See .env.example for configuration options.")
         sys.exit(1)
 
-    print(f"\nFetching traces from {start_time} to {end_time} (limit: {args.limit})...")
+    print(f"\nFetching traces from {start_time} to {end_time}...")
 
     # Discover custom evaluators + add built-in evaluators
     evals = discover_evaluators(evaluators)
@@ -96,7 +94,6 @@ def main():
     result = monitor.run(
         start_time=start_time,
         end_time=end_time,
-        limit=args.limit,
     )
 
     # Print summary (default verbosity includes pass_rate and mean)
