@@ -52,20 +52,12 @@ def main():
     print()
 
     # 3. Run Monitor — traces are fetched and parsed internally
-    loader = TraceLoader(
-        file_path=str(DATA_DIR / "sample_traces.json"),
-        agent_uid="sample-agent",
-        environment_uid="dev",
-    )
+    loader = TraceLoader(file_path=str(DATA_DIR / "sample_traces.json"))
     monitor = Monitor(evaluators=evals, trace_fetcher=loader)
     result = monitor.run(limit=10)
 
     # 5. Print results — compare default vs strict scores
-    print("Results:")
-    print("-" * 60)
-    for name, summary in result.scores.items():
-        mean = summary.mean if summary.mean is not None else 0.0
-        print(f"  {name:35s} count={summary.count}  mean={mean:.2f}")
+    result.print_summary(verbosity="compact")
     print()
 
     # 6. Inspect .info property to show config schema

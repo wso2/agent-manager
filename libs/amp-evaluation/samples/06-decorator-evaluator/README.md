@@ -42,26 +42,24 @@ python run.py
 ## Expected output
 
 ```
-Loaded N traces
-
 Discovered evaluators: ['error-free', 'has-output', 'tool-usage']
   error-free: Checks trace has no errors (level=trace, tags=['reliability'])
   has-output: Checks if agent produced output (level=trace, tags=['basic'])
   tool-usage: Checks if tools were called (level=trace, tags=['tool-use'])
 
-Evaluation Run: run-... (EvalMode.MONITOR)
+Evaluation Run: run... (EvalMode.MONITOR)
   ...
 Scores:
-  has-output:
-    mean: ...
-    pass_rate: ...
-    count: N
-  tool-usage:
-    mean: ...
-    pass_rate: ...
-    count: N
   error-free:
-    mean: ...
-    pass_rate: ...
+    level: trace
     count: N
+    mean: ...
+  has-output:
+    level: trace
+    count: N
+    mean: ...
+  tool-usage:
+    level: trace
+    count: N
+    mean: ...
 ```

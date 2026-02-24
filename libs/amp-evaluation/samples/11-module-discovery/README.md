@@ -38,7 +38,6 @@ The function iterates over all attributes of the given module using `dir()` and 
 ```python
 discovered = discover_evaluators(my_evaluators)
 discovered.append(builtin("latency", max_latency_ms=5000))
-discovered.append(builtin("hallucination"))
 
 monitor = Monitor(evaluators=discovered)
 ```
@@ -55,9 +54,9 @@ python run.py
 ```
 Discovered 3 evaluators:
 
-  - output-length        level=trace  modes=['experiment', 'monitor']
   - has-tools            level=trace  modes=['experiment', 'monitor']
   - latency              level=trace  modes=['experiment', 'monitor']
+  - output-length        level=trace  modes=['experiment', 'monitor']
 
 Not discovered (by design):
   - NotDiscovered class:  not instantiated at module level
@@ -65,18 +64,19 @@ Not discovered (by design):
   - helper_number:        not a BaseEvaluator instance
   - helper_list:          not a BaseEvaluator instance
 
-Loaded N traces
-
 Evaluation Run: run... (EvalMode.MONITOR)
   ...
 Scores:
-  output-length:
-    mean: ...
-    count: N
   has-tools:
-    mean: ...
+    level: trace
     count: N
+    mean: ...
   latency:
-    mean: ...
+    level: trace
     count: N
+    mean: ...
+  output-length:
+    level: trace
+    count: N
+    mean: ...
 ```

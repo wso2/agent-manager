@@ -28,23 +28,23 @@ python run.py
 ## Expected output
 
 ```
-Loaded N traces
-
   trace-level-check           level=trace
   agent-level-check           level=agent
   llm-level-check             level=llm
 
-Results by evaluator:
-------------------------------------------------------------
-  trace-level-check:
-    level: trace
-    count: N          <-- once per trace
-
+Evaluation Run: run... (EvalMode.MONITOR)
+  ...
+Scores:
   agent-level-check:
     level: agent
     count: X          <-- once per agent span (X >= N)
-
+    mean: ...
   llm-level-check:
     level: llm
     count: Y          <-- once per LLM call (Y >= X)
+    mean: ...
+  trace-level-check:
+    level: trace
+    count: N          <-- once per trace
+    mean: ...
 ```

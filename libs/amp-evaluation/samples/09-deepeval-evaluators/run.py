@@ -38,11 +38,7 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 
 
 def load_sample_traces():
-    loader = TraceLoader(
-        file_path=str(DATA_DIR / "sample_traces.json"),
-        agent_uid="sample-agent",
-        environment_uid="dev",
-    )
+    loader = TraceLoader(file_path=str(DATA_DIR / "sample_traces.json"))
     otel_traces = loader.load_batch(limit=10)
     return parse_traces_for_evaluation(otel_traces)
 
@@ -83,6 +79,7 @@ def main():
     # 3. Load traces
     traces = load_sample_traces()
     print(f"Loaded {len(traces)} traces")
+    print()
 
     # 4. Assign task_ids for matching traces to dataset tasks
     #    In production, this matching happens automatically via OTEL baggage
@@ -102,7 +99,7 @@ def main():
     result = experiment.run(traces=traces, dataset=dataset)
 
     # 6. Print summary
-    print("\n" + result.summary())
+    result.print_summary()
 
 
 if __name__ == "__main__":

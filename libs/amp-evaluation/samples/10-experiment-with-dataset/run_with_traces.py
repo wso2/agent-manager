@@ -43,11 +43,7 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 
 
 def load_sample_traces():
-    loader = TraceLoader(
-        file_path=str(DATA_DIR / "sample_traces.json"),
-        agent_uid="sample-agent",
-        environment_uid="dev",
-    )
+    loader = TraceLoader(file_path=str(DATA_DIR / "sample_traces.json"))
     otel_traces = loader.load_batch(limit=10)
     return parse_traces_for_evaluation(otel_traces)
 
@@ -76,6 +72,7 @@ def main():
     for ev in evals:
         modes = [m.value for m in ev._supported_eval_modes]
         print(f"  {ev.name:20s} modes={modes}")
+    print()
 
     # 5. Run experiment with pre-loaded traces
     #    HttpAgentInvoker is required by Experiment.__init__ but not called
@@ -89,7 +86,7 @@ def main():
     result = experiment.run(traces=traces, dataset=dataset)
 
     # 6. Print summary
-    print("\n" + result.summary())
+    result.print_summary()
 
     # 7. Also demonstrate CSV dataset loading
     print("\n" + "=" * 60)

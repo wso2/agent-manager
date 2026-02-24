@@ -43,20 +43,12 @@ def main():
 
     # 2. Run Monitor — experiment-only evaluators are skipped automatically
     print("Running Monitor mode...")
-    loader = TraceLoader(
-        file_path=str(DATA_DIR / "sample_traces.json"),
-        agent_uid="sample-agent",
-        environment_uid="dev",
-    )
+    loader = TraceLoader(file_path=str(DATA_DIR / "sample_traces.json"))
     monitor = Monitor(evaluators=evals, trace_fetcher=loader)
     result = monitor.run(limit=10)
 
     # 4. Print results — experiment-only evaluator should NOT appear
-    print(f"\nEvaluators that ran: {list(result.scores.keys())}")
-    print()
-    for name, summary in result.scores.items():
-        mean_str = f"{summary.mean:.2f}" if summary.mean is not None else "N/A"
-        print(f"  {name}: count={summary.count}, mean={mean_str}")
+    result.print_summary(verbosity="compact")
 
     print("\nNote: 'experiment-only' was skipped because Monitor mode has no tasks.")
 

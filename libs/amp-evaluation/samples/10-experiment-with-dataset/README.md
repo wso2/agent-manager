@@ -60,23 +60,28 @@ Loaded dataset: ... (N tasks)
 
 Loaded N traces
 
-Discovered evaluators: ['output-match', 'criteria-check', 'adaptive-check']
-  output-match         modes=['experiment']
-  criteria-check       modes=['experiment']
+Discovered evaluators: ['adaptive-check', 'criteria-check', 'output-match']
   adaptive-check       modes=['experiment', 'monitor']
+  criteria-check       modes=['experiment']
+  output-match         modes=['experiment']
 
 Evaluation Run: run... (EvalMode.EXPERIMENT)
   ...
 Scores:
-  output-match:
-    mean: ...
-    count: N
-  criteria-check:
-    mean: ...
-    count: N
   adaptive-check:
-    mean: ...
+    level: trace
     count: N
+    mean: ...
+  criteria-check:
+    level: trace
+    count: N
+    skipped: ...
+    mean: ...
+  output-match:
+    level: trace
+    count: N
+    skipped: ...
+    mean: ...
 
 ============================================================
 CSV Dataset Loading

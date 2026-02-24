@@ -87,20 +87,25 @@ python run.py
 ## Expected output
 
 ```text
-Loaded N traces
-
 Discovered 5 evaluators:
-  accuracy-judge (level=trace, modes=['experiment', 'monitor'])
+  accuracy_judge (level=trace, modes=['experiment', 'monitor'])
   agent-efficiency-judge (level=agent, modes=['experiment', 'monitor'])
   custom-client-judge (level=trace, modes=['experiment', 'monitor'])
-  grounding-judge (level=trace, modes=['experiment', 'monitor'])
+  grounding_judge (level=trace, modes=['experiment', 'monitor'])
   response-quality-judge (level=trace, modes=['experiment', 'monitor'])
 
-Evaluation Run: run-... (EvalMode.MONITOR)
+Evaluation Run: run... (EvalMode.MONITOR)
   ...
 Scores:
-  response-quality-judge:
-    mean: ...
+  accuracy_judge:
+    level: trace
     count: N
+    skipped: N
+    mean: ...
+    individual scores (N):
+      [PASS] trace=... score=0.85
+              Good accuracy
+      [ SKIP] trace=...
+              litellm.AuthenticationError: ...
   ...
 ```

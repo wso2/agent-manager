@@ -95,8 +95,6 @@ def run_monitor_evaluators():
         builtin("token_efficiency", max_tokens=10000),
         builtin("iteration_count", max_iterations=20),
         builtin("answer_length", min_length=1, max_length=10000),
-        builtin("answer_relevancy"),
-        builtin("hallucination"),
     ]
 
     print(f"Created {len(monitor_evals)} built-in evaluators:")
@@ -105,15 +103,11 @@ def run_monitor_evaluators():
     print()
 
     # Run monitor — traces are fetched and parsed internally
-    loader = TraceLoader(
-        file_path=str(DATA_DIR / "sample_traces.json"),
-        agent_uid="sample-agent",
-        environment_uid="dev",
-    )
+    loader = TraceLoader(file_path=str(DATA_DIR / "sample_traces.json"))
     monitor = Monitor(evaluators=monitor_evals, trace_fetcher=loader)
     result = monitor.run(limit=10)
 
-    print(result.summary())
+    result.print_summary()
 
 
 # =========================================================================

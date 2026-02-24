@@ -51,18 +51,15 @@ def main():
     print("  - helper_string:        not a BaseEvaluator instance")
     print("  - helper_number:        not a BaseEvaluator instance")
     print("  - helper_list:          not a BaseEvaluator instance")
+    print()
 
     # 3. Use discovered evaluators with Monitor — traces are fetched and parsed internally
-    loader = TraceLoader(
-        file_path=str(DATA_DIR / "sample_traces.json"),
-        agent_uid="sample-agent",
-        environment_uid="dev",
-    )
+    loader = TraceLoader(file_path=str(DATA_DIR / "sample_traces.json"))
     monitor = Monitor(evaluators=discovered, trace_fetcher=loader)
     result = monitor.run(limit=10)
 
     # 4. Print summary
-    print("\n" + result.summary())
+    result.print_summary()
 
 
 if __name__ == "__main__":

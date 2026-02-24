@@ -27,7 +27,7 @@ This script demonstrates the full experiment flow where the framework:
 
 Prerequisites:
     1. Start your agent: e.g., python -m your_agent --port 8000
-    2. Start the trace service (or configure AMP_API_URL)
+    2. Start the trace service (or configure AMP_TRACE_API_URL)
     3. Run this script
 """
 
@@ -85,16 +85,9 @@ def main():
     print("\nRunning experiment (this will invoke the agent for each task)...")
     result = experiment.run()
 
-    # 5. Print summary
-    print("\n" + result.summary())
-
-    # 6. Inspect individual scores
-    print("\nPer-trace scores:")
-    for name, summary in result.scores.items():
-        print(f"\n  {name} (level={summary.level}):")
-        for score in summary.individual_scores[:5]:
-            status = "PASS" if score.passed else "FAIL"
-            print(f"    trace={score.trace_id[:12]}... [{status}] score={score.score:.2f}")
+    # 5. Print detailed results (includes individual scores)
+    print()
+    result.print_summary(verbosity="detailed")
 
 
 if __name__ == "__main__":

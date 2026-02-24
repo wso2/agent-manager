@@ -42,24 +42,12 @@ def main():
     print()
 
     # 2. Run Monitor — traces are fetched and parsed internally
-    loader = TraceLoader(
-        file_path=str(DATA_DIR / "sample_traces.json"),
-        agent_uid="sample-agent",
-        environment_uid="dev",
-    )
+    loader = TraceLoader(file_path=str(DATA_DIR / "sample_traces.json"))
     monitor = Monitor(evaluators=evals, trace_fetcher=loader)
     result = monitor.run(limit=10)
 
     # 4. Print per-evaluator results — note the DIFFERENT call counts
-    print("Results by evaluator:")
-    print("-" * 60)
-    for name, summary in result.scores.items():
-        print(f"  {name}:")
-        print(f"    level: {summary.level}")
-        print(f"    count: {summary.count}")
-        if summary.mean is not None:
-            print(f"    mean:  {summary.mean:.2f}")
-        print()
+    result.print_summary()
 
     print("Key observation:")
     print("  trace-level-check  -> called once per trace")

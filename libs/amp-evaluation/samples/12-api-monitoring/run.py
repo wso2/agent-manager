@@ -99,17 +99,9 @@ def main():
         limit=args.limit,
     )
 
-    # Print summary
-    print("\n" + result.summary())
-
-    # Print per-evaluator pass rates
-    print("\nPass rates:")
-    for name, summary in result.scores.items():
-        pass_rate = summary.pass_rate
-        mean = summary.mean
-        if pass_rate is not None:
-            mean_str = f"{mean:.3f}" if mean is not None else "N/A"
-            print(f"  {name:25s} pass_rate={pass_rate:.1%}  mean={mean_str}")
+    # Print summary (default verbosity includes pass_rate and mean)
+    print()
+    result.print_summary()
 
 
 if __name__ == "__main__":

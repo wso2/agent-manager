@@ -35,11 +35,7 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 
 
 def load_sample_traces():
-    loader = TraceLoader(
-        file_path=str(DATA_DIR / "sample_traces.json"),
-        agent_uid="sample-agent",
-        environment_uid="dev",
-    )
+    loader = TraceLoader(file_path=str(DATA_DIR / "sample_traces.json"))
     otel_traces = loader.load_batch(limit=10)
     return parse_traces_for_evaluation(otel_traces)
 
@@ -73,11 +69,7 @@ def main():
     result = experiment.run(traces=traces, dataset=dataset)
 
     # 6. Print results — ALL evaluators should appear
-    print(f"\nEvaluators that ran: {list(result.scores.keys())}")
-    print()
-    for name, summary in result.scores.items():
-        mean_str = f"{summary.mean:.2f}" if summary.mean is not None else "N/A"
-        print(f"  {name}: count={summary.count}, mean={mean_str}")
+    result.print_summary(verbosity="compact")
 
     print("\nNote: ALL evaluators ran, including 'experiment-only'.")
 

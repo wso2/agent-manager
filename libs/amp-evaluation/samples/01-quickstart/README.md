@@ -20,8 +20,6 @@ python run.py
 ## Expected output
 
 ```text
-Loaded N traces
-
 Discovered evaluators: ['response-check']
 All evaluators: ['response-check', 'latency']
 
@@ -29,11 +27,11 @@ Evaluation Run: run... (EvalMode.MONITOR)
   ...
 Scores:
   response-check:
-    mean: ...
-    pass_rate: ...
+    level: trace
     count: N
+    mean: ...
   latency:
-    mean: ...
-    pass_rate: ...
+    level: trace
     count: N
+    mean: ...
 ```

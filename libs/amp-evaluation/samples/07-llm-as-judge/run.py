@@ -48,41 +48,17 @@ def main():
     print()
 
     # 2. Run Monitor with error handling for missing API keys
-    loader = TraceLoader(
-        file_path=str(DATA_DIR / "sample_traces.json"),
-        agent_uid="sample-agent",
-        environment_uid="dev",
-    )
+    loader = TraceLoader(file_path=str(DATA_DIR / "sample_traces.json"))
     monitor = Monitor(evaluators=evals, trace_fetcher=loader)
     try:
         result = monitor.run(limit=10)
-        print(result.summary())
 
-        # 4. Show individual scores and explanations per evaluator
-        print("\n" + "=" * 60)
-        print("Individual Scores & Explanations")
-        print("=" * 60)
-        for evaluator_name, summary in result.scores.items():
-            total = len(summary.individual_scores)
-            errors = sum(1 for s in summary.individual_scores if s.is_error)
-            passed = sum(1 for s in summary.individual_scores if not s.is_error and s.passed)
-            failed = total - errors - passed
-            print(f"\n--- {evaluator_name} (total={total}, passed={passed}, failed={failed}, errors={errors}) ---")
-            for score in summary.individual_scores:
-                if score.is_error:
-                    print(f"  [ERR ] trace={score.trace_id[:12]}...")
-                    if score.error:
-                        print(f"         {score.error}")
-                else:
-                    status = "PASS" if score.passed else "FAIL"
-                    print(f"  [{status}] trace={score.trace_id[:12]}... score={score.score:.2f}")
-                    if score.explanation:
-                        for line in score.explanation.strip().splitlines():
-                            print(f"         {line}")
+        # 4. Show detailed results with individual scores and explanations
+        result.print_summary(verbosity="detailed")
 
-        # 5. Show which evaluators had errors vs succeeded
+        # 5. Show runner-level errors if any
         if result.errors:
-            print(f"\nNote: {len(result.errors)} errors occurred.")
+            print(f"\nNote: {len(result.errors)} runner errors occurred.")
             print("This is expected if LLM API keys are not configured.")
             print("Set OPENAI_API_KEY (or another provider key) to run LLM judges.")
     except Exception as e:

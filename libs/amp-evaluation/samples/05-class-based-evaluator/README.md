@@ -46,26 +46,25 @@ python run.py
 ## Expected output
 
 ```text
-Loaded N traces
-
 Discovered evaluators: ['agent-error-check', 'llm-output-check', 'response-completeness']
   agent-error-check (level=agent, modes=['experiment', 'monitor'])
   llm-output-check (level=llm, modes=['experiment', 'monitor'])
   response-completeness (level=trace, modes=['experiment', 'monitor'])
 
-Evaluation Run: run-... (EvalMode.MONITOR)
+Evaluation Run: run... (EvalMode.MONITOR)
   ...
 Scores:
-  response-completeness:
-    mean: ...
-    pass_rate: ...
-    count: N
   agent-error-check:
-    mean: ...
-    pass_rate: ...
+    level: agent
     count: N
+    mean: ...
   llm-output-check:
-    mean: ...
-    pass_rate: ...
+    level: llm
     count: N
+    skipped: ...
+    mean: ...
+  response-completeness:
+    level: trace
+    count: N
+    mean: ...
 ```

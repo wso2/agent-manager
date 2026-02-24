@@ -42,16 +42,12 @@ def main():
     print(f"All evaluators: {[e.name for e in evals]}\n")
 
     # 3. Run Monitor — traces are fetched and parsed internally
-    loader = TraceLoader(
-        file_path=str(DATA_DIR / "sample_traces.json"),
-        agent_uid="sample-agent",
-        environment_uid="dev",
-    )
+    loader = TraceLoader(file_path=str(DATA_DIR / "sample_traces.json"))
     monitor = Monitor(evaluators=evals, trace_fetcher=loader)
     result = monitor.run(limit=10)
 
     # 5. Print summary
-    print(result.summary())
+    result.print_summary()
 
 
 if __name__ == "__main__":
