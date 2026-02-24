@@ -334,7 +334,7 @@ export function EvaluatorDetailsDrawer({
             nextConfig[param.key] = getInitialValue(param, initialConfig?.[param.key]);
         });
         setConfigValues(nextConfig);
-    }, [evaluator?.id, open, JSON.stringify(initialConfig ?? {})]);
+    }, [open, initialConfig, evaluator]);
 
     const handleConfigChange = useCallback((key: string, value: unknown) => {
         setConfigValues((prev) => ({ ...prev, [key]: value }));
