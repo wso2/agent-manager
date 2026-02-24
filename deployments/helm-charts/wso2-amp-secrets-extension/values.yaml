@@ -23,8 +23,9 @@ openbao:
         cpu: 100m
     # Development mode - WARNING: Not for production use
     # In dev mode, OpenBao runs in-memory and auto-unseals
+    # For quickstart/local dev, enable via --set openbao.server.dev.enabled=true
     dev:
-      enabled: true
+      enabled: false
       devRootToken: "root"
       logLevel: "info"
     # Readiness probe configuration

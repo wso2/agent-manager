@@ -943,6 +943,20 @@ log_info "Installing Agent Management Platform components..."
 log_info "This may take 5-8 minutes..."
 echo ""
 
+# Install secrets extension (OpenBao) FIRST so AMP can connect to it
+# Enable dev mode for quickstart
+SECRETS_HELM_ARGS+=(
+    "--set" "openbao.server.dev.enabled=true"
+)
+log_info "Installing Secrets Extension (OpenBao for secret management)..."
+if ! install_secrets_extension; then
+    log_warning "Secrets Extension installation failed (non-fatal)"
+    echo "The platform is installed but secret management features may not work."
+else
+    log_success "Secrets Extension installed successfully"
+fi
+echo ""
+
 # Install main platform
 log_info "Installing Agent Management Platform (PostgreSQL, API, Console)..."
 if ! install_agent_management_platform; then
@@ -955,17 +969,6 @@ if ! install_agent_management_platform; then
     exit 1
 fi
 log_success "Agent Management Platform installed successfully"
-echo ""
-
-
-# Install secrets extension (OpenBao)
-log_info "Installing Secrets Extension (OpenBao for secret management)..."
-if ! install_secrets_extension; then
-    log_warning "Secrets Extension installation failed (non-fatal)"
-    echo "The platform is installed but secret management features may not work."
-else
-    log_success "Secrets Extension installed successfully"
-fi
 echo ""
 
 # Install platform resources extension

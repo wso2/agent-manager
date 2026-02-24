@@ -221,7 +221,10 @@ echo ""
 echo "8️⃣ Installing/Upgrading Secrets Extension (OpenBao)..."
 echo "   Setting up OpenBao for data plane secret management..."
 helm dependency update "${SCRIPT_DIR}/../helm-charts/wso2-amp-secrets-extension"
-helm upgrade --install amp-secrets "${SCRIPT_DIR}/../helm-charts/wso2-amp-secrets-extension" --namespace amp-secrets --create-namespace
+# Enable dev mode for local development (in-memory, auto-unseal, root token)
+helm upgrade --install amp-secrets "${SCRIPT_DIR}/../helm-charts/wso2-amp-secrets-extension" --namespace amp-secrets --create-namespace \
+  --set openbao.server.dev.enabled=true
+
 echo "⏳ Waiting for OpenBao to be ready..."
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=amp-secrets-openbao -n amp-secrets --timeout=120s || echo "⚠️  OpenBao pods may still be starting"
 echo "✅ Secrets Extension installed/upgraded successfully"
