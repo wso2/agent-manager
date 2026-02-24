@@ -96,7 +96,7 @@ mock-traces: ## Generate mock traces using Makefile-configured values
 	@command -v telemetrygen >/dev/null 2>&1 || (echo "telemetrygen is required. Install with: go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen@latest" && exit 1)
 	@[ -n "$(OTLP_ENDPOINT)" ] || (echo "OTLP_ENDPOINT is required (host:port)" && exit 1)
 	@[ -n "$(OTLP_HTTP_PATH)" ] || (echo "OTLP_HTTP_PATH is required (for example: /otel/v1/traces)" && exit 1)
-	@[ -n "$(AMP_API_KEY)" ] || (echo "AMP_API_KEY is required" && exit 1)
+	@[ -n "$(AMP_AGENT_API_KEY)" ] || (echo "AMP_AGENT_API_KEY is required" && exit 1)
 	@echo "$(SPANS_PER_TRACE)" | grep -Eq '^[1-9][0-9]*$$' || (echo "SPANS_PER_TRACE must be a positive integer" && exit 1)
 	@echo "$(TRACE_COUNT)" | grep -Eq '^[1-9][0-9]*$$' || (echo "TRACE_COUNT must be a positive integer" && exit 1)
 	@CHILD_SPANS=$$(( $(SPANS_PER_TRACE) - 1 )); \
@@ -118,4 +118,4 @@ mock-traces: ## Generate mock traces using Makefile-configured values
 	  --rate "$(TRACE_RATE)" \
 	  --duration "$(TRACE_DURATION)" \
 	  $$INSECURE_FLAG \
-	  --otlp-header "x-amp-api-key=\"$(AMP_API_KEY)\""
+	  --otlp-header "x-amp-api-key=\"$(AMP_AGENT_API_KEY)\""
