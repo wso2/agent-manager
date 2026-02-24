@@ -63,7 +63,7 @@ func (s *MonitorScoresService) PublishScores(
 			Level:         item.Level,
 			Aggregations:  item.Aggregations,
 			Count:         item.Count,
-			ErrorCount:    item.ErrorCount,
+			SkippedCount:  item.SkippedCount,
 		}
 	}
 
@@ -128,7 +128,7 @@ func (s *MonitorScoresService) PublishScores(
 				Explanation:    item.Explanation,
 				TraceTimestamp: *item.TraceTimestamp,
 				Metadata:       item.Metadata,
-				Error:          item.Error,
+				SkipReason:     item.SkipReason,
 			}
 		}
 
@@ -174,8 +174,8 @@ func (s *MonitorScoresService) GetMonitorScores(
 		evaluators[i] = models.EvaluatorScoreSummary{
 			EvaluatorName: agg.EvaluatorName,
 			Level:         agg.Level,
-			Count:         agg.SuccessCount + agg.ErrorCount,
-			ErrorCount:    agg.ErrorCount,
+			Count:         agg.TotalCount,
+			SkippedCount:  agg.SkippedCount,
 			Aggregations:  aggregationMap,
 		}
 	}
@@ -213,8 +213,8 @@ func (s *MonitorScoresService) GetEvaluatorTimeSeries(
 
 		points[i] = models.TimeSeriesPoint{
 			Timestamp:    agg.TimeBucket,
-			Count:        agg.SuccessCount + agg.ErrorCount,
-			ErrorCount:   agg.ErrorCount,
+			Count:        agg.TotalCount,
+			SkippedCount: agg.SkippedCount,
 			Aggregations: aggregationMap,
 		}
 	}
@@ -278,7 +278,7 @@ func (s *MonitorScoresService) GetTraceScores(
 			Score:       score.Score,
 			Explanation: score.Explanation,
 			Metadata:    score.Metadata,
-			Error:       score.Error,
+			SkipReason:  score.SkipReason,
 		})
 	}
 
@@ -327,7 +327,7 @@ func (s *MonitorScoresService) GetMonitorRunScores(
 			EvaluatorName: eval.DisplayName,
 			Level:         eval.Level,
 			Count:         eval.Count,
-			ErrorCount:    eval.ErrorCount,
+			SkippedCount:  eval.SkippedCount,
 			Aggregations:  aggs,
 		}
 	}

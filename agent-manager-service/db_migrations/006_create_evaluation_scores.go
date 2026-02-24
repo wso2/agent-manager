@@ -38,7 +38,7 @@ var migration006 = migration{
 			-- Aggregated results (flexible)
 			aggregations      JSONB NOT NULL DEFAULT '{}',
 			count             INT NOT NULL DEFAULT 0,
-			error_count       INT NOT NULL DEFAULT 0,
+			skipped_count     INT NOT NULL DEFAULT 0,
 
 			created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
@@ -55,7 +55,7 @@ var migration006 = migration{
 			trace_id          VARCHAR(255) NOT NULL,
 			span_id           VARCHAR(255),
 
-			-- Score data (NULL when error)
+			-- Score data (NULL when skipped)
 			score             DECIMAL(5,4) CHECK (score IS NULL OR (score >= 0 AND score <= 1)),
 			explanation       TEXT,
 
@@ -64,7 +64,7 @@ var migration006 = migration{
 
 			-- Extra context
 			metadata          JSONB DEFAULT '{}',
-			error             TEXT,
+			skip_reason       TEXT,
 
 			created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`
