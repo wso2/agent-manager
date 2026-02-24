@@ -24,10 +24,11 @@ type PublishAggregateItem struct {
 	// User-facing evaluator name
 	DisplayName string `json:"displayName"`
 	Level       string `json:"level"`
-	// Flexible aggregation results (e.g., mean, pass_rate)
+	// Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
 	Aggregations map[string]interface{} `json:"aggregations"`
 	Count        int32                  `json:"count"`
-	ErrorCount   *int32                 `json:"errorCount,omitempty"`
+	// Number of evaluations skipped
+	SkippedCount *int32 `json:"skippedCount,omitempty"`
 }
 
 // NewPublishAggregateItem instantiates a new PublishAggregateItem object
@@ -172,36 +173,36 @@ func (o *PublishAggregateItem) SetCount(v int32) {
 	o.Count = v
 }
 
-// GetErrorCount returns the ErrorCount field value if set, zero value otherwise.
-func (o *PublishAggregateItem) GetErrorCount() int32 {
-	if o == nil || IsNil(o.ErrorCount) {
+// GetSkippedCount returns the SkippedCount field value if set, zero value otherwise.
+func (o *PublishAggregateItem) GetSkippedCount() int32 {
+	if o == nil || IsNil(o.SkippedCount) {
 		var ret int32
 		return ret
 	}
-	return *o.ErrorCount
+	return *o.SkippedCount
 }
 
-// GetErrorCountOk returns a tuple with the ErrorCount field value if set, nil otherwise
+// GetSkippedCountOk returns a tuple with the SkippedCount field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *PublishAggregateItem) GetErrorCountOk() (*int32, bool) {
-	if o == nil || IsNil(o.ErrorCount) {
+func (o *PublishAggregateItem) GetSkippedCountOk() (*int32, bool) {
+	if o == nil || IsNil(o.SkippedCount) {
 		return nil, false
 	}
-	return o.ErrorCount, true
+	return o.SkippedCount, true
 }
 
-// HasErrorCount returns a boolean if a field has been set.
-func (o *PublishAggregateItem) HasErrorCount() bool {
-	if o != nil && !IsNil(o.ErrorCount) {
+// HasSkippedCount returns a boolean if a field has been set.
+func (o *PublishAggregateItem) HasSkippedCount() bool {
+	if o != nil && !IsNil(o.SkippedCount) {
 		return true
 	}
 
 	return false
 }
 
-// SetErrorCount gets a reference to the given int32 and assigns it to the ErrorCount field.
-func (o *PublishAggregateItem) SetErrorCount(v int32) {
-	o.ErrorCount = &v
+// SetSkippedCount gets a reference to the given int32 and assigns it to the SkippedCount field.
+func (o *PublishAggregateItem) SetSkippedCount(v int32) {
+	o.SkippedCount = &v
 }
 
 func (o PublishAggregateItem) MarshalJSON() ([]byte, error) {
@@ -219,8 +220,8 @@ func (o PublishAggregateItem) ToMap() (map[string]interface{}, error) {
 	toSerialize["level"] = o.Level
 	toSerialize["aggregations"] = o.Aggregations
 	toSerialize["count"] = o.Count
-	if !IsNil(o.ErrorCount) {
-		toSerialize["errorCount"] = o.ErrorCount
+	if !IsNil(o.SkippedCount) {
+		toSerialize["skippedCount"] = o.SkippedCount
 	}
 	return toSerialize, nil
 }

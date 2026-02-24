@@ -725,7 +725,7 @@ func ConvertToMonitorScoresResponse(response *models.MonitorScoresResponse) spec
 			EvaluatorName: eval.EvaluatorName,
 			Level:         eval.Level,
 			Count:         int32(eval.Count),
-			ErrorCount:    int32(eval.ErrorCount),
+			SkippedCount:  int32(eval.SkippedCount),
 			Aggregations:  eval.Aggregations,
 		}
 	}
@@ -756,7 +756,7 @@ func ConvertToMonitorRunScoresResponse(response *models.MonitorRunScoresResponse
 			EvaluatorName: eval.EvaluatorName,
 			Level:         eval.Level,
 			Count:         int32(eval.Count),
-			ErrorCount:    int32(eval.ErrorCount),
+			SkippedCount:  int32(eval.SkippedCount),
 			Aggregations:  eval.Aggregations,
 		}
 	}
@@ -784,7 +784,7 @@ func ConvertToTimeSeriesResponse(response *models.TimeSeriesResponse) spec.TimeS
 		points[i] = spec.TimeSeriesPoint{
 			Timestamp:    point.Timestamp,
 			Count:        int32(point.Count),
-			ErrorCount:   int32(point.ErrorCount),
+			SkippedCount: int32(point.SkippedCount),
 			Aggregations: point.Aggregations,
 		}
 	}
@@ -824,7 +824,7 @@ func ConvertToTraceScoresResponse(response *models.TraceScoresResponse) spec.Tra
 					Score:       *spec.NewNullableFloat32(scoreFloat32),
 					Explanation: *spec.NewNullableString(score.Explanation),
 					Metadata:    score.Metadata,
-					Error:       *spec.NewNullableString(score.Error),
+					SkipReason:  *spec.NewNullableString(score.SkipReason),
 				}
 			}
 

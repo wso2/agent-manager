@@ -5032,6 +5032,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/evaluators/llm-providers:
+    get:
+      summary: List supported LLM providers for evaluators
+      description: Returns the static catalog of LLM providers supported by built-in evaluators, including credential requirements and available models. The env_var field on each config field indicates the environment variable the platform must set on the evaluation job process.
+      operationId: listEvaluatorLLMProviders
+      tags:
+        - Evaluators
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+      responses:
+        "200":
+          description: List of supported LLM providers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluatorLLMProviderListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/evaluators/{evaluatorId}:
     get:
       summary: Get evaluator details
@@ -6563,6 +6591,88 @@ components:
           format: int32
           description: Number of evaluators to skip
           example: 0
+
+    EvaluatorLLMProviderListResponse:
+      type: object
+      required:
+        - count
+        - list
+      properties:
+        count:
+          type: integer
+          description: Total number of supported LLM providers
+          example: 5
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluatorLLMProvider"
+          description: List of supported LLM providers
+
+    EvaluatorLLMProvider:
+      type: object
+      required:
+        - name
+        - displayName
+        - configFields
+        - models
+      properties:
+        name:
+          type: string
+          description: LiteLLM provider identifier
+          example: openai
+        displayName:
+          type: string
+          description: Human-readable provider name
+          example: OpenAI
+        configFields:
+          type: array
+          items:
+            $ref: "#/components/schemas/LLMConfigField"
+          description: Credential and config fields required by this provider
+        models:
+          type: array
+          items:
+            type: string
+          description: Curated list of popular litellm-compatible model strings for this provider
+          example:
+            - gpt-4o
+            - gpt-4o-mini
+
+    LLMConfigField:
+      type: object
+      required:
+        - key
+        - label
+        - fieldType
+        - required
+        - envVar
+      properties:
+        key:
+          type: string
+          description: Field identifier
+          example: api_key
+        label:
+          type: string
+          description: Human-readable field label for UI display
+          example: API Key
+        fieldType:
+          type: string
+          enum:
+            - password
+            - text
+          description: >
+            Field type controlling how the platform renders and handles the value.
+            "password" = secret (mask in UI, do not log).
+            "text" = plain value (e.g. base URL).
+          example: password
+        required:
+          type: boolean
+          description: Whether this field must be provided
+          example: true
+        envVar:
+          type: string
+          description: Environment variable the platform must set on the evaluation job process. LiteLLM reads these natively.
+          example: OPENAI_API_KEY
 
     ErrorResponse:
       type: object
@@ -8681,8 +8791,10 @@ components:
         metadata:
           type: object
           additionalProperties: true
-        error:
+        skipReason:
           type: string
+          nullable: true
+          description: Reason the evaluator skipped this trace (missing data, exception, etc.)
 
     EvaluationAggregateResponse:
       type: object
@@ -8729,7 +8841,7 @@ components:
       required:
         - timestamp
         - count
-        - errorCount
+        - skippedCount
         - aggregations
       properties:
         timestamp:
@@ -8739,9 +8851,9 @@ components:
         count:
           type: integer
           description: Total number of scores in this bucket
-        errorCount:
+        skippedCount:
           type: integer
-          description: Number of scores with errors in this bucket
+          description: Number of evaluations skipped in this bucket
         aggregations:
           type: object
           description: Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
@@ -8857,7 +8969,7 @@ components:
         - evaluatorName
         - level
         - count
-        - errorCount
+        - skippedCount
         - aggregations
       properties:
         evaluatorName:
@@ -8870,9 +8982,9 @@ components:
         count:
           type: integer
           description: Total number of scores
-        errorCount:
+        skippedCount:
           type: integer
-          description: Number of scores with errors
+          description: Number of evaluations skipped
         aggregations:
           type: object
           description: Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
@@ -8957,10 +9069,10 @@ components:
           type: object
           additionalProperties: true
           description: Additional metadata
-        error:
+        skipReason:
           type: string
           nullable: true
-          description: Error message if evaluation failed
+          description: Reason the evaluator skipped this trace
 
     PublishScoreItem:
       type: object
@@ -8991,8 +9103,9 @@ components:
         metadata:
           type: object
           additionalProperties: true
-        error:
+        skipReason:
           type: string
+          description: Reason the evaluator skipped this trace
 
     PublishAggregateItem:
       type: object
@@ -9002,6 +9115,7 @@ components:
         - level
         - aggregations
         - count
+        - aggregations
       properties:
         identifier:
           type: string
@@ -9014,12 +9128,13 @@ components:
           enum: [trace, agent, span]
         aggregations:
           type: object
+          description: Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
           additionalProperties: true
-          description: Flexible aggregation results (e.g., mean, pass_rate)
         count:
           type: integer
-        errorCount:
+        skippedCount:
           type: integer
+          description: Number of evaluations skipped
 
     PublishScoresRequest:
       type: object

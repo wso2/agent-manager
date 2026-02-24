@@ -108,3 +108,41 @@ func matchesSearch(e *Entry, search string) bool {
 func floatPtr(v float64) *float64 {
 	return &v
 }
+
+// ── LLM Provider Catalog ──────────────────────────────────────────────────────
+
+// LLMConfigField describes a single credential/config field required by an LLM provider.
+// FieldType "password" means the value is a secret (mask in UI, do not log).
+// FieldType "text" means a plain value (e.g. base URL, API version).
+// EnvVar is the environment variable the platform must set on the evaluation job process;
+// LiteLLM reads these natively so no evaluator code changes are needed.
+type LLMConfigField struct {
+	Key       string
+	Label     string
+	FieldType string // "password" | "text"
+	Required  bool
+	EnvVar    string
+}
+
+// LLMProviderEntry is a builtin LLM provider catalog entry generated from the Python library.
+type LLMProviderEntry struct {
+	Name         string
+	DisplayName  string
+	ConfigFields []LLMConfigField
+	Models       []string // curated popular litellm-compatible model strings
+}
+
+// AllProviders returns all builtin LLM provider entries.
+func AllProviders() []*LLMProviderEntry {
+	return llmProviderEntries
+}
+
+// GetProvider returns a builtin LLM provider by name, or nil if not found.
+func GetProvider(name string) *LLMProviderEntry {
+	for _, p := range llmProviderEntries {
+		if p.Name == name {
+			return p
+		}
+	}
+	return nil
+}

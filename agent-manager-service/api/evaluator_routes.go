@@ -26,6 +26,9 @@ func registerEvaluatorRoutes(mux *http.ServeMux, controller controllers.Evaluato
 	// GET /orgs/{orgName}/evaluators - List evaluators
 	mux.HandleFunc("GET /orgs/{orgName}/evaluators", controller.ListEvaluators)
 
+	// GET /orgs/{orgName}/evaluators/llm-providers - List supported LLM providers
+	mux.HandleFunc("GET /orgs/{orgName}/evaluators/llm-providers", controller.ListLLMProviders)
+
 	// GET /orgs/{orgName}/evaluators/{evaluatorId} - Get evaluator details
 	mux.HandleFunc("GET /orgs/{orgName}/evaluators/{evaluatorId}", controller.GetEvaluator)
 }

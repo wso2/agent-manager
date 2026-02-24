@@ -217,7 +217,7 @@ def publish_scores(
                 "level": summary.level,
                 "aggregations": summary.aggregated_scores,
                 "count": summary.count,
-                "errorCount": sum(1 for s in summary.individual_scores if s.is_error),
+                "skippedCount": summary.skipped_count,
             }
         )
 
@@ -232,7 +232,7 @@ def publish_scores(
             # Optional fields
             if score.span_id:
                 item["spanId"] = score.span_id
-            if not score.is_error and score.score is not None:
+            if score.is_successful and score.score is not None:
                 item["score"] = score.score
             if score.explanation:
                 item["explanation"] = score.explanation
@@ -240,8 +240,8 @@ def publish_scores(
                 item["traceTimestamp"] = score.timestamp.isoformat()
             if score.metadata:
                 item["metadata"] = score.metadata
-            if score.error:
-                item["error"] = score.error
+            if score.skip_reason:
+                item["skipReason"] = score.skip_reason
 
             individual_scores.append(item)
 
@@ -304,6 +304,21 @@ def main():
     if not publisher_api_key:
         logger.error("PUBLISHER_API_KEY environment variable is not set")
         sys.exit(1)
+
+    # Inject LLM provider credentials as env vars (LiteLLM reads these natively)
+    llm_configs_raw = os.environ.get("LLM_PROVIDER_CONFIGS", "[]")
+    try:
+        llm_configs = json.loads(llm_configs_raw)
+        for entry in llm_configs:
+            env_var = entry.get("envVar", "")
+            value = entry.get("value", "")
+            if env_var and value:
+                os.environ[env_var] = value
+                logger.debug("Set LLM provider env var: %s", env_var)
+        if llm_configs:
+            logger.info("Injected %d LLM provider credential(s)", len(llm_configs))
+    except (json.JSONDecodeError, TypeError) as e:
+        logger.warning("Failed to parse LLM_PROVIDER_CONFIGS: %s", e)
 
     logger.info(
         "Starting monitor evaluation monitor=%s agent=%s env=%s "

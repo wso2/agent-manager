@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/catalog"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/logger"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/services"
@@ -36,6 +37,7 @@ import (
 type EvaluatorController interface {
 	ListEvaluators(w http.ResponseWriter, r *http.Request)
 	GetEvaluator(w http.ResponseWriter, r *http.Request)
+	ListLLMProviders(w http.ResponseWriter, r *http.Request)
 }
 
 type evaluatorController struct {
@@ -177,6 +179,44 @@ func (c *evaluatorController) GetEvaluator(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Error("Failed to encode response", "error", err)
+	}
+}
+
+// ListLLMProviders handles GET /orgs/{orgName}/evaluators/llm-providers
+func (c *evaluatorController) ListLLMProviders(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	providers := catalog.AllProviders()
+	list := make([]spec.EvaluatorLLMProvider, 0, len(providers))
+	for _, p := range providers {
+		fields := make([]spec.LLMConfigField, 0, len(p.ConfigFields))
+		for _, f := range p.ConfigFields {
+			fields = append(fields, spec.LLMConfigField{
+				Key:       f.Key,
+				Label:     f.Label,
+				FieldType: f.FieldType,
+				Required:  f.Required,
+				EnvVar:    f.EnvVar,
+			})
+		}
+		list = append(list, spec.EvaluatorLLMProvider{
+			Name:         p.Name,
+			DisplayName:  p.DisplayName,
+			ConfigFields: fields,
+			Models:       p.Models,
+		})
+	}
+
+	response := spec.EvaluatorLLMProviderListResponse{
+		Count: int32(len(list)),
+		List:  list,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Error("Failed to encode LLM providers response", "error", err)
 	}
 }
 
