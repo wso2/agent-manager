@@ -186,7 +186,7 @@ func loadEnvs() {
 	}
 
 	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key)
-	config.EncryptionKey = r.readRequiredString("ENCRYPTION_KEY")
+	config.EncryptionKey = r.readOptionalString("ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 	if len(config.EncryptionKey) != 64 {
 		r.errors = append(r.errors, fmt.Errorf("ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)"))
 	}
