@@ -591,8 +591,12 @@ func (s *TracingController) GetTraceOverviewsV2(ctx context.Context, params open
 			input, output = opensearch.ExtractRootSpanInputOutput(rootSpan)
 		}
 
-		// Extract token usage and status from root span
-		tokenUsage := opensearch.ExtractTokenUsage([]opensearch.Span{*rootSpan})
+		// Extract token usage from root span's traceloop.entity.output,
+		// falling back to gen_ai.usage.* attributes
+		tokenUsage := opensearch.ExtractTokenUsageFromEntityOutput(rootSpan)
+		if tokenUsage == nil {
+			tokenUsage = opensearch.ExtractTokenUsage([]opensearch.Span{*rootSpan})
+		}
 		traceStatus := opensearch.ExtractTraceStatus([]opensearch.Span{*rootSpan})
 
 		overviews = append(overviews, opensearch.TraceOverview{
