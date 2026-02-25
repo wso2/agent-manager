@@ -182,28 +182,22 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 
 	var latestRun *models.MonitorRunResponse
 
-	// Handle monitor type-specific workflow creation
-	if req.Type == models.MonitorTypeFuture {
-		// Future monitors: scheduler handles all WorkflowRun creation
-		// next_run_time is set to NOW(), so scheduler will trigger within 60 seconds
-		s.logger.Info("Future monitor created, scheduler will trigger first run", "name", req.Name)
-	} else {
-		// Past monitors: create WorkflowRun CR immediately for one-off execution
+	if monitor.Type == models.MonitorTypePast {
+		// Past monitors: trigger evaluation run immediately
 		result, err := s.executor.ExecuteMonitorRun(ctx, ExecuteMonitorRunParams{
 			OrgName:    orgName,
 			Monitor:    monitor,
-			StartTime:  *req.TraceStart,
-			EndTime:    *req.TraceEnd,
-			Evaluators: monitor.Evaluators, // Snapshot at creation time
+			StartTime:  *monitor.TraceStart,
+			EndTime:    *monitor.TraceEnd,
+			Evaluators: monitor.Evaluators,
 		})
 		if err != nil {
-			// Rollback DB entry on CR creation failure
+			// Rollback DB entry on run creation failure
 			if delErr := s.monitorRepo.DeleteMonitor(monitor); delErr != nil {
 				s.logger.Error("Failed to rollback monitor DB entry", "error", delErr)
 			}
 			return nil, err
 		}
-
 		if result.Run != nil {
 			latestRun = result.Run.ToResponse()
 		}
@@ -325,12 +319,29 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 		return nil, fmt.Errorf("failed to update monitor: %w", err)
 	}
 
-	// Note: No CR re-application needed
-	// - Future monitors: scheduler creates individual WorkflowRun CRs per execution
-	// - Past monitors: one-off execution, CR already created
-	// Updated evaluators will be used in future runs via the evaluator snapshot mechanism
+	var latestRun *models.MonitorRunResponse
 
-	latestRun := s.getLatestRun(monitor.ID)
+	if monitor.Type == models.MonitorTypePast {
+		// Past monitors: trigger a new evaluation run with updated config
+		result, err := s.executor.ExecuteMonitorRun(ctx, ExecuteMonitorRunParams{
+			OrgName:    orgName,
+			Monitor:    monitor,
+			StartTime:  *monitor.TraceStart,
+			EndTime:    *monitor.TraceEnd,
+			Evaluators: monitor.Evaluators,
+		})
+		if err != nil {
+			s.logger.Error("Failed to trigger past monitor run after update", "name", monitorName, "error", err)
+			return nil, fmt.Errorf("monitor updated but failed to trigger evaluation run: %w", err)
+		}
+		if result.Run != nil {
+			latestRun = result.Run.ToResponse()
+		}
+	}
+
+	if latestRun == nil {
+		latestRun = s.getLatestRun(monitor.ID)
+	}
 	status := s.getMonitorStatus(monitor.ID, monitor.Type, monitor.NextRunTime)
 
 	s.logger.Info("Monitor updated successfully", "name", monitorName)
