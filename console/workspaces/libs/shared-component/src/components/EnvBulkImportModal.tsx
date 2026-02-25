@@ -24,11 +24,16 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
+    Stack,
+    TextField,
     Typography,
     useTheme,
 } from "@wso2/oxygen-ui";
+import { alpha } from "@mui/material/styles";
 import { FileText, Upload } from "@wso2/oxygen-ui-icons-react";
 import { parseEnvContent, EnvVariable } from "../utils";
+
+const MAX_FILE_SIZE = 1024 * 1024; // 1MB
 
 interface EnvBulkImportModalProps {
     open: boolean;
@@ -43,6 +48,7 @@ export function EnvBulkImportModal({
 }: EnvBulkImportModalProps) {
     const theme = useTheme();
     const [content, setContent] = useState("");
+    const [fileError, setFileError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Parse content and get variables count
@@ -52,7 +58,7 @@ export function EnvBulkImportModal({
 
     // Handle textarea change
     const handleContentChange = useCallback(
-        (e: ChangeEvent<HTMLTextAreaElement>) => {
+        (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
             setContent(e.target.value);
         },
         []
@@ -64,7 +70,19 @@ export function EnvBulkImportModal({
             const file = e.target.files?.[0];
             if (!file) return;
 
+            setFileError(null);
+
+            if (file.size > MAX_FILE_SIZE) {
+                setFileError(`File is too large. Maximum size is ${MAX_FILE_SIZE / 1024}KB.`);
+                e.target.value = "";
+                return;
+            }
+
             const reader = new FileReader();
+            reader.onerror = () => {
+                setFileError("Failed to read file. Please try again.");
+                e.target.value = "";
+            };
             reader.onload = (event) => {
                 const text = event.target?.result;
                 if (typeof text === "string") {
@@ -89,6 +107,7 @@ export function EnvBulkImportModal({
         if (validCount > 0) {
             onImport(parseResult.valid);
             setContent("");
+            setFileError(null);
             onClose();
         }
     }, [validCount, parseResult.valid, onImport, onClose]);
@@ -96,6 +115,7 @@ export function EnvBulkImportModal({
     // Handle cancel/close
     const handleClose = useCallback(() => {
         setContent("");
+        setFileError(null);
         onClose();
     }, [onClose]);
 
@@ -116,32 +136,22 @@ export function EnvBulkImportModal({
             </DialogTitle>
 
             <DialogContent>
-                <Box display="flex" flexDirection="column" gap={2}>
+                <Stack spacing={2} sx={{ pt: 1 }}>
                     <Typography variant="body2" color="text.secondary">
                         Paste your .env content below or upload a file.
                     </Typography>
 
                     {/* Textarea for pasting .env content */}
-                    <Box
-                        component="textarea"
+                    <TextField
+                        multiline
+                        minRows={7}
+                        fullWidth
                         value={content}
                         onChange={handleContentChange}
                         placeholder={`# Example format:\nAPI_KEY=your_api_key\nDATABASE_URL=postgres://...\nDEBUG="true"`}
-                        sx={{
-                            width: "100%",
-                            minHeight: 200,
-                            padding: 1.5,
-                            fontFamily: "monospace",
-                            fontSize: 13,
-                            border: `1px solid ${theme.palette.divider}`,
-                            borderRadius: 1,
-                            resize: "vertical",
-                            backgroundColor: theme.palette.background.paper,
-                            color: theme.palette.text.primary,
-                            "&:focus": {
-                                outline: "none",
-                                borderColor: theme.palette.primary.main,
-                            },
+                        inputProps={{
+                            "aria-label": "Environment variables content",
+                            style: { fontFamily: "monospace", fontSize: 13 },
                         }}
                     />
 
@@ -150,8 +160,10 @@ export function EnvBulkImportModal({
                         <input
                             ref={fileInputRef}
                             type="file"
+                            accept=".env,text/plain"
                             onChange={handleFileUpload}
                             style={{ display: "none" }}
+                            aria-label="Upload environment variables file"
                         />
                         <Button
                             variant="outlined"
@@ -161,6 +173,11 @@ export function EnvBulkImportModal({
                         >
                             Upload .env File
                         </Button>
+                        {fileError && (
+                            <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.5 }}>
+                                {fileError}
+                            </Typography>
+                        )}
                     </Box>
 
                     {/* Variables count indicator */}
@@ -178,7 +195,7 @@ export function EnvBulkImportModal({
                         <Box
                             sx={{
                                 padding: 1.5,
-                                backgroundColor: theme.palette.error.light + '20',
+                                backgroundColor: alpha(theme.palette.error.light, 0.12),
                                 borderRadius: 1,
                                 border: `1px solid ${theme.palette.error.light}`,
                             }}
@@ -194,7 +211,7 @@ export function EnvBulkImportModal({
                             </Typography>
                         </Box>
                     )}
-                </Box>
+                </Stack>
             </DialogContent>
 
             <DialogActions>
