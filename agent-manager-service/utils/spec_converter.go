@@ -478,7 +478,7 @@ func ConvertSpecToModelUpstreamConfig(config spec.UpstreamConfig) models.Upstrea
 			sandbox.Auth = &models.UpstreamAuth{
 				Type:   &config.Sandbox.Auth.Type,
 				Value:  config.Sandbox.Auth.Value,
-				Header: config.Main.Auth.Header,
+				Header: config.Sandbox.Auth.Header,
 			}
 		}
 		modelConfig.Sandbox = &sandbox

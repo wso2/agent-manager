@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -758,10 +757,6 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 			Upstream:      gatewayUpstream,
 			AccessControl: accessControl,
 			Policies:      policies,
-			// Note: RateLimiting and Security are now transformed into Policies
-			// Remove these fields from YAML spec to avoid duplication
-			RateLimiting: nil,
-			Security:     nil,
 		},
 	}
 
@@ -770,9 +765,6 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal to YAML: %w", err)
 	}
-
-	// Log the generated YAML (consider removing in production or redacting sensitive data)
-	log.Println(string(yamlBytes))
 
 	return string(yamlBytes), nil
 }

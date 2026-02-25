@@ -511,9 +511,10 @@ func TestGenerateLLMProviderDeploymentYAML_WithResourceWiseRateLimit(t *testing.
 	var defaultPath *models.LLMPolicyPath
 	var resourcePath *models.LLMPolicyPath
 	for i := range policy.Paths {
-		if policy.Paths[i].Path == "/*" {
+		switch policy.Paths[i].Path {
+		case "/*":
 			defaultPath = &policy.Paths[i]
-		} else if policy.Paths[i].Path == "/chat/completions" {
+		case "/chat/completions":
 			resourcePath = &policy.Paths[i]
 		}
 	}

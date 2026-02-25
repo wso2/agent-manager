@@ -120,6 +120,8 @@ func (c *agentConfigurationController) GetAgentModelConfig(w http.ResponseWriter
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue(utils.PathParamOrgName)
+	projectName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
 	configID := r.PathValue("configId")
 
 	configUUID, err := uuid.Parse(configID)
@@ -129,7 +131,7 @@ func (c *agentConfigurationController) GetAgentModelConfig(w http.ResponseWriter
 		return
 	}
 
-	response, err := c.agentConfigService.Get(ctx, configUUID, orgName)
+	response, err := c.agentConfigService.Get(ctx, configUUID, orgName, projectName, agentName)
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentConfigNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
@@ -154,6 +156,17 @@ func (c *agentConfigurationController) ListAgentModelConfigs(w http.ResponseWrit
 	limit := getIntQueryParam(r, "limit", 20)
 	offset := getIntQueryParam(r, "offset", 0)
 
+	// Validate and clamp pagination parameters
+	if limit < 1 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
 	response, err := c.agentConfigService.List(ctx, orgName, limit, offset)
 	if err != nil {
 		log.Error("ListAgentModelConfigs: failed to list configurations", "error", err)
@@ -172,6 +185,8 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue(utils.PathParamOrgName)
+	projectName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
 	configID := r.PathValue("configId")
 
 	configUUID, err := uuid.Parse(configID)
@@ -191,7 +206,7 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	// Convert spec request to models request
 	req := convertUpdateAgentModelConfigRequest(specReq)
 
-	response, err := c.agentConfigService.Update(ctx, configUUID, orgName, req)
+	response, err := c.agentConfigService.Update(ctx, configUUID, orgName, projectName, agentName, req)
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentConfigNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
@@ -213,6 +228,8 @@ func (c *agentConfigurationController) DeleteAgentModelConfig(w http.ResponseWri
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue(utils.PathParamOrgName)
+	projectName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
 	configID := r.PathValue("configId")
 
 	configUUID, err := uuid.Parse(configID)
@@ -222,7 +239,7 @@ func (c *agentConfigurationController) DeleteAgentModelConfig(w http.ResponseWri
 		return
 	}
 
-	if err := c.agentConfigService.Delete(ctx, configUUID, orgName); err != nil {
+	if err := c.agentConfigService.Delete(ctx, configUUID, orgName, projectName, agentName); err != nil {
 		if errors.Is(err, utils.ErrAgentConfigNotFound) {
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return

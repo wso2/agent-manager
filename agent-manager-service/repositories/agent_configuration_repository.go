@@ -18,11 +18,13 @@ package repositories
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // AgentConfigurationRepository defines data access for agent configurations
@@ -62,7 +64,16 @@ func NewAgentConfigurationRepository(db *gorm.DB) AgentConfigurationRepository {
 }
 
 func (r *agentConfigurationRepository) Create(ctx context.Context, tx *gorm.DB, config *models.AgentConfiguration) error {
-	return tx.WithContext(ctx).Create(config).Error
+	err := tx.WithContext(ctx).Create(config).Error
+	if err != nil {
+		// Check if it's a unique constraint violation
+		if strings.Contains(err.Error(), "uq_agent_config_name") ||
+			strings.Contains(err.Error(), "duplicate key") {
+			return utils.ErrAgentConfigAlreadyExists
+		}
+		return err
+	}
+	return nil
 }
 
 func (r *agentConfigurationRepository) GetByUUID(ctx context.Context, configUUID uuid.UUID, orgName string) (*models.AgentConfiguration, error) {

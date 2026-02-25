@@ -36,12 +36,12 @@ import (
 type AgentConfigurationService interface {
 	Create(ctx context.Context, orgName, projectName, agentID string,
 		req models.CreateAgentModelConfigRequest, createdBy string) (*models.AgentModelConfigResponse, error)
-	Get(ctx context.Context, configUUID uuid.UUID, orgName string) (*models.AgentModelConfigResponse, error)
+	Get(ctx context.Context, configUUID uuid.UUID, orgName, projectName, agentName string) (*models.AgentModelConfigResponse, error)
 	GetByAgent(ctx context.Context, agentID, orgName string) (*models.AgentModelConfigResponse, error)
 	List(ctx context.Context, orgName string, limit, offset int) (*models.AgentModelConfigListResponse, error)
-	Update(ctx context.Context, configUUID uuid.UUID, orgName string,
+	Update(ctx context.Context, configUUID uuid.UUID, orgName, projectName, agentName string,
 		req models.UpdateAgentModelConfigRequest) (*models.AgentModelConfigResponse, error)
-	Delete(ctx context.Context, configUUID uuid.UUID, orgName string) error
+	Delete(ctx context.Context, configUUID uuid.UUID, orgName, projectName, agentName string) error
 }
 
 type agentConfigurationService struct {
@@ -111,14 +111,8 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		return nil, fmt.Errorf("agent not found: %w", err)
 	}
 
-	// Check for duplicate configuration for this agent
-	// existingConfig, err := s.agentConfigRepo.GetByAgentID(ctx, agentID, orgName)
-	// if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-	// 	return nil, fmt.Errorf("failed to check existing config: %w", err)
-	// }
-	// if existingConfig != nil && existingConfig.UUID != uuid.Nil {
-	// 	return nil, utils.ErrAgentConfigAlreadyExists
-	// }
+	// Note: Duplicate check removed - database unique constraint handles it
+	// The constraint on (agent_id, organization_name) prevents race conditions
 
 	// Validate all providers exist and are in catalog
 	for envName, envMapping := range req.EnvMappings {
@@ -166,6 +160,10 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		// Create agent configuration
 		if err := s.agentConfigRepo.Create(ctx, tx, config); err != nil {
+			// Check if it's a duplicate error from the database constraint
+			if errors.Is(err, utils.ErrAgentConfigAlreadyExists) {
+				return err // Propagate to outer error handler
+			}
 			return fmt.Errorf("failed to create configuration: %w", err)
 		}
 
@@ -178,13 +176,16 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			default:
 			}
 
-			envUUID, _ := uuid.Parse(envName)
+			envUUID, err := uuid.Parse(envName)
+			if err != nil {
+				return fmt.Errorf("invalid environment id %q: %w", envName, err)
+			}
 			env := envMap[envName]
 
 			// Resolve gateway for environment (AI-first preference)
-			gateway, err := s.resolveGatewayForEnvironment(ctx, envUUID, orgName)
-			if err != nil {
-				return fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
+			gateway, gatewayErr := s.resolveGatewayForEnvironment(ctx, envUUID, orgName)
+			if gatewayErr != nil {
+				return fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, gatewayErr)
 			}
 
 			// Build LLM proxy configuration
@@ -217,7 +218,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			})
 
 			// Generate API key for proxy
-			proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, "models.UserRoleSystem", &models.CreateAPIKeyRequest{
+			proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, models.UserRoleSystem, &models.CreateAPIKeyRequest{
 				Name: fmt.Sprintf("%s-%s-key", config.Name, env.Name),
 			})
 			if err != nil {
@@ -273,6 +274,10 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		return nil
 	})
 	if err != nil {
+		// Check if it's a duplicate error - no need to rollback proxies
+		if errors.Is(err, utils.ErrAgentConfigAlreadyExists) {
+			return nil, utils.ErrAgentConfigAlreadyExists
+		}
 		// Rollback: clean up created proxies and deployments
 		s.logger.Error("Transaction failed, rolling back resources", "error", err)
 		s.rollbackProxies(ctx, rollbackResources, orgName)
@@ -291,17 +296,22 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 	)
 
 	// Return created configuration
-	return s.Get(ctx, config.UUID, orgName)
+	return s.Get(ctx, config.UUID, orgName, projectName, agentID)
 }
 
-// Get retrieves a configuration by UUID
-func (s *agentConfigurationService) Get(ctx context.Context, configUUID uuid.UUID, orgName string) (*models.AgentModelConfigResponse, error) {
+// Get retrieves a configuration by UUID with project and agent scoping validation
+func (s *agentConfigurationService) Get(ctx context.Context, configUUID uuid.UUID, orgName, projectName, agentName string) (*models.AgentModelConfigResponse, error) {
 	config, err := s.agentConfigRepo.GetByUUID(ctx, configUUID, orgName)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, utils.ErrAgentConfigNotFound
 		}
 		return nil, fmt.Errorf("failed to get configuration: %w", err)
+	}
+
+	// Validate project and agent scoping
+	if config.ProjectName != projectName || config.AgentID != agentName {
+		return nil, utils.ErrAgentConfigNotFound
 	}
 
 	return s.buildConfigResponse(ctx, config)
@@ -356,8 +366,8 @@ func (s *agentConfigurationService) List(ctx context.Context, orgName string, li
 	}, nil
 }
 
-// Update updates an existing configuration
-func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.UUID, orgName string,
+// Update updates an existing configuration with project and agent scoping validation
+func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.UUID, orgName, projectName, agentName string,
 	req models.UpdateAgentModelConfigRequest,
 ) (*models.AgentModelConfigResponse, error) {
 	// Get existing configuration with all mappings
@@ -367,6 +377,11 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			return nil, utils.ErrAgentConfigNotFound
 		}
 		return nil, fmt.Errorf("failed to get configuration: %w", err)
+	}
+
+	// Validate project and agent scoping
+	if existingConfig.ProjectName != projectName || existingConfig.AgentID != agentName {
+		return nil, utils.ErrAgentConfigNotFound
 	}
 
 	// Build map of existing environment mappings for comparison
@@ -436,7 +451,10 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			default:
 			}
 
-			envUUID, _ := uuid.Parse(envName)
+			envUUID, err := uuid.Parse(envName)
+			if err != nil {
+				return fmt.Errorf("invalid environment id %q: %w", envName, err)
+			}
 			env, exists := envMap[envName]
 			if !exists {
 				return fmt.Errorf("environment not found: %s", envName)
@@ -467,7 +485,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 					}
 
 					// Create new LLM proxy
-					proxy, err := s.llmProxyService.Create(orgName, "models.UserRoleSystem", proxyConfig)
+					proxy, err := s.llmProxyService.Create(orgName, models.UserRoleSystem, proxyConfig)
 					if err != nil {
 						return fmt.Errorf("failed to create proxy for environment %s: %w", envName, err)
 					}
@@ -475,7 +493,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 					// Deploy new proxy
 					deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
 						Name:      fmt.Sprintf("%s-%s-deployment", existingConfig.Name, env.Name),
-						Base:      envName,
+						Base:      "current",
 						GatewayID: gateway.UUID.String(),
 					}, orgName)
 					if err != nil {
@@ -483,7 +501,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 					}
 
 					// Generate API key for new proxy
-					proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, "models.UserRoleSystem", &models.CreateAPIKeyRequest{
+					proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, models.UserRoleSystem, &models.CreateAPIKeyRequest{
 						Name: fmt.Sprintf("%s-%s-key", existingConfig.Name, env.Name),
 					})
 					if err != nil {
@@ -557,7 +575,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 				}
 
 				// Create LLM proxy
-				proxy, err := s.llmProxyService.Create(orgName, "models.UserRoleSystem", proxyConfig)
+				proxy, err := s.llmProxyService.Create(orgName, models.UserRoleSystem, proxyConfig)
 				if err != nil {
 					return fmt.Errorf("failed to create proxy for environment %s: %w", envName, err)
 				}
@@ -565,7 +583,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 				// Deploy proxy
 				deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{
 					Name:      fmt.Sprintf("%s-%s-deployment", existingConfig.Name, env.Name),
-					Base:      envName,
+					Base:      "current",
 					GatewayID: gateway.UUID.String(),
 				}, orgName)
 				if err != nil {
@@ -573,7 +591,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 				}
 
 				// Generate API key
-				proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, "models.UserRoleSystem", &models.CreateAPIKeyRequest{
+				proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, orgName, proxy.Handle, models.UserRoleSystem, &models.CreateAPIKeyRequest{
 					Name: fmt.Sprintf("%s-%s-key", existingConfig.Name, env.Name),
 				})
 				if err != nil {
@@ -625,9 +643,13 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 
 		// Delete environments that were not in the request (removed environments)
 		for envUUID, mapping := range existingEnvMap {
+			proxyHandle := "<nil>"
+			if mapping.LLMProxy != nil {
+				proxyHandle = mapping.LLMProxy.Handle
+			}
 			s.logger.Info("Removing environment from configuration",
 				"environment", envUUID,
-				"proxyHandle", mapping.LLMProxy.Handle)
+				"proxyHandle", proxyHandle)
 
 			// Track proxy for deletion
 			if mapping.LLMProxy != nil {
@@ -635,7 +657,10 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			}
 
 			// Delete environment variables
-			envUUIDParsed, _ := uuid.Parse(envUUID)
+			envUUIDParsed, parseErr := uuid.Parse(envUUID)
+			if parseErr != nil {
+				return fmt.Errorf("invalid environment UUID %q: %w", envUUID, parseErr)
+			}
 			if err := s.envVariableRepo.DeleteByConfigAndEnv(ctx, tx, configUUID, envUUIDParsed); err != nil {
 				return fmt.Errorf("failed to delete environment variables for %s: %w", envUUID, err)
 			}
@@ -718,11 +743,11 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 	)
 
 	// Return updated configuration
-	return s.Get(ctx, configUUID, orgName)
+	return s.Get(ctx, configUUID, orgName, projectName, agentName)
 }
 
-// Delete deletes a configuration and all associated resources
-func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.UUID, orgName string) error {
+// Delete deletes a configuration and all associated resources with project and agent scoping validation
+func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.UUID, orgName, projectName, agentName string) error {
 	// Get configuration and mappings
 	existingConfig, err := s.agentConfigRepo.GetByUUID(ctx, configUUID, orgName)
 	if err != nil {
@@ -730,6 +755,11 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 			return utils.ErrAgentConfigNotFound
 		}
 		return fmt.Errorf("failed to get configuration: %w", err)
+	}
+
+	// Validate project and agent scoping
+	if existingConfig.ProjectName != projectName || existingConfig.AgentID != agentName {
+		return utils.ErrAgentConfigNotFound
 	}
 
 	s.logger.Info("Deleting agent configuration", "configUUID", existingConfig.UUID, "name", existingConfig.Name)
@@ -872,7 +902,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 		return nil, "", fmt.Errorf("failed to get provider: %w", err)
 	}
 
-	apiKey, err := s.llmProviderAPIKeyService.CreateAPIKey(ctx, config.OrganizationName, provider.UUID.String(), "models.UserRoleSystem", &models.CreateAPIKeyRequest{
+	apiKey, err := s.llmProviderAPIKeyService.CreateAPIKey(ctx, config.OrganizationName, provider.UUID.String(), models.UserRoleSystem, &models.CreateAPIKeyRequest{
 		Name:        proxyName,
 		DisplayName: proxyName,
 	})
@@ -881,7 +911,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 	}
 
 	upstreamAuthType := models.AuthTypeAPIKey
-	upstreamAuthHeader := models.AuthTypeAPIKey
+	upstreamAuthHeader := "Authorization"
 
 	// Convert policies
 	policies, err := s.convertPolicies(envMapping.Configuration.Policies)
@@ -1072,12 +1102,21 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 	envModelConfig := make(map[string]models.EnvModelConfigResponse)
 	for _, mapping := range config.EnvMappings {
 		envName := envMap[mapping.EnvironmentUUID.String()]
+		// Fall back to UUID if environment was deleted
+		if envName == "" {
+			envName = mapping.EnvironmentUUID.String()
+		}
+
 		var proxyInfo *models.LLMProxyInfo
 		if mapping.LLMProxy != nil {
+			var contextVal string
+			if mapping.LLMProxy.Configuration.Context != nil {
+				contextVal = *mapping.LLMProxy.Configuration.Context
+			}
 			proxyInfo = &models.LLMProxyInfo{
 				ProxyUUID: mapping.LLMProxy.UUID.String(),
 				ProxyName: mapping.LLMProxy.Name,
-				Context:   *mapping.LLMProxy.Configuration.Context,
+				Context:   contextVal,
 				Status:    mapping.LLMProxy.Status,
 			}
 		}

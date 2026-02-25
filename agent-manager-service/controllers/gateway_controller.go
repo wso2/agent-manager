@@ -138,6 +138,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		}
 		if len(envs) == 0 {
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "no environments registered")
+			return
 		}
 		envMap := make(map[string]string)
 		for _, env := range envs {

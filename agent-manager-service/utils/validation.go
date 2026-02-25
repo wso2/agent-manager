@@ -19,6 +19,7 @@ package utils
 import (
 	"errors"
 	"regexp"
+	"strings"
 )
 
 // templateHandleRegex allows alphanumeric characters, hyphens, and underscores
@@ -27,6 +28,9 @@ var templateHandleRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 // userIDRegex allows alphanumeric characters, hyphens, underscores, @ and dots
 // This covers common user ID formats like emails, UUIDs, and usernames
 var userIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_@.-]+$`)
+
+// envVarNameRegex validates environment variable name format (must start with letter or underscore, followed by alphanumeric or underscores)
+var envVarNameRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 // ValidateTemplateHandle validates the format and length of a template handle
 func ValidateTemplateHandle(handle string) error {
@@ -72,7 +76,12 @@ func ValidateEnvironmentVariableName(varName string) error {
 		return errors.New("environment variable name too long")
 	}
 
-	// List of reserved/system environment variable prefixes that should not be used
+	// Check format: must start with letter or underscore, followed by alphanumeric or underscores
+	if !envVarNameRegex.MatchString(varName) {
+		return errors.New("invalid environment variable name format")
+	}
+
+	// List of reserved/system environment variable prefixes that should not be used (case-insensitive)
 	reservedPrefixes := []string{
 		"PATH", "HOME", "USER", "SHELL", "TERM", "PWD",
 		"LANG", "LC_", "TMPDIR", "TMP", "TEMP",
@@ -83,8 +92,9 @@ func ValidateEnvironmentVariableName(varName string) error {
 		"HTTP_", "HTTPS_", // HTTP proxy variables
 	}
 
+	varNameUpper := strings.ToUpper(varName)
 	for _, prefix := range reservedPrefixes {
-		if len(varName) >= len(prefix) && varName[:len(prefix)] == prefix {
+		if strings.HasPrefix(varNameUpper, prefix) {
 			return errors.New("environment variable name uses reserved prefix: " + prefix)
 		}
 	}

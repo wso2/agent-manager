@@ -38,7 +38,7 @@ var migration008 = migration{
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
 			CONSTRAINT chk_agent_config_type CHECK (type IN ('llm', 'mcp', 'other')),
-			CONSTRAINT uq_agent_config_name UNIQUE(agent_id, name, organization_name)
+			CONSTRAINT uq_agent_config_name UNIQUE(agent_id, name, organization_name, project_name)
 		)`
 
 		// Environment Agent Model Mapping table
