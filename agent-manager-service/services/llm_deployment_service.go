@@ -460,8 +460,9 @@ func (s *LLMProviderDeploymentService) DeleteLLMProviderDeployment(providerID, d
 }
 
 // generateLLMProviderDeploymentYAML generates deployment YAML for an LLM provider
-// Note: orgName parameter is currently unused but kept for API compatibility
 func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provider *models.LLMProvider, orgName string) (string, error) {
+	// orgName parameter is reserved for future use in multi-tenant scenarios
+	_ = orgName
 	if provider == nil {
 		return "", errors.New("provider is required")
 	}
@@ -505,15 +506,21 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 	}
 
 	// Ensure access control has a valid mode with default
-	accessControl := provider.Configuration.AccessControl
-	if accessControl == nil {
+	// Create a local copy to avoid mutating the provider's configuration
+	var accessControl *models.LLMAccessControl
+	if provider.Configuration.AccessControl == nil {
 		// Set default to deny_all if not provided
 		accessControl = &models.LLMAccessControl{
 			Mode: "deny_all",
 		}
-	} else if accessControl.Mode != "allow_all" && accessControl.Mode != "deny_all" {
-		// Fix invalid mode to default
-		accessControl.Mode = "deny_all"
+	} else {
+		// Create a copy of the access control config
+		accessControlCopy := *provider.Configuration.AccessControl
+		if accessControlCopy.Mode != "allow_all" && accessControlCopy.Mode != "deny_all" {
+			// Fix invalid mode to default
+			accessControlCopy.Mode = "deny_all"
+		}
+		accessControl = &accessControlCopy
 	}
 
 	// Transform policies: security, rate limiting, and user-defined policies into unified policy array
@@ -722,14 +729,8 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 		}
 
 		// Step 2.2: Consumer level rate limit (placeholder for future implementation)
-		consumerLevel := rateLimit.ConsumerLevel
-		if consumerLevel != nil {
-			if consumerLevel.Global != nil {
-				// TODO: Handle global consumer-level rate limiting
-			} else if consumerLevel.ResourceWise != nil {
-				// TODO: Handle resource-wise consumer-level rate limiting
-			}
-		}
+		// TODO: implement consumer-level rate limiting for Global/ResourceWise
+		// Consumer-level rate limiting is not yet supported by the gateway
 	}
 
 	// Step 3: Append user-defined policies with version normalization
@@ -830,9 +831,9 @@ func normalizePolicyVersionToMajor(version string) string {
 func addOrAppendPolicyPath(policies *[]models.LLMPolicy, name, version string, path models.LLMPolicyPath) {
 	for i := range *policies {
 		if (*policies)[i].Name == name && (*policies)[i].Version == version {
-			// Check for duplicate paths
+			// Check for duplicate paths by comparing full path structure (Path, Methods, Params)
 			for _, existingPath := range (*policies)[i].Paths {
-				if existingPath.Path == path.Path {
+				if pathsAreEqual(existingPath, path) {
 					// Keep first occurrence and avoid duplicates
 					return
 				}
@@ -847,6 +848,50 @@ func addOrAppendPolicyPath(policies *[]models.LLMPolicy, name, version string, p
 		Version: version,
 		Paths:   []models.LLMPolicyPath{path},
 	})
+}
+
+// pathsAreEqual compares two policy paths for equality by checking Path, Methods, and Params
+func pathsAreEqual(a, b models.LLMPolicyPath) bool {
+	// Compare path strings
+	if a.Path != b.Path {
+		return false
+	}
+
+	// Compare methods arrays
+	if len(a.Methods) != len(b.Methods) {
+		return false
+	}
+	methodsMap := make(map[string]bool)
+	for _, m := range a.Methods {
+		methodsMap[m] = true
+	}
+	for _, m := range b.Methods {
+		if !methodsMap[m] {
+			return false
+		}
+	}
+
+	// Compare params maps (shallow comparison of keys and values)
+	if len(a.Params) != len(b.Params) {
+		return false
+	}
+	if len(a.Params) == 0 && len(b.Params) == 0 {
+		return true
+	}
+	// For simplicity, do a string-based comparison of the maps
+	// This works for most cases but may have edge cases with complex nested structures
+	for k, v := range a.Params {
+		bv, exists := b.Params[k]
+		if !exists {
+			return false
+		}
+		// Simple value comparison - works for primitives and will catch most differences
+		if fmt.Sprintf("%v", v) != fmt.Sprintf("%v", bv) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // isBoolTrue checks if a boolean pointer is non-nil and true

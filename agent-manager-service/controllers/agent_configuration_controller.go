@@ -19,6 +19,7 @@ package controllers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -81,7 +82,12 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 	}
 
 	// Convert spec request to models request
-	req := convertCreateAgentModelConfigRequest(specReq)
+	req, err := convertCreateAgentModelConfigRequest(specReq)
+	if err != nil {
+		log.Error("CreateAgentModelConfig: failed to convert request", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
+		return
+	}
 
 	// Call service
 	response, err := c.agentConfigService.Create(ctx, orgName, projectName, agentName, req, createdBy)
@@ -153,6 +159,8 @@ func (c *agentConfigurationController) ListAgentModelConfigs(w http.ResponseWrit
 	log := logger.GetLogger(ctx)
 
 	orgName := r.PathValue(utils.PathParamOrgName)
+	projectName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
 	limit := getIntQueryParam(r, "limit", 20)
 	offset := getIntQueryParam(r, "offset", 0)
 
@@ -167,7 +175,7 @@ func (c *agentConfigurationController) ListAgentModelConfigs(w http.ResponseWrit
 		offset = 0
 	}
 
-	response, err := c.agentConfigService.List(ctx, orgName, limit, offset)
+	response, err := c.agentConfigService.List(ctx, orgName, projectName, agentName, limit, offset)
 	if err != nil {
 		log.Error("ListAgentModelConfigs: failed to list configurations", "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list configurations")
@@ -204,7 +212,12 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	}
 
 	// Convert spec request to models request
-	req := convertUpdateAgentModelConfigRequest(specReq)
+	req, err := convertUpdateAgentModelConfigRequest(specReq)
+	if err != nil {
+		log.Error("UpdateAgentModelConfig: failed to convert request", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
+		return
+	}
 
 	response, err := c.agentConfigService.Update(ctx, configUUID, orgName, projectName, agentName, req)
 	if err != nil {
@@ -254,10 +267,13 @@ func (c *agentConfigurationController) DeleteAgentModelConfig(w http.ResponseWri
 
 // Converter functions between spec and models
 
-func convertCreateAgentModelConfigRequest(specReq spec.CreateAgentModelConfigRequest) models.CreateAgentModelConfigRequest {
+func convertCreateAgentModelConfigRequest(specReq spec.CreateAgentModelConfigRequest) (models.CreateAgentModelConfigRequest, error) {
 	envMappings := make(map[string]models.EnvModelConfigRequest)
 	for envName, envConfig := range specReq.EnvMappings {
-		providerUUID, _ := uuid.Parse(envConfig.ProviderUuid) // UUID validation happens at service layer
+		providerUUID, err := uuid.Parse(envConfig.ProviderUuid)
+		if err != nil {
+			return models.CreateAgentModelConfigRequest{}, fmt.Errorf("invalid provider UUID for environment %s: %w", envName, err)
+		}
 		envMappings[envName] = models.EnvModelConfigRequest{
 			ProviderUUID: providerUUID,
 			Configuration: models.EnvProviderConfiguration{
@@ -271,10 +287,10 @@ func convertCreateAgentModelConfigRequest(specReq spec.CreateAgentModelConfigReq
 		Description: getString(specReq.Description),
 		Type:        specReq.Type,
 		EnvMappings: envMappings,
-	}
+	}, nil
 }
 
-func convertUpdateAgentModelConfigRequest(specReq spec.UpdateAgentModelConfigRequest) models.UpdateAgentModelConfigRequest {
+func convertUpdateAgentModelConfigRequest(specReq spec.UpdateAgentModelConfigRequest) (models.UpdateAgentModelConfigRequest, error) {
 	req := models.UpdateAgentModelConfigRequest{}
 
 	if specReq.Name != nil {
@@ -286,7 +302,10 @@ func convertUpdateAgentModelConfigRequest(specReq spec.UpdateAgentModelConfigReq
 	if specReq.EnvMappings != nil {
 		envMappings := make(map[string]models.EnvModelConfigRequest)
 		for envName, envConfig := range *specReq.EnvMappings {
-			providerUUID, _ := uuid.Parse(envConfig.ProviderUuid) // UUID validation happens at service layer
+			providerUUID, err := uuid.Parse(envConfig.ProviderUuid)
+			if err != nil {
+				return models.UpdateAgentModelConfigRequest{}, fmt.Errorf("invalid provider UUID for environment %s: %w", envName, err)
+			}
 			envMappings[envName] = models.EnvModelConfigRequest{
 				ProviderUUID: providerUUID,
 				Configuration: models.EnvProviderConfiguration{
@@ -297,7 +316,7 @@ func convertUpdateAgentModelConfigRequest(specReq spec.UpdateAgentModelConfigReq
 		req.EnvMappings = envMappings
 	}
 
-	return req
+	return req, nil
 }
 
 func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) spec.AgentModelConfigResponse {

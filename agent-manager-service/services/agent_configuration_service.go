@@ -38,7 +38,7 @@ type AgentConfigurationService interface {
 		req models.CreateAgentModelConfigRequest, createdBy string) (*models.AgentModelConfigResponse, error)
 	Get(ctx context.Context, configUUID uuid.UUID, orgName, projectName, agentName string) (*models.AgentModelConfigResponse, error)
 	GetByAgent(ctx context.Context, agentID, orgName string) (*models.AgentModelConfigResponse, error)
-	List(ctx context.Context, orgName string, limit, offset int) (*models.AgentModelConfigListResponse, error)
+	List(ctx context.Context, orgName, projectName, agentName string, limit, offset int) (*models.AgentModelConfigListResponse, error)
 	Update(ctx context.Context, configUUID uuid.UUID, orgName, projectName, agentName string,
 		req models.UpdateAgentModelConfigRequest) (*models.AgentModelConfigResponse, error)
 	Delete(ctx context.Context, configUUID uuid.UUID, orgName, projectName, agentName string) error
@@ -108,7 +108,12 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 	// Validate agent exists
 	_, err := s.ocClient.GetComponent(ctx, orgName, projectName, agentID)
 	if err != nil {
-		return nil, fmt.Errorf("agent not found: %w", err)
+		// Check if it's a 404 error (agent not found) vs other errors
+		if errors.Is(err, utils.ErrAgentNotFound) {
+			return nil, utils.ErrAgentNotFound
+		}
+		// For other errors (unauthorized, internal, etc), return as-is
+		return nil, fmt.Errorf("failed to validate agent: %w", err)
 	}
 
 	// Note: Duplicate check removed - database unique constraint handles it
@@ -243,7 +248,14 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			if err != nil {
 				return fmt.Errorf("failed to build environment variables for %s: %w", envName, err)
 			}
-			proxyURL := fmt.Sprintf("%s%s", gateway.Vhost, *proxy.Configuration.Context)
+
+			// Build proxy URL with nil-safe context access
+			var proxyURL string
+			if proxy != nil && proxy.Configuration.Context != nil {
+				proxyURL = fmt.Sprintf("%s%s", gateway.Vhost, *proxy.Configuration.Context)
+			} else {
+				proxyURL = gateway.Vhost
+			}
 
 			// Create environment variable records (secret references, not actual secrets)
 			variables := []models.AgentEnvConfigVariable{
@@ -330,20 +342,27 @@ func (s *agentConfigurationService) GetByAgent(ctx context.Context, agentID, org
 	return s.buildConfigResponse(ctx, config)
 }
 
-// List lists all configurations for an organization
-func (s *agentConfigurationService) List(ctx context.Context, orgName string, limit, offset int) (*models.AgentModelConfigListResponse, error) {
+// List lists all configurations for an organization, project, and agent
+func (s *agentConfigurationService) List(ctx context.Context, orgName, projectName, agentName string, limit, offset int) (*models.AgentModelConfigListResponse, error) {
+	// List all configurations for the organization
 	configs, err := s.agentConfigRepo.List(ctx, orgName, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list configurations: %w", err)
 	}
 
-	count, err := s.agentConfigRepo.Count(ctx, orgName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to count configurations: %w", err)
+	// Filter by projectName and agentName
+	filteredConfigs := make([]models.AgentConfiguration, 0, len(configs))
+	for _, cfg := range configs {
+		if cfg.ProjectName == projectName && cfg.AgentID == agentName {
+			filteredConfigs = append(filteredConfigs, cfg)
+		}
 	}
 
-	items := make([]models.AgentModelConfigListItem, len(configs))
-	for i, cfg := range configs {
+	// Count is based on filtered results
+	count := int64(len(filteredConfigs))
+
+	items := make([]models.AgentModelConfigListItem, len(filteredConfigs))
+	for i, cfg := range filteredConfigs {
 		items[i] = models.AgentModelConfigListItem{
 			UUID:             cfg.UUID.String(),
 			Name:             cfg.Name,
@@ -463,9 +482,16 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			existingMapping, hasExisting := existingEnvMap[envName]
 
 			if hasExisting {
-				// Environment exists - check if provider changed
+				// Environment exists - check if provider or policies changed
 				// Compare the provider UUID stored in the proxy's configuration with the new provider UUID
-				if existingMapping.LLMProxy != nil && existingMapping.LLMProxy.Configuration.Provider != envMapping.ProviderUUID.String() {
+				providerChanged := existingMapping.LLMProxy != nil && existingMapping.LLMProxy.Configuration.Provider != envMapping.ProviderUUID.String()
+
+				// Check if policies changed (even if provider is the same)
+				// Note: For now, we don't support updating policies without changing the provider
+				// This is a limitation that should be addressed in the future
+				policiesProvided := len(envMapping.Configuration.Policies) > 0
+
+				if providerChanged {
 					// Provider changed - need to create new proxy and delete old one
 					s.logger.Info("Provider changed for environment, recreating proxy",
 						"environment", envName,
@@ -553,8 +579,12 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 					if err := s.envVariableRepo.CreateBatch(ctx, tx, variables); err != nil {
 						return fmt.Errorf("failed to create environment variables for %s: %w", envName, err)
 					}
+				} else if !providerChanged && policiesProvided {
+					// Provider hasn't changed but policies were provided
+					// This is currently not supported - would require comparing policies and redeploying
+					return fmt.Errorf("updating policies without changing provider is not currently supported for environment %s", envName)
 				}
-				// If provider hasn't changed, no action needed
+				// If provider and policies haven't changed, no action needed
 				delete(existingEnvMap, envName) // Mark as processed
 			} else {
 				// New environment - create proxy and mapping
@@ -919,10 +949,16 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 		return nil, "", fmt.Errorf("failed to convert policies: %w", err)
 	}
 
+	// Parse project UUID
+	projectUUID, err := uuid.Parse(project.UUID)
+	if err != nil {
+		return nil, "", fmt.Errorf("invalid project UUID from openchoreo: %w", err)
+	}
+
 	// Build proxy configuration
 	proxyConfig := &models.LLMProxy{
 		Description: fmt.Sprintf("LLM proxy for agent %s", config.AgentID),
-		ProjectUUID: uuid.MustParse(project.UUID),
+		ProjectUUID: projectUUID,
 		Configuration: models.LLMProxyConfig{
 			Name:     proxyName,
 			Version:  models.DefaultProxyVersion,
@@ -1005,8 +1041,21 @@ func (s *agentConfigurationService) convertPolicies(policies []map[string]any) (
 // buildEnvironmentVariables generates variable names from config name
 // Returns error if generated names conflict with system variables
 func (s *agentConfigurationService) buildEnvironmentVariables(configName string) ([]string, error) {
-	// Convert to uppercase and replace spaces with underscores
-	prefix := strings.ToUpper(strings.ReplaceAll(configName, " ", "_"))
+	// Sanitize: Replace any character not in A-Za-z0-9_ with '_'
+	prefix := strings.Map(func(r rune) rune {
+		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
+			return r
+		}
+		return '_'
+	}, configName)
+
+	// Convert to uppercase
+	prefix = strings.ToUpper(prefix)
+
+	// If prefix starts with a digit, prepend underscore
+	if len(prefix) > 0 && prefix[0] >= '0' && prefix[0] <= '9' {
+		prefix = "_" + prefix
+	}
 
 	varNames := []string{
 		fmt.Sprintf("%s_URL", prefix),

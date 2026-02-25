@@ -763,3 +763,51 @@ func TestGenerateLLMProviderDeploymentYAML_ValidationErrors(t *testing.T) {
 		}
 	})
 }
+
+// TestGenerateLLMProviderDeploymentYAML_InvalidAccessControlMode tests that invalid access control modes are corrected
+func TestGenerateLLMProviderDeploymentYAML_InvalidAccessControlMode(t *testing.T) {
+	service := &LLMProviderDeploymentService{}
+
+	provider := &models.LLMProvider{
+		TemplateHandle: "openai",
+		Artifact: &models.Artifact{
+			Handle: "openai-provider",
+		},
+		Configuration: models.LLMProviderConfig{
+			Name:    "OpenAI Provider",
+			Version: "v1.0",
+			Context: strPtr("/"),
+			Upstream: &models.UpstreamConfig{
+				Main: &models.UpstreamEndpoint{
+					URL: "https://api.openai.com",
+				},
+			},
+			AccessControl: &models.LLMAccessControl{
+				Mode: "custom_mode", // Invalid mode
+			},
+		},
+	}
+
+	yamlStr, err := service.generateLLMProviderDeploymentYAML(provider, "test-org")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	var out LLMProviderDeploymentYAML
+	if err := yaml.Unmarshal([]byte(yamlStr), &out); err != nil {
+		t.Fatalf("failed to unmarshal generated yaml: %v", err)
+	}
+
+	// Should have corrected the mode to "deny_all"
+	if out.Spec.AccessControl == nil {
+		t.Fatalf("expected AccessControl to be set")
+	}
+	if out.Spec.AccessControl.Mode != "deny_all" {
+		t.Errorf("expected AccessControl.Mode to be 'deny_all', got: %s", out.Spec.AccessControl.Mode)
+	}
+
+	// Verify the original provider's AccessControl.Mode was NOT mutated
+	if provider.Configuration.AccessControl.Mode != "custom_mode" {
+		t.Errorf("original provider AccessControl.Mode was mutated, expected 'custom_mode', got: %s", provider.Configuration.AccessControl.Mode)
+	}
+}
