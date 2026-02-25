@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"strings"
 
 	vault "github.com/hashicorp/vault/api"
 
@@ -38,10 +39,22 @@ type Client struct {
 // Ensure Client implements the interface.
 var _ secretmanagersvc.SecretsClient = &Client{}
 
+func validateMetadata(metadata *secretmanagersvc.SecretMetadata) error {
+	if metadata == nil {
+		return fmt.Errorf("secret metadata is required")
+	}
+	if strings.TrimSpace(metadata.ManagedBy) == "" {
+		return fmt.Errorf("secret metadata managedBy is required")
+	}
+	return nil
+}
+
 // PushSecret writes a secret to OpenBao.
 func (c *Client) PushSecret(ctx context.Context, key string, value []byte, metadata *secretmanagersvc.SecretMetadata) error {
+	if err := validateMetadata(metadata); err != nil {
+		return err
+	}
 	secretPath := c.buildPath(key)
-
 	// Check if secret already exists and verify ownership
 	_, err := c.readSecret(ctx, key)
 	if err != nil && !errors.Is(err, secretmanagersvc.ErrSecretNotFound) {
@@ -109,8 +122,10 @@ func (c *Client) PushSecret(ctx context.Context, key string, value []byte, metad
 
 // DeleteSecret removes a secret from OpenBao.
 func (c *Client) DeleteSecret(ctx context.Context, key string, metadata *secretmanagersvc.SecretMetadata) error {
+	if err := validateMetadata(metadata); err != nil {
+		return err
+	}
 	secretPath := c.buildPath(key)
-
 	// Check if secret exists
 	_, err := c.readSecret(ctx, key)
 	if errors.Is(err, secretmanagersvc.ErrSecretNotFound) {
@@ -215,8 +230,11 @@ func (c *Client) readMetadata(ctx context.Context, key string) (map[string]strin
 		// For v1, metadata is stored in the secret itself
 		secretPath := c.buildPath(key)
 		secret, err := c.client.Logical().ReadWithContext(ctx, secretPath)
-		if err != nil || secret == nil {
+		if err != nil {
 			return nil, err
+		}
+		if secret == nil || secret.Data == nil {
+			return nil, secretmanagersvc.ErrMetadataNotFound
 		}
 
 		if customMeta, ok := secret.Data["custom_metadata"].(map[string]interface{}); ok {

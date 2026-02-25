@@ -51,6 +51,7 @@ if [[ -z "${THUNDER_HELM_ARGS+x}" ]]; then
 fi
 if [[ -z "${SECRETS_HELM_ARGS+x}" ]]; then
     SECRETS_HELM_ARGS=()
+fi
 if [[ -z "${EVALUATION_HELM_ARGS+x}" ]]; then
     EVALUATION_HELM_ARGS=()
 fi

@@ -26,6 +26,7 @@ import (
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
@@ -139,6 +140,29 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 			return nil
 		},
 		DeleteSecretReferenceFunc: func(ctx context.Context, namespace string, name string) error {
+			return nil
+		},
+	}
+}
+
+// CreateMockSecretManagementClient creates a mock SecretManagementClient with default behavior for testing.
+// By default, GetSecret returns ErrSecretNotFound to simulate no existing secrets.
+func CreateMockSecretManagementClient() *clientmocks.SecretManagementClientMock {
+	return &clientmocks.SecretManagementClientMock{
+		GetSecretFunc: func(ctx context.Context, secretPath string) (*secretmanagersvc.SecretResponse, error) {
+			return nil, secretmanagersvc.ErrSecretNotFound
+		},
+		CreateSecretFunc: func(ctx context.Context, req secretmanagersvc.CreateSecretRequest) (*secretmanagersvc.SecretResponse, error) {
+			return &secretmanagersvc.SecretResponse{
+				Path: req.Path,
+			}, nil
+		},
+		UpdateSecretFunc: func(ctx context.Context, secretPath string, req secretmanagersvc.UpdateSecretRequest) (*secretmanagersvc.SecretResponse, error) {
+			return &secretmanagersvc.SecretResponse{
+				Path: secretPath,
+			}, nil
+		},
+		DeleteSecretFunc: func(ctx context.Context, secretPath string) error {
 			return nil
 		},
 	}

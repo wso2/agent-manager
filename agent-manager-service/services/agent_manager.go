@@ -1145,9 +1145,16 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 		return err
 	}
 
-	// Cleanup secrets from KV and SecretReference CR
+	// Cleanup secrets from KV and SecretReference CR only if secrets exist
 	kvPath := fmt.Sprintf("%s/%s/%s", orgName, projectName, agentName)
-	s.cleanupSecretsOnRollback(ctx, orgName, agentName, kvPath)
+	_, err = s.secretMgmtClient.GetSecret(ctx, kvPath)
+	if err == nil {
+		// Secrets exist, clean them up
+		s.cleanupSecretsOnRollback(ctx, orgName, agentName, kvPath)
+	} else if !errors.Is(err, secretmanagersvc.ErrSecretNotFound) {
+		// Log unexpected errors but don't fail deletion
+		s.logger.Warn("Failed to check for existing secrets during deletion", "kvPath", kvPath, "error", err)
+	}
 
 	// Cleanup agent configs from database
 	if configErr := s.agentConfigRepo.DeleteAllByAgent(orgName, projectName, agentName); configErr != nil {
@@ -1423,7 +1430,10 @@ func (s *agentManagerService) syncSecrets(
 		// Check if there were existing secrets that need to be cleaned up
 		if s.secretMgmtClient != nil {
 			existingSecrets, err := s.secretMgmtClient.GetSecret(ctx, kvPath)
-			if err == nil && existingSecrets != nil && len(existingSecrets.Data) > 0 {
+			if err != nil && !errors.Is(err, secretmanagersvc.ErrSecretNotFound) {
+				s.logger.Warn("Failed to check existing secrets", "kvPath", kvPath, "error", err)
+			}
+			if existingSecrets != nil && len(existingSecrets.Data) > 0 {
 				// Delete the secrets from KV
 				s.logger.Debug("Removing all secrets from KV", "kvPath", kvPath)
 				if err := s.secretMgmtClient.DeleteSecret(ctx, kvPath); err != nil {
@@ -1449,7 +1459,10 @@ func (s *agentManagerService) syncSecrets(
 
 	// Try to get existing secrets to determine if this is create or update
 	existingSecrets, err := s.secretMgmtClient.GetSecret(ctx, kvPath)
-	hasExistingSecrets := err == nil && existingSecrets != nil && len(existingSecrets.Data) > 0
+	if err != nil && !errors.Is(err, secretmanagersvc.ErrSecretNotFound) {
+		return fmt.Errorf("failed to check existing secrets in OpenBao: %w", err)
+	}
+	hasExistingSecrets := existingSecrets != nil && len(existingSecrets.Data) > 0
 
 	if hasExistingSecrets {
 		// Log what's changing for debugging
@@ -1502,11 +1515,11 @@ func (s *agentManagerService) syncSecrets(
 }
 
 // logSecretChanges logs the differences between existing and new secrets for debugging
-func (s *agentManagerService) logSecretChanges(existing, new map[string]string) {
+func (s *agentManagerService) logSecretChanges(existing, newSecrets map[string]string) {
 	var added, updated, removed []string
 
 	// Find added and updated keys
-	for key := range new {
+	for key := range newSecrets {
 		if _, exists := existing[key]; exists {
 			updated = append(updated, key)
 		} else {
@@ -1516,7 +1529,7 @@ func (s *agentManagerService) logSecretChanges(existing, new map[string]string) 
 
 	// Find removed keys
 	for key := range existing {
-		if _, exists := new[key]; !exists {
+		if _, exists := newSecrets[key]; !exists {
 			removed = append(removed, key)
 		}
 	}

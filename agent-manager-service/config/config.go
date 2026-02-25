@@ -98,7 +98,7 @@ type OpenBaoConfig struct {
 	// URL is the OpenBao server URL (e.g., http://amp-secrets-openbao.amp-secrets.svc:8200)
 	URL string
 	// Token is the authentication token
-	Token string
+	Token string `json:"-"`
 	// Path is the KV secrets engine mount path (default: "secret")
 	Path string
 	// Version is the KV engine version (default: "v2")

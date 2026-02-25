@@ -384,6 +384,10 @@ func validateLanguage(language string, languageVersion *string) error {
 
 // ValidateDeployAgentRequest validates the deploy agent request payload.
 func ValidateDeployAgentRequest(payload *spec.DeployAgentRequest) error {
+	if payload == nil {
+		return fmt.Errorf("request payload is required")
+	}
+
 	if payload.ImageId == "" {
 		return fmt.Errorf("imageId is required")
 	}
