@@ -88,6 +88,7 @@ export const CreateMonitorComponent: React.FC = () => {
             agentName: agentId,
             environmentName: envId,
             evaluators: values.evaluators,
+            llmProviderConfigs: values.llmProviderConfigs,
             type: values.type,
             intervalMinutes: values.intervalMinutes ?? undefined,
             traceStart: values.traceStart ? values.traceStart.toISOString() : undefined,

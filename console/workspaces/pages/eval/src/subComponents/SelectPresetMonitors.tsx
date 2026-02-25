@@ -16,10 +16,10 @@
  * under the License.
  */
 
-import { Alert, Avatar, Box, CardContent, CardHeader, Chip, Form, ListingTable, SearchBar, Skeleton, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
-import { Check, CircleIcon, Search as SearchIcon } from "@wso2/oxygen-ui-icons-react";
-import type { EvaluatorResponse, MonitorEvaluator } from "@agent-management-platform/types";
-import { useListEvaluators } from "@agent-management-platform/api-client";
+import { Alert, Avatar, Box, Button, CardContent, CardHeader, Chip, Divider, Form, IconButton, ListingTable, MenuItem, SearchBar, Skeleton, Stack, TextField, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { Check, CircleIcon, Plus, Search as SearchIcon, Trash } from "@wso2/oxygen-ui-icons-react";
+import type { EvaluatorResponse, MonitorEvaluator, MonitorLLMProviderConfig } from "@agent-management-platform/types";
+import { useListEvaluatorLLMProviders, useListEvaluators } from "@agent-management-platform/api-client";
 import { useParams } from "react-router-dom";
 import { useMemo, useState, useCallback } from "react";
 import EvaluatorDetailsDrawer from "./EvaluatorDetailsDrawer";
@@ -30,10 +30,27 @@ const toSlug = (value: string): string => value
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
 
+/** A single entry in the local LLM pool — provider + optional model + config values. */
+export interface LLMPoolEntry {
+    /** Stable local key for React lists */
+    id: string;
+    llmProviderId: string;
+    model?: string;
+    configValues?: Record<string, string>;
+}
+
 interface SelectPresetMonitorsProps {
     selectedEvaluators: MonitorEvaluator[];
     onToggleEvaluator: (evaluator: EvaluatorResponse) => void;
     onSaveEvaluatorConfig: (evaluator: EvaluatorResponse, config: Record<string, unknown>) => void;
+    /** Per-evaluator assignment (evaluatorIdentifier → pool entry id) */
+    llmProviderConfigs: MonitorLLMProviderConfig[];
+    onSaveLLMProviderConfig: (evaluatorIdentifier: string,
+        llmProviderId: string | null, model?: string,
+        configValues?: Record<string, string>) => void;
+    /** The pool of LLM configs the user has added */
+    llmPool: LLMPoolEntry[];
+    onLLMPoolChange: (pool: LLMPoolEntry[]) => void;
     error?: string;
 }
 
@@ -41,6 +58,10 @@ export function SelectPresetMonitors({
     selectedEvaluators,
     onToggleEvaluator,
     onSaveEvaluatorConfig,
+    llmProviderConfigs,
+    onSaveLLMProviderConfig,
+    llmPool,
+    onLLMPoolChange,
     error,
 }: SelectPresetMonitorsProps) {
     const { orgId } = useParams<{ orgId: string }>();
@@ -48,6 +69,51 @@ export function SelectPresetMonitors({
         orgName: orgId,
     });
     const evaluators = useMemo(() => data?.evaluators ?? [], [data]);
+    const { data: llmProvidersData, isPending: isLLMProvidersPending } =
+        useListEvaluatorLLMProviders({
+            orgName: orgId,
+        });
+
+    const llmProviders = useMemo(() => llmProvidersData?.list ?? [], [llmProvidersData]);
+
+    // Draft state for the "add a new LLM entry" row
+    const [draftProviderId, setDraftProviderId] = useState("");
+    const [draftModel, setDraftModel] = useState("");
+    const [draftConfigValues, setDraftConfigValues] = useState<Record<string, string>>({});
+
+    const draftProvider = useMemo(
+        () => llmProviders.find((p) => p.name === draftProviderId) ?? null,
+        [llmProviders, draftProviderId]
+    );
+
+    const handleAddPoolEntry = useCallback(() => {
+        if (!draftProviderId) return;
+        const entry: LLMPoolEntry = {
+            id: `${draftProviderId}:${draftModel}:${Date.now()}`,
+            llmProviderId: draftProviderId,
+            model: draftModel || undefined,
+            configValues: Object.keys(draftConfigValues).length > 0
+                ? { ...draftConfigValues } : undefined,
+        };
+        onLLMPoolChange([...llmPool, entry]);
+        setDraftProviderId("");
+        setDraftModel("");
+        setDraftConfigValues({});
+    }, [draftProviderId, draftModel, draftConfigValues, llmPool, onLLMPoolChange]);
+
+    const handleRemovePoolEntry = useCallback((entryId: string) => {
+        onLLMPoolChange(llmPool.filter((e) => e.id !== entryId));
+        // Clear any evaluator assignment that pointed at this entry
+        // (find by matching llmProviderId+model)
+        const removed = llmPool.find((e) => e.id === entryId);
+        if (removed) {
+            llmProviderConfigs
+                .filter((c) => c.llmProviderId ===
+                    removed.llmProviderId && c.model === removed.model)
+                .forEach((c) => onSaveLLMProviderConfig(c.evaluatorIdentifier, null));
+        }
+    }, [llmPool, llmProviderConfigs, onLLMPoolChange, onSaveLLMProviderConfig]);
+
     const [search, setSearch] = useState("");
     const [drawerEvaluator, setDrawerEvaluator] = useState<EvaluatorResponse | null>(null);
 
@@ -100,6 +166,38 @@ export function SelectPresetMonitors({
         return selectedEvaluators.find((item) => item.identifier === drawerIdentifier)?.config;
     }, [drawerIdentifier, selectedEvaluators]);
 
+    const drawerLLMProviderConfig = useMemo(() => {
+        if (!drawerIdentifier) return null;
+        return llmProviderConfigs.find((c) => c.evaluatorIdentifier === drawerIdentifier) ?? null;
+    }, [drawerIdentifier, llmProviderConfigs]);
+
+    // Find which pool entry is currently assigned to the drawer's evaluator
+    const assignedLLMEntryId = useMemo(() => {
+        if (!drawerLLMProviderConfig) return null;
+        const assigned = llmPool.find(
+            (e) =>
+                e.llmProviderId === drawerLLMProviderConfig.llmProviderId &&
+                e.model === drawerLLMProviderConfig.model
+        );
+        return assigned?.id ?? null;
+    }, [drawerLLMProviderConfig, llmPool]);
+
+    const handleAssignLLMEntry = useCallback(
+        (entryId: string | null) => {
+            if (!drawerIdentifier) return;
+            if (!entryId) {
+                onSaveLLMProviderConfig(drawerIdentifier, null);
+                return;
+            }
+            const entry = llmPool.find((e) => e.id === entryId);
+            if (entry) {
+                onSaveLLMProviderConfig(drawerIdentifier,
+                    entry.llmProviderId, entry.model, entry.configValues);
+            }
+        },
+        [drawerIdentifier, llmPool, onSaveLLMProviderConfig]
+    );
+
     const handleConfirmEvaluator = useCallback((config: Record<string, unknown>) => {
         if (!drawerEvaluator || !drawerIdentifier) {
             return;
@@ -121,11 +219,147 @@ export function SelectPresetMonitors({
 
     return (
         <Form.Stack>
-             <Form.Section>
-                   <Form.Header>
-                         LLM Provider configurations
-                </Form.Header>
-             </Form.Section>
+            <Form.Section>
+                <Form.Header>LLM Provider Configurations</Form.Header>
+                {isLLMProvidersPending ? (
+                    <Skeleton variant="rounded" height={56} />
+                ) : (
+                    <Stack spacing={2}>
+                        {/* Existing pool entries */}
+                        {llmPool.map((entry) => {
+                            const provider = llmProviders.find((p) =>
+                                p.name === entry.llmProviderId);
+                            return (
+                                <Stack
+                                    key={entry.id}
+                                    direction="row"
+                                    spacing={2}
+                                    alignItems="center"
+                                    sx={{
+                                        p: 1.5,
+                                        border: 1,
+                                        borderColor: "divider",
+                                        borderRadius: 1,
+                                    }}
+                                >
+                                    <Stack direction="row" spacing={1} flexGrow={1} alignItems="center">
+                                        <Chip
+                                            size="small"
+                                            label={provider?.displayName ?? entry.llmProviderId}
+                                            color="primary"
+                                            variant="outlined"
+                                        />
+                                        {entry.model && (
+                                            <Chip size="small" label={entry.model} variant="outlined" />
+                                        )}
+                                    </Stack>
+                                    <Tooltip title="Remove">
+                                        <IconButton
+                                            size="small"
+                                            color="error"
+                                            onClick={() => handleRemovePoolEntry(entry.id)}
+                                        >
+                                            <Trash size={16} />
+                                        </IconButton>
+                                    </Tooltip>
+                                </Stack>
+                            );
+                        })}
+
+                        {llmPool.length > 0 && <Divider />}
+
+                        {/* Add new entry row */}
+                        {llmProviders.length === 0 ? (
+                            <Typography variant="body2" color="text.secondary">
+                                No LLM providers available for this organization.
+                            </Typography>
+                        ) : (
+                            <Stack spacing={2}>
+                                <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+                                    <Form.ElementWrapper label="LLM Provider" name="draftProvider">
+                                        <TextField
+                                            select
+                                            size="small"
+                                            value={draftProviderId}
+
+                                            onChange={(e) => {
+                                                setDraftProviderId(e.target.value);
+                                                setDraftModel("");
+                                                setDraftConfigValues({});
+                                            }}
+                                        >
+                                            <MenuItem value="">Select a provider</MenuItem>
+                                            {llmProviders.map((p) => (
+                                                <MenuItem key={p.name} value={p.name}>
+                                                    {p.displayName}
+                                                </MenuItem>
+                                            ))}
+                                        </TextField>
+                                    </Form.ElementWrapper>
+                                    {draftProvider && (draftProvider.models?.length ?? 0) > 0 && (
+                                        <Form.ElementWrapper label="Model" name="draftModel">
+                                            <TextField
+                                                select
+                                                size="small"
+                                                value={draftModel}
+
+                                                onChange={(e) => setDraftModel(e.target.value)}
+                                            >
+                                                <MenuItem value="">Default model</MenuItem>
+                                                {draftProvider.models!.map((m) => (
+                                                    <MenuItem key={m} value={m}>{m}</MenuItem>
+                                                ))}
+                                            </TextField>
+                                        </Form.ElementWrapper>
+                                    )}
+                                </Stack>
+                                {(draftProvider?.configFields?.length ?? 0) > 0 && (
+                                    <Form.Stack>
+                                        {draftProvider!.configFields!.map((field) => (
+                                            <Form.Section key={field.key}>
+                                                <Form.ElementWrapper
+                                                    label={field.required ? `* ${field.label}` : field.label}
+                                                    name={field.key}
+                                                >
+                                                    <TextField
+                                                        size="small"
+                                                        required={field.required}
+                                                        type={field.fieldType === "password" ? "password" : "text"}
+                                                        value={draftConfigValues[field.key] ?? ""}
+                                                        fullWidth
+                                                        onChange={(e) =>
+                                                            setDraftConfigValues((prev) => ({
+                                                                ...prev,
+                                                                [field.key]: e.target.value,
+                                                            }))
+                                                        }
+                                                    />
+                                                </Form.ElementWrapper>
+                                            </Form.Section>
+                                        ))}
+                                    </Form.Stack>
+                                )}
+                                <Box>
+                                    <Button
+                                        variant="outlined"
+                                        size="small"
+                                        startIcon={<Plus size={16} />}
+                                        disabled={
+                                            !draftProviderId ||
+                                            (draftProvider?.configFields ?? [])
+                                                .filter((f) => f.required)
+                                                .some((f) => !draftConfigValues[f.key])
+                                        }
+                                        onClick={handleAddPoolEntry}
+                                    >
+                                        Add
+                                    </Button>
+                                </Box>
+                            </Stack>
+                        )}
+                    </Stack>
+                )}
+            </Form.Section>
             <Form.Section>
                 <Form.Header>
                     <Stack direction="row" spacing={1} alignItems="start" justifyContent="space-between">
@@ -278,6 +512,10 @@ export function SelectPresetMonitors({
                 onClose={handleCloseDrawer}
                 isSelected={drawerEvaluatorAlreadySelected}
                 initialConfig={drawerInitialConfig}
+                llmPool={llmPool}
+                llmProviders={llmProvidersData?.list}
+                assignedLLMEntryId={assignedLLMEntryId}
+                onAssignLLMEntry={handleAssignLLMEntry}
                 onAdd={handleConfirmEvaluator}
                 onRemove={handleRemoveEvaluator}
             />

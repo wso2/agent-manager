@@ -64,13 +64,23 @@ export interface GetEvaluatorPathParams extends OrgPathParams {
 
 export type ListEvaluatorLLMProvidersPathParams = OrgPathParams;
 
+export interface EvaluatorLLMProviderConfigField {
+  key: string;
+  label: string;
+  envVar: string;
+  fieldType: "text" | "password" | string;
+  required?: boolean;
+}
+
 export interface EvaluatorLLMProvider {
   id: string;
   name: string;
   displayName: string;
   models?: string[];
+  configFields?: EvaluatorLLMProviderConfigField[];
 }
 
 export interface EvaluatorLLMProviderListResponse {
-  providers: EvaluatorLLMProvider[];
+  list: EvaluatorLLMProvider[];
+  count: number;
 }

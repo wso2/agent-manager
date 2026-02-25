@@ -16,12 +16,12 @@
  * under the License.
  */
 
-import type { EvaluatorConfigParam, EvaluatorResponse } from "@agent-management-platform/types";
+import type { EvaluatorConfigParam, EvaluatorLLMProvider, EvaluatorResponse } from "@agent-management-platform/types";
 import { DrawerWrapper, DrawerHeader, DrawerContent } from "@agent-management-platform/views";
 import { Avatar, Box, Button, Chip, Form, IconButton, MenuItem, Slider, Stack, Switch, TextField, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { Plus, Trash } from "@wso2/oxygen-ui-icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-
+import type { LLMPoolEntry } from "./SelectPresetMonitors";
 
 interface EvaluatorDetailsDrawerProps {
     evaluator: EvaluatorResponse | null;
@@ -31,6 +31,14 @@ interface EvaluatorDetailsDrawerProps {
     onAdd: (config: Record<string, unknown>) => void;
     onRemove: () => void;
     initialConfig?: Record<string, unknown>;
+    /** The pool of LLM configs the user has added in the LLM section */
+    llmPool?: LLMPoolEntry[];
+    /** Available provider metadata for display names */
+    llmProviders?: EvaluatorLLMProvider[];
+    /** Currently assigned pool entry for this evaluator */
+    assignedLLMEntryId?: string | null;
+    /** Called when the user picks a pool entry (or null to clear) */
+    onAssignLLMEntry?: (entryId: string | null) => void;
 }
 
 function keyToDisplay(key: string): string {
@@ -321,6 +329,10 @@ export function EvaluatorDetailsDrawer({
     onAdd,
     onRemove,
     initialConfig,
+    llmPool,
+    llmProviders,
+    assignedLLMEntryId,
+    onAssignLLMEntry,
 }: EvaluatorDetailsDrawerProps) {
     const [configValues, setConfigValues] = useState<Record<string, unknown>>({});
 
@@ -379,6 +391,35 @@ export function EvaluatorDetailsDrawer({
                                 </Typography>
                             )}
                         </Stack>
+
+                        {llmPool && llmPool.length > 0 && onAssignLLMEntry && (
+                            <Stack spacing={1}>
+                                <Typography variant="subtitle2">LLM Provider</Typography>
+                                <TextField
+                                    select
+                                    size="small"
+                                    label="Assign LLM configuration"
+                                    value={assignedLLMEntryId ?? ""}
+                                    onChange={(e) => onAssignLLMEntry(e.target.value || null)}
+                                >
+                                    <MenuItem value="">None</MenuItem>
+                                    {llmPool.map((entry) => {
+                                        const provider = llmProviders?.find(
+                                            (p) => p.name === entry.llmProviderId
+                                        );
+                                        const label = [
+                                            provider?.displayName ?? entry.llmProviderId,
+                                            entry.model,
+                                        ].filter(Boolean).join(" — ");
+                                        return (
+                                            <MenuItem key={entry.id} value={entry.id}>
+                                                {label}
+                                            </MenuItem>
+                                        );
+                                    })}
+                                </TextField>
+                            </Stack>
+                        )}
 
                         <Stack spacing={1}>
                             <Typography variant="subtitle2">Configuration Parameters</Typography>

@@ -35,6 +35,7 @@ export interface MonitorLLMProviderConfig {
   evaluatorIdentifier: string;
   llmProviderId: string;
   model?: string;
+  configValues?: Record<string, string>;
 }
 
 export interface MonitorRunResponse {
@@ -61,6 +62,7 @@ export interface MonitorResponse {
   environmentName: string;
   environmentId?: string;
   evaluators: MonitorEvaluator[];
+  llmProviderConfigs?: MonitorLLMProviderConfig[];
   intervalMinutes?: number;
   nextRunTime?: string;
   traceStart?: string;
