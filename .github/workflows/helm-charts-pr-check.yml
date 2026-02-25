@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "deployments/helm-charts/**"
+      - ".github/actions/setup-helm-chart/**"
       - ".github/workflows/helm-charts-pr-check.yml"
 
 env:
