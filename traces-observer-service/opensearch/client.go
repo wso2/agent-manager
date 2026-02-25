@@ -110,6 +110,41 @@ func (c *Client) Search(ctx context.Context, indices []string, query map[string]
 	return &response, nil
 }
 
+// SearchWithAggregation executes a search query and returns the aggregation response
+func (c *Client) SearchWithAggregation(ctx context.Context, indices []string, query map[string]interface{}) (*AggregationResponse, error) {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(query); err != nil {
+		return nil, fmt.Errorf("failed to encode query: %w", err)
+	}
+
+	req := opensearchapi.SearchRequest{
+		Index:             indices,
+		Body:              &buf,
+		IgnoreUnavailable: opensearchapi.BoolPtr(true),
+	}
+
+	res, err := req.Do(ctx, c.client)
+	if err != nil {
+		return nil, fmt.Errorf("aggregation request failed: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		return nil, fmt.Errorf("aggregation request failed with status: %s", res.Status())
+	}
+
+	var response AggregationResponse
+	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("failed to decode aggregation response: %w", err)
+	}
+
+	log.Printf("Aggregation completed: total_traces=%d, buckets=%d",
+		response.Aggregations.TotalTraces.Value,
+		len(response.Aggregations.Traces.Buckets))
+
+	return &response, nil
+}
+
 // HealthCheck checks if OpenSearch is accessible
 func (c *Client) HealthCheck(ctx context.Context) error {
 	_, err := c.client.Info()

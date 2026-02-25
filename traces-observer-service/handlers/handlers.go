@@ -312,6 +312,144 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, result)
 }
 
+// --- v2 handlers ---
+
+// GetTraceOverviewsV2 handles GET /api/v2/traces with query parameters
+// Same interface as v1 but uses OpenSearch aggregations for proper trace-level grouping
+func (h *Handler) GetTraceOverviewsV2(w http.ResponseWriter, r *http.Request) {
+	log := logger.GetLogger(r.Context())
+
+	query := r.URL.Query()
+
+	componentUid := query.Get("componentUid")
+	if componentUid == "" {
+		h.writeError(w, http.StatusBadRequest, "componentUid is required")
+		return
+	}
+
+	environmentUid := query.Get("environmentUid")
+	if environmentUid == "" {
+		h.writeError(w, http.StatusBadRequest, "environmentUid is required")
+		return
+	}
+
+	startTime := query.Get("startTime")
+	endTime := query.Get("endTime")
+
+	limit := 10
+	if limitStr := query.Get("limit"); limitStr != "" {
+		parsedLimit, err := strconv.Atoi(limitStr)
+		if err != nil || parsedLimit <= 0 {
+			h.writeError(w, http.StatusBadRequest, "limit must be a positive integer")
+			return
+		}
+		limit = parsedLimit
+	}
+
+	offset := 0
+	if offsetStr := query.Get("offset"); offsetStr != "" {
+		parsedOffset, err := strconv.Atoi(offsetStr)
+		if err != nil || parsedOffset < 0 {
+			h.writeError(w, http.StatusBadRequest, "offset must be a non-negative integer")
+			return
+		}
+		offset = parsedOffset
+	}
+
+	sortOrder := query.Get("sortOrder")
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
+	if sortOrder != "asc" && sortOrder != "desc" {
+		h.writeError(w, http.StatusBadRequest, "sortOrder must be 'asc' or 'desc'")
+		return
+	}
+
+	params := opensearch.TraceQueryParams{
+		ComponentUid:   componentUid,
+		EnvironmentUid: environmentUid,
+		StartTime:      startTime,
+		EndTime:        endTime,
+		Limit:          limit,
+		Offset:         offset,
+		SortOrder:      sortOrder,
+	}
+
+	ctx := r.Context()
+	result, err := h.controllers.GetTraceOverviewsV2(ctx, params)
+	if err != nil {
+		log.Error("Failed to get trace overviews (v2)", "error", err)
+		h.writeError(w, http.StatusInternalServerError, "Failed to retrieve trace overviews")
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, result)
+}
+
+// GetTraceByIdAndServiceV2 handles GET /api/v2/trace with query parameters
+// Same interface as v1, plus parentSpan filter
+func (h *Handler) GetTraceByIdAndServiceV2(w http.ResponseWriter, r *http.Request) {
+	log := logger.GetLogger(r.Context())
+
+	query := r.URL.Query()
+
+	traceID := query.Get("traceId")
+	if traceID == "" {
+		h.writeError(w, http.StatusBadRequest, "traceId is required")
+		return
+	}
+
+	componentUid := query.Get("componentUid")
+	if componentUid == "" {
+		h.writeError(w, http.StatusBadRequest, "componentUid is required")
+		return
+	}
+
+	environmentUid := query.Get("environmentUid")
+	if environmentUid == "" {
+		h.writeError(w, http.StatusBadRequest, "environmentUid is required")
+		return
+	}
+
+	limit := 1000
+	if limitStr := query.Get("limit"); limitStr != "" {
+		parsedLimit, err := strconv.Atoi(limitStr)
+		if err != nil || parsedLimit <= 0 {
+			h.writeError(w, http.StatusBadRequest, "limit must be a positive integer")
+			return
+		}
+		limit = parsedLimit
+	}
+
+	// Parse parentSpan filter (v2 addition)
+	parentSpan := false
+	if parentSpanStr := query.Get("parentSpan"); parentSpanStr == "true" {
+		parentSpan = true
+	}
+
+	params := opensearch.V2TraceByIdParams{
+		TraceIDs:       []string{traceID},
+		ComponentUid:   componentUid,
+		EnvironmentUid: environmentUid,
+		ParentSpan:     parentSpan,
+		Limit:          limit,
+	}
+
+	ctx := r.Context()
+	result, err := h.controllers.GetTraceByIdV2(ctx, params)
+	if err != nil {
+		if errors.Is(err, controllers.ErrTraceNotFound) {
+			h.writeError(w, http.StatusNotFound, "Trace not found")
+			return
+		}
+		log.Error("Failed to get trace by ID (v2)", "error", err)
+		h.writeError(w, http.StatusInternalServerError, "Failed to retrieve traces")
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, result)
+}
+
 // Health handles GET /health
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	// Get logger from context

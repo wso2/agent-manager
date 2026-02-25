@@ -248,3 +248,32 @@ type SearchResponse struct {
 		} `json:"hits"`
 	} `json:"hits"`
 }
+
+// --- v2 types ---
+
+// AggregationResponse represents an OpenSearch response with trace aggregation results
+type AggregationResponse struct {
+	Aggregations struct {
+		TotalTraces struct {
+			Value int `json:"value"`
+		} `json:"total_traces"`
+		Traces struct {
+			Buckets []TraceBucket `json:"buckets"`
+		} `json:"traces"`
+	} `json:"aggregations"`
+}
+
+// TraceBucket represents a single bucket in the traceId terms aggregation
+type TraceBucket struct {
+	Key      string `json:"key"`
+	DocCount int    `json:"doc_count"`
+}
+
+// V2TraceByIdParams holds parameters for the v2 trace-by-ID query
+type V2TraceByIdParams struct {
+	TraceIDs       []string
+	ComponentUid   string
+	EnvironmentUid string
+	ParentSpan     bool
+	Limit          int
+}
