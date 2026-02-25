@@ -16,16 +16,18 @@ runs:
       with:
         version: ${{ inputs.helm-version }}
 
-    - name: Add Helm repositories
+    - name: Cache Helm chart dependencies
+      id: helm-cache
+      if: hashFiles(format('{0}/Chart.lock', inputs.chart-path)) != ''
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.chart-path }}/charts
+        key: helm-charts-${{ hashFiles(format('{0}/Chart.lock', inputs.chart-path)) }}
+
+    - name: Download chart dependencies
+      if: steps.helm-cache.outputs.cache-hit != 'true' && hashFiles(format('{0}/Chart.lock', inputs.chart-path)) != ''
       shell: bash
       run: |
         helm repo add bitnami https://charts.bitnami.com/bitnami
         helm repo update
-
-    - name: Update chart dependencies
-      shell: bash
-      run: |
-        if [ -f "${{ inputs.chart-path }}/Chart.yaml" ]; then
-          echo "Updating dependencies for chart at ${{ inputs.chart-path }}..."
-          helm dependency update "${{ inputs.chart-path }}"
-        fi
+        helm dependency update "${{ inputs.chart-path }}"

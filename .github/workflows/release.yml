@@ -374,6 +374,14 @@ jobs:
         with:
           version: "3.14.0"
 
+      - name: Cache Helm chart dependencies
+        id: helm-cache
+        if: hashFiles(format('{0}/Chart.lock', matrix.chart.path)) != ''
+        uses: actions/cache@v4
+        with:
+          path: ${{ matrix.chart.path }}/charts
+          key: helm-charts-${{ hashFiles(format('{0}/Chart.lock', matrix.chart.path)) }}
+
       - name: Package and push ${{ matrix.chart.name }}
         if: hashFiles(matrix.chart.chart-file) != ''
         run: |
