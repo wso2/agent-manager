@@ -187,7 +187,8 @@ func loadEnvs() {
 	}
 
 	config.SecretManager = SecretManagerConfig{
-		Provider: r.readOptionalString("SECRET_MANAGER_PROVIDER", "openbao"),
+		Provider:        r.readOptionalString("SECRET_MANAGER_PROVIDER", "openbao"),
+		RefreshInterval: r.readOptionalString("OPENBAO_REFRESH_INTERVAL", "1h"),
 	}
 
 	// OpenBao KV store configuration
@@ -197,7 +198,7 @@ func loadEnvs() {
 		Path:    r.readOptionalString("OPENBAO_PATH", "secret"),
 		Version: r.readOptionalString("OPENBAO_VERSION", "v2"),
 	}
-	
+
 	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key)
 	config.EncryptionKey = r.readOptionalString("ENCRYPTION_KEY", "")
 	if _, err := hex.DecodeString(config.EncryptionKey); err != nil || len(config.EncryptionKey) != 64 {

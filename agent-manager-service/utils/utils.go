@@ -382,6 +382,21 @@ func validateLanguage(language string, languageVersion *string) error {
 	return fmt.Errorf("unsupported language '%s'", language)
 }
 
+// ValidateDeployAgentRequest validates the deploy agent request payload.
+func ValidateDeployAgentRequest(payload *spec.DeployAgentRequest) error {
+	if payload.ImageId == "" {
+		return fmt.Errorf("imageId is required")
+	}
+
+	if len(payload.Env) > 0 {
+		if err := validateEnvironmentVariables(payload.Env); err != nil {
+			return fmt.Errorf("invalid environment variables: %w", err)
+		}
+	}
+
+	return nil
+}
+
 // validateEnvironmentVariables validates environment variables if present in the payload
 // Environment variables are optional, but if provided, they must follow naming conventions
 func validateEnvironmentVariables(envVars []spec.EnvironmentVariable) error {
@@ -390,8 +405,8 @@ func validateEnvironmentVariables(envVars []spec.EnvironmentVariable) error {
 		return nil
 	}
 
-	// Regular expression for valid environment variable names
-	// Must start with letter or underscore, followed by letters, digits, or underscores
+	// Pattern is K8s Secret key compliant (subset of allowed chars) and POSIX env var compliant.
+	// Must start with letter or underscore, followed by letters, digits, or underscores.
 	validKeyPattern := regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 	seenKeys := make(map[string]bool)
 

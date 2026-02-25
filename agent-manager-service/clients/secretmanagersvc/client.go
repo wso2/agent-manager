@@ -22,6 +22,11 @@ import (
 	"fmt"
 )
 
+const (
+	// DefaultManagedBy is the default ownership tag used by the secret management client.
+	DefaultManagedBy = "amp-agent-manager"
+)
+
 // CreateSecretRequest represents a request to create a secret.
 type CreateSecretRequest struct {
 	// Path is the KV path where the secret will be stored (e.g., "project/component").
@@ -52,16 +57,12 @@ type SecretManagementClient interface {
 	CreateSecret(ctx context.Context, req CreateSecretRequest) (*SecretResponse, error)
 
 	// UpdateSecret updates an existing secret.
-	UpdateSecret(ctx context.Context, orgName string, secretPath string, req UpdateSecretRequest) (*SecretResponse, error)
-
+	UpdateSecret(ctx context.Context, secretPath string, req UpdateSecretRequest) (*SecretResponse, error)
 	// GetSecret retrieves a secret by path.
-	GetSecret(ctx context.Context, orgName string, secretPath string) (*SecretResponse, error)
+	GetSecret(ctx context.Context, secretPath string) (*SecretResponse, error)
 
 	// DeleteSecret deletes a secret by path.
-	DeleteSecret(ctx context.Context, orgName string, secretPath string) error
-
-	// ListSecrets lists all secrets under a path prefix.
-	ListSecrets(ctx context.Context, orgName string, pathPrefix string) ([]SecretMetadata, error)
+	DeleteSecret(ctx context.Context, secretPath string) error
 }
 
 // secretManagementClient implements SecretManagementClient using the low-level SecretsClient.
@@ -71,7 +72,6 @@ type secretManagementClient struct {
 }
 
 // NewSecretManagementClient creates a new SecretManagementClient.
-// Returns ErrSecretManagementDisabled if cfg is nil or provider is empty.
 func NewSecretManagementClient(cfg *StoreConfig) (SecretManagementClient, error) {
 	if cfg == nil || cfg.Provider == "" {
 		return nil, fmt.Errorf("failed to create secret management client")
@@ -91,7 +91,7 @@ func NewSecretManagementClient(cfg *StoreConfig) (SecretManagementClient, error)
 
 	return &secretManagementClient{
 		lowLevelClient: lowLevelClient,
-		managedBy:      "amp-agent-manager",
+		managedBy:      DefaultManagedBy,
 	}, nil
 }
 
@@ -117,7 +117,7 @@ func (c *secretManagementClient) CreateSecret(ctx context.Context, req CreateSec
 }
 
 // UpdateSecret updates an existing secret.
-func (c *secretManagementClient) UpdateSecret(ctx context.Context, orgName string, secretPath string, req UpdateSecretRequest) (*SecretResponse, error) {
+func (c *secretManagementClient) UpdateSecret(ctx context.Context, secretPath string, req UpdateSecretRequest) (*SecretResponse, error) {
 	// Convert map to JSON bytes
 	data, err := json.Marshal(req.Data)
 	if err != nil {
@@ -138,7 +138,7 @@ func (c *secretManagementClient) UpdateSecret(ctx context.Context, orgName strin
 }
 
 // GetSecret retrieves a secret by path.
-func (c *secretManagementClient) GetSecret(ctx context.Context, orgName string, secretPath string) (*SecretResponse, error) {
+func (c *secretManagementClient) GetSecret(ctx context.Context, secretPath string) (*SecretResponse, error) {
 	data, err := c.lowLevelClient.GetSecret(ctx, secretPath)
 	if err != nil {
 		return nil, err
@@ -157,24 +157,9 @@ func (c *secretManagementClient) GetSecret(ctx context.Context, orgName string, 
 }
 
 // DeleteSecret deletes a secret by path.
-func (c *secretManagementClient) DeleteSecret(ctx context.Context, orgName string, secretPath string) error {
-	return c.lowLevelClient.DeleteSecret(ctx, secretPath)
-}
-
-// ListSecrets lists all secrets under a path prefix.
-func (c *secretManagementClient) ListSecrets(ctx context.Context, orgName string, pathPrefix string) ([]SecretMetadata, error) {
-	secrets, err := c.lowLevelClient.GetAllSecrets(ctx, pathPrefix)
-	if err != nil {
-		return nil, err
+func (c *secretManagementClient) DeleteSecret(ctx context.Context, secretPath string) error {
+	metadata := &SecretMetadata{
+		ManagedBy: c.managedBy,
 	}
-
-	var metadata []SecretMetadata
-	for key := range secrets {
-		metadata = append(metadata, SecretMetadata{
-			ManagedBy: c.managedBy,
-			Labels:    map[string]string{"path": key},
-		})
-	}
-
-	return metadata, nil
+	return c.lowLevelClient.DeleteSecret(ctx, secretPath, metadata)
 }

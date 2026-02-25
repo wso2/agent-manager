@@ -7,6 +7,7 @@
 package wiring
 
 import (
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -283,10 +284,9 @@ func ProvideObservabilitySvcClient(cfg config.Config, authProvider client.AuthPr
 }
 
 // ProvideSecretManagementClient creates the secret management service client
-// Returns nil if provider or OpenBao URL is not configured
 func ProvideSecretManagementClient(cfg config.Config) (secretmanagersvc.SecretManagementClient, error) {
 	if cfg.SecretManager.Provider == "" {
-		return nil, nil
+		return nil, fmt.Errorf("secret manager provider is not configured")
 	}
 	return secretmanagersvc.NewSecretManagementClient(&secretmanagersvc.StoreConfig{
 		Provider: cfg.SecretManager.Provider,

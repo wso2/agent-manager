@@ -55,18 +55,12 @@ type SecretsClient interface {
 
 	// DeleteSecret removes a secret from the backend.
 	// Returns nil if the secret doesn't exist (idempotent).
-	// Only deletes secrets that are managed by this client (checks managed-by metadata).
-	DeleteSecret(ctx context.Context, key string) error
+	// Only deletes secrets where the managed-by metadata matches the provided metadata.
+	DeleteSecret(ctx context.Context, key string, metadata *SecretMetadata) error
 
 	// GetSecret retrieves a secret from the backend.
 	// Returns ErrSecretNotFound if the secret doesn't exist.
 	GetSecret(ctx context.Context, key string) ([]byte, error)
-
-	// SecretExists checks if a secret exists at the given key.
-	SecretExists(ctx context.Context, key string) (bool, error)
-
-	// GetAllSecrets retrieves all secrets matching the given prefix.
-	GetAllSecrets(ctx context.Context, prefix string) (map[string][]byte, error)
 
 	// Close cleans up any resources held by the client.
 	Close(ctx context.Context) error

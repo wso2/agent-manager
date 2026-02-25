@@ -89,6 +89,8 @@ type Config struct {
 type SecretManagerConfig struct {
 	// Provider is the secret store provider name (e.g., "openbao", "vault")
 	Provider string
+	// RefreshInterval is how often SecretReference CRs should refresh from KV (default: "1h")
+	RefreshInterval string
 }
 
 // OpenBaoConfig holds OpenBao KV store configuration

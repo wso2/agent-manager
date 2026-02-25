@@ -50,18 +50,18 @@ func (c *Client) PushSecret(ctx context.Context, key string, value []byte, metad
 
 	secretExists := err == nil
 
-	// If secret exists, verify it's managed by us
+	// If secret exists, verify it's managed by the same owner
 	if secretExists {
 		existingMetadata, err := c.readMetadata(ctx, key)
-		if err != nil && !errors.Is(err, secretmanagersvc.ErrMetadataNotFound) {
-			return err
-		}
-		// If metadata not found, treat as unmanaged and allow the update
-		if existingMetadata != nil {
-			manager, ok := existingMetadata["managed-by"]
-			if ok && manager != ManagedByValue {
+		if err != nil {
+			if errors.Is(err, secretmanagersvc.ErrMetadataNotFound) {
 				return secretmanagersvc.ErrNotManaged
 			}
+			return err
+		}
+		manager, ok := existingMetadata["managed-by"]
+		if !ok || manager != metadata.ManagedBy {
+			return secretmanagersvc.ErrNotManaged
 		}
 	}
 
@@ -85,7 +85,7 @@ func (c *Client) PushSecret(ctx context.Context, key string, value []byte, metad
 		metaPath := c.buildMetadataPath(key)
 		_, err = c.client.Logical().WriteWithContext(ctx, metaPath, map[string]interface{}{
 			"custom_metadata": map[string]string{
-				"managed-by": ManagedByValue,
+				"managed-by": metadata.ManagedBy,
 			},
 		})
 		if err != nil {
@@ -94,7 +94,7 @@ func (c *Client) PushSecret(ctx context.Context, key string, value []byte, metad
 	} else {
 		// For v1, include metadata in the secret itself
 		secretData["custom_metadata"] = map[string]string{
-			"managed-by": ManagedByValue,
+			"managed-by": metadata.ManagedBy,
 		}
 		secretToPush = secretData
 	}
@@ -108,7 +108,7 @@ func (c *Client) PushSecret(ctx context.Context, key string, value []byte, metad
 }
 
 // DeleteSecret removes a secret from OpenBao.
-func (c *Client) DeleteSecret(ctx context.Context, key string) error {
+func (c *Client) DeleteSecret(ctx context.Context, key string, metadata *secretmanagersvc.SecretMetadata) error {
 	secretPath := c.buildPath(key)
 
 	// Check if secret exists
@@ -120,15 +120,17 @@ func (c *Client) DeleteSecret(ctx context.Context, key string) error {
 		return err
 	}
 
-	// Verify ownership - if we can't read metadata, assume it's not managed
-	metadata, err := c.readMetadata(ctx, key)
+	// Verify ownership
+	existingMetadata, err := c.readMetadata(ctx, key)
 	if err != nil {
-		return nil //nolint:nilerr // Intentional: if we can't read metadata, assume secret is not managed by us
+		if errors.Is(err, secretmanagersvc.ErrMetadataNotFound) {
+			return nil // No metadata = not managed by us, skip deletion
+		}
+		return err
 	}
-
-	manager, ok := metadata["managed-by"]
-	if !ok || manager != ManagedByValue {
-		return nil // Don't delete secrets not managed by us
+	manager, ok := existingMetadata["managed-by"]
+	if !ok || manager != metadata.ManagedBy {
+		return nil // Not managed by the specified owner, skip deletion
 	}
 
 	// Delete the secret
@@ -152,53 +154,6 @@ func (c *Client) DeleteSecret(ctx context.Context, key string) error {
 // GetSecret retrieves a secret from OpenBao.
 func (c *Client) GetSecret(ctx context.Context, key string) ([]byte, error) {
 	return c.readSecret(ctx, key)
-}
-
-// SecretExists checks if a secret exists.
-func (c *Client) SecretExists(ctx context.Context, key string) (bool, error) {
-	_, err := c.readSecret(ctx, key)
-	if errors.Is(err, secretmanagersvc.ErrSecretNotFound) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
-// GetAllSecrets retrieves all secrets matching the prefix.
-func (c *Client) GetAllSecrets(ctx context.Context, prefix string) (map[string][]byte, error) {
-	listPath := c.buildListPath(prefix)
-
-	secret, err := c.client.Logical().ListWithContext(ctx, listPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list secrets: %w", err)
-	}
-
-	if secret == nil || secret.Data == nil {
-		return make(map[string][]byte), nil
-	}
-
-	keys, ok := secret.Data["keys"].([]interface{})
-	if !ok {
-		return make(map[string][]byte), nil
-	}
-
-	result := make(map[string][]byte)
-	for _, k := range keys {
-		keyStr, ok := k.(string)
-		if !ok {
-			continue
-		}
-		fullKey := path.Join(prefix, keyStr)
-		value, err := c.readSecret(ctx, fullKey)
-		if err != nil {
-			continue // Skip secrets we can't read
-		}
-		result[fullKey] = value
-	}
-
-	return result, nil
 }
 
 // Close cleans up resources.

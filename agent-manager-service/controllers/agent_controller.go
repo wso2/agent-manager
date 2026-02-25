@@ -481,9 +481,9 @@ func (c *agentController) DeployAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if payload.ImageId == "" {
-		log.Error("DeployAgent: imageId is required in request body")
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+	if err := utils.ValidateDeployAgentRequest(&payload); err != nil {
+		log.Error("DeployAgent: invalid request", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -684,9 +684,13 @@ func (c *agentController) GetAgentConfigurations(w http.ResponseWriter, r *http.
 	// Convert configurations to response format
 	configurationItems := make([]spec.ConfigurationItem, len(configurations))
 	for i, config := range configurations {
+		value := config.Value
+		if config.IsSensitive {
+			value = "" // redact sensitive values in the response for extra layer of security
+		}
 		configurationItems[i] = spec.ConfigurationItem{
 			Key:         config.Key,
-			Value:       config.Value,
+			Value:       value,
 			IsSensitive: spec.PtrBool(config.IsSensitive),
 		}
 	}

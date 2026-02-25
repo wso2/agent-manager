@@ -674,7 +674,7 @@ func (s *agentManagerService) saveSecretsAndCreateReference(
 		ComponentName:   componentName,
 		KVPath:          kvPath,
 		SecretKeys:      secretKeys,
-		RefreshInterval: "1h", // Manual force-sync handles immediate updates
+		RefreshInterval: config.GetConfig().SecretManager.RefreshInterval,
 	}); err != nil {
 		return fmt.Errorf("failed to create SecretReference: %w", err)
 	}
@@ -690,7 +690,7 @@ func (s *agentManagerService) cleanupSecretsOnRollback(ctx context.Context, orgN
 
 	// Delete secrets from KV
 	if s.secretMgmtClient != nil {
-		if err := s.secretMgmtClient.DeleteSecret(ctx, orgName, kvPath); err != nil {
+		if err := s.secretMgmtClient.DeleteSecret(ctx, kvPath); err != nil {
 			s.logger.Warn("Failed to cleanup secrets from KV during rollback", "kvPath", kvPath, "error", err)
 		} else {
 			s.logger.Debug("Cleaned up secrets from KV during rollback", "kvPath", kvPath)
@@ -1422,11 +1422,11 @@ func (s *agentManagerService) syncSecrets(
 	if len(newSecretData) == 0 {
 		// Check if there were existing secrets that need to be cleaned up
 		if s.secretMgmtClient != nil {
-			existingSecrets, err := s.secretMgmtClient.GetSecret(ctx, orgName, kvPath)
+			existingSecrets, err := s.secretMgmtClient.GetSecret(ctx, kvPath)
 			if err == nil && existingSecrets != nil && len(existingSecrets.Data) > 0 {
 				// Delete the secrets from KV
 				s.logger.Debug("Removing all secrets from KV", "kvPath", kvPath)
-				if err := s.secretMgmtClient.DeleteSecret(ctx, orgName, kvPath); err != nil {
+				if err := s.secretMgmtClient.DeleteSecret(ctx, kvPath); err != nil {
 					s.logger.Warn("Failed to delete secrets from KV", "kvPath", kvPath, "error", err)
 					// Continue - not a fatal error
 				}
@@ -1448,7 +1448,7 @@ func (s *agentManagerService) syncSecrets(
 	}
 
 	// Try to get existing secrets to determine if this is create or update
-	existingSecrets, err := s.secretMgmtClient.GetSecret(ctx, orgName, kvPath)
+	existingSecrets, err := s.secretMgmtClient.GetSecret(ctx, kvPath)
 	hasExistingSecrets := err == nil && existingSecrets != nil && len(existingSecrets.Data) > 0
 
 	if hasExistingSecrets {
@@ -1458,7 +1458,7 @@ func (s *agentManagerService) syncSecrets(
 		// Update: Replace KV data with new secret data
 		// This handles adds, updates, and removes in one operation
 		s.logger.Debug("Updating secrets in KV", "kvPath", kvPath, "secretCount", len(newSecretData))
-		_, err = s.secretMgmtClient.UpdateSecret(ctx, orgName, kvPath, secretmanagersvc.UpdateSecretRequest{
+		_, err = s.secretMgmtClient.UpdateSecret(ctx, kvPath, secretmanagersvc.UpdateSecretRequest{
 			Data: newSecretData,
 		})
 		if err != nil {
@@ -1491,8 +1491,9 @@ func (s *agentManagerService) syncSecrets(
 		ComponentName:   componentName,
 		KVPath:          kvPath,
 		SecretKeys:      secretKeys,
-		RefreshInterval: "1h", // Manual force-sync handles immediate updates
+		RefreshInterval: config.GetConfig().SecretManager.RefreshInterval,
 	}); err != nil {
+		s.logger.Warn("SecretReference update failed after KV write succeeded - will self-heal on next sync", "kvPath", kvPath, "secretRefName", secretRefName, "error", err)
 		return fmt.Errorf("failed to update SecretReference: %w", err)
 	}
 
