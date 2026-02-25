@@ -37,7 +37,8 @@ jobs:
 
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     defaults:
       run:
         working-directory: evaluation-job
