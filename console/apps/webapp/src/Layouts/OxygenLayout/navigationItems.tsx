@@ -123,7 +123,7 @@ export function useNavigationItems(): Array<
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.evaluation.children.monitor
                 .path,
-              { orgId, projectId, agentId, envId: defaultEnv }
+              { orgId, projectId, agentId }
             ),
           },
         ]
@@ -269,7 +269,7 @@ export function useNavigationItems(): Array<
               absoluteRouteMap.children.org.children.projects.children.agents
                 .children.evaluation.children.monitor
                 .path,
-              { orgId, projectId, agentId, envId: defaultEnv }
+              { orgId, projectId, agentId }
             ),
           },
         ]

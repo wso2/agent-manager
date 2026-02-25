@@ -28,7 +28,6 @@ import {
   DrawerContent,
 } from "@agent-management-platform/views";
 import {
-  Divider,
   Box,
   Button,
   Chip,
@@ -405,11 +404,10 @@ export function EvaluatorDetailsDrawer({
       maxWidth={520}
     >
       <DrawerHeader
-        title={"Add Evaluator"}
+        title={`${evaluator?.displayName} v${evaluator?.version ?? "n/a"}`}
         onClose={onClose}
         icon={<Book size={24} />}
       />
-      <Divider />
       <DrawerContent>
         <Stack spacing={3} direction="row">
           {evaluator && (
@@ -417,9 +415,6 @@ export function EvaluatorDetailsDrawer({
               spacing={3}
             >
               <Stack spacing={1}>
-                <Typography variant="h5">
-                  {evaluator?.displayName} {evaluator.version ?? "n/a"}v
-                </Typography>
 
                 <Typography variant="caption">
                   {evaluator.description}

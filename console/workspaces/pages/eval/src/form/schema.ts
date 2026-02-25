@@ -32,8 +32,8 @@ const evaluatorSchema: z.ZodType<MonitorEvaluator> = z.object({
 });
 
 const monitorLLMProviderConfigSchema: z.ZodType<MonitorLLMProviderConfig> = z.object({
-    providerName: z.string().min(1),
-    envVar: z.string().min(1),
+    providerName: z.string().trim().min(1),
+    envVar: z.string().trim().min(1),
     value: z.string(),
 });
 
