@@ -1607,6 +1607,11 @@ func DetermineSpanType(span Span) SpanType {
 	}
 
 	// Fallback to attribute-based detection if traceloop.span.kind is not present
+	// Check embedding before LLM since both share gen_ai.prompt.* attributes
+	if hasEmbeddingAttributes(span.Attributes) {
+		return SpanTypeEmbedding
+	}
+
 	// Check for LLM operations
 	if hasLLMAttributes(span.Attributes) {
 		return SpanTypeLLM
@@ -1620,11 +1625,6 @@ func DetermineSpanType(span Span) SpanType {
 	// Check for Agent orchestration
 	if hasAgentAttributes(span.Attributes) {
 		return SpanTypeAgent
-	}
-
-	// Check for Embedding operations
-	if hasEmbeddingAttributes(span.Attributes) {
-		return SpanTypeEmbedding
 	}
 
 	// Check for Retriever operations
