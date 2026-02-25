@@ -57,6 +57,8 @@ services:
       - IDP_CLIENT_SECRET=amp-api-client-secret
       - AMP_VERSION=v0.1.0
       - OPEN_CHOREO_BASE_URL=http://host.docker.internal:8080/api/v1
+      # Encryption Configuration (AES-256-GCM, hex-encoded 32-byte key)
+      - ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     volumes:
       # Mount source code for hot-reloading
       - ../agent-manager-service:/app

@@ -1,4 +1,4 @@
-.PHONY: help test docker-build docker-build-dev docker-push docker-load-k3d docker-clean
+.PHONY: all help lint format-check type-check test clean docker-build docker-build-dev docker-push docker-load-k3d docker-clean
 
 # Variables
 TAG ?= 0.0.0-dev
@@ -12,11 +12,30 @@ REGISTRY_ENDPOINT ?= ghcr.io/wso2
 # Project root for dev build context
 PROJECT_ROOT = ..
 
+all: help ## Default target
+
+clean: docker-clean ## Clean build artifacts
+
 help: ## Show this help message
 	@echo 'Usage: make [target]'
 	@echo ''
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-25s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+lint: ## Run ruff linter
+	@echo "Running ruff linter..."
+	@ruff check .
+	@echo "Lint passed."
+
+format-check: ## Check code formatting with ruff
+	@echo "Checking formatting..."
+	@ruff format --check .
+	@echo "Format check passed."
+
+type-check: ## Run mypy type checker
+	@echo "Running mypy..."
+	@mypy main.py --install-types --non-interactive
+	@echo "Type check passed."
 
 test: ## Run unit tests
 	@echo "Running tests..."
