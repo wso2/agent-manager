@@ -104,7 +104,6 @@ export const CreateMonitorComponent: React.FC = () => {
     return (
         <MonitorFormWizard
             title="Create Monitor"
-            description="Define a new eval monitor by selecting targets, thresholds, and alerting rules."
             backHref={backHref}
             submitLabel="Create Monitor"
             initialValues={initialValues}

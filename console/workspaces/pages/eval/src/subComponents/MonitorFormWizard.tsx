@@ -29,7 +29,7 @@ import { useValidatedForm } from "../hooks/useValidatedForm";
 
 interface MonitorFormWizardProps {
     title: string;
-    description: string;
+    description?: string;
     backHref: string;
     submitLabel: string;
     onSubmit: (values: CreateMonitorFormValues) => void;
