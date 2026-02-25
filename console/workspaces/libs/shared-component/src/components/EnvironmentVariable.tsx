@@ -23,7 +23,7 @@ import { EnvVariableEditor } from "@agent-management-platform/views";
 interface EnvironmentVariableProps {
     envVariables: Array<{ key: string; value: string }>;
     setEnvVariables: React.Dispatch<React.SetStateAction<Array<{ key: string; value: string }>>>;
-    /** When true, the "Add" button is hidden (e.g. when rows are pre-filled from provider config) */
+    /** When true, the "Add" button is hidden  */
     hideAddButton?: boolean;
     /** When true, key fields are disabled so only values can be edited */
     keyFieldsDisabled?: boolean;

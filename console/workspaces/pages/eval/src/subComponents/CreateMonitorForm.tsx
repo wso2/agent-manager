@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { AdapterDateFns, Collapse, DatePickers, Form, Slider, Stack, TextField, Typography } from "@wso2/oxygen-ui";
+import { AdapterDateFns, Collapse, DatePickers, Form, TextField, Typography } from "@wso2/oxygen-ui";
 import { History, Timer } from "@wso2/oxygen-ui-icons-react";
 import type { MonitorType } from "@agent-management-platform/types";
 import type { CreateMonitorFormValues } from "../form/schema";
@@ -163,25 +163,6 @@ export function CreateMonitorForm({ formData, errors, onFieldChange,
                             />
                         </Form.ElementWrapper>
                     </Collapse>
-                    <Form.ElementWrapper name="samplingRate" label={`Sampling (${formData.samplingRate ?? 0}%)`}>
-                        <Stack spacing={1} sx={{ px: 1 }}>
-                            <Slider
-                                aria-label="Sampling rate"
-                                min={0}
-                                max={100}
-                                step={1}
-                                value={formData.samplingRate ?? 0}
-                                valueLabelDisplay="auto"
-                                onChange={(_, value) => {
-                                    const nextValue = Array.isArray(value) ? value[0] : value;
-                                    onFieldChange("samplingRate", nextValue);
-                                }}
-                            />
-                            <Typography variant="caption" color={errors.samplingRate ? "error" : "text.secondary"}>
-                                {errors.samplingRate ?? "Percentage of traces evaluated"}
-                            </Typography>
-                        </Stack>
-                    </Form.ElementWrapper>
                 </Form.Stack>
             </Form.Section>
         </Form.Stack>
