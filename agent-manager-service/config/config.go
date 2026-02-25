@@ -73,6 +73,10 @@ type Config struct {
 
 	// WebSocket configuration
 	WebSocket WebSocketConfig
+
+	// EncryptionKey is a hex-encoded 32-byte key used for AES-256-GCM encryption
+	// of secrets at rest (e.g., LLM provider API keys in monitor configs).
+	EncryptionKey string `json:"-"`
 }
 
 // OpenChoreoConfig holds OpenChoreo API configuration

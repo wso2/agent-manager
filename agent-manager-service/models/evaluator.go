@@ -41,6 +41,7 @@ type EvaluatorResponse struct {
 	Description  string                 `json:"description"`
 	Version      string                 `json:"version"`
 	Provider     string                 `json:"provider"`
+	Level        string                 `json:"level"`
 	Tags         []string               `json:"tags"`
 	IsBuiltin    bool                   `json:"isBuiltin"`
 	ConfigSchema []EvaluatorConfigParam `json:"configSchema"`

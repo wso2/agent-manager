@@ -17,6 +17,8 @@
 package wiring
 
 import (
+	"encoding/hex"
+	"fmt"
 	"log/slog"
 
 	"gorm.io/gorm"
@@ -89,4 +91,16 @@ func ProvideAuthMiddleware(config config.Config) jwtassertion.Middleware {
 
 func ProvideJWTSigningConfig(config config.Config) config.JWTSigningConfig {
 	return config.JWTSigning
+}
+
+// ProvideEncryptionKey decodes the hex-encoded encryption key from config.
+func ProvideEncryptionKey(cfg config.Config) ([]byte, error) {
+	key, err := hex.DecodeString(cfg.EncryptionKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode ENCRYPTION_KEY: %w", err)
+	}
+	if len(key) != 32 {
+		return nil, fmt.Errorf("ENCRYPTION_KEY must decode to exactly 32 bytes (got %d)", len(key))
+	}
+	return key, nil
 }

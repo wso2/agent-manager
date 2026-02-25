@@ -25,8 +25,8 @@ type EvaluatorScoreSummary struct {
 	Level string `json:"level"`
 	// Total number of scores
 	Count int32 `json:"count"`
-	// Number of scores with errors
-	ErrorCount int32 `json:"errorCount"`
+	// Number of evaluations skipped
+	SkippedCount int32 `json:"skippedCount"`
 	// Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
 	Aggregations map[string]interface{} `json:"aggregations"`
 }
@@ -35,12 +35,12 @@ type EvaluatorScoreSummary struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewEvaluatorScoreSummary(evaluatorName string, level string, count int32, errorCount int32, aggregations map[string]interface{}) *EvaluatorScoreSummary {
+func NewEvaluatorScoreSummary(evaluatorName string, level string, count int32, skippedCount int32, aggregations map[string]interface{}) *EvaluatorScoreSummary {
 	this := EvaluatorScoreSummary{}
 	this.EvaluatorName = evaluatorName
 	this.Level = level
 	this.Count = count
-	this.ErrorCount = errorCount
+	this.SkippedCount = skippedCount
 	this.Aggregations = aggregations
 	return &this
 }
@@ -125,28 +125,28 @@ func (o *EvaluatorScoreSummary) SetCount(v int32) {
 	o.Count = v
 }
 
-// GetErrorCount returns the ErrorCount field value
-func (o *EvaluatorScoreSummary) GetErrorCount() int32 {
+// GetSkippedCount returns the SkippedCount field value
+func (o *EvaluatorScoreSummary) GetSkippedCount() int32 {
 	if o == nil {
 		var ret int32
 		return ret
 	}
 
-	return o.ErrorCount
+	return o.SkippedCount
 }
 
-// GetErrorCountOk returns a tuple with the ErrorCount field value
+// GetSkippedCountOk returns a tuple with the SkippedCount field value
 // and a boolean to check if the value has been set.
-func (o *EvaluatorScoreSummary) GetErrorCountOk() (*int32, bool) {
+func (o *EvaluatorScoreSummary) GetSkippedCountOk() (*int32, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.ErrorCount, true
+	return &o.SkippedCount, true
 }
 
-// SetErrorCount sets field value
-func (o *EvaluatorScoreSummary) SetErrorCount(v int32) {
-	o.ErrorCount = v
+// SetSkippedCount sets field value
+func (o *EvaluatorScoreSummary) SetSkippedCount(v int32) {
+	o.SkippedCount = v
 }
 
 // GetAggregations returns the Aggregations field value
@@ -186,7 +186,7 @@ func (o EvaluatorScoreSummary) ToMap() (map[string]interface{}, error) {
 	toSerialize["evaluatorName"] = o.EvaluatorName
 	toSerialize["level"] = o.Level
 	toSerialize["count"] = o.Count
-	toSerialize["errorCount"] = o.ErrorCount
+	toSerialize["skippedCount"] = o.SkippedCount
 	toSerialize["aggregations"] = o.Aggregations
 	return toSerialize, nil
 }

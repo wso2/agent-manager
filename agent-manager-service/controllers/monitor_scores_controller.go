@@ -104,8 +104,8 @@ func (c *monitorScoresController) GetMonitorScores(w http.ResponseWriter, r *htt
 	}
 
 	// Validate level if provided
-	if filters.Level != "" && filters.Level != "trace" && filters.Level != "agent" && filters.Level != "span" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid 'level', must be one of: trace, agent, span")
+	if filters.Level != "" && filters.Level != "trace" && filters.Level != "agent" && filters.Level != "llm" {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid 'level', must be one of: trace, agent, llm")
 		return
 	}
 

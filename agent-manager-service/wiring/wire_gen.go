@@ -84,9 +84,13 @@ func InitializeAppParams(cfg *config.Config, db *gorm.DB, authProvider client.Au
 	gatewayInternalAPIService := services.NewGatewayInternalAPIService(llmProviderRepository, llmProxyRepository, deploymentRepository, gatewayRepository, infraResourceManager)
 	gatewayInternalController := controllers.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService)
 	monitorRepository := ProvideMonitorRepository(db)
-	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger, monitorRepository)
+	v, err := ProvideEncryptionKey(configConfig)
+	if err != nil {
+		return nil, err
+	}
+	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger, monitorRepository, v)
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger)
-	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository)
+	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, v)
 	monitorController := controllers.NewMonitorController(monitorManagerService)
 	scoreRepository := ProvideScoreRepository(db)
 	monitorScoresService := services.NewMonitorScoresService(scoreRepository, logger)
@@ -179,9 +183,13 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	gatewayInternalAPIService := services.NewGatewayInternalAPIService(llmProviderRepository, llmProxyRepository, deploymentRepository, gatewayRepository, infraResourceManager)
 	gatewayInternalController := controllers.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService)
 	monitorRepository := ProvideMonitorRepository(db)
-	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger, monitorRepository)
+	v, err := ProvideEncryptionKey(configConfig)
+	if err != nil {
+		return nil, err
+	}
+	monitorExecutor := services.NewMonitorExecutor(openChoreoClient, logger, monitorRepository, v)
 	evaluatorManagerService := services.NewEvaluatorManagerService(logger)
-	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository)
+	monitorManagerService := services.NewMonitorManagerService(logger, openChoreoClient, observabilitySvcClient, monitorExecutor, evaluatorManagerService, monitorRepository, v)
 	monitorController := controllers.NewMonitorController(monitorManagerService)
 	scoreRepository := ProvideScoreRepository(db)
 	monitorScoresService := services.NewMonitorScoresService(scoreRepository, logger)
@@ -228,6 +236,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 // Provider sets
 var configProviderSet = wire.NewSet(
 	ProvideConfigFromPtr,
+	ProvideEncryptionKey,
 )
 
 var clientProviderSet = wire.NewSet(

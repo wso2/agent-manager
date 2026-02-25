@@ -64,6 +64,7 @@ type monitorManagerService struct {
 	executor               MonitorExecutor
 	evaluatorService       EvaluatorManagerService
 	monitorRepo            repositories.MonitorRepository
+	encryptionKey          []byte
 }
 
 // NewMonitorManagerService creates a new monitor manager service instance
@@ -74,6 +75,7 @@ func NewMonitorManagerService(
 	executor MonitorExecutor,
 	evaluatorService EvaluatorManagerService,
 	monitorRepo repositories.MonitorRepository,
+	encryptionKey []byte,
 ) MonitorManagerService {
 	return &monitorManagerService{
 		logger:                 logger,
@@ -82,6 +84,7 @@ func NewMonitorManagerService(
 		executor:               executor,
 		evaluatorService:       evaluatorService,
 		monitorRepo:            monitorRepo,
+		encryptionKey:          encryptionKey,
 	}
 }
 
@@ -103,6 +106,11 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 
 	// Validate evaluators against catalog schema
 	if err := s.validateEvaluators(ctx, req.Evaluators); err != nil {
+		return nil, err
+	}
+
+	// Validate LLM provider configs against catalog
+	if err := s.validateLLMProviderConfigs(ctx, req.LLMProviderConfigs); err != nil {
 		return nil, err
 	}
 
@@ -138,24 +146,31 @@ func (s *monitorManagerService) CreateMonitor(ctx context.Context, orgName strin
 		nextRunTime = &now
 	}
 
+	// Encrypt LLM provider config secrets before persisting
+	encryptedConfigs, err := utils.EncryptLLMProviderConfigs(req.LLMProviderConfigs, s.encryptionKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt LLM provider configs: %w", err)
+	}
+
 	// Save to DB
 	monitor := &models.Monitor{
-		ID:              uuid.New(),
-		Name:            req.Name,
-		DisplayName:     req.DisplayName,
-		Type:            req.Type,
-		OrgName:         orgName,
-		ProjectName:     req.ProjectName,
-		AgentName:       req.AgentName,
-		AgentID:         agent.UUID,
-		EnvironmentName: env.Name,
-		EnvironmentID:   env.UUID,
-		Evaluators:      req.Evaluators,
-		IntervalMinutes: intervalMinutes,
-		NextRunTime:     nextRunTime,
-		TraceStart:      req.TraceStart,
-		TraceEnd:        req.TraceEnd,
-		SamplingRate:    samplingRate,
+		ID:                 uuid.New(),
+		Name:               req.Name,
+		DisplayName:        req.DisplayName,
+		Type:               req.Type,
+		OrgName:            orgName,
+		ProjectName:        req.ProjectName,
+		AgentName:          req.AgentName,
+		AgentID:            agent.UUID,
+		EnvironmentName:    env.Name,
+		EnvironmentID:      env.UUID,
+		Evaluators:         req.Evaluators,
+		LLMProviderConfigs: encryptedConfigs,
+		IntervalMinutes:    intervalMinutes,
+		NextRunTime:        nextRunTime,
+		TraceStart:         req.TraceStart,
+		TraceEnd:           req.TraceEnd,
+		SamplingRate:       samplingRate,
 	}
 
 	if err := s.monitorRepo.CreateMonitor(monitor); err != nil {
@@ -277,6 +292,16 @@ func (s *monitorManagerService) UpdateMonitor(ctx context.Context, orgName, proj
 	}
 	if req.Evaluators != nil {
 		monitor.Evaluators = *req.Evaluators
+	}
+	if req.LLMProviderConfigs != nil {
+		if err := s.validateLLMProviderConfigs(ctx, *req.LLMProviderConfigs); err != nil {
+			return nil, err
+		}
+		enc, err := utils.EncryptLLMProviderConfigs(*req.LLMProviderConfigs, s.encryptionKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encrypt LLM provider configs: %w", err)
+		}
+		monitor.LLMProviderConfigs = enc
 	}
 	if req.IntervalMinutes != nil {
 		if *req.IntervalMinutes < models.MinIntervalMinutes {
@@ -640,6 +665,41 @@ func (s *monitorManagerService) validateCreateRequest(req *models.CreateMonitorR
 	if req.SamplingRate != nil {
 		if *req.SamplingRate <= 0 || *req.SamplingRate > 1 {
 			return fmt.Errorf("samplingRate must be between 0 (exclusive) and 1 (inclusive): %w", utils.ErrInvalidInput)
+		}
+	}
+	return nil
+}
+
+// validateLLMProviderConfigs validates each LLM provider config entry against the catalog.
+// For each entry, the provider is looked up by name and the env var is checked against
+// that provider's config fields.
+func (s *monitorManagerService) validateLLMProviderConfigs(ctx context.Context, configs []models.MonitorLLMProviderConfig) error {
+	seenEnvVars := map[string]int{}
+	for i, c := range configs {
+		prefix := fmt.Sprintf("llmProviderConfigs[%d]", i)
+
+		if prev, ok := seenEnvVars[c.EnvVar]; ok {
+			return fmt.Errorf("%s: duplicate env var %q (also used by llmProviderConfigs[%d]): %w",
+				prefix, c.EnvVar, prev, utils.ErrInvalidInput)
+		}
+		seenEnvVars[c.EnvVar] = i
+
+		provider, err := s.evaluatorService.GetLLMProvider(ctx, c.ProviderName)
+		if err != nil {
+			return fmt.Errorf("%s: %w", prefix, err)
+		}
+
+		// Check EnvVar is a valid config field for this provider
+		valid := false
+		for _, f := range provider.ConfigFields {
+			if f.EnvVar == c.EnvVar {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return fmt.Errorf("%s: env var %q is not a valid config field for provider %q: %w",
+				prefix, c.EnvVar, c.ProviderName, utils.ErrInvalidInput)
 		}
 	}
 	return nil

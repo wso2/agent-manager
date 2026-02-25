@@ -4787,7 +4787,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [trace, agent, span]
+            enum: [trace, agent, llm]
           description: Filter by evaluation level
       responses:
         "200":
@@ -5025,6 +5025,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EvaluatorListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/evaluators/llm-providers:
+    get:
+      summary: List supported LLM providers for evaluators
+      description: Returns the static catalog of LLM providers supported by built-in evaluators, including credential requirements and available models. The envVar field on each config field indicates the environment variable the platform must set on the evaluation job process.
+      operationId: listEvaluatorLLMProviders
+      tags:
+        - Evaluators
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+      responses:
+        "200":
+          description: List of supported LLM providers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluatorLLMProviderListResponse"
         "500":
           description: Internal server error
           content:
@@ -6156,13 +6184,18 @@ components:
             - identifier: "latency"
               displayName: "Latency Check"
               config:
-                level: "span"
+                level: "llm"
                 max_latency_ms: 3000
             - identifier: "answer_relevancy"
               displayName: "Answer Relevancy"
               config:
                 level: "trace"
                 min_overlap_ratio: 0.2
+        llmProviderConfigs:
+          type: array
+          description: LLM provider credentials for LLM-judge evaluators
+          items:
+            $ref: "#/components/schemas/MonitorLLMProviderConfig"
         type:
           type: string
           description: Monitor type - 'future' for continuous monitoring, 'past' for one-time historical analysis
@@ -6205,6 +6238,11 @@ components:
           items:
             $ref: "#/components/schemas/MonitorEvaluator"
           minItems: 1
+        llmProviderConfigs:
+          type: array
+          description: LLM provider credentials for LLM-judge evaluators
+          items:
+            $ref: "#/components/schemas/MonitorLLMProviderConfig"
         intervalMinutes:
           type: integer
           description: Interval in minutes for continuous monitoring (only for 'future' type)
@@ -6274,12 +6312,17 @@ components:
             - identifier: "latency"
               displayName: "Latency Check"
               config:
-                level: "span"
+                level: "llm"
                 max_latency_ms: 3000
             - identifier: "answer_relevancy"
               displayName: "Answer Relevancy"
               config:
                 level: "trace"
+        llmProviderConfigs:
+          type: array
+          description: LLM provider credentials for LLM-judge evaluators
+          items:
+            $ref: "#/components/schemas/MonitorLLMProviderConfig"
         intervalMinutes:
           type: integer
           description: Interval in minutes (only for 'future' type)
@@ -6361,12 +6404,17 @@ components:
             - identifier: "latency"
               displayName: "Latency Check"
               config:
-                level: "span"
+                level: "llm"
                 max_latency_ms: 3000
             - identifier: "answer_relevancy"
               displayName: "Answer Relevancy"
               config:
                 level: "trace"
+        llmProviderConfigs:
+          type: array
+          description: LLM provider credentials for LLM-judge evaluators
+          items:
+            $ref: "#/components/schemas/MonitorLLMProviderConfig"
         traceStart:
           type: string
           format: date-time
@@ -6438,6 +6486,26 @@ components:
             max_latency_ms: 3000
             use_task_constraint: false
 
+    MonitorLLMProviderConfig:
+      type: object
+      required:
+        - providerName
+        - envVar
+        - value
+      properties:
+        providerName:
+          type: string
+          description: Name of the LLM provider from the catalog
+          example: "openai"
+        envVar:
+          type: string
+          description: Environment variable name for the LLM provider credential
+          example: "OPENAI_API_KEY"
+        value:
+          type: string
+          description: API key or credential value
+          example: "sk-..."
+
     EvaluatorResponse:
       type: object
       required:
@@ -6447,6 +6515,7 @@ components:
         - description
         - version
         - provider
+        - level
         - tags
         - isBuiltin
         - configSchema
@@ -6475,6 +6544,14 @@ components:
           type: string
           description: SDK binding provider
           example: "deepeval"
+        level:
+          type: string
+          description: Evaluation granularity level
+          enum:
+            - trace
+            - agent
+            - llm
+          example: "trace"
         tags:
           type: array
           items:
@@ -6563,6 +6640,88 @@ components:
           format: int32
           description: Number of evaluators to skip
           example: 0
+
+    EvaluatorLLMProviderListResponse:
+      type: object
+      required:
+        - count
+        - list
+      properties:
+        count:
+          type: integer
+          description: Total number of supported LLM providers
+          example: 5
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluatorLLMProvider"
+          description: List of supported LLM providers
+
+    EvaluatorLLMProvider:
+      type: object
+      required:
+        - name
+        - displayName
+        - configFields
+        - models
+      properties:
+        name:
+          type: string
+          description: LiteLLM provider identifier
+          example: openai
+        displayName:
+          type: string
+          description: Human-readable provider name
+          example: OpenAI
+        configFields:
+          type: array
+          items:
+            $ref: "#/components/schemas/LLMConfigField"
+          description: Credential and config fields required by this provider
+        models:
+          type: array
+          items:
+            type: string
+          description: Curated list of popular litellm-compatible model strings for this provider
+          example:
+            - gpt-4o
+            - gpt-4o-mini
+
+    LLMConfigField:
+      type: object
+      required:
+        - key
+        - label
+        - fieldType
+        - required
+        - envVar
+      properties:
+        key:
+          type: string
+          description: Field identifier
+          example: api_key
+        label:
+          type: string
+          description: Human-readable field label for UI display
+          example: API Key
+        fieldType:
+          type: string
+          enum:
+            - password
+            - text
+          description: >
+            Field type controlling how the platform renders and handles the value.
+            "password" = secret (mask in UI, do not log).
+            "text" = plain value (e.g. base URL).
+          example: password
+        required:
+          type: boolean
+          description: Whether this field must be provided
+          example: true
+        envVar:
+          type: string
+          description: Environment variable the platform must set on the evaluation job process. LiteLLM reads these natively.
+          example: OPENAI_API_KEY
 
     ErrorResponse:
       type: object
@@ -8659,7 +8818,7 @@ components:
           type: string
         level:
           type: string
-          enum: [trace, agent, span]
+          enum: [trace, agent, llm]
         traceId:
           type: string
         spanId:
@@ -8678,8 +8837,10 @@ components:
         metadata:
           type: object
           additionalProperties: true
-        error:
+        skipReason:
           type: string
+          nullable: true
+          description: Reason the evaluator skipped this trace (missing data, exception, etc.)
 
     EvaluationAggregateResponse:
       type: object
@@ -8692,7 +8853,7 @@ components:
           type: string
         level:
           type: string
-          enum: [trace, agent, span]
+          enum: [trace, agent, llm]
         count:
           type: integer
         mean:
@@ -8726,7 +8887,7 @@ components:
       required:
         - timestamp
         - count
-        - errorCount
+        - skippedCount
         - aggregations
       properties:
         timestamp:
@@ -8736,9 +8897,9 @@ components:
         count:
           type: integer
           description: Total number of scores in this bucket
-        errorCount:
+        skippedCount:
           type: integer
-          description: Number of scores with errors in this bucket
+          description: Number of evaluations skipped in this bucket
         aggregations:
           type: object
           description: Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
@@ -8778,7 +8939,7 @@ components:
           type: string
         level:
           type: string
-          enum: [trace, agent, span]
+          enum: [trace, agent, llm]
         scores:
           type: array
           items:
@@ -8854,7 +9015,7 @@ components:
         - evaluatorName
         - level
         - count
-        - errorCount
+        - skippedCount
         - aggregations
       properties:
         evaluatorName:
@@ -8862,14 +9023,14 @@ components:
           description: Display name of the evaluator
         level:
           type: string
-          enum: [trace, agent, span]
+          enum: [trace, agent, llm]
           description: Evaluation level
         count:
           type: integer
           description: Total number of scores
-        errorCount:
+        skippedCount:
           type: integer
-          description: Number of scores with errors
+          description: Number of evaluations skipped
         aggregations:
           type: object
           description: Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
@@ -8925,7 +9086,7 @@ components:
           description: Display name of the evaluator
         level:
           type: string
-          enum: [trace, agent, span]
+          enum: [trace, agent, llm]
           description: Evaluation level
         scores:
           type: array
@@ -8954,10 +9115,10 @@ components:
           type: object
           additionalProperties: true
           description: Additional metadata
-        error:
+        skipReason:
           type: string
           nullable: true
-          description: Error message if evaluation failed
+          description: Reason the evaluator skipped this trace
 
     PublishScoreItem:
       type: object
@@ -8970,7 +9131,7 @@ components:
           type: string
         level:
           type: string
-          enum: [trace, agent, span]
+          enum: [trace, agent, llm]
         traceId:
           type: string
         spanId:
@@ -8988,8 +9149,9 @@ components:
         metadata:
           type: object
           additionalProperties: true
-        error:
+        skipReason:
           type: string
+          description: Reason the evaluator skipped this trace
 
     PublishAggregateItem:
       type: object
@@ -9008,15 +9170,16 @@ components:
           description: User-facing evaluator name
         level:
           type: string
-          enum: [trace, agent, span]
+          enum: [trace, agent, llm]
         aggregations:
           type: object
+          description: Flexible aggregation data (mean, pass_rate, custom metrics, etc.)
           additionalProperties: true
-          description: Flexible aggregation results (e.g., mean, pass_rate)
         count:
           type: integer
-        errorCount:
+        skippedCount:
           type: integer
+          description: Number of evaluations skipped
 
     PublishScoresRequest:
       type: object
