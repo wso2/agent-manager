@@ -511,7 +511,8 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 	if hasSecrets {
 		if err := s.saveSecretsAndCreateReference(ctx, orgName, projectName, req.Name, kvPath, req.Configurations.Env); err != nil {
 			s.logger.Error("Failed to save secrets and create SecretReference for agent", "agentName", req.Name, "error", err)
-			// Rollback - delete the created agent
+			// Rollback - delete the created agent and cleanup any partially saved secrets
+			s.cleanupSecretsOnRollback(ctx, orgName, req.Name, kvPath)
 			if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
 				s.logger.Error("Failed to rollback agent creation after secret processing failure", "agentName", req.Name, "error", errDeletion)
 			}
@@ -527,7 +528,10 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		if req.Configurations == nil || req.Configurations.EnableAutoInstrumentation == nil || *req.Configurations.EnableAutoInstrumentation {
 			if err := s.enableInstrumentation(ctx, orgName, projectName, req); err != nil {
 				s.logger.Error("Failed to enable instrumentation for agent", "agentName", req.Name, "error", err)
-				// Rollback - delete the created agent
+				// Rollback - delete the created agent and cleanup secrets if any were saved
+				if hasSecrets {
+					s.cleanupSecretsOnRollback(ctx, orgName, req.Name, kvPath)
+				}
 				if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
 					s.logger.Error("Failed to rollback agent creation after instrumentation enabling failure", "agentName", req.Name, "error", errDeletion)
 				}
@@ -541,7 +545,10 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 			if req.Build != nil && (req.Build.BuildpackBuild != nil || req.Build.DockerBuild != nil) {
 				if err := s.injectTracingEnvVarsByName(ctx, orgName, projectName, req.Name); err != nil {
 					s.logger.Error("Failed to inject tracing env vars", "agentName", req.Name, "error", err)
-					// Rollback - delete the created agent
+					// Rollback - delete the created agent and cleanup secrets if any were saved
+					if hasSecrets {
+						s.cleanupSecretsOnRollback(ctx, orgName, req.Name, kvPath)
+					}
 					if errDeletion := s.ocClient.DeleteComponent(ctx, orgName, projectName, req.Name); errDeletion != nil {
 						s.logger.Error("Failed to rollback agent creation after env var injection failure", "agentName", req.Name, "error", errDeletion)
 					}
@@ -674,6 +681,28 @@ func (s *agentManagerService) saveSecretsAndCreateReference(
 
 	s.logger.Info("Secrets stored and SecretReference created", "kvPath", kvPath, "secretCount", len(secretData))
 	return nil
+}
+
+// cleanupSecretsOnRollback removes secrets from KV and deletes SecretReference CR during rollback.
+// This is a best-effort cleanup - errors are logged but not returned since we're already handling a failure.
+func (s *agentManagerService) cleanupSecretsOnRollback(ctx context.Context, orgName, componentName, kvPath string) {
+	secretRefName := fmt.Sprintf("%s-secrets", componentName)
+
+	// Delete secrets from KV
+	if s.secretMgmtClient != nil {
+		if err := s.secretMgmtClient.DeleteSecret(ctx, orgName, kvPath); err != nil {
+			s.logger.Warn("Failed to cleanup secrets from KV during rollback", "kvPath", kvPath, "error", err)
+		} else {
+			s.logger.Debug("Cleaned up secrets from KV during rollback", "kvPath", kvPath)
+		}
+	}
+
+	// Delete SecretReference CR
+	if err := s.ocClient.DeleteSecretReference(ctx, orgName, secretRefName); err != nil {
+		s.logger.Warn("Failed to cleanup SecretReference during rollback", "name", secretRefName, "error", err)
+	} else {
+		s.logger.Debug("Cleaned up SecretReference during rollback", "name", secretRefName)
+	}
 }
 
 func (s *agentManagerService) UpdateAgentBasicInfo(ctx context.Context, orgName string, projectName string, agentName string, req *spec.UpdateAgentBasicInfoRequest) (*models.AgentResponse, error) {
@@ -1115,6 +1144,10 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 		s.logger.Error("Failed to delete oc agent", "agentName", agentName, "error", err)
 		return err
 	}
+
+	// Cleanup secrets from KV and SecretReference CR
+	kvPath := fmt.Sprintf("%s/%s/%s", orgName, projectName, agentName)
+	s.cleanupSecretsOnRollback(ctx, orgName, agentName, kvPath)
 
 	// Cleanup agent configs from database
 	if configErr := s.agentConfigRepo.DeleteAllByAgent(orgName, projectName, agentName); configErr != nil {

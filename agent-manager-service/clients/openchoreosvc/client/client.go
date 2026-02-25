@@ -130,7 +130,6 @@ func NewOpenChoreoClient(cfg *Config) (OpenChoreoClient, error) {
 
 	// Create auth request editor
 	authEditor := func(ctx context.Context, req *http.Request) error {
-		slog.Debug("Adding auth token to request")
 		token, err := cfg.AuthProvider.GetToken(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get auth token: %w", err)

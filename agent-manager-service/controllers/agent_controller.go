@@ -687,7 +687,7 @@ func (c *agentController) GetAgentConfigurations(w http.ResponseWriter, r *http.
 		configurationItems[i] = spec.ConfigurationItem{
 			Key:         config.Key,
 			Value:       config.Value,
-			IsSensitive: config.IsSensitive,
+			IsSensitive: spec.PtrBool(config.IsSensitive),
 		}
 	}
 
