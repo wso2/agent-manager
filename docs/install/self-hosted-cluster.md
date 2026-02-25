@@ -260,12 +260,13 @@ All pods should be in `Running` or `Completed` state before proceeding.
 
 Now that OpenChoreo is installed, you can install the Agent Manager components.
 
-The Agent Manager installation consists of four main components:
+The Agent Manager installation consists of five main components:
 
 1. **Agent Manager** - Core platform (PostgreSQL, API, Console)
 2. **Platform Resources Extension** - Default Organization, Project, Environment, DeploymentPipeline
 3. **Observability Extension** - Traces Observer service
 4. **Build Extension** - Workflow templates for building container images
+5. **Evaluation Extension** - Workflow templates for running automated evaluations
 
 ### Configuration Variables
 
@@ -376,6 +377,8 @@ helm install amp \
 
 **Note:** The `console.config.instrumentationUrl` is configured to point to the observability gateway for trace ingestion. Update this URL if you're using a different endpoint or exposing the gateway differently.
 
+**Note:** If you change `agentManagerService.config.publisherApiKey.value`, make sure to set the same value for `ampEvaluation.publisher.apiKey` in the Evaluation Extension chart (Step 7). Both must match for evaluation score publishing to work.
+
 **Wait for components to be ready:**
 
 ```bash
@@ -484,6 +487,34 @@ kubectl get clusterworkflowtemplate ballerina-buildpack-ci -o yaml | grep REGIST
 ```
 
 **Note:** This extension is optional. The platform will function without it, but build CI features may not work.
+
+### Step 7: Install Evaluation Extension
+
+The Evaluation Extension provides workflow templates for running automated evaluations against agent traces.
+
+**Installation:**
+
+```bash
+# Install Evaluation Extension
+helm install amp-evaluation-extension \
+  oci://${HELM_CHART_REGISTRY}/wso2-amp-evaluation-extension \
+  --version 0.0.0-dev \
+  --namespace ${BUILD_CI_NS} \
+  --timeout 1800s
+```
+
+**Note:** The default `publisher.apiKey` must match the `publisherApiKey.value` configured in the Agent Manager chart (Step 3). Both default to `amp-internal-api-key`. If you changed the Agent Manager's `publisherApiKey.value`, override it here:
+
+```bash
+helm install amp-evaluation-extension \
+  oci://${HELM_CHART_REGISTRY}/wso2-amp-evaluation-extension \
+  --version 0.0.0-dev \
+  --namespace ${BUILD_CI_NS} \
+  --set ampEvaluation.publisher.apiKey="your-custom-key" \
+  --timeout 1800s
+```
+
+**Note:** This extension is optional. The platform will function without it, but evaluation features may not work.
 
 ## Verification
 

@@ -63,6 +63,8 @@ services:
       - OPENBAO_TOKEN=root
       - OPENBAO_PATH=secret
       - OPENBAO_VERSION=v2
+      # Encryption Configuration (AES-256-GCM, hex-encoded 32-byte key)
+      - ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     volumes:
       # Mount source code for hot-reloading
       - ../agent-manager-service:/app

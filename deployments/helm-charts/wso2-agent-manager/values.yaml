@@ -104,6 +104,20 @@ agentManagerService:
       existingSecret: ""
       existingSecretKey: "api-key"
 
+    # Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key)
+    # Must be exactly 64 hex characters. Auto-generated if not provided.
+    encryptionKey:
+      value: ""
+      existingSecret: ""
+      existingSecretKey: "encryption-key"
+
+    # Publisher API Key (used by evaluation job to authenticate score publishing)
+    # Must match ampEvaluation.publisher.apiKey in wso2-amp-evaluation-extension chart
+    publisherApiKey:
+      value: "amp-internal-api-key"
+      existingSecret: ""
+      existingSecretKey: "publisher-api-key"
+
     # Kubeconfig (empty for in-cluster, or provide config)
     kubeconfig: ""
 

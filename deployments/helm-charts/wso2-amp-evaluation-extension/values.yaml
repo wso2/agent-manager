@@ -20,7 +20,7 @@ ampEvaluation:
     # -- Image repository
     # For local development: will be pushed to local registry
     # For production: ghcr.io/wso2/amp-evaluation-monitor
-    repository: "amp-evaluation-monitor"
+    repository: "ghcr.io/wso2/amp-evaluation-monitor"
 
     # -- Image tag
     # IMPORTANT: For production, this should match the amp-evaluation SDK version
@@ -42,8 +42,8 @@ ampEvaluation:
   # -- Publisher settings (for publishing evaluation scores to agent-manager)
   publisher:
     # -- In-cluster URL for the agent-manager API
-    endpoint: "http://amp-agent-manager.openchoreo-control-plane.svc.cluster.local:8080"
+    endpoint: "http://amp-api.wso2-amp.svc.cluster.local:9000"
 
     # -- API key for publisher authentication
     # In production, provide via --set or values override
-    apiKey: ""
+    apiKey: "amp-internal-api-key"

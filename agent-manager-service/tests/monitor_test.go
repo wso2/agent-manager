@@ -2285,3 +2285,131 @@ func TestGetMonitor_LLMProviderConfigsRedacted(t *testing.T) {
 	assert.NotContains(t, w.Body.String(), "sk-secret-never-exposed",
 		"response body must never contain plaintext API key")
 }
+
+// TestUpdatePastMonitor_TriggersNewRun verifies that updating a past monitor triggers a new evaluation run
+func TestUpdatePastMonitor_TriggersNewRun(t *testing.T) {
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
+
+	crCallCount := 0
+	mockChoreoClient := createBaseMockChoreoClient()
+	mockChoreoClient.ApplyResourceFunc = func(ctx context.Context, body map[string]interface{}) error {
+		crCallCount++
+		return nil
+	}
+
+	testClients := wiring.TestClients{
+		OpenChoreoClient: mockChoreoClient,
+	}
+
+	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+	// Create past monitor (triggers initial run)
+	startTime := time.Now().Add(-2 * time.Hour)
+	endTime := time.Now().Add(-1 * time.Hour)
+
+	monitorName := uniqueMonitorName("update-past-run")
+	reqBody := spec.CreateMonitorRequest{
+		Name:            monitorName,
+		DisplayName:     "Past Monitor Update Test",
+		EnvironmentName: "dev",
+		Type:            "past",
+		TraceStart:      timePtr(startTime),
+		TraceEnd:        timePtr(endTime),
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+		SamplingRate:    float32Ptr(1.0),
+	}
+
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+
+	if w.Code == http.StatusNotFound {
+		t.Skip("Skipping test - agent doesn't exist (expected in isolated test)")
+		return
+	}
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	callCountAfterCreate := crCallCount
+
+	// Update the past monitor (should trigger a new run)
+	updateBody := map[string]interface{}{
+		"displayName": "Updated Past Monitor",
+	}
+
+	body, _ = json.Marshal(updateBody)
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w = httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Greater(t, crCallCount, callCountAfterCreate, "Update of past monitor should trigger a new WorkflowRun CR")
+
+	var updated spec.MonitorResponse
+	err := json.Unmarshal(w.Body.Bytes(), &updated)
+	require.NoError(t, err)
+	assert.Equal(t, "Updated Past Monitor", updated.DisplayName)
+	assert.NotNil(t, updated.LatestRun, "Response should include the latest run")
+}
+
+// TestUpdateFutureMonitor_DoesNotTriggerRun verifies that updating a future monitor does NOT trigger a new run
+func TestUpdateFutureMonitor_DoesNotTriggerRun(t *testing.T) {
+	authMiddleware := jwtassertion.NewMockMiddleware(t)
+
+	crCallCount := 0
+	mockChoreoClient := createBaseMockChoreoClient()
+	mockChoreoClient.ApplyResourceFunc = func(ctx context.Context, body map[string]interface{}) error {
+		crCallCount++
+		return nil
+	}
+
+	testClients := wiring.TestClients{
+		OpenChoreoClient: mockChoreoClient,
+	}
+
+	app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
+
+	monitorName := uniqueMonitorName("update-future-no-run")
+	reqBody := spec.CreateMonitorRequest{
+		Name:            monitorName,
+		DisplayName:     "Future Monitor",
+		EnvironmentName: "dev",
+		Type:            "future",
+		IntervalMinutes: int32Ptr(60),
+		Evaluators:      []spec.MonitorEvaluator{{Identifier: "latency", DisplayName: "Latency Check", Config: map[string]interface{}{}}},
+	}
+
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+
+	if w.Code == http.StatusNotFound {
+		t.Skip("Skipping test - agent doesn't exist (expected in isolated test)")
+		return
+	}
+	require.Equal(t, http.StatusCreated, w.Code)
+
+	callCountAfterCreate := crCallCount
+
+	// Update the future monitor
+	updateBody := map[string]interface{}{
+		"displayName": "Updated Future Monitor",
+	}
+
+	body, _ = json.Marshal(updateBody)
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/orgs/test-org/projects/test-project/agents/test-agent/monitors/"+monitorName, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w = httptest.NewRecorder()
+	app.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, callCountAfterCreate, crCallCount, "Update of future monitor should NOT trigger a WorkflowRun CR")
+}
