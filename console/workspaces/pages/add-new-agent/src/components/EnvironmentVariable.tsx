@@ -42,8 +42,8 @@ export const EnvironmentVariable = () => {
         // Get current values directly from form to avoid stale closure
         const currentEnv = (getValues('env') || []) as EnvVariable[];
 
-        // Filter out empty rows from existing values
-        const nonEmptyExisting = currentEnv.filter((env) => env?.key && env?.value);
+        // Filter out rows with no key (value may be intentionally empty)
+        const nonEmptyExisting = currentEnv.filter((env) => env?.key);
 
         // Map existing keys to their values for merging
         const existingMap = new Map<string, string>();
