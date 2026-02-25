@@ -65,6 +65,10 @@ export interface EnvVariableEditorProps {
    * Error message for the value field
    */
   valueError?: string;
+  /**
+   * Whether the key field is disabled (e.g. when keys are pre-filled from provider)
+   */
+  keyDisabled?: boolean;
 }
 
 export function EnvVariableEditor({
@@ -79,6 +83,7 @@ export function EnvVariableEditor({
   isValueSecret = false,
   keyError,
   valueError,
+  keyDisabled = false,
 }: EnvVariableEditorProps) {
   return (
     <Stack key={index} direction="row" gap={2} alignItems="end">
@@ -91,6 +96,7 @@ export function EnvVariableEditor({
           onChange={(e) => onKeyChange(e.target.value.replace(/\s/g, '_'))}
           error={!!keyError}
           helperText={keyError}
+          disabled={keyDisabled}
         />
       </Box>
       <Box flexGrow={1}>

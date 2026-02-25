@@ -29,6 +29,8 @@ export interface EvaluatorConfigParam {
   enumValues?: string[];
 }
 
+export type EvaluatorLevel = "trace" | "agent" | "llm";
+
 export interface EvaluatorResponse {
   id: string;
   identifier: string;
@@ -36,11 +38,10 @@ export interface EvaluatorResponse {
   description: string;
   version: string;
   provider: string;
+  level: EvaluatorLevel;
   tags: string[];
   isBuiltin: boolean;
   configSchema: EvaluatorConfigParam[];
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface EvaluatorListResponse {
@@ -68,19 +69,18 @@ export interface EvaluatorLLMProviderConfigField {
   key: string;
   label: string;
   envVar: string;
-  fieldType: "text" | "password" | string;
-  required?: boolean;
+  fieldType: "text" | "password";
+  required: boolean;
 }
 
 export interface EvaluatorLLMProvider {
-  id: string;
   name: string;
   displayName: string;
-  models?: string[];
-  configFields?: EvaluatorLLMProviderConfigField[];
+  configFields: EvaluatorLLMProviderConfigField[];
+  models: string[];
 }
 
 export interface EvaluatorLLMProviderListResponse {
-  list: EvaluatorLLMProvider[];
   count: number;
+  list: EvaluatorLLMProvider[];
 }

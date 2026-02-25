@@ -91,7 +91,6 @@ export function MonitorTable() {
             displayName: monitor.displayName,
             name: monitor.name,
             environment:
-                environmentDisplayNameMap[monitor.environmentId ?? ""] ??
                 environmentDisplayNameMap[monitor.environmentName ?? ""] ??
                 monitor.environmentName ??
                 "-",

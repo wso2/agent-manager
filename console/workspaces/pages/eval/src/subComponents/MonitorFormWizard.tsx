@@ -21,9 +21,9 @@ import { Alert, Box, Button, Stack } from "@wso2/oxygen-ui";
 import { ArrowLeft, ArrowRight } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
 import { createMonitorSchema, type CreateMonitorFormValues } from "../form/schema";
-import type { EvaluatorResponse, MonitorLLMProviderConfig } from "@agent-management-platform/types";
+import type { EvaluatorResponse } from "@agent-management-platform/types";
 import { CreateMonitorForm } from "./CreateMonitorForm";
-import { SelectPresetMonitors, type LLMPoolEntry } from "./SelectPresetMonitors";
+import { SelectPresetMonitors } from "./SelectPresetMonitors";
 import { slugifyMonitorName } from "../utils/monitorFormUtils";
 import { useValidatedForm } from "../hooks/useValidatedForm";
 
@@ -56,22 +56,10 @@ export function MonitorFormWizard({
 }: MonitorFormWizardProps) {
     const [page, setPage] = useState<1 | 2>(1);
     const [formData, setFormData] = useState<CreateMonitorFormValues>(initialValues);
-    const [llmPool, setLLMPool] = useState<LLMPoolEntry[]>([]);
 
     useEffect(() => {
         setFormData(initialValues);
         setPage(1);
-        // Seed pool from existing llmProviderConfigs (dedup by llmProviderId+model)
-        const seen = new Set<string>();
-        const seeded: LLMPoolEntry[] = [];
-        (initialValues.llmProviderConfigs ?? []).forEach((c) => {
-            const key = `${c.llmProviderId}:${c.model ?? ""}`;
-            if (!seen.has(key)) {
-                seen.add(key);
-                seeded.push({ id: `${key}:init`, llmProviderId: c.llmProviderId, model: c.model, configValues: c.configValues });
-            }
-        });
-        setLLMPool(seeded);
     }, [initialValues]);
 
     const { errors, setFieldError, validateField, lastSubmittedValidationErrors, guardSubmit } =
@@ -116,11 +104,8 @@ export function MonitorFormWizard({
                     identifier: ev.identifier,
                     displayName: ev.displayName,
                 }];
-            const nextLLMConfigs = exists
-                ? (prev.llmProviderConfigs ?? []).filter(
-                    (c) => c.evaluatorIdentifier !== ev.identifier
-                )
-                : prev.llmProviderConfigs ?? [];
+            // LLM credentials are a flat list; no per-evaluator filtering
+            const nextLLMConfigs = prev.llmProviderConfigs ?? [];
 
             const next = {
                 ...prev,
@@ -153,28 +138,9 @@ export function MonitorFormWizard({
         });
     }, [setFieldError, validateField]);
 
-    const handleSaveLLMProviderConfig = useCallback(
-        (evaluatorIdentifier: string, llmProviderId: string | null, model?: string, configValues?: Record<string, string>) => {
-            setFormData((prev) => {
-                const prevConfigs = prev.llmProviderConfigs ?? [];
-                let nextConfigs: MonitorLLMProviderConfig[];
-                if (llmProviderId === null) {
-                    nextConfigs = prevConfigs.filter(
-                        (c) => c.evaluatorIdentifier !== evaluatorIdentifier
-                    );
-                } else {
-                    const entry: MonitorLLMProviderConfig = { evaluatorIdentifier, llmProviderId, model, configValues };
-                    const exists = prevConfigs.some(
-                        (c) => c.evaluatorIdentifier === evaluatorIdentifier
-                    );
-                    nextConfigs = exists
-                        ? prevConfigs.map((c) =>
-                            c.evaluatorIdentifier === evaluatorIdentifier ? entry : c
-                        )
-                        : [...prevConfigs, entry];
-                }
-                return { ...prev, llmProviderConfigs: nextConfigs };
-            });
+    const handleLLMProviderConfigsChange = useCallback(
+        (configs: CreateMonitorFormValues["llmProviderConfigs"]) => {
+            setFormData((prev) => ({ ...prev, llmProviderConfigs: configs ?? [] }));
         },
         []
     );
@@ -249,9 +215,7 @@ export function MonitorFormWizard({
                             onToggleEvaluator={handleToggleEvaluator}
                             onSaveEvaluatorConfig={handleSaveEvaluatorConfig}
                             llmProviderConfigs={formData.llmProviderConfigs ?? []}
-                            onSaveLLMProviderConfig={handleSaveLLMProviderConfig}
-                            llmPool={llmPool}
-                            onLLMPoolChange={setLLMPool}
+                            onLLMProviderConfigsChange={handleLLMProviderConfigsChange}
                             error={errors.evaluators}
                         />
                     )

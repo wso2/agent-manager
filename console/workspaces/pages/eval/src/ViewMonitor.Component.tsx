@@ -119,11 +119,11 @@ export const ViewMonitorComponent: React.FC = () => {
     // ── EvaluationSummaryCard ────────────────────────────────────────────────
     const evaluatorSummary = useMemo<EvaluationSummaryItem[]>(() => {
         const totalCount  = evaluators.reduce((s, e) => s + e.count,      0);
-        const totalErrors = evaluators.reduce((s, e) => s + e.errorCount, 0);
+        const totalErrors = evaluators.reduce((s, e) => s + e.skippedCount, 0);
         const failureRate = totalCount > 0 ? (totalErrors / totalCount) * 100 : 0;
 
         const totalCountBaseline  = evaluatorsBaseline.reduce((s, e) => s + e.count,      0);
-        const totalErrorsBaseline = evaluatorsBaseline.reduce((s, e) => s + e.errorCount, 0);
+        const totalErrorsBaseline = evaluatorsBaseline.reduce((s, e) => s + e.skippedCount, 0);
 
         // Compare daily run rates so window-length differences don't skew the trend
         const selectedDays = Math.max(

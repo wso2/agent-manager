@@ -84,8 +84,6 @@ export const CreateMonitorComponent: React.FC = () => {
         const payload: CreateMonitorRequest = {
             name: values.name.trim(),
             displayName: values.displayName.trim(),
-            projectName: projectId,
-            agentName: agentId,
             environmentName: envId,
             evaluators: values.evaluators,
             llmProviderConfigs: values.llmProviderConfigs,
