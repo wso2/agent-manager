@@ -47,8 +47,7 @@ type ScoreRepository interface {
 	// Aggregated queries (SQL-based aggregations)
 	GetMonitorScoresAggregated(monitorID uuid.UUID, startTime, endTime time.Time, filters ScoreFilters) ([]EvaluatorAggregation, error)
 	GetEvaluatorTimeSeriesAggregated(monitorID uuid.UUID, displayName string, startTime, endTime time.Time, granularity string) ([]TimeBucketAggregation, error)
-	GetEvaluatorScoreCount(monitorID uuid.UUID, displayName string, startTime, endTime time.Time) (int64, error)
-	GetEvaluatorTraceAggregated(monitorID uuid.UUID, displayName string, startTime, endTime time.Time) ([]TraceAggregation, error)
+	GetEvaluatorTraceAggregated(monitorID uuid.UUID, displayName string, startTime, endTime time.Time, limit int) ([]TraceAggregation, error)
 
 	// Trace-level queries (cross-monitor)
 	GetScoresByTraceID(traceID string, orgName, projName, agentName string) ([]ScoreWithMonitor, error)
@@ -332,33 +331,17 @@ func (r *ScoreRepo) GetEvaluatorTimeSeriesAggregated(
 	return results, err
 }
 
-// GetEvaluatorScoreCount returns the number of distinct traces for an evaluator within a time window.
-// Uses COUNT(DISTINCT trace_id) so the result reflects chart point density, not raw score rows.
-func (r *ScoreRepo) GetEvaluatorScoreCount(
-	monitorID uuid.UUID,
-	displayName string,
-	startTime, endTime time.Time,
-) (int64, error) {
-	var count int64
-	err := r.db.Table("scores s").
-		Select("COUNT(DISTINCT s.trace_id)").
-		Joins("JOIN monitor_run_evaluators mre ON s.run_evaluator_id = mre.id").
-		Where("s.monitor_id = ?", monitorID).
-		Where("s.trace_timestamp BETWEEN ? AND ?", startTime, endTime).
-		Where("mre.display_name = ?", displayName).
-		Scan(&count).Error
-	return count, err
-}
-
-// GetEvaluatorTraceAggregated returns scores aggregated per trace for an evaluator within a time window
+// GetEvaluatorTraceAggregated returns scores aggregated per trace for an evaluator within a time window.
+// The limit parameter caps the number of returned traces (use 0 for no limit).
 func (r *ScoreRepo) GetEvaluatorTraceAggregated(
 	monitorID uuid.UUID,
 	displayName string,
 	startTime, endTime time.Time,
+	limit int,
 ) ([]TraceAggregation, error) {
 	var results []TraceAggregation
 
-	err := r.db.Table("scores s").
+	query := r.db.Table("scores s").
 		Select(`
 			s.trace_id,
 			MIN(s.trace_timestamp) as trace_timestamp,
@@ -371,7 +354,12 @@ func (r *ScoreRepo) GetEvaluatorTraceAggregated(
 		Where("s.trace_timestamp BETWEEN ? AND ?", startTime, endTime).
 		Where("mre.display_name = ?", displayName).
 		Group("s.trace_id").
-		Order("trace_timestamp").
-		Find(&results).Error
+		Order("trace_timestamp")
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	err := query.Find(&results).Error
 	return results, err
 }

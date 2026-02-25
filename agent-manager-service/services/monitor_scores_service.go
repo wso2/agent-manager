@@ -192,26 +192,48 @@ func (s *MonitorScoresService) GetMonitorScores(
 
 // GetEvaluatorTimeSeries returns time-series data for a specific evaluator.
 // Granularity is automatically determined based on data density and time range.
+// It first attempts trace-level aggregation with a bounded query; if the data is
+// too dense (more than RawThreshold distinct traces), it falls back to time-bucket aggregation.
 func (s *MonitorScoresService) GetEvaluatorTimeSeries(
 	monitorID uuid.UUID,
 	monitorName, displayName string,
 	startTime, endTime time.Time,
 ) (*models.TimeSeriesResponse, error) {
-	// Count data points to determine adaptive granularity
-	count, err := s.repo.GetEvaluatorScoreCount(monitorID, displayName, startTime, endTime)
+	probeLimit := int(utils.RawThreshold) + 1
+
+	// Probe for sparse data — fetch up to RawThreshold+1 trace-aggregated results
+	traceAggs, err := s.repo.GetEvaluatorTraceAggregated(monitorID, displayName, startTime, endTime, probeLimit)
 	if err != nil {
-		return nil, fmt.Errorf("failed to count scores for adaptive granularity: %w", err)
+		return nil, fmt.Errorf("failed to get trace-aggregated scores: %w", err)
 	}
 
+	// Sparse data: use trace-level results directly
+	if len(traceAggs) <= int(utils.RawThreshold) {
+		points := make([]models.TimeSeriesPoint, len(traceAggs))
+		for i, agg := range traceAggs {
+			aggregationMap := make(map[string]interface{})
+			if agg.MeanScore != nil {
+				aggregationMap["mean"] = *agg.MeanScore
+			}
+			points[i] = models.TimeSeriesPoint{
+				Timestamp:    agg.TraceTimestamp,
+				Count:        agg.TotalCount,
+				SkippedCount: agg.SkippedCount,
+				Aggregations: aggregationMap,
+			}
+		}
+		return &models.TimeSeriesResponse{
+			MonitorName:   monitorName,
+			EvaluatorName: displayName,
+			Granularity:   "trace",
+			Points:        points,
+		}, nil
+	}
+
+	// Dense data: determine time-bucket granularity from duration
 	duration := endTime.Sub(startTime)
-	granularity := utils.CalculateAdaptiveGranularity(duration, count)
+	granularity := utils.CalculateAdaptiveGranularity(duration, int64(len(traceAggs)))
 
-	// Trace-level aggregation for sparse data
-	if granularity == "trace" {
-		return s.getTraceAggregatedTimeSeries(monitorID, monitorName, displayName, startTime, endTime)
-	}
-
-	// Time-bucket aggregation for dense data
 	aggregations, err := s.repo.GetEvaluatorTimeSeriesAggregated(monitorID, displayName, startTime, endTime, granularity)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get time series aggregations: %w", err)
@@ -223,7 +245,6 @@ func (s *MonitorScoresService) GetEvaluatorTimeSeries(
 		if agg.MeanScore != nil {
 			aggregationMap["mean"] = *agg.MeanScore
 		}
-
 		points[i] = models.TimeSeriesPoint{
 			Timestamp:    agg.TimeBucket,
 			Count:        agg.TotalCount,
@@ -236,41 +257,6 @@ func (s *MonitorScoresService) GetEvaluatorTimeSeries(
 		MonitorName:   monitorName,
 		EvaluatorName: displayName,
 		Granularity:   granularity,
-		Points:        points,
-	}, nil
-}
-
-// getTraceAggregatedTimeSeries returns per-trace aggregated scores as time series points.
-// Each trace becomes a single data point with its exact timestamp and mean score.
-func (s *MonitorScoresService) getTraceAggregatedTimeSeries(
-	monitorID uuid.UUID,
-	monitorName, displayName string,
-	startTime, endTime time.Time,
-) (*models.TimeSeriesResponse, error) {
-	traceAggs, err := s.repo.GetEvaluatorTraceAggregated(monitorID, displayName, startTime, endTime)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get trace-aggregated scores: %w", err)
-	}
-
-	points := make([]models.TimeSeriesPoint, len(traceAggs))
-	for i, agg := range traceAggs {
-		aggregationMap := make(map[string]interface{})
-		if agg.MeanScore != nil {
-			aggregationMap["mean"] = *agg.MeanScore
-		}
-
-		points[i] = models.TimeSeriesPoint{
-			Timestamp:    agg.TraceTimestamp,
-			Count:        agg.TotalCount,
-			SkippedCount: agg.SkippedCount,
-			Aggregations: aggregationMap,
-		}
-	}
-
-	return &models.TimeSeriesResponse{
-		MonitorName:   monitorName,
-		EvaluatorName: displayName,
-		Granularity:   "trace",
 		Points:        points,
 	}, nil
 }

@@ -17,6 +17,7 @@
 package tests
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -70,11 +71,7 @@ func (s *stubScoreRepo) GetEvaluatorTimeSeriesAggregated(_ uuid.UUID, _ string, 
 	return nil, nil
 }
 
-func (s *stubScoreRepo) GetEvaluatorScoreCount(_ uuid.UUID, _ string, _, _ time.Time) (int64, error) {
-	return 0, nil
-}
-
-func (s *stubScoreRepo) GetEvaluatorTraceAggregated(_ uuid.UUID, _ string, _, _ time.Time) ([]repositories.TraceAggregation, error) {
+func (s *stubScoreRepo) GetEvaluatorTraceAggregated(_ uuid.UUID, _ string, _, _ time.Time, _ int) ([]repositories.TraceAggregation, error) {
 	return nil, nil
 }
 
@@ -328,17 +325,15 @@ func TestGetScoresTimeSeries_ValidRanges(t *testing.T) {
 // for the adaptive granularity methods.
 type configurableScoreRepo struct {
 	stubScoreRepo
-	scoreCount      int64
 	traceAggs       []repositories.TraceAggregation
 	timeBucketAggs  []repositories.TimeBucketAggregation
 	lastGranularity string // captures the granularity passed to GetEvaluatorTimeSeriesAggregated
 }
 
-func (c *configurableScoreRepo) GetEvaluatorScoreCount(_ uuid.UUID, _ string, _, _ time.Time) (int64, error) {
-	return c.scoreCount, nil
-}
-
-func (c *configurableScoreRepo) GetEvaluatorTraceAggregated(_ uuid.UUID, _ string, _, _ time.Time) ([]repositories.TraceAggregation, error) {
+func (c *configurableScoreRepo) GetEvaluatorTraceAggregated(_ uuid.UUID, _ string, _, _ time.Time, limit int) ([]repositories.TraceAggregation, error) {
+	if limit > 0 && len(c.traceAggs) > limit {
+		return c.traceAggs[:limit], nil
+	}
 	return c.traceAggs, nil
 }
 
@@ -351,12 +346,26 @@ func (c *configurableScoreRepo) GetMonitorID(_, _, _, _ string) (uuid.UUID, erro
 	return uuid.New(), nil // return a valid ID so the service proceeds
 }
 
+// makeDenseTraceAggs generates n dummy TraceAggregation entries to simulate dense data.
+func makeDenseTraceAggs(n int, baseTime time.Time) []repositories.TraceAggregation {
+	score := 0.5
+	aggs := make([]repositories.TraceAggregation, n)
+	for i := range n {
+		aggs[i] = repositories.TraceAggregation{
+			TraceID:        fmt.Sprintf("dense-t%d", i),
+			TraceTimestamp: baseTime.Add(time.Duration(i) * time.Minute),
+			TotalCount:     1,
+			MeanScore:      &score,
+		}
+	}
+	return aggs
+}
+
 func TestGetEvaluatorTimeSeries_SparseData_UsesTraceMode(t *testing.T) {
 	baseTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	meanScore := 0.85
 
 	repo := &configurableScoreRepo{
-		scoreCount: 5, // sparse: ≤ 50
 		traceAggs: []repositories.TraceAggregation{
 			{TraceID: "t1", TraceTimestamp: baseTime, TotalCount: 1, SkippedCount: 0, MeanScore: &meanScore},
 			{TraceID: "t2", TraceTimestamp: baseTime.Add(30 * time.Minute), TotalCount: 1, SkippedCount: 0, MeanScore: &meanScore},
@@ -381,7 +390,7 @@ func TestGetEvaluatorTimeSeries_DenseData_ShortRange_UsesMinute(t *testing.T) {
 	meanScore := 0.7
 
 	repo := &configurableScoreRepo{
-		scoreCount: 100, // dense: > 50
+		traceAggs: makeDenseTraceAggs(100, baseTime), // dense: > 50
 		timeBucketAggs: []repositories.TimeBucketAggregation{
 			{TimeBucket: baseTime, TotalCount: 5, SkippedCount: 0, MeanScore: &meanScore},
 		},
@@ -404,7 +413,7 @@ func TestGetEvaluatorTimeSeries_DenseData_MediumRange_UsesHour(t *testing.T) {
 	meanScore := 0.6
 
 	repo := &configurableScoreRepo{
-		scoreCount: 200, // dense
+		traceAggs: makeDenseTraceAggs(200, baseTime), // dense
 		timeBucketAggs: []repositories.TimeBucketAggregation{
 			{TimeBucket: baseTime, TotalCount: 10, SkippedCount: 1, MeanScore: &meanScore},
 		},
@@ -426,7 +435,7 @@ func TestGetEvaluatorTimeSeries_DenseData_LongRange_UsesDay(t *testing.T) {
 	meanScore := 0.5
 
 	repo := &configurableScoreRepo{
-		scoreCount: 500, // dense
+		traceAggs: makeDenseTraceAggs(500, baseTime), // dense
 		timeBucketAggs: []repositories.TimeBucketAggregation{
 			{TimeBucket: baseTime, TotalCount: 50, SkippedCount: 0, MeanScore: &meanScore},
 		},
@@ -448,7 +457,7 @@ func TestGetEvaluatorTimeSeries_DenseData_VeryLongRange_UsesWeek(t *testing.T) {
 	meanScore := 0.9
 
 	repo := &configurableScoreRepo{
-		scoreCount: 1000, // dense
+		traceAggs: makeDenseTraceAggs(1000, baseTime), // dense
 		timeBucketAggs: []repositories.TimeBucketAggregation{
 			{TimeBucket: baseTime, TotalCount: 100, SkippedCount: 5, MeanScore: &meanScore},
 		},
@@ -469,21 +478,22 @@ func TestGetEvaluatorTimeSeries_BoundaryAt50(t *testing.T) {
 	baseTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	meanScore := 0.75
 
-	// Exactly 50 → trace mode
+	// Exactly 50 traces → trace mode (probe returns 50, which is <= RawThreshold)
 	repo50 := &configurableScoreRepo{
-		scoreCount: 50,
-		traceAggs: []repositories.TraceAggregation{
-			{TraceID: "t1", TraceTimestamp: baseTime, TotalCount: 1, MeanScore: &meanScore},
-		},
+		traceAggs: makeDenseTraceAggs(50, baseTime),
+	}
+	// Override first entry with a known score for assertion
+	repo50.traceAggs[0] = repositories.TraceAggregation{
+		TraceID: "t1", TraceTimestamp: baseTime, TotalCount: 1, MeanScore: &meanScore,
 	}
 	svc50 := services.NewMonitorScoresService(repo50, slog.Default())
 	result, err := svc50.GetEvaluatorTimeSeries(uuid.New(), "m", "e", baseTime, baseTime.Add(3*24*time.Hour))
 	require.NoError(t, err)
 	assert.Equal(t, "trace", result.Granularity)
 
-	// 51 → time-bucket mode
+	// 51 traces → time-bucket mode (probe returns 51, which is > RawThreshold)
 	repo51 := &configurableScoreRepo{
-		scoreCount:     51,
+		traceAggs:      makeDenseTraceAggs(51, baseTime),
 		timeBucketAggs: []repositories.TimeBucketAggregation{},
 	}
 	svc51 := services.NewMonitorScoresService(repo51, slog.Default())

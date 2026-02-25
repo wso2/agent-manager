@@ -259,52 +259,6 @@ func TestBatchCreateScores_SkippedScore(t *testing.T) {
 
 // ─── adaptive time series tests ─────────────────────────────────────────────
 
-// seedScores inserts N scores for the given evaluator with timestamps spread
-// across the time range. Returns the time range [start, end] that covers all scores.
-func seedScores(t *testing.T, runEvaluatorID, monitorID uuid.UUID, count int, baseTime time.Time, interval time.Duration) {
-	t.Helper()
-	repo := repositories.NewScoreRepo(db.DB(context.Background()))
-	scores := make([]models.Score, count)
-	for i := range count {
-		scores[i] = models.Score{
-			ID:             uuid.New(),
-			RunEvaluatorID: runEvaluatorID,
-			MonitorID:      monitorID,
-			TraceID:        "trace-ts-" + uuid.New().String()[:12],
-			Score:          float64Ptr(float64(i%10) / 10.0),
-			TraceTimestamp: baseTime.Add(time.Duration(i) * interval),
-		}
-	}
-	require.NoError(t, repo.BatchCreateScores(scores))
-}
-
-// TestGetEvaluatorScoreCount verifies the lightweight COUNT query
-func TestGetEvaluatorScoreCount(t *testing.T) {
-	runEvaluatorID, monitorID := seedRunEvaluator(t)
-	repo := repositories.NewScoreRepo(db.DB(context.Background()))
-
-	baseTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
-	seedScores(t, runEvaluatorID, monitorID, 5, baseTime, 10*time.Minute)
-
-	// Count within the full range
-	count, err := repo.GetEvaluatorScoreCount(monitorID, "Latency Check",
-		baseTime.Add(-time.Hour), baseTime.Add(2*time.Hour))
-	require.NoError(t, err)
-	assert.Equal(t, int64(5), count)
-
-	// Count with a narrower range that excludes some scores
-	count, err = repo.GetEvaluatorScoreCount(monitorID, "Latency Check",
-		baseTime, baseTime.Add(25*time.Minute))
-	require.NoError(t, err)
-	assert.Equal(t, int64(3), count, "only scores at +0m, +10m, +20m should be in range")
-
-	// Count with a different evaluator name returns 0
-	count, err = repo.GetEvaluatorScoreCount(monitorID, "Nonexistent Evaluator",
-		baseTime.Add(-time.Hour), baseTime.Add(2*time.Hour))
-	require.NoError(t, err)
-	assert.Equal(t, int64(0), count)
-}
-
 // TestGetEvaluatorTraceAggregated verifies per-trace aggregation
 func TestGetEvaluatorTraceAggregated(t *testing.T) {
 	runEvaluatorID, monitorID := seedRunEvaluator(t)
@@ -343,7 +297,7 @@ func TestGetEvaluatorTraceAggregated(t *testing.T) {
 	require.NoError(t, repo.BatchCreateScores(scores))
 
 	results, err := repo.GetEvaluatorTraceAggregated(monitorID, "Latency Check",
-		baseTime.Add(-time.Hour), baseTime.Add(2*time.Hour))
+		baseTime.Add(-time.Hour), baseTime.Add(2*time.Hour), 0)
 	require.NoError(t, err)
 	require.Len(t, results, 3, "should have one result per trace")
 
