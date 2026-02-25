@@ -408,12 +408,8 @@ class TestPublishScores:
                 "Latency Check",
                 "trace",
                 scores=[
-                    _make_evaluator_score(
-                        "trace-1", 0.95, timestamp=ts, explanation="Within limits"
-                    ),
-                    _make_evaluator_score(
-                        "trace-2", 0.30, timestamp=ts, explanation="Exceeded threshold"
-                    ),
+                    _make_evaluator_score("trace-1", 0.95, timestamp=ts, explanation="Within limits"),
+                    _make_evaluator_score("trace-2", 0.30, timestamp=ts, explanation="Exceeded threshold"),
                 ],
                 aggregated_scores={"mean": 0.625, "pass_rate_0.5": 0.5},
             ),
@@ -494,21 +490,13 @@ class TestPublishScores:
             "Agent Latency": _make_evaluator_summary(
                 "Agent Latency",
                 "agent",
-                scores=[
-                    _make_evaluator_score(
-                        "trace-1", 0.7, span_id="agent-span-1", timestamp=ts
-                    )
-                ],
+                scores=[_make_evaluator_score("trace-1", 0.7, span_id="agent-span-1", timestamp=ts)],
                 aggregated_scores={"mean": 0.7},
             ),
             "Span Latency": _make_evaluator_summary(
                 "Span Latency",
                 "llm",
-                scores=[
-                    _make_evaluator_score(
-                        "trace-1", 0.5, span_id="llm-span-1", timestamp=ts
-                    )
-                ],
+                scores=[_make_evaluator_score("trace-1", 0.5, span_id="llm-span-1", timestamp=ts)],
                 aggregated_scores={"mean": 0.5},
             ),
         }
@@ -544,9 +532,7 @@ class TestPublishScores:
         assert ind_levels["Span Latency"] == "llm"
 
         # Verify llm-level scores include spanId
-        span_scores = [
-            i for i in payload["individualScores"] if i["displayName"] == "Span Latency"
-        ]
+        span_scores = [i for i in payload["individualScores"] if i["displayName"] == "Span Latency"]
         assert span_scores[0]["spanId"] == "llm-span-1"
 
     @patch("main.requests.post")
@@ -562,9 +548,7 @@ class TestPublishScores:
                 "Answer Relevancy",
                 "trace",
                 scores=[
-                    _make_evaluator_score(
-                        "trace-1", None, timestamp=ts, error="LLM call failed"
-                    ),
+                    _make_evaluator_score("trace-1", None, timestamp=ts, error="LLM call failed"),
                 ],
                 aggregated_scores={},
             ),
@@ -644,9 +628,7 @@ class TestPublishScores:
         mock_response.status_code = 400
         mock_response.text = "Bad Request"
         mock_post.return_value = mock_response
-        mock_post.return_value.raise_for_status.side_effect = req.exceptions.HTTPError(
-            response=mock_response
-        )
+        mock_post.return_value.raise_for_status.side_effect = req.exceptions.HTTPError(response=mock_response)
 
         scores = {
             "Latency Check": _make_evaluator_summary(
@@ -677,11 +659,7 @@ class TestPublishScores:
             "Latency Check": _make_evaluator_summary(
                 "Latency Check",
                 "trace",
-                scores=[
-                    _make_evaluator_score(
-                        "trace-1", 0.8, span_id=None, explanation=None, timestamp=None
-                    )
-                ],
+                scores=[_make_evaluator_score("trace-1", 0.8, span_id=None, explanation=None, timestamp=None)],
                 aggregated_scores={"mean": 0.8},
             ),
         }
@@ -776,15 +754,9 @@ class TestMainIntegration:
         mock_run_result.success = True
         mock_run_result.errors = []
         mock_run_result.scores = {
-            "Latency Check": _make_evaluator_summary(
-                "Latency Check", "trace", [], {"mean": 0.9}
-            ),
-            "Agent Latency": _make_evaluator_summary(
-                "Agent Latency", "agent", [], {"mean": 0.7}
-            ),
-            "Span Latency": _make_evaluator_summary(
-                "Span Latency", "llm", [], {"mean": 0.5}
-            ),
+            "Latency Check": _make_evaluator_summary("Latency Check", "trace", [], {"mean": 0.9}),
+            "Agent Latency": _make_evaluator_summary("Agent Latency", "agent", [], {"mean": 0.7}),
+            "Span Latency": _make_evaluator_summary("Span Latency", "llm", [], {"mean": 0.5}),
         }
 
         mock_monitor_instance = MagicMock()

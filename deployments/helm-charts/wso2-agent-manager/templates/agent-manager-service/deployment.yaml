@@ -102,6 +102,16 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.agentManagerService.config.github.existingSecret | default (include "agent-management-platform.agentManagerService.fullname" .) }}
                   key: {{ .Values.agentManagerService.config.github.existingSecretKey | default "github-token" }}
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.agentManagerService.config.encryptionKey.existingSecret | default (include "agent-management-platform.agentManagerService.fullname" .) }}
+                  key: {{ .Values.agentManagerService.config.encryptionKey.existingSecretKey | default "encryption-key" }}
+            - name: PUBLISHER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.agentManagerService.config.publisherApiKey.existingSecret | default (include "agent-management-platform.agentManagerService.fullname" .) }}
+                  key: {{ .Values.agentManagerService.config.publisherApiKey.existingSecretKey | default "publisher-api-key" }}
           envFrom:
             - configMapRef:
                 name: {{ include "agent-management-platform.agentManagerService.fullname" . }}

@@ -172,7 +172,7 @@ func loadEnvs() {
 		Host:                r.readOptionalString("INTERNAL_SERVER_HOST", ""),
 		Port:                int(r.readOptionalInt64("INTERNAL_SERVER_PORT", 9243)),
 		CertDir:             r.readOptionalString("INTERNAL_SERVER_CERT_DIR", "./data/certs"),
-		APIKey:              r.readOptionalString("INTERNAL_API_KEY", "dev-publisher-api-key"),
+		APIKey:              r.readOptionalString("PUBLISHER_API_KEY", "dev-publisher-api-key"),
 		ReadTimeoutSeconds:  int(r.readOptionalInt64("INTERNAL_SERVER_READ_TIMEOUT_SECONDS", 10)),
 		WriteTimeoutSeconds: int(r.readOptionalInt64("INTERNAL_SERVER_WRITE_TIMEOUT_SECONDS", 90)),
 		IdleTimeoutSeconds:  int(r.readOptionalInt64("INTERNAL_SERVER_IDLE_TIMEOUT_SECONDS", 60)),
@@ -239,6 +239,6 @@ func validateInternalServerConfigs(cfg *Config, r *configReader) {
 		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_CERT_DIR must be non-empty"))
 	}
 	if cfg.InternalServer.APIKey == "dev-publisher-api-key" {
-		slog.Warn("INTERNAL_API_KEY is using the default dev value — set INTERNAL_API_KEY in production")
+		slog.Warn("PUBLISHER_API_KEY is using the default dev value — set PUBLISHER_API_KEY in production")
 	}
 }

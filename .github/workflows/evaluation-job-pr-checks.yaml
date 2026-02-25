@@ -1,0 +1,86 @@
+name: Evaluation Job
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "evaluation-job/**"
+      - ".github/workflows/evaluation-job-pr-checks.yaml"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    defaults:
+      run:
+        working-directory: evaluation-job
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Run ruff linter
+        run: ruff check .
+
+      - name: Run ruff formatter check
+        run: ruff format --check .
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: evaluation-job
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ../libs/amp-evaluation
+          pip install requests litellm pytest pytest-cov
+
+      - name: Run tests
+        run: |
+          pytest test_main.py -v
+
+  type-check:
+    name: Type Check
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    defaults:
+      run:
+        working-directory: evaluation-job
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ../libs/amp-evaluation
+          pip install requests litellm mypy
+
+      - name: Run mypy
+        run: mypy main.py --install-types --non-interactive
