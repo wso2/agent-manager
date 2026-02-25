@@ -18,6 +18,7 @@
 
 import { useState, useRef, useCallback, useMemo, ChangeEvent } from "react";
 import {
+    alpha,
     Box,
     Button,
     Dialog,
@@ -29,7 +30,6 @@ import {
     Typography,
     useTheme,
 } from "@wso2/oxygen-ui";
-import { alpha } from "@mui/material/styles";
 import { FileText, Upload } from "@wso2/oxygen-ui-icons-react";
 import { parseEnvContent, EnvVariable } from "../utils";
 
