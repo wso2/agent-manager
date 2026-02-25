@@ -1,4 +1,4 @@
-.PHONY: help lint format-check type-check test docker-build docker-build-dev docker-push docker-load-k3d docker-clean
+.PHONY: all help lint format-check type-check test clean docker-build docker-build-dev docker-push docker-load-k3d docker-clean
 
 # Variables
 TAG ?= 0.0.0-dev
@@ -11,6 +11,10 @@ REGISTRY_ENDPOINT ?= ghcr.io/wso2
 
 # Project root for dev build context
 PROJECT_ROOT = ..
+
+all: help ## Default target
+
+clean: docker-clean ## Clean build artifacts
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'

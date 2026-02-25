@@ -260,7 +260,7 @@ All pods should be in `Running` or `Completed` state before proceeding.
 
 Now that OpenChoreo is installed, you can install the Agent Manager components.
 
-The Agent Manager installation consists of four main components:
+The Agent Manager installation consists of five main components:
 
 1. **Agent Manager** - Core platform (PostgreSQL, API, Console)
 2. **Platform Resources Extension** - Default Organization, Project, Environment, DeploymentPipeline
