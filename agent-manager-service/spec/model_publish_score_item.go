@@ -28,7 +28,8 @@ type PublishScoreItem struct {
 	Explanation    *string                `json:"explanation,omitempty"`
 	TraceTimestamp *time.Time             `json:"traceTimestamp,omitempty"`
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
-	Error          *string                `json:"error,omitempty"`
+	// Reason the evaluator skipped this trace
+	SkipReason *string `json:"skipReason,omitempty"`
 }
 
 // NewPublishScoreItem instantiates a new PublishScoreItem object
@@ -283,36 +284,36 @@ func (o *PublishScoreItem) SetMetadata(v map[string]interface{}) {
 	o.Metadata = v
 }
 
-// GetError returns the Error field value if set, zero value otherwise.
-func (o *PublishScoreItem) GetError() string {
-	if o == nil || IsNil(o.Error) {
+// GetSkipReason returns the SkipReason field value if set, zero value otherwise.
+func (o *PublishScoreItem) GetSkipReason() string {
+	if o == nil || IsNil(o.SkipReason) {
 		var ret string
 		return ret
 	}
-	return *o.Error
+	return *o.SkipReason
 }
 
-// GetErrorOk returns a tuple with the Error field value if set, nil otherwise
+// GetSkipReasonOk returns a tuple with the SkipReason field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *PublishScoreItem) GetErrorOk() (*string, bool) {
-	if o == nil || IsNil(o.Error) {
+func (o *PublishScoreItem) GetSkipReasonOk() (*string, bool) {
+	if o == nil || IsNil(o.SkipReason) {
 		return nil, false
 	}
-	return o.Error, true
+	return o.SkipReason, true
 }
 
-// HasError returns a boolean if a field has been set.
-func (o *PublishScoreItem) HasError() bool {
-	if o != nil && !IsNil(o.Error) {
+// HasSkipReason returns a boolean if a field has been set.
+func (o *PublishScoreItem) HasSkipReason() bool {
+	if o != nil && !IsNil(o.SkipReason) {
 		return true
 	}
 
 	return false
 }
 
-// SetError gets a reference to the given string and assigns it to the Error field.
-func (o *PublishScoreItem) SetError(v string) {
-	o.Error = &v
+// SetSkipReason gets a reference to the given string and assigns it to the SkipReason field.
+func (o *PublishScoreItem) SetSkipReason(v string) {
+	o.SkipReason = &v
 }
 
 func (o PublishScoreItem) MarshalJSON() ([]byte, error) {
@@ -343,8 +344,8 @@ func (o PublishScoreItem) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Metadata) {
 		toSerialize["metadata"] = o.Metadata
 	}
-	if !IsNil(o.Error) {
-		toSerialize["error"] = o.Error
+	if !IsNil(o.SkipReason) {
+		toSerialize["skipReason"] = o.SkipReason
 	}
 	return toSerialize, nil
 }

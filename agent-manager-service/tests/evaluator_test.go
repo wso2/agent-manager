@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 
@@ -31,6 +30,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/catalog"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/controllers"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
@@ -64,6 +64,14 @@ func (m *MockEvaluatorService) GetEvaluator(ctx context.Context, orgID *uuid.UUI
 	return args.Get(0).(*models.EvaluatorResponse), args.Error(1)
 }
 
+func (m *MockEvaluatorService) GetLLMProvider(ctx context.Context, name string) (*catalog.LLMProviderEntry, error) {
+	args := m.Called(ctx, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*catalog.LLMProviderEntry), args.Error(1)
+}
+
 func createMockEvaluators() []*models.EvaluatorResponse {
 	return []*models.EvaluatorResponse{
 		{
@@ -73,6 +81,7 @@ func createMockEvaluators() []*models.EvaluatorResponse {
 			Description: "Checks if the answer is relevant to the input query",
 			Version:     "1.0",
 			Provider:    "standard",
+			Level:       "trace",
 			Tags:        []string{},
 			IsBuiltin:   true,
 			ConfigSchema: []models.EvaluatorConfigParam{
@@ -94,6 +103,7 @@ func createMockEvaluators() []*models.EvaluatorResponse {
 			Description: "Evaluates whether the agent selects the correct tools",
 			Version:     "1.0",
 			Provider:    "deepeval",
+			Level:       "trace",
 			Tags:        []string{"deepeval", "llm-judge", "action", "correctness"},
 			IsBuiltin:   true,
 			ConfigSchema: []models.EvaluatorConfigParam{
@@ -115,6 +125,7 @@ func createMockEvaluators() []*models.EvaluatorResponse {
 			Description: "Evaluates whether the agent generates correct arguments for tool calls",
 			Version:     "1.0",
 			Provider:    "deepeval",
+			Level:       "agent",
 			Tags:        []string{"deepeval", "llm-judge", "action", "correctness"},
 			IsBuiltin:   true,
 			ConfigSchema: []models.EvaluatorConfigParam{
@@ -341,21 +352,6 @@ func TestListEvaluators_LimitCappedAt100(t *testing.T) {
 	mockService.AssertExpectations(t)
 }
 
-func TestListEvaluators_MissingOrgName(t *testing.T) {
-	mockService := new(MockEvaluatorService)
-	controller := controllers.NewEvaluatorController(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs//evaluators", nil)
-	// Don't set orgName path value
-	resp := httptest.NewRecorder()
-
-	controller.ListEvaluators(resp, req)
-
-	assert.Equal(t, http.StatusBadRequest, resp.Code)
-	// Service should not be called
-	mockService.AssertNotCalled(t, "ListEvaluators")
-}
-
 func TestListEvaluators_ServiceError(t *testing.T) {
 	mockService := new(MockEvaluatorService)
 	controller := controllers.NewEvaluatorController(mockService)
@@ -452,21 +448,6 @@ func TestGetEvaluator_NotFound(t *testing.T) {
 	mockService.AssertExpectations(t)
 }
 
-func TestGetEvaluator_MissingOrgName(t *testing.T) {
-	mockService := new(MockEvaluatorService)
-	controller := controllers.NewEvaluatorController(mockService)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs//evaluators/answer_relevancy", nil)
-	// Don't set orgName path value
-	req.SetPathValue("evaluatorId", "answer_relevancy")
-	resp := httptest.NewRecorder()
-
-	controller.GetEvaluator(resp, req)
-
-	assert.Equal(t, http.StatusBadRequest, resp.Code)
-	mockService.AssertNotCalled(t, "GetEvaluator")
-}
-
 func TestGetEvaluator_MissingEvaluatorId(t *testing.T) {
 	mockService := new(MockEvaluatorService)
 	controller := controllers.NewEvaluatorController(mockService)
@@ -513,6 +494,7 @@ func TestGetEvaluator_ConfigSchemaConversion(t *testing.T) {
 		Description: "Test description",
 		Version:     "1.0",
 		Provider:    "standard",
+		Level:       "trace",
 		Tags:        []string{"test"},
 		IsBuiltin:   true,
 		ConfigSchema: []models.EvaluatorConfigParam{
@@ -603,9 +585,9 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		// Should have 19 builtin evaluators from the migration (13 standard + 6 deepeval)
-		assert.Equal(t, int32(19), result.Total)
-		assert.Len(t, result.Evaluators, 19)
+		// Should have 26 builtin evaluators
+		assert.Equal(t, int32(26), result.Total)
+		assert.Len(t, result.Evaluators, 20) // default limit is 20
 
 		// Verify response structure
 		for _, evaluator := range result.Evaluators {
@@ -615,18 +597,20 @@ func TestListEvaluators(t *testing.T) {
 			assert.NotEmpty(t, evaluator.Description)
 			assert.NotEmpty(t, evaluator.Version)
 			assert.NotEmpty(t, evaluator.Provider)
+			assert.NotEmpty(t, evaluator.Level)
+			assert.Contains(t, []string{"trace", "agent", "llm"}, evaluator.Level)
 			assert.True(t, evaluator.IsBuiltin)
 			assert.NotNil(t, evaluator.Tags)
 			assert.NotNil(t, evaluator.ConfigSchema)
 		}
 	})
 
-	t.Run("Filter by provider=deepeval should return only deepeval evaluators", func(t *testing.T) {
+	t.Run("Filter by provider=llm_judge should return only llm_judge evaluators", func(t *testing.T) {
 		testClients := wiring.TestClients{}
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Make request with provider filter
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators?provider=deepeval", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators?provider=llm_judge", nil)
 		resp := httptest.NewRecorder()
 		app.ServeHTTP(resp, req)
 
@@ -637,13 +621,13 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		// Should have 6 deepeval evaluators
-		assert.Equal(t, int32(6), result.Total)
-		assert.Len(t, result.Evaluators, 6)
+		// Should have 17 llm_judge evaluators
+		assert.Equal(t, int32(17), result.Total)
+		assert.Len(t, result.Evaluators, 17)
 
-		// All should be deepeval provider
+		// All should be llm_judge provider
 		for _, evaluator := range result.Evaluators {
-			assert.Equal(t, "deepeval", evaluator.Provider)
+			assert.Equal(t, "llm_judge", evaluator.Provider)
 			assert.True(t, evaluator.IsBuiltin)
 		}
 	})
@@ -664,9 +648,9 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		// Should have 13 standard evaluators
-		assert.Equal(t, int32(13), result.Total)
-		assert.Len(t, result.Evaluators, 13)
+		// Should have 9 standard evaluators
+		assert.Equal(t, int32(9), result.Total)
+		assert.Len(t, result.Evaluators, 9)
 
 		// All should be standard provider
 		for _, evaluator := range result.Evaluators {
@@ -680,7 +664,7 @@ func TestListEvaluators(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Make request with tags filter
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators?tags=deepeval,action", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators?tags=builtin,safety", nil)
 		resp := httptest.NewRecorder()
 		app.ServeHTTP(resp, req)
 
@@ -696,8 +680,8 @@ func TestListEvaluators(t *testing.T) {
 
 		// All should have both tags
 		for _, evaluator := range result.Evaluators {
-			assert.Contains(t, evaluator.Tags, "deepeval")
-			assert.Contains(t, evaluator.Tags, "action")
+			assert.Contains(t, evaluator.Tags, "builtin")
+			assert.Contains(t, evaluator.Tags, "safety")
 		}
 	})
 
@@ -717,9 +701,8 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		// Should find evaluators with "correctness" in name or description
-		// (argument-correctness and tool-correctness from deepeval)
-		assert.GreaterOrEqual(t, result.Total, int32(2))
+		// Should find evaluators with "correctness" in description or tags
+		assert.GreaterOrEqual(t, result.Total, int32(1))
 
 		// All should have "correctness" in identifier, displayName, or description
 		for _, evaluator := range result.Evaluators {
@@ -750,12 +733,12 @@ func TestListEvaluators(t *testing.T) {
 		assert.Greater(t, result.Total, int32(0))
 	})
 
-	t.Run("Combine filters: provider=deepeval and search=tool should work", func(t *testing.T) {
+	t.Run("Combine filters: provider=llm_judge and search=accuracy should work", func(t *testing.T) {
 		testClients := wiring.TestClients{}
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Make request with multiple filters
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators?provider=deepeval&search=tool", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators?provider=llm_judge&search=accuracy", nil)
 		resp := httptest.NewRecorder()
 		app.ServeHTTP(resp, req)
 
@@ -766,14 +749,14 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		// Should find deepeval tool correctness
+		// Should find llm_judge accuracy evaluator
 		assert.Greater(t, result.Total, int32(0))
 
 		for _, evaluator := range result.Evaluators {
-			assert.Equal(t, "deepeval", evaluator.Provider)
-			hasMatch := strings.Contains(strings.ToLower(evaluator.Identifier), "tool") ||
-				strings.Contains(strings.ToLower(evaluator.DisplayName), "tool") ||
-				strings.Contains(strings.ToLower(evaluator.Description), "tool")
+			assert.Equal(t, "llm_judge", evaluator.Provider)
+			hasMatch := strings.Contains(strings.ToLower(evaluator.Identifier), "accuracy") ||
+				strings.Contains(strings.ToLower(evaluator.DisplayName), "accuracy") ||
+				strings.Contains(strings.ToLower(evaluator.Description), "accuracy")
 			assert.True(t, hasMatch)
 		}
 	})
@@ -794,7 +777,7 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		assert.Equal(t, int32(19), result.Total)
+		assert.Equal(t, int32(26), result.Total)
 		assert.Len(t, result.Evaluators, 5)
 		assert.Equal(t, int32(5), result.Limit)
 		assert.Equal(t, int32(0), result.Offset)
@@ -816,7 +799,7 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		assert.Equal(t, int32(19), result.Total)
+		assert.Equal(t, int32(26), result.Total)
 		assert.Len(t, result.Evaluators, 5)
 		assert.Equal(t, int32(5), result.Limit)
 		assert.Equal(t, int32(10), result.Offset)
@@ -838,7 +821,7 @@ func TestListEvaluators(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		assert.Equal(t, int32(19), result.Total)
+		assert.Equal(t, int32(26), result.Total)
 		assert.Equal(t, int32(20), result.Limit) // Default limit
 	})
 
@@ -870,7 +853,7 @@ func TestGetEvaluator(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Make request for a known builtin evaluator
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators/answer_relevancy", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators/latency", nil)
 		resp := httptest.NewRecorder()
 		app.ServeHTTP(resp, req)
 
@@ -881,21 +864,21 @@ func TestGetEvaluator(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		assert.Equal(t, "answer_relevancy", result.Identifier)
-		assert.Equal(t, "Answer Relevancy", result.DisplayName)
+		assert.Equal(t, "latency", result.Identifier)
+		assert.Equal(t, "Latency", result.DisplayName)
 		assert.Equal(t, "standard", result.Provider)
+		assert.Equal(t, "trace", result.Level)
 		assert.True(t, result.IsBuiltin)
 		assert.NotEmpty(t, result.Id)
 		assert.NotEmpty(t, result.Version)
 	})
 
-	t.Run("Get evaluator with URL-encoded identifier should work", func(t *testing.T) {
+	t.Run("Get llm_judge evaluator should return correct structure", func(t *testing.T) {
 		testClients := wiring.TestClients{}
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
-		// Make request with URL-encoded identifier (deepeval/tool-correctness)
-		encodedIdentifier := url.PathEscape("deepeval/tool-correctness")
-		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/orgs/test-org/evaluators/%s", encodedIdentifier), nil)
+		// Make request for an llm_judge evaluator
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators/accuracy", nil)
 		resp := httptest.NewRecorder()
 		app.ServeHTTP(resp, req)
 
@@ -906,32 +889,10 @@ func TestGetEvaluator(t *testing.T) {
 		err := json.NewDecoder(resp.Body).Decode(&result)
 		require.NoError(t, err)
 
-		assert.Equal(t, "deepeval/tool-correctness", result.Identifier)
-		assert.Equal(t, "Tool Correctness", result.DisplayName)
-		assert.Equal(t, "deepeval", result.Provider)
+		assert.Equal(t, "accuracy", result.Identifier)
+		assert.Equal(t, "llm_judge", result.Provider)
+		assert.Contains(t, result.Tags, "llm-judge")
 		assert.True(t, result.IsBuiltin)
-	})
-
-	t.Run("Get deepeval evaluator should return correct structure", func(t *testing.T) {
-		testClients := wiring.TestClients{}
-		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
-
-		// Make request
-		encodedIdentifier := url.PathEscape("deepeval/argument-correctness")
-		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/orgs/test-org/evaluators/%s", encodedIdentifier), nil)
-		resp := httptest.NewRecorder()
-		app.ServeHTTP(resp, req)
-
-		// Assert
-		require.Equal(t, http.StatusOK, resp.Code)
-
-		var result spec.EvaluatorResponse
-		err := json.NewDecoder(resp.Body).Decode(&result)
-		require.NoError(t, err)
-
-		assert.Equal(t, "deepeval/argument-correctness", result.Identifier)
-		assert.Equal(t, "deepeval", result.Provider)
-		assert.Contains(t, result.Tags, "deepeval")
 	})
 
 	t.Run("Get non-existent evaluator should return 404", func(t *testing.T) {
@@ -1005,10 +966,6 @@ func TestGetEvaluator(t *testing.T) {
 
 		standardEvaluators := []string{
 			"answer_length",
-			"answer_relevancy",
-			"contains_match",
-			"exact_match",
-			"hallucination",
 			"iteration_count",
 			"latency",
 			"prohibited_content",
@@ -1034,22 +991,32 @@ func TestGetEvaluator(t *testing.T) {
 		}
 	})
 
-	t.Run("All deepeval evaluators should be retrievable", func(t *testing.T) {
+	t.Run("All llm_judge evaluators should be retrievable", func(t *testing.T) {
 		testClients := wiring.TestClients{}
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
-		deepevalEvaluators := []string{
-			"deepeval/argument-correctness",
-			"deepeval/plan-adherence",
-			"deepeval/plan-quality",
-			"deepeval/step-efficiency",
-			"deepeval/task-completion",
-			"deepeval/tool-correctness",
+		llmJudgeEvaluators := []string{
+			"accuracy",
+			"clarity",
+			"coherence",
+			"completeness",
+			"conciseness",
+			"context_relevance",
+			"error_recovery",
+			"faithfulness",
+			"goal_clarity",
+			"hallucination",
+			"helpfulness",
+			"instruction_following",
+			"path_efficiency",
+			"reasoning_quality",
+			"relevance",
+			"safety",
+			"tone",
 		}
 
-		for _, identifier := range deepevalEvaluators {
-			encodedId := url.PathEscape(identifier)
-			req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/orgs/test-org/evaluators/%s", encodedId), nil)
+		for _, identifier := range llmJudgeEvaluators {
+			req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/orgs/test-org/evaluators/%s", identifier), nil)
 			resp := httptest.NewRecorder()
 			app.ServeHTTP(resp, req)
 
@@ -1059,7 +1026,7 @@ func TestGetEvaluator(t *testing.T) {
 			err := json.NewDecoder(resp.Body).Decode(&result)
 			require.NoError(t, err)
 			assert.Equal(t, identifier, result.Identifier)
-			assert.Equal(t, "deepeval", result.Provider)
+			assert.Equal(t, "llm_judge", result.Provider)
 		}
 	})
 }

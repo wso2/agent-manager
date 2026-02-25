@@ -38,6 +38,8 @@ type MonitorResponse struct {
 	EnvironmentName string `json:"environmentName"`
 	// List of evaluators with configuration
 	Evaluators []MonitorEvaluator `json:"evaluators"`
+	// LLM provider credentials for LLM-judge evaluators
+	LlmProviderConfigs []MonitorLLMProviderConfig `json:"llmProviderConfigs,omitempty"`
 	// Interval in minutes (only for 'future' type)
 	IntervalMinutes *int32 `json:"intervalMinutes,omitempty"`
 	// Next scheduled run time (only for 'future' type)
@@ -300,6 +302,38 @@ func (o *MonitorResponse) SetEvaluators(v []MonitorEvaluator) {
 	o.Evaluators = v
 }
 
+// GetLlmProviderConfigs returns the LlmProviderConfigs field value if set, zero value otherwise.
+func (o *MonitorResponse) GetLlmProviderConfigs() []MonitorLLMProviderConfig {
+	if o == nil || IsNil(o.LlmProviderConfigs) {
+		var ret []MonitorLLMProviderConfig
+		return ret
+	}
+	return o.LlmProviderConfigs
+}
+
+// GetLlmProviderConfigsOk returns a tuple with the LlmProviderConfigs field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MonitorResponse) GetLlmProviderConfigsOk() ([]MonitorLLMProviderConfig, bool) {
+	if o == nil || IsNil(o.LlmProviderConfigs) {
+		return nil, false
+	}
+	return o.LlmProviderConfigs, true
+}
+
+// HasLlmProviderConfigs returns a boolean if a field has been set.
+func (o *MonitorResponse) HasLlmProviderConfigs() bool {
+	if o != nil && !IsNil(o.LlmProviderConfigs) {
+		return true
+	}
+
+	return false
+}
+
+// SetLlmProviderConfigs gets a reference to the given []MonitorLLMProviderConfig and assigns it to the LlmProviderConfigs field.
+func (o *MonitorResponse) SetLlmProviderConfigs(v []MonitorLLMProviderConfig) {
+	o.LlmProviderConfigs = v
+}
+
 // GetIntervalMinutes returns the IntervalMinutes field value if set, zero value otherwise.
 func (o *MonitorResponse) GetIntervalMinutes() int32 {
 	if o == nil || IsNil(o.IntervalMinutes) {
@@ -551,6 +585,9 @@ func (o MonitorResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["agentName"] = o.AgentName
 	toSerialize["environmentName"] = o.EnvironmentName
 	toSerialize["evaluators"] = o.Evaluators
+	if !IsNil(o.LlmProviderConfigs) {
+		toSerialize["llmProviderConfigs"] = o.LlmProviderConfigs
+	}
 	if !IsNil(o.IntervalMinutes) {
 		toSerialize["intervalMinutes"] = o.IntervalMinutes
 	}

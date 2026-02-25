@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/google/uuid"
@@ -31,6 +32,7 @@ import (
 type EvaluatorManagerService interface {
 	ListEvaluators(ctx context.Context, orgID *uuid.UUID, filters EvaluatorFilters) ([]*models.EvaluatorResponse, int32, error)
 	GetEvaluator(ctx context.Context, orgID *uuid.UUID, identifier string) (*models.EvaluatorResponse, error)
+	GetLLMProvider(ctx context.Context, name string) (*catalog.LLMProviderEntry, error)
 }
 
 // EvaluatorFilters contains filtering options for listing evaluators
@@ -105,6 +107,20 @@ func (s *evaluatorManagerService) GetEvaluator(_ context.Context, _ *uuid.UUID, 
 	return catalogEntryToResponse(e), nil
 }
 
+// GetLLMProvider retrieves a single LLM provider by name from the in-memory catalog.
+func (s *evaluatorManagerService) GetLLMProvider(_ context.Context, name string) (*catalog.LLMProviderEntry, error) {
+	s.logger.Info("Getting LLM provider", "name", name)
+
+	p := catalog.GetProvider(name)
+	if p == nil {
+		s.logger.Warn("LLM provider not found", "name", name)
+		return nil, fmt.Errorf("LLM provider %q not found in catalog: %w", name, utils.ErrEvaluatorNotFound)
+	}
+
+	s.logger.Info("Retrieved LLM provider successfully", "name", name)
+	return p, nil
+}
+
 // catalogEntryToResponse converts a catalog.Entry to an EvaluatorResponse DTO.
 func catalogEntryToResponse(e *catalog.Entry) *models.EvaluatorResponse {
 	return &models.EvaluatorResponse{
@@ -114,6 +130,7 @@ func catalogEntryToResponse(e *catalog.Entry) *models.EvaluatorResponse {
 		Description:  e.Description,
 		Version:      e.Version,
 		Provider:     e.Provider,
+		Level:        e.Level,
 		Tags:         e.Tags,
 		IsBuiltin:    true,
 		ConfigSchema: e.ConfigSchema,

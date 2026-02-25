@@ -23,6 +23,8 @@ spec:
       - name: monitor-id
       - name: run-id
       - name: publisher-endpoint
+      - name: llm-provider-configs
+        value: "[]"
       - name: publisher-api-key
   templates:
     - name: run-monitor
@@ -43,6 +45,8 @@ spec:
           - '--run-id={{ "{{" }}workflow.parameters.run-id{{ "}}" }}'
           - '--publisher-endpoint={{ "{{" }}workflow.parameters.publisher-endpoint{{ "}}" }}'
         env:
+          - name: LLM_PROVIDER_CONFIGS
+            value: '{{ "{{" }}workflow.parameters.llm-provider-configs{{ "}}" }}'
           - name: PUBLISHER_API_KEY
             value: '{{ "{{" }}workflow.parameters.publisher-api-key{{ "}}" }}'
         resources:

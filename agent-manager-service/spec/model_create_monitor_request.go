@@ -28,6 +28,8 @@ type CreateMonitorRequest struct {
 	EnvironmentName string `json:"environmentName"`
 	// List of evaluators with optional configuration
 	Evaluators []MonitorEvaluator `json:"evaluators"`
+	// LLM provider credentials for LLM-judge evaluators
+	LlmProviderConfigs []MonitorLLMProviderConfig `json:"llmProviderConfigs,omitempty"`
 	// Monitor type - 'future' for continuous monitoring, 'past' for one-time historical analysis
 	Type string `json:"type"`
 	// Interval in minutes for continuous monitoring (required for 'future' type, default 60)
@@ -156,6 +158,38 @@ func (o *CreateMonitorRequest) GetEvaluatorsOk() ([]MonitorEvaluator, bool) {
 // SetEvaluators sets field value
 func (o *CreateMonitorRequest) SetEvaluators(v []MonitorEvaluator) {
 	o.Evaluators = v
+}
+
+// GetLlmProviderConfigs returns the LlmProviderConfigs field value if set, zero value otherwise.
+func (o *CreateMonitorRequest) GetLlmProviderConfigs() []MonitorLLMProviderConfig {
+	if o == nil || IsNil(o.LlmProviderConfigs) {
+		var ret []MonitorLLMProviderConfig
+		return ret
+	}
+	return o.LlmProviderConfigs
+}
+
+// GetLlmProviderConfigsOk returns a tuple with the LlmProviderConfigs field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *CreateMonitorRequest) GetLlmProviderConfigsOk() ([]MonitorLLMProviderConfig, bool) {
+	if o == nil || IsNil(o.LlmProviderConfigs) {
+		return nil, false
+	}
+	return o.LlmProviderConfigs, true
+}
+
+// HasLlmProviderConfigs returns a boolean if a field has been set.
+func (o *CreateMonitorRequest) HasLlmProviderConfigs() bool {
+	if o != nil && !IsNil(o.LlmProviderConfigs) {
+		return true
+	}
+
+	return false
+}
+
+// SetLlmProviderConfigs gets a reference to the given []MonitorLLMProviderConfig and assigns it to the LlmProviderConfigs field.
+func (o *CreateMonitorRequest) SetLlmProviderConfigs(v []MonitorLLMProviderConfig) {
+	o.LlmProviderConfigs = v
 }
 
 // GetType returns the Type field value
@@ -324,6 +358,9 @@ func (o CreateMonitorRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize["displayName"] = o.DisplayName
 	toSerialize["environmentName"] = o.EnvironmentName
 	toSerialize["evaluators"] = o.Evaluators
+	if !IsNil(o.LlmProviderConfigs) {
+		toSerialize["llmProviderConfigs"] = o.LlmProviderConfigs
+	}
 	toSerialize["type"] = o.Type
 	if !IsNil(o.IntervalMinutes) {
 		toSerialize["intervalMinutes"] = o.IntervalMinutes

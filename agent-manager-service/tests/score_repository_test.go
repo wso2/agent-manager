@@ -226,15 +226,15 @@ func TestBatchCreateScores_Mixed(t *testing.T) {
 	assert.Equal(t, int64(2), count)
 }
 
-// TestBatchCreateScores_ErrorScore verifies that a score with no numeric value
-// (error case, score = NULL) can be inserted alongside normal scores.
-func TestBatchCreateScores_ErrorScore(t *testing.T) {
+// TestBatchCreateScores_SkippedScore verifies that a score with no numeric value
+// (skipped case, score = NULL) can be inserted alongside normal scores.
+func TestBatchCreateScores_SkippedScore(t *testing.T) {
 	runEvaluatorID, monitorID := seedRunEvaluator(t)
 	repo := repositories.NewScoreRepo(db.DB(context.Background()))
 
 	traceID := "trace-" + uuid.New().String()[:16]
 	ts := time.Now().Truncate(time.Millisecond)
-	errMsg := "evaluation error"
+	errMsg := "evaluation skipped: missing data"
 
 	scores := []models.Score{{
 		ID:             uuid.New(),
@@ -242,17 +242,17 @@ func TestBatchCreateScores_ErrorScore(t *testing.T) {
 		MonitorID:      monitorID,
 		TraceID:        traceID,
 		SpanID:         nil,
-		Score:          nil, // NULL score for error case
-		Error:          strPtr(errMsg),
+		Score:          nil, // NULL score for skipped case
+		SkipReason:     strPtr(errMsg),
 		TraceTimestamp: ts,
 	}}
 
-	require.NoError(t, repo.BatchCreateScores(scores), "error score with null score value should succeed")
+	require.NoError(t, repo.BatchCreateScores(scores), "skipped score with null score value should succeed")
 
 	var got models.Score
 	require.NoError(t, db.DB(context.Background()).
 		Where("run_evaluator_id = ? AND trace_id = ?", runEvaluatorID, traceID).
 		First(&got).Error)
 	assert.Nil(t, got.Score)
-	assert.Equal(t, errMsg, *got.Error)
+	assert.Equal(t, errMsg, *got.SkipReason)
 }

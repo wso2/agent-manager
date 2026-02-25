@@ -26,6 +26,8 @@ type MonitorRunResponse struct {
 	MonitorName *string `json:"monitorName,omitempty"`
 	// Evaluators used in this run (snapshot at run time)
 	Evaluators []MonitorEvaluator `json:"evaluators"`
+	// LLM provider credentials for LLM-judge evaluators
+	LlmProviderConfigs []MonitorLLMProviderConfig `json:"llmProviderConfigs,omitempty"`
 	// Trace collection start time
 	TraceStart time.Time `json:"traceStart"`
 	// Trace collection end time
@@ -140,6 +142,38 @@ func (o *MonitorRunResponse) GetEvaluatorsOk() ([]MonitorEvaluator, bool) {
 // SetEvaluators sets field value
 func (o *MonitorRunResponse) SetEvaluators(v []MonitorEvaluator) {
 	o.Evaluators = v
+}
+
+// GetLlmProviderConfigs returns the LlmProviderConfigs field value if set, zero value otherwise.
+func (o *MonitorRunResponse) GetLlmProviderConfigs() []MonitorLLMProviderConfig {
+	if o == nil || IsNil(o.LlmProviderConfigs) {
+		var ret []MonitorLLMProviderConfig
+		return ret
+	}
+	return o.LlmProviderConfigs
+}
+
+// GetLlmProviderConfigsOk returns a tuple with the LlmProviderConfigs field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MonitorRunResponse) GetLlmProviderConfigsOk() ([]MonitorLLMProviderConfig, bool) {
+	if o == nil || IsNil(o.LlmProviderConfigs) {
+		return nil, false
+	}
+	return o.LlmProviderConfigs, true
+}
+
+// HasLlmProviderConfigs returns a boolean if a field has been set.
+func (o *MonitorRunResponse) HasLlmProviderConfigs() bool {
+	if o != nil && !IsNil(o.LlmProviderConfigs) {
+		return true
+	}
+
+	return false
+}
+
+// SetLlmProviderConfigs gets a reference to the given []MonitorLLMProviderConfig and assigns it to the LlmProviderConfigs field.
+func (o *MonitorRunResponse) SetLlmProviderConfigs(v []MonitorLLMProviderConfig) {
+	o.LlmProviderConfigs = v
 }
 
 // GetTraceStart returns the TraceStart field value
@@ -325,6 +359,9 @@ func (o MonitorRunResponse) ToMap() (map[string]interface{}, error) {
 		toSerialize["monitorName"] = o.MonitorName
 	}
 	toSerialize["evaluators"] = o.Evaluators
+	if !IsNil(o.LlmProviderConfigs) {
+		toSerialize["llmProviderConfigs"] = o.LlmProviderConfigs
+	}
 	toSerialize["traceStart"] = o.TraceStart
 	toSerialize["traceEnd"] = o.TraceEnd
 	if !IsNil(o.StartedAt) {

@@ -28,6 +28,7 @@ import (
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/models"
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/repositories"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // MonitorExecutor handles workflow execution for monitors
@@ -56,9 +57,10 @@ type ExecuteMonitorRunResult struct {
 }
 
 type monitorExecutor struct {
-	ocClient    client.OpenChoreoClient
-	logger      *slog.Logger
-	monitorRepo repositories.MonitorRepository
+	ocClient      client.OpenChoreoClient
+	logger        *slog.Logger
+	monitorRepo   repositories.MonitorRepository
+	encryptionKey []byte
 }
 
 // NewMonitorExecutor creates a new monitor executor instance
@@ -66,11 +68,13 @@ func NewMonitorExecutor(
 	ocClient client.OpenChoreoClient,
 	logger *slog.Logger,
 	monitorRepo repositories.MonitorRepository,
+	encryptionKey []byte,
 ) MonitorExecutor {
 	return &monitorExecutor{
-		ocClient:    ocClient,
-		logger:      logger,
-		monitorRepo: monitorRepo,
+		ocClient:      ocClient,
+		logger:        logger,
+		monitorRepo:   monitorRepo,
+		encryptionKey: encryptionKey,
 	}
 }
 
@@ -94,7 +98,13 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		"endTime", params.EndTime,
 		"evaluators", evaluators)
 
-	// Build WorkflowRun CR
+	// Decrypt LLM provider configs for the workflow CR (needs plaintext env vars)
+	decryptedConfigs, err := utils.DecryptLLMProviderConfigs(params.Monitor.LLMProviderConfigs, e.encryptionKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt LLM provider configs: %w", err)
+	}
+
+	// Build WorkflowRun CR with decrypted configs
 	workflowRunCR, err := e.buildWorkflowRunCR(
 		params.OrgName,
 		params.Monitor,
@@ -103,6 +113,7 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 		params.StartTime,
 		params.EndTime,
 		evaluators,
+		decryptedConfigs,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build WorkflowRun CR: %w", err)
@@ -116,14 +127,15 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 	// Create monitor_runs entry
 	now := time.Now()
 	run := &models.MonitorRun{
-		ID:         runID,
-		MonitorID:  params.Monitor.ID,
-		Name:       workflowRunName,
-		Evaluators: evaluators,
-		TraceStart: params.StartTime,
-		TraceEnd:   params.EndTime,
-		StartedAt:  &now,
-		Status:     models.RunStatusPending,
+		ID:                 runID,
+		MonitorID:          params.Monitor.ID,
+		Name:               workflowRunName,
+		Evaluators:         evaluators,
+		LLMProviderConfigs: params.Monitor.LLMProviderConfigs,
+		TraceStart:         params.StartTime,
+		TraceEnd:           params.EndTime,
+		StartedAt:          &now,
+		Status:             models.RunStatusPending,
 	}
 
 	if err := e.monitorRepo.CreateMonitorRun(run); err != nil {
@@ -164,7 +176,8 @@ func (e *monitorExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.
 	return nil
 }
 
-// buildWorkflowRunCR constructs the OpenChoreo WorkflowRun CR for a monitor
+// buildWorkflowRunCR constructs the OpenChoreo WorkflowRun CR for a monitor.
+// llmConfigs must be decrypted plaintext — they are injected as env vars on the eval job.
 func (e *monitorExecutor) buildWorkflowRunCR(
 	orgName string,
 	monitor *models.Monitor,
@@ -172,8 +185,14 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 	runID uuid.UUID,
 	startTime, endTime time.Time,
 	evaluators []models.MonitorEvaluator,
+	llmConfigs []models.MonitorLLMProviderConfig,
 ) (map[string]interface{}, error) {
 	evaluatorsJSON, err := serializeEvaluators(evaluators)
+	if err != nil {
+		return nil, err
+	}
+
+	llmProviderConfigsJSON, err := serializeLLMProviderConfigs(llmConfigs)
 	if err != nil {
 		return nil, err
 	}
@@ -207,10 +226,11 @@ func (e *monitorExecutor) buildWorkflowRunCR(
 						"id": monitor.EnvironmentID,
 					},
 					"evaluation": map[string]interface{}{
-						"evaluators":   evaluatorsJSON,
-						"samplingRate": monitor.SamplingRate,
-						"traceStart":   startTime.Format(time.RFC3339),
-						"traceEnd":     endTime.Format(time.RFC3339),
+						"evaluators":         evaluatorsJSON,
+						"llmProviderConfigs": llmProviderConfigsJSON,
+						"samplingRate":       monitor.SamplingRate,
+						"traceStart":         startTime.Format(time.RFC3339),
+						"traceEnd":           endTime.Format(time.RFC3339),
 					},
 					"publishing": map[string]interface{}{
 						"monitorId": monitor.ID.String(),
@@ -244,4 +264,16 @@ func serializeEvaluators(evaluators []models.MonitorEvaluator) (string, error) {
 		return "", fmt.Errorf("failed to serialize evaluators: %w", err)
 	}
 	return string(evaluatorsJSON), nil
+}
+
+// serializeLLMProviderConfigs converts LLM provider configs to a JSON string for the workflow parameter.
+func serializeLLMProviderConfigs(configs []models.MonitorLLMProviderConfig) (string, error) {
+	if len(configs) == 0 {
+		return "[]", nil
+	}
+	data, err := json.Marshal(configs)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize llm provider configs: %w", err)
+	}
+	return string(data), nil
 }

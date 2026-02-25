@@ -19,7 +19,7 @@ Tests for the monitor evaluation job (main.py).
 
 Verifies:
 - Evaluator config parsing (identifier, displayName, config with level)
-- Level propagation from config to register_builtin
+- Level propagation from config to builtin
 - Score publishing payload matches agent-manager PublishScoresRequest schema
 - Argument validation and error handling
 """
@@ -102,7 +102,7 @@ REALISTIC_EVALUATORS = [
         "config": {
             "max_latency_ms": 1000,
             "use_task_constraint": True,
-            "level": "span",
+            "level": "llm",
         },
     },
 ]
@@ -125,8 +125,8 @@ def _make_evaluator_score(
     s.explanation = explanation
     s.timestamp = timestamp
     s.metadata = metadata or {}
-    s.error = error
-    s.is_error = error is not None
+    s.skip_reason = error
+    s.is_successful = error is None and score is not None
     return s
 
 
@@ -138,6 +138,7 @@ def _make_evaluator_summary(evaluator_name, level, scores, aggregated_scores):
     summary.individual_scores = scores
     summary.aggregated_scores = aggregated_scores
     summary.count = len(scores)
+    summary.skipped_count = sum(1 for s in scores if s.skip_reason is not None)
     return summary
 
 
@@ -222,7 +223,7 @@ class TestParseArgs:
         assert len(parsed) == 8
         assert parsed[0]["config"]["level"] == "trace"
         assert parsed[6]["config"]["level"] == "agent"
-        assert parsed[7]["config"]["level"] == "span"
+        assert parsed[7]["config"]["level"] == "llm"
 
 
 # ===========================================================================
@@ -231,11 +232,11 @@ class TestParseArgs:
 
 
 class TestEvaluatorRegistration:
-    """Verify that register_builtin receives level from config kwargs."""
+    """Verify that builtin receives level from config kwargs."""
 
-    @patch("main.register_builtin")
-    def test_level_passed_as_kwarg(self, mock_register):
-        """When config contains 'level', register_builtin must receive it as a kwarg."""
+    @patch("main.builtin")
+    def test_level_passed_as_kwarg(self, mock_builtin):
+        """When config contains 'level', builtin must receive it as a kwarg."""
         from main import main
 
         evaluators = [
@@ -252,7 +253,7 @@ class TestEvaluatorRegistration:
             {
                 "identifier": "latency",
                 "displayName": "Span Latency",
-                "config": {"max_latency_ms": 1000, "level": "span"},
+                "config": {"max_latency_ms": 1000, "level": "llm"},
             },
         ]
 
@@ -297,30 +298,27 @@ class TestEvaluatorRegistration:
 
         assert exc_info.value.code == 0
 
-        # Verify register_builtin was called with level in kwargs
-        assert mock_register.call_count == 3
+        # Verify builtin was called with level in kwargs
+        assert mock_builtin.call_count == 3
 
-        mock_register.assert_any_call(
+        mock_builtin.assert_any_call(
             "latency",
-            display_name="Latency Check",
             max_latency_ms=3000,
             level="trace",
         )
-        mock_register.assert_any_call(
+        mock_builtin.assert_any_call(
             "latency",
-            display_name="Agent Latency",
             max_latency_ms=5000,
             level="agent",
         )
-        mock_register.assert_any_call(
+        mock_builtin.assert_any_call(
             "latency",
-            display_name="Span Latency",
             max_latency_ms=1000,
-            level="span",
+            level="llm",
         )
 
-    @patch("main.register_builtin")
-    def test_all_config_params_forwarded(self, mock_register):
+    @patch("main.builtin")
+    def test_all_config_params_forwarded(self, mock_builtin):
         """All config params including level are unpacked as kwargs."""
         from main import main
 
@@ -376,9 +374,8 @@ class TestEvaluatorRegistration:
         ):
             main()
 
-        mock_register.assert_called_once_with(
+        mock_builtin.assert_called_once_with(
             "prohibited_content",
-            display_name="Prohibited Content",
             case_sensitive=False,
             prohibited_strings=["internal error", "stack trace"],
             use_context_prohibited=False,
@@ -454,13 +451,13 @@ class TestPublishScores:
         assert len(agg) == 1
         assert agg[0]["identifier"] == "latency"  # required in Go
         assert agg[0]["displayName"] == "Latency Check"  # required in Go
-        assert agg[0]["level"] == "trace"  # required, oneof=trace agent span
+        assert agg[0]["level"] == "trace"  # required, oneof=trace agent llm
         assert agg[0]["aggregations"] == {
             "mean": 0.625,
             "pass_rate_0.5": 0.5,
         }  # required
         assert agg[0]["count"] == 2
-        assert agg[0]["errorCount"] == 0
+        assert agg[0]["skippedCount"] == 0
 
         # --- individualScores: matches PublishScoreItem ---
         assert "individualScores" in payload
@@ -481,7 +478,7 @@ class TestPublishScores:
 
     @patch("main.requests.post")
     def test_multi_level_scores(self, mock_post):
-        """Scores from trace, agent, and span level evaluators use correct levels."""
+        """Scores from trace, agent, and llm level evaluators use correct levels."""
         mock_post.return_value = MagicMock(status_code=200)
         mock_post.return_value.raise_for_status = MagicMock()
 
@@ -506,7 +503,7 @@ class TestPublishScores:
             ),
             "Span Latency": _make_evaluator_summary(
                 "Span Latency",
-                "span",
+                "llm",
                 scores=[
                     _make_evaluator_score(
                         "trace-1", 0.5, span_id="llm-span-1", timestamp=ts
@@ -538,15 +535,15 @@ class TestPublishScores:
         agg_levels = {a["displayName"]: a["level"] for a in payload["aggregatedScores"]}
         assert agg_levels["Latency Check"] == "trace"
         assert agg_levels["Agent Latency"] == "agent"
-        assert agg_levels["Span Latency"] == "span"
+        assert agg_levels["Span Latency"] == "llm"
 
         # Verify individual score levels
         ind_levels = {i["displayName"]: i["level"] for i in payload["individualScores"]}
         assert ind_levels["Latency Check"] == "trace"
         assert ind_levels["Agent Latency"] == "agent"
-        assert ind_levels["Span Latency"] == "span"
+        assert ind_levels["Span Latency"] == "llm"
 
-        # Verify span-level scores include spanId
+        # Verify llm-level scores include spanId
         span_scores = [
             i for i in payload["individualScores"] if i["displayName"] == "Span Latency"
         ]
@@ -588,11 +585,11 @@ class TestPublishScores:
         ind = payload["individualScores"]
         assert len(ind) == 1
         assert "score" not in ind[0]
-        assert ind[0]["error"] == "LLM call failed"
+        assert ind[0]["skipReason"] == "LLM call failed"
 
-        # Aggregated should reflect error count
+        # Aggregated should reflect skipped count
         agg = payload["aggregatedScores"]
-        assert agg[0]["errorCount"] == 1
+        assert agg[0]["skippedCount"] == 1
 
     @patch("main.requests.post")
     def test_timestamp_serialized_as_iso8601(self, mock_post):
@@ -767,9 +764,9 @@ class TestMainIntegration:
         return self.BASE_ARGV + ["--evaluators", json.dumps(evaluators)]
 
     @patch("main.publish_scores", return_value=True)
-    @patch("main.register_builtin")
-    def test_full_flow_with_realistic_evaluators(self, mock_register, mock_publish):
-        """Full flow with all 8 realistic evaluators: register, run, publish."""
+    @patch("main.builtin")
+    def test_full_flow_with_realistic_evaluators(self, mock_builtin, mock_publish):
+        """Full flow with all 8 realistic evaluators: create, run, publish."""
         from main import main
 
         # Build mock RunResult with scores at all three levels
@@ -786,7 +783,7 @@ class TestMainIntegration:
                 "Agent Latency", "agent", [], {"mean": 0.7}
             ),
             "Span Latency": _make_evaluator_summary(
-                "Span Latency", "span", [], {"mean": 0.5}
+                "Span Latency", "llm", [], {"mean": 0.5}
             ),
         }
 
@@ -806,17 +803,15 @@ class TestMainIntegration:
 
         assert exc_info.value.code == 0
 
-        # All 8 evaluators registered
-        assert mock_register.call_count == 8
+        # All 8 evaluators created via builtin()
+        assert mock_builtin.call_count == 8
 
         # Verify levels were passed for each level type
-        register_calls = mock_register.call_args_list
-        levels_registered = [
-            c.kwargs.get("level", c[1].get("level")) for c in register_calls
-        ]
-        assert levels_registered.count("trace") == 6
-        assert levels_registered.count("agent") == 1
-        assert levels_registered.count("span") == 1
+        builtin_calls = mock_builtin.call_args_list
+        levels_passed = [c.kwargs.get("level") for c in builtin_calls]
+        assert levels_passed.count("trace") == 6
+        assert levels_passed.count("agent") == 1
+        assert levels_passed.count("llm") == 1
 
         # publish_scores was called
         mock_publish.assert_called_once()
@@ -950,8 +945,8 @@ class TestMainIntegration:
         assert exc_info.value.code == 1
 
     @patch("main.publish_scores", return_value=False)
-    @patch("main.register_builtin")
-    def test_publish_failure_exits_with_error(self, mock_register, mock_publish):
+    @patch("main.builtin")
+    def test_publish_failure_exits_with_error(self, mock_builtin, mock_publish):
         """Should exit with code 1 when score publishing fails."""
         from main import main
 

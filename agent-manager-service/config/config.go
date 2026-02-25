@@ -74,8 +74,9 @@ type Config struct {
 	// WebSocket configuration
 	WebSocket WebSocketConfig
 
-	// LLM Provider Template configuration
-	LLMTemplateDefinitionsPath string
+	// EncryptionKey is a hex-encoded 32-byte key used for AES-256-GCM encryption
+	// of secrets at rest (e.g., LLM provider API keys in monitor configs).
+	EncryptionKey string `json:"-"`
 
 	// Secret Manager configuration
 	SecretManager SecretManagerConfig

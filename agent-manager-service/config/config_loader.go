@@ -17,6 +17,7 @@
 package config
 
 import (
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"os"
@@ -185,10 +186,6 @@ func loadEnvs() {
 		RateLimitPerMin:   int(r.readOptionalInt64("WEBSOCKET_RATE_LIMIT_PER_MIN", 10)),
 	}
 
-	// LLM Provider Template configuration
-	config.LLMTemplateDefinitionsPath = r.readOptionalString("LLM_TEMPLATE_DEFINITIONS_PATH", "./resources/default-llm-provider-templates")
-
-	// Secret Manager configuration
 	config.SecretManager = SecretManagerConfig{
 		Provider: r.readOptionalString("SECRET_MANAGER_PROVIDER", "openbao"),
 	}
@@ -199,6 +196,12 @@ func loadEnvs() {
 		Token:   r.readOptionalString("OPENBAO_TOKEN", ""),
 		Path:    r.readOptionalString("OPENBAO_PATH", "secret"),
 		Version: r.readOptionalString("OPENBAO_VERSION", "v2"),
+	}
+	
+	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key)
+	config.EncryptionKey = r.readOptionalString("ENCRYPTION_KEY", "")
+	if _, err := hex.DecodeString(config.EncryptionKey); err != nil || len(config.EncryptionKey) != 64 {
+		r.errors = append(r.errors, fmt.Errorf("ENCRYPTION_KEY must be exactly 64 valid hex characters (32 bytes), got length %d", len(config.EncryptionKey)))
 	}
 
 	// Validate HTTP server configurations

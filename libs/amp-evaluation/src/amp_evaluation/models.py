@@ -243,10 +243,10 @@ class EvaluatorSummary:
 
     evaluator_name: str
     count: int
+    level: str  # Evaluation level: "trace", "agent", or "llm"
     skipped_count: int = 0  # Evaluations that could not produce a score (intentional or exception)
     aggregated_scores: Dict[str, float] = field(default_factory=dict)  # e.g., {"mean": 0.85, "pass_rate_0.5": 0.9}
     individual_scores: List[EvaluatorScore] = field(default_factory=list)
-    level: str = "trace"  # Evaluation level: "trace", "agent", or "span"
     items_per_trace: Optional[Dict[str, int]] = None  # For multi-item: {trace_id: num_items}
 
     def __getitem__(self, key: str) -> float:

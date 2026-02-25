@@ -55,6 +55,38 @@ func convertModelsEvaluatorsToSpec(modelsEvals []models.MonitorEvaluator) []spec
 	return specEvals
 }
 
+// convertSpecLLMProviderConfigsToModels converts []spec.MonitorLLMProviderConfig to []models.MonitorLLMProviderConfig
+func convertSpecLLMProviderConfigsToModels(configs []spec.MonitorLLMProviderConfig) []models.MonitorLLMProviderConfig {
+	if len(configs) == 0 {
+		return nil
+	}
+	result := make([]models.MonitorLLMProviderConfig, len(configs))
+	for i, c := range configs {
+		result[i] = models.MonitorLLMProviderConfig{
+			ProviderName: c.ProviderName,
+			EnvVar:       c.EnvVar,
+			Value:        c.Value,
+		}
+	}
+	return result
+}
+
+// convertModelsLLMProviderConfigsToSpec converts []models.MonitorLLMProviderConfig to []spec.MonitorLLMProviderConfig
+func convertModelsLLMProviderConfigsToSpec(configs []models.MonitorLLMProviderConfig) []spec.MonitorLLMProviderConfig {
+	if len(configs) == 0 {
+		return nil
+	}
+	result := make([]spec.MonitorLLMProviderConfig, len(configs))
+	for i, c := range configs {
+		result[i] = spec.MonitorLLMProviderConfig{
+			ProviderName: c.ProviderName,
+			EnvVar:       c.EnvVar,
+			Value:        c.Value,
+		}
+	}
+	return result
+}
+
 func ConvertToAgentListResponse(components []*models.AgentResponse) []spec.AgentResponse {
 	if len(components) == 0 {
 		return []spec.AgentResponse{}
@@ -554,17 +586,18 @@ func ConvertToCreateMonitorRequest(req *spec.CreateMonitorRequest, projectName, 
 	}
 
 	return &models.CreateMonitorRequest{
-		Name:            req.Name,
-		DisplayName:     req.DisplayName,
-		ProjectName:     projectName,
-		AgentName:       agentName,
-		EnvironmentName: req.EnvironmentName,
-		Evaluators:      convertSpecEvaluatorsToModels(req.Evaluators),
-		Type:            req.Type,
-		IntervalMinutes: intervalMinutes,
-		TraceStart:      req.TraceStart,
-		TraceEnd:        req.TraceEnd,
-		SamplingRate:    samplingRate,
+		Name:               req.Name,
+		DisplayName:        req.DisplayName,
+		ProjectName:        projectName,
+		AgentName:          agentName,
+		EnvironmentName:    req.EnvironmentName,
+		Evaluators:         convertSpecEvaluatorsToModels(req.Evaluators),
+		LLMProviderConfigs: convertSpecLLMProviderConfigsToModels(req.LlmProviderConfigs),
+		Type:               req.Type,
+		IntervalMinutes:    intervalMinutes,
+		TraceStart:         req.TraceStart,
+		TraceEnd:           req.TraceEnd,
+		SamplingRate:       samplingRate,
 	}
 }
 
@@ -595,11 +628,19 @@ func ConvertToUpdateMonitorRequest(req *spec.UpdateMonitorRequest) *models.Updat
 		evaluators = &converted
 	}
 
+	// Convert LLMProviderConfigs - handle empty vs nil
+	var llmProviderConfigs *[]models.MonitorLLMProviderConfig
+	if len(req.LlmProviderConfigs) > 0 {
+		converted := convertSpecLLMProviderConfigsToModels(req.LlmProviderConfigs)
+		llmProviderConfigs = &converted
+	}
+
 	return &models.UpdateMonitorRequest{
-		DisplayName:     req.DisplayName,
-		Evaluators:      evaluators,
-		IntervalMinutes: intervalMinutes,
-		SamplingRate:    samplingRate,
+		DisplayName:        req.DisplayName,
+		Evaluators:         evaluators,
+		LLMProviderConfigs: llmProviderConfigs,
+		IntervalMinutes:    intervalMinutes,
+		SamplingRate:       samplingRate,
 	}
 }
 
@@ -617,22 +658,23 @@ func ConvertToMonitorResponse(monitor *models.MonitorResponse) spec.MonitorRespo
 	}
 
 	response := spec.MonitorResponse{
-		Id:              monitor.ID,
-		Name:            monitor.Name,
-		DisplayName:     monitor.DisplayName,
-		Type:            monitor.Type,
-		OrgName:         monitor.OrgName,
-		ProjectName:     monitor.ProjectName,
-		AgentName:       monitor.AgentName,
-		EnvironmentName: monitor.EnvironmentName,
-		Evaluators:      convertModelsEvaluatorsToSpec(monitor.Evaluators),
-		IntervalMinutes: intervalMinutes,
-		NextRunTime:     monitor.NextRunTime,
-		TraceStart:      monitor.TraceStart,
-		TraceEnd:        monitor.TraceEnd,
-		SamplingRate:    float32(monitor.SamplingRate),
-		Status:          string(monitor.Status),
-		CreatedAt:       monitor.CreatedAt,
+		Id:                 monitor.ID,
+		Name:               monitor.Name,
+		DisplayName:        monitor.DisplayName,
+		Type:               monitor.Type,
+		OrgName:            monitor.OrgName,
+		ProjectName:        monitor.ProjectName,
+		AgentName:          monitor.AgentName,
+		EnvironmentName:    monitor.EnvironmentName,
+		Evaluators:         convertModelsEvaluatorsToSpec(monitor.Evaluators),
+		LlmProviderConfigs: convertModelsLLMProviderConfigsToSpec(monitor.LLMProviderConfigs),
+		IntervalMinutes:    intervalMinutes,
+		NextRunTime:        monitor.NextRunTime,
+		TraceStart:         monitor.TraceStart,
+		TraceEnd:           monitor.TraceEnd,
+		SamplingRate:       float32(monitor.SamplingRate),
+		Status:             string(monitor.Status),
+		CreatedAt:          monitor.CreatedAt,
 	}
 
 	// Convert LatestRun if present
@@ -671,14 +713,15 @@ func ConvertToMonitorRunResponse(run *models.MonitorRunResponse) spec.MonitorRun
 	}
 
 	response := spec.MonitorRunResponse{
-		Id:           run.ID,
-		Evaluators:   convertModelsEvaluatorsToSpec(run.Evaluators),
-		TraceStart:   run.TraceStart,
-		TraceEnd:     run.TraceEnd,
-		StartedAt:    run.StartedAt,
-		CompletedAt:  run.CompletedAt,
-		Status:       run.Status,
-		ErrorMessage: run.ErrorMessage,
+		Id:                 run.ID,
+		Evaluators:         convertModelsEvaluatorsToSpec(run.Evaluators),
+		LlmProviderConfigs: convertModelsLLMProviderConfigsToSpec(run.LLMProviderConfigs),
+		TraceStart:         run.TraceStart,
+		TraceEnd:           run.TraceEnd,
+		StartedAt:          run.StartedAt,
+		CompletedAt:        run.CompletedAt,
+		Status:             run.Status,
+		ErrorMessage:       run.ErrorMessage,
 	}
 
 	// Add MonitorName if present
@@ -725,7 +768,7 @@ func ConvertToMonitorScoresResponse(response *models.MonitorScoresResponse) spec
 			EvaluatorName: eval.EvaluatorName,
 			Level:         eval.Level,
 			Count:         int32(eval.Count),
-			ErrorCount:    int32(eval.ErrorCount),
+			SkippedCount:  int32(eval.SkippedCount),
 			Aggregations:  eval.Aggregations,
 		}
 	}
@@ -756,7 +799,7 @@ func ConvertToMonitorRunScoresResponse(response *models.MonitorRunScoresResponse
 			EvaluatorName: eval.EvaluatorName,
 			Level:         eval.Level,
 			Count:         int32(eval.Count),
-			ErrorCount:    int32(eval.ErrorCount),
+			SkippedCount:  int32(eval.SkippedCount),
 			Aggregations:  eval.Aggregations,
 		}
 	}
@@ -784,7 +827,7 @@ func ConvertToTimeSeriesResponse(response *models.TimeSeriesResponse) spec.TimeS
 		points[i] = spec.TimeSeriesPoint{
 			Timestamp:    point.Timestamp,
 			Count:        int32(point.Count),
-			ErrorCount:   int32(point.ErrorCount),
+			SkippedCount: int32(point.SkippedCount),
 			Aggregations: point.Aggregations,
 		}
 	}
@@ -824,7 +867,7 @@ func ConvertToTraceScoresResponse(response *models.TraceScoresResponse) spec.Tra
 					Score:       *spec.NewNullableFloat32(scoreFloat32),
 					Explanation: *spec.NewNullableString(score.Explanation),
 					Metadata:    score.Metadata,
-					Error:       *spec.NewNullableString(score.Error),
+					SkipReason:  *spec.NewNullableString(score.SkipReason),
 				}
 			}
 
