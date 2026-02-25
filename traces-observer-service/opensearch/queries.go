@@ -198,3 +198,142 @@ func BuildTraceByIdAndServiceQuery(params TraceByIdAndServiceParams) map[string]
 
 	return query
 }
+
+// --- v2 query builders ---
+
+// BuildTraceAggregationQuery builds an OpenSearch aggregation query that groups spans by traceId.
+// Returns unique trace IDs sorted by earliest start time, with span counts per trace.
+func BuildTraceAggregationQuery(params TraceQueryParams) map[string]interface{} {
+	mustConditions := []map[string]interface{}{}
+
+	if params.ComponentUid != "" {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"resource.openchoreo.dev/component-uid": params.ComponentUid,
+			},
+		})
+	}
+	if params.EnvironmentUid != "" {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"resource.openchoreo.dev/environment-uid": params.EnvironmentUid,
+			},
+		})
+	}
+	if params.StartTime != "" && params.EndTime != "" {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"range": map[string]interface{}{
+				"startTime": map[string]interface{}{
+					"gte": params.StartTime,
+					"lte": params.EndTime,
+				},
+			},
+		})
+	}
+
+	sortOrder := params.SortOrder
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
+
+	aggSize := params.Offset + params.Limit
+	if aggSize <= 0 {
+		aggSize = 10
+	}
+
+	return map[string]interface{}{
+		"size": 0,
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must": mustConditions,
+			},
+		},
+		"aggs": map[string]interface{}{
+			"total_traces": map[string]interface{}{
+				"cardinality": map[string]interface{}{
+					"field": "traceId",
+				},
+			},
+			"traces": map[string]interface{}{
+				"terms": map[string]interface{}{
+					"field": "traceId",
+					"size":  aggSize,
+					"order": map[string]interface{}{
+						"earliest_start": sortOrder,
+					},
+				},
+				"aggs": map[string]interface{}{
+					"earliest_start": map[string]interface{}{
+						"min": map[string]interface{}{
+							"field": "startTime",
+						},
+					},
+					"span_count": map[string]interface{}{
+						"value_count": map[string]interface{}{
+							"field": "spanId",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// BuildV2TraceByIdsQuery builds a query to fetch spans for one or more trace IDs.
+// When parentSpan is true, adds a filter for parentSpanId == "" to return only root spans.
+func BuildV2TraceByIdsQuery(params V2TraceByIdParams) map[string]interface{} {
+	mustConditions := []map[string]interface{}{}
+
+	// Support single or multiple trace IDs
+	if len(params.TraceIDs) == 1 {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"traceId": params.TraceIDs[0],
+			},
+		})
+	} else {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"terms": map[string]interface{}{
+				"traceId": params.TraceIDs,
+			},
+		})
+	}
+
+	// Parent span filter
+	if params.ParentSpan {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"parentSpanId": "",
+			},
+		})
+	}
+
+	if params.ComponentUid != "" {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"resource.openchoreo.dev/component-uid": params.ComponentUid,
+			},
+		})
+	}
+	if params.EnvironmentUid != "" {
+		mustConditions = append(mustConditions, map[string]interface{}{
+			"term": map[string]interface{}{
+				"resource.openchoreo.dev/environment-uid": params.EnvironmentUid,
+			},
+		})
+	}
+
+	limit := params.Limit
+	if limit == 0 {
+		limit = 1000
+	}
+
+	return map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must": mustConditions,
+			},
+		},
+		"size": limit,
+	}
+}
