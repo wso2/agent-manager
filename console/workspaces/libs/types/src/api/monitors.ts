@@ -31,6 +31,12 @@ export interface MonitorEvaluator {
   config?: Record<string, unknown>;
 }
 
+export interface MonitorLLMProviderConfig {
+  evaluatorIdentifier: string;
+  llmProviderId: string;
+  model?: string;
+}
+
 export interface MonitorRunResponse {
   id: string;
   monitorName?: string;
@@ -82,6 +88,7 @@ export interface CreateMonitorRequest {
   agentName: string;
   environmentName: string;
   evaluators: MonitorEvaluator[];
+  llmProviderConfigs?: MonitorLLMProviderConfig[];
   type: MonitorType;
   intervalMinutes?: number;
   traceStart?: string;
@@ -92,6 +99,7 @@ export interface CreateMonitorRequest {
 export interface UpdateMonitorRequest {
   displayName?: string;
   evaluators?: MonitorEvaluator[];
+  llmProviderConfigs?: MonitorLLMProviderConfig[];
   intervalMinutes?: number;
   samplingRate?: number;
 }

@@ -121,6 +121,11 @@ export function SelectPresetMonitors({
 
     return (
         <Form.Stack>
+             <Form.Section>
+                   <Form.Header>
+                         LLM Provider configurations
+                </Form.Header>
+             </Form.Section>
             <Form.Section>
                 <Form.Header>
                     <Stack direction="row" spacing={1} alignItems="start" justifyContent="space-between">

@@ -19,8 +19,10 @@
 import {
   type EvaluatorListQuery,
   type EvaluatorListResponse,
+  type EvaluatorLLMProviderListResponse,
   type EvaluatorResponse,
   type GetEvaluatorPathParams,
+  type ListEvaluatorLLMProvidersPathParams,
   type ListEvaluatorsPathParams,
 } from "@agent-management-platform/types";
 import { httpGET, SERVICE_BASE } from "../utils";
@@ -72,6 +74,18 @@ export async function getEvaluator(
     `${SERVICE_BASE}/orgs/${org}/evaluators/${evaluatorId}`,
     { token }
   );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function listEvaluatorLLMProviders(
+  params: ListEvaluatorLLMProvidersPathParams,
+  getToken?: () => Promise<string>
+): Promise<EvaluatorLLMProviderListResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/evaluators/llm-providers`, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }

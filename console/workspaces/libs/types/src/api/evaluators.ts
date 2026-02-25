@@ -61,3 +61,16 @@ export type ListEvaluatorsPathParams = OrgPathParams;
 export interface GetEvaluatorPathParams extends OrgPathParams {
   evaluatorId: string | undefined;
 }
+
+export type ListEvaluatorLLMProvidersPathParams = OrgPathParams;
+
+export interface EvaluatorLLMProvider {
+  id: string;
+  name: string;
+  displayName: string;
+  models?: string[];
+}
+
+export interface EvaluatorLLMProviderListResponse {
+  providers: EvaluatorLLMProvider[];
+}
