@@ -3950,7 +3950,6 @@ type ApiGetMonitorScoresTimeSeriesRequest struct {
 	startTime   *time.Time
 	endTime     *time.Time
 	evaluator   *string
-	granularity *string
 }
 
 // Start time for the query window (RFC3339 format)
@@ -3968,12 +3967,6 @@ func (r ApiGetMonitorScoresTimeSeriesRequest) EndTime(endTime time.Time) ApiGetM
 // Filter by evaluator displayName (unique within this monitor). This is the user-visible name defined on the monitor, not the catalog identifier.
 func (r ApiGetMonitorScoresTimeSeriesRequest) Evaluator(evaluator string) ApiGetMonitorScoresTimeSeriesRequest {
 	r.evaluator = &evaluator
-	return r
-}
-
-// Time bucket granularity
-func (r ApiGetMonitorScoresTimeSeriesRequest) Granularity(granularity string) ApiGetMonitorScoresTimeSeriesRequest {
-	r.granularity = &granularity
 	return r
 }
 
@@ -4042,9 +4035,6 @@ func (a *DefaultAPIService) GetMonitorScoresTimeSeriesExecute(r ApiGetMonitorSco
 	parameterAddToHeaderOrQuery(localVarQueryParams, "startTime", r.startTime, "")
 	parameterAddToHeaderOrQuery(localVarQueryParams, "endTime", r.endTime, "")
 	parameterAddToHeaderOrQuery(localVarQueryParams, "evaluator", r.evaluator, "")
-	if r.granularity != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "granularity", r.granularity, "")
-	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 

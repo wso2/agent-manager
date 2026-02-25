@@ -256,3 +256,187 @@ func TestBatchCreateScores_SkippedScore(t *testing.T) {
 	assert.Nil(t, got.Score)
 	assert.Equal(t, errMsg, *got.SkipReason)
 }
+
+// ─── adaptive time series tests ─────────────────────────────────────────────
+
+// seedScores inserts N scores for the given evaluator with timestamps spread
+// across the time range. Returns the time range [start, end] that covers all scores.
+func seedScores(t *testing.T, runEvaluatorID, monitorID uuid.UUID, count int, baseTime time.Time, interval time.Duration) {
+	t.Helper()
+	repo := repositories.NewScoreRepo(db.DB(context.Background()))
+	scores := make([]models.Score, count)
+	for i := range count {
+		scores[i] = models.Score{
+			ID:             uuid.New(),
+			RunEvaluatorID: runEvaluatorID,
+			MonitorID:      monitorID,
+			TraceID:        "trace-ts-" + uuid.New().String()[:12],
+			Score:          float64Ptr(float64(i%10) / 10.0),
+			TraceTimestamp: baseTime.Add(time.Duration(i) * interval),
+		}
+	}
+	require.NoError(t, repo.BatchCreateScores(scores))
+}
+
+// TestGetEvaluatorScoreCount verifies the lightweight COUNT query
+func TestGetEvaluatorScoreCount(t *testing.T) {
+	runEvaluatorID, monitorID := seedRunEvaluator(t)
+	repo := repositories.NewScoreRepo(db.DB(context.Background()))
+
+	baseTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	seedScores(t, runEvaluatorID, monitorID, 5, baseTime, 10*time.Minute)
+
+	// Count within the full range
+	count, err := repo.GetEvaluatorScoreCount(monitorID, "Latency Check",
+		baseTime.Add(-time.Hour), baseTime.Add(2*time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, int64(5), count)
+
+	// Count with a narrower range that excludes some scores
+	count, err = repo.GetEvaluatorScoreCount(monitorID, "Latency Check",
+		baseTime, baseTime.Add(25*time.Minute))
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), count, "only scores at +0m, +10m, +20m should be in range")
+
+	// Count with a different evaluator name returns 0
+	count, err = repo.GetEvaluatorScoreCount(monitorID, "Nonexistent Evaluator",
+		baseTime.Add(-time.Hour), baseTime.Add(2*time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), count)
+}
+
+// TestGetEvaluatorTraceAggregated verifies per-trace aggregation
+func TestGetEvaluatorTraceAggregated(t *testing.T) {
+	runEvaluatorID, monitorID := seedRunEvaluator(t)
+	repo := repositories.NewScoreRepo(db.DB(context.Background()))
+
+	baseTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+
+	// Insert 3 scores for 3 different traces
+	scores := []models.Score{
+		{
+			ID:             uuid.New(),
+			RunEvaluatorID: runEvaluatorID,
+			MonitorID:      monitorID,
+			TraceID:        "trace-agg-A",
+			Score:          float64Ptr(0.8),
+			TraceTimestamp: baseTime,
+		},
+		{
+			ID:             uuid.New(),
+			RunEvaluatorID: runEvaluatorID,
+			MonitorID:      monitorID,
+			TraceID:        "trace-agg-B",
+			Score:          float64Ptr(0.6),
+			TraceTimestamp: baseTime.Add(30 * time.Minute),
+		},
+		{
+			ID:             uuid.New(),
+			RunEvaluatorID: runEvaluatorID,
+			MonitorID:      monitorID,
+			TraceID:        "trace-agg-C",
+			Score:          nil,
+			SkipReason:     strPtr("skipped"),
+			TraceTimestamp: baseTime.Add(1 * time.Hour),
+		},
+	}
+	require.NoError(t, repo.BatchCreateScores(scores))
+
+	results, err := repo.GetEvaluatorTraceAggregated(monitorID, "Latency Check",
+		baseTime.Add(-time.Hour), baseTime.Add(2*time.Hour))
+	require.NoError(t, err)
+	require.Len(t, results, 3, "should have one result per trace")
+
+	// Results ordered by trace_timestamp
+	assert.Equal(t, "trace-agg-A", results[0].TraceID)
+	assert.InDelta(t, 0.8, *results[0].MeanScore, 1e-9)
+	assert.Equal(t, 1, results[0].TotalCount)
+	assert.Equal(t, 0, results[0].SkippedCount)
+
+	assert.Equal(t, "trace-agg-B", results[1].TraceID)
+	assert.InDelta(t, 0.6, *results[1].MeanScore, 1e-9)
+
+	// Skipped trace: mean should be NULL, skippedCount = 1
+	assert.Equal(t, "trace-agg-C", results[2].TraceID)
+	assert.Nil(t, results[2].MeanScore)
+	assert.Equal(t, 1, results[2].SkippedCount)
+}
+
+// TestGetEvaluatorTimeSeriesAggregated_Minute verifies minute-level bucketing via date_trunc
+func TestGetEvaluatorTimeSeriesAggregated_Minute(t *testing.T) {
+	runEvaluatorID, monitorID := seedRunEvaluator(t)
+	repo := repositories.NewScoreRepo(db.DB(context.Background()))
+
+	// Create scores at: 10:03:10, 10:03:40, 10:05:20
+	// Expected minute buckets: [10:03, 10:05]
+	baseTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	scores := []models.Score{
+		{
+			ID: uuid.New(), RunEvaluatorID: runEvaluatorID, MonitorID: monitorID,
+			TraceID: "t1", Score: float64Ptr(0.8), TraceTimestamp: baseTime.Add(3*time.Minute + 10*time.Second),
+		},
+		{
+			ID: uuid.New(), RunEvaluatorID: runEvaluatorID, MonitorID: monitorID,
+			TraceID: "t2", Score: float64Ptr(0.6), TraceTimestamp: baseTime.Add(3*time.Minute + 40*time.Second),
+		},
+		{
+			ID: uuid.New(), RunEvaluatorID: runEvaluatorID, MonitorID: monitorID,
+			TraceID: "t3", Score: float64Ptr(0.9), TraceTimestamp: baseTime.Add(5*time.Minute + 20*time.Second),
+		},
+	}
+	require.NoError(t, repo.BatchCreateScores(scores))
+
+	results, err := repo.GetEvaluatorTimeSeriesAggregated(monitorID, "Latency Check",
+		baseTime, baseTime.Add(1*time.Hour), "minute")
+	require.NoError(t, err)
+	require.Len(t, results, 2, "should have 2 non-empty minute buckets")
+
+	// Bucket 10:03: scores at 10:03:10 (0.8) and 10:03:40 (0.6), mean = 0.7
+	assert.True(t, baseTime.Add(3*time.Minute).Equal(results[0].TimeBucket), "bucket 0 time: expected %v, got %v", baseTime.Add(3*time.Minute), results[0].TimeBucket)
+	assert.Equal(t, 2, results[0].TotalCount)
+	assert.InDelta(t, 0.7, *results[0].MeanScore, 1e-9)
+
+	// Bucket 10:05: score at 10:05:20 (0.9), mean = 0.9
+	assert.True(t, baseTime.Add(5*time.Minute).Equal(results[1].TimeBucket), "bucket 1 time: expected %v, got %v", baseTime.Add(5*time.Minute), results[1].TimeBucket)
+	assert.Equal(t, 1, results[1].TotalCount)
+	assert.InDelta(t, 0.9, *results[1].MeanScore, 1e-9)
+}
+
+// TestGetEvaluatorTimeSeriesAggregated_Hour verifies hourly bucketing still works
+func TestGetEvaluatorTimeSeriesAggregated_Hour(t *testing.T) {
+	runEvaluatorID, monitorID := seedRunEvaluator(t)
+	repo := repositories.NewScoreRepo(db.DB(context.Background()))
+
+	// Scores across 3 hours
+	baseTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	scores := []models.Score{
+		{
+			ID: uuid.New(), RunEvaluatorID: runEvaluatorID, MonitorID: monitorID,
+			TraceID: "th1", Score: float64Ptr(0.5), TraceTimestamp: baseTime.Add(15 * time.Minute),
+		},
+		{
+			ID: uuid.New(), RunEvaluatorID: runEvaluatorID, MonitorID: monitorID,
+			TraceID: "th2", Score: float64Ptr(0.7), TraceTimestamp: baseTime.Add(45 * time.Minute),
+		},
+		{
+			ID: uuid.New(), RunEvaluatorID: runEvaluatorID, MonitorID: monitorID,
+			TraceID: "th3", Score: float64Ptr(0.9), TraceTimestamp: baseTime.Add(90 * time.Minute),
+		},
+	}
+	require.NoError(t, repo.BatchCreateScores(scores))
+
+	results, err := repo.GetEvaluatorTimeSeriesAggregated(monitorID, "Latency Check",
+		baseTime, baseTime.Add(3*time.Hour), "hour")
+	require.NoError(t, err)
+	require.Len(t, results, 2, "should have 2 non-empty hour buckets")
+
+	// Hour 10:00: 2 scores, mean = 0.6
+	assert.True(t, baseTime.Equal(results[0].TimeBucket), "bucket 0 time: expected %v, got %v", baseTime, results[0].TimeBucket)
+	assert.Equal(t, 2, results[0].TotalCount)
+	assert.InDelta(t, 0.6, *results[0].MeanScore, 1e-9)
+
+	// Hour 11:00: 1 score, mean = 0.9
+	assert.True(t, baseTime.Add(1*time.Hour).Equal(results[1].TimeBucket), "bucket 1 time: expected %v, got %v", baseTime.Add(1*time.Hour), results[1].TimeBucket)
+	assert.Equal(t, 1, results[1].TotalCount)
+	assert.InDelta(t, 0.9, *results[1].MeanScore, 1e-9)
+}
