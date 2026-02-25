@@ -995,6 +995,19 @@ else
 fi
 echo ""
 
+# Install evaluation extension
+log_info "Installing Evaluation Extension (Monitor Evaluation Workflows)..."
+if ! install_evaluation_extension; then
+    log_warning "Evaluation Extension installation failed (non-fatal)"
+    echo "The platform is installed but evaluation features may not work."
+    echo ""
+    echo "Troubleshooting steps:"
+    echo "  1. Check Helm release: helm list -n ${EVALUATION_NS}"
+else
+    log_success "Evaluation Extension installed successfully"
+fi
+echo ""
+
 
 # ============================================================================
 # VERIFICATION

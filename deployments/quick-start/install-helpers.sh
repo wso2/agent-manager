@@ -20,6 +20,7 @@ BUILD_CI_CHART_NAME="wso2-amp-build-extension"
 OBSERVABILITY_CHART_NAME="wso2-amp-observability-extension"
 PLATFORM_RESOURCES_CHART_NAME="wso2-amp-platform-resources-extension"
 THUNDER_EXTENSION_CHART_NAME="wso2-amp-thunder-extension"
+EVALUATION_CHART_NAME="wso2-amp-evaluation-extension"
 
 # Namespace definitions
 AMP_NS="${AMP_NS:-wso2-amp}"
@@ -28,6 +29,7 @@ OBSERVABILITY_NS="${OBSERVABILITY_NS:-openchoreo-observability-plane}"
 DEFAULT_NS="${DEFAULT_NS:-default}"
 DATA_PLANE_NS="${DATA_PLANE_NS:-openchoreo-data-plane}"
 THUNDER_NS="${THUNDER_NS:-amp-thunder}"
+EVALUATION_NS="${EVALUATION_NS:-openchoreo-build-plane}"
 
 # Helm arguments arrays (initialize if not set)
 if [[ -z "${AMP_HELM_ARGS+x}" ]]; then
@@ -44,6 +46,9 @@ if [[ -z "${PLATFORM_RESOURCES_HELM_ARGS+x}" ]]; then
 fi
 if [[ -z "${THUNDER_HELM_ARGS+x}" ]]; then
     THUNDER_HELM_ARGS=()
+fi
+if [[ -z "${EVALUATION_HELM_ARGS+x}" ]]; then
+    EVALUATION_HELM_ARGS=()
 fi
 
 # Timeouts (in seconds)
@@ -261,6 +266,21 @@ install_build_extension() {
     return 0
 }
 
+# Install Evaluation Extension
+install_evaluation_extension() {
+    local chart_ref="oci://${HELM_CHART_REGISTRY}/${EVALUATION_CHART_NAME}"
+    local chart_version="${VERSION}"
+    local release_name="amp-evaluation-extension"
+
+    # Install Helm chart
+    if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${EVALUATION_NS}" "${TIMEOUT_AMP_INSTALL}" \
+        --version "${chart_version}" \
+        "${EVALUATION_HELM_ARGS[@]}"; then
+        return 1
+    fi
+
+    return 0
+}
 
 # Install Platform Resources Extension
 install_platform_resources_extension() {

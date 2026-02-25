@@ -56,7 +56,7 @@ PUBLISH_MAX_RETRIES = 3
 PUBLISH_INITIAL_BACKOFF = 2  # seconds
 
 
-def handle_sigterm(signum, frame):
+def handle_sigterm(signum: int, frame: Any) -> None:
     """Handle SIGTERM for graceful shutdown in Kubernetes."""
     logger.info("Received SIGTERM, shutting down gracefully")
     sys.exit(0)
@@ -82,7 +82,7 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(log_entry)
 
 
-def configure_logging():
+def configure_logging() -> None:
     """Configure JSON logging from LOG_LEVEL env var (default: INFO)."""
     level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
@@ -91,7 +91,7 @@ def configure_logging():
     logging.basicConfig(level=level, handlers=[handler])
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     """Parse command-line arguments for monitor execution."""
     parser = argparse.ArgumentParser(
         description="Run monitor evaluation for AI agent traces",
@@ -296,7 +296,7 @@ def publish_scores(
     return False
 
 
-def main():
+def main() -> None:
     """Main entry point for monitor job."""
     configure_logging()
     args = parse_args()
@@ -323,8 +323,7 @@ def main():
         logger.warning("Failed to parse LLM_PROVIDER_CONFIGS: %s", e)
 
     logger.info(
-        "Starting monitor evaluation monitor=%s agent=%s env=%s "
-        "time_range=%s..%s sampling=%.1f endpoint=%s",
+        "Starting monitor evaluation monitor=%s agent=%s env=%s time_range=%s..%s sampling=%.1f endpoint=%s",
         args.monitor_name,
         args.agent_id,
         args.environment_id,
@@ -369,9 +368,7 @@ def main():
             )
             sys.exit(1)
 
-    evaluator_names_summary = [
-        e.get("displayName", e.get("identifier", "unknown")) for e in evaluators_config
-    ]
+    evaluator_names_summary = [e.get("displayName", e.get("identifier", "unknown")) for e in evaluators_config]
     logger.info("Evaluators to run: %s", ", ".join(evaluator_names_summary))
     for evaluator in evaluators_config:
         config = evaluator.get("config", {})
@@ -447,9 +444,7 @@ def main():
             for name, summary in result.scores.items():
                 agg_scores = summary.aggregated_scores
                 if "mean" in agg_scores:
-                    logger.debug(
-                        "Evaluator score %s mean=%.3f", name, agg_scores["mean"]
-                    )
+                    logger.debug("Evaluator score %s mean=%.3f", name, agg_scores["mean"])
                 elif agg_scores:
                     first_key = next(iter(agg_scores))
                     logger.debug(
