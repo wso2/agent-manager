@@ -17,6 +17,7 @@
 package repositories
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -311,12 +312,14 @@ func (r *ScoreRepo) GetEvaluatorTimeSeriesAggregated(
 	switch granularity {
 	case "minute":
 		truncArg = "minute"
+	case "hour":
+		truncArg = "hour"
 	case "day":
 		truncArg = "day"
 	case "week":
 		truncArg = "week"
 	default:
-		truncArg = "hour"
+		return nil, fmt.Errorf("unsupported granularity: %s", granularity)
 	}
 	baseQuery = baseQuery.Select(`
 		date_trunc(?, s.trace_timestamp AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' as time_bucket,
@@ -329,7 +332,8 @@ func (r *ScoreRepo) GetEvaluatorTimeSeriesAggregated(
 	return results, err
 }
 
-// GetEvaluatorScoreCount returns the total number of scores for an evaluator within a time window
+// GetEvaluatorScoreCount returns the number of distinct traces for an evaluator within a time window.
+// Uses COUNT(DISTINCT trace_id) so the result reflects chart point density, not raw score rows.
 func (r *ScoreRepo) GetEvaluatorScoreCount(
 	monitorID uuid.UUID,
 	displayName string,
@@ -337,11 +341,12 @@ func (r *ScoreRepo) GetEvaluatorScoreCount(
 ) (int64, error) {
 	var count int64
 	err := r.db.Table("scores s").
+		Select("COUNT(DISTINCT s.trace_id)").
 		Joins("JOIN monitor_run_evaluators mre ON s.run_evaluator_id = mre.id").
 		Where("s.monitor_id = ?", monitorID).
 		Where("s.trace_timestamp BETWEEN ? AND ?", startTime, endTime).
 		Where("mre.display_name = ?", displayName).
-		Count(&count).Error
+		Scan(&count).Error
 	return count, err
 }
 
@@ -356,7 +361,7 @@ func (r *ScoreRepo) GetEvaluatorTraceAggregated(
 	err := r.db.Table("scores s").
 		Select(`
 			s.trace_id,
-			s.trace_timestamp,
+			MIN(s.trace_timestamp) as trace_timestamp,
 			COUNT(*) as total_count,
 			COUNT(CASE WHEN s.skip_reason IS NOT NULL THEN 1 END) as skipped_count,
 			AVG(CASE WHEN s.skip_reason IS NULL THEN s.score END) as mean_score
@@ -365,8 +370,8 @@ func (r *ScoreRepo) GetEvaluatorTraceAggregated(
 		Where("s.monitor_id = ?", monitorID).
 		Where("s.trace_timestamp BETWEEN ? AND ?", startTime, endTime).
 		Where("mre.display_name = ?", displayName).
-		Group("s.trace_id, s.trace_timestamp").
-		Order("s.trace_timestamp").
+		Group("s.trace_id").
+		Order("trace_timestamp").
 		Find(&results).Error
 	return results, err
 }
