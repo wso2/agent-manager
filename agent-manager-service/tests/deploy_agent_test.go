@@ -208,7 +208,7 @@ func TestDeployAgent(t *testing.T) {
 				// Missing imageId
 			},
 			wantStatus: 400,
-			wantErrMsg: "Invalid request body",
+			wantErrMsg: "imageId is required",
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				mock := apitestutils.CreateMockOpenChoreoClient()
 				mock.ComponentExistsFunc = func(ctx context.Context, orgName string, projName string, agentName string, verifyProject bool) (bool, error) {
@@ -227,7 +227,7 @@ func TestDeployAgent(t *testing.T) {
 				"imageId": "", // Empty imageId
 			},
 			wantStatus: 400,
-			wantErrMsg: "Invalid request body",
+			wantErrMsg: "imageId is required",
 			setupMock: func() *clientmocks.OpenChoreoClientMock {
 				mock := apitestutils.CreateMockOpenChoreoClient()
 				mock.ComponentExistsFunc = func(ctx context.Context, orgName string, projName string, agentName string, verifyProject bool) (bool, error) {
