@@ -28,6 +28,8 @@ import {
   DrawerContent,
 } from "@agent-management-platform/views";
 import {
+  Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -72,13 +74,43 @@ interface ConfigParamFieldProps {
   param: EvaluatorConfigParam;
   value: unknown;
   onChange: (value: unknown) => void;
+  /** When param is "model", options from added LLM providers' models for autocomplete */
+  modelOptions?: string[];
 }
 
-function ConfigParamField({ param, value, onChange }: ConfigParamFieldProps) {
+function ConfigParamField({ param, value, onChange, modelOptions }: ConfigParamFieldProps) {
   const { description, key, required, type, enumValues, max, min } = param;
   const helperText = description || "No description provided.";
   const label = keyToDisplay(key);
   const labelWithRequired = required ? `* ${label}` : label;
+
+  const isModelParam = key === "model" || key.toLowerCase().includes("model");
+  if (isModelParam && modelOptions && modelOptions.length > 0) {
+    const textValue =
+      typeof value === "string"
+        ? value
+        : value !== undefined && value !== null
+          ? String(value)
+          : "";
+    return (
+      <Form.ElementWrapper label={labelWithRequired} name={key}>
+        <Autocomplete
+          freeSolo
+          options={modelOptions}
+          value={textValue}
+          onInputChange={(_event, newValue) => onChange(newValue ?? "")}
+          onChange={(_event, newValue) => onChange(typeof newValue === "string" ? newValue : newValue ?? "")}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              required={required}
+              helperText={helperText}
+            />
+          )}
+        />
+      </Form.ElementWrapper>
+    );
+  }
 
   if (type === "enum" || (enumValues?.length ?? 0) > 0) {
     const selectValue = typeof value === "string" ? value : "";
@@ -397,6 +429,15 @@ export function EvaluatorDetailsDrawer({
     [evaluator],
   );
 
+  const modelOptions = useMemo(() => {
+    if (!llmProviders.length || !llmProviderConfigs.length) return [];
+    const addedNames = new Set(llmProviderConfigs.map((c) => c.providerName));
+    const options = llmProviders
+      .filter((p) => addedNames.has(p.name))
+      .flatMap((p) => p.models ?? []);
+    return Array.from(new Set(options));
+  }, [llmProviderConfigs, llmProviders]);
+
   return (
     <DrawerWrapper
       open={open}
@@ -440,11 +481,24 @@ export function EvaluatorDetailsDrawer({
                   <Form.Stack>
                     {configSchema.map((param) => (
                       <Form.Section key={param.key}>
+                        {isShowLLMProviderConfigs &&
+                          param.key === "model" &&
+                          llmProviderConfigs.length === 0 && (
+                            <Alert
+                              severity="warning"
+                              sx={{ mb: 1 }}
+                            >
+                              At least one LLM provider must be configured
+                            </Alert>
+                          )}
                         <ConfigParamField
                           param={param}
                           value={configValues[param.key]}
                           onChange={(nextValue) =>
                             handleConfigChange(param.key, nextValue)
+                          }
+                          modelOptions={
+                            param.key === "model" ? modelOptions : undefined
                           }
                         />
                         {isShowLLMProviderConfigs &&
