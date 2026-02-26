@@ -124,7 +124,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		provider, err := s.llmProviderRepo.GetByUUID(envMapping.ProviderUUID.String(), orgName)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("%w for environment %s: %v", utils.ErrLLMProviderNotFound, envName, err)
+				return nil, fmt.Errorf("%w for environment %s: %w", utils.ErrLLMProviderNotFound, envName, err)
 			}
 			return nil, fmt.Errorf("failed to validate provider for environment %s: %w", envName, err)
 		}
@@ -416,7 +416,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			provider, err := s.llmProviderRepo.GetByUUID(envMapping.ProviderUUID.String(), orgName)
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return nil, fmt.Errorf("%w for environment %s: %v", utils.ErrLLMProviderNotFound, envName, err)
+					return nil, fmt.Errorf("%w for environment %s: %w", utils.ErrLLMProviderNotFound, envName, err)
 				}
 				return nil, fmt.Errorf("failed to validate provider for environment %s: %w", envName, err)
 			}
@@ -482,14 +482,9 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			existingMapping, hasExisting := existingEnvMap[envName]
 
 			if hasExisting {
-				// Environment exists - check if provider or policies changed
+				// Environment exists - check if provider changed
 				// Compare the provider UUID stored in the proxy's configuration with the new provider UUID
 				providerChanged := existingMapping.LLMProxy != nil && existingMapping.LLMProxy.Configuration.Provider != envMapping.ProviderUUID.String()
-
-				// Check if policies changed (even if provider is the same)
-				// Note: For now, we don't support updating policies without changing the provider
-				// This is a limitation that should be addressed in the future
-				policiesProvided := len(envMapping.Configuration.Policies) > 0
 
 				if providerChanged {
 					// Provider changed - need to create new proxy and delete old one
@@ -579,13 +574,94 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 					if err := s.envVariableRepo.CreateBatch(ctx, tx, variables); err != nil {
 						return fmt.Errorf("failed to create environment variables for %s: %w", envName, err)
 					}
-				} else if !providerChanged && policiesProvided {
-					// Provider hasn't changed but policies were provided
-					// This is currently not supported - would require comparing policies and redeploying
-					return fmt.Errorf("updating policies without changing provider is not currently supported for environment %s", envName)
+				} else {
+					// Provider hasn't changed - update proxy configuration and redeploy
+					// This handles policy updates and other configuration changes
+					s.logger.Info("Updating proxy configuration for environment",
+						"environment", envName,
+						"providerUUID", envMapping.ProviderUUID)
+
+					if existingMapping.LLMProxy == nil {
+						return fmt.Errorf("existing proxy not found for environment %s", envName)
+					}
+
+					// Resolve gateway for environment
+					gateway, err := s.resolveGatewayForEnvironment(ctx, envUUID, orgName)
+					if err != nil {
+						return fmt.Errorf("failed to resolve gateway for environment %s: %w", envName, err)
+					}
+
+					// Build updated proxy configuration
+					proxyConfig, providerAPIKeyID, err := s.buildLLMProxyConfig(ctx, existingConfig, envMapping, gateway)
+					if err != nil {
+						return fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
+					}
+
+					// Update the existing proxy with new configuration
+					// Note: Provider UUID and upstream auth are preserved from proxyConfig
+					proxyConfig.UUID = existingMapping.LLMProxy.UUID
+					proxyConfig.Handle = existingMapping.LLMProxy.Handle
+					proxyConfig.CreatedBy = existingMapping.LLMProxy.CreatedBy
+					proxyConfig.Status = existingMapping.LLMProxy.Status
+					proxyConfig.ProjectUUID = existingMapping.LLMProxy.ProjectUUID
+
+					updatedProxy, err := s.llmProxyService.Update(existingMapping.LLMProxy.Handle, orgName, proxyConfig)
+					if err != nil {
+						return fmt.Errorf("failed to update proxy for environment %s: %w", envName, err)
+					}
+
+					gatewayId := gateway.UUID.String()
+
+					// Get existing deployments for this proxy and gateway
+					deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(updatedProxy.Handle, orgName, &gatewayId, nil)
+					if err != nil {
+						return fmt.Errorf("failed to get deployments for environment %s: %w", envName, err)
+					}
+
+					// Find the deployed deployment
+					var existingDeployment *models.Deployment
+					for _, dep := range deployments {
+						if dep.Status != nil && *dep.Status == models.DeploymentStatusDeployed {
+							existingDeployment = dep
+							break
+						}
+					}
+
+					// Redeploy with updated configuration
+					deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(updatedProxy.Handle, &models.DeployAPIRequest{
+						Name:      fmt.Sprintf("%s-%s-deployment", existingConfig.Name, env.Name),
+						Base:      existingDeployment.DeploymentID.String(), // Use current proxy configuration
+						GatewayID: gateway.UUID.String(),
+					}, orgName)
+					if err != nil {
+						return fmt.Errorf("failed to redeploy proxy for environment %s: %w", envName, err)
+					}
+
+					s.logger.Info("Proxy configuration updated and redeployed",
+						"environment", envName,
+						"proxyHandle", updatedProxy.Handle,
+						"newDeploymentID", deployment.DeploymentID)
+
+					// If there was an existing deployment, undeploy it (after successful new deployment)
+					if existingDeployment != nil && existingDeployment.DeploymentID != deployment.DeploymentID {
+						if err := s.llmProxyDeploymentService.DeleteLLMProxyDeployment(updatedProxy.Handle, existingDeployment.DeploymentID.String(), orgName); err != nil {
+							s.logger.Warn("Failed to clean up old deployment after redeployment",
+								"environment", envName,
+								"oldDeploymentID", existingDeployment.DeploymentID,
+								"error", err)
+							// Don't fail the operation - new deployment is already active
+						}
+					}
+
+					// Track provider API key for rollback if a new one was created
+					if providerAPIKeyID != "" {
+						rollbackResources = append(rollbackResources, rollbackResource{
+							providerAPIKeyID: providerAPIKeyID,
+						})
+					}
 				}
-				// If provider and policies haven't changed, no action needed
-				delete(existingEnvMap, envName) // Mark as processed
+				// Mark as processed
+				delete(existingEnvMap, envName)
 			} else {
 				// New environment - create proxy and mapping
 				s.logger.Info("Adding new environment to configuration",
