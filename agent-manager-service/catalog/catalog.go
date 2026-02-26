@@ -130,7 +130,7 @@ type LLMProviderEntry struct {
 	Name         string
 	DisplayName  string
 	ConfigFields []LLMConfigField
-	Models       []string // curated popular litellm-compatible model strings
+	Models       []string // curated model names in provider/model format
 }
 
 // AllProviders returns all builtin LLM provider entries.

@@ -23,10 +23,20 @@ import { EnvVariableEditor } from "@agent-management-platform/views";
 interface EnvironmentVariableProps {
     envVariables: Array<{ key: string; value: string }>;
     setEnvVariables: React.Dispatch<React.SetStateAction<Array<{ key: string; value: string }>>>;
+    /** When true, the "Add" button is hidden  */
+    hideAddButton?: boolean;
+    /** When true, key fields are disabled so only values can be edited */
+    keyFieldsDisabled?: boolean;
+    /** When true, value fields are rendered as password type */
+    isValueSecret?: boolean;
+    /** Title for the environment variables form */
+    title?: string;
+    /** Description for the environment variables form */
+    description?: string;
 }
 
 export const EnvironmentVariable =
-    ({ envVariables, setEnvVariables }: EnvironmentVariableProps) => {
+    ({ envVariables, setEnvVariables, hideAddButton = false, keyFieldsDisabled = false, isValueSecret = false, title = "Environment Variables (Optional)", description = "Set environment variables for your agent deployment." }: EnvironmentVariableProps) => {
         const isOneEmpty = envVariables.some((e) => !e?.key || !e?.value);
 
         const handleAdd = () => {
@@ -46,10 +56,10 @@ export const EnvironmentVariable =
         return (
             <Box display="flex" flexDirection="column" gap={2} width="100%">
                 <Typography variant="h6">
-                    Environment Variables (Optional)
+                    {title}
                 </Typography>
                 <Typography variant="body2">
-                    Set environment variables for your agent deployment.
+                    {description}
                 </Typography>
                 <Box display="flex" flexDirection="column" gap={2}>
                     {envVariables.map((envVar, index: number) => (
@@ -61,20 +71,24 @@ export const EnvironmentVariable =
                             onKeyChange={(value) => handleChange(index, 'key', value)}
                             onValueChange={(value) => handleChange(index, 'value', value)}
                             onRemove={() => handleRemove(index)}
+                            keyDisabled={keyFieldsDisabled}
+                            isValueSecret={isValueSecret}
                         />
                     ))}
                 </Box>
-                <Box display="flex" justifyContent="flex-start" width="100%">
-                    <Button
-                        startIcon={<Add fontSize="small" />}
-                        disabled={isOneEmpty}
-                        variant="outlined"
-                        color="primary"
-                        onClick={handleAdd}
-                    >
-                        Add
-                    </Button>
-                </Box>
+                {!hideAddButton && (
+                    <Box display="flex" justifyContent="flex-start" width="100%">
+                        <Button
+                            startIcon={<Add fontSize="small" />}
+                            disabled={isOneEmpty}
+                            variant="outlined"
+                            color="primary"
+                            onClick={handleAdd}
+                        >
+                            Add
+                        </Button>
+                    </Box>
+                )}
             </Box>
         );
     };

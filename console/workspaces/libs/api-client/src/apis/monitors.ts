@@ -29,6 +29,8 @@ import {
   type MonitorRunListResponse,
   type MonitorRunLogsPathParams,
   type MonitorRunResponse,
+  type MonitorRunScoresResponse,
+  type MonitorRunPathParams,
   type MonitorScoresPathParams,
   type MonitorScoresQueryParams,
   type MonitorScoresResponse,
@@ -229,6 +231,25 @@ export async function getMonitorRunLogs(
 
   const res = await httpGET(
     `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/runs/${run}/logs`,
+    { token }
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export async function getMonitorRunScores(
+  params: MonitorRunPathParams,
+  getToken?: () => Promise<string>
+): Promise<MonitorRunScoresResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const project = encodeRequired(params.projName, "projName");
+  const agent = encodeRequired(params.agentName, "agentName");
+  const monitor = encodeRequired(params.monitorName, "monitorName");
+  const run = encodeRequired(params.runId, "runId");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpGET(
+    `${SERVICE_BASE}/orgs/${org}/projects/${project}/agents/${agent}/monitors/${monitor}/runs/${run}/scores`,
     { token }
   );
   if (!res.ok) throw await res.json();

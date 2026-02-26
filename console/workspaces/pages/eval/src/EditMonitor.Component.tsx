@@ -87,6 +87,7 @@ export const EditMonitorComponent: React.FC = () => {
             intervalMinutes: monitorData.intervalMinutes ?? undefined,
             samplingRate: samplingRatePercent,
             evaluators: monitorData.evaluators ?? [],
+            llmProviderConfigs: monitorData.llmProviderConfigs,
         };
     }, [monitorData]);
 
@@ -98,6 +99,7 @@ export const EditMonitorComponent: React.FC = () => {
         const payload: UpdateMonitorRequest = {
             displayName: values.displayName.trim(),
             evaluators: values.evaluators,
+            llmProviderConfigs: values.llmProviderConfigs,
             intervalMinutes: values.intervalMinutes ?? undefined,
             samplingRate: values.samplingRate !== undefined ? values.samplingRate / 100 : undefined,
         };
@@ -162,7 +164,6 @@ export const EditMonitorComponent: React.FC = () => {
         return (
             <PageLayout
                 title="Edit Monitor"
-                description="Update monitor configuration and evaluator settings."
                 disableIcon
                 backLabel="Back to Monitors"
                 backHref={backHref}
@@ -176,8 +177,7 @@ export const EditMonitorComponent: React.FC = () => {
 
     return (
         <MonitorFormWizard
-            title="Edit Monitor"
-            description="Update monitor configuration and evaluator settings."
+            title={"Edit " + (monitorData?.displayName ?? "Monitor")}
             backHref={backHref}
             submitLabel="Save Changes"
             initialValues={initialValues}

@@ -4920,14 +4920,6 @@ paths:
           schema:
             type: string
           description: Filter by evaluator displayName (unique within this monitor). This is the user-visible name defined on the monitor, not the catalog identifier.
-        - name: granularity
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [hour, day, week]
-            default: hour
-          description: Time bucket granularity
       responses:
         "200":
           description: Time-series data
@@ -8921,8 +8913,8 @@ components:
           description: Display name of the evaluator
         granularity:
           type: string
-          enum: [hour, day, week]
-          description: Time bucket granularity
+          enum: [minute, hour, day, week, trace]
+          description: Time bucket granularity (automatically selected by the server based on data density and time range)
         points:
           type: array
           items:

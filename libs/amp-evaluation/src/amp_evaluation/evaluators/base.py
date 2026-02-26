@@ -500,7 +500,10 @@ class LLMAsJudgeEvaluator(BaseEvaluator):
                 pass  # Keep Param default (gpt-4o-mini)
 
     # Configurable via Param descriptors
-    model: str = Param(default="gpt-4o-mini", description="LLM model identifier")
+    model: str = Param(
+        default="openai/gpt-4o-mini",
+        description="LLM model in provider/model format (e.g. openai/gpt-4o, anthropic/claude-sonnet-4-6)",
+    )
     criteria: str = Param(default="quality, accuracy, and helpfulness", description="Evaluation criteria")
     temperature: float = Param(default=0.0, description="LLM temperature")
     max_tokens: int = Param(default=1024, description="Max tokens for LLM response")

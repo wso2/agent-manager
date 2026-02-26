@@ -31,6 +31,8 @@ import {
   type MonitorRunListResponse,
   type MonitorRunLogsPathParams,
   type MonitorRunResponse,
+  type MonitorRunScoresResponse,
+  type MonitorRunPathParams,
   type MonitorScoresPathParams,
   type MonitorScoresQueryParams,
   type MonitorScoresResponse,
@@ -50,6 +52,7 @@ import {
   deleteMonitor,
   getMonitor,
   getMonitorRunLogs,
+  getMonitorRunScores,
   getMonitorScores,
   getMonitorScoresTimeSeries,
   getTraceScores,
@@ -176,6 +179,20 @@ export function useMonitorRunLogs(params: MonitorRunLogsPathParams) {
   return useQuery<LogsResponse>({
     queryKey: ["monitor-run-logs", params],
     queryFn: () => getMonitorRunLogs(params, getToken),
+    enabled:
+      !!params.orgName &&
+      !!params.projName &&
+      !!params.agentName &&
+      !!params.monitorName &&
+      !!params.runId,
+  });
+}
+
+export function useMonitorRunScores(params: MonitorRunPathParams) {
+  const { getToken } = useAuthHooks();
+  return useQuery<MonitorRunScoresResponse>({
+    queryKey: ["monitor-run-scores", params],
+    queryFn: () => getMonitorRunScores(params, getToken),
     enabled:
       !!params.orgName &&
       !!params.projName &&

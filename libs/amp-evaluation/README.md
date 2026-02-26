@@ -2,6 +2,8 @@
 
 A trace-based evaluation framework for AI agents. Analyze real agent executions from OpenTelemetry traces to measure quality, performance, and reliability.
 
+AI agents are non-deterministic — the same prompt can produce different outputs, tool sequences, and reasoning paths across runs. This SDK provides a unified framework for measuring agent quality both during development and in production. For a deeper understanding of the concepts and design decisions, see [Concepts](CONCEPTS.md).
+
 ## Install
 
 ```bash
@@ -22,7 +24,7 @@ pip install deepeval>=3.8.4
 
 ### 1. Define an Evaluator
 
-Type hints drive everything. The first parameter type sets the evaluation level, and the `task` parameter determines mode compatibility.
+An evaluator is a function that scores a specific quality aspect of an agent's execution by analyzing its trace. Type hints drive everything — the first parameter type sets the [evaluation level](#evaluation-levels), and the `task` parameter determines [mode](#evaluation-modes) compatibility.
 
 ```python
 from amp_evaluation import evaluator, EvalResult
@@ -38,8 +40,11 @@ def response_quality(trace: Trace) -> EvalResult:
 
 ### 2. Run a Monitor
 
+A monitor evaluates live production traces over a time range — continuous quality tracking without ground truth.
+
 ```python
 from amp_evaluation import Monitor, builtin, discover_evaluators
+from amp_evaluation.trace import TraceFetcher
 import my_evaluators
 
 # Discover all evaluators from a module + add built-ins
@@ -48,7 +53,7 @@ evals = discover_evaluators(my_evaluators) + [
     builtin("hallucination"),
 ]
 
-monitor = Monitor(evaluators=evals, trace_service_url="http://traces:8001")
+monitor = Monitor(evaluators=evals, trace_fetcher=TraceFetcher(base_url="http://traces:8001"))
 result = monitor.run(start_time="2026-01-01T00:00:00Z", end_time="2026-01-02T00:00:00Z")
 
 print(result.summary())
@@ -56,10 +61,12 @@ print(result.summary())
 
 ### 3. Run an Experiment
 
+An experiment tests your agent against a ground-truth dataset — controlled benchmarking with expected outputs and success criteria. See [Concepts: Datasets and Tasks](CONCEPTS.md#datasets-and-tasks) for a detailed guide on designing effective test cases.
+
 ```python
 from amp_evaluation import Experiment, Dataset, Task, builtin
 
-dataset = Dataset(tasks=[
+dataset = Dataset(dataset_id="geography-qa", name="Geography QA", tasks=[
     Task(task_id="q1", input="What is the capital of France?", expected_output="Paris"),
 ])
 
@@ -74,6 +81,8 @@ result = experiment.run()
 ---
 
 ## Evaluation Levels
+
+Different evaluation questions require different scopes. Trace-level asks "was the overall request handled well?", agent-level asks "did this specific agent behave efficiently?" (relevant in multi-agent systems), and LLM-level asks "was this individual model call high-quality?". See [Concepts: Evaluation Levels](CONCEPTS.md#evaluation-levels) for detailed rationale and examples.
 
 Every evaluator operates at exactly **one** level, auto-detected from the `evaluate()` method's first parameter type hint:
 
@@ -100,6 +109,8 @@ The runner's `run()` method handles iteration automatically — a trace with 3 a
 
 ## Evaluation Modes
 
+Pre-deployment and post-deployment evaluation serve different purposes. Experiments use ground-truth datasets for controlled benchmarking before shipping. Monitors scan live production traces for continuous quality tracking — no ground truth needed. See [Concepts: Evaluation Modes](CONCEPTS.md#evaluation-modes) for when to use each.
+
 Mode compatibility is auto-detected from the `task` parameter:
 
 ```python
@@ -119,7 +130,9 @@ When running in monitor mode, evaluators that require a `task` parameter are aut
 
 ## Defining Evaluators
 
-### Function-Based (`@evaluator`)
+Evaluators come in three flavors, all sharing the same core interface: receive structured trace data, return an `EvalResult`. This uniformity means evaluators are composable and interchangeable across modes and levels. See [Concepts: Evaluators](CONCEPTS.md#evaluators) for guidance on choosing between them.
+
+### Decorator-Based (`@evaluator`)
 
 ```python
 from amp_evaluation import evaluator, EvalResult, Param
@@ -177,6 +190,23 @@ efficient = AgentTokenEfficiency(max_tokens=3000)
 
 `Param` is a descriptor for evaluator parameters. Type is inferred from the annotation — never passed as an argument.
 
+### Decorator-Based
+
+```python
+@evaluator("latency-check")
+def latency_check(
+    trace: Trace,
+    max_latency_ms: float = Param(default=5000, description="Max latency in ms", min=0),
+    threshold: float = Param(default=0.8, description="Pass threshold", min=0, max=1),
+) -> EvalResult:
+    passed = trace.metrics.total_duration_ms <= max_latency_ms
+    score = 1.0 if passed else 0.0
+    return EvalResult(score=score, passed=score >= threshold)
+
+# Create configured copy (original unchanged)
+strict = latency_check.with_config(max_latency_ms=1000, threshold=0.9)
+```
+
 ### Class-Based
 
 ```python
@@ -196,23 +226,6 @@ class MyEvaluator(BaseEvaluator):
 strict = MyEvaluator(threshold=0.9, model="gpt-4o")
 ```
 
-### Function-Based
-
-```python
-@evaluator("latency-check")
-def latency_check(
-    trace: Trace,
-    max_latency_ms: float = Param(default=5000, description="Max latency in ms", min=0),
-    threshold: float = Param(default=0.8, description="Pass threshold", min=0, max=1),
-) -> EvalResult:
-    passed = trace.metrics.total_duration_ms <= max_latency_ms
-    score = 1.0 if passed else 0.0
-    return EvalResult(score=score, passed=score >= threshold)
-
-# Create configured copy (original unchanged)
-strict = latency_check.with_config(max_latency_ms=1000, threshold=0.9)
-```
-
 ### Schema Extraction
 
 The platform can extract configuration schemas from any evaluator:
@@ -230,17 +243,46 @@ print(info.config_schema)
 
 ## LLM-as-Judge Evaluators
 
-Use an LLM to evaluate agent outputs for subjective criteria. Write a `build_prompt()` method — the framework handles LLM calling, output validation, and retry.
+Use an LLM to evaluate agent outputs for subjective criteria that rule-based checks can't capture — helpfulness, tone, reasoning quality, or factual grounding. You write the prompt; the framework handles LLM calling, output validation, and retry.
 
 ### How It Works
 
-1. Override `build_prompt()` with typed parameters (same as `evaluate()`)
+1. Write a prompt-building function or method with typed parameters (same as `evaluate()`)
 2. **Level** auto-detected from first parameter type hint (`Trace`, `AgentTrace`, `LLMSpan`)
 3. **Mode** auto-detected from task parameter (same rules as regular evaluators)
 4. Framework auto-appends output format instructions to your prompt
 5. LLM called via [LiteLLM](https://docs.litellm.ai/) (supports 100+ providers)
 6. Response validated with Pydantic (`score: 0.0–1.0`, `explanation: str`)
 7. On invalid output, retries with Pydantic error as context (like [Instructor](https://python.useinstructor.com/))
+
+### Decorator-Based (`@llm_judge`)
+
+```python
+from amp_evaluation import llm_judge
+from amp_evaluation.trace import Trace, AgentTrace
+from amp_evaluation.dataset import Task
+
+@llm_judge
+def quality_judge(trace: Trace, task: Optional[Task] = None) -> str:
+    prompt = f"Evaluate: {trace.input} → {trace.output}"
+    if task and task.expected_output:
+        prompt += f"\nExpected: {task.expected_output}"
+    return prompt
+
+@llm_judge(model="gpt-4o", criteria="accuracy and completeness")
+def grounding_judge(trace: Trace) -> str:
+    tools = trace.get_tool_calls()
+    return f"""Is this grounded?
+Output: {trace.output}
+Tools: {', '.join(t.name for t in tools)}"""
+
+@llm_judge(model="anthropic/claude-sonnet-4-20250514")
+def agent_efficiency(agent: AgentTrace) -> str:
+    return f"""Evaluate agent efficiency.
+Input: {agent.input}
+Steps: {len(agent.steps)}
+Tools: {', '.join(agent.available_tools)}"""
+```
 
 ### Class-Based
 
@@ -298,35 +340,6 @@ Response: {llm.response}
 Tool calls: {len(llm.tool_calls)}"""
 ```
 
-### Decorator-Based (`@llm_judge`)
-
-```python
-from amp_evaluation import llm_judge
-from amp_evaluation.trace import Trace, AgentTrace
-from amp_evaluation.dataset import Task
-
-@llm_judge
-def quality_judge(trace: Trace, task: Optional[Task] = None) -> str:
-    prompt = f"Evaluate: {trace.input} → {trace.output}"
-    if task and task.expected_output:
-        prompt += f"\nExpected: {task.expected_output}"
-    return prompt
-
-@llm_judge(model="gpt-4o", criteria="accuracy and completeness")
-def grounding_judge(trace: Trace) -> str:
-    tools = trace.get_tool_calls()
-    return f"""Is this grounded?
-Output: {trace.output}
-Tools: {', '.join(t.name for t in tools)}"""
-
-@llm_judge(model="anthropic/claude-sonnet-4-20250514")
-def agent_efficiency(agent: AgentTrace) -> str:
-    return f"""Evaluate agent efficiency.
-Input: {agent.input}
-Steps: {len(agent.steps)}
-Tools: {', '.join(agent.available_tools)}"""
-```
-
 ### Custom LLM Client
 
 Override `_call_llm_with_retry()` to use any LLM client instead of LiteLLM:
@@ -357,10 +370,10 @@ LLM-as-judge evaluators use `Param` descriptors:
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `model` | `gpt-4o-mini` | LiteLLM model identifier |
+| `provider` | `openai` | LLM provider name |
 | `criteria` | `quality, accuracy, and helpfulness` | Evaluation criteria |
 | `temperature` | `0.0` | LLM temperature |
 | `max_tokens` | `1024` | Max tokens for response |
-| `threshold` | `0.5` | Score threshold for pass/fail |
 | `max_retries` | `2` | Retries on invalid output |
 
 ### LiteLLM Model Identifiers
@@ -380,10 +393,12 @@ API keys are set via environment variables: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY
 
 ## Trace Model
 
-Three vocabulary levels, each serving a clear purpose:
+The SDK evaluates agents by analyzing their OpenTelemetry traces rather than intercepting the agent runtime. This decouples evaluation from the agent framework — the same evaluator works with LangChain, CrewAI, OpenAI Agents, or any instrumented system. See [Concepts: Trace-Based Evaluation](CONCEPTS.md#trace-based-evaluation) for the full rationale.
 
-| Level | Container | Contains | Vocabulary |
-|-------|-----------|----------|-----------|
+A trace is structured into three data views, each serving a clear purpose:
+
+| View | Container | Contains | Data |
+|------|-----------|----------|------|
 | Trace | `Trace` | `spans: List[Span]` | **Spans** — raw OTEL execution records |
 | Agent | `AgentTrace` | `steps: List[AgentStep]` | **Steps** — reconstructed agent execution flow |
 | LLM | `LLMSpan` | `messages: List[Message]` | **Messages** — conversation to/from the LLM |
@@ -480,14 +495,14 @@ llm_span.tool_messages     # List[ToolMessage]
 
 ## Built-in Evaluators
 
-Use `builtin()` to get configured built-in evaluators by name:
+Built-in evaluators cover common quality checks so you can start monitoring immediately without writing custom logic. Use `builtin()` to get configured instances by name:
 
 ```python
 from amp_evaluation import builtin
 
 latency = builtin("latency", max_latency_ms=5000)
 hallucination = builtin("hallucination")
-answer_rel = builtin("answer_relevancy")
+safety = builtin("safety", context="customer support")
 ```
 
 ### Discovery
@@ -507,48 +522,96 @@ for info in catalog:
 
 ### Available Built-ins
 
-**Output Quality** (trace-level):
+#### Rule-Based Evaluators
 
-| Name | Description | Key Config |
-|------|-------------|------------|
-| `answer_length` | Output length within bounds | `min_length`, `max_length` |
-| `answer_relevancy` | Word overlap between input/output | `min_overlap_ratio` |
-| `required_content` | Required strings/patterns present | `required_strings`, `required_patterns` |
-| `prohibited_content` | Prohibited content absent | `prohibited_strings`, `prohibited_patterns` |
-| `exact_match` | Exact match with expected output | `case_sensitive` |
-| `contains_match` | Expected output in actual | `case_sensitive` |
-| `hallucination` | Keyword-based hallucination detection | `hallucination_keywords` |
+Deterministic, fast, and free. No LLM calls required.
 
-**Trajectory** (trace-level):
+**Output Quality:**
 
-| Name | Description | Key Config |
-|------|-------------|------------|
-| `tool_sequence` | Tool call sequence validation | `expected_sequence`, `strict` |
-| `required_tools` | Required tools were used | `required_tools` |
-| `step_success_rate` | Span success rate | `min_success_rate` |
+| Name | Level | Mode | Description | Key Config |
+|------|-------|------|-------------|------------|
+| `answer_length` | trace | both | Output character length within bounds | `min_length`, `max_length` |
+| `required_content` | trace | both | Required strings/patterns present in output | `required_strings`, `required_patterns` |
+| `prohibited_content` | trace | both | Prohibited content absent from output | `prohibited_strings`, `prohibited_patterns` |
+| `exact_match` | trace | experiment | Exact string match with expected output | `case_sensitive`, `strip_whitespace` |
+| `contains_match` | trace | experiment | Expected output appears as substring | `case_sensitive` |
 
-**Performance** (trace-level):
+**Trajectory:**
 
-| Name | Description | Key Config |
-|------|-------------|------------|
-| `latency` | Execution time within bounds | `max_latency_ms` |
-| `token_efficiency` | Token usage within limits | `max_tokens` |
-| `iteration_count` | Iteration count within limits | `max_iterations` |
+| Name | Level | Mode | Description | Key Config |
+|------|-------|------|-------------|------------|
+| `tool_sequence` | trace | both | Tool calls match expected order | `expected_sequence`, `strict` |
+| `required_tools` | trace | both | All required tools were invoked | `required_tools` |
+| `step_success_rate` | trace | both | Ratio of spans completed without errors | `min_success_rate` |
 
-**DeepEval** (trace-level, requires `deepeval` package):
+**Performance:**
 
-| Name | Description |
-|------|-------------|
-| `deepeval/plan-quality` | Agent plan quality |
-| `deepeval/plan-adherence` | Agent follows its plan |
-| `deepeval/tool-correctness` | Correct tool selection |
-| `deepeval/argument-correctness` | Correct tool arguments |
-| `deepeval/task-completion` | Task completion assessment |
-| `deepeval/step-efficiency` | Agent efficiency |
+| Name | Level | Mode | Description | Key Config |
+|------|-------|------|-------------|------------|
+| `latency` | trace | both | Execution time within bounds | `max_latency_ms` |
+| `token_efficiency` | trace | both | Token usage within limits | `max_tokens` |
+| `iteration_count` | trace | both | Span count within limits | `max_iterations` |
+
+#### LLM-as-Judge Evaluators
+
+Use an LLM to assess subjective quality. Require a configured LLM provider (see [LiteLLM Model Identifiers](#litellm-model-identifiers)). All accept a `threshold` param (default 0.5).
+
+**Quality** — Response clarity, structure, and communication effectiveness:
+
+| Name | Level | Mode | Description |
+|------|-------|------|-------------|
+| `helpfulness` | trace | both | Does the response actually help the user? Checks for actionable content vs empty acknowledgments |
+| `clarity` | trace | both | Readability, structure, and absence of ambiguity. Detail level vs user expertise |
+| `completeness` | trace | both | Addresses all sub-questions and requirements in the input |
+| `coherence` | llm | both | Logical flow, internal consistency, and structure |
+| `conciseness` | llm | both | No unnecessary verbosity or filler. Does not penalize thoroughness |
+| `tone` | llm | both | Appropriate and professional tone for the context |
+
+**Correctness** — Factual accuracy, grounding, and relevance:
+
+| Name | Level | Mode | Description |
+|------|-------|------|-------------|
+| `accuracy` | trace | both | Factual correctness of information in the response |
+| `faithfulness` | trace | both | Claims grounded in tool results and retrieved documents. Skips if no evidence |
+| `hallucination` | trace | both | Detects fabricated information not grounded in evidence |
+| `context_relevance` | trace | both | Retrieved context is relevant and sufficient for the response |
+| `relevance` | trace | both | Response is on-topic and addresses the user's actual question |
+| `semantic_similarity` | trace | experiment | Semantic meaning match with expected output |
+| `instruction_following` | trace | both | Response follows system prompt instructions and constraints |
+
+**Reasoning & Efficiency** — Agent-level decision-making and execution quality:
+
+| Name | Level | Mode | Description |
+|------|-------|------|-------------|
+| `goal_clarity` | agent | both | Agent demonstrates clear understanding of the user's goal |
+| `reasoning_quality` | agent | both | Execution steps are logical, purposeful, and well-reasoned |
+| `path_efficiency` | agent | both | Efficient execution with no redundant steps, loops, or wasted work |
+| `error_recovery` | agent | both | Graceful detection and recovery from errors. Skips if no errors |
+
+**Safety** — Content policy and harm prevention:
+
+| Name | Level | Mode | Description |
+|------|-------|------|-------------|
+| `safety` | llm | both | No harmful, toxic, biased, or policy-violating content (8 categories) |
+
+#### DeepEval Evaluators
+
+Wraps [DeepEval](https://github.com/confident-ai/deepeval) metrics. Requires `pip install deepeval>=3.8.4`. All experiment-only.
+
+| Name | Level | Description |
+|------|-------|-------------|
+| `deepeval/plan-quality` | trace | Agent plan is logical, complete, and aligned with the task |
+| `deepeval/plan-adherence` | trace | Agent followed its own stated plan during execution |
+| `deepeval/tool-correctness` | trace | Agent selected the correct tools for the task |
+| `deepeval/argument-correctness` | trace | Correct arguments passed to each tool call |
+| `deepeval/task-completion` | trace | Agent accomplished the intended task |
+| `deepeval/step-efficiency` | trace | No redundant or unnecessary steps in execution |
 
 ---
 
 ## Runners
+
+Runners orchestrate the evaluation pipeline — fetching traces, dispatching them to evaluators, and aggregating results.
 
 ### Monitor
 
@@ -556,10 +619,11 @@ Evaluates live production traces. No ground truth needed.
 
 ```python
 from amp_evaluation import Monitor, builtin
+from amp_evaluation.trace import TraceFetcher
 
 monitor = Monitor(
     evaluators=[builtin("latency", max_latency_ms=5000), builtin("hallucination")],
-    trace_service_url="http://traces:8001",
+    trace_fetcher=TraceFetcher(base_url="http://traces:8001"),
 )
 
 # Fetch and evaluate
@@ -579,7 +643,7 @@ Evaluates against a ground-truth dataset. Invokes the agent, fetches traces, the
 ```python
 from amp_evaluation import Experiment, Dataset, Task
 
-dataset = Dataset(tasks=[
+dataset = Dataset(dataset_id="math-qa", name="Math QA", tasks=[
     Task(task_id="q1", input="What is 2+2?", expected_output="4"),
 ])
 
@@ -621,7 +685,7 @@ print(result.summary())
 
 ## EvalResult
 
-Return type for all evaluators:
+Every evaluator returns an `EvalResult`. The key design distinction is between a measured score and an inability to evaluate at all — see [Concepts: EvalResult](CONCEPTS.md#evalresult--scored-vs-skipped) for when to use each.
 
 ```python
 from amp_evaluation import EvalResult
@@ -679,6 +743,8 @@ info.config_schema   # List of config parameter descriptors
 
 ## Aggregations
 
+When running evaluators across many traces, you need summary statistics to make decisions. Aggregations define how individual scores are combined into metrics like mean, pass rate, or percentile distributions. See [Concepts: Aggregations](CONCEPTS.md#aggregations) for guidance on interpreting results.
+
 Configure per-evaluator aggregation of scores across traces:
 
 ```python
@@ -719,6 +785,7 @@ amp-evaluation/
 │   │   └── builtin/
 │   │       ├── __init__.py      # builtin(), list_builtin_evaluators(), catalog
 │   │       ├── standard.py      # Rule-based evaluators
+│   │       ├── llm_judge.py     # LLM-as-judge evaluators (18 built-ins)
 │   │       └── deepeval.py      # DeepEval wrapper evaluators (optional dep)
 │   ├── trace/
 │   │   ├── __init__.py          # Trace, spans, messages, steps exports
@@ -731,7 +798,7 @@ amp-evaluation/
 │   │   └── builtin.py           # Built-in aggregation functions
 │   └── dataset/
 │       ├── __init__.py
-│       ├── schema.py            # Task, Dataset, Constraints
+│       ├── models.py            # Task, Dataset, Constraints
 │       └── loader.py            # JSON/CSV loading
 ├── samples/                     # 12 focused examples (see Samples below)
 │   ├── data/                    # Shared sample data
@@ -764,7 +831,7 @@ amp-evaluation/
 | 05 | [Class-Based Evaluator](samples/05-class-based-evaluator/) | `BaseEvaluator` subclassing, `EvalResult.skip()` | Yes |
 | 06 | [Decorator Evaluator](samples/06-decorator-evaluator/) | `@evaluator` decorator | Yes |
 | 07 | [LLM-as-Judge](samples/07-llm-as-judge/) | `LLMAsJudgeEvaluator`, `@llm_judge` | Needs API key |
-| 08 | [Built-in Evaluators](samples/08-builtin-evaluators/) | All 13 standard built-ins, catalog | Yes |
+| 08 | [Built-in Evaluators](samples/08-builtin-evaluators/) | All standard built-ins, catalog | Yes |
 | 09 | [DeepEval Evaluators](samples/09-deepeval-evaluators/) | DeepEval integration (6 evaluators) | Needs deepeval |
 | 10 | [Experiment with Dataset](samples/10-experiment-with-dataset/) | `load_dataset_from_json/csv()`, `Experiment.run()` | Yes (traces mode) |
 | 11 | [Module Discovery](samples/11-module-discovery/) | `discover_evaluators()` scanning | Yes |

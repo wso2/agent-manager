@@ -209,15 +209,6 @@ func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *
 		return
 	}
 
-	// Use user-provided granularity if valid, otherwise auto-calculate
-	granularity := r.URL.Query().Get("granularity")
-	switch granularity {
-	case "hour", "day", "week":
-		// valid, use as-is
-	default:
-		granularity = CalculateGranularity(duration)
-	}
-
 	// Resolve monitor name to ID
 	monitorID, err := c.scoresService.GetMonitorID(orgName, projName, agentName, monitorName)
 	if err != nil {
@@ -230,7 +221,8 @@ func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *
 		return
 	}
 
-	result, err := c.scoresService.GetEvaluatorTimeSeries(monitorID, monitorName, evaluatorName, startTime, endTime, granularity)
+	// Granularity is determined adaptively by the service based on data density and time range
+	result, err := c.scoresService.GetEvaluatorTimeSeries(monitorID, monitorName, evaluatorName, startTime, endTime)
 	if err != nil {
 		log.Error("Failed to get time series data", "monitorName", monitorName, "evaluator", evaluatorName, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get time series data")
@@ -241,22 +233,6 @@ func (c *monitorScoresController) GetScoresTimeSeries(w http.ResponseWriter, r *
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Error("Failed to encode response", "error", err)
-	}
-}
-
-// CalculateGranularity returns the appropriate time bucket granularity for the given duration:
-//
-//	<= 2 days  → "hour"
-//	<= 28 days → "day"
-//	> 28 days  → "week"
-func CalculateGranularity(d time.Duration) string {
-	switch {
-	case d <= 2*24*time.Hour:
-		return "hour"
-	case d <= 28*24*time.Hour:
-		return "day"
-	default:
-		return "week"
 	}
 }
 

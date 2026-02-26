@@ -399,10 +399,10 @@ class LLMConfigField:
 class LLMProviderInfo:
     """Metadata about a supported LLM provider."""
 
-    name: str  # "openai" — litellm provider identifier
+    name: str  # "openai" — platform provider identifier
     display_name: str  # "OpenAI"
     config_fields: List["LLMConfigField"]
-    models: List[str]  # curated popular model strings (litellm-compatible)
+    models: List[str]  # curated model names in provider/model format
 
 
 # ============================================================================

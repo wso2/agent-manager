@@ -24,9 +24,16 @@ discover_evaluators() scans a module for all BaseEvaluator instances.
 
 from typing import Optional, List
 import types
+import inspect
 import logging
 
-from .evaluators.base import BaseEvaluator, FunctionEvaluator, FunctionLLMJudge, validate_unique_evaluator_names
+from .evaluators.base import (
+    BaseEvaluator,
+    FunctionEvaluator,
+    FunctionLLMJudge,
+    LLMAsJudgeEvaluator,
+    validate_unique_evaluator_names,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -134,12 +141,11 @@ def discover_evaluators(module: types.ModuleType) -> List[BaseEvaluator]:
     """
     Scan a module for all BaseEvaluator instances.
 
-    Finds both:
+    Finds:
     - FunctionEvaluator instances (created by @evaluator decorator)
     - FunctionLLMJudge instances (created by @llm_judge decorator)
     - BaseEvaluator subclass instances (module-level instances)
-
-    Does NOT instantiate classes — only finds existing instances.
+    - BaseEvaluator subclasses (auto-instantiated with no args)
 
     Args:
         module: Python module to scan
@@ -152,12 +158,35 @@ def discover_evaluators(module: types.ModuleType) -> List[BaseEvaluator]:
         evaluators = discover_evaluators(my_evaluators)
         monitor = Monitor(evaluators=evaluators)
     """
-    found = []
+    # Framework base classes that should never be auto-instantiated
+    _framework_classes = (BaseEvaluator, FunctionEvaluator, FunctionLLMJudge, LLMAsJudgeEvaluator)
 
+    found = []
+    found_instance_types = set()
+    candidate_classes = []
+
+    # Pass 1: collect existing instances and candidate classes
     for attr_name in dir(module):
         obj = getattr(module, attr_name, None)
         if isinstance(obj, BaseEvaluator):
             found.append(obj)
+            found_instance_types.add(type(obj))
+        elif (
+            isinstance(obj, type)
+            and issubclass(obj, BaseEvaluator)
+            and obj not in _framework_classes
+            and not inspect.isabstract(obj)
+        ):
+            candidate_classes.append(obj)
+
+    # Pass 2: auto-instantiate classes that don't already have an instance
+    for cls in candidate_classes:
+        if cls not in found_instance_types:
+            try:
+                logger.debug("Auto-instantiating evaluator class: %s", cls.__name__)
+                found.append(cls())
+            except Exception:
+                logger.warning("Failed to auto-instantiate evaluator class: %s", cls.__name__, exc_info=True)
 
     validate_unique_evaluator_names(found)
 
