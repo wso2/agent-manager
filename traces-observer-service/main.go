@@ -91,11 +91,6 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", handler.Health)
-	mux.HandleFunc("/api/v0/traces", handler.GetTraceOverviews)
-	mux.HandleFunc("/api/v0/trace", handler.GetTraceByIdAndService)
-	// mux.HandleFunc("/api/v1/traces/export", handler.ExportTraces)
-
-	// v2 routes - fixed trace grouping and pagination
 	mux.HandleFunc("/api/v1/traces/export", handler.ExportTracesV2)
 	mux.HandleFunc("/api/v1/traces", handler.GetTraceOverviewsV2)
 	mux.HandleFunc("/api/v1/trace", handler.GetTraceByIdAndServiceV2)

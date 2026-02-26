@@ -29,15 +29,6 @@ type TraceQueryParams struct {
 	SortOrder      string
 }
 
-// TraceByIdAndServiceParams holds parameters for querying by both traceId and componentUid
-type TraceByIdAndServiceParams struct {
-	TraceID        string
-	ComponentUid   string
-	EnvironmentUid string
-	SortOrder      string
-	Limit          int
-}
-
 // Span represents a single trace span
 type Span struct {
 	TraceID         string                 `json:"traceId"`
@@ -248,8 +239,6 @@ type SearchResponse struct {
 		} `json:"hits"`
 	} `json:"hits"`
 }
-
-// --- v2 types ---
 
 // AggregationResponse represents an OpenSearch response with trace aggregation results
 type AggregationResponse struct {
