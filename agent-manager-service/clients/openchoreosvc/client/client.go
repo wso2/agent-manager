@@ -94,6 +94,10 @@ type OpenChoreoClient interface {
 	// Secret Reference Operations
 	CreateSecretReference(ctx context.Context, req CreateSecretReferenceRequest) error
 	DeleteSecretReference(ctx context.Context, namespace, name string) error
+	GetSecretReference(ctx context.Context, namespace, name string) (*SecretReferenceInfo, error)
+
+	// Workload Operations
+	GetWorkloadSecretRefNames(ctx context.Context, namespaceName, projectName, componentName string) ([]string, error)
 }
 
 type openChoreoClient struct {

@@ -208,3 +208,22 @@ type CreateSecretReferenceRequest struct {
 	SecretKeys      []string // Keys to extract from KV path
 	RefreshInterval string   // How often to refresh (e.g., "1h", "15s")
 }
+
+// SecretReferenceInfo contains info about a SecretReference CR
+type SecretReferenceInfo struct {
+	Name      string                 // Name of the SecretReference
+	Namespace string                 // Namespace of the SecretReference
+	Data      []SecretDataSourceInfo // Data sources in the SecretReference
+}
+
+// SecretDataSourceInfo contains info about a secret data source
+type SecretDataSourceInfo struct {
+	SecretKey string        // Key in the K8s secret
+	RemoteRef RemoteRefInfo // Reference to the remote secret store
+}
+
+// RemoteRefInfo contains info about the remote reference
+type RemoteRefInfo struct {
+	Key      string // Path/Key in the remote secret store
+	Property string // Property within the key (optional)
+}

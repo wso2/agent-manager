@@ -1129,7 +1129,20 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 		s.logger.Error("Failed to find project", "projectName", projectName, "orgName", orgName, "error", err)
 		return err
 	}
-	// Delete agent component in OpenChoreo
+
+	// Step 1: Fetch workload and check for secret references in env vars
+	secretRefNames, err := s.ocClient.GetWorkloadSecretRefNames(ctx, orgName, projectName, agentName)
+	if err != nil {
+		s.logger.Warn("Failed to get workload secret references", "agentName", agentName, "error", err)
+		// Continue with deletion even if we can't get secret refs
+	}
+
+	// Step 2-4: For each secret reference, get its details, delete from KV, then delete the CR
+	for _, secretRefName := range secretRefNames {
+		s.cleanupSecretReference(ctx, orgName, secretRefName)
+	}
+
+	// Step 5: Delete agent component in OpenChoreo
 	s.logger.Debug("Deleting oc agent", "agentName", agentName, "orgName", orgName, "projectName", projectName)
 	err = s.ocClient.DeleteComponent(ctx, orgName, projectName, agentName)
 	if err != nil {
@@ -1145,17 +1158,6 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 		return err
 	}
 
-	// Cleanup secrets from KV and SecretReference CR only if secrets exist
-	kvPath := fmt.Sprintf("%s/%s/%s", orgName, projectName, agentName)
-	_, err = s.secretMgmtClient.GetSecret(ctx, kvPath)
-	if err == nil {
-		// Secrets exist, clean them up
-		s.cleanupSecretsOnRollback(ctx, orgName, agentName, kvPath)
-	} else if !errors.Is(err, secretmanagersvc.ErrSecretNotFound) {
-		// Log unexpected errors but don't fail deletion
-		s.logger.Warn("Failed to check for existing secrets during deletion", "kvPath", kvPath, "error", err)
-	}
-
 	// Cleanup agent configs from database
 	if configErr := s.agentConfigRepo.DeleteAllByAgent(orgName, projectName, agentName); configErr != nil {
 		s.logger.Warn("Failed to delete agent configs from database", "agentName", agentName, "error", configErr)
@@ -1164,6 +1166,39 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, orgName string, p
 
 	s.logger.Debug("Agent deleted from OpenChoreo successfully", "orgName", orgName, "agentName", agentName)
 	return nil
+}
+
+// cleanupSecretReference fetches a secret reference, deletes its secrets from KV, then deletes the CR.
+func (s *agentManagerService) cleanupSecretReference(ctx context.Context, orgName, secretRefName string) {
+	// Fetch the secret reference to get the KV path and keys
+	secretRef, err := s.ocClient.GetSecretReference(ctx, orgName, secretRefName)
+	if err != nil {
+		s.logger.Warn("Failed to get secret reference during cleanup", "name", secretRefName, "error", err)
+		// Continue to delete the CR anyway
+	}
+
+	// Delete secrets from KV using the paths from the secret reference
+	if s.secretMgmtClient != nil && secretRef != nil && len(secretRef.Data) > 0 {
+		// The remote ref key contains the KV path (e.g., "org/project/agent")
+		kvPaths := make(map[string]struct{})
+		for _, data := range secretRef.Data {
+			kvPaths[data.RemoteRef.Key] = struct{}{}
+		}
+		for kvPath := range kvPaths {
+			if err := s.secretMgmtClient.DeleteSecret(ctx, kvPath); err != nil {
+				s.logger.Warn("Failed to delete secret from KV", "kvPath", kvPath, "error", err)
+			} else {
+				s.logger.Debug("Deleted secret from KV", "kvPath", kvPath)
+			}
+		}
+	}
+
+	// Delete the SecretReference CR
+	if err := s.ocClient.DeleteSecretReference(ctx, orgName, secretRefName); err != nil {
+		s.logger.Warn("Failed to delete secret reference CR", "name", secretRefName, "error", err)
+	} else {
+		s.logger.Debug("Deleted secret reference CR", "name", secretRefName)
+	}
 }
 
 // BuildAgent triggers a build for an agent.
@@ -1425,29 +1460,18 @@ func (s *agentManagerService) syncSecrets(
 ) error {
 	secretRefName := fmt.Sprintf("%s-secrets", componentName)
 
-	// Case 1: No secrets in current request
+	// Case 1: No secrets in current request - cleanup any existing secrets
 	if len(newSecretData) == 0 {
-		// Check if there were existing secrets that need to be cleaned up
-		if s.secretMgmtClient != nil {
-			existingSecrets, err := s.secretMgmtClient.GetSecret(ctx, kvPath)
-			if err != nil && !errors.Is(err, secretmanagersvc.ErrSecretNotFound) {
-				s.logger.Warn("Failed to check existing secrets", "kvPath", kvPath, "error", err)
-			}
-			if existingSecrets != nil && len(existingSecrets.Data) > 0 {
-				// Delete the secrets from KV
-				s.logger.Debug("Removing all secrets from KV", "kvPath", kvPath)
-				if err := s.secretMgmtClient.DeleteSecret(ctx, kvPath); err != nil {
-					s.logger.Warn("Failed to delete secrets from KV", "kvPath", kvPath, "error", err)
-					// Continue - not a fatal error
-				}
-				// Delete the SecretReference CR
-				s.logger.Debug("Deleting SecretReference", "name", secretRefName, "namespace", orgName)
-				if err := s.ocClient.DeleteSecretReference(ctx, orgName, secretRefName); err != nil {
-					s.logger.Warn("Failed to delete SecretReference", "name", secretRefName, "error", err)
-					// Continue - not a fatal error, may not exist
-				}
-				s.logger.Info("Cleaned up secrets and SecretReference", "kvPath", kvPath, "secretRefName", secretRefName)
-			}
+		// Check workload for existing secret references
+		secretRefNames, err := s.ocClient.GetWorkloadSecretRefNames(ctx, orgName, projectName, componentName)
+		if err != nil {
+			s.logger.Warn("Failed to check workload for secret references", "component", componentName, "error", err)
+			// Continue - workload may not exist yet
+		}
+
+		// Clean up any existing secret references
+		for _, refName := range secretRefNames {
+			s.cleanupSecretReference(ctx, orgName, refName)
 		}
 		return nil
 	}
@@ -1457,29 +1481,15 @@ func (s *agentManagerService) syncSecrets(
 		return fmt.Errorf("secret management is not enabled but secret env vars were provided")
 	}
 
-	// Try to get existing secrets to determine if this is create or update
-	existingSecrets, err := s.secretMgmtClient.GetSecret(ctx, kvPath)
-	if err != nil && !errors.Is(err, secretmanagersvc.ErrSecretNotFound) {
-		return fmt.Errorf("failed to check existing secrets in OpenBao: %w", err)
-	}
-	hasExistingSecrets := existingSecrets != nil && len(existingSecrets.Data) > 0
-
-	if hasExistingSecrets {
-		// Log what's changing for debugging
-		s.logSecretChanges(existingSecrets.Data, newSecretData)
-
-		// Update: Replace KV data with new secret data
-		// This handles adds, updates, and removes in one operation
-		s.logger.Debug("Updating secrets in KV", "kvPath", kvPath, "secretCount", len(newSecretData))
-		_, err = s.secretMgmtClient.UpdateSecret(ctx, kvPath, secretmanagersvc.UpdateSecretRequest{
-			Data: newSecretData,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to update secrets in OpenBao: %w", err)
-		}
-	} else {
-		// Create: First time storing secrets
-		s.logger.Debug("Creating secrets in KV", "kvPath", kvPath, "secretCount", len(newSecretData))
+	// Try to update first, fall back to create if secret doesn't exist
+	// This avoids fetching secret values just to check existence
+	s.logger.Debug("Storing secrets in KV", "kvPath", kvPath, "secretCount", len(newSecretData))
+	_, err := s.secretMgmtClient.UpdateSecret(ctx, kvPath, secretmanagersvc.UpdateSecretRequest{
+		Data: newSecretData,
+	})
+	if errors.Is(err, secretmanagersvc.ErrSecretNotFound) {
+		// Secret doesn't exist, create it
+		s.logger.Debug("Secret not found, creating new secret in KV", "kvPath", kvPath)
 		_, err = s.secretMgmtClient.CreateSecret(ctx, secretmanagersvc.CreateSecretRequest{
 			Path: kvPath,
 			Data: newSecretData,
@@ -1487,6 +1497,8 @@ func (s *agentManagerService) syncSecrets(
 		if err != nil {
 			return fmt.Errorf("failed to create secrets in OpenBao: %w", err)
 		}
+	} else if err != nil {
+		return fmt.Errorf("failed to update secrets in OpenBao: %w", err)
 	}
 
 	// Update SecretReference CR via OpenChoreo /apply API
@@ -1512,35 +1524,6 @@ func (s *agentManagerService) syncSecrets(
 
 	s.logger.Info("Secrets synchronized successfully", "componentName", componentName, "kvPath", kvPath, "secretCount", len(newSecretData))
 	return nil
-}
-
-// logSecretChanges logs the differences between existing and new secrets for debugging
-func (s *agentManagerService) logSecretChanges(existing, newSecrets map[string]string) {
-	var added, updated, removed []string
-
-	// Find added and updated keys
-	for key := range newSecrets {
-		if _, exists := existing[key]; exists {
-			updated = append(updated, key)
-		} else {
-			added = append(added, key)
-		}
-	}
-
-	// Find removed keys
-	for key := range existing {
-		if _, exists := newSecrets[key]; !exists {
-			removed = append(removed, key)
-		}
-	}
-
-	if len(added) > 0 || len(updated) > 0 || len(removed) > 0 {
-		s.logger.Debug("Secret changes detected",
-			"added", added,
-			"updated", updated,
-			"removed", removed,
-		)
-	}
 }
 
 func (s *agentManagerService) ListAgentBuilds(ctx context.Context, orgName string, projectName string, agentName string, limit int32, offset int32) ([]*models.BuildResponse, int32, error) {

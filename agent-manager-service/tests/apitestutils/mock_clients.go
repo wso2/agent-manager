@@ -142,16 +142,19 @@ func CreateMockOpenChoreoClient() *clientmocks.OpenChoreoClientMock {
 		DeleteSecretReferenceFunc: func(ctx context.Context, namespace string, name string) error {
 			return nil
 		},
+		GetSecretReferenceFunc: func(ctx context.Context, namespace string, name string) (*client.SecretReferenceInfo, error) {
+			return nil, fmt.Errorf("secret reference %s not found", name)
+		},
+		GetWorkloadSecretRefNamesFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]string, error) {
+			// Return empty list by default (no secret refs)
+			return nil, nil
+		},
 	}
 }
 
 // CreateMockSecretManagementClient creates a mock SecretManagementClient with default behavior for testing.
-// By default, GetSecret returns ErrSecretNotFound to simulate no existing secrets.
 func CreateMockSecretManagementClient() *clientmocks.SecretManagementClientMock {
 	return &clientmocks.SecretManagementClientMock{
-		GetSecretFunc: func(ctx context.Context, secretPath string) (*secretmanagersvc.SecretResponse, error) {
-			return nil, secretmanagersvc.ErrSecretNotFound
-		},
 		CreateSecretFunc: func(ctx context.Context, req secretmanagersvc.CreateSecretRequest) (*secretmanagersvc.SecretResponse, error) {
 			return &secretmanagersvc.SecretResponse{
 				Path: req.Path,

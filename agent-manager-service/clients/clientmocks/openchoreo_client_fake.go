@@ -86,6 +86,12 @@ import (
 //			GetResourceFunc: func(ctx context.Context, namespaceName string, kind string, name string) (map[string]interface{}, error) {
 //				panic("mock out the GetResource method")
 //			},
+//			GetSecretReferenceFunc: func(ctx context.Context, namespace string, name string) (*client.SecretReferenceInfo, error) {
+//				panic("mock out the GetSecretReference method")
+//			},
+//			GetWorkloadSecretRefNamesFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]string, error) {
+//				panic("mock out the GetWorkloadSecretRefNames method")
+//			},
 //			HasTraitFunc: func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) (bool, error) {
 //				panic("mock out the HasTrait method")
 //			},
@@ -203,6 +209,12 @@ type OpenChoreoClientMock struct {
 
 	// GetResourceFunc mocks the GetResource method.
 	GetResourceFunc func(ctx context.Context, namespaceName string, kind string, name string) (map[string]interface{}, error)
+
+	// GetSecretReferenceFunc mocks the GetSecretReference method.
+	GetSecretReferenceFunc func(ctx context.Context, namespace string, name string) (*client.SecretReferenceInfo, error)
+
+	// GetWorkloadSecretRefNamesFunc mocks the GetWorkloadSecretRefNames method.
+	GetWorkloadSecretRefNamesFunc func(ctx context.Context, namespaceName string, projectName string, componentName string) ([]string, error)
 
 	// HasTraitFunc mocks the HasTrait method.
 	HasTraitFunc func(ctx context.Context, namespaceName string, projectName string, componentName string, traitType client.TraitType) (bool, error)
@@ -493,6 +505,26 @@ type OpenChoreoClientMock struct {
 			// Name is the name argument value.
 			Name string
 		}
+		// GetSecretReference holds details about calls to the GetSecretReference method.
+		GetSecretReference []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Namespace is the namespace argument value.
+			Namespace string
+			// Name is the name argument value.
+			Name string
+		}
+		// GetWorkloadSecretRefNames holds details about calls to the GetWorkloadSecretRefNames method.
+		GetWorkloadSecretRefNames []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// NamespaceName is the namespaceName argument value.
+			NamespaceName string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// ComponentName is the componentName argument value.
+			ComponentName string
+		}
 		// HasTrait holds details about calls to the HasTrait method.
 		HasTrait []struct {
 			// Ctx is the ctx argument value.
@@ -661,6 +693,8 @@ type OpenChoreoClientMock struct {
 	lockGetProject                          sync.RWMutex
 	lockGetProjectDeploymentPipeline        sync.RWMutex
 	lockGetResource                         sync.RWMutex
+	lockGetSecretReference                  sync.RWMutex
+	lockGetWorkloadSecretRefNames           sync.RWMutex
 	lockHasTrait                            sync.RWMutex
 	lockListBuilds                          sync.RWMutex
 	lockListComponents                      sync.RWMutex
@@ -1670,6 +1704,90 @@ func (mock *OpenChoreoClientMock) GetResourceCalls() []struct {
 	mock.lockGetResource.RLock()
 	calls = mock.calls.GetResource
 	mock.lockGetResource.RUnlock()
+	return calls
+}
+
+// GetSecretReference calls GetSecretReferenceFunc.
+func (mock *OpenChoreoClientMock) GetSecretReference(ctx context.Context, namespace string, name string) (*client.SecretReferenceInfo, error) {
+	if mock.GetSecretReferenceFunc == nil {
+		panic("OpenChoreoClientMock.GetSecretReferenceFunc: method is nil but OpenChoreoClient.GetSecretReference was just called")
+	}
+	callInfo := struct {
+		Ctx       context.Context
+		Namespace string
+		Name      string
+	}{
+		Ctx:       ctx,
+		Namespace: namespace,
+		Name:      name,
+	}
+	mock.lockGetSecretReference.Lock()
+	mock.calls.GetSecretReference = append(mock.calls.GetSecretReference, callInfo)
+	mock.lockGetSecretReference.Unlock()
+	return mock.GetSecretReferenceFunc(ctx, namespace, name)
+}
+
+// GetSecretReferenceCalls gets all the calls that were made to GetSecretReference.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.GetSecretReferenceCalls())
+func (mock *OpenChoreoClientMock) GetSecretReferenceCalls() []struct {
+	Ctx       context.Context
+	Namespace string
+	Name      string
+} {
+	var calls []struct {
+		Ctx       context.Context
+		Namespace string
+		Name      string
+	}
+	mock.lockGetSecretReference.RLock()
+	calls = mock.calls.GetSecretReference
+	mock.lockGetSecretReference.RUnlock()
+	return calls
+}
+
+// GetWorkloadSecretRefNames calls GetWorkloadSecretRefNamesFunc.
+func (mock *OpenChoreoClientMock) GetWorkloadSecretRefNames(ctx context.Context, namespaceName string, projectName string, componentName string) ([]string, error) {
+	if mock.GetWorkloadSecretRefNamesFunc == nil {
+		panic("OpenChoreoClientMock.GetWorkloadSecretRefNamesFunc: method is nil but OpenChoreoClient.GetWorkloadSecretRefNames was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+	}{
+		Ctx:           ctx,
+		NamespaceName: namespaceName,
+		ProjectName:   projectName,
+		ComponentName: componentName,
+	}
+	mock.lockGetWorkloadSecretRefNames.Lock()
+	mock.calls.GetWorkloadSecretRefNames = append(mock.calls.GetWorkloadSecretRefNames, callInfo)
+	mock.lockGetWorkloadSecretRefNames.Unlock()
+	return mock.GetWorkloadSecretRefNamesFunc(ctx, namespaceName, projectName, componentName)
+}
+
+// GetWorkloadSecretRefNamesCalls gets all the calls that were made to GetWorkloadSecretRefNames.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.GetWorkloadSecretRefNamesCalls())
+func (mock *OpenChoreoClientMock) GetWorkloadSecretRefNamesCalls() []struct {
+	Ctx           context.Context
+	NamespaceName string
+	ProjectName   string
+	ComponentName string
+} {
+	var calls []struct {
+		Ctx           context.Context
+		NamespaceName string
+		ProjectName   string
+		ComponentName string
+	}
+	mock.lockGetWorkloadSecretRefNames.RLock()
+	calls = mock.calls.GetWorkloadSecretRefNames
+	mock.lockGetWorkloadSecretRefNames.RUnlock()
 	return calls
 }
 

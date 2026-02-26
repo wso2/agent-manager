@@ -5,8 +5,9 @@ package clientmocks
 
 import (
 	"context"
-	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
 	"sync"
+
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/secretmanagersvc"
 )
 
 // Ensure, that SecretManagementClientMock does implement secretmanagersvc.SecretManagementClient.
@@ -25,9 +26,6 @@ var _ secretmanagersvc.SecretManagementClient = &SecretManagementClientMock{}
 //			DeleteSecretFunc: func(ctx context.Context, secretPath string) error {
 //				panic("mock out the DeleteSecret method")
 //			},
-//			GetSecretFunc: func(ctx context.Context, secretPath string) (*secretmanagersvc.SecretResponse, error) {
-//				panic("mock out the GetSecret method")
-//			},
 //			UpdateSecretFunc: func(ctx context.Context, secretPath string, req secretmanagersvc.UpdateSecretRequest) (*secretmanagersvc.SecretResponse, error) {
 //				panic("mock out the UpdateSecret method")
 //			},
@@ -43,9 +41,6 @@ type SecretManagementClientMock struct {
 
 	// DeleteSecretFunc mocks the DeleteSecret method.
 	DeleteSecretFunc func(ctx context.Context, secretPath string) error
-
-	// GetSecretFunc mocks the GetSecret method.
-	GetSecretFunc func(ctx context.Context, secretPath string) (*secretmanagersvc.SecretResponse, error)
 
 	// UpdateSecretFunc mocks the UpdateSecret method.
 	UpdateSecretFunc func(ctx context.Context, secretPath string, req secretmanagersvc.UpdateSecretRequest) (*secretmanagersvc.SecretResponse, error)
@@ -66,13 +61,6 @@ type SecretManagementClientMock struct {
 			// SecretPath is the secretPath argument value.
 			SecretPath string
 		}
-		// GetSecret holds details about calls to the GetSecret method.
-		GetSecret []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// SecretPath is the secretPath argument value.
-			SecretPath string
-		}
 		// UpdateSecret holds details about calls to the UpdateSecret method.
 		UpdateSecret []struct {
 			// Ctx is the ctx argument value.
@@ -85,7 +73,6 @@ type SecretManagementClientMock struct {
 	}
 	lockCreateSecret sync.RWMutex
 	lockDeleteSecret sync.RWMutex
-	lockGetSecret    sync.RWMutex
 	lockUpdateSecret sync.RWMutex
 }
 
@@ -158,42 +145,6 @@ func (mock *SecretManagementClientMock) DeleteSecretCalls() []struct {
 	mock.lockDeleteSecret.RLock()
 	calls = mock.calls.DeleteSecret
 	mock.lockDeleteSecret.RUnlock()
-	return calls
-}
-
-// GetSecret calls GetSecretFunc.
-func (mock *SecretManagementClientMock) GetSecret(ctx context.Context, secretPath string) (*secretmanagersvc.SecretResponse, error) {
-	if mock.GetSecretFunc == nil {
-		panic("SecretManagementClientMock.GetSecretFunc: method is nil but SecretManagementClient.GetSecret was just called")
-	}
-	callInfo := struct {
-		Ctx        context.Context
-		SecretPath string
-	}{
-		Ctx:        ctx,
-		SecretPath: secretPath,
-	}
-	mock.lockGetSecret.Lock()
-	mock.calls.GetSecret = append(mock.calls.GetSecret, callInfo)
-	mock.lockGetSecret.Unlock()
-	return mock.GetSecretFunc(ctx, secretPath)
-}
-
-// GetSecretCalls gets all the calls that were made to GetSecret.
-// Check the length with:
-//
-//	len(mockedSecretManagementClient.GetSecretCalls())
-func (mock *SecretManagementClientMock) GetSecretCalls() []struct {
-	Ctx        context.Context
-	SecretPath string
-} {
-	var calls []struct {
-		Ctx        context.Context
-		SecretPath string
-	}
-	mock.lockGetSecret.RLock()
-	calls = mock.calls.GetSecret
-	mock.lockGetSecret.RUnlock()
 	return calls
 }
 

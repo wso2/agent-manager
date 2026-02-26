@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/wso2/ai-agent-management-platform/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/ai-agent-management-platform/agent-manager-service/utils"
 )
 
 // ApplyResource creates or updates a generic resource via OpenChoreo
@@ -129,4 +130,88 @@ func (c *openChoreoClient) DeleteSecretReference(ctx context.Context, namespace,
 	}
 
 	return c.DeleteResource(ctx, secretRefCR)
+}
+
+// GetSecretReference retrieves a SecretReference CR by name and namespace
+func (c *openChoreoClient) GetSecretReference(ctx context.Context, namespace, name string) (*SecretReferenceInfo, error) {
+	resp, err := c.ocClient.ListSecretReferencesWithResponse(ctx, namespace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list secret references: %w", err)
+	}
+
+	if resp.StatusCode() != http.StatusOK {
+		return nil, handleErrorResponse(resp.StatusCode(), resp.Body, ErrorContext{})
+	}
+
+	if resp.JSON200 == nil || resp.JSON200.Data == nil || resp.JSON200.Data.Items == nil {
+		return nil, fmt.Errorf("secret reference %s not found in namespace %s", name, namespace)
+	}
+
+	// Find the secret reference by name
+	for _, sr := range *resp.JSON200.Data.Items {
+		if sr.Name == name {
+			info := &SecretReferenceInfo{
+				Name:      sr.Name,
+				Namespace: sr.Namespace,
+			}
+			if sr.Data != nil {
+				for _, d := range *sr.Data {
+					info.Data = append(info.Data, SecretDataSourceInfo{
+						SecretKey: d.SecretKey,
+						RemoteRef: RemoteRefInfo{
+							Key:      d.RemoteRef.Key,
+							Property: utils.StrPointerAsStr(d.RemoteRef.Property, ""),
+						},
+					})
+				}
+			}
+			return info, nil
+		}
+	}
+
+	return nil, fmt.Errorf("secret reference %s not found in namespace %s", name, namespace)
+}
+
+// GetWorkloadSecretRefNames extracts secret reference names from the main container's env vars
+func (c *openChoreoClient) GetWorkloadSecretRefNames(ctx context.Context, namespaceName, projectName, componentName string) ([]string, error) {
+	workloadResp, err := c.ocClient.GetWorkloadsWithResponse(ctx, namespaceName, projectName, componentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workload: %w", err)
+	}
+
+	if workloadResp.StatusCode() != http.StatusOK {
+		if workloadResp.StatusCode() == http.StatusNotFound {
+			// Workload not found - return empty list
+			return nil, nil
+		}
+		return nil, handleErrorResponse(workloadResp.StatusCode(), workloadResp.Body, ErrorContext{
+			NotFoundErr: utils.ErrAgentNotFound,
+		})
+	}
+
+	if workloadResp.JSON200 == nil || workloadResp.JSON200.Data == nil || workloadResp.JSON200.Data.Containers == nil {
+		return nil, nil
+	}
+
+	// Get the main container and extract secret ref names from env vars
+	mainContainer, ok := (*workloadResp.JSON200.Data.Containers)[MainContainerName]
+	if !ok || mainContainer.Env == nil {
+		return nil, nil
+	}
+
+	// Use a map to deduplicate secret reference names
+	secretRefNames := make(map[string]struct{})
+	for _, env := range *mainContainer.Env {
+		if env.ValueFrom != nil && env.ValueFrom.SecretRef != nil {
+			secretRefNames[env.ValueFrom.SecretRef.Name] = struct{}{}
+		}
+	}
+
+	// Convert map to slice
+	result := make([]string, 0, len(secretRefNames))
+	for name := range secretRefNames {
+		result = append(result, name)
+	}
+
+	return result, nil
 }

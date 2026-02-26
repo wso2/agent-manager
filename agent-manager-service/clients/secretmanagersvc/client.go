@@ -58,8 +58,6 @@ type SecretManagementClient interface {
 
 	// UpdateSecret updates an existing secret.
 	UpdateSecret(ctx context.Context, secretPath string, req UpdateSecretRequest) (*SecretResponse, error)
-	// GetSecret retrieves a secret by path.
-	GetSecret(ctx context.Context, secretPath string) (*SecretResponse, error)
 
 	// DeleteSecret deletes a secret by path.
 	DeleteSecret(ctx context.Context, secretPath string) error
@@ -134,25 +132,6 @@ func (c *secretManagementClient) UpdateSecret(ctx context.Context, secretPath st
 
 	return &SecretResponse{
 		Path: secretPath,
-	}, nil
-}
-
-// GetSecret retrieves a secret by path.
-func (c *secretManagementClient) GetSecret(ctx context.Context, secretPath string) (*SecretResponse, error) {
-	data, err := c.lowLevelClient.GetSecret(ctx, secretPath)
-	if err != nil {
-		return nil, err
-	}
-
-	// Parse JSON data back to map
-	var secretData map[string]string
-	if err := json.Unmarshal(data, &secretData); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal secret data: %w", err)
-	}
-
-	return &SecretResponse{
-		Path: secretPath,
-		Data: secretData,
 	}, nil
 }
 
