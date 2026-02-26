@@ -53,7 +53,6 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'components/amp-instrumentation',
-        'components/amp-eval'
       ],
     },
     {
