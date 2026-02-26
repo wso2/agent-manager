@@ -29,6 +29,15 @@ type TraceQueryParams struct {
 	SortOrder      string
 }
 
+// TraceByIdParams holds parameters for querying spans by trace IDs
+type TraceByIdParams struct {
+	TraceIDs       []string
+	ComponentUid   string
+	EnvironmentUid string
+	ParentSpan     bool
+	Limit          int
+}
+
 // Span represents a single trace span
 type Span struct {
 	TraceID         string                 `json:"traceId"`
@@ -256,13 +265,4 @@ type AggregationResponse struct {
 type TraceBucket struct {
 	Key      string `json:"key"`
 	DocCount int    `json:"doc_count"`
-}
-
-// TraceByIdParams holds parameters for querying spans by trace IDs
-type TraceByIdParams struct {
-	TraceIDs       []string
-	ComponentUid   string
-	EnvironmentUid string
-	ParentSpan     bool
-	Limit          int
 }
