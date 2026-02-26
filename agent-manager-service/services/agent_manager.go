@@ -131,7 +131,7 @@ func mapConfigurationsWithSecrets(specConfigs *spec.Configurations, componentNam
 	}
 
 	// K8s Secret name created by SecretReference
-	secretName := fmt.Sprintf("%s-secrets", componentName)
+	secretName := utils.BuildSecretRefName(componentName)
 
 	configs := &client.Configurations{
 		Env: make([]client.EnvVar, len(specConfigs.Env)),
@@ -487,8 +487,20 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, orgName string, p
 		return err
 	}
 
+	// Get the first/lowest environment for secret path
+	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
+	if err != nil {
+		s.logger.Error("Failed to get deployment pipeline", "projectName", projectName, "error", err)
+		return fmt.Errorf("failed to get deployment pipeline: %w", err)
+	}
+	firstEnv := findLowestEnvironment(pipeline.PromotionPaths)
+	if firstEnv == "" {
+		s.logger.Error("No environment found in deployment pipeline", "projectName", projectName)
+		return fmt.Errorf("no environment found in deployment pipeline")
+	}
+
 	// Build KV path for secrets in OpenBao
-	kvPath := fmt.Sprintf("%s/%s/%s", orgName, projectName, req.Name)
+	kvPath := utils.BuildSecretKVPath(orgName, projectName, firstEnv, req.Name)
 
 	// Check if there are secret env vars that need to be handled
 	hasSecrets := false
@@ -665,7 +677,7 @@ func (s *agentManagerService) saveSecretsAndCreateReference(
 	}
 
 	// Create SecretReference CR via OpenChoreo /apply API
-	secretRefName := fmt.Sprintf("%s-secrets", componentName)
+	secretRefName := utils.BuildSecretRefName(componentName)
 	s.logger.Debug("Creating SecretReference CR", "name", secretRefName, "namespace", orgName, "kvPath", kvPath)
 	if err := s.ocClient.CreateSecretReference(ctx, client.CreateSecretReferenceRequest{
 		Namespace:       orgName,
@@ -686,7 +698,7 @@ func (s *agentManagerService) saveSecretsAndCreateReference(
 // cleanupSecretsOnRollback removes secrets from KV and deletes SecretReference CR during rollback.
 // This is a best-effort cleanup - errors are logged but not returned since we're already handling a failure.
 func (s *agentManagerService) cleanupSecretsOnRollback(ctx context.Context, orgName, componentName, kvPath string) {
-	secretRefName := fmt.Sprintf("%s-secrets", componentName)
+	secretRefName := utils.BuildSecretRefName(componentName)
 
 	// Delete secrets from KV
 	if s.secretMgmtClient != nil {
@@ -1253,6 +1265,16 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 	if agent.Provisioning.Type != string(utils.InternalAgent) {
 		return "", fmt.Errorf("deploy operation is not supported for agent type: '%s'", agent.Provisioning.Type)
 	}
+	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
+	if err != nil {
+		s.logger.Error("Failed to fetch deployment pipeline", "orgName", orgName, "projectName", projectName, "error", err)
+		return "", fmt.Errorf("failed to fetch deployment pipeline: %w", err)
+	}
+	lowestEnv := findLowestEnvironment(pipeline.PromotionPaths)
+	if lowestEnv == "" {
+		s.logger.Error("No environment found in deployment pipeline", "projectName", projectName)
+		return "", fmt.Errorf("no environment found in deployment pipeline")
+	}
 
 	// Convert to deploy request with user-provided env vars
 	deployReq := client.DeployRequest{
@@ -1261,7 +1283,7 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 
 	// Process environment variables, handling secrets separately
 	if len(req.Env) > 0 {
-		envVars, err := s.processEnvVars(ctx, orgName, projectName, agentName, req.Env)
+		envVars, err := s.processEnvVars(ctx, orgName, projectName, lowestEnv, agentName, req.Env)
 		if err != nil {
 			s.logger.Error("Failed to process environment variables", "agentName", agentName, "error", err)
 			return "", fmt.Errorf("failed to process environment variables: %w", err)
@@ -1283,20 +1305,9 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, orgName string, p
 		}
 	}
 
-	// Get deployment pipeline and environment info early (needed for instrumentation config)
-	pipeline, err := s.ocClient.GetProjectDeploymentPipeline(ctx, orgName, projectName)
+	targetEnv, err := s.ocClient.GetEnvironment(ctx, orgName, lowestEnv)
 	if err != nil {
-		s.logger.Error("Failed to fetch deployment pipeline", "orgName", orgName, "projectName", projectName, "error", err)
-		return "", fmt.Errorf("failed to fetch deployment pipeline: %w", err)
-	}
-	lowestEnv := findLowestEnvironment(pipeline.PromotionPaths)
-
-	var targetEnv *models.EnvironmentResponse
-	if lowestEnv != "" {
-		targetEnv, err = s.ocClient.GetEnvironment(ctx, orgName, lowestEnv)
-		if err != nil {
-			s.logger.Warn("Failed to get environment details", "environment", lowestEnv, "error", err)
-		}
+		s.logger.Warn("Failed to get environment details", "environment", lowestEnv, "error", err)
 	}
 
 	// Resolve enableAutoInstrumentation value:
@@ -1406,15 +1417,15 @@ func findLowestEnvironment(promotionPaths []models.PromotionPath) string {
 //   - Returns env var with the value directly
 func (s *agentManagerService) processEnvVars(
 	ctx context.Context,
-	orgName, projectName, componentName string,
+	orgName, projectName, environmentName, componentName string,
 	envVars []spec.EnvironmentVariable,
 ) ([]client.EnvVar, error) {
 	var result []client.EnvVar
 	secretData := make(map[string]string)
 
 	// Build KV path for secrets in OpenBao
-	kvPath := fmt.Sprintf("%s/%s/%s", orgName, projectName, componentName)
-	secretName := fmt.Sprintf("%s-secrets", componentName)
+	kvPath := utils.BuildSecretKVPath(orgName, projectName, environmentName, componentName)
+	secretName := utils.BuildSecretRefName(componentName)
 
 	for _, env := range envVars {
 		if env.GetIsSensitive() {
@@ -1458,7 +1469,7 @@ func (s *agentManagerService) syncSecrets(
 	orgName, projectName, componentName, kvPath string,
 	newSecretData map[string]string,
 ) error {
-	secretRefName := fmt.Sprintf("%s-secrets", componentName)
+	secretRefName := utils.BuildSecretRefName(componentName)
 
 	// Case 1: No secrets in current request - cleanup any existing secrets
 	if len(newSecretData) == 0 {

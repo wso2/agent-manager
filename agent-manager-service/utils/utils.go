@@ -873,3 +873,15 @@ func ToShortSHA(commit string) string {
 	// Return first 8 characters
 	return commit[:8]
 }
+
+// BuildSecretKVPath constructs the path for storing secrets in OpenBao KV store.
+// The path format is: {orgName}/{projectName}/{environmentName}/{componentName}
+func BuildSecretKVPath(orgName, projectName, environmentName, componentName string) string {
+	return fmt.Sprintf("%s/%s/%s/%s", orgName, projectName, environmentName, componentName)
+}
+
+// BuildSecretRefName constructs the name for SecretReference CR.
+// The name format is: {componentName}-secrets
+func BuildSecretRefName(componentName string) string {
+	return fmt.Sprintf("%s-secrets", componentName)
+}
