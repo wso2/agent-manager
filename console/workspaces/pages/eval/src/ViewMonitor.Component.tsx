@@ -156,7 +156,7 @@ export const ViewMonitorComponent: React.FC = () => {
         label: "Skipped Traces",
         value: totalFailed.toLocaleString(),
         helper: "Skipped traces/Total evaluator failures",
-        rate: (totalFailed / totalCount) * 100,
+        rate: totalCount > 0 ? (totalFailed / totalCount) * 100 : 0 as number,
       },
     ];
   }, [evaluators, timeRangeLabel]);
@@ -179,8 +179,6 @@ export const ViewMonitorComponent: React.FC = () => {
   const evaluationSummaryAverage = useMemo(() => {
     if (averageScore === null)
       return { value: "–", helper: "No data yet", progress: 0 };
-    // Note: baseline window (now-30d → now) overlaps the selected period,
-    // so the delta reflects trend within the rolling 30d, not a prior period.
     const scorePct = averageScore * 100;
     return {
       value: `${scorePct.toFixed(1)}%`,
