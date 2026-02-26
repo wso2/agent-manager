@@ -222,8 +222,6 @@ go install github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemet
 
 Ensure Go bin is in `PATH` (for example `$(go env GOPATH)/bin`).
 
-## Configuration
-
 ## Make Targets
 
 From `traces-observer-service`:

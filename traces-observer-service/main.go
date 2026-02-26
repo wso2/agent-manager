@@ -89,11 +89,10 @@ func main() {
 
 	// Setup routes
 	mux := http.NewServeMux()
-
-	mux.HandleFunc("/health", handler.Health)
-	mux.HandleFunc("/api/v1/traces/export", handler.ExportTraces)
 	mux.HandleFunc("/api/v1/traces", handler.GetTraceOverviews)
+	mux.HandleFunc("/api/v1/traces/export", handler.ExportTraces)
 	mux.HandleFunc("/api/v1/trace", handler.GetTraceById)
+	mux.HandleFunc("/health", handler.Health)
 
 	// Apply middleware: Request Logger -> CORS
 	corsConfig := middleware.DefaultCORSConfig()

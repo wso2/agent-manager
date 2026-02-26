@@ -50,8 +50,10 @@ type ErrorResponse struct {
 
 // GetTraceOverviews handles GET /api/v1/traces with query parameters
 func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
+	// Get logger from context
 	log := logger.GetLogger(r.Context())
 
+	// Parse query parameters
 	query := r.URL.Query()
 
 	componentUid := query.Get("componentUid")
@@ -69,6 +71,7 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 	startTime := query.Get("startTime")
 	endTime := query.Get("endTime")
 
+	// Parse limit (default: 10)
 	limit := 10
 	if limitStr := query.Get("limit"); limitStr != "" {
 		parsedLimit, err := strconv.Atoi(limitStr)
@@ -79,6 +82,7 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 		limit = parsedLimit
 	}
 
+	// Parse offset for pagination (default: 0)
 	offset := 0
 	if offsetStr := query.Get("offset"); offsetStr != "" {
 		parsedOffset, err := strconv.Atoi(offsetStr)
@@ -89,6 +93,7 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 		offset = parsedOffset
 	}
 
+	// Parse sortOrder (default: desc for traces - newest first)
 	sortOrder := query.Get("sortOrder")
 	if sortOrder == "" {
 		sortOrder = "desc"
@@ -98,6 +103,7 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build query parameters
 	params := opensearch.TraceQueryParams{
 		ComponentUid:   componentUid,
 		EnvironmentUid: environmentUid,
@@ -108,6 +114,7 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 		SortOrder:      sortOrder,
 	}
 
+	// Execute query
 	ctx := r.Context()
 	result, err := h.controllers.GetTraceOverviews(ctx, params)
 	if err != nil {
@@ -116,13 +123,16 @@ func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Write response
 	h.writeJSON(w, http.StatusOK, result)
 }
 
 // GetTraceById handles GET /api/v1/trace with query parameters
 func (h *Handler) GetTraceById(w http.ResponseWriter, r *http.Request) {
+	// Get logger from context
 	log := logger.GetLogger(r.Context())
 
+	// Parse query parameters
 	query := r.URL.Query()
 
 	traceID := query.Get("traceId")
@@ -143,7 +153,18 @@ func (h *Handler) GetTraceById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	limit := 1000
+	// Parse sortOrder (default: desc)
+	sortOrder := query.Get("sortOrder")
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
+	if sortOrder != "asc" && sortOrder != "desc" {
+		h.writeError(w, http.StatusBadRequest, "sortOrder must be 'asc' or 'desc'")
+		return
+	}
+
+	// Parse limit (default: 100 for spans)
+	limit := 100
 	if limitStr := query.Get("limit"); limitStr != "" {
 		parsedLimit, err := strconv.Atoi(limitStr)
 		if err != nil || parsedLimit <= 0 {
@@ -172,25 +193,31 @@ func (h *Handler) GetTraceById(w http.ResponseWriter, r *http.Request) {
 		EndTime:        endTime,
 	}
 
+	// Execute query
 	ctx := r.Context()
 	result, err := h.controllers.GetTraceById(ctx, params)
 	if err != nil {
+		// Check if it's a "not found" error
 		if errors.Is(err, controllers.ErrTraceNotFound) {
 			h.writeError(w, http.StatusNotFound, "Trace not found")
 			return
 		}
-		log.Error("Failed to get trace by ID", "error", err)
+		// Other errors are internal server errors
+		log.Error("Failed to get trace by ID and service", "error", err)
 		h.writeError(w, http.StatusInternalServerError, "Failed to retrieve traces")
 		return
 	}
 
+	// Write response
 	h.writeJSON(w, http.StatusOK, result)
 }
 
 // ExportTraces handles GET /api/v1/traces/export with query parameters
 func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
+	// Get logger from context
 	log := logger.GetLogger(r.Context())
 
+	// Parse query parameters
 	query := r.URL.Query()
 
 	componentUid := query.Get("componentUid")
@@ -208,6 +235,7 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	startTime := query.Get("startTime")
 	endTime := query.Get("endTime")
 
+	// Parse limit (default: 100 for export)
 	limit := 100
 	if limitStr := query.Get("limit"); limitStr != "" {
 		parsedLimit, err := strconv.Atoi(limitStr)
@@ -215,12 +243,14 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 			h.writeError(w, http.StatusBadRequest, "limit must be a positive integer")
 			return
 		}
+		// Cap at MaxTracesPerRequest to prevent excessive data export
 		if parsedLimit > controllers.MaxTracesPerRequest {
 			parsedLimit = controllers.MaxTracesPerRequest
 		}
 		limit = parsedLimit
 	}
 
+	// Parse offset for pagination (default: 0)
 	offset := 0
 	if offsetStr := query.Get("offset"); offsetStr != "" {
 		parsedOffset, err := strconv.Atoi(offsetStr)
@@ -231,6 +261,7 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 		offset = parsedOffset
 	}
 
+	// Parse sortOrder (default: desc for traces - newest first)
 	sortOrder := query.Get("sortOrder")
 	if sortOrder == "" {
 		sortOrder = "desc"
@@ -240,6 +271,7 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build query parameters
 	params := opensearch.TraceQueryParams{
 		ComponentUid:   componentUid,
 		EnvironmentUid: environmentUid,
@@ -250,6 +282,7 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 		SortOrder:      sortOrder,
 	}
 
+	// Execute query
 	ctx := r.Context()
 	result, err := h.controllers.ExportTraces(ctx, params)
 	if err != nil {
@@ -266,6 +299,7 @@ func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 
+	// Write response
 	h.writeJSON(w, http.StatusOK, result)
 }
 

@@ -324,6 +324,9 @@ func (s *TracingController) ExportTraces(ctx context.Context, params opensearch.
 
 	// Cap at OpenSearch max_result_window default
 	if totalSpanCount > MaxSpansPerRequest {
+		log.Warn("Span count exceeds maximum, export may be truncated",
+			"requestedSpans", totalSpanCount,
+			"maxSpans", MaxSpansPerRequest)
 		totalSpanCount = MaxSpansPerRequest
 	}
 

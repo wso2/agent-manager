@@ -76,6 +76,7 @@ func GetIndicesForTimeRange(startTime, endTime string) ([]string, error) {
 func BuildTraceAggregationQuery(params TraceQueryParams) map[string]interface{} {
 	mustConditions := []map[string]interface{}{}
 
+	// Add component UID filter
 	if params.ComponentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
@@ -83,6 +84,8 @@ func BuildTraceAggregationQuery(params TraceQueryParams) map[string]interface{} 
 			},
 		})
 	}
+
+	// Add environment UID filter
 	if params.EnvironmentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
@@ -152,6 +155,10 @@ func BuildTraceAggregationQuery(params TraceQueryParams) map[string]interface{} 
 // BuildTraceByIdsQuery builds a query to fetch spans for one or more trace IDs.
 // When parentSpan is true, adds a filter for parentSpanId == "" to return only root spans.
 func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
+	if len(params.TraceIDs) == 0 {
+		return nil // or return an error if the signature changes
+	}
+
 	mustConditions := []map[string]interface{}{}
 
 	// Support single or multiple trace IDs
@@ -185,6 +192,8 @@ func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
 			},
 		})
 	}
+
+	// Add environment UID filter
 	if params.EnvironmentUid != "" {
 		mustConditions = append(mustConditions, map[string]interface{}{
 			"term": map[string]interface{}{
@@ -193,6 +202,7 @@ func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
 		})
 	}
 
+	// Set default limit if not provided
 	limit := params.Limit
 	if limit == 0 {
 		limit = 1000
