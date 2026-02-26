@@ -18,7 +18,7 @@
 
 import { type AgentPathParams } from "./common";
 
-export type EvaluationLevel = "trace" | "agent" | "span";
+export type EvaluationLevel = "trace" | "agent" | "llm";
 export type MonitorScoreGranularity = "hour" | "day" | "week";
 
 export type MonitorType = "future" | "past";
@@ -29,6 +29,12 @@ export interface MonitorEvaluator {
   identifier: string;
   displayName: string;
   config?: Record<string, unknown>;
+}
+
+export interface MonitorLLMProviderConfig {
+  providerName: string;
+  envVar: string;
+  value: string;
 }
 
 export interface MonitorRunResponse {
@@ -51,10 +57,9 @@ export interface MonitorResponse {
   orgName: string;
   projectName: string;
   agentName: string;
-  agentId?: string;
   environmentName: string;
-  environmentId?: string;
   evaluators: MonitorEvaluator[];
+  llmProviderConfigs?: MonitorLLMProviderConfig[];
   intervalMinutes?: number;
   nextRunTime?: string;
   traceStart?: string;
@@ -75,13 +80,18 @@ export interface MonitorRunListResponse {
   total: number;
 }
 
+export interface MonitorRunScoresResponse {
+  runId: string;
+  monitorName: string;
+  evaluators: EvaluatorScoreSummary[];
+}
+
 export interface CreateMonitorRequest {
   name: string;
   displayName: string;
-  projectName: string;
-  agentName: string;
   environmentName: string;
   evaluators: MonitorEvaluator[];
+  llmProviderConfigs?: MonitorLLMProviderConfig[];
   type: MonitorType;
   intervalMinutes?: number;
   traceStart?: string;
@@ -92,6 +102,7 @@ export interface CreateMonitorRequest {
 export interface UpdateMonitorRequest {
   displayName?: string;
   evaluators?: MonitorEvaluator[];
+  llmProviderConfigs?: MonitorLLMProviderConfig[];
   intervalMinutes?: number;
   samplingRate?: number;
 }
@@ -142,7 +153,7 @@ export interface EvaluatorScoreSummary {
   evaluatorName: string;
   level: EvaluationLevel;
   count: number;
-  errorCount: number;
+  skippedCount: number;
   aggregations: Record<string, unknown>;
 }
 
@@ -155,7 +166,7 @@ export interface MonitorScoresResponse {
 export interface TimeSeriesPoint {
   timestamp: string;
   count: number;
-  errorCount: number;
+  skippedCount: number;
   aggregations: Record<string, unknown>;
 }
 
@@ -171,7 +182,7 @@ export interface ScoreItem {
   score?: number | null;
   explanation?: string | null;
   metadata?: Record<string, unknown>;
-  error?: string | null;
+  skipReason?: string | null;
 }
 
 export interface EvaluatorTraceGroup {

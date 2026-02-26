@@ -91,7 +91,6 @@ export function MonitorTable() {
             displayName: monitor.displayName,
             name: monitor.name,
             environment:
-                environmentDisplayNameMap[monitor.environmentId ?? ""] ??
                 environmentDisplayNameMap[monitor.environmentName ?? ""] ??
                 monitor.environmentName ??
                 "-",
@@ -308,18 +307,20 @@ export function MonitorTable() {
                     ))}
                 </ListingTable.Body>
             </ListingTable>
-            <TablePagination
-                component="div"
-                count={filteredMonitors.length}
-                page={page}
-                rowsPerPage={rowsPerPage}
-                onPageChange={(_event, newPage) => setPage(newPage)}
-                onRowsPerPageChange={(event) => {
-                    setRowsPerPage(parseInt(event.target.value, 10));
-                    setPage(0);
-                }}
-                rowsPerPageOptions={[5, 10, 25]}
-            />
+            {filteredMonitors.length > 5 && (
+                <TablePagination
+                    component="div"
+                    count={filteredMonitors.length}
+                    page={page}
+                    rowsPerPage={rowsPerPage}
+                    onPageChange={(_event, newPage) => setPage(newPage)}
+                    onRowsPerPageChange={(event) => {
+                        setRowsPerPage(parseInt(event.target.value, 10));
+                        setPage(0);
+                    }}
+                    rowsPerPageOptions={[5, 10, 25]}
+                />
+            )}
         </ListingTable.Container>
     );
 }

@@ -22,7 +22,7 @@ import {
     Skeleton, Stack, Typography,
 } from "@wso2/oxygen-ui";
 import { ChartTooltip, LineChart } from "@wso2/oxygen-ui-charts-react";
-import { Activity, Info } from "@wso2/oxygen-ui-icons-react";
+import { Activity, Workflow } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { useMonitorScoresTimeSeries } from "@agent-management-platform/api-client";
@@ -42,7 +42,6 @@ interface PerformanceByEvaluatorCardProps {
     /** ISO end of the window */
     endTime: string;
     environmentId?: string;
-    timeRangeLabel?: string;
 }
 
 /** Inner component that calls the hook for a single evaluator */
@@ -95,8 +94,7 @@ const PerformanceByEvaluatorCard:
         evaluatorNames,
         startTime,
         endTime,
-        environmentId,
-        timeRangeLabel,
+        environmentId
     }) => {
         const { orgId, projectId, agentId, envId, monitorId } = useParams<{
             orgId: string; projectId: string;
@@ -207,12 +205,9 @@ const PerformanceByEvaluatorCard:
                             <Typography variant="subtitle1">
                                 Performance by Evaluator
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                                Score over time per evaluator ({timeRangeLabel ?? "Last 7 days"})
-                            </Typography>
                         </Stack>
                         <Button
-                            size="small" variant="outlined"
+                            size="small" variant="text"
                             component={Link}
                             to={generatePath(
                                 absoluteRouteMap.children.org
@@ -226,7 +221,7 @@ const PerformanceByEvaluatorCard:
                                     envId: environmentId ?? envId ?? "",
                                 }
                             )}
-                            startIcon={<Info size={16} />}
+                            startIcon={<Workflow size={16} />}
                         >
                             View All Traces
                         </Button>
