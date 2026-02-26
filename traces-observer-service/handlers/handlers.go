@@ -450,6 +450,89 @@ func (h *Handler) GetTraceByIdAndServiceV2(w http.ResponseWriter, r *http.Reques
 	h.writeJSON(w, http.StatusOK, result)
 }
 
+// ExportTracesV2 handles GET /api/v2/traces/export with query parameters
+// Same interface as v1 but uses aggregation for proper trace grouping and supports pagination
+func (h *Handler) ExportTracesV2(w http.ResponseWriter, r *http.Request) {
+	log := logger.GetLogger(r.Context())
+
+	query := r.URL.Query()
+
+	componentUid := query.Get("componentUid")
+	if componentUid == "" {
+		h.writeError(w, http.StatusBadRequest, "componentUid is required")
+		return
+	}
+
+	environmentUid := query.Get("environmentUid")
+	if environmentUid == "" {
+		h.writeError(w, http.StatusBadRequest, "environmentUid is required")
+		return
+	}
+
+	startTime := query.Get("startTime")
+	endTime := query.Get("endTime")
+
+	limit := 100
+	if limitStr := query.Get("limit"); limitStr != "" {
+		parsedLimit, err := strconv.Atoi(limitStr)
+		if err != nil || parsedLimit <= 0 {
+			h.writeError(w, http.StatusBadRequest, "limit must be a positive integer")
+			return
+		}
+		if parsedLimit > controllers.MaxTracesPerRequest {
+			parsedLimit = controllers.MaxTracesPerRequest
+		}
+		limit = parsedLimit
+	}
+
+	offset := 0
+	if offsetStr := query.Get("offset"); offsetStr != "" {
+		parsedOffset, err := strconv.Atoi(offsetStr)
+		if err != nil || parsedOffset < 0 {
+			h.writeError(w, http.StatusBadRequest, "offset must be a non-negative integer")
+			return
+		}
+		offset = parsedOffset
+	}
+
+	sortOrder := query.Get("sortOrder")
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
+	if sortOrder != "asc" && sortOrder != "desc" {
+		h.writeError(w, http.StatusBadRequest, "sortOrder must be 'asc' or 'desc'")
+		return
+	}
+
+	params := opensearch.TraceQueryParams{
+		ComponentUid:   componentUid,
+		EnvironmentUid: environmentUid,
+		StartTime:      startTime,
+		EndTime:        endTime,
+		Limit:          limit,
+		Offset:         offset,
+		SortOrder:      sortOrder,
+	}
+
+	ctx := r.Context()
+	result, err := h.controllers.ExportTracesV2(ctx, params)
+	if err != nil {
+		log.Error("Failed to export traces (v2)", "error", err)
+		h.writeError(w, http.StatusInternalServerError, "Failed to export traces")
+		return
+	}
+
+	// Set content disposition header to suggest filename
+	timestamp := time.Now().Format("20060102-150405")
+	filename := fmt.Sprintf("traces-export-%s.json", timestamp)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+
+	h.writeJSON(w, http.StatusOK, result)
+}
+
 // Health handles GET /health
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	// Get logger from context

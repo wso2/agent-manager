@@ -627,6 +627,190 @@ func (s *TracingController) GetTraceOverviewsV2(ctx context.Context, params open
 	}, nil
 }
 
+// ExportTracesV2 retrieves complete trace objects with all spans for export.
+// Uses aggregation for trace discovery with proper pagination, then fetches
+// all spans per trace using the v2 trace query.
+func (s *TracingController) ExportTracesV2(ctx context.Context, params opensearch.TraceQueryParams) (*opensearch.TraceExportResponse, error) {
+	log := logger.GetLogger(ctx)
+	log.Info("Starting trace export (v2)",
+		"component", params.ComponentUid,
+		"environment", params.EnvironmentUid,
+		"startTime", params.StartTime,
+		"endTime", params.EndTime,
+		"limit", params.Limit,
+		"offset", params.Offset)
+
+	// Set defaults
+	if params.Limit == 0 {
+		params.Limit = DefaultTracesLimit
+	}
+	if params.Limit > MaxTracesPerRequest {
+		params.Limit = MaxTracesPerRequest
+	}
+	if params.Offset < 0 {
+		params.Offset = 0
+	}
+
+	// Phase 1: Aggregation to discover trace IDs with pagination
+	aggQuery := opensearch.BuildTraceAggregationQuery(params)
+
+	indices, err := opensearch.GetIndicesForTimeRange(params.StartTime, params.EndTime)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate indices: %w", err)
+	}
+
+	aggResponse, err := s.osClient.SearchWithAggregation(ctx, indices, aggQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute aggregation: %w", err)
+	}
+
+	totalCount := aggResponse.Aggregations.TotalTraces.Value
+	buckets := aggResponse.Aggregations.Traces.Buckets
+
+	// Apply pagination
+	start := params.Offset
+	end := params.Offset + params.Limit
+	if start >= len(buckets) {
+		return &opensearch.TraceExportResponse{
+			Traces:     []opensearch.FullTrace{},
+			TotalCount: totalCount,
+		}, nil
+	}
+	if end > len(buckets) {
+		end = len(buckets)
+	}
+	paginatedBuckets := buckets[start:end]
+
+	if len(paginatedBuckets) == 0 {
+		return &opensearch.TraceExportResponse{
+			Traces:     []opensearch.FullTrace{},
+			TotalCount: totalCount,
+		}, nil
+	}
+
+	// Collect trace IDs and span counts, sum total spans for fetch limit
+	traceIDs := make([]string, len(paginatedBuckets))
+	spanCountMap := make(map[string]int, len(paginatedBuckets))
+	totalSpanCount := 0
+	for i, bucket := range paginatedBuckets {
+		traceIDs[i] = bucket.Key
+		spanCountMap[bucket.Key] = bucket.DocCount
+		totalSpanCount += bucket.DocCount
+	}
+
+	// Cap at OpenSearch max_result_window default
+	if totalSpanCount > MaxSpansPerRequest {
+		totalSpanCount = MaxSpansPerRequest
+	}
+
+	// Phase 2: Fetch ALL spans for each trace (no parentSpan filter)
+	// Use exact span count from aggregation as limit to avoid truncation
+	allSpansParams := opensearch.V2TraceByIdParams{
+		TraceIDs:       traceIDs,
+		ComponentUid:   params.ComponentUid,
+		EnvironmentUid: params.EnvironmentUid,
+		ParentSpan:     false,
+		Limit:          totalSpanCount,
+	}
+
+	allSpansQuery := opensearch.BuildV2TraceByIdsQuery(allSpansParams)
+	allSpansResponse, err := s.osClient.Search(ctx, indices, allSpansQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch spans for export: %w", err)
+	}
+
+	allSpans := opensearch.ParseSpans(allSpansResponse)
+
+	// Group spans by traceId
+	spansByTrace := make(map[string][]opensearch.Span, len(traceIDs))
+	for _, span := range allSpans {
+		spansByTrace[span.TraceID] = append(spansByTrace[span.TraceID], span)
+	}
+
+	// Build FullTrace objects in aggregation order
+	fullTraces := make([]opensearch.FullTrace, 0, len(paginatedBuckets))
+	for _, bucket := range paginatedBuckets {
+		traceSpans, ok := spansByTrace[bucket.Key]
+		if !ok || len(traceSpans) == 0 {
+			log.Warn("No spans found for trace in export, skipping",
+				"traceId", bucket.Key)
+			continue
+		}
+
+		// Sort spans by start time
+		sort.Slice(traceSpans, func(i, j int) bool {
+			return traceSpans[i].StartTime.Before(traceSpans[j].StartTime)
+		})
+
+		// Find root span
+		var rootSpan *opensearch.Span
+		for i := range traceSpans {
+			if traceSpans[i].ParentSpanID == "" {
+				rootSpan = &traceSpans[i]
+				break
+			}
+		}
+
+		if rootSpan == nil {
+			log.Warn("No root span found for trace in export, skipping",
+				"traceId", bucket.Key)
+			continue
+		}
+
+		// Extract input/output from root span
+		var input, output interface{}
+		if opensearch.IsCrewAISpan(rootSpan.Attributes) {
+			input, output = opensearch.ExtractCrewAIRootSpanInputOutput(rootSpan)
+		} else {
+			input, output = opensearch.ExtractRootSpanInputOutput(rootSpan)
+		}
+
+		// Token usage and status from all spans (same as v1 export)
+		tokenUsage := opensearch.ExtractTokenUsage(traceSpans)
+		traceStatus := opensearch.ExtractTraceStatus(traceSpans)
+
+		// Extract task.id and trial.id from baggage attributes
+		var taskId, trialId string
+		if rootSpan.Attributes != nil {
+			if v, ok := rootSpan.Attributes["task.id"].(string); ok {
+				taskId = v
+			}
+			if v, ok := rootSpan.Attributes["trial.id"].(string); ok {
+				trialId = v
+			}
+		}
+
+		fullTraces = append(fullTraces, opensearch.FullTrace{
+			TraceID:         bucket.Key,
+			RootSpanID:      rootSpan.SpanID,
+			RootSpanName:    rootSpan.Name,
+			RootSpanKind:    string(opensearch.DetermineSpanType(*rootSpan)),
+			StartTime:       rootSpan.StartTime.Format(time.RFC3339Nano),
+			EndTime:         rootSpan.EndTime.Format(time.RFC3339Nano),
+			DurationInNanos: rootSpan.DurationInNanos,
+			SpanCount:       spanCountMap[bucket.Key],
+			TokenUsage:      tokenUsage,
+			Status:          traceStatus,
+			Input:           input,
+			Output:          output,
+			TaskId:          taskId,
+			TrialId:         trialId,
+			Spans:           traceSpans,
+		})
+	}
+
+	log.Info("Successfully completed trace export (v2)",
+		"exportedTraces", len(fullTraces),
+		"totalCount", totalCount,
+		"offset", params.Offset,
+		"limit", params.Limit)
+
+	return &opensearch.TraceExportResponse{
+		Traces:     fullTraces,
+		TotalCount: totalCount,
+	}, nil
+}
+
 // HealthCheck checks if the service is healthy
 func (s *TracingController) HealthCheck(ctx context.Context) error {
 	return s.osClient.HealthCheck(ctx)
