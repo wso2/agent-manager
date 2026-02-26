@@ -857,16 +857,25 @@ func pathsAreEqual(a, b models.LLMPolicyPath) bool {
 		return false
 	}
 
-	// Compare methods arrays
-	if len(a.Methods) != len(b.Methods) {
+	// Compare methods arrays - use deduplicated sets to avoid false positives with duplicates
+	// Build sets from both method arrays
+	aMethodsSet := make(map[string]bool)
+	for _, m := range a.Methods {
+		aMethodsSet[m] = true
+	}
+	bMethodsSet := make(map[string]bool)
+	for _, m := range b.Methods {
+		bMethodsSet[m] = true
+	}
+
+	// Compare set sizes first
+	if len(aMethodsSet) != len(bMethodsSet) {
 		return false
 	}
-	methodsMap := make(map[string]bool)
-	for _, m := range a.Methods {
-		methodsMap[m] = true
-	}
-	for _, m := range b.Methods {
-		if !methodsMap[m] {
+
+	// Ensure all methods in a are in b
+	for m := range aMethodsSet {
+		if !bMethodsSet[m] {
 			return false
 		}
 	}

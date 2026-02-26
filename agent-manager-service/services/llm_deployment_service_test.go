@@ -174,9 +174,10 @@ func TestAddOrAppendPolicyPath(t *testing.T) {
 			},
 		}
 
+		// Use identical path configuration to test duplicate prevention
 		duplicatePath := models.LLMPolicyPath{
 			Path:    "/*",
-			Methods: []string{"GET"},
+			Methods: []string{"*"}, // Same methods as existing path
 		}
 
 		addOrAppendPolicyPath(&policies, "test-policy", "v0", duplicatePath)
@@ -186,6 +187,33 @@ func TestAddOrAppendPolicyPath(t *testing.T) {
 		}
 		if len(policies[0].Paths) != 1 {
 			t.Fatalf("expected 1 path (duplicate prevented), got %d", len(policies[0].Paths))
+		}
+	})
+
+	t.Run("allows same path with different methods", func(t *testing.T) {
+		policies := []models.LLMPolicy{
+			{
+				Name:    "test-policy",
+				Version: "v0",
+				Paths: []models.LLMPolicyPath{
+					{Path: "/*", Methods: []string{"*"}},
+				},
+			},
+		}
+
+		// Different methods - should be allowed as a separate path entry
+		differentMethodPath := models.LLMPolicyPath{
+			Path:    "/*",
+			Methods: []string{"GET"}, // Different methods than existing path
+		}
+
+		addOrAppendPolicyPath(&policies, "test-policy", "v0", differentMethodPath)
+
+		if len(policies) != 1 {
+			t.Fatalf("expected 1 policy, got %d", len(policies))
+		}
+		if len(policies[0].Paths) != 2 {
+			t.Fatalf("expected 2 paths (same URL, different methods allowed), got %d", len(policies[0].Paths))
 		}
 	})
 }

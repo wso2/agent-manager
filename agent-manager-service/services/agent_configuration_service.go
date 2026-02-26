@@ -124,12 +124,12 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		provider, err := s.llmProviderRepo.GetByUUID(envMapping.ProviderUUID.String(), orgName)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("provider not found for environment %s: %w", envName, err)
+				return nil, fmt.Errorf("%w for environment %s: %v", utils.ErrLLMProviderNotFound, envName, err)
 			}
 			return nil, fmt.Errorf("failed to validate provider for environment %s: %w", envName, err)
 		}
 		if !provider.InCatalog {
-			return nil, fmt.Errorf("provider %s must be in catalog for environment %s", envMapping.ProviderUUID, envName)
+			return nil, fmt.Errorf("%w: provider %s must be in catalog for environment %s", utils.ErrInvalidInput, envMapping.ProviderUUID, envName)
 		}
 	}
 
@@ -145,7 +145,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 
 	for envName := range req.EnvMappings {
 		if _, exists := envMap[envName]; !exists {
-			return nil, fmt.Errorf("environment not found: %s", envName)
+			return nil, fmt.Errorf("%w: %s", utils.ErrEnvironmentNotFound, envName)
 		}
 	}
 
@@ -416,12 +416,12 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			provider, err := s.llmProviderRepo.GetByUUID(envMapping.ProviderUUID.String(), orgName)
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return nil, fmt.Errorf("provider not found for environment %s: %w", envName, err)
+					return nil, fmt.Errorf("%w for environment %s: %v", utils.ErrLLMProviderNotFound, envName, err)
 				}
 				return nil, fmt.Errorf("failed to validate provider for environment %s: %w", envName, err)
 			}
 			if !provider.InCatalog {
-				return nil, fmt.Errorf("provider %s must be in catalog for environment %s", envMapping.ProviderUUID, envName)
+				return nil, fmt.Errorf("%w: provider %s must be in catalog for environment %s", utils.ErrInvalidInput, envMapping.ProviderUUID, envName)
 			}
 		}
 	}
@@ -476,7 +476,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			}
 			env, exists := envMap[envName]
 			if !exists {
-				return fmt.Errorf("environment not found: %s", envName)
+				return fmt.Errorf("%w: %s", utils.ErrEnvironmentNotFound, envName)
 			}
 
 			existingMapping, hasExisting := existingEnvMap[envName]
