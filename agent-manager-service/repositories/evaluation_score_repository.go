@@ -17,6 +17,7 @@
 package repositories
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,6 +47,7 @@ type ScoreRepository interface {
 	// Aggregated queries (SQL-based aggregations)
 	GetMonitorScoresAggregated(monitorID uuid.UUID, startTime, endTime time.Time, filters ScoreFilters) ([]EvaluatorAggregation, error)
 	GetEvaluatorTimeSeriesAggregated(monitorID uuid.UUID, displayName string, startTime, endTime time.Time, granularity string) ([]TimeBucketAggregation, error)
+	GetEvaluatorTraceAggregated(monitorID uuid.UUID, displayName string, startTime, endTime time.Time, limit int) ([]TraceAggregation, error)
 
 	// Trace-level queries (cross-monitor)
 	GetScoresByTraceID(traceID string, orgName, projName, agentName string) ([]ScoreWithMonitor, error)
@@ -75,6 +77,15 @@ type TimeBucketAggregation struct {
 	TotalCount   int       `gorm:"column:total_count"`
 	SkippedCount int       `gorm:"column:skipped_count"`
 	MeanScore    *float64  `gorm:"column:mean_score"` // NULL if no successful scores
+}
+
+// TraceAggregation is the result of aggregated scores per trace (from SQL GROUP BY trace_id)
+type TraceAggregation struct {
+	TraceID        string    `gorm:"column:trace_id"`
+	TraceTimestamp time.Time `gorm:"column:trace_timestamp"`
+	TotalCount     int       `gorm:"column:total_count"`
+	SkippedCount   int       `gorm:"column:skipped_count"`
+	MeanScore      *float64  `gorm:"column:mean_score"` // NULL if no successful scores
 }
 
 // ScoreWithEvaluator is a score joined with its evaluator info (flattened for GORM scanning)
@@ -289,32 +300,65 @@ func (r *ScoreRepo) GetEvaluatorTimeSeriesAggregated(
 ) ([]TimeBucketAggregation, error) {
 	var results []TimeBucketAggregation
 
-	// Map granularity to PostgreSQL date_trunc argument
+	baseQuery := r.db.Table("scores s").
+		Joins("JOIN monitor_run_evaluators mre ON s.run_evaluator_id = mre.id").
+		Where("s.monitor_id = ?", monitorID).
+		Where("s.trace_timestamp BETWEEN ? AND ?", startTime, endTime).
+		Where("mre.display_name = ?", displayName)
+
+	// All bucketing uses date_trunc in UTC to ensure consistent results regardless of DB session timezone.
 	var truncArg string
 	switch granularity {
+	case "minute":
+		truncArg = "minute"
+	case "hour":
+		truncArg = "hour"
 	case "day":
 		truncArg = "day"
 	case "week":
 		truncArg = "week"
-	case "hour":
-		fallthrough
 	default:
-		truncArg = "hour"
+		return nil, fmt.Errorf("unsupported granularity: %s", granularity)
 	}
+	baseQuery = baseQuery.Select(`
+		date_trunc(?, s.trace_timestamp AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' as time_bucket,
+		COUNT(*) as total_count,
+		COUNT(CASE WHEN s.skip_reason IS NOT NULL THEN 1 END) as skipped_count,
+		AVG(CASE WHEN s.skip_reason IS NULL THEN s.score END) as mean_score
+	`, truncArg)
+
+	err := baseQuery.Group("time_bucket").Order("time_bucket").Find(&results).Error
+	return results, err
+}
+
+// GetEvaluatorTraceAggregated returns scores aggregated per trace for an evaluator within a time window.
+// The limit parameter caps the number of returned traces (use 0 for no limit).
+func (r *ScoreRepo) GetEvaluatorTraceAggregated(
+	monitorID uuid.UUID,
+	displayName string,
+	startTime, endTime time.Time,
+	limit int,
+) ([]TraceAggregation, error) {
+	var results []TraceAggregation
 
 	query := r.db.Table("scores s").
 		Select(`
-			date_trunc(?, s.trace_timestamp) as time_bucket,
+			s.trace_id,
+			MIN(s.trace_timestamp) as trace_timestamp,
 			COUNT(*) as total_count,
 			COUNT(CASE WHEN s.skip_reason IS NOT NULL THEN 1 END) as skipped_count,
 			AVG(CASE WHEN s.skip_reason IS NULL THEN s.score END) as mean_score
-		`, truncArg).
+		`).
 		Joins("JOIN monitor_run_evaluators mre ON s.run_evaluator_id = mre.id").
 		Where("s.monitor_id = ?", monitorID).
 		Where("s.trace_timestamp BETWEEN ? AND ?", startTime, endTime).
 		Where("mre.display_name = ?", displayName).
-		Group("time_bucket").
-		Order("time_bucket")
+		Group("s.trace_id").
+		Order("trace_timestamp")
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
 
 	err := query.Find(&results).Error
 	return results, err

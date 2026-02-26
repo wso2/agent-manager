@@ -190,27 +190,61 @@ func (s *MonitorScoresService) GetMonitorScores(
 	}, nil
 }
 
-// GetEvaluatorTimeSeries returns time-series data for a specific evaluator
+// GetEvaluatorTimeSeries returns time-series data for a specific evaluator.
+// Granularity is automatically determined based on data density and time range.
+// It first attempts trace-level aggregation with a bounded query; if the data is
+// too dense (more than RawThreshold distinct traces), it falls back to time-bucket aggregation.
 func (s *MonitorScoresService) GetEvaluatorTimeSeries(
 	monitorID uuid.UUID,
 	monitorName, displayName string,
 	startTime, endTime time.Time,
-	granularity string,
 ) (*models.TimeSeriesResponse, error) {
-	// Use SQL aggregation query instead of fetching all rows
+	probeLimit := int(utils.RawThreshold) + 1
+
+	// Probe for sparse data — fetch up to RawThreshold+1 trace-aggregated results
+	traceAggs, err := s.repo.GetEvaluatorTraceAggregated(monitorID, displayName, startTime, endTime, probeLimit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get trace-aggregated scores: %w", err)
+	}
+
+	// Sparse data: use trace-level results directly
+	if len(traceAggs) <= int(utils.RawThreshold) {
+		points := make([]models.TimeSeriesPoint, len(traceAggs))
+		for i, agg := range traceAggs {
+			aggregationMap := make(map[string]interface{})
+			if agg.MeanScore != nil {
+				aggregationMap["mean"] = *agg.MeanScore
+			}
+			points[i] = models.TimeSeriesPoint{
+				Timestamp:    agg.TraceTimestamp,
+				Count:        agg.TotalCount,
+				SkippedCount: agg.SkippedCount,
+				Aggregations: aggregationMap,
+			}
+		}
+		return &models.TimeSeriesResponse{
+			MonitorName:   monitorName,
+			EvaluatorName: displayName,
+			Granularity:   "trace",
+			Points:        points,
+		}, nil
+	}
+
+	// Dense data: determine time-bucket granularity from duration
+	duration := endTime.Sub(startTime)
+	granularity := utils.CalculateAdaptiveGranularity(duration, int64(len(traceAggs)))
+
 	aggregations, err := s.repo.GetEvaluatorTimeSeriesAggregated(monitorID, displayName, startTime, endTime, granularity)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get time series aggregations: %w", err)
 	}
 
-	// Convert aggregations to response format
 	points := make([]models.TimeSeriesPoint, len(aggregations))
 	for i, agg := range aggregations {
 		aggregationMap := make(map[string]interface{})
 		if agg.MeanScore != nil {
 			aggregationMap["mean"] = *agg.MeanScore
 		}
-
 		points[i] = models.TimeSeriesPoint{
 			Timestamp:    agg.TimeBucket,
 			Count:        agg.TotalCount,
