@@ -390,29 +390,47 @@ jobs:
           echo "short-sha=$SHORT_SHA" >> $GITHUB_OUTPUT
         shell: bash
 
+      - name: Generate release body
+        id: release-body
+        run: |
+          CONFIG_FILE=".github/release-config.json"
+
+          {
+            echo "## Release amp/v${VERSION}"
+            echo ""
+            echo "### Docker Images"
+
+            jq -r '.images[].name' "$CONFIG_FILE" | while read -r name; do
+              echo "- \`${REGISTRY}/${REGISTRY_ORG}/${name}:v${VERSION}\`"
+            done
+
+            jq -r '.["python-instrumentation-provider"][0].versions[]' "$CONFIG_FILE" | while read -r pyver; do
+              echo "- \`${REGISTRY}/${REGISTRY_ORG}/amp-python-instrumentation-provider:v${VERSION}-python${pyver}\`"
+            done
+
+            echo ""
+            echo "### Helm Charts"
+            jq -r '.charts[]' "$CONFIG_FILE" | while read -r chart; do
+              echo "- \`${HELM_REGISTRY}/${chart}:${VERSION}\`"
+            done
+          } > /tmp/release-body.md
+
+          {
+            echo "body<<RELEASE_BODY_EOF"
+            cat /tmp/release-body.md
+            echo "RELEASE_BODY_EOF"
+          } >> $GITHUB_OUTPUT
+        env:
+          VERSION: ${{ inputs.target-release }}
+        shell: bash
+
       - name: Create GitHub release
         id: create-release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: amp/v${{ inputs.target-release }}
           name: Release amp/v${{ inputs.target-release }}
-          body: |
-            ## Release amp/v${{ inputs.target-release }}
-
-            ### Docker Images
-            - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-console:v${{ inputs.target-release }}`
-            - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-api:v${{ inputs.target-release }}`
-            - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-traces-observer:v${{ inputs.target-release }}`
-            - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-python-instrumentation-provider:v${{ inputs.target-release }}`
-            - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-quick-start:v${{ inputs.target-release }}`
-            - `${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}/amp-evaluation-monitor:v${{ inputs.target-release }}`
-            
-            ### Helm Charts
-            - `${{ env.HELM_REGISTRY }}/wso2-agent-manager:${{ inputs.target-release }}`
-            - `${{ env.HELM_REGISTRY }}/wso2-amp-build-extension:${{ inputs.target-release }}`
-            - `${{ env.HELM_REGISTRY }}/wso2-amp-observability-extension:${{ inputs.target-release }}`
-            - `${{ env.HELM_REGISTRY }}/wso2-amp-evaluation-extension:${{ inputs.target-release }}`
-
+          body: ${{ steps.release-body.outputs.body }}
           draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
