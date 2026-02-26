@@ -18,6 +18,11 @@
     {
       "name": "amp-quick-start",
       "dir": "deployments/quick-start"
+    },
+    {
+      "name": "amp-evaluation-monitor",
+      "dir": "evaluation-job",
+      "context": "."
     }
   ],
 
