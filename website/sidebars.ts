@@ -52,10 +52,7 @@ const sidebars: SidebarsConfig = {
       label: 'Components',
       collapsed: false,
       items: [
-        'components/amp-api',
-        'components/amp-console',
         'components/amp-instrumentation',
-        'components/amp-trace-observer',
         'components/amp-eval'
       ],
     },

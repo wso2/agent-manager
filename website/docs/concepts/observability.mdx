@@ -4,11 +4,11 @@ sidebar_position: 1
 
 # Observability
 
-WSO2 Agent Manager provides full-stack observability for AI agents — whether they are deployed through the platform or running externally. Traces, metrics, and logs flow into a centralized store that you can query and analyze through the AMP Console or the Trace Observer API.
+WSO2 Agent Manager provides full-stack observability for AI agents — whether they are deployed through the platform or running externally. Traces, metrics, and logs flow into a centralized store that you can query and analyze through the AMP Console.
 
 ## Overview
 
-Observability in AMP is built on [OpenTelemetry](https://opentelemetry.io/), the industry-standard framework for distributed tracing and instrumentation. Every agent interaction — LLM calls, tool invocations, MCP requests, retrieval operations, and agent reasoning steps — is captured as a structured trace and stored for analysis.
+Observability in AMP is built on [OpenTelemetry](https://opentelemetry.io/), the industry-standard framework for distributed tracing and instrumentation. Every agent interaction — LLM calls, tool invocations, MCP requests, retrieval operations, and agent reasoning steps is captured as a structured trace and stored for analysis.
 
 ## Auto-Instrumentation for Deployed Agents
 
@@ -20,8 +20,8 @@ The Traceloop SDK (used under the hood) instruments a wide range of AI framework
 
 | Category | Examples |
 |----------|---------|
-| LLM providers | OpenAI, Anthropic, Azure OpenAI, Bedrock, Vertex AI |
-| Agent frameworks | LangChain, LlamaIndex, CrewAI, Haystack, AutoGen |
+| LLM providers | OpenAI, Anthropic, Azure OpenAI |
+| Agent frameworks | LangChain, LlamaIndex, CrewAI, Haystack |
 | Vector stores | Pinecone, Weaviate, Chroma, Qdrant |
 | MCP clients | Any MCP tool calls made by the agent |
 
@@ -34,56 +34,10 @@ Each span is enriched with metadata that makes it possible to evaluate and debug
 - **Agent spans**: agent name, step number, reasoning output
 - **Root span**: agent ID, deployment ID, correlation ID, end-to-end latency
 
----
-
 ## Observability for External Agents
 
-Agents that are **not deployed through AMP** — for example, agents running on-premises, in a third-party cloud, or in a CI/CD pipeline — can still send traces to AMP using the `amp-instrumentation` package.
-
-### Registration
-
-Before connecting an external agent, register it in the AMP Console:
-
-1. Navigate to **Agents → Add External Agent**.
-2. Provide a name, description, and optional metadata.
-3. AMP generates an **Agent API Key** — keep this safe.
-
-### Installation
-
-Install the instrumentation package in your agent's environment:
-
-```bash
-pip install amp-instrumentation
-```
-
-### Configuration
-
-Set the following environment variables in your agent's environment:
-
-```bash
-export AMP_OTEL_ENDPOINT="https://<your-amp-host>/v1/traces"
-export AMP_AGENT_API_KEY="<agent-api-key>"
-```
-
-### Running with Instrumentation
-
-Wrap your agent's run command with `amp-instrument`:
-
-```bash
-# Python script
-amp-instrument python my_agent.py
-
-# Uvicorn (FastAPI / async agents)
-amp-instrument uvicorn app:main --reload
-
-# Poetry / uv managed projects
-amp-instrument poetry run python agent.py
-amp-instrument uv run python agent.py
-```
-
-`amp-instrument` injects the instrumentation layer into the Python process before your code runs. The same Traceloop-based auto-instrumentation applies — all supported frameworks are traced without any code changes.
-
+Agents that are **not deployed through AMP** — for example, agents running locally, on-premises, in a third-party cloud can still send traces to AMP using the `amp-instrumentation` package.
 
 ## Trace Visibility in AMP Console
 
-Once traces start flowing in, you can explore them in the AMP Console:
+Once traces start flowing in, you can explore them in the AMP Console
