@@ -51,7 +51,6 @@ When adding new evaluators, follow these tagging rules:
 
 import importlib
 import inspect
-import json
 import logging
 from pathlib import Path
 from typing import Dict, Type, Optional, List
@@ -234,50 +233,88 @@ def builtin_evaluator_catalog(mode: Optional[str] = None) -> List[EvaluatorInfo]
 
 # ── LLM Provider Catalog ─────────────────────────────────────────────────────
 
-# Providers we support for LLM-as-judge evaluation.
-# Models are curated text models only (no audio/realtime/vision-specific).
-# Ordered powerful → lightweight. All strings are litellm-compatible model identifiers.
-# Last updated: 2026-02. Review periodically when major model releases are announced.
-_PROVIDER_MODELS: Dict[str, List[str]] = {
-    "openai": [
-        "gpt-5.2",
-        "gpt-5.1",
-        "gpt-5",
-        "gpt-5-mini",
-        "gpt-5-nano",
-        "o3",
-        "o3-mini",
-        "gpt-4.1",
-        "gpt-4.1-mini",
-        "gpt-4.1-nano",
-    ],
-    "anthropic": [
-        "claude-opus-4-6",
-        "claude-sonnet-4-6",
-        "claude-opus-4-5",
-        "claude-haiku-4-5-20251001",
-    ],
-    "gemini": [
-        "gemini/gemini-3.1-pro",
-        "gemini/gemini-3-pro-preview",
-        "gemini/gemini-2.5-pro",
-        "gemini/gemini-3-flash",
-        "gemini/gemini-2.5-flash",
-        "gemini/gemini-2.5-flash-lite",
-    ],
-    "groq": [
-        "groq/meta-llama/llama-4-maverick-17b-128e-instruct",
-        "groq/meta-llama/llama-4-scout-17b-16e-instruct",
-        "groq/llama-3.3-70b-versatile",
-        "groq/qwen/qwen-3-32b",
-        "groq/llama-3.1-8b-instant",
-    ],
-    "mistral": [
-        "mistral/mistral-large-3",
-        "mistral/mistral-large-latest",
-        "mistral/mistral-medium-latest",
-        "mistral/mistral-small-latest",
-    ],
+# Supported LLM providers for LLM-as-judge evaluation.
+# Models are curated chat/completion models only — no audio/realtime/vision/embedding/image.
+# Model names use provider/model format (litellm-compatible identifiers).
+# Ordered powerful → lightweight within each provider.
+# Curated from litellm.model_cost (2026-02). Review periodically when major model releases are announced.
+_SUPPORTED_PROVIDERS: Dict[str, dict] = {
+    "openai": {
+        "display_name": "OpenAI",
+        "env_var": "OPENAI_API_KEY",
+        "models": [
+            "openai/gpt-5.2",
+            "openai/gpt-5.1",
+            "openai/gpt-5",
+            "openai/gpt-5-mini",
+            "openai/gpt-5-nano",
+            "openai/gpt-4.5-preview",
+            "openai/gpt-4.1",
+            "openai/gpt-4.1-mini",
+            "openai/gpt-4.1-nano",
+            "openai/gpt-4o",
+            "openai/gpt-4o-mini",
+            "openai/o3",
+            "openai/o3-mini",
+            "openai/o1",
+            "openai/o1-mini",
+        ],
+    },
+    "anthropic": {
+        "display_name": "Anthropic",
+        "env_var": "ANTHROPIC_API_KEY",
+        "models": [
+            "anthropic/claude-opus-4-6",
+            "anthropic/claude-sonnet-4-6",
+            "anthropic/claude-opus-4-5",
+            "anthropic/claude-sonnet-4-5",
+            "anthropic/claude-haiku-4-5",
+            "anthropic/claude-opus-4-1",
+            "anthropic/claude-3-7-sonnet-latest",
+            "anthropic/claude-3-5-sonnet-latest",
+            "anthropic/claude-3-5-haiku-latest",
+            "anthropic/claude-3-opus-latest",
+        ],
+    },
+    "gemini": {
+        "display_name": "Google AI Studio",
+        "env_var": "GEMINI_API_KEY",
+        "models": [
+            "gemini/gemini-3.1-pro-preview",
+            "gemini/gemini-3-pro-preview",
+            "gemini/gemini-3-flash-preview",
+            "gemini/gemini-2.5-pro",
+            "gemini/gemini-2.5-flash",
+            "gemini/gemini-2.5-flash-lite",
+            "gemini/gemini-2.0-flash",
+            "gemini/gemini-2.0-flash-lite",
+            "gemini/gemini-1.5-pro",
+            "gemini/gemini-1.5-flash",
+        ],
+    },
+    "groq": {
+        "display_name": "Groq",
+        "env_var": "GROQ_API_KEY",
+        "models": [
+            "groq/meta-llama/llama-4-maverick-17b-128e-instruct",
+            "groq/meta-llama/llama-4-scout-17b-16e-instruct",
+            "groq/llama-3.3-70b-versatile",
+            "groq/qwen/qwen3-32b",
+            "groq/llama-3.1-8b-instant",
+        ],
+    },
+    "mistral": {
+        "display_name": "Mistral AI",
+        "env_var": "MISTRAL_API_KEY",
+        "models": [
+            "mistral/mistral-large-latest",
+            "mistral/mistral-medium-latest",
+            "mistral/mistral-small-latest",
+            "mistral/magistral-medium-latest",
+            "mistral/magistral-small-latest",
+            "mistral/codestral-latest",
+        ],
+    },
 }
 
 
@@ -285,10 +322,9 @@ def get_llm_provider_catalog() -> List[LLMProviderInfo]:
     """
     Returns supported LLM providers with credential requirements and available models.
 
-    Credential field definitions are read from litellm's provider_create_fields.json
-    (shipped with the litellm package). The env_var on each LLMConfigField is the
-    environment variable the platform must set on the evaluation job process — litellm
-    reads these natively, so no changes to evaluator code are needed.
+    Provider metadata (env vars, models, display names) is defined in _SUPPORTED_PROVIDERS.
+    The env_var on each LLMConfigField is the environment variable the platform must set
+    on the evaluation job process — litellm reads these natively.
 
     Returns:
         List of LLMProviderInfo, one per supported provider.
@@ -301,49 +337,26 @@ def get_llm_provider_catalog() -> List[LLMProviderInfo]:
                 print(f"{provider.display_name}: set {field.env_var}")
             print(f"  Models: {provider.models}")
     """
-    import litellm
-
-    # NOTE: This depends on litellm's internal file structure. If it breaks
-    # after a litellm update, the try/except below will return an empty list.
-    fields_path = Path(litellm.__file__).parent / "proxy" / "public_endpoints" / "provider_create_fields.json"
-    try:
-        raw: list = json.loads(fields_path.read_text())
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        logger.warning("Could not load litellm provider_create_fields.json: %s", e)
-        return []
-
-    seen: set = set()
     result: List[LLMProviderInfo] = []
-    for entry in raw:
-        provider = entry.get("litellm_provider", "")
-        if provider not in _PROVIDER_MODELS:
-            continue
-        if provider in seen:
-            continue  # deduplicate — keep first (canonical) entry per provider
-        seen.add(provider)
-
-        # Derive env var using litellm's own convention: {PROVIDER}_API_KEY
-        env_var = f"{provider.upper()}_API_KEY"
+    for name, meta in _SUPPORTED_PROVIDERS.items():
+        env_var = meta["env_var"]
         config_fields = [
             LLMConfigField(
-                key=f["key"],
-                label=f.get("label", f["key"]),
-                field_type=f.get("field_type", "text"),
-                required=f.get("required", False),
+                key="api_key",
+                label="API Key",
+                field_type="password",
+                required=True,
                 env_var=env_var,
             )
-            for f in entry.get("credential_fields", [])
-            if f.get("key") == "api_key"
         ]
-        if config_fields:
-            result.append(
-                LLMProviderInfo(
-                    name=provider,
-                    display_name=entry.get("provider_display_name", provider),
-                    config_fields=config_fields,
-                    models=_PROVIDER_MODELS.get(provider, []),
-                )
+        result.append(
+            LLMProviderInfo(
+                name=name,
+                display_name=meta["display_name"],
+                config_fields=config_fields,
+                models=meta["models"],
             )
+        )
 
     return result
 
