@@ -34,7 +34,7 @@ jobs:
         id: validate
         run: |
           # Validate target-release format
-          if [[ ! "$TARGET_RELEASE" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+          if [[ ! "$TARGET_RELEASE" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
             echo "Error: Invalid target-release format. Expected: X.Y.Z"
             exit 1
           fi
