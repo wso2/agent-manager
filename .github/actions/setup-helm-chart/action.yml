@@ -28,6 +28,35 @@ runs:
       if: steps.helm-cache.outputs.cache-hit != 'true' && hashFiles(format('{0}/Chart.lock', inputs.chart-path)) != ''
       shell: bash
       run: |
-        helm repo add bitnami https://charts.bitnami.com/bitnami
-        helm repo update
-        helm dependency update "${{ inputs.chart-path }}"
+        CHART_PATH="${{ inputs.chart-path }}"
+        CHARTS_DIR="$CHART_PATH/charts"
+        MISSING=false
+        CURRENT_NAME=""
+
+        # Check if all dependency tarballs are already present (e.g. from git checkout)
+        while IFS= read -r line; do
+          case "$line" in
+            *"name:"*)
+              CURRENT_NAME=$(echo "$line" | sed 's/.*name: *//')
+              ;;
+            *"version:"*)
+              VERSION=$(echo "$line" | sed 's/.*version: *//')
+              if [ -n "$CURRENT_NAME" ] && [ -n "$VERSION" ]; then
+                if [ ! -f "$CHARTS_DIR/$CURRENT_NAME-$VERSION.tgz" ]; then
+                  echo "Missing dependency: $CURRENT_NAME-$VERSION.tgz"
+                  MISSING=true
+                fi
+                CURRENT_NAME=""
+              fi
+              ;;
+          esac
+        done < "$CHART_PATH/Chart.lock"
+
+        if [ "$MISSING" = "true" ]; then
+          echo "Downloading missing dependencies..."
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo update
+          helm dependency update "$CHART_PATH"
+        else
+          echo "All chart dependencies are already present, skipping download"
+        fi
