@@ -1,0 +1,86 @@
+---
+sidebar_position: 1
+---
+
+# Monitor Your First Agent
+
+This tutorial walks you through connecting an AI agent to WSO2 Agent Manager and viewing its traces in the AMP Console. You'll register an external agent, run it with auto-instrumentation, and explore the resulting traces.
+
+## Prerequisites
+
+- A running AMP instance (see [Quick Start](../getting-started/quick-start))
+- Python 3.9+
+- An AI agent or a simple Python script that makes LLM calls
+
+---
+
+## Step 1: Register Your Agent in the Console
+
+1. Open the AMP Console at `http://localhost:3000`.
+2. Navigate to **Agents** in the left sidebar.
+3. Click **Add External Agent**.
+4. Fill in a **Name** (e.g., `my-first-agent`) and an optional description.
+5. Click **Create** — AMP generates an **Agent API Key**. Copy it now; you won't see it again.
+
+---
+
+## Step 2: Install the Instrumentation Package
+
+In your agent's Python environment:
+
+```bash
+pip install amp-instrumentation
+```
+
+---
+
+## Step 3: Set Environment Variables
+
+```bash
+export AMP_OTEL_ENDPOINT="http://localhost:22893/otel"
+export AMP_AGENT_API_KEY="<paste-your-agent-api-key>"
+```
+
+Replace the endpoint with your AMP instance's OTLP HTTP endpoint if it differs.
+
+---
+
+## Step 4: Run Your Agent with Instrumentation
+
+Prefix your normal run command with `amp-instrument`:
+
+```bash
+# Example: a script
+amp-instrument python agent.py
+
+# Example: a FastAPI service
+amp-instrument uvicorn app:main --reload
+```
+
+That's all you need — no changes to your agent code.
+
+:::tip Using a virtual environment?
+Make sure `amp-instrument` is available on your path. If you install into a virtualenv, activate it before running the command.
+:::
+
+---
+
+## Step 5: Generate Some Traces
+
+Run a few requests through your agent so there is data to explore. 
+
+
+---
+
+## Step 6: View Traces in the Console
+
+1. Go back to the **AMP Console**.
+2. Click on your agent (`my-first-agent`).
+3. Open the **Traces** tab.
+
+You should see a trace entry for each run. Click a trace to expand it:
+
+- The **root span** shows end-to-end latency and the agent name.
+- The **LLM span** shows the model used, token counts, and latency for the OpenAI call.
+
+---

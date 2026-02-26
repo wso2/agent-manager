@@ -41,6 +41,14 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Concepts',
+      collapsed: false,
+      items: [
+        'concepts/observability',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Components',
       collapsed: false,
       items: [
@@ -49,6 +57,14 @@ const sidebars: SidebarsConfig = {
         'components/amp-instrumentation',
         'components/amp-trace-observer',
         'components/amp-eval'
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Tutorials',
+      collapsed: false,
+      items: [
+        'tutorials/monitor-first-agent',
       ],
     },
     {
