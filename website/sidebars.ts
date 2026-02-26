@@ -1,4 +1,4 @@
-import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
+import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -45,6 +45,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'concepts/observability',
+        'concepts/evaluation',
       ],
     },
     {
@@ -61,6 +62,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'tutorials/observe-first-agent',
+        'tutorials/evaluation-monitors'
       ],
     },
     {
