@@ -51,18 +51,18 @@ func NewTracingController(osClient *opensearch.Client) *TracingController {
 	}
 }
 
-// GetTraceByIdV2 retrieves spans for a specific trace.
+// GetTraceById retrieves spans for a specific trace.
 // When params.ParentSpan is true, only the root span (parentSpanId == "") is returned.
-func (s *TracingController) GetTraceByIdV2(ctx context.Context, params opensearch.V2TraceByIdParams) (*opensearch.TraceResponse, error) {
+func (s *TracingController) GetTraceById(ctx context.Context, params opensearch.TraceByIdParams) (*opensearch.TraceResponse, error) {
 	log := logger.GetLogger(ctx)
-	log.Info("Getting trace by ID (v2)",
+	log.Info("Getting trace by ID",
 		"traceIds", params.TraceIDs,
 		"component", params.ComponentUid,
 		"environment", params.EnvironmentUid,
 		"parentSpan", params.ParentSpan)
 
 	// Build query
-	query := opensearch.BuildV2TraceByIdsQuery(params)
+	query := opensearch.BuildTraceByIdsQuery(params)
 
 	// Search across last 7 days
 	endTime := time.Now()
@@ -85,7 +85,7 @@ func (s *TracingController) GetTraceByIdV2(ctx context.Context, params opensearc
 	spans := opensearch.ParseSpans(response)
 
 	if len(spans) == 0 {
-		log.Warn("No spans found for trace (v2)",
+		log.Warn("No spans found for trace",
 			"traceIds", params.TraceIDs,
 			"component", params.ComponentUid,
 			"environment", params.EnvironmentUid)
@@ -96,7 +96,7 @@ func (s *TracingController) GetTraceByIdV2(ctx context.Context, params opensearc
 	tokenUsage := opensearch.ExtractTokenUsage(spans)
 	traceStatus := opensearch.ExtractTraceStatus(spans)
 
-	log.Info("Retrieved trace spans (v2)",
+	log.Info("Retrieved trace spans",
 		"span_count", len(spans),
 		"traceIds", params.TraceIDs,
 		"parentSpan", params.ParentSpan)
@@ -109,11 +109,11 @@ func (s *TracingController) GetTraceByIdV2(ctx context.Context, params opensearc
 	}, nil
 }
 
-// GetTraceOverviewsV2 retrieves trace overviews using OpenSearch aggregations for
+// GetTraceOverviews retrieves trace overviews using OpenSearch aggregations for
 // trace-level grouping and pagination, then enriches with root span data.
-func (s *TracingController) GetTraceOverviewsV2(ctx context.Context, params opensearch.TraceQueryParams) (*opensearch.TraceOverviewResponse, error) {
+func (s *TracingController) GetTraceOverviews(ctx context.Context, params opensearch.TraceQueryParams) (*opensearch.TraceOverviewResponse, error) {
 	log := logger.GetLogger(ctx)
-	log.Info("Getting trace overviews (v2)",
+	log.Info("Getting trace overviews",
 		"component", params.ComponentUid,
 		"environment", params.EnvironmentUid,
 		"startTime", params.StartTime,
@@ -175,7 +175,7 @@ func (s *TracingController) GetTraceOverviewsV2(ctx context.Context, params open
 	}
 
 	// Phase 2: Fetch root spans for enrichment
-	rootSpanParams := opensearch.V2TraceByIdParams{
+	rootSpanParams := opensearch.TraceByIdParams{
 		TraceIDs:       traceIDs,
 		ComponentUid:   params.ComponentUid,
 		EnvironmentUid: params.EnvironmentUid,
@@ -183,7 +183,7 @@ func (s *TracingController) GetTraceOverviewsV2(ctx context.Context, params open
 		Limit:          len(traceIDs), // One root span per trace
 	}
 
-	rootSpanQuery := opensearch.BuildV2TraceByIdsQuery(rootSpanParams)
+	rootSpanQuery := opensearch.BuildTraceByIdsQuery(rootSpanParams)
 	rootSpanResponse, err := s.osClient.Search(ctx, indices, rootSpanQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch root spans: %w", err)
@@ -239,7 +239,7 @@ func (s *TracingController) GetTraceOverviewsV2(ctx context.Context, params open
 		})
 	}
 
-	log.Info("Retrieved trace overviews (v2)",
+	log.Info("Retrieved trace overviews",
 		"totalCount", totalCount,
 		"returned", len(overviews),
 		"offset", params.Offset,
@@ -251,11 +251,11 @@ func (s *TracingController) GetTraceOverviewsV2(ctx context.Context, params open
 	}, nil
 }
 
-// ExportTracesV2 retrieves complete trace objects with all spans for export.
+// ExportTraces retrieves complete trace objects with all spans for export.
 // Uses aggregation for trace discovery with pagination, then fetches all spans per trace.
-func (s *TracingController) ExportTracesV2(ctx context.Context, params opensearch.TraceQueryParams) (*opensearch.TraceExportResponse, error) {
+func (s *TracingController) ExportTraces(ctx context.Context, params opensearch.TraceQueryParams) (*opensearch.TraceExportResponse, error) {
 	log := logger.GetLogger(ctx)
-	log.Info("Starting trace export (v2)",
+	log.Info("Starting trace export",
 		"component", params.ComponentUid,
 		"environment", params.EnvironmentUid,
 		"startTime", params.StartTime,
@@ -328,7 +328,7 @@ func (s *TracingController) ExportTracesV2(ctx context.Context, params opensearc
 
 	// Phase 2: Fetch ALL spans for each trace (no parentSpan filter)
 	// Use exact span count from aggregation as limit to avoid truncation
-	allSpansParams := opensearch.V2TraceByIdParams{
+	allSpansParams := opensearch.TraceByIdParams{
 		TraceIDs:       traceIDs,
 		ComponentUid:   params.ComponentUid,
 		EnvironmentUid: params.EnvironmentUid,
@@ -336,7 +336,7 @@ func (s *TracingController) ExportTracesV2(ctx context.Context, params opensearc
 		Limit:          totalSpanCount,
 	}
 
-	allSpansQuery := opensearch.BuildV2TraceByIdsQuery(allSpansParams)
+	allSpansQuery := opensearch.BuildTraceByIdsQuery(allSpansParams)
 	allSpansResponse, err := s.osClient.Search(ctx, indices, allSpansQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch spans for export: %w", err)
@@ -388,7 +388,7 @@ func (s *TracingController) ExportTracesV2(ctx context.Context, params opensearc
 			input, output = opensearch.ExtractRootSpanInputOutput(rootSpan)
 		}
 
-		// Token usage and status from all spans (same as v1 export)
+		// Token usage and status from all spans
 		tokenUsage := opensearch.ExtractTokenUsage(traceSpans)
 		traceStatus := opensearch.ExtractTraceStatus(traceSpans)
 
@@ -422,7 +422,7 @@ func (s *TracingController) ExportTracesV2(ctx context.Context, params opensearc
 		})
 	}
 
-	log.Info("Successfully completed trace export (v2)",
+	log.Info("Successfully completed trace export",
 		"exportedTraces", len(fullTraces),
 		"totalCount", totalCount,
 		"offset", params.Offset,

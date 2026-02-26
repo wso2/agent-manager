@@ -48,9 +48,8 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
-// GetTraceOverviewsV2 handles GET /api/v1/traces with query parameters
-// Uses OpenSearch aggregations for proper trace-level grouping
-func (h *Handler) GetTraceOverviewsV2(w http.ResponseWriter, r *http.Request) {
+// GetTraceOverviews handles GET /api/v1/traces with query parameters
+func (h *Handler) GetTraceOverviews(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 
 	query := r.URL.Query()
@@ -110,9 +109,9 @@ func (h *Handler) GetTraceOverviewsV2(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	result, err := h.controllers.GetTraceOverviewsV2(ctx, params)
+	result, err := h.controllers.GetTraceOverviews(ctx, params)
 	if err != nil {
-		log.Error("Failed to get trace overviews (v2)", "error", err)
+		log.Error("Failed to get trace overviews", "error", err)
 		h.writeError(w, http.StatusInternalServerError, "Failed to retrieve trace overviews")
 		return
 	}
@@ -120,8 +119,8 @@ func (h *Handler) GetTraceOverviewsV2(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, result)
 }
 
-// GetTraceByIdAndServiceV2 handles GET /api/v1/trace with query parameters
-func (h *Handler) GetTraceByIdAndServiceV2(w http.ResponseWriter, r *http.Request) {
+// GetTraceById handles GET /api/v1/trace with query parameters
+func (h *Handler) GetTraceById(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 
 	query := r.URL.Query()
@@ -154,13 +153,13 @@ func (h *Handler) GetTraceByIdAndServiceV2(w http.ResponseWriter, r *http.Reques
 		limit = parsedLimit
 	}
 
-	// Parse parentSpan filter (v2 addition)
+	// Parse parentSpan filter
 	parentSpan := false
 	if parentSpanStr := query.Get("parentSpan"); parentSpanStr == "true" {
 		parentSpan = true
 	}
 
-	params := opensearch.V2TraceByIdParams{
+	params := opensearch.TraceByIdParams{
 		TraceIDs:       []string{traceID},
 		ComponentUid:   componentUid,
 		EnvironmentUid: environmentUid,
@@ -169,13 +168,13 @@ func (h *Handler) GetTraceByIdAndServiceV2(w http.ResponseWriter, r *http.Reques
 	}
 
 	ctx := r.Context()
-	result, err := h.controllers.GetTraceByIdV2(ctx, params)
+	result, err := h.controllers.GetTraceById(ctx, params)
 	if err != nil {
 		if errors.Is(err, controllers.ErrTraceNotFound) {
 			h.writeError(w, http.StatusNotFound, "Trace not found")
 			return
 		}
-		log.Error("Failed to get trace by ID (v2)", "error", err)
+		log.Error("Failed to get trace by ID", "error", err)
 		h.writeError(w, http.StatusInternalServerError, "Failed to retrieve traces")
 		return
 	}
@@ -183,9 +182,8 @@ func (h *Handler) GetTraceByIdAndServiceV2(w http.ResponseWriter, r *http.Reques
 	h.writeJSON(w, http.StatusOK, result)
 }
 
-// ExportTracesV2 handles GET /api/v1/traces/export with query parameters
-// Uses aggregation for proper trace grouping and supports pagination
-func (h *Handler) ExportTracesV2(w http.ResponseWriter, r *http.Request) {
+// ExportTraces handles GET /api/v1/traces/export with query parameters
+func (h *Handler) ExportTraces(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 
 	query := r.URL.Query()
@@ -248,9 +246,9 @@ func (h *Handler) ExportTracesV2(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	result, err := h.controllers.ExportTracesV2(ctx, params)
+	result, err := h.controllers.ExportTraces(ctx, params)
 	if err != nil {
-		log.Error("Failed to export traces (v2)", "error", err)
+		log.Error("Failed to export traces", "error", err)
 		h.writeError(w, http.StatusInternalServerError, "Failed to export traces")
 		return
 	}

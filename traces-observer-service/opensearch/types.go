@@ -258,8 +258,8 @@ type TraceBucket struct {
 	DocCount int    `json:"doc_count"`
 }
 
-// V2TraceByIdParams holds parameters for the v2 trace-by-ID query
-type V2TraceByIdParams struct {
+// TraceByIdParams holds parameters for querying spans by trace IDs
+type TraceByIdParams struct {
 	TraceIDs       []string
 	ComponentUid   string
 	EnvironmentUid string

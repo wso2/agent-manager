@@ -142,9 +142,9 @@ func BuildTraceAggregationQuery(params TraceQueryParams) map[string]interface{} 
 	}
 }
 
-// BuildV2TraceByIdsQuery builds a query to fetch spans for one or more trace IDs.
+// BuildTraceByIdsQuery builds a query to fetch spans for one or more trace IDs.
 // When parentSpan is true, adds a filter for parentSpanId == "" to return only root spans.
-func BuildV2TraceByIdsQuery(params V2TraceByIdParams) map[string]interface{} {
+func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
 	mustConditions := []map[string]interface{}{}
 
 	// Support single or multiple trace IDs
