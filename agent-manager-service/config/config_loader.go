@@ -17,7 +17,6 @@
 package config
 
 import (
-	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"os"
@@ -186,11 +185,10 @@ func loadEnvs() {
 		RateLimitPerMin:   int(r.readOptionalInt64("WEBSOCKET_RATE_LIMIT_PER_MIN", 10)),
 	}
 
-	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key)
+	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key).
+	// Validated at runtime in wiring.ProvideEncryptionKey() so that
+	// non-server commands (e.g. --migrate) can run without the key.
 	config.EncryptionKey = r.readOptionalString("ENCRYPTION_KEY", "")
-	if _, err := hex.DecodeString(config.EncryptionKey); err != nil || len(config.EncryptionKey) != 64 {
-		r.errors = append(r.errors, fmt.Errorf("ENCRYPTION_KEY must be exactly 64 valid hex characters (32 bytes), got length %d", len(config.EncryptionKey)))
-	}
 
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)
