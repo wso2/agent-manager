@@ -33,8 +33,7 @@
         "components/amp-api",
         "components/amp-console",
         "components/amp-instrumentation",
-        "components/amp-trace-observer",
-        "components/amp-eval"
+        "components/amp-trace-observer"
       ]
     },
     {
