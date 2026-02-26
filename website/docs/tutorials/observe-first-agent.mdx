@@ -1,0 +1,84 @@
+---
+sidebar_position: 1
+---
+
+# Observe Your First Agent
+
+This tutorial walks you through registering an externally-hosted agent with WSO2 Agent Manager, connecting it with zero-code instrumentation, and viewing its traces in the AMP Console.
+
+## Step 1: Open or Create a Project
+
+WSO2 Agent Manager organises agents inside **Projects**.
+
+1. Open the AMP Console.
+2. Click the **project switcher** in the top navigation bar.
+3. Select an existing project (e.g. **Default Project**) or click **+ Create a Project**, enter a name and description, then click **Create**.
+
+## Step 2: Add a New Agent
+
+1. Inside your project, click **+ Add Agent**.
+2. On the **Add a New Agent** screen, choose **Externally-Hosted Agent** — use this when your agent runs outside the AMP platform (locally, on your own infrastructure, or in a third-party cloud).
+
+## Step 3: Register the Agent
+
+1. Fill in the **Agent Details**:
+   - **Name** — e.g. `my-first-agent`
+   - **Description** (optional)
+2. Click **Register**.
+
+You are taken to the agent's **Overview** page. A **Setup Agent** panel opens automatically on the right.
+
+## Step 4: Set Up Instrumentation (Setup Agent Panel)
+
+The **Zero-code Instrumentation Guide** in the Setup Agent panel walks you through four steps.
+
+### 4.1 Install AMP Instrumentation Package
+
+```bash
+pip install amp-instrumentation
+```
+
+### 4.2 Generate an API Key
+
+In the panel, select a **Token Duration** and click **Generate**. Copy the key immediately — it will not be shown again.
+
+### 4.3 Set Environment Variables
+
+```bash
+export AMP_OTEL_ENDPOINT="http://localhost:22893/otel"
+export AMP_AGENT_API_KEY="<your-generated-api-key>"
+```
+
+Replace the endpoint with your AMP instance's OTLP endpoint if it differs from the default shown in the panel.
+
+### 4.4 Run Your Agent with Instrumentation
+
+Prefix your normal run command with `amp-instrument`:
+
+```bash
+# Python script
+amp-instrument python my_agent.py
+
+# FastAPI / async service
+amp-instrument uvicorn app:main --reload
+
+# Poetry / uv managed projects
+amp-instrument poetry run python agent.py
+amp-instrument uv run python agent.py
+```
+
+No changes to your agent code are required.
+
+:::tip Using a virtual environment?
+Activate it before running `amp-instrument` so the package is on your path.
+:::
+
+## Step 5: View Traces in the Console
+
+Once your agent has handled a few requests:
+
+1. In the left sidebar, under **OBSERVABILITY**, click **Traces**.
+2. Each trace represents one end-to-end agent invocation. Click any trace to expand it:
+   - The **root span** shows end-to-end latency and the agent name.
+   - **LLM spans** show the model, token counts, and call latency.
+   - **Tool spans** show tool name, input, and output.

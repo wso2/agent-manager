@@ -60,7 +60,7 @@ const sidebars: SidebarsConfig = {
       label: 'Tutorials',
       collapsed: false,
       items: [
-        'tutorials/monitor-first-agent',
+        'tutorials/observe-first-agent',
       ],
     },
     {
