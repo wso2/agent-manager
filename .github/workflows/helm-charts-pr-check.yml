@@ -28,18 +28,26 @@ jobs:
       - name: Detect changed charts
         id: detect
         run: |
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '^deployments/helm-charts/' || true)
-          # 1. Get list of changed files
-          if [ -z "$CHANGED_FILES" ]; then
+          ALL_CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          CHANGED_FILES=$(echo "$ALL_CHANGED_FILES" | grep '^deployments/helm-charts/' || true)
+
+          # If shared helm tooling changed, test all charts
+          SHARED_CHANGES=$(echo "$ALL_CHANGED_FILES" | grep -E '^\.github/(actions/setup-helm-chart/|workflows/helm-charts-pr-check\.yml)' || true)
+
+          if [ -n "$SHARED_CHANGES" ]; then
+            echo "Shared Helm tooling changed, testing all charts"
+            CHART_NAMES=$(ls -d deployments/helm-charts/*/ 2>/dev/null | xargs -n1 basename)
+          elif [ -z "$CHANGED_FILES" ]; then
             echo "has-changes=false" >> $GITHUB_OUTPUT
             echo "charts=[]" >> $GITHUB_OUTPUT
             exit 0
+          else
+            # Extract unique chart names from changed files
+            CHART_NAMES=$(echo "$CHANGED_FILES" | cut -d/ -f3 | sort -u)
           fi
 
-          # 2. Extract unique chart names and FILTER OUT deleted ones
+          # Filter out deleted charts
           DETECTED_CHARTS=""
-          # Get the first folder name after 'deployments/helm-charts/'
-          CHART_NAMES=$(echo "$CHANGED_FILES" | cut -d/ -f3 | sort -u)
 
           for chart in $CHART_NAMES; do
             # CRITICAL: Only add if the directory exists in the current branch
