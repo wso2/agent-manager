@@ -21,6 +21,13 @@ import (
 	"time"
 )
 
+const traceIndexPrefix = "otel-traces-"
+
+// GetAllTraceIndices returns a wildcard index pattern that matches all trace indices.
+func GetAllTraceIndices() []string {
+	return []string{traceIndexPrefix + "*"}
+}
+
 // GetIndicesForTimeRange generates index names for the given time range
 // Returns indices in format: otel-traces-YYYY-MM-DD
 func GetIndicesForTimeRange(startTime, endTime string) ([]string, error) {
@@ -53,7 +60,7 @@ func GetIndicesForTimeRange(startTime, endTime string) ([]string, error) {
 	endDay := time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, end.Location())
 
 	for !currentDay.After(endDay) {
-		indexName := fmt.Sprintf("otel-traces-%04d-%02d-%02d", currentDay.Year(), currentDay.Month(), currentDay.Day())
+		indexName := fmt.Sprintf("%s%04d-%02d-%02d", traceIndexPrefix, currentDay.Year(), currentDay.Month(), currentDay.Day())
 		if !indexMap[indexName] {
 			indices = append(indices, indexName)
 			indexMap[indexName] = true

@@ -159,12 +159,17 @@ func (h *Handler) GetTraceById(w http.ResponseWriter, r *http.Request) {
 		parentSpan = true
 	}
 
+	startTime := query.Get("startTime")
+	endTime := query.Get("endTime")
+
 	params := opensearch.TraceByIdParams{
 		TraceIDs:       []string{traceID},
 		ComponentUid:   componentUid,
 		EnvironmentUid: environmentUid,
 		ParentSpan:     parentSpan,
 		Limit:          limit,
+		StartTime:      startTime,
+		EndTime:        endTime,
 	}
 
 	ctx := r.Context()

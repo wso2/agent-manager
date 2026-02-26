@@ -64,15 +64,16 @@ func (s *TracingController) GetTraceById(ctx context.Context, params opensearch.
 	// Build query
 	query := opensearch.BuildTraceByIdsQuery(params)
 
-	// Search across last 7 days
-	endTime := time.Now()
-	startTime := endTime.AddDate(0, 0, -7)
-	indices, err := opensearch.GetIndicesForTimeRange(
-		startTime.Format(time.RFC3339),
-		endTime.Format(time.RFC3339),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate indices: %w", err)
+	// Resolve indices from time range, or search all if no time range provided
+	var indices []string
+	var err error
+	if params.StartTime != "" && params.EndTime != "" {
+		indices, err = opensearch.GetIndicesForTimeRange(params.StartTime, params.EndTime)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate indices: %w", err)
+		}
+	} else {
+		indices = opensearch.GetAllTraceIndices()
 	}
 
 	// Execute search

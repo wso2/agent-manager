@@ -36,6 +36,8 @@ type TraceByIdParams struct {
 	EnvironmentUid string
 	ParentSpan     bool
 	Limit          int
+	StartTime      string
+	EndTime        string
 }
 
 // Span represents a single trace span
