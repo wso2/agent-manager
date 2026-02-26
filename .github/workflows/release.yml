@@ -34,13 +34,12 @@ jobs:
         id: validate
         run: |
           # Validate target-release format
-          if [[ ! "${{ inputs.target-release }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+          if [[ ! "$TARGET_RELEASE" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
             echo "Error: Invalid target-release format. Expected: X.Y.Z"
             exit 1
           fi
-          
+
           # Determine if source-ref is a commit SHA or branch name
-          SOURCE_REF="${{ inputs.source-ref }}"
           if [[ "$SOURCE_REF" =~ ^[0-9a-f]{7,40}$ ]]; then
             echo "source-type=commit" >> $GITHUB_OUTPUT
             echo "✅ Source ref is a commit SHA: $SOURCE_REF"
@@ -50,6 +49,9 @@ jobs:
           fi
           echo "source-ref=$SOURCE_REF" >> $GITHUB_OUTPUT
           echo "✅ Inputs validated"
+        env:
+          TARGET_RELEASE: ${{ inputs.target-release }}
+          SOURCE_REF: ${{ inputs.source-ref }}
         shell: bash
 
       - name: Checkout code
@@ -69,13 +71,10 @@ jobs:
       - name: Verify source commit
         id: verify-commit
         run: |
-          SOURCE_REF="${{ steps.validate.outputs.source-ref }}"
-          SOURCE_TYPE="${{ steps.validate.outputs.source-type }}"
-          
           # Get the commit SHA for the source ref
           COMMIT_SHA=$(git rev-parse HEAD)
           echo "commit-sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
-          
+
           if [ "$SOURCE_TYPE" = "commit" ]; then
             echo "✅ Using commit: $COMMIT_SHA"
             echo "📝 Short SHA: ${COMMIT_SHA:0:7}"
@@ -83,19 +82,21 @@ jobs:
             echo "✅ Using branch '$SOURCE_REF' at commit: $COMMIT_SHA"
             echo "📝 Short SHA: ${COMMIT_SHA:0:7}"
           fi
+        env:
+          SOURCE_REF: ${{ steps.validate.outputs.source-ref }}
+          SOURCE_TYPE: ${{ steps.validate.outputs.source-type }}
         shell: bash
 
       - name: Create release branch
         id: create-branch
         run: |
-          BRANCH_NAME="amp-${{ inputs.target-release }}"
-          COMMIT_SHA="${{ steps.verify-commit.outputs.commit-sha }}"
-          
+          BRANCH_NAME="amp-${TARGET_RELEASE}"
+
           # Check if branch already exists
           if git show-ref --verify --quiet refs/heads/$BRANCH_NAME; then
             echo "Branch $BRANCH_NAME already exists"
             git checkout "$BRANCH_NAME"
-            
+
             # Reset to the source commit
             git reset --hard "$COMMIT_SHA"
             echo "✅ Reset existing branch to commit ${COMMIT_SHA:0:7}"
@@ -104,28 +105,37 @@ jobs:
             git checkout -b "$BRANCH_NAME"
             echo "✅ Created new branch from commit ${COMMIT_SHA:0:7}"
           fi
-          
+
           echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "✅ Release branch: $BRANCH_NAME"
+        env:
+          TARGET_RELEASE: ${{ inputs.target-release }}
+          COMMIT_SHA: ${{ steps.verify-commit.outputs.commit-sha }}
         shell: bash
 
       - name: Update Helm chart versions
         run: |
           bash .github/scripts/update-helm-charts.sh \
-            "${{ inputs.target-release }}"
+            "$TARGET_RELEASE"
+        env:
+          TARGET_RELEASE: ${{ inputs.target-release }}
         shell: bash
 
       - name: Update docs versions
         run: |
           bash .github/scripts/update-docs-versions.sh \
-            "${{ inputs.target-release }}"
+            "$TARGET_RELEASE"
+        env:
+          TARGET_RELEASE: ${{ inputs.target-release }}
         shell: bash
 
       - name: Update install-helpers.sh
         run: |
           bash .github/scripts/update-install-helpers.sh \
-            "${{ inputs.target-release }}" \
+            "$TARGET_RELEASE" \
             "./deployments/quick-start/install-helpers.sh"
+        env:
+          TARGET_RELEASE: ${{ inputs.target-release }}
         shell: bash
 
       - name: Commit version updates
@@ -142,26 +152,26 @@ jobs:
             echo "Files to be committed:"
             git diff --staged --name-only
 
-            git commit -m "chore: update versions for release amp/v${{ inputs.target-release }}"
+            git commit -m "chore: update versions for release amp/v${TARGET_RELEASE}"
             echo "committed=true" >> $GITHUB_OUTPUT
             echo "✅ Committed version updates"
           fi
+        env:
+          TARGET_RELEASE: ${{ inputs.target-release }}
         shell: bash
 
       - name: Create git tag
         id: create-tag
         run: |
-          TAG="amp/v${{ inputs.target-release }}"
-          COMMIT_SHA="${{ steps.verify-commit.outputs.commit-sha }}"
-          SOURCE_TYPE="${{ steps.validate.outputs.source-type }}"
-          
+          TAG="amp/v${TARGET_RELEASE}"
+
           # Create tag message with source information
           if [ "$SOURCE_TYPE" = "commit" ]; then
             TAG_MESSAGE="Release $TAG from commit ${COMMIT_SHA:0:7}"
           else
-            TAG_MESSAGE="Release $TAG from branch ${{ steps.validate.outputs.source-ref }} at commit ${COMMIT_SHA:0:7}"
+            TAG_MESSAGE="Release $TAG from branch ${SOURCE_REF} at commit ${COMMIT_SHA:0:7}"
           fi
-          
+
           # Create new tag
           git tag -a "$TAG" -m "$TAG_MESSAGE"
           git push origin "$TAG"
@@ -170,25 +180,32 @@ jobs:
           echo "📝 Source: $TAG_MESSAGE"
 
           # Extract major version and create/update major version tag
-          MAJOR_VERSION=$(echo "${{ inputs.target-release }}" | cut -d. -f1)
+          MAJOR_VERSION=$(echo "$TARGET_RELEASE" | cut -d. -f1)
           MAJOR_TAG="amp/v${MAJOR_VERSION}"
           echo "Creating/updating major version tag: $MAJOR_TAG"
-          
+
           if git rev-parse "$MAJOR_TAG" >/dev/null 2>&1; then
             echo "Major tag $MAJOR_TAG already exists, updating..."
             git tag -d "$MAJOR_TAG" || true
             git push origin ":refs/tags/$MAJOR_TAG" || true
           fi
-          
+
           git tag -a "$MAJOR_TAG" -m "Latest release for major version $MAJOR_VERSION"
           git push origin "$MAJOR_TAG"
           echo "✅ Created/updated major version tag: $MAJOR_TAG"
+        env:
+          TARGET_RELEASE: ${{ inputs.target-release }}
+          COMMIT_SHA: ${{ steps.verify-commit.outputs.commit-sha }}
+          SOURCE_TYPE: ${{ steps.validate.outputs.source-type }}
+          SOURCE_REF: ${{ steps.validate.outputs.source-ref }}
         shell: bash
 
       - name: Push branch
         run: |
-          git push origin "${{ steps.create-branch.outputs.branch }}"
+          git push origin "$BRANCH"
           echo "✅ Pushed branch"
+        env:
+          BRANCH: ${{ steps.create-branch.outputs.branch }}
         shell: bash
 
   load-config:
@@ -354,10 +371,15 @@ jobs:
         if: hashFiles(matrix.chart.chart-file) != ''
         run: |
           bash .github/scripts/package-helm-chart.sh \
-            "${{ matrix.chart.path }}" \
-            "${{ inputs.target-release }}" \
-            "${{ env.HELM_REGISTRY }}" \
-            "${{ secrets.GITHUB_TOKEN }}"
+            "$CHART_PATH" \
+            "$TARGET_RELEASE" \
+            "$HELM_REGISTRY" \
+            "$HELM_TOKEN"
+        env:
+          CHART_PATH: ${{ matrix.chart.path }}
+          TARGET_RELEASE: ${{ inputs.target-release }}
+          HELM_REGISTRY: ${{ env.HELM_REGISTRY }}
+          HELM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
 
   create-release:
@@ -384,10 +406,12 @@ jobs:
       - name: Get source commit info
         id: commit-info
         run: |
-          COMMIT_SHA=$(git rev-parse amp/v${{ inputs.target-release }}^{commit})
+          COMMIT_SHA=$(git rev-parse "amp/v${TARGET_RELEASE}^{commit}")
           SHORT_SHA=${COMMIT_SHA:0:7}
           echo "commit-sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
           echo "short-sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+        env:
+          TARGET_RELEASE: ${{ inputs.target-release }}
         shell: bash
 
       - name: Create GitHub release
