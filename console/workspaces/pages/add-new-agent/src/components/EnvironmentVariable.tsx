@@ -16,102 +16,142 @@
  * under the License.
  */
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import { Box, Button, Card, CardContent, Typography } from "@wso2/oxygen-ui";
 import { Plus as Add, FileText } from "@wso2/oxygen-ui-icons-react";
-import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import { EnvVariableEditor } from "@agent-management-platform/views";
 import { EnvBulkImportModal, EnvVariable } from "@agent-management-platform/shared-component";
+import { CreateAgentFormValues } from "../form/schema";
 
-export const EnvironmentVariable = () => {
-    const { control, formState: { errors }, register, getValues } = useFormContext();
-    const { fields, append, remove, replace } = useFieldArray({ control, name: 'env' });
-    const watchedEnvValues = useWatch({ control, name: 'env' });
-    const [importModalOpen, setImportModalOpen] = useState(false);
+interface EnvironmentVariableProps {
+  formData: CreateAgentFormValues;
+  setFormData: React.Dispatch<React.SetStateAction<CreateAgentFormValues>>;
+}
 
-    // Memoize envValues to stabilize dependency for useCallback
-    const envValues = useMemo(
-        () => (watchedEnvValues || []) as EnvVariable[],
-        [watchedEnvValues]
-    );
+export const EnvironmentVariable = ({
+  formData,
+  setFormData,
+}: EnvironmentVariableProps) => {
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const envVariables = formData.env || [];
+  const isOneEmpty = envVariables.some((e) => !e?.key || !e?.value);
 
-    const isOneEmpty = envValues.some((e) => !e?.key || !e?.value);
+  const handleAdd = () => {
+    setFormData((prev) => ({
+      ...prev,
+      env: [...(prev.env || []), { key: '', value: '' }],
+    }));
+  };
 
-    // Handle bulk import - merge imported vars with existing ones, remove empty rows
-    const handleImport = useCallback((importedVars: EnvVariable[]) => {
-        // Get current values directly from form to avoid stale closure
-        const currentEnv = (getValues('env') || []) as EnvVariable[];
+  const handleRemove = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      env: prev.env?.filter((_, i) => i !== index) || [],
+    }));
+  };
 
-        // Filter out rows with no key (value may be intentionally empty)
-        const nonEmptyExisting = currentEnv.filter((env) => env?.key);
+  const handleChange = (index: number, field: 'key' | 'value', value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      env: prev.env?.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item
+      ) || [],
+    }));
+  };
 
-        // Map existing keys to their values for merging
-        const existingMap = new Map<string, string>();
-        nonEmptyExisting.forEach((env) => {
-            existingMap.set(env.key, env.value);
-        });
+  const handleInitialEdit = (field: 'key' | 'value', value: string) => {
+    setFormData((prev) => {
+      const envList = prev.env || [];
+      if (envList.length > 0) {
+        return {
+          ...prev,
+          env: envList.map((item, i) =>
+            i === 0 ? { ...item, [field]: value } : item
+          ),
+        };
+      }
+      return {
+        ...prev,
+        env: [{ key: field === 'key' ? value : '', value: field === 'value' ? value : '' }],
+      };
+    });
+  };
 
-        // Merge: imported vars override existing ones with same key
-        importedVars.forEach((imported) => {
-            existingMap.set(imported.key, imported.value);
-        });
+  const handleImport = useCallback((importedVars: EnvVariable[]) => {
+    setFormData((prev) => {
+      // Filter out rows with no key (value may be intentionally empty)
+      const nonEmpty = (prev.env || []).filter((env) => env?.key);
 
-        // Convert map back to array
-        const mergedEnv = Array.from(existingMap.entries()).map(([key, value]) => ({ key, value }));
+      // Build map from existing vars; imported vars override on same key
+      const existingMap = new Map<string, string>(nonEmpty.map((env) => [env.key, env.value]));
+      importedVars.forEach((v) => existingMap.set(v.key, v.value));
 
-        // Replace all fields with merged result
-        replace(mergedEnv);
-    }, [getValues, replace]);
+      return {
+        ...prev,
+        env: Array.from(existingMap.entries()).map(([key, value]) => ({ key, value })),
+      };
+    });
+  }, [setFormData]);
 
-    const handleModalClose = useCallback(() => setImportModalOpen(false), []);
+  const handleModalClose = useCallback(() => setImportModalOpen(false), []);
 
-    return (
-        <Card variant="outlined">
-            <CardContent>
-                <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
-                    <Typography variant="h5">
-                        Environment Variables (Optional)
-                    </Typography>
-                </Box>
-                <Box display="flex" flexDirection="column" py={2} gap={2}>
-                    {fields.map((field, index) => (
-                        <EnvVariableEditor
-                            key={field.id}
-                            fieldName="env"
-                            index={index}
-                            fieldId={field.id}
-                            register={register}
-                            errors={errors}
-                            onRemove={() => remove(index)}
-                        />
-                    ))}
-                </Box>
-                <Box display="flex" gap={1}>
-                    <Button
-                        startIcon={<Add fontSize="small" />}
-                        disabled={isOneEmpty}
-                        variant="outlined"
-                        color="primary"
-                        onClick={() => append({ key: '', value: '' })}
-                    >
-                        Add
-                    </Button>
-                    <Button
-                        startIcon={<FileText fontSize="small" />}
-                        variant="outlined"
-                        color="primary"
-                        onClick={() => setImportModalOpen(true)}
-                    >
-                        Import
-                    </Button>
-                </Box>
+  return (
+    <Card variant="outlined">
+      <CardContent>
+        <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
+          <Typography variant="h5">
+            Environment Variables (Optional)
+          </Typography>
+        </Box>
+        <Box display="flex" flexDirection="column" py={2} gap={2}>
+          {envVariables.length ? envVariables.map((item, index) => (
+            <EnvVariableEditor
+              key={`env-${index}`}
+              index={index}
+              keyValue={item.key || ''}
+              valueValue={item.value || ''}
+              onKeyChange={(value) => handleChange(index, 'key', value)}
+              onValueChange={(value) => handleChange(index, 'value', value)}
+              onRemove={() => handleRemove(index)}
+            />
+          )) : (
+            <EnvVariableEditor
+              key="env-0"
+              index={0}
+              keyValue={envVariables?.[0]?.key || ''}
+              valueValue={envVariables?.[0]?.value || ''}
+              onKeyChange={(value) => handleInitialEdit('key', value)}
+              onValueChange={(value) => handleInitialEdit('value', value)}
+              onRemove={() => handleRemove(0)}
+            />
+          )}
+        </Box>
+        <Box display="flex" gap={1}>
+          <Button
+            startIcon={<Add fontSize="small" />}
+            disabled={isOneEmpty}
+            variant="outlined"
+            color="primary"
+            onClick={handleAdd}
+          >
+            Add
+          </Button>
+          <Button
+            startIcon={<FileText fontSize="small" />}
+            variant="outlined"
+            color="primary"
+            onClick={() => setImportModalOpen(true)}
+          >
+            Import
+          </Button>
+        </Box>
 
-                <EnvBulkImportModal
-                    open={importModalOpen}
-                    onClose={handleModalClose}
-                    onImport={handleImport}
-                />
-            </CardContent>
-        </Card>
-    );
+        <EnvBulkImportModal
+          open={importModalOpen}
+          onClose={handleModalClose}
+          onImport={handleImport}
+        />
+      </CardContent>
+    </Card>
+  );
 };
