@@ -13,6 +13,8 @@ on:
         required: true
         type: string
 
+run-name: Agent Evaluation Release ${{inputs.target_version}}
+
 jobs:
   test:
     name: Test

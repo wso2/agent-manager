@@ -1,4 +1,4 @@
-import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
+import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -41,14 +41,28 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Concepts',
+      collapsed: false,
+      items: [
+        'concepts/observability',
+        'concepts/evaluation',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Components',
       collapsed: false,
       items: [
-        'components/amp-api',
-        'components/amp-console',
         'components/amp-instrumentation',
-        'components/amp-trace-observer',
-        'components/amp-eval'
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Tutorials',
+      collapsed: false,
+      items: [
+        'tutorials/observe-first-agent',
+        'tutorials/evaluation-monitors'
       ],
     },
     {
