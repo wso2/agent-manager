@@ -74,10 +74,24 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 	createdBy := userID
 
 	// Bind request body
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 	var specReq spec.CreateAgentModelConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		log.Error("CreateAgentModelConfig: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if err := utils.ValidateConfigName(specReq.Name); err != nil {
+		log.Warn("CreateAgentModelConfig: invalid name", "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	validTypes := map[string]bool{"llm": true, "mcp": true, "other": true}
+	if !validTypes[specReq.Type] {
+		log.Warn("CreateAgentModelConfig: invalid type", "type", specReq.Type)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Type must be one of: llm, mcp, other")
 		return
 	}
 
@@ -204,11 +218,20 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 	var specReq spec.UpdateAgentModelConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		log.Error("UpdateAgentModelConfig: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
+	}
+
+	if specReq.Name != nil {
+		if err := utils.ValidateConfigName(*specReq.Name); err != nil {
+			log.Warn("UpdateAgentModelConfig: invalid name", "error", err)
+			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 
 	// Convert spec request to models request
@@ -326,13 +349,36 @@ func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) 
 			EnvironmentUuid: envConfig.EnvironmentUUID,
 			EnvironmentName: envConfig.EnvironmentName,
 		}
+
+		// Build configuration object with proxy URL and auth info
 		if envConfig.LLMProxy != nil {
-			specEnvConfig.LlmProxy = &spec.LLMProxyInfo{
+			modelEnvConfig := &spec.ModelEnvConfig{
 				ProxyUuid: envConfig.LLMProxy.ProxyUUID,
-				ProxyName: envConfig.LLMProxy.ProxyName,
-				Context:   envConfig.LLMProxy.Context,
-				Status:    envConfig.LLMProxy.Status,
 			}
+
+			// Add proxy URL if present
+			if envConfig.LLMProxy.URL != nil {
+				modelEnvConfig.Url = envConfig.LLMProxy.URL
+			}
+
+			// Build auth info if API key present
+			if envConfig.LLMProxy.APIKey != nil {
+				authType := "api-key"
+				authIn := "header"
+				authName := "API-Key"
+				modelEnvConfig.AuthInfo = &spec.ModelAuthInfo{
+					Type:  &authType,
+					In:    &authIn,
+					Name:  &authName,
+					Value: envConfig.LLMProxy.APIKey,
+				}
+			}
+
+			// Set status (default to "active" if proxy exists)
+			status := "active"
+			modelEnvConfig.Status = &status
+
+			specEnvConfig.Configuration = modelEnvConfig
 		}
 		envModelConfig[envName] = specEnvConfig
 	}

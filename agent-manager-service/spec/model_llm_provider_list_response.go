@@ -19,7 +19,7 @@ var _ MappedNullable = &LLMProviderListResponse{}
 
 // LLMProviderListResponse struct for LLMProviderListResponse
 type LLMProviderListResponse struct {
-	Providers []LLMProviderResponse `json:"providers"`
+	Providers []LLMProviderListItem `json:"providers"`
 	Total     int32                 `json:"total"`
 	Limit     int32                 `json:"limit"`
 	Offset    int32                 `json:"offset"`
@@ -29,7 +29,7 @@ type LLMProviderListResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewLLMProviderListResponse(providers []LLMProviderResponse, total int32, limit int32, offset int32) *LLMProviderListResponse {
+func NewLLMProviderListResponse(providers []LLMProviderListItem, total int32, limit int32, offset int32) *LLMProviderListResponse {
 	this := LLMProviderListResponse{}
 	this.Providers = providers
 	this.Total = total
@@ -47,9 +47,9 @@ func NewLLMProviderListResponseWithDefaults() *LLMProviderListResponse {
 }
 
 // GetProviders returns the Providers field value
-func (o *LLMProviderListResponse) GetProviders() []LLMProviderResponse {
+func (o *LLMProviderListResponse) GetProviders() []LLMProviderListItem {
 	if o == nil {
-		var ret []LLMProviderResponse
+		var ret []LLMProviderListItem
 		return ret
 	}
 
@@ -58,7 +58,7 @@ func (o *LLMProviderListResponse) GetProviders() []LLMProviderResponse {
 
 // GetProvidersOk returns a tuple with the Providers field value
 // and a boolean to check if the value has been set.
-func (o *LLMProviderListResponse) GetProvidersOk() ([]LLMProviderResponse, bool) {
+func (o *LLMProviderListResponse) GetProvidersOk() ([]LLMProviderListItem, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -66,7 +66,7 @@ func (o *LLMProviderListResponse) GetProvidersOk() ([]LLMProviderResponse, bool)
 }
 
 // SetProviders sets field value
-func (o *LLMProviderListResponse) SetProviders(v []LLMProviderResponse) {
+func (o *LLMProviderListResponse) SetProviders(v []LLMProviderListItem) {
 	o.Providers = v
 }
 

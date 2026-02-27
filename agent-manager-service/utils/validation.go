@@ -66,6 +66,23 @@ func ValidateUserID(userID string) error {
 	return nil
 }
 
+// configNameRegex allows alphanumeric characters, spaces, hyphens, and underscores
+var configNameRegex = regexp.MustCompile(`^[a-zA-Z0-9 _-]+$`)
+
+// ValidateConfigName validates the format and length of a configuration name
+func ValidateConfigName(name string) error {
+	if len(name) == 0 {
+		return errors.New("configuration name cannot be empty")
+	}
+	if len(name) > 255 {
+		return errors.New("configuration name must not exceed 255 characters")
+	}
+	if !configNameRegex.MatchString(name) {
+		return errors.New("configuration name contains invalid characters (only alphanumeric, spaces, hyphens, and underscores allowed)")
+	}
+	return nil
+}
+
 // ValidateEnvironmentVariableName validates that a generated environment variable name
 // doesn't conflict with common system variables
 func ValidateEnvironmentVariableName(varName string) error {

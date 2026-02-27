@@ -44,6 +44,12 @@ type AgentConfigurationRepository interface {
 	// Count counts total configurations
 	Count(ctx context.Context, orgName string) (int64, error)
 
+	// ListByAgent retrieves configurations scoped to a specific agent with pagination
+	ListByAgent(ctx context.Context, orgName, projectName, agentName string, limit, offset int) ([]models.AgentConfiguration, error)
+
+	// CountByAgent counts total configurations for a specific agent
+	CountByAgent(ctx context.Context, orgName, projectName, agentName string) (int64, error)
+
 	// Update updates an existing configuration (use within transaction)
 	Update(ctx context.Context, tx *gorm.DB, config *models.AgentConfiguration) error
 
@@ -114,6 +120,26 @@ func (r *agentConfigurationRepository) Count(ctx context.Context, orgName string
 	err := r.db.WithContext(ctx).
 		Model(&models.AgentConfiguration{}).
 		Where("organization_name = ?", orgName).
+		Count(&count).Error
+	return count, err
+}
+
+func (r *agentConfigurationRepository) ListByAgent(ctx context.Context, orgName, projectName, agentName string, limit, offset int) ([]models.AgentConfiguration, error) {
+	var configs []models.AgentConfiguration
+	err := r.db.WithContext(ctx).
+		Where("organization_name = ? AND project_name = ? AND agent_id = ?", orgName, projectName, agentName).
+		Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&configs).Error
+	return configs, err
+}
+
+func (r *agentConfigurationRepository) CountByAgent(ctx context.Context, orgName, projectName, agentName string) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&models.AgentConfiguration{}).
+		Where("organization_name = ? AND project_name = ? AND agent_id = ?", orgName, projectName, agentName).
 		Count(&count).Error
 	return count, err
 }

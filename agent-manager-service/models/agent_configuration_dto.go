@@ -72,10 +72,9 @@ type EnvModelConfigResponse struct {
 
 // LLMProxyInfo contains proxy details exposed in response
 type LLMProxyInfo struct {
-	ProxyUUID string `json:"proxyUuid"`
-	ProxyName string `json:"proxyName"`
-	Context   string `json:"context"`
-	Status    string `json:"status"`
+	URL       *string `json:"proxyUrl,omitempty"` // Included for external agents
+	APIKey    *string `json:"apiKey,omitempty"`   // Only during creation for external agents
+	ProxyUUID *string
 }
 
 // EnvironmentVariableConfig represents the variable name exposed to agent

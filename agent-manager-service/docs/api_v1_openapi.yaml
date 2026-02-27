@@ -8407,27 +8407,61 @@ components:
     CreateLLMProviderRequest:
       type: object
       required:
-        - templateHandle
-        - configuration
+        - id
+        - name
+        - version
+        - context
+        - template
+        - upstream
       properties:
+        id:
+          type: string
+          description: Unique identifier for the LLM provider
+          example: openai-provider
+        name:
+          type: string
+          description: Human-readable name of the LLM provider
+          example: OpenAI Provider
         description:
           type: string
           description: Description of the LLM provider
           example: OpenAI GPT-4 provider for production
-        templateHandle:
+        version:
           type: string
-          description: handle of the template being used
+          description: Version of the LLM provider
+          pattern: '^v\d+\.\d+$'
+          example: v1.0
+        context:
+          type: string
+          description: API context path (must start with /, no trailing slash)
+          pattern: '^\/([a-zA-Z0-9_\-\/]*[^\/])?$'
+          default: /
+          example: /openai
+        template:
+          type: string
+          description: Template identifier being used
           example: openai
+        upstream:
+          $ref: "#/components/schemas/UpstreamConfig"
+        accessControl:
+          $ref: "#/components/schemas/LLMAccessControl"
+        policies:
+          type: array
+          description: List of policies applied to this provider
+          items:
+            $ref: "#/components/schemas/LLMPolicy"
         openapi:
           type: string
-          description: Custom OpenAPI specification (overrides template)
-        modelList:
+          description: Custom OpenAPI specification (YAML or JSON)
+        modelProviders:
           type: array
-          description: Custom model list (overrides template)
+          description: List of model providers and their models
           items:
             $ref: "#/components/schemas/LLMModelProvider"
-        configuration:
-          $ref: "#/components/schemas/LLMProviderConfig"
+        rateLimiting:
+          $ref: "#/components/schemas/LLMRateLimitingConfig"
+        security:
+          $ref: "#/components/schemas/SecurityConfig"
         gateways:
           type: array
           items:
@@ -8438,22 +8472,44 @@ components:
       type: object
       minProperties: 1
       properties:
+        name:
+          type: string
+          description: Updated human-readable name
         description:
           type: string
           description: Updated description
-        templateHandle:
+        version:
           type: string
-          description: Updated template handle
+          description: Updated version
+          pattern: '^v\d+\.\d+$'
+        context:
+          type: string
+          description: Updated API context path
+          pattern: '^\/([a-zA-Z0-9_\-\/]*[^\/])?$'
+        template:
+          type: string
+          description: Updated template identifier
+        upstream:
+          $ref: "#/components/schemas/UpstreamConfig"
+        accessControl:
+          $ref: "#/components/schemas/LLMAccessControl"
+        policies:
+          type: array
+          description: Updated list of policies
+          items:
+            $ref: "#/components/schemas/LLMPolicy"
         openapi:
           type: string
           description: Updated OpenAPI specification
-        modelList:
+        modelProviders:
           type: array
-          description: Updated model list
+          description: Updated model providers list
           items:
             $ref: "#/components/schemas/LLMModelProvider"
-        configuration:
-          $ref: "#/components/schemas/LLMProviderConfig"
+        rateLimiting:
+          $ref: "#/components/schemas/LLMRateLimitingConfig"
+        security:
+          $ref: "#/components/schemas/SecurityConfig"
         gateways:
           type: array
           items:
@@ -8472,28 +8528,100 @@ components:
             - true: Add to catalog (makes it discoverable for agent configurations)
             - false: Remove from catalog (hides from catalog queries)
           example: true
+  
+    LLMProviderListItem:
+      required:
+        - uuid
+        - id
+        - name
+        - template
+        - status
+      properties:
+        uuid:
+          type: string
+          description: Provider UUID
+        id:
+          type: string
+          description: Unique identifier for the LLM provider
+        name:
+          type: string
+          description: Human-readable name of the LLM provider
+        createdBy:
+          type: string
+          description: User who created the provider
+          readOnly: true
+        template:
+          type: string
+          description: Template identifier
+        status:
+          type: string
+          description: Provider status
+          enum:
+            - pending
+            - deployed
+            - failed
+        gateways:
+          type: array
+          items:
+            type: string
+            format: uuid
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the resource was created
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the resource was last updated
+          readOnly: true
 
     LLMProviderResponse:
       type: object
       required:
         - uuid
-        - templateHandle
+        - id
+        - name
+        - version
+        - context
+        - template
+        - upstream
         - status
-        - configuration
       properties:
-        uuid:
+        uuid: 
           type: string
-          format: uuid
-          description: UUID of the provider
+          description: UUID of the llm provider
+        id:
+          type: string
+          description: Unique identifier for the LLM provider
+        name:
+          type: string
+          description: Human-readable name of the LLM provider
         description:
           type: string
           description: Provider description
         createdBy:
           type: string
           description: User who created the provider
-        templateHandle:
+          readOnly: true
+        version:
           type: string
-          description: Template handle
+          description: Version of the LLM provider
+        context:
+          type: string
+          description: API context path
+        template:
+          type: string
+          description: Template identifier
+        upstream:
+          $ref: "#/components/schemas/UpstreamConfig"
+        accessControl:
+          $ref: "#/components/schemas/LLMAccessControl"
+        policies:
+          type: array
+          description: List of policies applied to this provider
+          items:
+            $ref: "#/components/schemas/LLMPolicy"
         openapi:
           type: string
           description: OpenAPI specification
@@ -8502,13 +8630,17 @@ components:
           description: List of model providers
           items:
             $ref: "#/components/schemas/LLMModelProvider"
+        rateLimiting:
+          $ref: "#/components/schemas/LLMRateLimitingConfig"
+        security:
+          $ref: "#/components/schemas/SecurityConfig"
         status:
           type: string
           description: Provider status
-        configuration:
-          $ref: "#/components/schemas/LLMProviderConfig"
-        artifact:
-          $ref: "#/components/schemas/Artifact"
+          enum:
+            - pending
+            - deployed
+            - failed
         gateways:
           type: array
           items:
@@ -8518,6 +8650,16 @@ components:
           type: boolean
           description: Whether the provider is available in the catalog
           example: true
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the resource was created
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the resource was last updated
+          readOnly: true
 
     LLMProviderListResponse:
       type: object
@@ -8530,7 +8672,7 @@ components:
         providers:
           type: array
           items:
-            $ref: "#/components/schemas/LLMProviderResponse"
+            $ref: "#/components/schemas/LLMProviderListItem"
         total:
           type: integer
           format: int32
@@ -8540,41 +8682,6 @@ components:
         offset:
           type: integer
           format: int32
-
-    LLMProviderConfig:
-      type: object
-      properties:
-        name:
-          type: string
-          description: Configuration name
-          example: openai-gpt4
-        version:
-          type: string
-          description: Configuration version
-          example: v1
-        context:
-          type: string
-          description: API context path
-          example: /openai
-        vhost:
-          type: string
-          description: Virtual host
-          example: api.example.com
-        template:
-          type: string
-          description: Template name
-        upstream:
-          $ref: "#/components/schemas/UpstreamConfig"
-        accessControl:
-          $ref: "#/components/schemas/LLMAccessControl"
-        rateLimiting:
-          $ref: "#/components/schemas/LLMRateLimitingConfig"
-        policies:
-          type: array
-          items:
-            $ref: "#/components/schemas/LLMPolicy"
-        security:
-          $ref: "#/components/schemas/SecurityConfig"
 
     # ============================================
     # LLM PROXY SCHEMAS
@@ -8651,8 +8758,6 @@ components:
           description: Proxy status
         configuration:
           $ref: "#/components/schemas/LLMProxyConfig"
-        artifact:
-          $ref: "#/components/schemas/Artifact"
 
     LLMProxyListResponse:
       type: object
@@ -8851,9 +8956,9 @@ components:
           type: string
           description: Access control mode
           enum:
-            - allow
-            - deny
-          example: allow
+            - allow_all
+            - deny_all
+          example: allow_all
         exceptions:
           type: array
           items:
@@ -9071,26 +9176,6 @@ components:
             - query
             - cookie
           example: header
-
-    Artifact:
-      type: object
-      properties:
-        uuid:
-          type: string
-          format: uuid
-          description: Artifact UUID
-        name:
-          type: string
-          description: Artifact name
-        displayName:
-          type: string
-          description: Artifact display name
-        description:
-          type: string
-          description: Artifact description
-        status:
-          type: string
-          description: Artifact status
 
     # ============================================================================
     # Evaluation Score Schemas
@@ -9674,8 +9759,42 @@ components:
           type: string
           description: Name of the environment
           example: "development"
-        llmProxy:
-          $ref: "#/components/schemas/LLMProxyInfo"
+        configuration:
+          $ref: "#/components/schemas/ModelEnvConfig"
+
+    ModelEnvConfig:
+      type: object
+      properties:
+        proxyUuid:
+          type: string
+          description: UUID of the proxy created
+        url:
+          type: string
+          description: url of the created proxy
+        authInfo:
+          $ref: "#/components/schemas/ModelAuthInfo"
+        status:
+          type: string
+          description: Status of the proxy
+          example: "active"
+    
+    ModelAuthInfo:
+      type: object
+      properties:
+        type: 
+          type: string
+          description: authentication type, api-key, oauth2
+        in:
+          type: string
+          description: how the token should be set (header, query param)
+          example: header
+        name: 
+          type: string
+          description: expected header or query paremeter name
+          example: api-key
+        value: 
+          type: string
+          description: api key or token value
 
     LLMProxyInfo:
       type: object

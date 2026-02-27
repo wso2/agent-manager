@@ -22,8 +22,8 @@ type EnvModelConfigResponse struct {
 	// UUID of the environment
 	EnvironmentUuid string `json:"environmentUuid"`
 	// Name of the environment
-	EnvironmentName string        `json:"environmentName"`
-	LlmProxy        *LLMProxyInfo `json:"llmProxy,omitempty"`
+	EnvironmentName string          `json:"environmentName"`
+	Configuration   *ModelEnvConfig `json:"configuration,omitempty"`
 }
 
 // NewEnvModelConfigResponse instantiates a new EnvModelConfigResponse object
@@ -93,36 +93,36 @@ func (o *EnvModelConfigResponse) SetEnvironmentName(v string) {
 	o.EnvironmentName = v
 }
 
-// GetLlmProxy returns the LlmProxy field value if set, zero value otherwise.
-func (o *EnvModelConfigResponse) GetLlmProxy() LLMProxyInfo {
-	if o == nil || IsNil(o.LlmProxy) {
-		var ret LLMProxyInfo
+// GetConfiguration returns the Configuration field value if set, zero value otherwise.
+func (o *EnvModelConfigResponse) GetConfiguration() ModelEnvConfig {
+	if o == nil || IsNil(o.Configuration) {
+		var ret ModelEnvConfig
 		return ret
 	}
-	return *o.LlmProxy
+	return *o.Configuration
 }
 
-// GetLlmProxyOk returns a tuple with the LlmProxy field value if set, nil otherwise
+// GetConfigurationOk returns a tuple with the Configuration field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *EnvModelConfigResponse) GetLlmProxyOk() (*LLMProxyInfo, bool) {
-	if o == nil || IsNil(o.LlmProxy) {
+func (o *EnvModelConfigResponse) GetConfigurationOk() (*ModelEnvConfig, bool) {
+	if o == nil || IsNil(o.Configuration) {
 		return nil, false
 	}
-	return o.LlmProxy, true
+	return o.Configuration, true
 }
 
-// HasLlmProxy returns a boolean if a field has been set.
-func (o *EnvModelConfigResponse) HasLlmProxy() bool {
-	if o != nil && !IsNil(o.LlmProxy) {
+// HasConfiguration returns a boolean if a field has been set.
+func (o *EnvModelConfigResponse) HasConfiguration() bool {
+	if o != nil && !IsNil(o.Configuration) {
 		return true
 	}
 
 	return false
 }
 
-// SetLlmProxy gets a reference to the given LLMProxyInfo and assigns it to the LlmProxy field.
-func (o *EnvModelConfigResponse) SetLlmProxy(v LLMProxyInfo) {
-	o.LlmProxy = &v
+// SetConfiguration gets a reference to the given ModelEnvConfig and assigns it to the Configuration field.
+func (o *EnvModelConfigResponse) SetConfiguration(v ModelEnvConfig) {
+	o.Configuration = &v
 }
 
 func (o EnvModelConfigResponse) MarshalJSON() ([]byte, error) {
@@ -137,8 +137,8 @@ func (o EnvModelConfigResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["environmentUuid"] = o.EnvironmentUuid
 	toSerialize["environmentName"] = o.EnvironmentName
-	if !IsNil(o.LlmProxy) {
-		toSerialize["llmProxy"] = o.LlmProxy
+	if !IsNil(o.Configuration) {
+		toSerialize["configuration"] = o.Configuration
 	}
 	return toSerialize, nil
 }

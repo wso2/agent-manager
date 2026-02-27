@@ -68,6 +68,12 @@ type rollbackResource struct {
 	providerAPIKeyID string // API key created for the provider
 }
 
+// envCredentialData tracks proxy credentials for external agents
+type envCredentialData struct {
+	apiKey   string
+	proxyURL string
+}
+
 // NewAgentConfigurationService creates a new agent configuration service
 func NewAgentConfigurationService(
 	db *gorm.DB,
@@ -105,8 +111,8 @@ func NewAgentConfigurationService(
 func (s *agentConfigurationService) Create(ctx context.Context, orgName, projectName, agentID string,
 	req models.CreateAgentModelConfigRequest, createdBy string,
 ) (*models.AgentModelConfigResponse, error) {
-	// Validate agent exists
-	_, err := s.ocClient.GetComponent(ctx, orgName, projectName, agentID)
+	// Validate agent exists and determine type
+	agent, err := s.ocClient.GetComponent(ctx, orgName, projectName, agentID)
 	if err != nil {
 		// Check if it's a 404 error (agent not found) vs other errors
 		if errors.Is(err, utils.ErrAgentNotFound) {
@@ -115,6 +121,9 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		// For other errors (unauthorized, internal, etc), return as-is
 		return nil, fmt.Errorf("failed to validate agent: %w", err)
 	}
+
+	// Determine if this is an external agent
+	isExternalAgent := agent.Provisioning.Type == string(utils.ExternalAgent)
 
 	// Note: Duplicate check removed - database unique constraint handles it
 	// The constraint on (agent_id, organization_name) prevents race conditions
@@ -162,6 +171,12 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 	// Track created resources for rollback
 	var rollbackResources []rollbackResource
 
+	// Track credentials for external agents
+	var envCredentials map[string]envCredentialData
+	if isExternalAgent {
+		envCredentials = make(map[string]envCredentialData)
+	}
+
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		// Create agent configuration
 		if err := s.agentConfigRepo.Create(ctx, tx, config); err != nil {
@@ -194,7 +209,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 			}
 
 			// Build LLM proxy configuration
-			proxyConfig, providerAPIKeyID, err := s.buildLLMProxyConfig(ctx, config, envMapping, gateway)
+			proxyConfig, providerAPIKeyID, err := s.buildLLMProxyConfig(ctx, config, env.Name, envMapping)
 			if err != nil {
 				return fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 			}
@@ -257,6 +272,14 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 				proxyURL = gateway.Vhost
 			}
 
+			// Capture credentials for external agents (single unified update)
+			if isExternalAgent {
+				envCredentials[envUUID.String()] = envCredentialData{
+					apiKey:   proxyAPIKey.APIKey,
+					proxyURL: proxyURL,
+				}
+			}
+
 			// Create environment variable records (secret references, not actual secrets)
 			variables := []models.AgentEnvConfigVariable{
 				{
@@ -307,7 +330,10 @@ func (s *agentConfigurationService) Create(ctx context.Context, orgName, project
 		"environmentCount", len(req.EnvMappings),
 	)
 
-	// Return created configuration
+	// Return created configuration with credentials for external agents
+	if isExternalAgent {
+		return s.buildExternalAgentConfigResponse(ctx, config, envCredentials)
+	}
 	return s.Get(ctx, config.UUID, orgName, projectName, agentID)
 }
 
@@ -326,7 +352,16 @@ func (s *agentConfigurationService) Get(ctx context.Context, configUUID uuid.UUI
 		return nil, utils.ErrAgentConfigNotFound
 	}
 
-	return s.buildConfigResponse(ctx, config)
+	// Check if agent is external
+	agent, err := s.ocClient.GetComponent(ctx, orgName, projectName, agentName)
+	if err != nil {
+		// If we can't determine agent type, assume internal (safer default)
+		s.logger.Warn("Failed to get agent type, assuming internal", "error", err)
+		return s.buildConfigResponse(ctx, config, false)
+	}
+	isExternal := agent.Provisioning.Type == string(utils.ExternalAgent)
+
+	return s.buildConfigResponse(ctx, config, isExternal)
 }
 
 // GetByAgent retrieves configuration by agent ID
@@ -339,30 +374,32 @@ func (s *agentConfigurationService) GetByAgent(ctx context.Context, agentID, org
 		return nil, fmt.Errorf("failed to get configuration: %w", err)
 	}
 
-	return s.buildConfigResponse(ctx, config)
+	// Check if agent is external
+	agent, err := s.ocClient.GetComponent(ctx, orgName, config.ProjectName, agentID)
+	if err != nil {
+		// If we can't determine agent type, assume internal (safer default)
+		s.logger.Warn("Failed to get agent type, assuming internal", "error", err)
+		return s.buildConfigResponse(ctx, config, false)
+	}
+	isExternal := agent.Provisioning.Type == string(utils.ExternalAgent)
+
+	return s.buildConfigResponse(ctx, config, isExternal)
 }
 
 // List lists all configurations for an organization, project, and agent
 func (s *agentConfigurationService) List(ctx context.Context, orgName, projectName, agentName string, limit, offset int) (*models.AgentModelConfigListResponse, error) {
-	// List all configurations for the organization
-	configs, err := s.agentConfigRepo.List(ctx, orgName, limit, offset)
+	configs, err := s.agentConfigRepo.ListByAgent(ctx, orgName, projectName, agentName, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list configurations: %w", err)
 	}
 
-	// Filter by projectName and agentName
-	filteredConfigs := make([]models.AgentConfiguration, 0, len(configs))
-	for _, cfg := range configs {
-		if cfg.ProjectName == projectName && cfg.AgentID == agentName {
-			filteredConfigs = append(filteredConfigs, cfg)
-		}
+	count, err := s.agentConfigRepo.CountByAgent(ctx, orgName, projectName, agentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count configurations: %w", err)
 	}
 
-	// Count is based on filtered results
-	count := int64(len(filteredConfigs))
-
-	items := make([]models.AgentModelConfigListItem, len(filteredConfigs))
-	for i, cfg := range filteredConfigs {
+	items := make([]models.AgentModelConfigListItem, len(configs))
+	for i, cfg := range configs {
 		items[i] = models.AgentModelConfigListItem{
 			UUID:             cfg.UUID.String(),
 			Name:             cfg.Name,
@@ -500,7 +537,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 					}
 
 					// Build new proxy configuration
-					proxyConfig, providerAPIKeyID, err := s.buildLLMProxyConfig(ctx, existingConfig, envMapping, gateway)
+					proxyConfig, providerAPIKeyID, err := s.buildLLMProxyConfig(ctx, existingConfig, env.Name, envMapping)
 					if err != nil {
 						return fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 					}
@@ -592,7 +629,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 					}
 
 					// Build updated proxy configuration
-					proxyConfig, providerAPIKeyID, err := s.buildLLMProxyConfig(ctx, existingConfig, envMapping, gateway)
+					proxyConfig, providerAPIKeyID, err := s.buildLLMProxyConfig(ctx, existingConfig, env.Name, envMapping)
 					if err != nil {
 						return fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 					}
@@ -628,9 +665,13 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 					}
 
 					// Redeploy with updated configuration
+					deployBase := "current"
+					if existingDeployment != nil {
+						deployBase = existingDeployment.DeploymentID.String()
+					}
 					deployment, err := s.llmProxyDeploymentService.DeployLLMProxy(updatedProxy.Handle, &models.DeployAPIRequest{
 						Name:      fmt.Sprintf("%s-%s-deployment", existingConfig.Name, env.Name),
-						Base:      existingDeployment.DeploymentID.String(), // Use current proxy configuration
+						Base:      deployBase,
 						GatewayID: gateway.UUID.String(),
 					}, orgName)
 					if err != nil {
@@ -675,7 +716,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 				}
 
 				// Build proxy configuration
-				proxyConfig, providerAPIKeyID, err := s.buildLLMProxyConfig(ctx, existingConfig, envMapping, gateway)
+				proxyConfig, providerAPIKeyID, err := s.buildLLMProxyConfig(ctx, existingConfig, env.Name, envMapping)
 				if err != nil {
 					return fmt.Errorf("failed to build proxy config for environment %s: %w", envName, err)
 				}
@@ -876,76 +917,76 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 		return fmt.Errorf("failed to list environment mappings: %w", err)
 	}
 
-	// Delete in transaction
+	// Delete in transaction (DB records only)
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		// Delete configuration (cascades to mappings and variables)
 		if err := s.agentConfigRepo.Delete(ctx, tx, configUUID, orgName); err != nil {
 			return fmt.Errorf("failed to delete configuration: %w", err)
 		}
-
-		// Clean up proxies (best effort with proper logging)
-		cleanupErrors := 0
-		for _, mapping := range mappings {
-			if mapping.LLMProxy != nil {
-				// Undeploy and delete proxy
-				s.logger.Info("Cleaning up proxy for deleted config",
-					"configUUID", configUUID,
-					"proxyHandle", mapping.LLMProxy.Handle,
-				)
-
-				// Get deployments for this proxy
-				deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(mapping.LLMProxy.Handle, orgName, nil, nil)
-				if err != nil {
-					s.logger.Error("Failed to get deployments during config deletion",
-						"proxyHandle", mapping.LLMProxy.Handle,
-						"error", err,
-					)
-					cleanupErrors++
-				} else {
-					for _, dep := range deployments {
-						if err := s.llmProxyDeploymentService.DeleteLLMProxyDeployment(mapping.LLMProxy.Handle, dep.DeploymentID.String(), orgName); err != nil {
-							s.logger.Error("Failed to delete deployment during config deletion",
-								"proxyHandle", mapping.LLMProxy.Handle,
-								"deploymentID", dep.DeploymentID,
-								"error", err,
-							)
-							cleanupErrors++
-						}
-					}
-				}
-
-				// Delete proxy
-				if err := s.llmProxyService.Delete(mapping.LLMProxy.Handle, orgName); err != nil {
-					s.logger.Error("Failed to delete proxy during config deletion",
-						"proxyHandle", mapping.LLMProxy.Handle,
-						"error", err,
-					)
-					cleanupErrors++
-				}
-			}
-		}
-
-		if cleanupErrors > 0 {
-			s.logger.Warn("Configuration deleted but proxy cleanup had errors",
-				"configUUID", configUUID,
-				"errors", cleanupErrors,
-			)
-		}
-
 		return nil
 	})
+	if err != nil {
+		return err
+	}
 
-	// Audit log for configuration deletion (after successful deletion)
-	if err == nil {
-		s.logger.Info("Agent configuration deleted successfully",
+	// Clean up proxies outside transaction (best effort with proper logging)
+	cleanupErrors := 0
+	for _, mapping := range mappings {
+		if mapping.LLMProxy != nil {
+			// Undeploy and delete proxy
+			s.logger.Info("Cleaning up proxy for deleted config",
+				"configUUID", configUUID,
+				"proxyHandle", mapping.LLMProxy.Handle,
+			)
+
+			// Get deployments for this proxy
+			deployments, err := s.llmProxyDeploymentService.GetLLMProxyDeployments(mapping.LLMProxy.Handle, orgName, nil, nil)
+			if err != nil {
+				s.logger.Error("Failed to get deployments during config deletion",
+					"proxyHandle", mapping.LLMProxy.Handle,
+					"error", err,
+				)
+				cleanupErrors++
+			} else {
+				for _, dep := range deployments {
+					if err := s.llmProxyDeploymentService.DeleteLLMProxyDeployment(mapping.LLMProxy.Handle, dep.DeploymentID.String(), orgName); err != nil {
+						s.logger.Error("Failed to delete deployment during config deletion",
+							"proxyHandle", mapping.LLMProxy.Handle,
+							"deploymentID", dep.DeploymentID,
+							"error", err,
+						)
+						cleanupErrors++
+					}
+				}
+			}
+
+			// Delete proxy
+			if err := s.llmProxyService.Delete(mapping.LLMProxy.Handle, orgName); err != nil {
+				s.logger.Error("Failed to delete proxy during config deletion",
+					"proxyHandle", mapping.LLMProxy.Handle,
+					"error", err,
+				)
+				cleanupErrors++
+			}
+		}
+	}
+
+	if cleanupErrors > 0 {
+		s.logger.Warn("Configuration deleted but proxy cleanup had errors",
 			"configUUID", configUUID,
-			"configName", existingConfig.Name,
-			"orgName", orgName,
-			"environmentCount", len(mappings),
+			"errors", cleanupErrors,
 		)
 	}
 
-	return err
+	// Audit log for configuration deletion
+	s.logger.Info("Agent configuration deleted successfully",
+		"configUUID", configUUID,
+		"configName", existingConfig.Name,
+		"orgName", orgName,
+		"environmentCount", len(mappings),
+	)
+
+	return nil
 }
 
 // Helper methods
@@ -990,12 +1031,11 @@ func (s *agentConfigurationService) resolveGatewayForEnvironment(ctx context.Con
 func (s *agentConfigurationService) buildLLMProxyConfig(
 	ctx context.Context,
 	config *models.AgentConfiguration,
+	envName string,
 	envMapping models.EnvModelConfigRequest,
-	gateway *models.Gateway,
 ) (*models.LLMProxy, string, error) {
-	proxyName := fmt.Sprintf("%s-proxy", config.Name)
-	context := fmt.Sprintf("/%s", strings.ToLower(strings.ReplaceAll(config.Name, " ", "-")))
-	vhost := gateway.Vhost
+	proxyName := fmt.Sprintf("%s-%s-proxy", config.Name, envName)
+	context := fmt.Sprintf("/%s-%s", strings.ToLower(strings.ReplaceAll(config.Name, " ", "-")), envName)
 
 	project, err := s.ocClient.GetProject(ctx, config.OrganizationName, config.ProjectName)
 	if err != nil {
@@ -1008,16 +1048,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 		return nil, "", fmt.Errorf("failed to get provider: %w", err)
 	}
 
-	apiKey, err := s.llmProviderAPIKeyService.CreateAPIKey(ctx, config.OrganizationName, provider.UUID.String(), models.UserRoleSystem, &models.CreateAPIKeyRequest{
-		Name:        proxyName,
-		DisplayName: proxyName,
-	})
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to create api key for provider: %w", err)
-	}
-
-	upstreamAuthType := models.AuthTypeAPIKey
-	upstreamAuthHeader := "Authorization"
+	apiKeyId := ""
 
 	// Convert policies
 	policies, err := s.convertPolicies(envMapping.Configuration.Policies)
@@ -1031,6 +1062,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 		return nil, "", fmt.Errorf("invalid project UUID from openchoreo: %w", err)
 	}
 
+	enabled := true
 	// Build proxy configuration
 	proxyConfig := &models.LLMProxy{
 		Description: fmt.Sprintf("LLM proxy for agent %s", config.AgentID),
@@ -1039,18 +1071,46 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 			Name:     proxyName,
 			Version:  models.DefaultProxyVersion,
 			Context:  &context,
-			Vhost:    &vhost,
 			Provider: provider.UUID.String(),
-			UpstreamAuth: &models.UpstreamAuth{
-				Type:   &upstreamAuthType,
-				Value:  &apiKey.APIKey,
-				Header: &upstreamAuthHeader,
+			Security: &models.SecurityConfig{
+				Enabled: &enabled,
+				APIKey: &models.APIKeySecurity{
+					Enabled: &enabled,
+					Key:     "API-Key",
+					In:      "Header",
+				},
 			},
 			Policies: policies,
 		},
 	}
 
-	return proxyConfig, apiKey.KeyID, nil
+	var upstreamAuthConfig models.UpstreamAuth
+
+	providerSecurityConfig := provider.Configuration.Security
+	if providerSecurityConfig.Enabled != nil && *providerSecurityConfig.Enabled {
+		// Provider is secured.
+		providerApiKeyConfig := providerSecurityConfig.APIKey
+
+		if providerApiKeyConfig != nil && providerApiKeyConfig.Enabled != nil && *providerApiKeyConfig.Enabled {
+			// Provider api key security is enabled.
+			apiKey, err := s.llmProviderAPIKeyService.CreateAPIKey(ctx, config.OrganizationName, provider.UUID.String(), models.UserRoleSystem, &models.CreateAPIKeyRequest{
+				Name:        proxyName,
+				DisplayName: proxyName,
+			})
+			if err != nil {
+				return nil, "", fmt.Errorf("failed to create api key for provider: %w", err)
+			}
+
+			apiKeyId = apiKey.KeyID
+
+			upstreamAuthConfig.Type = utils.StrAsStrPointer(models.AuthTypeAPIKey)
+			upstreamAuthConfig.Header = utils.StrAsStrPointer(providerApiKeyConfig.Key)
+			upstreamAuthConfig.Value = utils.StrAsStrPointer(apiKey.APIKey)
+			proxyConfig.Configuration.UpstreamAuth = &upstreamAuthConfig
+		}
+	}
+
+	return proxyConfig, apiKeyId, nil
 }
 
 // convertPolicies converts policy maps to LLMPolicy structs
@@ -1168,10 +1228,10 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 
 	// Clean up each resource
 	for _, res := range resources {
-		// Log proxy API key for manual cleanup
-		// TODO: Implement API key revocation when gateway supports it
+		// TODO: Revoke the proxy API key once LLMProxyAPIKeyService exposes a RevokeAPIKey method.
+		// Until then, the key is a dangling credential that requires manual cleanup via the gateway.
 		if res.proxyAPIKeyID != "" {
-			s.logger.Warn("API key created during failed transaction - manual revocation may be needed",
+			s.logger.Error("Dangling proxy API key requires manual revocation - rollback incomplete",
 				"proxyHandle", res.proxyHandle,
 				"apiKeyID", res.proxyAPIKeyID,
 			)
@@ -1210,7 +1270,7 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 }
 
 // buildConfigResponse builds the full configuration response
-func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, config *models.AgentConfiguration) (*models.AgentModelConfigResponse, error) {
+func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, config *models.AgentConfiguration, includeProxyURL bool) (*models.AgentModelConfigResponse, error) {
 	// Get environment names from OpenChoreo
 	envs, err := s.infraResourceManager.ListOrgEnvironments(ctx, config.OrganizationName)
 	if err != nil {
@@ -1232,17 +1292,23 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 			envName = mapping.EnvironmentUUID.String()
 		}
 
-		var proxyInfo *models.LLMProxyInfo
+		var proxyInfo *models.LLMProxyInfo = nil
 		if mapping.LLMProxy != nil {
-			var contextVal string
-			if mapping.LLMProxy.Configuration.Context != nil {
-				contextVal = *mapping.LLMProxy.Configuration.Context
-			}
 			proxyInfo = &models.LLMProxyInfo{
-				ProxyUUID: mapping.LLMProxy.UUID.String(),
-				ProxyName: mapping.LLMProxy.Name,
-				Context:   contextVal,
-				Status:    mapping.LLMProxy.Status,
+				ProxyUUID: utils.StrAsStrPointer(mapping.LLMProxy.UUID.String()),
+			}
+
+			// Add proxy URL for external agents (subsequent GET calls)
+			if includeProxyURL {
+				gateway, err := s.resolveGatewayForEnvironment(ctx, mapping.EnvironmentUUID, config.OrganizationName)
+				if err == nil && mapping.LLMProxy.Configuration.Context != nil {
+					url := fmt.Sprintf("%s%s", gateway.Vhost, *mapping.LLMProxy.Configuration.Context)
+					proxyInfo.URL = &url
+				} else if err == nil {
+					// If no context, just use gateway vhost
+					url := gateway.Vhost
+					proxyInfo.URL = &url
+				}
 			}
 		}
 
@@ -1273,5 +1339,103 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 		EnvironmentVariables: envVars,
 		CreatedAt:            config.CreatedAt,
 		UpdatedAt:            config.UpdatedAt,
+	}, nil
+}
+
+// envCredentialKeys returns the keys (environment UUIDs) of the credential map, for safe logging.
+func envCredentialKeys(m map[string]envCredentialData) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+// buildExternalAgentConfigResponse builds response with one-time credentials for external agents
+func (s *agentConfigurationService) buildExternalAgentConfigResponse(
+	ctx context.Context,
+	config *models.AgentConfiguration,
+	envCredentials map[string]envCredentialData,
+) (*models.AgentModelConfigResponse, error) {
+	// Reload configuration with relationships (EnvMappings, LLMProxy, etc.)
+	reloadedConfig, err := s.agentConfigRepo.GetByUUID(ctx, config.UUID, config.OrganizationName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reload configuration: %w", err)
+	}
+
+	s.logger.Info("Building external agent config response",
+		"configUUID", config.UUID,
+		"envMappingCount", len(reloadedConfig.EnvMappings),
+		"envCredentialCount", len(envCredentials),
+	)
+
+	// Get environment names
+	envs, err := s.infraResourceManager.ListOrgEnvironments(ctx, config.OrganizationName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list environments: %w", err)
+	}
+	envMap := make(map[string]string)
+	for _, env := range envs {
+		envMap[env.UUID] = env.Name
+	}
+
+	// Build environment model config map WITH credentials
+	envModelConfig := make(map[string]models.EnvModelConfigResponse)
+	for _, mapping := range reloadedConfig.EnvMappings {
+		envUUID := mapping.EnvironmentUUID.String()
+		envName := envMap[envUUID]
+		if envName == "" {
+			envName = envUUID
+		}
+
+		var proxyInfo *models.LLMProxyInfo
+		if mapping.LLMProxy != nil {
+
+			proxyInfo = &models.LLMProxyInfo{}
+
+			// Add credentials for external agents
+			if creds, ok := envCredentials[envUUID]; ok {
+				proxyInfo.URL = &creds.proxyURL
+				proxyInfo.APIKey = &creds.apiKey
+				s.logger.Info("Added credentials for external agent",
+					"envUUID", envUUID,
+					"proxyURL", creds.proxyURL,
+					"hasAPIKey", creds.apiKey != "",
+				)
+			} else {
+				s.logger.Warn("No credentials found for environment",
+					"envUUID", envUUID,
+					"availableEnvUUIDs", envCredentialKeys(envCredentials),
+				)
+			}
+		}
+
+		envModelConfig[envName] = models.EnvModelConfigResponse{
+			EnvironmentUUID: envUUID,
+			EnvironmentName: envName,
+			LLMProxy:        proxyInfo,
+		}
+	}
+
+	// Build environment variables list
+	envVars := make([]models.EnvironmentVariableConfig, len(reloadedConfig.EnvVariables))
+	for i, v := range reloadedConfig.EnvVariables {
+		envVars[i] = models.EnvironmentVariableConfig{
+			Name: v.VariableName,
+		}
+	}
+
+	return &models.AgentModelConfigResponse{
+		UUID:                 reloadedConfig.UUID.String(),
+		Name:                 reloadedConfig.Name,
+		Description:          reloadedConfig.Description,
+		AgentID:              reloadedConfig.AgentID,
+		Type:                 reloadedConfig.Type,
+		OrganizationName:     reloadedConfig.OrganizationName,
+		ProjectName:          reloadedConfig.ProjectName,
+		EnvModelConfig:       envModelConfig,
+		EnvironmentVariables: envVars,
+		CreatedAt:            reloadedConfig.CreatedAt,
+		UpdatedAt:            reloadedConfig.UpdatedAt,
 	}, nil
 }

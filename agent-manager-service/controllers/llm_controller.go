@@ -309,10 +309,9 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	log.Info("CreateLLMProvider: request decoded", "orgName", orgName, "templateHandle", req.TemplateHandle,
-		"configName", ptrToStringLog(req.Configuration.Name),
-		"configVersion", ptrToStringLog(req.Configuration.Version),
-		"configTemplate", ptrToStringLog(req.Configuration.Template),
+	log.Info("CreateLLMProvider: request decoded", "orgName", orgName, "templateHandle", req.Template,
+		"Name", req.Name,
+		"Version", req.Version,
 		"gatewayCount", len(req.Gateways))
 
 	// Convert spec request to model
@@ -335,7 +334,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 				utils.WriteErrorResponse(w, http.StatusConflict, "LLM provider already exists")
 				return
 			case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
-				log.Error("CreateLLMProvider: template not found", "orgName", orgName, "templateHandle", req.TemplateHandle, "error", err)
+				log.Error("CreateLLMProvider: template not found", "orgName", orgName, "templateHandle", req.Template, "error", err)
 				utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
 				return
 			case errors.Is(err, utils.ErrInvalidInput):
@@ -372,7 +371,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 				utils.WriteErrorResponse(w, http.StatusConflict, "LLM provider already exists")
 				return
 			case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
-				log.Error("CreateLLMProvider: template not found", "orgName", orgName, "templateHandle", req.TemplateHandle, "error", err)
+				log.Error("CreateLLMProvider: template not found", "orgName", orgName, "templateHandle", req.Template, "error", err)
 				utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
 				return
 			case errors.Is(err, utils.ErrInvalidInput):
@@ -436,9 +435,9 @@ func (c *llmController) ListLLMProviders(w http.ResponseWriter, r *http.Request)
 	log.Info("ListLLMProviders: providers retrieved", "orgName", orgName, "count", len(providers), "total", totalCount)
 
 	// Convert models to spec responses
-	specProviders := make([]spec.LLMProviderResponse, len(providers))
+	specProviders := make([]spec.LLMProviderListItem, len(providers))
 	for i, p := range providers {
-		specProviders[i] = utils.ConvertModelToSpecLLMProviderResponse(p)
+		specProviders[i] = utils.ConvertModelToSpecLLMProviderListItemResponse(p)
 	}
 
 	resp := spec.LLMProviderListResponse{
@@ -511,22 +510,38 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	}
 
 	log.Info("UpdateLLMProvider: request decoded", "orgName", orgName, "providerID", providerID,
-		"templateHandle", ptrToStringLog(req.TemplateHandle),
+		"templateHandle", utils.GetOrDefault(req.Template, ""),
+		"name", utils.GetOrDefault(req.Name, ""),
+		"version", utils.GetOrDefault(req.Version, ""),
 		"gatewayCount", len(req.Gateways))
-	if req.Configuration != nil {
-		log.Info("UpdateLLMProvider: config details",
-			"configName", ptrToStringLog(req.Configuration.Name),
-			"configVersion", ptrToStringLog(req.Configuration.Version))
-	}
 
 	// Convert spec request to model - create minimal provider with only updatable fields
+	// For update, we need to construct a CreateLLMProviderRequest with the updated fields
 	providerReq := &spec.CreateLLMProviderRequest{
-		TemplateHandle: utils.GetOrDefault(req.TemplateHandle, ""),
+		Id:             utils.GetOrDefault(req.Name, ""), // ID is populated from name for updates
+		Name:           utils.GetOrDefault(req.Name, ""),
 		Description:    req.Description,
+		Version:        utils.GetOrDefault(req.Version, "v1.0"),
+		Context:        utils.GetOrDefault(req.Context, "/"),
+		Template:       utils.GetOrDefault(req.Template, ""),
 		Openapi:        req.Openapi,
-		ModelList:      req.ModelList,
-		Configuration:  utils.GetOrDefaultConfig(req.Configuration),
+		ModelProviders: req.ModelProviders,
 	}
+
+	// Add upstream if provided
+	if req.Upstream != nil {
+		providerReq.Upstream = *req.Upstream
+	} else {
+		// Need to provide a default upstream config
+		providerReq.Upstream = spec.UpstreamConfig{}
+	}
+
+	// Add optional fields
+	providerReq.AccessControl = req.AccessControl
+	providerReq.Policies = req.Policies
+	providerReq.RateLimiting = req.RateLimiting
+	providerReq.Security = req.Security
+
 	provider := utils.ConvertSpecToModelLLMProvider(providerReq, orgName)
 
 	log.Info("UpdateLLMProvider: calling service layer", "orgName", orgName, "orgName", orgName, "providerID", providerID)
@@ -845,7 +860,7 @@ func (c *llmController) GetLLMProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	proxy, err := c.proxyService.Get(orgName, proxyID)
+	proxy, err := c.proxyService.Get(proxyID, orgName)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
@@ -907,7 +922,7 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := c.proxyService.Update(orgName, proxyID, proxy)
+	updated, err := c.proxyService.Update(proxyID, orgName, proxy)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
@@ -951,7 +966,7 @@ func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.proxyService.Delete(orgName, proxyID); err != nil {
+	if err := c.proxyService.Delete(proxyID, orgName); err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
 			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")

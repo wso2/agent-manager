@@ -12,6 +12,7 @@ package spec
 
 import (
 	"encoding/json"
+	"time"
 )
 
 // checks if the LLMProviderResponse type satisfies the MappedNullable interface at compile time
@@ -19,37 +20,57 @@ var _ MappedNullable = &LLMProviderResponse{}
 
 // LLMProviderResponse struct for LLMProviderResponse
 type LLMProviderResponse struct {
-	// UUID of the provider
+	// UUID of the llm provider
 	Uuid string `json:"uuid"`
+	// Unique identifier for the LLM provider
+	Id string `json:"id"`
+	// Human-readable name of the LLM provider
+	Name string `json:"name"`
 	// Provider description
 	Description *string `json:"description,omitempty"`
 	// User who created the provider
 	CreatedBy *string `json:"createdBy,omitempty"`
-	// Template handle
-	TemplateHandle string `json:"templateHandle"`
+	// Version of the LLM provider
+	Version string `json:"version"`
+	// API context path
+	Context string `json:"context"`
+	// Template identifier
+	Template      string            `json:"template"`
+	Upstream      UpstreamConfig    `json:"upstream"`
+	AccessControl *LLMAccessControl `json:"accessControl,omitempty"`
+	// List of policies applied to this provider
+	Policies []LLMPolicy `json:"policies,omitempty"`
 	// OpenAPI specification
 	Openapi *string `json:"openapi,omitempty"`
 	// List of model providers
-	ModelProviders []LLMModelProvider `json:"modelProviders,omitempty"`
+	ModelProviders []LLMModelProvider     `json:"modelProviders,omitempty"`
+	RateLimiting   *LLMRateLimitingConfig `json:"rateLimiting,omitempty"`
+	Security       *SecurityConfig        `json:"security,omitempty"`
 	// Provider status
-	Status        string            `json:"status"`
-	Configuration LLMProviderConfig `json:"configuration"`
-	Artifact      *Artifact         `json:"artifact,omitempty"`
-	Gateways      []string          `json:"gateways,omitempty"`
+	Status   string   `json:"status"`
+	Gateways []string `json:"gateways,omitempty"`
 	// Whether the provider is available in the catalog
 	InCatalog *bool `json:"inCatalog,omitempty"`
+	// Timestamp when the resource was created
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
+	// Timestamp when the resource was last updated
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 }
 
 // NewLLMProviderResponse instantiates a new LLMProviderResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewLLMProviderResponse(uuid string, templateHandle string, status string, configuration LLMProviderConfig) *LLMProviderResponse {
+func NewLLMProviderResponse(uuid string, id string, name string, version string, context string, template string, upstream UpstreamConfig, status string) *LLMProviderResponse {
 	this := LLMProviderResponse{}
 	this.Uuid = uuid
-	this.TemplateHandle = templateHandle
+	this.Id = id
+	this.Name = name
+	this.Version = version
+	this.Context = context
+	this.Template = template
+	this.Upstream = upstream
 	this.Status = status
-	this.Configuration = configuration
 	return &this
 }
 
@@ -83,6 +104,54 @@ func (o *LLMProviderResponse) GetUuidOk() (*string, bool) {
 // SetUuid sets field value
 func (o *LLMProviderResponse) SetUuid(v string) {
 	o.Uuid = v
+}
+
+// GetId returns the Id field value
+func (o *LLMProviderResponse) GetId() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Id
+}
+
+// GetIdOk returns a tuple with the Id field value
+// and a boolean to check if the value has been set.
+func (o *LLMProviderResponse) GetIdOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Id, true
+}
+
+// SetId sets field value
+func (o *LLMProviderResponse) SetId(v string) {
+	o.Id = v
+}
+
+// GetName returns the Name field value
+func (o *LLMProviderResponse) GetName() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Name
+}
+
+// GetNameOk returns a tuple with the Name field value
+// and a boolean to check if the value has been set.
+func (o *LLMProviderResponse) GetNameOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Name, true
+}
+
+// SetName sets field value
+func (o *LLMProviderResponse) SetName(v string) {
+	o.Name = v
 }
 
 // GetDescription returns the Description field value if set, zero value otherwise.
@@ -149,28 +218,164 @@ func (o *LLMProviderResponse) SetCreatedBy(v string) {
 	o.CreatedBy = &v
 }
 
-// GetTemplateHandle returns the TemplateHandle field value
-func (o *LLMProviderResponse) GetTemplateHandle() string {
+// GetVersion returns the Version field value
+func (o *LLMProviderResponse) GetVersion() string {
 	if o == nil {
 		var ret string
 		return ret
 	}
 
-	return o.TemplateHandle
+	return o.Version
 }
 
-// GetTemplateHandleOk returns a tuple with the TemplateHandle field value
+// GetVersionOk returns a tuple with the Version field value
 // and a boolean to check if the value has been set.
-func (o *LLMProviderResponse) GetTemplateHandleOk() (*string, bool) {
+func (o *LLMProviderResponse) GetVersionOk() (*string, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.TemplateHandle, true
+	return &o.Version, true
 }
 
-// SetTemplateHandle sets field value
-func (o *LLMProviderResponse) SetTemplateHandle(v string) {
-	o.TemplateHandle = v
+// SetVersion sets field value
+func (o *LLMProviderResponse) SetVersion(v string) {
+	o.Version = v
+}
+
+// GetContext returns the Context field value
+func (o *LLMProviderResponse) GetContext() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Context
+}
+
+// GetContextOk returns a tuple with the Context field value
+// and a boolean to check if the value has been set.
+func (o *LLMProviderResponse) GetContextOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Context, true
+}
+
+// SetContext sets field value
+func (o *LLMProviderResponse) SetContext(v string) {
+	o.Context = v
+}
+
+// GetTemplate returns the Template field value
+func (o *LLMProviderResponse) GetTemplate() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Template
+}
+
+// GetTemplateOk returns a tuple with the Template field value
+// and a boolean to check if the value has been set.
+func (o *LLMProviderResponse) GetTemplateOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Template, true
+}
+
+// SetTemplate sets field value
+func (o *LLMProviderResponse) SetTemplate(v string) {
+	o.Template = v
+}
+
+// GetUpstream returns the Upstream field value
+func (o *LLMProviderResponse) GetUpstream() UpstreamConfig {
+	if o == nil {
+		var ret UpstreamConfig
+		return ret
+	}
+
+	return o.Upstream
+}
+
+// GetUpstreamOk returns a tuple with the Upstream field value
+// and a boolean to check if the value has been set.
+func (o *LLMProviderResponse) GetUpstreamOk() (*UpstreamConfig, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Upstream, true
+}
+
+// SetUpstream sets field value
+func (o *LLMProviderResponse) SetUpstream(v UpstreamConfig) {
+	o.Upstream = v
+}
+
+// GetAccessControl returns the AccessControl field value if set, zero value otherwise.
+func (o *LLMProviderResponse) GetAccessControl() LLMAccessControl {
+	if o == nil || IsNil(o.AccessControl) {
+		var ret LLMAccessControl
+		return ret
+	}
+	return *o.AccessControl
+}
+
+// GetAccessControlOk returns a tuple with the AccessControl field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *LLMProviderResponse) GetAccessControlOk() (*LLMAccessControl, bool) {
+	if o == nil || IsNil(o.AccessControl) {
+		return nil, false
+	}
+	return o.AccessControl, true
+}
+
+// HasAccessControl returns a boolean if a field has been set.
+func (o *LLMProviderResponse) HasAccessControl() bool {
+	if o != nil && !IsNil(o.AccessControl) {
+		return true
+	}
+
+	return false
+}
+
+// SetAccessControl gets a reference to the given LLMAccessControl and assigns it to the AccessControl field.
+func (o *LLMProviderResponse) SetAccessControl(v LLMAccessControl) {
+	o.AccessControl = &v
+}
+
+// GetPolicies returns the Policies field value if set, zero value otherwise.
+func (o *LLMProviderResponse) GetPolicies() []LLMPolicy {
+	if o == nil || IsNil(o.Policies) {
+		var ret []LLMPolicy
+		return ret
+	}
+	return o.Policies
+}
+
+// GetPoliciesOk returns a tuple with the Policies field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *LLMProviderResponse) GetPoliciesOk() ([]LLMPolicy, bool) {
+	if o == nil || IsNil(o.Policies) {
+		return nil, false
+	}
+	return o.Policies, true
+}
+
+// HasPolicies returns a boolean if a field has been set.
+func (o *LLMProviderResponse) HasPolicies() bool {
+	if o != nil && !IsNil(o.Policies) {
+		return true
+	}
+
+	return false
+}
+
+// SetPolicies gets a reference to the given []LLMPolicy and assigns it to the Policies field.
+func (o *LLMProviderResponse) SetPolicies(v []LLMPolicy) {
+	o.Policies = v
 }
 
 // GetOpenapi returns the Openapi field value if set, zero value otherwise.
@@ -237,6 +442,70 @@ func (o *LLMProviderResponse) SetModelProviders(v []LLMModelProvider) {
 	o.ModelProviders = v
 }
 
+// GetRateLimiting returns the RateLimiting field value if set, zero value otherwise.
+func (o *LLMProviderResponse) GetRateLimiting() LLMRateLimitingConfig {
+	if o == nil || IsNil(o.RateLimiting) {
+		var ret LLMRateLimitingConfig
+		return ret
+	}
+	return *o.RateLimiting
+}
+
+// GetRateLimitingOk returns a tuple with the RateLimiting field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *LLMProviderResponse) GetRateLimitingOk() (*LLMRateLimitingConfig, bool) {
+	if o == nil || IsNil(o.RateLimiting) {
+		return nil, false
+	}
+	return o.RateLimiting, true
+}
+
+// HasRateLimiting returns a boolean if a field has been set.
+func (o *LLMProviderResponse) HasRateLimiting() bool {
+	if o != nil && !IsNil(o.RateLimiting) {
+		return true
+	}
+
+	return false
+}
+
+// SetRateLimiting gets a reference to the given LLMRateLimitingConfig and assigns it to the RateLimiting field.
+func (o *LLMProviderResponse) SetRateLimiting(v LLMRateLimitingConfig) {
+	o.RateLimiting = &v
+}
+
+// GetSecurity returns the Security field value if set, zero value otherwise.
+func (o *LLMProviderResponse) GetSecurity() SecurityConfig {
+	if o == nil || IsNil(o.Security) {
+		var ret SecurityConfig
+		return ret
+	}
+	return *o.Security
+}
+
+// GetSecurityOk returns a tuple with the Security field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *LLMProviderResponse) GetSecurityOk() (*SecurityConfig, bool) {
+	if o == nil || IsNil(o.Security) {
+		return nil, false
+	}
+	return o.Security, true
+}
+
+// HasSecurity returns a boolean if a field has been set.
+func (o *LLMProviderResponse) HasSecurity() bool {
+	if o != nil && !IsNil(o.Security) {
+		return true
+	}
+
+	return false
+}
+
+// SetSecurity gets a reference to the given SecurityConfig and assigns it to the Security field.
+func (o *LLMProviderResponse) SetSecurity(v SecurityConfig) {
+	o.Security = &v
+}
+
 // GetStatus returns the Status field value
 func (o *LLMProviderResponse) GetStatus() string {
 	if o == nil {
@@ -259,62 +528,6 @@ func (o *LLMProviderResponse) GetStatusOk() (*string, bool) {
 // SetStatus sets field value
 func (o *LLMProviderResponse) SetStatus(v string) {
 	o.Status = v
-}
-
-// GetConfiguration returns the Configuration field value
-func (o *LLMProviderResponse) GetConfiguration() LLMProviderConfig {
-	if o == nil {
-		var ret LLMProviderConfig
-		return ret
-	}
-
-	return o.Configuration
-}
-
-// GetConfigurationOk returns a tuple with the Configuration field value
-// and a boolean to check if the value has been set.
-func (o *LLMProviderResponse) GetConfigurationOk() (*LLMProviderConfig, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.Configuration, true
-}
-
-// SetConfiguration sets field value
-func (o *LLMProviderResponse) SetConfiguration(v LLMProviderConfig) {
-	o.Configuration = v
-}
-
-// GetArtifact returns the Artifact field value if set, zero value otherwise.
-func (o *LLMProviderResponse) GetArtifact() Artifact {
-	if o == nil || IsNil(o.Artifact) {
-		var ret Artifact
-		return ret
-	}
-	return *o.Artifact
-}
-
-// GetArtifactOk returns a tuple with the Artifact field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *LLMProviderResponse) GetArtifactOk() (*Artifact, bool) {
-	if o == nil || IsNil(o.Artifact) {
-		return nil, false
-	}
-	return o.Artifact, true
-}
-
-// HasArtifact returns a boolean if a field has been set.
-func (o *LLMProviderResponse) HasArtifact() bool {
-	if o != nil && !IsNil(o.Artifact) {
-		return true
-	}
-
-	return false
-}
-
-// SetArtifact gets a reference to the given Artifact and assigns it to the Artifact field.
-func (o *LLMProviderResponse) SetArtifact(v Artifact) {
-	o.Artifact = &v
 }
 
 // GetGateways returns the Gateways field value if set, zero value otherwise.
@@ -381,6 +594,70 @@ func (o *LLMProviderResponse) SetInCatalog(v bool) {
 	o.InCatalog = &v
 }
 
+// GetCreatedAt returns the CreatedAt field value if set, zero value otherwise.
+func (o *LLMProviderResponse) GetCreatedAt() time.Time {
+	if o == nil || IsNil(o.CreatedAt) {
+		var ret time.Time
+		return ret
+	}
+	return *o.CreatedAt
+}
+
+// GetCreatedAtOk returns a tuple with the CreatedAt field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *LLMProviderResponse) GetCreatedAtOk() (*time.Time, bool) {
+	if o == nil || IsNil(o.CreatedAt) {
+		return nil, false
+	}
+	return o.CreatedAt, true
+}
+
+// HasCreatedAt returns a boolean if a field has been set.
+func (o *LLMProviderResponse) HasCreatedAt() bool {
+	if o != nil && !IsNil(o.CreatedAt) {
+		return true
+	}
+
+	return false
+}
+
+// SetCreatedAt gets a reference to the given time.Time and assigns it to the CreatedAt field.
+func (o *LLMProviderResponse) SetCreatedAt(v time.Time) {
+	o.CreatedAt = &v
+}
+
+// GetUpdatedAt returns the UpdatedAt field value if set, zero value otherwise.
+func (o *LLMProviderResponse) GetUpdatedAt() time.Time {
+	if o == nil || IsNil(o.UpdatedAt) {
+		var ret time.Time
+		return ret
+	}
+	return *o.UpdatedAt
+}
+
+// GetUpdatedAtOk returns a tuple with the UpdatedAt field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *LLMProviderResponse) GetUpdatedAtOk() (*time.Time, bool) {
+	if o == nil || IsNil(o.UpdatedAt) {
+		return nil, false
+	}
+	return o.UpdatedAt, true
+}
+
+// HasUpdatedAt returns a boolean if a field has been set.
+func (o *LLMProviderResponse) HasUpdatedAt() bool {
+	if o != nil && !IsNil(o.UpdatedAt) {
+		return true
+	}
+
+	return false
+}
+
+// SetUpdatedAt gets a reference to the given time.Time and assigns it to the UpdatedAt field.
+func (o *LLMProviderResponse) SetUpdatedAt(v time.Time) {
+	o.UpdatedAt = &v
+}
+
 func (o LLMProviderResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -392,29 +669,48 @@ func (o LLMProviderResponse) MarshalJSON() ([]byte, error) {
 func (o LLMProviderResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["uuid"] = o.Uuid
+	toSerialize["id"] = o.Id
+	toSerialize["name"] = o.Name
 	if !IsNil(o.Description) {
 		toSerialize["description"] = o.Description
 	}
 	if !IsNil(o.CreatedBy) {
 		toSerialize["createdBy"] = o.CreatedBy
 	}
-	toSerialize["templateHandle"] = o.TemplateHandle
+	toSerialize["version"] = o.Version
+	toSerialize["context"] = o.Context
+	toSerialize["template"] = o.Template
+	toSerialize["upstream"] = o.Upstream
+	if !IsNil(o.AccessControl) {
+		toSerialize["accessControl"] = o.AccessControl
+	}
+	if !IsNil(o.Policies) {
+		toSerialize["policies"] = o.Policies
+	}
 	if !IsNil(o.Openapi) {
 		toSerialize["openapi"] = o.Openapi
 	}
 	if !IsNil(o.ModelProviders) {
 		toSerialize["modelProviders"] = o.ModelProviders
 	}
-	toSerialize["status"] = o.Status
-	toSerialize["configuration"] = o.Configuration
-	if !IsNil(o.Artifact) {
-		toSerialize["artifact"] = o.Artifact
+	if !IsNil(o.RateLimiting) {
+		toSerialize["rateLimiting"] = o.RateLimiting
 	}
+	if !IsNil(o.Security) {
+		toSerialize["security"] = o.Security
+	}
+	toSerialize["status"] = o.Status
 	if !IsNil(o.Gateways) {
 		toSerialize["gateways"] = o.Gateways
 	}
 	if !IsNil(o.InCatalog) {
 		toSerialize["inCatalog"] = o.InCatalog
+	}
+	if !IsNil(o.CreatedAt) {
+		toSerialize["createdAt"] = o.CreatedAt
+	}
+	if !IsNil(o.UpdatedAt) {
+		toSerialize["updatedAt"] = o.UpdatedAt
 	}
 	return toSerialize, nil
 }

@@ -19,26 +19,43 @@ var _ MappedNullable = &CreateLLMProviderRequest{}
 
 // CreateLLMProviderRequest struct for CreateLLMProviderRequest
 type CreateLLMProviderRequest struct {
+	// Unique identifier for the LLM provider
+	Id string `json:"id"`
+	// Human-readable name of the LLM provider
+	Name string `json:"name"`
 	// Description of the LLM provider
 	Description *string `json:"description,omitempty"`
-	// handle of the template being used
-	TemplateHandle string `json:"templateHandle"`
-	// Custom OpenAPI specification (overrides template)
+	// Version of the LLM provider
+	Version string `json:"version"`
+	// API context path (must start with /, no trailing slash)
+	Context string `json:"context"`
+	// Template identifier being used
+	Template      string            `json:"template"`
+	Upstream      UpstreamConfig    `json:"upstream"`
+	AccessControl *LLMAccessControl `json:"accessControl,omitempty"`
+	// List of policies applied to this provider
+	Policies []LLMPolicy `json:"policies,omitempty"`
+	// Custom OpenAPI specification (YAML or JSON)
 	Openapi *string `json:"openapi,omitempty"`
-	// Custom model list (overrides template)
-	ModelList     []LLMModelProvider `json:"modelList,omitempty"`
-	Configuration LLMProviderConfig  `json:"configuration"`
-	Gateways      []string           `json:"gateways,omitempty"`
+	// List of model providers and their models
+	ModelProviders []LLMModelProvider     `json:"modelProviders,omitempty"`
+	RateLimiting   *LLMRateLimitingConfig `json:"rateLimiting,omitempty"`
+	Security       *SecurityConfig        `json:"security,omitempty"`
+	Gateways       []string               `json:"gateways,omitempty"`
 }
 
 // NewCreateLLMProviderRequest instantiates a new CreateLLMProviderRequest object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewCreateLLMProviderRequest(templateHandle string, configuration LLMProviderConfig) *CreateLLMProviderRequest {
+func NewCreateLLMProviderRequest(id string, name string, version string, context string, template string, upstream UpstreamConfig) *CreateLLMProviderRequest {
 	this := CreateLLMProviderRequest{}
-	this.TemplateHandle = templateHandle
-	this.Configuration = configuration
+	this.Id = id
+	this.Name = name
+	this.Version = version
+	this.Context = context
+	this.Template = template
+	this.Upstream = upstream
 	return &this
 }
 
@@ -47,7 +64,57 @@ func NewCreateLLMProviderRequest(templateHandle string, configuration LLMProvide
 // but it doesn't guarantee that properties required by API are set
 func NewCreateLLMProviderRequestWithDefaults() *CreateLLMProviderRequest {
 	this := CreateLLMProviderRequest{}
+	var context string = "/"
+	this.Context = context
 	return &this
+}
+
+// GetId returns the Id field value
+func (o *CreateLLMProviderRequest) GetId() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Id
+}
+
+// GetIdOk returns a tuple with the Id field value
+// and a boolean to check if the value has been set.
+func (o *CreateLLMProviderRequest) GetIdOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Id, true
+}
+
+// SetId sets field value
+func (o *CreateLLMProviderRequest) SetId(v string) {
+	o.Id = v
+}
+
+// GetName returns the Name field value
+func (o *CreateLLMProviderRequest) GetName() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Name
+}
+
+// GetNameOk returns a tuple with the Name field value
+// and a boolean to check if the value has been set.
+func (o *CreateLLMProviderRequest) GetNameOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Name, true
+}
+
+// SetName sets field value
+func (o *CreateLLMProviderRequest) SetName(v string) {
+	o.Name = v
 }
 
 // GetDescription returns the Description field value if set, zero value otherwise.
@@ -82,28 +149,164 @@ func (o *CreateLLMProviderRequest) SetDescription(v string) {
 	o.Description = &v
 }
 
-// GetTemplateHandle returns the TemplateHandle field value
-func (o *CreateLLMProviderRequest) GetTemplateHandle() string {
+// GetVersion returns the Version field value
+func (o *CreateLLMProviderRequest) GetVersion() string {
 	if o == nil {
 		var ret string
 		return ret
 	}
 
-	return o.TemplateHandle
+	return o.Version
 }
 
-// GetTemplateHandleOk returns a tuple with the TemplateHandle field value
+// GetVersionOk returns a tuple with the Version field value
 // and a boolean to check if the value has been set.
-func (o *CreateLLMProviderRequest) GetTemplateHandleOk() (*string, bool) {
+func (o *CreateLLMProviderRequest) GetVersionOk() (*string, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.TemplateHandle, true
+	return &o.Version, true
 }
 
-// SetTemplateHandle sets field value
-func (o *CreateLLMProviderRequest) SetTemplateHandle(v string) {
-	o.TemplateHandle = v
+// SetVersion sets field value
+func (o *CreateLLMProviderRequest) SetVersion(v string) {
+	o.Version = v
+}
+
+// GetContext returns the Context field value
+func (o *CreateLLMProviderRequest) GetContext() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Context
+}
+
+// GetContextOk returns a tuple with the Context field value
+// and a boolean to check if the value has been set.
+func (o *CreateLLMProviderRequest) GetContextOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Context, true
+}
+
+// SetContext sets field value
+func (o *CreateLLMProviderRequest) SetContext(v string) {
+	o.Context = v
+}
+
+// GetTemplate returns the Template field value
+func (o *CreateLLMProviderRequest) GetTemplate() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Template
+}
+
+// GetTemplateOk returns a tuple with the Template field value
+// and a boolean to check if the value has been set.
+func (o *CreateLLMProviderRequest) GetTemplateOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Template, true
+}
+
+// SetTemplate sets field value
+func (o *CreateLLMProviderRequest) SetTemplate(v string) {
+	o.Template = v
+}
+
+// GetUpstream returns the Upstream field value
+func (o *CreateLLMProviderRequest) GetUpstream() UpstreamConfig {
+	if o == nil {
+		var ret UpstreamConfig
+		return ret
+	}
+
+	return o.Upstream
+}
+
+// GetUpstreamOk returns a tuple with the Upstream field value
+// and a boolean to check if the value has been set.
+func (o *CreateLLMProviderRequest) GetUpstreamOk() (*UpstreamConfig, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Upstream, true
+}
+
+// SetUpstream sets field value
+func (o *CreateLLMProviderRequest) SetUpstream(v UpstreamConfig) {
+	o.Upstream = v
+}
+
+// GetAccessControl returns the AccessControl field value if set, zero value otherwise.
+func (o *CreateLLMProviderRequest) GetAccessControl() LLMAccessControl {
+	if o == nil || IsNil(o.AccessControl) {
+		var ret LLMAccessControl
+		return ret
+	}
+	return *o.AccessControl
+}
+
+// GetAccessControlOk returns a tuple with the AccessControl field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *CreateLLMProviderRequest) GetAccessControlOk() (*LLMAccessControl, bool) {
+	if o == nil || IsNil(o.AccessControl) {
+		return nil, false
+	}
+	return o.AccessControl, true
+}
+
+// HasAccessControl returns a boolean if a field has been set.
+func (o *CreateLLMProviderRequest) HasAccessControl() bool {
+	if o != nil && !IsNil(o.AccessControl) {
+		return true
+	}
+
+	return false
+}
+
+// SetAccessControl gets a reference to the given LLMAccessControl and assigns it to the AccessControl field.
+func (o *CreateLLMProviderRequest) SetAccessControl(v LLMAccessControl) {
+	o.AccessControl = &v
+}
+
+// GetPolicies returns the Policies field value if set, zero value otherwise.
+func (o *CreateLLMProviderRequest) GetPolicies() []LLMPolicy {
+	if o == nil || IsNil(o.Policies) {
+		var ret []LLMPolicy
+		return ret
+	}
+	return o.Policies
+}
+
+// GetPoliciesOk returns a tuple with the Policies field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *CreateLLMProviderRequest) GetPoliciesOk() ([]LLMPolicy, bool) {
+	if o == nil || IsNil(o.Policies) {
+		return nil, false
+	}
+	return o.Policies, true
+}
+
+// HasPolicies returns a boolean if a field has been set.
+func (o *CreateLLMProviderRequest) HasPolicies() bool {
+	if o != nil && !IsNil(o.Policies) {
+		return true
+	}
+
+	return false
+}
+
+// SetPolicies gets a reference to the given []LLMPolicy and assigns it to the Policies field.
+func (o *CreateLLMProviderRequest) SetPolicies(v []LLMPolicy) {
+	o.Policies = v
 }
 
 // GetOpenapi returns the Openapi field value if set, zero value otherwise.
@@ -138,60 +341,100 @@ func (o *CreateLLMProviderRequest) SetOpenapi(v string) {
 	o.Openapi = &v
 }
 
-// GetModelList returns the ModelList field value if set, zero value otherwise.
-func (o *CreateLLMProviderRequest) GetModelList() []LLMModelProvider {
-	if o == nil || IsNil(o.ModelList) {
+// GetModelProviders returns the ModelProviders field value if set, zero value otherwise.
+func (o *CreateLLMProviderRequest) GetModelProviders() []LLMModelProvider {
+	if o == nil || IsNil(o.ModelProviders) {
 		var ret []LLMModelProvider
 		return ret
 	}
-	return o.ModelList
+	return o.ModelProviders
 }
 
-// GetModelListOk returns a tuple with the ModelList field value if set, nil otherwise
+// GetModelProvidersOk returns a tuple with the ModelProviders field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *CreateLLMProviderRequest) GetModelListOk() ([]LLMModelProvider, bool) {
-	if o == nil || IsNil(o.ModelList) {
+func (o *CreateLLMProviderRequest) GetModelProvidersOk() ([]LLMModelProvider, bool) {
+	if o == nil || IsNil(o.ModelProviders) {
 		return nil, false
 	}
-	return o.ModelList, true
+	return o.ModelProviders, true
 }
 
-// HasModelList returns a boolean if a field has been set.
-func (o *CreateLLMProviderRequest) HasModelList() bool {
-	if o != nil && !IsNil(o.ModelList) {
+// HasModelProviders returns a boolean if a field has been set.
+func (o *CreateLLMProviderRequest) HasModelProviders() bool {
+	if o != nil && !IsNil(o.ModelProviders) {
 		return true
 	}
 
 	return false
 }
 
-// SetModelList gets a reference to the given []LLMModelProvider and assigns it to the ModelList field.
-func (o *CreateLLMProviderRequest) SetModelList(v []LLMModelProvider) {
-	o.ModelList = v
+// SetModelProviders gets a reference to the given []LLMModelProvider and assigns it to the ModelProviders field.
+func (o *CreateLLMProviderRequest) SetModelProviders(v []LLMModelProvider) {
+	o.ModelProviders = v
 }
 
-// GetConfiguration returns the Configuration field value
-func (o *CreateLLMProviderRequest) GetConfiguration() LLMProviderConfig {
-	if o == nil {
-		var ret LLMProviderConfig
+// GetRateLimiting returns the RateLimiting field value if set, zero value otherwise.
+func (o *CreateLLMProviderRequest) GetRateLimiting() LLMRateLimitingConfig {
+	if o == nil || IsNil(o.RateLimiting) {
+		var ret LLMRateLimitingConfig
 		return ret
 	}
-
-	return o.Configuration
+	return *o.RateLimiting
 }
 
-// GetConfigurationOk returns a tuple with the Configuration field value
+// GetRateLimitingOk returns a tuple with the RateLimiting field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *CreateLLMProviderRequest) GetConfigurationOk() (*LLMProviderConfig, bool) {
-	if o == nil {
+func (o *CreateLLMProviderRequest) GetRateLimitingOk() (*LLMRateLimitingConfig, bool) {
+	if o == nil || IsNil(o.RateLimiting) {
 		return nil, false
 	}
-	return &o.Configuration, true
+	return o.RateLimiting, true
 }
 
-// SetConfiguration sets field value
-func (o *CreateLLMProviderRequest) SetConfiguration(v LLMProviderConfig) {
-	o.Configuration = v
+// HasRateLimiting returns a boolean if a field has been set.
+func (o *CreateLLMProviderRequest) HasRateLimiting() bool {
+	if o != nil && !IsNil(o.RateLimiting) {
+		return true
+	}
+
+	return false
+}
+
+// SetRateLimiting gets a reference to the given LLMRateLimitingConfig and assigns it to the RateLimiting field.
+func (o *CreateLLMProviderRequest) SetRateLimiting(v LLMRateLimitingConfig) {
+	o.RateLimiting = &v
+}
+
+// GetSecurity returns the Security field value if set, zero value otherwise.
+func (o *CreateLLMProviderRequest) GetSecurity() SecurityConfig {
+	if o == nil || IsNil(o.Security) {
+		var ret SecurityConfig
+		return ret
+	}
+	return *o.Security
+}
+
+// GetSecurityOk returns a tuple with the Security field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *CreateLLMProviderRequest) GetSecurityOk() (*SecurityConfig, bool) {
+	if o == nil || IsNil(o.Security) {
+		return nil, false
+	}
+	return o.Security, true
+}
+
+// HasSecurity returns a boolean if a field has been set.
+func (o *CreateLLMProviderRequest) HasSecurity() bool {
+	if o != nil && !IsNil(o.Security) {
+		return true
+	}
+
+	return false
+}
+
+// SetSecurity gets a reference to the given SecurityConfig and assigns it to the Security field.
+func (o *CreateLLMProviderRequest) SetSecurity(v SecurityConfig) {
+	o.Security = &v
 }
 
 // GetGateways returns the Gateways field value if set, zero value otherwise.
@@ -236,17 +479,33 @@ func (o CreateLLMProviderRequest) MarshalJSON() ([]byte, error) {
 
 func (o CreateLLMProviderRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
+	toSerialize["id"] = o.Id
+	toSerialize["name"] = o.Name
 	if !IsNil(o.Description) {
 		toSerialize["description"] = o.Description
 	}
-	toSerialize["templateHandle"] = o.TemplateHandle
+	toSerialize["version"] = o.Version
+	toSerialize["context"] = o.Context
+	toSerialize["template"] = o.Template
+	toSerialize["upstream"] = o.Upstream
+	if !IsNil(o.AccessControl) {
+		toSerialize["accessControl"] = o.AccessControl
+	}
+	if !IsNil(o.Policies) {
+		toSerialize["policies"] = o.Policies
+	}
 	if !IsNil(o.Openapi) {
 		toSerialize["openapi"] = o.Openapi
 	}
-	if !IsNil(o.ModelList) {
-		toSerialize["modelList"] = o.ModelList
+	if !IsNil(o.ModelProviders) {
+		toSerialize["modelProviders"] = o.ModelProviders
 	}
-	toSerialize["configuration"] = o.Configuration
+	if !IsNil(o.RateLimiting) {
+		toSerialize["rateLimiting"] = o.RateLimiting
+	}
+	if !IsNil(o.Security) {
+		toSerialize["security"] = o.Security
+	}
 	if !IsNil(o.Gateways) {
 		toSerialize["gateways"] = o.Gateways
 	}
