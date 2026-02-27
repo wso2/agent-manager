@@ -77,10 +77,10 @@ export const EditMonitorComponent: React.FC = () => {
             ? Math.min(100, Math.max(0, Math.round(monitorData.samplingRate * 100)))
             : undefined;
 
-        // Backend masks existing secrets with "***". Drop those from the UI
+        // Backend masks existing secrets with "****". Drop those from the UI
         // so we don't treat the mask as an actual value.
         const sanitizedLlmProviderConfigs = monitorData.llmProviderConfigs
-            ? monitorData.llmProviderConfigs.filter((config) => config.value !== "***")
+            ? monitorData.llmProviderConfigs.map((config) => config.value !== "****" ? config : { ...config, value: undefined })
             : undefined;
 
         return {
@@ -103,7 +103,7 @@ export const EditMonitorComponent: React.FC = () => {
         }
 
         const sanitizedLlmProviderConfigs = values.llmProviderConfigs
-            ? values.llmProviderConfigs.filter((config) => config.value !== "***")
+            ? values.llmProviderConfigs.filter((config) => config.value !== "****")
             : undefined;
 
         const payload: UpdateMonitorRequest = {

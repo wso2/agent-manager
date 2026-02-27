@@ -46,6 +46,8 @@ import {
   type TraceScoresResponse,
   type UpdateMonitorPathParams,
   type UpdateMonitorRequest,
+  getTimeRange,
+  TraceListTimeRange,
 } from "@agent-management-platform/types";
 import {
   createMonitor,
@@ -155,6 +157,7 @@ export function useListMonitorRuns(params: ListMonitorRunsPathParams) {
   return useQuery<MonitorRunListResponse>({
     queryKey: ["monitor-runs", params],
     queryFn: () => listMonitorRuns(params, getToken),
+    refetchInterval: 30000,
     enabled:
       !!params.orgName &&
       !!params.projName &&
@@ -193,6 +196,7 @@ export function useMonitorRunScores(params: MonitorRunPathParams) {
   return useQuery<MonitorRunScoresResponse>({
     queryKey: ["monitor-run-scores", params],
     queryFn: () => getMonitorRunScores(params, getToken),
+    refetchInterval: 30000,
     enabled:
       !!params.orgName &&
       !!params.projName &&
@@ -204,54 +208,91 @@ export function useMonitorRunScores(params: MonitorRunPathParams) {
 
 export function useMonitorScores(
   params: MonitorScoresPathParams,
-  query: MonitorScoresQueryParams
+  query: MonitorScoresQueryParams & { timeRange?: TraceListTimeRange },
 ) {
   const { getToken } = useAuthHooks();
   return useQuery<MonitorScoresResponse>({
     queryKey: ["monitor-scores", params, query],
-    queryFn: () => getMonitorScores(params, query, getToken),
+    queryFn: async () => {
+      const { timeRange, ...rest } = query as MonitorScoresQueryParams & {
+        timeRange?: TraceListTimeRange;
+      };
+      let finalQuery = rest as MonitorScoresQueryParams;
+      if (timeRange) {
+        const { startTime, endTime } = getTimeRange(timeRange);
+        finalQuery = { ...finalQuery, startTime, endTime };
+      }
+      return getMonitorScores(params, finalQuery, getToken);
+    },
+    refetchInterval: 30000,
     enabled:
       !!params.orgName &&
       !!params.projName &&
       !!params.agentName &&
       !!params.monitorName &&
-      !!query.startTime &&
-      !!query.endTime,
+      (!!(query as { timeRange?: TraceListTimeRange }).timeRange ||
+        (!!query.startTime && !!query.endTime)),
   });
 }
 
 export function useMonitorScoresTimeSeries(
   params: MonitorScoresTimeSeriesPathParams,
-  query: MonitorScoresTimeSeriesQueryParams
+  query: MonitorScoresTimeSeriesQueryParams & {
+    timeRange?: TraceListTimeRange;
+  },
 ) {
   const { getToken } = useAuthHooks();
   return useQuery<TimeSeriesResponse>({
     queryKey: ["monitor-scores-timeseries", params, query],
-    queryFn: () => getMonitorScoresTimeSeries(params, query, getToken),
+    queryFn: async () => {
+      const { timeRange, ...rest } =
+        query as MonitorScoresTimeSeriesQueryParams & {
+          timeRange?: TraceListTimeRange;
+        };
+      let finalQuery = rest as MonitorScoresTimeSeriesQueryParams;
+      if (timeRange) {
+        const { startTime, endTime } = getTimeRange(timeRange);
+        finalQuery = { ...finalQuery, startTime, endTime };
+      }
+      return getMonitorScoresTimeSeries(params, finalQuery, getToken);
+    },
+    refetchInterval: 30000,
     enabled:
       !!params.orgName &&
       !!params.projName &&
       !!params.agentName &&
       !!params.monitorName &&
-      !!query.startTime &&
-      !!query.endTime &&
-      !!query.evaluator,
+      !!query.evaluator &&
+      (!!(query as { timeRange?: TraceListTimeRange }).timeRange ||
+        (!!query.startTime && !!query.endTime)),
   });
 }
 
-type MultiEvaluatorTimeSeriesQuery = Omit<MonitorScoresTimeSeriesQueryParams, "evaluator"> & {
+type MultiEvaluatorTimeSeriesQuery = {
+  startTime?: string;
+  endTime?: string;
+  granularity?: MonitorScoresTimeSeriesQueryParams["granularity"];
   evaluators: string[];
+  timeRange?: TraceListTimeRange;
 };
 
 export function useMonitorScoresTimeSeriesForEvaluators(
   params: MonitorScoresTimeSeriesPathParams,
-  query: MultiEvaluatorTimeSeriesQuery
+  query: MultiEvaluatorTimeSeriesQuery,
 ) {
   const { getToken } = useAuthHooks();
   return useQuery<Record<string, TimeSeriesResponse>>({
     queryKey: ["monitor-scores-timeseries-multi", params, query],
     queryFn: async () => {
-      const { evaluators, ...baseQuery } = query;
+      const { evaluators, timeRange, ...rest } = query;
+      let baseQuery = rest as Omit<
+        MonitorScoresTimeSeriesQueryParams,
+        "evaluator"
+      >;
+      if (timeRange) {
+        const { startTime, endTime } = getTimeRange(timeRange);
+        baseQuery = { ...baseQuery, startTime, endTime };
+      }
       const uniqueEvaluators = Array.from(new Set(evaluators)).filter(Boolean);
       if (uniqueEvaluators.length === 0) {
         return {};
@@ -261,25 +302,25 @@ export function useMonitorScoresTimeSeriesForEvaluators(
           const resp = await getMonitorScoresTimeSeries(
             params,
             { ...baseQuery, evaluator: name },
-            getToken
+            getToken,
           );
           return [name, resp] as const;
-        })
+        }),
       );
       return results.reduce<Record<string, TimeSeriesResponse>>((acc, [name, resp]) => {
         acc[name] = resp;
         return acc;
       }, {});
     },
+    refetchInterval: 30000,
     enabled:
       !!params.orgName &&
       !!params.projName &&
       !!params.agentName &&
       !!params.monitorName &&
-      !!query.startTime &&
-      !!query.endTime &&
       Array.isArray(query.evaluators) &&
-      query.evaluators.length > 0,
+      query.evaluators.length > 0 &&
+      (!!query.timeRange || (!!query.startTime && !!query.endTime)),
   });
 }
 

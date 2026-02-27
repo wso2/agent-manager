@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { PageLayout } from "@agent-management-platform/views";
 import {
   CircularProgress,
@@ -41,7 +41,6 @@ import {
   relativeRouteMap,
   type EvaluatorScoreSummary,
   TraceListTimeRange,
-  getTimeRange,
 } from "@agent-management-platform/types";
 import AgentPerformanceCard, {
   RadarDefinition,
@@ -106,38 +105,35 @@ export const ViewMonitorComponent: React.FC = () => {
     [monitorId, orgId, projectId, agentId],
   );
 
-  const [now, setNow] = useState(() => new Date());
-  const defaultStartFallback = useMemo(
-    () => new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
-    [now],
-  );
-  const mainStartTime = useMemo(() => {
-    const range = getTimeRange(timeRange);
-    return range?.startTime ?? defaultStartFallback.toISOString();
-  }, [timeRange, defaultStartFallback]);
-
   const {
     data: monitorData,
     refetch: refetchMonitor,
     isLoading: isMonitorLoading,
+    isRefetching: isMonitorRefetching,
   } = useGetMonitor(commonParams);
 
   const {
     data: scoresMain,
     refetch: refetchMain,
     isLoading: isScoresMainLoading,
-  } = useMonitorScores(commonParams, {
-    startTime: mainStartTime,
-    endTime: now.toISOString(),
-  });
+    isRefetching: isScoresMainRefetching,
+  } = useMonitorScores(
+    commonParams,
+    {
+      // startTime/endTime will be overridden inside the hook when timeRange is set
+      startTime: "",
+      endTime: "",
+      timeRange,
+    },
+  );
 
   const handleRefresh = () => {
-    setNow(new Date());
     void refetchMonitor();
     void refetchMain();
   };
 
   const isLoading = isMonitorLoading || isScoresMainLoading;
+  const isRefetching = isMonitorRefetching || isScoresMainRefetching;
 
   // ── raw evaluator arrays ─────────────────────────────────────────────────
   const evaluators = useMemo(() => scoresMain?.evaluators ?? [], [scoresMain]);
@@ -162,19 +158,15 @@ export const ViewMonitorComponent: React.FC = () => {
     ];
   }, [evaluators, timeRangeLabel]);
 
-  // Weighted average — weight each evaluator's mean by its trace count so
-  // high-volume evaluators contribute proportionally.
   const averageScore = useMemo(() => {
-    let weightedSum = 0;
-    let totalWeight = 0;
-    for (const e of evaluators) {
-      const mean = getMean(e);
-      if (mean !== null && e.count > 0) {
-        weightedSum += mean * e.count;
-        totalWeight += e.count;
-      }
+    const means = evaluators
+      .map(getMean)
+      .filter((m): m is number => m !== null);
+    if (means.length === 0) {
+      return null;
     }
-    return totalWeight > 0 ? weightedSum / totalWeight : null;
+    const sum = means.reduce((acc, m) => acc + m, 0);
+    return sum / means.length;
   }, [evaluators]);
 
   const evaluationSummaryAverage = useMemo(() => {
@@ -182,7 +174,7 @@ export const ViewMonitorComponent: React.FC = () => {
       return { value: "–", helper: "No data yet", progress: 0 };
     const scorePct = averageScore * 100;
     return {
-      value: `${scorePct.toFixed(1)}%`,
+      value: `${scorePct.toFixed(2)}%`,
       progress: Math.round(scorePct),
     };
   }, [averageScore]);
@@ -289,9 +281,10 @@ export const ViewMonitorComponent: React.FC = () => {
                   size="small"
                   onClick={handleRefresh}
                   aria-label="Refresh"
+                  disabled={isRefetching}
                 >
                   {
-                    isLoading ? <CircularProgress size={16} /> : <RefreshCcw size={16} />
+                    isRefetching ? <CircularProgress size={16} /> : <RefreshCcw size={16} />
                   }
                 </IconButton>
               </Stack>
@@ -337,8 +330,7 @@ export const ViewMonitorComponent: React.FC = () => {
                   </Grid>
                   <PerformanceByEvaluatorCard
                     evaluatorNames={evaluatorNames}
-                    startTime={mainStartTime}
-                    endTime={now.toISOString()}
+                    timeRange={timeRange}
                     environmentId={monitorData?.environmentName}
                   />
                 </>

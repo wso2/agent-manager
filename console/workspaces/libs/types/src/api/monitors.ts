@@ -34,7 +34,7 @@ export interface MonitorEvaluator {
 export interface MonitorLLMProviderConfig {
   providerName: string;
   envVar: string;
-  value: string;
+  value?: string;
 }
 
 export interface MonitorRunResponse {

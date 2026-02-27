@@ -64,8 +64,15 @@ export const useAuthHooks = () => {
     getToken: () => getIDToken(),
     login: () => customLogin(),
     logout: async () => {
-      await signOut();
-      window.location.assign(authConfig?.signOutRedirectURL ?? "/logout");
+      try {
+        await signOut();
+      } catch (error) {
+        // Preserve error visibility while guaranteeing navigation.
+        // eslint-disable-next-line no-console
+        console.error("Error during signOut:", error);
+      } finally {
+        window.location.assign(authConfig?.signOutRedirectURL ?? "/logout");
+      }
     },
     trySignInSilently: () => trySignInSilently(),
   };

@@ -24,7 +24,7 @@ import {
 import { ChartTooltip, LineChart } from "@wso2/oxygen-ui-charts-react";
 import { Activity, Workflow } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams } from "react-router-dom";
-import { absoluteRouteMap, type TimeSeriesResponse } from "@agent-management-platform/types";
+import { absoluteRouteMap, type TimeSeriesResponse, TraceListTimeRange } from "@agent-management-platform/types";
 import { useMonitorScoresTimeSeriesForEvaluators } from "@agent-management-platform/api-client";
 import MetricsTooltip from "./MetricsTooltip";
 
@@ -37,18 +37,15 @@ const LINE_COLOURS = [
 interface PerformanceByEvaluatorCardProps {
     /** Evaluator identifier strings from the scores summary */
     evaluatorNames: string[];
-    /** ISO start of the window (same used by parent) */
-    startTime: string;
-    /** ISO end of the window */
-    endTime: string;
+    /** Logical time range window (e.g., last 7 days) */
+    timeRange: TraceListTimeRange;
     environmentId?: string;
 }
 
 const PerformanceByEvaluatorCard:
     React.FC<PerformanceByEvaluatorCardProps> = ({
         evaluatorNames,
-        startTime,
-        endTime,
+        timeRange,
         environmentId
     }) => {
         const { orgId, projectId, agentId, envId, monitorId } = useParams<{
@@ -65,8 +62,10 @@ const PerformanceByEvaluatorCard:
 
         const { data: timeSeriesByEvaluator, isLoading: isFetching } =
             useMonitorScoresTimeSeriesForEvaluators(commonParams, {
-                startTime,
-                endTime,
+                // startTime/endTime are derived from `timeRange` inside the hook.
+                startTime: "",
+                endTime: "",
+                timeRange,
                 granularity: "hour",
                 evaluators: evaluatorNames,
             });

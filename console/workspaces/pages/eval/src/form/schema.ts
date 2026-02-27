@@ -31,10 +31,10 @@ const evaluatorSchema: z.ZodType<MonitorEvaluator> = z.object({
     config: z.record(z.string(), z.unknown()).optional(),
 });
 
-const monitorLLMProviderConfigSchema: z.ZodType<MonitorLLMProviderConfig> = z.object({
+const monitorLLMProviderConfigSchema: z.ZodType<Omit<MonitorLLMProviderConfig, "value"> & { value?: string }> = z.object({
     providerName: z.string().trim().min(1, "Provider name is required"),
     envVar: z.string().trim().min(1, "Environment variable is required"),
-    value: z.string().trim().min(1, "Credential value is required"),
+    value: z.string().trim().min(1, "Credential value is required").optional(),
 });
 
 export const createMonitorSchema = z
