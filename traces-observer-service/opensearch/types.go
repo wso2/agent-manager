@@ -237,6 +237,7 @@ type FullTrace struct {
 type TraceExportResponse struct {
 	Traces     []FullTrace `json:"traces"`
 	TotalCount int         `json:"totalCount"`
+	Truncated  bool        `json:"truncated"`
 }
 
 // SearchResponse represents OpenSearch search response

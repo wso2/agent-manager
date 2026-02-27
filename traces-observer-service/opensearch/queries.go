@@ -171,7 +171,10 @@ func BuildTraceAggregationQuery(params TraceQueryParams) map[string]interface{} 
 // When parentSpan is true, adds a filter for parentSpanId == "" to return only root spans.
 func BuildTraceByIdsQuery(params TraceByIdParams) map[string]interface{} {
 	if len(params.TraceIDs) == 0 {
-		return nil // or return an error if the signature changes
+		return map[string]interface{}{
+			"query": map[string]interface{}{"match_none": map[string]interface{}{}},
+			"size":  0,
+		}
 	}
 
 	mustConditions := []map[string]interface{}{}

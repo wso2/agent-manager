@@ -64,9 +64,6 @@ func (s *TracingController) GetTraceById(ctx context.Context, params opensearch.
 	// Build query
 	query := opensearch.BuildTraceByIdsQuery(params)
 
-	if query == nil {  
-        return nil, fmt.Errorf("invalid query parameters: no trace IDs provided")  
-    }  
 	// Resolve indices from time range, or search all if no time range provided
 	var indices []string
 	var err error
@@ -126,8 +123,11 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 		"offset", params.Offset)
 
 	// Set defaults
-	if params.Limit == 0 {
+	if params.Limit <= 0 {
 		params.Limit = DefaultTracesLimit
+	}
+	if params.Limit > MaxTracesPerRequest {
+		params.Limit = MaxTracesPerRequest
 	}
 	if params.Offset < 0 {
 		params.Offset = 0
@@ -135,7 +135,7 @@ func (s *TracingController) GetTraceOverviews(ctx context.Context, params opense
 
 	// Phase 1: Aggregation to discover trace IDs with pagination
 	aggQuery := opensearch.BuildTraceAggregationQuery(params)
-		// Resolve indices from time range, or search all if no time range provided
+	// Resolve indices from time range, or search all if no time range provided
 	var indices []string
 	var err error
 
@@ -274,7 +274,7 @@ func (s *TracingController) ExportTraces(ctx context.Context, params opensearch.
 		"offset", params.Offset)
 
 	// Set defaults
-	if params.Limit == 0 {
+	if params.Limit <= 0 {
 		params.Limit = DefaultTracesLimit
 	}
 	if params.Limit > MaxTracesPerRequest {
@@ -332,11 +332,13 @@ func (s *TracingController) ExportTraces(ctx context.Context, params opensearch.
 	}
 
 	// Cap at OpenSearch max_result_window default
+	truncated := false
 	if totalSpanCount > MaxSpansPerRequest {
-		log.Warn("Span count exceeds maximum, export may be truncated",
+		log.Warn("Span count exceeds maximum, export will be truncated",
 			"requestedSpans", totalSpanCount,
 			"maxSpans", MaxSpansPerRequest)
 		totalSpanCount = MaxSpansPerRequest
+		truncated = true
 	}
 
 	// Phase 2: Fetch ALL spans for each trace (no parentSpan filter)
@@ -444,6 +446,7 @@ func (s *TracingController) ExportTraces(ctx context.Context, params opensearch.
 	return &opensearch.TraceExportResponse{
 		Traces:     fullTraces,
 		TotalCount: totalCount,
+		Truncated:  truncated,
 	}, nil
 }
 
