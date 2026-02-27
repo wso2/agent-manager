@@ -120,9 +120,6 @@ export const ViewMonitorComponent: React.FC = () => {
   } = useMonitorScores(
     commonParams,
     {
-      // startTime/endTime will be overridden inside the hook when timeRange is set
-      startTime: "",
-      endTime: "",
       timeRange,
     },
   );

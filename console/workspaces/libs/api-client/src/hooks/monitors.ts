@@ -214,10 +214,8 @@ export function useMonitorScores(
   return useQuery<MonitorScoresResponse>({
     queryKey: ["monitor-scores", params, query],
     queryFn: async () => {
-      const { timeRange, ...rest } = query as MonitorScoresQueryParams & {
-        timeRange?: TraceListTimeRange;
-      };
-      let finalQuery = rest as MonitorScoresQueryParams;
+      const { timeRange, ...rest } = query;
+      let finalQuery: MonitorScoresQueryParams = rest;
       if (timeRange) {
         const { startTime, endTime } = getTimeRange(timeRange);
         finalQuery = { ...finalQuery, startTime, endTime };
@@ -245,11 +243,8 @@ export function useMonitorScoresTimeSeries(
   return useQuery<TimeSeriesResponse>({
     queryKey: ["monitor-scores-timeseries", params, query],
     queryFn: async () => {
-      const { timeRange, ...rest } =
-        query as MonitorScoresTimeSeriesQueryParams & {
-          timeRange?: TraceListTimeRange;
-        };
-      let finalQuery = rest as MonitorScoresTimeSeriesQueryParams;
+      const { timeRange, ...rest } = query;
+      let finalQuery: MonitorScoresTimeSeriesQueryParams = rest;
       if (timeRange) {
         const { startTime, endTime } = getTimeRange(timeRange);
         finalQuery = { ...finalQuery, startTime, endTime };

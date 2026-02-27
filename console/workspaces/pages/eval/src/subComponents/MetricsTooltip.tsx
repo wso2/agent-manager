@@ -28,10 +28,8 @@ type MetricsTooltipEntry = {
 
 interface MetricsTooltipProps {
   active?: boolean;
-  label?: string;
   payload?: MetricsTooltipEntry[];
   formatter?: (value: number) => string;
-  title?: string;
 }
 
 const MetricsTooltip: React.FC<MetricsTooltipProps> = ({

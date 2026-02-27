@@ -62,9 +62,6 @@ const PerformanceByEvaluatorCard:
 
         const { data: timeSeriesByEvaluator, isLoading: isFetching } =
             useMonitorScoresTimeSeriesForEvaluators(commonParams, {
-                // startTime/endTime are derived from `timeRange` inside the hook.
-                startTime: "",
-                endTime: "",
                 timeRange,
                 granularity: "hour",
                 evaluators: evaluatorNames,

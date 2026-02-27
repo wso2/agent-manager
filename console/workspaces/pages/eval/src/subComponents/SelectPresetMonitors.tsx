@@ -121,23 +121,33 @@ export function SelectPresetMonitors({
     [selectedEvaluators],
   );
 
-  // Debounce the search term before hitting the API
-  useEffect(() => {
-    const handler = debounce((value: string) => {
-      setDebouncedSearch(value);
-      setPage(0);
-    }, 1000);
+  const debouncedSetSearch = useMemo(
+    () =>
+      debounce((value: string) => {
+        setDebouncedSearch(value);
+        setPage(0);
+      }, 300),
+    [],
+  );
 
-    handler(search);
-    return () => {
-      handler.cancel();
-    };
-  }, [search]);
+  useEffect(
+    () => () => {
+      debouncedSetSearch.cancel();
+    },
+    [debouncedSetSearch],
+  );
 
   const totalItems = data?.total ?? evaluators.length;
 
-  const selectedFullEval = evaluators.filter((evaluator) =>
-    selectedEvaluatorNames.includes(getEvaluatorIdentifier(evaluator)),
+  const selectedChipEvaluators = useMemo(
+    () => {
+      const byId = new Map<string, MonitorEvaluator>();
+      selectedEvaluators.forEach((item) => {
+        byId.set(getEvaluatorIdentifier(item), item);
+      });
+      return Array.from(byId.values());
+    },
+    [selectedEvaluators],
   );
 
   const handleOpenDrawer = useCallback((evaluator: EvaluatorResponse) => {
@@ -211,7 +221,10 @@ export function SelectPresetMonitors({
               placeholder="Search evaluators"
               size="small"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                debouncedSetSearch(event.target.value);
+              }}
               disabled={isLoading}
             />
           </Stack>
@@ -223,18 +236,32 @@ export function SelectPresetMonitors({
             flexWrap="wrap"
             alignItems="center"
           >
-            {selectedFullEval.map((evaluator) => {
+            {selectedChipEvaluators.map((evaluator) => {
+              const identifier = getEvaluatorIdentifier(evaluator);
               return (
-                <Box py={0.25} key={evaluator.id}>
+                <Box py={0.25} key={identifier}>
                   <Chip
                     label={evaluator.displayName}
-                    onDelete={() => onToggleEvaluator(evaluator)}
+                    onDelete={() =>
+                      onToggleEvaluator({
+                        id: identifier,
+                        identifier,
+                        displayName: evaluator.displayName,
+                        description: "",
+                        version: "",
+                        provider: "",
+                        level: "trace",
+                        tags: [],
+                        isBuiltin: true,
+                        configSchema: [],
+                      } as EvaluatorResponse)
+                    }
                     color="primary"
                   />
                 </Box>
               );
             })}
-            {selectedFullEval.length === 0 && (
+            {selectedChipEvaluators.length === 0 && (
               <Typography variant="body2" color="text.secondary">
                 No evaluators selected yet. Click on the cards below to select.
               </Typography>

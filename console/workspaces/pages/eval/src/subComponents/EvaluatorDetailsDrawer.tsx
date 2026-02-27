@@ -181,9 +181,18 @@ function ConfigParamField({ param, value, onChange, modelOptions }: ConfigParamF
     return (
       <Form.ElementWrapper label={labelWithRequired} name={key}>
         <TextField
-        fullWidth
+          fullWidth
           type="number"
           value={numericValue ?? ""}
+          slotProps={{
+            input: {
+              inputProps: {
+                min,
+                max,
+                step: 1,
+              },
+            },
+          }}
           required={required}
           helperText={helperText}
           onChange={(event) => {
@@ -233,6 +242,15 @@ function ConfigParamField({ param, value, onChange, modelOptions }: ConfigParamF
         <TextField
           type="number"
           value={numericValue ?? ""}
+          slotProps={{
+            input: {
+              inputProps: {
+                min,
+                max,
+                step: 0.01,
+              },
+            },
+          }}
           required={required}
           helperText={helperText}
           onChange={(event) => {

@@ -267,8 +267,8 @@ export async function getMonitorScores(
   const monitor = encodeRequired(params.monitorName, "monitorName");
   const token = getToken ? await getToken() : undefined;
   const searchParams: Record<string, string> = {
-    startTime: query.startTime,
-    endTime: query.endTime,
+    startTime: query.startTime ?? "",
+    endTime: query.endTime ?? "",
   };
   if (query.evaluator) {
     searchParams.evaluator = query.evaluator;
@@ -296,8 +296,8 @@ export async function getMonitorScoresTimeSeries(
   const monitor = encodeRequired(params.monitorName, "monitorName");
   const token = getToken ? await getToken() : undefined;
   const searchParams: Record<string, string> = {
-    startTime: query.startTime,
-    endTime: query.endTime,
+    startTime: query.startTime ?? "",
+    endTime: query.endTime ?? "",
     evaluator: query.evaluator,
   };
   if (query.granularity) {
