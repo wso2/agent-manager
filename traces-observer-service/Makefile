@@ -11,16 +11,17 @@ OPEN_CHOREO_VERSION=0.14.0
 K3D_CLUSTER_NAME=openchoreo-local-v$(OPEN_CHOREO_VERSION)
 
 # Mock trace generation configuration.
-# Update these values directly in this Makefile.
-OTLP_ENDPOINT := localhost:22893
-OTLP_HTTP_PATH := /otel/v1/traces
-TRACE_SERVICE_NAME := mock-trace-generator
-TRACE_COUNT := 10
-SPANS_PER_TRACE := 2
-TRACE_WORKERS := 1
-TRACE_RATE := 1
-TRACE_DURATION := 0s
-OTLP_INSECURE := true
+# Defaults are set here; override any value on the command line:
+#   make mock-traces SPANS_PER_TRACE=5 TRACE_COUNT=20
+OTLP_ENDPOINT ?= localhost:22893
+OTLP_HTTP_PATH ?= /otel/v1/traces
+TRACE_SERVICE_NAME ?= mock-trace-generator
+TRACE_COUNT ?= 10
+SPANS_PER_TRACE ?= 10
+TRACE_WORKERS ?= 1
+TRACE_RATE ?= 1
+TRACE_DURATION ?= 0s
+OTLP_INSECURE ?= true
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
